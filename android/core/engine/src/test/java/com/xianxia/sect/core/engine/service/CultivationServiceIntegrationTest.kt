@@ -127,7 +127,7 @@ class CultivationServiceIntegrationTest {
             manualInstances = EntityStore(),
             pills = EntityStore(), materials = EntityStore(),
             herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
 
@@ -161,7 +161,7 @@ class CultivationServiceIntegrationTest {
             manualInstances = EntityStore(),
             pills = EntityStore(), materials = EntityStore(),
             herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
 
@@ -186,7 +186,7 @@ class CultivationServiceIntegrationTest {
             manualInstances = EntityStore(),
             pills = EntityStore(), materials = EntityStore(),
             herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
 

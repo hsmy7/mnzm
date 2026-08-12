@@ -91,7 +91,7 @@ class ProtoNumberCoverageTest {
             gameData = GameData(),
             disciples = emptyList(), pills = emptyList(),
             materials = emptyList(), herbs = emptyList(),
-            seeds = emptyList(), teams = emptyList()
+            seeds = emptyList()
         )
         checkEncodeDefaultCoverage("SaveData", SaveData::class, errors, defaultSaveData, "")
         assertTrue(

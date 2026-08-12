@@ -34,10 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.core.model.Physique
 import com.xianxia.sect.core.model.Affix
+import com.xianxia.sect.core.model.formatSlotTypeName
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
@@ -138,7 +138,7 @@ fun PortraitDiscipleCard(
 ) {
     val borderColor = if (isSelected) GameColors.Gold else GameColors.SurfaceLightGray
     val borderWidth = if (isSelected) 2.dp else 1.dp
-    val statusText = disciple.status.displayName
+    val statusText = disciple.statusText
 
     Box(
         modifier = Modifier
@@ -724,20 +724,6 @@ fun formatEffectKey(key: String): String {
         "defenseBonus" -> "防御加成"
         else -> key
     }
-}
-
-/** 职务类型显示名（用于 PositionBonus 文案） */
-fun formatSlotTypeName(slotType: ElderSlotType): String = when (slotType) {
-    ElderSlotType.VICE_SECT_MASTER -> "副宗主"
-    ElderSlotType.HERB_GARDEN -> "灵田长老"
-    ElderSlotType.ALCHEMY -> "炼丹长老"
-    ElderSlotType.FORGE -> "炼器长老"
-    ElderSlotType.OUTER_ELDER -> "外门长老"
-    ElderSlotType.PREACHING -> "传道长老"
-    ElderSlotType.LAW_ENFORCEMENT -> "执法长老"
-    ElderSlotType.INNER_ELDER -> "内门长老"
-    ElderSlotType.RECRUITING -> "纳徒长老"
-    ElderSlotType.CLOUD_PREACHING -> "青云传道长老"
 }
 
 /** 格式化百分比数值：传入小数（如 0.15），输出 "15%" 或 "15.5%" */

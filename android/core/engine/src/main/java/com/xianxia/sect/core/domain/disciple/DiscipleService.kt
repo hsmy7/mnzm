@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.model.storageBagItems
@@ -264,16 +263,6 @@ class DiscipleService @Inject constructor(
      * Clear disciple from all slots and assignments
      */
     fun clearDiscipleFromAllSlots(discipleId: String) = discipleSlotManager.clearDiscipleFromAllSlots(discipleId)
-
-    /**
-     * Check if disciple is in exploration team
-     */
-    private fun _isInExploration(discipleId: String): Boolean {
-        return stateStore.teams.value.any { team ->
-            team.memberIds.contains(discipleId) &&
-            (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING || team.status == ExplorationStatus.SCOUTING || team.status == ExplorationStatus.DANGER)
-        }
-    }
 
     /**
      * Check if disciple is in cave exploration team

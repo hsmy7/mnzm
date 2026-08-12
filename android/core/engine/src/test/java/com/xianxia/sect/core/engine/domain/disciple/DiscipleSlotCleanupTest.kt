@@ -16,7 +16,6 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveExplorationTeam
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
@@ -363,27 +362,11 @@ class DiscipleSlotCleanupTest {
         assertEquals("成员名同步过滤", listOf("Survivor"), mission.discipleNames)
     }
 
-    // ---- 2026-08-10：state 级方法（Gate + GameData + 世界地图探索队 teams）----
-
-    @Test
-    fun clearAllSlotsState_teamSingleMember_deletesEmptyTeam() {
-        val state = mutableStateWithTeams(listOf(testDiscipleId))
-        cleanup.clearAllSlotsState(state, testDiscipleId, includeResidence = true)
-        assertTrue("空探索队应整体删除", state.teams.isEmpty())
-    }
-
-    @Test
-    fun clearAllSlotsState_teamMultipleMembers_removesDeadKeepsSurvivors() {
-        val survivor = "survivor_1"
-        val state = mutableStateWithTeams(listOf(testDiscipleId, survivor))
-        cleanup.clearAllSlotsState(state, testDiscipleId, includeResidence = true)
-        assertEquals("剩余成员保留在队中", listOf(survivor), state.teams[0].memberIds)
-        assertEquals("成员名同步过滤", listOf("Survivor"), state.teams[0].memberNames)
-    }
+    // ---- 2026-08-10：state 级方法（Gate + GameData）----
 
     @Test
     fun clearAllSlotsState_releasesAssignmentGate() {
-        val state = mutableStateWithTeams(emptyList())
+        val state = mutableState()
         val gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
         gate.manualRegister(
             testDiscipleId,
@@ -398,25 +381,21 @@ class DiscipleSlotCleanupTest {
         assertFalse("Gate 注册表应释放", gate.isAssigned(testDiscipleId))
     }
 
-    private fun mutableStateWithTeams(memberIds: List<String>): MutableGameState {
-        val memberNames = memberIds.mapIndexed { i, _ -> if (i == 0) "Test" else "Survivor" }
-        return MutableGameState(
-            gameData = GameData(),
-            discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(),
-            equipmentInstances = EntityStore(),
-            manualStacks = EntityStore(),
-            manualInstances = EntityStore(),
-            pills = EntityStore(),
-            materials = EntityStore(),
-            herbs = EntityStore(),
-            seeds = EntityStore(),
-            storageBags = EntityStore(),
-            teams = listOf(ExplorationTeam(id = "t1", memberIds = memberIds, memberNames = memberNames)),
-            battleLogs = emptyList(),
-            isPaused = false,
-            isLoading = false,
-            isSaving = false
-        )
-    }
+    private fun mutableState(): MutableGameState = MutableGameState(
+        gameData = GameData(),
+        discipleTables = DiscipleTables(),
+        equipmentStacks = EntityStore(),
+        equipmentInstances = EntityStore(),
+        manualStacks = EntityStore(),
+        manualInstances = EntityStore(),
+        pills = EntityStore(),
+        materials = EntityStore(),
+        herbs = EntityStore(),
+        seeds = EntityStore(),
+        storageBags = EntityStore(),
+        battleLogs = emptyList(),
+        isPaused = false,
+        isLoading = false,
+        isSaving = false
+    )
 }

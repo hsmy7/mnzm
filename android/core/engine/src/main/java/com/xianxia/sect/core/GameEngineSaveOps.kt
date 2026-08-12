@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -35,8 +34,8 @@ suspend fun GameEngine.loadFromSave(
     loadedGameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
     equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,
     manualInstances: List<ManualInstance>, pills: List<Pill>, materials: List<Material>,
-    herbs: List<Herb>, seeds: List<Seed>, battleLogs: List<BattleLog>, teams: List<ExplorationTeam>
-) = saveFacade.loadFromSave(loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills, materials, herbs, seeds, battleLogs, teams)
+    herbs: List<Herb>, seeds: List<Seed>, battleLogs: List<BattleLog>
+) = saveFacade.loadFromSave(loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills, materials, herbs, seeds, battleLogs)
 fun GameEngine.validateState(): List<String> = saveFacade.validateState()
 fun GameEngine.getStateStatistics(): Map<String, Any> = saveFacade.getStateStatistics()
 fun GameEngine.isGameStarted(): Boolean = stateStore.runState.value == RunState.PLAYING

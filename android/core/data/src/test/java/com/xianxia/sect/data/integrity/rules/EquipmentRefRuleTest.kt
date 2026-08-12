@@ -97,6 +97,6 @@ class EquipmentRefRuleTest {
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
         disciples = disciples, equipmentStacks = stacks, equipmentInstances = instances,
         pills = emptyList(), materials = emptyList(), herbs = emptyList(),
-        seeds = emptyList(), teams = emptyList()
+        seeds = emptyList()
     )
 }

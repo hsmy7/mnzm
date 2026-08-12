@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventRecord
@@ -37,7 +36,6 @@ data class MutableGameState(
     var herbs: EntityStore<Herb>,
     var seeds: EntityStore<Seed>,
     var storageBags: EntityStore<StorageBag>,
-    var teams: List<ExplorationTeam>,
     var battleLogs: List<BattleLog>,
     var isPaused: Boolean,
     var isLoading: Boolean,

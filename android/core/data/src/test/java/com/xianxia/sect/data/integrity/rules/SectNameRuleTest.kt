@@ -30,7 +30,7 @@ class SectNameRuleTest {
         val data = SaveData(
             gameData = GameData(sectName = "", gameYear = 1, gameMonth = 1),
             disciples = emptyList(), pills = emptyList(), materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
@@ -42,7 +42,7 @@ class SectNameRuleTest {
         val data = SaveData(
             gameData = GameData(sectName = "   ", gameYear = 1, gameMonth = 1),
             disciples = emptyList(), pills = emptyList(), materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
@@ -54,7 +54,7 @@ class SectNameRuleTest {
         val data = SaveData(
             gameData = GameData(sectName = "青云宗", gameYear = 1, gameMonth = 1),
             disciples = emptyList(), pills = emptyList(), materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
@@ -64,7 +64,7 @@ class SectNameRuleTest {
         val data = SaveData(
             gameData = GameData(sectName = "A".repeat(10000), gameYear = 1, gameMonth = 1),
             disciples = emptyList(), pills = emptyList(), materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Passed || result is IntegrityResult.Repaired)

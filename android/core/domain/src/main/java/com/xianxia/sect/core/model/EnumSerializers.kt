@@ -9,15 +9,6 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 /**
- * ExplorationStatus ↔ String 序列化器（用于 Protobuf 向后兼容）。
- */
-object ExplorationStatusAsStringSerializer : KSerializer<ExplorationStatus> {
-    override val descriptor = PrimitiveSerialDescriptor("ExplorationStatus", PrimitiveKind.STRING)
-    override fun serialize(encoder: Encoder, value: ExplorationStatus) = encoder.encodeString(value.name)
-    override fun deserialize(decoder: Decoder): ExplorationStatus = safeValueOf(decoder.decodeString(), ExplorationStatus.TRAVELING)
-}
-
-/**
  * BattleType ↔ String 序列化器。
  */
 object BattleTypeAsStringSerializer : KSerializer<BattleType> {

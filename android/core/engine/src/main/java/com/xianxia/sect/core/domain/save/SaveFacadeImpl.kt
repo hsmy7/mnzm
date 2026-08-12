@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -97,7 +96,6 @@ class SaveFacadeImpl @Inject constructor(
             herbs = stateStore.herbsSnapshot,
             seeds = stateStore.seedsSnapshot,
             storageBags = stateStore.storageBagsSnapshot,
-            teams = stateStore.teamsSnapshot,
             battleLogs = stateStore.battleLogsSnapshot,
             alliances = stateStore.gameDataSnapshot.alliances,
             productionSlots = productionCoordinator.repository.getSlots()
@@ -123,7 +121,6 @@ class SaveFacadeImpl @Inject constructor(
             herbs = stateStore.herbsSnapshot,
             seeds = stateStore.seedsSnapshot,
             storageBags = stateStore.storageBagsSnapshot,
-            teams = stateStore.teamsSnapshot,
             battleLogs = stateStore.battleLogsSnapshot,
             alliances = gd.alliances,
             productionSlots = productionCoordinator.repository.getSlots()
@@ -141,11 +138,10 @@ class SaveFacadeImpl @Inject constructor(
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
-        battleLogs: List<BattleLog>,
-        teams: List<ExplorationTeam>
+        battleLogs: List<BattleLog>
     ) = saveService.loadFromSave(
         loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills,
-        materials, herbs, seeds, battleLogs, teams
+        materials, herbs, seeds, battleLogs
     )
 
     override fun validateState(): List<String> = saveService.validateState()

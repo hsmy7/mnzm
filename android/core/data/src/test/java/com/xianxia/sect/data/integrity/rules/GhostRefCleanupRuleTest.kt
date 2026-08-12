@@ -36,7 +36,7 @@ class GhostRefCleanupRuleTest {
             placedBuildings = listOf(bld), residenceSlots = listOf(slot))
         val data = SaveData(gameData = gd, disciples = listOf(ghost),
             pills = emptyList(), materials = emptyList(), herbs = emptyList(),
-            seeds = emptyList(), teams = emptyList())
+            seeds = emptyList())
         val resultr = SaveValidator.validate(data)
         assertTrue(resultr is IntegrityResult.Repaired)
         val r = resultr as IntegrityResult.Repaired
@@ -60,7 +60,7 @@ class GhostRefCleanupRuleTest {
             placedBuildings = listOf(bld), residenceSlots = listOf(orphanSlot, validSlot))
         val data = SaveData(gameData = gd, disciples = listOf(ghost, valid),
             pills = emptyList(), materials = emptyList(), herbs = emptyList(),
-            seeds = emptyList(), teams = emptyList())
+            seeds = emptyList())
         val resultr = SaveValidator.validate(data)
         assertTrue(resultr is IntegrityResult.Repaired)
         val r = resultr as IntegrityResult.Repaired

@@ -37,7 +37,7 @@ class SecretRealmSerializationTest {
             ),
             disciples = emptyList(), pills = emptyList(),
             materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(
             serializer<SaveData>(), save)
@@ -145,7 +145,7 @@ class SecretRealmSerializationTest {
             ),
             disciples = emptyList(), pills = emptyList(),
             materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(
             serializer<SaveData>(), save)
@@ -251,7 +251,7 @@ class SecretRealmSerializationTest {
             gameData = com.xianxia.sect.core.model.GameData(secretRealmSession = session),
             disciples = emptyList(), pills = emptyList(),
             materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), save)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
@@ -321,7 +321,7 @@ class SecretRealmSerializationTest {
             gameData = com.xianxia.sect.core.model.GameData(secretRealmAITeams = aiTeams),
             disciples = emptyList(), pills = emptyList(),
             materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), save)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
@@ -341,7 +341,7 @@ class SecretRealmSerializationTest {
             gameData = com.xianxia.sect.core.model.GameData(),
             disciples = emptyList(), pills = emptyList(),
             materials = emptyList(),
-            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+            herbs = emptyList(), seeds = emptyList()
         )
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(
             serializer<SaveData>(), save)

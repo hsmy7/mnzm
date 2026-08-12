@@ -73,10 +73,10 @@ fun PatrolTowerDialog(
     val assignedIds = slots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
     val discipleMap = disciples.associateBy { it.id }
     val showAllEnabled = gd.showAllAvailableDisciples
-    val battleAndExplorationIds = remember(gd, viewModel.teams) {
+    val battleAndExplorationIds = remember(gd) {
         val allBattleIds = gd.battleTeams.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } }
-        val allExplorationIds = viewModel.teams.value.flatMap { it.memberIds }
-        (allBattleIds + allExplorationIds).toSet()
+        val allCaveExplorationIds = gd.caveExplorationTeams.flatMap { it.memberIds }
+        (allBattleIds + allCaveExplorationIds).toSet()
     }
     val availableDisciples = remember(allSlots, disciples, towerIndex) {
         disciples.filter { it.isAlive && it.id !in assignedIds }

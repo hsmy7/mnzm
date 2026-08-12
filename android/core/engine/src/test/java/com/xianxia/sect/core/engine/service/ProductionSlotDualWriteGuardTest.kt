@@ -12,8 +12,6 @@ import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.ExplorationStatus
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.model.LibrarySlot
@@ -311,25 +309,6 @@ class ProductionSlotDualWriteGuardTest {
             )
         }
         assertNull("血炼占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
-    }
-
-    @Test
-    fun `processAutoAssign - 探索队伍占用的 IDLE 弟子不被排班`() = runTest {
-        val processor = newProcessorWithHerbSlot()
-        writeIdleDualRootDisciple(id = 1, name = "弟子A", planting = 50)
-        store.update {
-            gameData = gameData.copy(productionSlots = listOf(emptyHerbSlot()))
-            // 探索队伍在 MutableGameState.teams（非 GameData），单独写入
-            teams = listOf(
-                ExplorationTeam(memberIds = listOf(DISCIPLE_A), status = ExplorationStatus.EXPLORING)
-            )
-        }
-
-        store.update { processor.processAutoAssign(this) }
-
-        val herbSlot = store.latestGameData.productionSlots
-            .find { it.buildingType == BuildingType.HERB_GARDEN }
-        assertNull("探索队伍占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
     }
 
     @Test

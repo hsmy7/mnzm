@@ -1896,12 +1896,11 @@ class GameEngineCore @Inject constructor(
             materials = stateStore.materials.value,
             herbs = stateStore.herbs.value,
             seeds = stateStore.seeds.value,
-            teams = stateStore.teams.value,
             battleLogs = stateStore.battleLogs.value,
             alliances = currentData.alliances
         )
     }
-    
+
     suspend fun loadSnapshot(snapshot: GameStateSnapshot) {
         stateStore.loadFromSnapshot(
             gameData = snapshot.gameData,
@@ -1915,7 +1914,6 @@ class GameEngineCore @Inject constructor(
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
             storageBags = snapshot.storageBags,
-            teams = snapshot.teams,
             battleLogs = snapshot.battleLogs
         )
     }

@@ -16,6 +16,23 @@
 - **途中发现（已删除，用户指示一并解决）** — ① `ProductionViewModel.getAvailableDisciplesForLawEnforcementElder/Disciple` 无调用点（死代码），已删除方法本体 + `sortedByFollowAndRealm` import；② `ProductionComponents.kt` `ProductionTheme.directDiscipleEligibility` 字段无读取点（死字段），已删除字段定义 + `HERB_GARDEN_THEME` 覆写 + `DiscipleStatus` import
 - **兼容性** — 纯 UI 数据源变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；版本号不递增（changelog 双入口已同步，4.00.96 changes 追加 1 条玩家视角描述）
 
+### 新增（2026-08-12 弟子状态文案重构 + 详情卸任按钮）
+
+- **状态文案按槽位细分（核心）** — `DiscipleStatus` 枚举末尾追加 `SECRET_REALM`（远古秘境中）/ `WAREHOUSE_GARRISON`（仓库驻守中）（String name 持久化，追加兼容）；displayName 全面细化：灵矿场矿工/灵矿执事/藏经阁弟子/传道弟子/执法弟子/炼丹弟子/锻造弟子/灵植弟子/血炼池中/监牢中/巡视塔中/执行任务中/远古秘境中/仓库驻守中（MANAGING 保持"管理中"，职位名走派生）；`ElderSlots.resolvePositionName`（10 长老槽位 + 3 弟子列表，空串守卫）解析职位名；`DiscipleStatusService.writePositionName` 派生 `statusData["positionName"]`（仅 MANAGING 写、仅值变化时写防脏列、非 MANAGING 定向 `-` 保留血炼 buildingId/思过 key）；`DiscipleAggregate.statusText` 计算属性 UI 单点消费（PortraitDiscipleCard + 详情头 2 处 `displayName` → `statusText`）；`SlotFlags` 增 `inWarehouseGarrison`/`inSecretRealm`，derive 链插入（新链：死亡→任务→保护→秘境→仓库驻守→据点驻守→队伍→…）
+- **隐藏状态集合维护（防行为回归）** — `ExplorationService.BEAST_DEFENDER_EXCLUDE_STATUSES` + `PlayerDefenseProcessor` 内联集合加 SECRET_REALM/WAREHOUSE_GARRISON（秘境/仓库驻守弟子不参与妖兽防守）；`LawEnforcementProcessor.DESERTION_IMMUNE_STATUSES` 加 SECRET_REALM、**不加** WAREHOUSE_GARRISON（仓库驻守可叛逃，与 GARRISONING 现状一致）
+- **过滤语义** — `filterByDiscipleStatus` showAll 分支追加排除 `SECRET_REALM`（拆分后秘境成员不再被 IN_TEAM 排除，漏排除会在"显示所有"弹窗可被误分配——回归）；WAREHOUSE_GARRISON 保持可见（与 GARRISONING 一致）
+- **卸任按钮** — 新纯函数 `ResignGate.kt`（sealed `ResignGateResult`：Disabled/CanResign/ConfirmRequired(message)/Blocked(message)，`evaluateResignGate(status, isAlive)` 17 状态穷尽）；详情右侧按钮行末尾"卸任"胶囊按钮（空闲/死亡置灰）；分流：血炼/监牢 → `StandardPromptDialog` 二次确认（血炼文案明示"视为血炼失败且不返还材料"/监牢"是否释放？"），任务/秘境/队伍 → 提示不可卸任，其余 → `releaseDiscipleForReassignment` 直接卸任（复用既有三分流：REFLECTING→releaseReflectionDisciple、REFINING→cancelBloodRefinement、其他→releaseDiscipleFromAllSlotsAtomic）
+- **测试** — 新 `ElderSlotsPositionNameTest`（16 用例：10 长老 + 3 弟子 + 冲突优先级 + 非 MANAGING 槽位 null + 空串）、`ResignGateTest`（全分支 + 穷尽守卫 + sealed 四态 when 穷尽）；`DiscipleStatusServiceTest` +8（仓库独立标记/秘境优先/受保护不被新状态覆盖/allTrue 返回 SECRET_REALM）；`StatusDerivationCoverageTest` STATUS_TO_SLOT_FLAG +2 映射（反射守卫强制同步）；`DiscipleFilterUtilsTest` +4（showAll 排除 SECRET_REALM/仓库可见/IDLE-only/战斗集合）；全部通过（engine 2473 / domain 1699 / data / app / feature:game）
+- **兼容性** — 枚举追加（name 持久化）+ statusData 新派生 key，无 Entity/Migration 变更（DATABASE_VERSION 保持 45）；旧档读入后秘境/仓库驻守弟子经首次 syncAll 自动推导新状态；版本号不递增（changelog 双入口已同步，4.00.96 changes 追加 2 条玩家视角描述）
+
+### 移除（2026-08-12 世界地图探索队完全清理）
+
+- **死代码全链路删除** — 世界探索队（功能早已移除）残留代码彻底清理：`ExplorationTeam`/`ExplorationStatus`/`ExplorationTeamManager`/`ExplorationCompletedEvent`/`ExplorationStatusAsStringSerializer` 删除；`SaveData.teams`（@ProtoNumber(11)）删除（ProtoBuf 未知字段天然跳过，旧档可读）；`GameStateStoreImpl` 10 处 + `GameViewModel.teams` StateFlow + `SettingsDelegate.battleAndExplorationIds` 改用 `caveExplorationTeams` 等全触点收敛；`changelog_entries.json` 同步
+- **Migration 44→45** — `GameDatabaseMigrationsV45.kt`（`DROP TABLE IF EXISTS exploration_teams`）+ `45.json` schema + `RoomMigrationTest` 2 新用例（真实 Room 校验 + 数据保真删除验证 + v11 全链路补测 + SEED_DISCIPLES_V44）；DATABASE_VERSION 44→45
+- **保留对照（未误伤）** — 洞府探索队（`CaveExplorationTeam`/`caveExplorationTeams`/`CaveExplorationProcessor`）原样保留；`ExplorationService` 活跃方法（妖兽袭击/巡视结算）保留；`SlotCategory.EXPLORATION_TEAM` 被秘境复用保留
+- **测试** — `ExplorationTeamManagerTest` 整删；30+ 测试文件 teams 参数清理；`ResolveBeastAttackFightTest`/`StorageConstantsTest`/`GameStateStore*Test`/`StateRevertRegressionTest` 等专项清理；全量通过
+- **兼容性** — 存档格式变更（删 ProtoBuf 字段，旧档跳过未知字段兼容）；Room Migration 44→45；全仓 grep 零残留（仅迁移实现与其测试保留）
+
 ## [4.00.95] - 2026-08-12
 
 ### 新增（2026-08-12 聚合广告接入爱奇艺 / 百青藤两个广告网络）

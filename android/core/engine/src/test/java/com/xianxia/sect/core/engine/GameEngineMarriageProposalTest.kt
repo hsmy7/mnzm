@@ -11,7 +11,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -224,7 +223,6 @@ private class MarriageProposalTestStore : GameStateStore {
     override val seeds = MutableStateFlow<List<Seed>>(emptyList())
     override val storageBags = MutableStateFlow<List<StorageBag>>(emptyList())
     override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
-    override val teams = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     override val isPaused = MutableStateFlow(false)
     override val isLoading = MutableStateFlow(false)
     override val isSaving = MutableStateFlow(false)
@@ -251,7 +249,6 @@ private class MarriageProposalTestStore : GameStateStore {
     override val seedsSnapshot: List<Seed> get() = seeds.value
     override val storageBagsSnapshot: List<StorageBag> get() = storageBags.value
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
-    override val teamsSnapshot: List<ExplorationTeam> get() = teams.value
     override val warehouseFullEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
     override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
     override val lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
@@ -306,8 +303,7 @@ private class MarriageProposalTestStore : GameStateStore {
         seeds = EntityStore(),
         storageBags = EntityStore(),
         battleLogs = emptyList(),
-        teams = emptyList(),
-        isPaused = false,
+                isPaused = false,
         isLoading = false,
         isSaving = false,
         pendingNotification = null,
@@ -369,7 +365,7 @@ private class MarriageProposalTestStore : GameStateStore {
         manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,
         pills: List<Pill>, materials: List<Material>, herbs: List<Herb>,
         seeds: List<Seed>, storageBags: List<StorageBag>,
-        teams: List<ExplorationTeam>, battleLogs: List<BattleLog>,
+        battleLogs: List<BattleLog>,
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
     ) {}
 

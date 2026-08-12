@@ -208,13 +208,6 @@ data class AllianceDissolvedEvent(
     override val type: String = "alliance_dissolved"
 ) : DomainEvent
 
-data class ExplorationCompletedEvent(
-    val teamId: String,
-    val success: Boolean,
-    val survivorCount: Int = 0,
-    override val type: String = "exploration_completed"
-) : DomainEvent
-
 interface DomainEventSubscriber {
     fun onEvent(event: DomainEvent)
     val subscribedTypes: Set<String>

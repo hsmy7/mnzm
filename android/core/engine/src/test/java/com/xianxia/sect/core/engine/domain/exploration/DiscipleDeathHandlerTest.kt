@@ -35,8 +35,7 @@ class DiscipleDeathHandlerTest {
         herbs = com.xianxia.sect.core.state.EntityStore(emptyList()),
         seeds = com.xianxia.sect.core.state.EntityStore(emptyList()),
         storageBags = com.xianxia.sect.core.state.EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
+                battleLogs = emptyList(),
         isPaused = false,
         isLoading = false,
         isSaving = false

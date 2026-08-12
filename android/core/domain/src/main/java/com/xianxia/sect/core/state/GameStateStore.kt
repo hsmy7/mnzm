@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
@@ -46,7 +45,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     val seeds: StateFlow<List<Seed>>
     val storageBags: StateFlow<List<StorageBag>>
     val battleLogs: StateFlow<List<BattleLog>>
-    val teams: StateFlow<List<ExplorationTeam>>
     val isPaused: StateFlow<Boolean>
     val isLoading: StateFlow<Boolean>
     val isSaving: StateFlow<Boolean>
@@ -80,7 +78,6 @@ interface GameStateStore : GameStateSnapshotProvider {
         val herbs: List<Herb> = emptyList(),
         val seeds: List<Seed> = emptyList(),
         val storageBags: List<StorageBag> = emptyList(),
-        val teams: List<ExplorationTeam> = emptyList(),
         val battleLogs: List<BattleLog> = emptyList()
     )
 
@@ -272,7 +269,6 @@ interface GameStateStore : GameStateSnapshotProvider {
         val herbs: List<Herb> = emptyList(),
         val seeds: List<Seed> = emptyList(),
         val storageBags: List<StorageBag> = emptyList(),
-        val teams: List<ExplorationTeam> = emptyList(),
         val battleLogs: List<BattleLog> = emptyList()
     )
 
@@ -303,7 +299,6 @@ interface GameStateStore : GameStateSnapshotProvider {
         herbs: List<Herb>,
         seeds: List<Seed>,
         storageBags: List<StorageBag> = emptyList(),
-        teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>,
         isPaused: Boolean = true,
         isLoading: Boolean = false,

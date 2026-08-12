@@ -74,6 +74,5 @@ class GameDateRuleTest {
     private fun saveDataWith(gd: GameData) = SaveData(
         gameData = gd, disciples = emptyList(), pills = emptyList(),
         materials = emptyList(), herbs = emptyList(), seeds = emptyList(),
-        teams = emptyList()
-    )
+            )
 }

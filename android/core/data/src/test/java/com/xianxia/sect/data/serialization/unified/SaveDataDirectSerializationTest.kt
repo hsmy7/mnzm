@@ -25,8 +25,7 @@ class SaveDataDirectSerializationTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-        )
+                    )
 
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
@@ -57,8 +56,7 @@ class SaveDataDirectSerializationTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-        )
+                    )
 
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
@@ -94,8 +92,7 @@ class SaveDataDirectSerializationTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-        )
+                    )
 
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
@@ -120,8 +117,7 @@ class SaveDataDirectSerializationTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-        )
+                    )
         val base = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), original)
 
         // 追加一个未知字段（字段号 999，wire type 2 length-delimited，payload "TEST"）：

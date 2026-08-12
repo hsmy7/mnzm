@@ -83,8 +83,7 @@ class ElderSlotsStatusCoverageTest {
         for ((fieldName, slots) in SLOT_SAMPLES) {
             val collected = buildOccupiedSlotDiscipleIds(
                 data = GameData(elderSlots = slots),
-                teams = emptyList()
-            )
+                            )
             assertTrue(
                 "ElderSlots.$fieldName 持人时 buildOccupiedSlotDiscipleIds 必须收集该弟子" +
                     "（实际 $collected）——月度自动排班互斥化（collectElderSlotDiscipleIds）" +

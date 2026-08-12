@@ -5,7 +5,6 @@ import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.DiscipleTables
@@ -44,10 +43,6 @@ class DiscipleLifecycleManager @Inject constructor(
 
     companion object {
         private const val TAG = "DiscipleLifecycleManager"
-        private val explorationStatuses = setOf(
-            ExplorationStatus.TRAVELING, ExplorationStatus.EXPLORING,
-            ExplorationStatus.SCOUTING, ExplorationStatus.DANGER
-        )
         private val caveExplorationStatuses = setOf(
             CaveExplorationStatus.TRAVELING, CaveExplorationStatus.EXPLORING
         )
@@ -193,8 +188,7 @@ class DiscipleLifecycleManager @Inject constructor(
             currentStatus = status,
             slotFlags = DiscipleStatusService.buildSlotFlagsFor(
                 discipleId = discipleId,
-                data = data,
-                activeTeams = stateStore.teams.value
+                data = data
             )
         )
     }
@@ -269,16 +263,6 @@ class DiscipleLifecycleManager @Inject constructor(
     }
 
     // ==================== 辅助方法 ====================
-
-    /**
-     * Check if disciple is in exploration team
-     */
-    private fun _isInExploration(discipleId: String): Boolean {
-        return stateStore.teams.value.any { team ->
-            team.memberIds.contains(discipleId) &&
-            (team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING || team.status == ExplorationStatus.SCOUTING || team.status == ExplorationStatus.DANGER)
-        }
-    }
 
     /**
      * Check if disciple is in cave exploration team

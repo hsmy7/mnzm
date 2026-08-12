@@ -41,10 +41,12 @@ class StatusDerivationCoverageTest {
      * 每个可推导状态 → 对应的 [SlotFlags] 字段名。
      * 枚举值名转换为驼峰 field 名（首字母小写）。
      */
-    private val STATUS_TO_SLOT_FLAG: Map<DiscipleStatus, String> = mapOf(
+    private val statusToSlotFlag: Map<DiscipleStatus, String> = mapOf(
         DiscipleStatus.IDLE to "",  // IDLE 是 else 分支，无对应 flag
         DiscipleStatus.GARRISONING to "inGarrison",
+        DiscipleStatus.WAREHOUSE_GARRISON to "inWarehouseGarrison",
         DiscipleStatus.IN_TEAM to "inTeam",
+        DiscipleStatus.SECRET_REALM to "inSecretRealm",
         DiscipleStatus.LAW_ENFORCING to "lawEnforcing",
         DiscipleStatus.PREACHING to "preaching",
         DiscipleStatus.DEACONING to "deaconing",
@@ -68,7 +70,7 @@ class StatusDerivationCoverageTest {
             .filter { it != DiscipleStatus.IDLE }  // IDLE = else 分支
 
         val missing = derivedStatuses.filter { status ->
-            val expectedField = STATUS_TO_SLOT_FLAG[status]
+            val expectedField = statusToSlotFlag[status]
             expectedField != null && expectedField !in slotFlagsFields
         }
 
@@ -102,7 +104,7 @@ class StatusDerivationCoverageTest {
             .toSet()
 
         // 这些是 deriveDiscipleStatus 的 when 分支中检查的 flag（不含 else=IDLE）
-        val coveredFlags = STATUS_TO_SLOT_FLAG.values.filter { it.isNotEmpty() }.toSet()
+        val coveredFlags = statusToSlotFlag.values.filter { it.isNotEmpty() }.toSet()
 
         val uncovered = slotFlagsFields - coveredFlags
 
@@ -112,7 +114,7 @@ class StatusDerivationCoverageTest {
                |
                |请检查：
                |  1. 是否需要在 deriveDiscipleStatus 中添加分支？
-               |  2. 如果该字段不用于推导（辅助用途），在 STATUS_TO_SLOT_FLAG 映射表中添加排除""".trimMargin(),
+               |  2. 如果该字段不用于推导（辅助用途），在 statusToSlotFlag 映射表中添加排除""".trimMargin(),
             uncovered.isEmpty()
         )
     }
@@ -123,12 +125,12 @@ class StatusDerivationCoverageTest {
             .map { it.name }
             .toSet()
 
-        // STATUS_TO_SLOT_FLAG 中列出的所有 flag 必须在 SlotFlags 中存在
-        val referencedFlags = STATUS_TO_SLOT_FLAG.values.filter { it.isNotEmpty() }.toSet()
+        // statusToSlotFlag 中列出的所有 flag 必须在 SlotFlags 中存在
+        val referencedFlags = statusToSlotFlag.values.filter { it.isNotEmpty() }.toSet()
         val missingFields = referencedFlags - slotFlagsFields
 
         assertTrue(
-            """|STATUS_TO_SLOT_FLAG 引用了以下字段，但 SlotFlags 中不存在：
+            """|statusToSlotFlag 引用了以下字段，但 SlotFlags 中不存在：
                |$missingFields
                |
                |请在 SlotFlags 中添加对应的字段声明""".trimMargin(),
@@ -137,16 +139,16 @@ class StatusDerivationCoverageTest {
     }
 
     @Test
-    fun `all DiscipleStatus values are documented in STATUS_TO_SLOT_FLAG`() {
-        val documented = STATUS_TO_SLOT_FLAG.keys + NON_DERIVED_STATUSES
+    fun `all DiscipleStatus values are documented in statusToSlotFlag`() {
+        val documented = statusToSlotFlag.keys + NON_DERIVED_STATUSES
         val all = DiscipleStatus.values().toSet()
         val undocumented = all - documented
 
         assertTrue(
-            """|以下 DiscipleStatus 既不在 NON_DERIVED_STATUSES 中，也不在 STATUS_TO_SLOT_FLAG 中：
+            """|以下 DiscipleStatus 既不在 NON_DERIVED_STATUSES 中，也不在 statusToSlotFlag 中：
                |$undocumented
                |
-               |请将新状态加入 STATUS_TO_SLOT_FLAG（如果是可推导状态）或
+               |请将新状态加入 statusToSlotFlag（如果是可推导状态）或
                |NON_DERIVED_STATUSES（如果是受保护/特殊状态）。""".trimMargin(),
             undocumented.isEmpty()
         )

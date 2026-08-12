@@ -42,8 +42,8 @@ class SettingsDelegate(
             val battleIds = data.battleTeams.flatMap { t ->
                 t.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) }
             }
-            val explorationIds = gameEngine.teams.value?.flatMap { it.memberIds } ?: emptyList()
-            return (battleIds + explorationIds).toSet()
+            val caveExplorationIds = data.caveExplorationTeams.flatMap { it.memberIds }
+            return (battleIds + caveExplorationIds).toSet()
         }
 
     fun setActiveTab(tab: String) { gameEngine.setActiveTab(tab) }

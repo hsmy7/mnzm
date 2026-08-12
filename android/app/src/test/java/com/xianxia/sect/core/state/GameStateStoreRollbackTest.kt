@@ -134,7 +134,6 @@ class GameStateStoreRollbackTest {
         emptyList<com.xianxia.sect.core.model.Herb>(),
         emptyList<com.xianxia.sect.core.model.Seed>(),
         emptyList<com.xianxia.sect.core.model.StorageBag>(),
-        emptyList<com.xianxia.sect.core.model.ExplorationTeam>(),
         emptyList<com.xianxia.sect.core.model.BattleLog>(),
         false, false, false
     )
@@ -167,11 +166,10 @@ class GameStateStoreRollbackTest {
                 herbs = args[8] as List<com.xianxia.sect.core.model.Herb>,
                 seeds = args[9] as List<com.xianxia.sect.core.model.Seed>,
                 storageBags = args[10] as List<com.xianxia.sect.core.model.StorageBag>,
-                teams = args[11] as List<com.xianxia.sect.core.model.ExplorationTeam>,
-                battleLogs = args[12] as List<com.xianxia.sect.core.model.BattleLog>,
-                isPaused = args[13] as Boolean,
-                isLoading = args[14] as Boolean,
-                isSaving = args[15] as Boolean
+                battleLogs = args[11] as List<com.xianxia.sect.core.model.BattleLog>,
+                isPaused = args[12] as Boolean,
+                isLoading = args[13] as Boolean,
+                isSaving = args[14] as Boolean
             )
             fail("loadFromSnapshot 应抛出模拟异常")
         } catch (e: IllegalStateException) {
@@ -298,7 +296,6 @@ class GameStateStoreRollbackTest {
             herbs = emptyList(),
             seeds = emptyList(),
             storageBags = emptyList(),
-            teams = emptyList(),
             battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )

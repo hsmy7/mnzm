@@ -2,12 +2,10 @@ package com.xianxia.sect.core.repository
 
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BuildingSlot
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.Recipe
 import com.xianxia.sect.core.model.RecipeType
 import com.xianxia.sect.data.local.BattleLogDao
 import com.xianxia.sect.data.local.BuildingSlotDao
-import com.xianxia.sect.data.local.ExplorationTeamDao
 import com.xianxia.sect.data.local.RecipeDao
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
@@ -15,7 +13,6 @@ import javax.inject.Singleton
 
 @Singleton
 class WorldRepositoryImpl @Inject constructor(
-    private val explorationTeamDao: ExplorationTeamDao,
     private val buildingSlotDao: BuildingSlotDao,
     private val recipeDao: RecipeDao,
     private val battleLogDao: BattleLogDao
@@ -23,20 +20,6 @@ class WorldRepositoryImpl @Inject constructor(
     companion object {
         const val DEFAULT_SLOT_ID = 0
     }
-
-    // ==================== ExplorationTeam ====================
-
-    override fun getTeams(slotId: Int): Flow<List<ExplorationTeam>> =
-        explorationTeamDao.getAll(slotId)
-
-    override fun getActiveTeams(slotId: Int): Flow<List<ExplorationTeam>> =
-        explorationTeamDao.getActive(slotId)
-
-    override suspend fun getTeamById(id: String, slotId: Int): ExplorationTeam? =
-        explorationTeamDao.getById(slotId, id)
-
-    override suspend fun getAllTeamsSync(slotId: Int): List<ExplorationTeam> =
-        explorationTeamDao.getAllSync(slotId)
 
     // ==================== BuildingSlot ====================
 

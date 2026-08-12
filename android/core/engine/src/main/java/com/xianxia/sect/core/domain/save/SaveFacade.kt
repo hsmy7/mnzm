@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -35,8 +34,7 @@ interface SaveFacade {
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
-        battleLogs: List<BattleLog>,
-        teams: List<ExplorationTeam>
+        battleLogs: List<BattleLog>
     )
     fun validateState(): List<String>
     fun getStateStatistics(): Map<String, Any>

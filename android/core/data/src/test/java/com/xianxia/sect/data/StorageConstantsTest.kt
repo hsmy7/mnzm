@@ -168,7 +168,6 @@ class StorageConstantsTest {
         assertTrue(StorageConstants.EntitySize.HERB > 0)
         assertTrue(StorageConstants.EntitySize.SEED > 0)
         assertTrue(StorageConstants.EntitySize.BATTLE_LOG > 0)
-        assertTrue(StorageConstants.EntitySize.TEAM > 0)
         assertTrue(StorageConstants.EntitySize.ALLIANCE > 0)
         assertTrue(StorageConstants.EntitySize.PRODUCTION_SLOT > 0)
     }
@@ -222,8 +221,7 @@ class StorageConstantsTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList()
-        )
+                    )
         val size = StorageEngine.estimateSaveSize(data)
         val expectedMin = StorageConstants.ESTIMATE_BASE_OVERHEAD
         assertTrue("Empty save should be at least base overhead ($expectedMin), got $size", size >= expectedMin)
@@ -240,8 +238,7 @@ class StorageConstantsTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList()
-        )
+                    )
         val withDisciples = base.copy(disciples = List(10) { Disciple() })
         val baseSize = StorageEngine.estimateSaveSize(base)
         val withSize = StorageEngine.estimateSaveSize(withDisciples)
@@ -259,8 +256,7 @@ class StorageConstantsTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList()
-        )
+                    )
         val data100 = data10.copy(disciples = List(100) { Disciple() })
         val size10 = StorageEngine.estimateSaveSize(data10)
         val size100 = StorageEngine.estimateSaveSize(data100)
@@ -280,8 +276,7 @@ class StorageConstantsTest {
             materials = List(5) { Material() },
             herbs = List(5) { Herb() },
             seeds = List(5) { Seed() },
-            teams = emptyList()
-        )
+                    )
         val size = StorageEngine.estimateSaveSize(data)
         val baseOverhead = StorageConstants.ESTIMATE_BASE_OVERHEAD
         assertTrue("Multi-entity save should exceed base overhead ($baseOverhead), got $size", size > baseOverhead)

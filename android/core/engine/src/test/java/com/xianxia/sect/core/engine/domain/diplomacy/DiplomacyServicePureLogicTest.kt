@@ -259,8 +259,7 @@ class DiplomacyServicePureLogicTest {
         herbs = EntityStore(),
         seeds = EntityStore(),
         storageBags = EntityStore(),
-        teams = emptyList(),
-        battleLogs = emptyList(),
+                battleLogs = emptyList(),
         isPaused = false,
         isLoading = false,
         isSaving = false

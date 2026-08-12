@@ -14,7 +14,6 @@ import com.xianxia.sect.data.local.DiscipleEquipmentDao
 import com.xianxia.sect.data.local.DiscipleExtendedDao
 import com.xianxia.sect.data.local.EquipmentInstanceDao
 import com.xianxia.sect.data.local.EquipmentStackDao
-import com.xianxia.sect.data.local.ExplorationTeamDao
 import com.xianxia.sect.data.local.GameDataDao
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.HerbDao
@@ -143,7 +142,6 @@ object AppModule {
 
     @Provides
     fun provideWorldDaos(database: GameDatabase): WorldDaos = WorldDaos(
-        explorationTeamDao = database.explorationTeamDao(),
         buildingSlotDao = database.buildingSlotDao(),
         recipeDao = database.recipeDao(),
         battleLogDao = database.battleLogDao(),
@@ -157,10 +155,6 @@ object AppModule {
     @Provides
     fun provideMailDraftDao(database: GameDatabase): MailDraftDao = database.mailDraftDao()
 
-    @Provides
-    fun provideExplorationTeamDao(database: GameDatabase): ExplorationTeamDao = 
-        database.explorationTeamDao()
-    
     @Provides
     fun provideBuildingSlotDao(database: GameDatabase): BuildingSlotDao = 
         database.buildingSlotDao()

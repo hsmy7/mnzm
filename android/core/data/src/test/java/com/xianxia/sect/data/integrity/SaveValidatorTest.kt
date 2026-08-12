@@ -40,8 +40,7 @@ class SaveValidatorTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList(),
-            battleLogs = emptyList()
+                        battleLogs = emptyList()
         )
     }
 
@@ -391,8 +390,7 @@ class SaveValidatorTest {
             disciples = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(),
-            teams = emptyList()
-        )
+                    )
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired

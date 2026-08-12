@@ -303,26 +303,29 @@ data class Disciple(
 @Keep
 @Serializable
 enum class DiscipleStatus {
-    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM, PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD;
+    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM, PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD,
+    SECRET_REALM, WAREHOUSE_GARRISON;
 
     val displayName: String get() = when (this) {
         IDLE -> "空闲中"
-        DEACONING -> "执事中"
-        MINING -> "采矿中"
-        STUDYING -> "学习中"
-        PREACHING -> "传道中"
+        DEACONING -> "灵矿执事"
+        MINING -> "灵矿场矿工"
+        STUDYING -> "藏经阁弟子"
+        PREACHING -> "传道弟子"
         MANAGING -> "管理中"
-        LAW_ENFORCING -> "执法中"
-        ON_MISSION -> "任务中"
-        REFLECTING -> "思过中"
+        LAW_ENFORCING -> "执法弟子"
+        ON_MISSION -> "执行任务中"
+        REFLECTING -> "监牢中"
         GARRISONING -> "驻守中"
         IN_TEAM -> "队伍中"
-        PATROLLING -> "巡视中"
-        REFINING -> "血炼中"
-        ALCHEMY -> "炼丹中"
-        FORGE -> "锻造中"
-        SPIRIT_PLANTING -> "灵植中"
+        PATROLLING -> "巡视塔中"
+        REFINING -> "血炼池中"
+        ALCHEMY -> "炼丹弟子"
+        FORGE -> "锻造弟子"
+        SPIRIT_PLANTING -> "灵植弟子"
         DEAD -> "已死亡"
+        SECRET_REALM -> "远古秘境中"
+        WAREHOUSE_GARRISON -> "仓库驻守中"
     }
 }
 

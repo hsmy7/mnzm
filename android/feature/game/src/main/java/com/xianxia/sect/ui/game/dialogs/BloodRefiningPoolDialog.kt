@@ -205,10 +205,10 @@ fun BloodRefiningPoolDialog(
     if (showDiscipleSelection) {
         val scope = rememberCoroutineScope()
         val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
-        val battleAndExplorationIds = remember(gameData, viewModel.teams) {
+        val battleAndExplorationIds = remember(gameData) {
             val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()
-            val allExplorationIds = viewModel.teams.value.flatMap { it.memberIds }
-            (allBattleIds + allExplorationIds).toSet()
+            val allCaveExplorationIds = gameData?.caveExplorationTeams?.flatMap { it.memberIds } ?: emptyList()
+            (allBattleIds + allCaveExplorationIds).toSet()
         }
         val eligibleDisciples = disciples.filter { it.isAlive }
         DiscipleSelectorDialog(

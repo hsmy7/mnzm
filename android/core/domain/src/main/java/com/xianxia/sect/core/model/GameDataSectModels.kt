@@ -104,6 +104,36 @@ data class ElderSlots(
 
         return allDirectDiscipleIds.contains(discipleId)
     }
+
+    /**
+     * 解析弟子当前担任的具体职位名（用于 MANAGING 状态的职位文案）。
+     * 优先级与 MANAGING 状态推导的槽位数据源一致：长老职位（副宗主/各长老）在前，
+     * 弟子职务（灵植/炼丹/锻造弟子）在后；无职位返回 null（UI 层兜底"管理中"）。
+     */
+    fun resolvePositionName(discipleId: String): String? {
+        if (discipleId.isBlank()) return null
+        return resolveElderPositionName(discipleId) ?: when {
+            herbGardenDisciples.any { it.discipleId == discipleId } -> "灵植弟子"
+            alchemyDisciples.any { it.discipleId == discipleId } -> "炼丹弟子"
+            forgeDisciples.any { it.discipleId == discipleId } -> "锻造弟子"
+            else -> null
+        }
+    }
+
+    /** 长老职位名解析（10 槽位 when 独立成函数，控制 [resolvePositionName] 圈复杂度） */
+    private fun resolveElderPositionName(discipleId: String): String? = when (discipleId) {
+        viceSectMaster -> formatSlotTypeName(ElderSlotType.VICE_SECT_MASTER)
+        herbGardenElder -> formatSlotTypeName(ElderSlotType.HERB_GARDEN)
+        alchemyElder -> formatSlotTypeName(ElderSlotType.ALCHEMY)
+        forgeElder -> formatSlotTypeName(ElderSlotType.FORGE)
+        outerElder -> formatSlotTypeName(ElderSlotType.OUTER_ELDER)
+        innerElder -> formatSlotTypeName(ElderSlotType.INNER_ELDER)
+        recruitingElder -> formatSlotTypeName(ElderSlotType.RECRUITING)
+        preachingElder -> formatSlotTypeName(ElderSlotType.PREACHING)
+        qingyunPreachingElder -> formatSlotTypeName(ElderSlotType.CLOUD_PREACHING)
+        lawEnforcementElder -> formatSlotTypeName(ElderSlotType.LAW_ENFORCEMENT)
+        else -> null
+    }
 }
 
 // 亲传弟子槽位数据

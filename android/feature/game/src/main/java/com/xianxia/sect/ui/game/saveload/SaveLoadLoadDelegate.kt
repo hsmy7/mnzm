@@ -94,7 +94,6 @@ class SaveLoadLoadDelegate(
                 herbs = saveData.herbs,
                 seeds = saveData.seeds,
                 storageBags = saveData.storageBags,
-                teams = saveData.teams,
                 battleLogs = saveData.battleLogs,
                 alliances = saveData.alliances,
                 productionSlots = saveData.productionSlots

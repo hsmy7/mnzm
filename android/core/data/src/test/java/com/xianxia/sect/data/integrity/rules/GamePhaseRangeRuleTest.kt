@@ -52,6 +52,6 @@ class GamePhaseRangeRuleTest {
     private fun validate(phase: Int) = SaveValidator.validate(SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 6, gamePhase = phase),
         disciples = emptyList(), pills = emptyList(), materials = emptyList(),
-        herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        herbs = emptyList(), seeds = emptyList()
     ))
 }

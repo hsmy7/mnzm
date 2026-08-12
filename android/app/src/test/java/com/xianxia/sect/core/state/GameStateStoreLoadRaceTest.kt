@@ -61,8 +61,7 @@ class GameStateStoreLoadRaceTest {
             herbs = emptyList(),
             seeds = emptyList(),
             storageBags = emptyList(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = true,
             isLoading = false,
             isSaving = false
@@ -96,8 +95,7 @@ class GameStateStoreLoadRaceTest {
             herbs = emptyList(),
             seeds = emptyList(),
             storageBags = emptyList(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = true,
             isLoading = false,
             isSaving = false

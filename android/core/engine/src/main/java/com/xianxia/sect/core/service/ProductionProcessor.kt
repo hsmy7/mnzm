@@ -7,7 +7,6 @@ import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ForgeRecipe
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
@@ -836,10 +835,10 @@ class ProductionProcessor @Inject constructor(
         // 双槽分叉防线（2026-08-10 互斥化）：全槽位占用弟子排除在自动排班候选之外。
         // - status==IDLE 为第一层（存储权威）
         // - occupiedIds 为第二层：扫描全部工作槽位（长老/生产/灵矿/藏经阁/仓库驻守/
-        //   巡视/宗门驻守/战斗队伍/活跃任务/秘境/洞穴/探索队伍/血炼）——防御"分配后
+        //   巡视/宗门驻守/战斗队伍/活跃任务/秘境/洞穴/血炼）——防御"分配后
         //   尚未 syncAllDiscipleStatuses"的陈旧状态窗口与推导缺口（如纳徒长老被推导
         //   为 IDLE 后从"可用弟子"可见），杜绝占用弟子被捕获制造双槽位
-        val occupiedIds = buildOccupiedSlotDiscipleIds(data, state.teams)
+        val occupiedIds = buildOccupiedSlotDiscipleIds(data)
         val idleDisciples = state.discipleTables.assembleAll()
             .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive && d.id !in occupiedIds }
             .toMutableList()
@@ -1681,9 +1680,8 @@ internal fun shouldResetSlotForCompletion(
  *
  * 扫描全部工作槽位：长老全槽位（含纳徒长老 recruitingElder）、生产镜像槽、
  * 灵矿/藏经阁/仓库驻守/巡视/玩家宗门驻守、战斗队伍、活跃任务、远古秘境
- * 探索成员（secretRealmState.exists 时）、洞穴探索队伍（仅活跃状态）、
- * 玩家探索队伍（仅活跃状态，与 [DiscipleStatusService.buildInTeamIds]
- * 同状态条件）、血炼进度。
+ * 探索成员（secretRealmState.exists 时）、洞穴探索队伍（仅活跃状态，
+ * 与 [DiscipleStatusService.buildInTeamIds] 同状态条件）、血炼进度。
  *
  * 调用方 [ProductionProcessor.processAutoAssign] 以 status==IDLE 为第一层
  * 过滤（存储权威），本函数为第二层防御——覆盖同一事务内"分配后尚未
@@ -1691,9 +1689,8 @@ internal fun shouldResetSlotForCompletion(
  * IDLE），杜绝占用弟子被当作空闲捕获制造双槽位。
  *
  * @param data 当前游戏数据（含全部槽位字段）
- * @param teams 玩家探索队伍（仅活跃状态参与，与状态推导判定一致）
  */
-internal fun buildOccupiedSlotDiscipleIds(data: GameData, teams: List<ExplorationTeam>): Set<String> = buildSet {
+internal fun buildOccupiedSlotDiscipleIds(data: GameData): Set<String> = buildSet {
     addAll(collectElderSlotDiscipleIds(data.elderSlots))
     data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
     data.librarySlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
@@ -1708,8 +1705,6 @@ internal fun buildOccupiedSlotDiscipleIds(data: GameData, teams: List<Exploratio
         data.secretRealmSession.members.filter { !it.isDead }.forEach { add(it.discipleId) }
     }
     data.caveExplorationTeams.filter { it.status in DiscipleStatusService.caveExplorationStatuses }
-        .forEach { addAll(it.memberIds) }
-    teams.filter { it.status in DiscipleStatusService.explorationStatuses }
         .forEach { addAll(it.memberIds) }
     data.activeBloodRefinements.values.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
     data.productionSlots

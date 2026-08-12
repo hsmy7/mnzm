@@ -100,6 +100,17 @@ data class DiscipleAggregate(
     val affixIds: List<String> get() = extended?.affixIds ?: emptyList()
     val manualMasteries: Map<String, Int> get() = extended?.manualMasteries ?: emptyMap()
     val statusData: Map<String, String> get() = extended?.statusData ?: emptyMap()
+    /**
+     * 状态展示文案（UI 单点消费）：
+     * - MANAGING 显示职位名（statusData["positionName"]，由 DiscipleStatusService 推导写入），无职位时兜底"管理中"
+     * - 其余状态直接显示 [DiscipleStatus.displayName]
+     */
+    val statusText: String
+        get() = if (status == DiscipleStatus.MANAGING) {
+            statusData[POSITION_NAME_KEY] ?: MANAGING_FALLBACK
+        } else {
+            status.displayName
+        }
     val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 0.0
     val cultivationSpeedDuration: Int get() = extended?.cultivationSpeedDuration ?: 0
     val partnerId: String? get() = extended?.partnerId

@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
@@ -448,10 +447,6 @@ class CultivationService @Inject constructor(
 
     suspend fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         eventProcessor.updateDiscipleHpMpAfterBattle(battleMembers)
-    }
-
-    suspend fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
-        eventProcessor.completeExploration(team, success, survivorIds, survivorHpMap, survivorMpMap)
     }
 
     // ── 委托方法：ProductionProcessor ─────────────────────────────────

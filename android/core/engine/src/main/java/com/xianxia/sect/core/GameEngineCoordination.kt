@@ -19,7 +19,6 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
@@ -342,7 +341,7 @@ suspend fun GameEngine.loadData(
     gameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
     equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,
     manualInstances: List<ManualInstance>, pills: List<Pill>, materials: List<Material> = emptyList(),
-    herbs: List<Herb> = emptyList(), seeds: List<Seed> = emptyList(), teams: List<ExplorationTeam>,
+    herbs: List<Herb> = emptyList(), seeds: List<Seed> = emptyList(),
     battleLogs: List<BattleLog> = emptyList(), alliances: List<Alliance> = emptyList(),
     productionSlots: List<ProductionSlot> = emptyList(),
     storageBags: List<StorageBag> = emptyList()
@@ -385,7 +384,7 @@ suspend fun GameEngine.loadData(
             equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
             manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
             materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
-            teams = teams, battleLogs = battleLogs
+            battleLogs = battleLogs
         )
         // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
         stateStore.update {
@@ -1199,7 +1198,6 @@ private suspend fun GameEngine.applyMissionResult(
 
 // ── Service delegates ───────────────────────────────────────────────
 
-suspend fun GameEngine.completeExploration(teamId: String, success: Boolean, survivorIds: List<String>) = explorationService.completeExploration(teamId, success, survivorIds)
 suspend fun GameEngine.redeemCode(code: String, usedCodes: List<String>, currentYear: Int, currentMonth: Int): RedeemResult = redeemCodeService.redeemCode(code, usedCodes, currentYear, currentMonth)
 fun GameEngine.resetCultivationTimer() { cultivationService.resetHighFrequencyData() }
 suspend fun GameEngine.checkpointAllProduction() { cultivationService.checkpointAllProduction() }
@@ -1295,7 +1293,7 @@ fun GameEngine.getMemoryUsageInfo(): String {
     sb.appendLine("装备实例数量: ${stateStore.equipmentInstances.value.size}"); sb.appendLine("功法栈数量: ${stateStore.manualStacks.value.size}")
     sb.appendLine("功法实例数量: ${stateStore.manualInstances.value.size}"); sb.appendLine("丹药数量: ${stateStore.pills.value.size}")
     sb.appendLine("材料数量: ${stateStore.materials.value.size}"); sb.appendLine("灵草数量: ${stateStore.herbs.value.size}")
-    sb.appendLine("种子数量: ${stateStore.seeds.value.size}"); sb.appendLine("探索队伍: ${stateStore.teams.value.size}")
+    sb.appendLine("种子数量: ${stateStore.seeds.value.size}")
     sb.appendLine("战斗日志: ${stateStore.battleLogs.value.size}/50")
     return sb.toString()
 }

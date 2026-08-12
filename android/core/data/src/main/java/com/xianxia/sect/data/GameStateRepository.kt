@@ -12,7 +12,6 @@ import com.xianxia.sect.core.model.DiscipleEquipment
 import com.xianxia.sect.core.model.DiscipleExtended
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -58,7 +57,6 @@ class GameStateRepository @Inject constructor(
         val herbs: Boolean = false,
         val seeds: Boolean = false,
         val storageBags: Boolean = false,
-        val teams: Boolean = false,
         val battleLogs: Boolean = false
     )
 
@@ -83,7 +81,6 @@ class GameStateRepository @Inject constructor(
         herbs: Boolean = false,
         seeds: Boolean = false,
         storageBags: Boolean = false,
-        teams: Boolean = false,
         battleLogs: Boolean = false
     ) {
         dirty.updateAndGet { current ->
@@ -99,7 +96,6 @@ class GameStateRepository @Inject constructor(
                 herbs = current.herbs || herbs,
                 seeds = current.seeds || seeds,
                 storageBags = current.storageBags || storageBags,
-                teams = current.teams || teams,
                 battleLogs = current.battleLogs || battleLogs
             )
         }
@@ -113,7 +109,7 @@ class GameStateRepository @Inject constructor(
                 manualStacks = it.manualStacks || true, manualInstances = it.manualInstances || true,
                 pills = it.pills || true, materials = it.materials || true,
                 herbs = it.herbs || true, seeds = it.seeds || true,
-                storageBags = it.storageBags || true, teams = it.teams || true,
+                storageBags = it.storageBags || true,
                 battleLogs = it.battleLogs || true
             )
         }
@@ -135,7 +131,6 @@ class GameStateRepository @Inject constructor(
         herbs: List<Herb>,
         seeds: List<Seed>,
         storageBags: List<StorageBag>,
-        teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>
     ) {
         val snapshot = dirty.getAndSet(DirtySet())
@@ -208,9 +203,6 @@ class GameStateRepository @Inject constructor(
                 if (snapshot.storageBags) {
                     itemDaos.storageBagDao.upsertAll(storageBags.map { it.copy(slotId = slotId) })
                 }
-                if (snapshot.teams) {
-                    worldDaos.explorationTeamDao.upsertAll(teams.map { it.copy(slotId = slotId) })
-                }
                 if (snapshot.battleLogs) {
                     worldDaos.battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
                 }
@@ -233,7 +225,6 @@ class GameStateRepository @Inject constructor(
                     herbs = current.herbs || snapshot.herbs,
                     seeds = current.seeds || snapshot.seeds,
                     storageBags = current.storageBags || snapshot.storageBags,
-                    teams = current.teams || snapshot.teams,
                     battleLogs = current.battleLogs || snapshot.battleLogs
                 )
             }
@@ -254,7 +245,6 @@ class GameStateRepository @Inject constructor(
             val herbs = itemDaos.herbDao.getAllSync(slotId)
             val seeds = itemDaos.seedDao.getAllSync(slotId)
             val storageBags = itemDaos.storageBagDao.getAllSync(slotId)
-            val teams = worldDaos.explorationTeamDao.getAllSync(slotId)
             val battleLogs = worldDaos.battleLogDao.getAllSync(slotId)
             currentSlotId = slotId
             dirty.set(DirtySet())
@@ -270,7 +260,6 @@ class GameStateRepository @Inject constructor(
                 herbs = herbs,
                 seeds = seeds,
                 storageBags = storageBags,
-                teams = teams,
                 battleLogs = battleLogs
             )
         } catch (e: Exception) {
@@ -291,7 +280,6 @@ class GameStateRepository @Inject constructor(
         val herbs: List<Herb>,
         val seeds: List<Seed>,
         val storageBags: List<StorageBag>,
-        val teams: List<ExplorationTeam>,
         val battleLogs: List<BattleLog>
     )
 }

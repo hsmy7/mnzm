@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -69,7 +68,6 @@ data class SaveData(
     @ProtoNumber(9) val herbs: List<Herb>,
     @ProtoNumber(10) val seeds: List<Seed>,
     @ProtoNumber(15) val storageBags: List<StorageBag> = emptyList(),
-    @ProtoNumber(11) val teams: List<ExplorationTeam>,
     @ProtoNumber(13) val battleLogs: List<BattleLog> = emptyList(),
     @ProtoNumber(14) val alliances: List<Alliance> = emptyList(),
     @ProtoNumber(52) val productionSlots: List<ProductionSlot> = emptyList()

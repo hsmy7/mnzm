@@ -36,7 +36,6 @@ object SaveDataTrimmer {
             materials = snapshot.materials,
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
-            teams = snapshot.teams,
             battleLogs = trimmedBattleLogs,
             alliances = snapshot.alliances,
             productionSlots = snapshot.productionSlots,

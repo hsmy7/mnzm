@@ -3,7 +3,6 @@ package com.xianxia.sect.core.repository
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -29,7 +28,6 @@ data class SaveSnapshot(
     val materials: List<Material>,
     val herbs: List<Herb>,
     val seeds: List<Seed>,
-    val teams: List<ExplorationTeam>,
     val battleLogs: List<com.xianxia.sect.core.model.BattleLog>,
     val alliances: List<com.xianxia.sect.core.model.Alliance>,
     val productionSlots: List<ProductionSlot>,

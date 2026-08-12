@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
-import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
@@ -33,10 +32,6 @@ class DiscipleSlotManager @Inject constructor(
 ) {
     companion object {
         private const val TAG = "DiscipleSlotManager"
-        private val explorationStatuses = setOf(
-            ExplorationStatus.TRAVELING, ExplorationStatus.EXPLORING,
-            ExplorationStatus.SCOUTING, ExplorationStatus.DANGER
-        )
         private val caveExplorationStatuses = setOf(
             CaveExplorationStatus.TRAVELING, CaveExplorationStatus.EXPLORING
         )
@@ -135,16 +130,6 @@ class DiscipleSlotManager @Inject constructor(
                 mission.discipleIds.all { it in ids }
             }
 
-            val updatedTeams = teams.map { team ->
-                if (team.memberIds.any { it !in ids }) {
-                    team.copy(
-                        memberIds = emptyList(),
-                        memberNames = emptyList(),
-                        status = ExplorationStatus.COMPLETED
-                    )
-                } else team
-            }
-
             gameData = gameData.copy(
                 spiritMineSlots = clearedSpiritMineSlots,
                 librarySlots = clearedLibrarySlots,
@@ -153,7 +138,6 @@ class DiscipleSlotManager @Inject constructor(
                 caveExplorationTeams = clearedCaveTeams,
                 activeMissions = clearedActiveMissions
             )
-            teams = updatedTeams
 
             for (id in discipleTables.ids) {
                 val isAlive = discipleTables.isAlive[id] == 1

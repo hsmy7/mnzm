@@ -425,46 +425,6 @@ data class SerializableSeed(
 )
 
 @Serializable
-data class SerializableMapPoint(
-    @ProtoNumber(1) val x: Int,
-    @ProtoNumber(2) val y: Int
-)
-
-@Serializable
-data class SerializableExplorationTeam(
-    @ProtoNumber(1) val id: String,
-    @ProtoNumber(2) val name: String,
-    @ProtoNumber(3) val memberIds: List<String> = emptyList(),
-    @ProtoNumber(4) val status: String = "idle",
-    @ProtoNumber(5) val targetSectId: String = "",
-    @ProtoNumber(6) val startYear: Int = 0,
-    @ProtoNumber(7) val startMonth: Int = 0,
-    @ProtoNumber(8) val duration: Int = 0,
-    @ProtoNumber(9) val currentProgress: Int = 0,
-    @ProtoNumber(12) val caveId: String = "",
-    @ProtoNumber(13) val caveName: String = "",
-    @ProtoNumber(14) val dungeon: String = "",
-    @ProtoNumber(15) val dungeonName: String = "",
-    @ProtoNumber(16) val memberNames: List<String> = emptyList(),
-    @ProtoNumber(17) val startDay: Int = 0,
-    @ProtoNumber(18) val currentX: Int = 0,
-    @ProtoNumber(19) val currentY: Int = 0,
-    @ProtoNumber(20) val targetX: Int = 0,
-    @ProtoNumber(21) val targetY: Int = 0,
-    @ProtoNumber(22) val moveProgress: Double = 0.0,
-    @ProtoNumber(23) val arrivalYear: Int = 0,
-    @ProtoNumber(24) val arrivalMonth: Int = 0,
-    @ProtoNumber(25) val arrivalDay: Int = 0,
-    @ProtoNumber(26) val route: List<SerializableMapPoint> = emptyList(),
-    @ProtoNumber(27) val currentRouteIndex: Int = 0,
-    @ProtoNumber(28) val currentSegmentProgress: Double = 0.0,
-    @ProtoNumber(29) val pityCounterEquipment: Int = 0,
-    @ProtoNumber(30) val pityCounterPill: Int = 0,
-    @ProtoNumber(31) val pityCounterManual: Int = 0,
-    @ProtoNumber(32) val scoutTargetSectName: String = "",
-)
-
-@Serializable
 data class SerializableBattleLog(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val timestamp: Long,
@@ -520,7 +480,6 @@ data class SerializableSaveData(
     @ProtoNumber(8) val materials: List<SerializableMaterial> = emptyList(),
     @ProtoNumber(9) val herbs: List<SerializableHerb> = emptyList(),
     @ProtoNumber(10) val seeds: List<SerializableSeed> = emptyList(),
-    @ProtoNumber(11) val teams: List<SerializableExplorationTeam> = emptyList(),
     @ProtoNumber(13) val battleLogs: List<SerializableBattleLog> = emptyList(),
     @ProtoNumber(14) val alliances: List<SerializableAlliance> = emptyList(),
     @ProtoNumber(15) val storageBags: List<SerializableStorageBag> = emptyList()

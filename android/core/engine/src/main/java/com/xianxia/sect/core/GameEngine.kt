@@ -12,7 +12,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
@@ -92,7 +91,6 @@ data class GameStateSnapshot(
     val herbs: List<Herb>,
     val seeds: List<Seed>,
     val storageBags: List<StorageBag> = emptyList(),
-    val teams: List<ExplorationTeam>,
     val battleLogs: List<BattleLog>,
     val alliances: List<Alliance>,
     val productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
@@ -292,7 +290,6 @@ class GameEngine @Inject constructor(
         if (beastId.isEmpty()) return
         stateStore.update { gameData = gameData.copy(lockedBeastIds = gameData.lockedBeastIds - beastId) }
     }
-    val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
     val sectCombatPower: StateFlow<Long> get() = stateStore.sectCombatPower
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = stateStore.aiSectCombatPowers

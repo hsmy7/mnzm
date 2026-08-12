@@ -716,7 +716,7 @@ class LawEnforcementProcessorTest {
         return MutableGameState(gd, tables,
             EntityStore(), EntityStore(), EntityStore(), EntityStore(),
             EntityStore(), materials, EntityStore(), EntityStore(), EntityStore(),
-            emptyList(), emptyList(), false, false, false)
+            emptyList(), false, false, false)
     }
 
     private fun makeMocks(gd: GameData, tables: DiscipleTables): Pair<GameStateStore, DiscipleLifecycleProcessor> {

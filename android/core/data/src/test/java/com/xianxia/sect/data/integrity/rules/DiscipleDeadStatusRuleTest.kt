@@ -56,6 +56,6 @@ class DiscipleDeadStatusRuleTest {
     private fun saveData(dd: List<Disciple>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
         disciples = dd, pills = emptyList(), materials = emptyList(),
-        herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        herbs = emptyList(), seeds = emptyList()
     )
 }

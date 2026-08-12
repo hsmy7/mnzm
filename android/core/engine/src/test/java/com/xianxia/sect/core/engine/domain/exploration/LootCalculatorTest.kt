@@ -45,8 +45,7 @@ class LootCalculatorTest {
             herbs = EntityStore<Herb>(),
             seeds = EntityStore<Seed>(),
             storageBags = EntityStore<StorageBag>(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
     }

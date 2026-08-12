@@ -126,11 +126,10 @@ class DiscipleSlotCleanup @Inject constructor(
     }
 
     /**
-     * 事务内全量槽位清理（state 级）：Gate 注册表 + GameData 槽位（含洞府探索队/悬赏任务）
-     * + 世界地图探索队（teams，GameData 外独立字段）。
+     * 事务内全量槽位清理（state 级）：Gate 注册表 + GameData 槽位（含洞府探索队/悬赏任务）。
      *
      * 专供 [stateStore.update] 事务内部使用——assignmentGate.release 为纯内存操作，
-     * 事务内调用安全；teams 是事务 buffer 可写字段。
+     * 事务内调用安全。
      *
      * 不清理 [MutableGameState.secretRealmSession] 的 members——秘境队伍已有
      * 恢复净化（读档自愈）覆盖，避免此处与秘境生命周期竞态。
@@ -146,21 +145,6 @@ class DiscipleSlotCleanup @Inject constructor(
     ) {
         assignmentGate.release(discipleId)
         state.gameData = clearAllSlotsDataOnly(state.gameData, discipleId, includeResidence)
-        // 世界地图探索队：移除死者成员；空队删除整队（对齐 ExplorationTeamManager.recallDiscipleFromTeam）
-        if (state.teams.any { discipleId in it.memberIds }) {
-            state.teams = state.teams.mapNotNull { team ->
-                if (discipleId !in team.memberIds) {
-                    team
-                } else {
-                    val remainingIds = team.memberIds.filter { it != discipleId }
-                    val remainingNames = team.memberNames.filterIndexed { i, _ ->
-                        team.memberIds[i] != discipleId
-                    }
-                    if (remainingIds.isEmpty()) null
-                    else team.copy(memberIds = remainingIds, memberNames = remainingNames)
-                }
-            }
-        }
     }
 
     /**

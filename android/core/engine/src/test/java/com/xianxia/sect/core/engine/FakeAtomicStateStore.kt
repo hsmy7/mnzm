@@ -5,7 +5,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -83,7 +82,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     override val herbs = MutableStateFlow<List<Herb>>(emptyList())
     override val seeds = MutableStateFlow<List<Seed>>(emptyList())
     override val storageBags = MutableStateFlow<List<StorageBag>>(emptyList())
-    override val teams = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
     override val isPaused = MutableStateFlow(false)
     override val isLoading = MutableStateFlow(false)
@@ -122,7 +120,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     override val herbsSnapshot: List<Herb> get() = herbs.value
     override val seedsSnapshot: List<Seed> get() = seeds.value
     override val storageBagsSnapshot: List<StorageBag> get() = storageBags.value
-    override val teamsSnapshot: List<ExplorationTeam> get() = teams.value
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
 
     // ── 兼容层 ──
@@ -182,7 +179,6 @@ internal class FakeAtomicStateStore : GameStateStore {
         herbs: List<Herb>,
         seeds: List<Seed>,
         storageBags: List<StorageBag>,
-        teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>,
         isPaused: Boolean,
         isLoading: Boolean,
@@ -190,7 +186,6 @@ internal class FakeAtomicStateStore : GameStateStore {
     ) {
         this._gameData.value = gameData
         this.disciples.value = disciples
-        this.teams.value = teams
         this.battleLogs.value = battleLogs
         this.isPaused.value = isPaused
         this.isLoading.value = isLoading
@@ -296,7 +291,7 @@ internal class FakeAtomicStateStore : GameStateStore {
 
     /**
      * 将事务缓冲写回全部 StateFlow（P-20 增强：物品实体跨事务持久化——
-     * 原实现只同步 gameData/teams，InventorySystem 等物品仓库路径的修改会丢失）。
+     * 原实现只同步 gameData，InventorySystem 等物品仓库路径的修改会丢失）。
      */
     private fun syncFlows(m: MutableGameState) {
         _gameData.value = m.gameData
@@ -310,7 +305,6 @@ internal class FakeAtomicStateStore : GameStateStore {
         herbs.value = m.herbs.all()
         seeds.value = m.seeds.all()
         storageBags.value = m.storageBags.all()
-        teams.value = m.teams
         battleLogs.value = m.battleLogs
         isPaused.value = m.isPaused
         isLoading.value = m.isLoading
@@ -335,7 +329,6 @@ internal class FakeAtomicStateStore : GameStateStore {
         herbs = EntityStore(herbs.value),
         seeds = EntityStore(seeds.value),
         storageBags = EntityStore(storageBags.value),
-        teams = teams.value,
         battleLogs = battleLogs.value,
         isPaused = isPaused.value,
         isLoading = isLoading.value,

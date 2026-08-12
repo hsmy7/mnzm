@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.CaveStatus
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GamePhase
 import com.xianxia.sect.core.model.Herb
@@ -45,7 +44,6 @@ data class GameStateSnapshot(
     val materialCount: Int = 0,
     val herbCount: Int = 0,
     val seedCount: Int = 0,
-    val explorationTeamCount: Int = 0,
     val caveExplorationTeamCount: Int = 0,
     val forgeSlotCount: Int = 0,
     val alchemySlotCount: Int = 0,
@@ -89,7 +87,6 @@ class SaveService @Inject constructor(
             materialCount = stateStore.materials.value.size,
             herbCount = stateStore.herbs.value.size,
             seedCount = stateStore.seeds.value.size,
-            explorationTeamCount = stateStore.teams.value.size,
             caveExplorationTeamCount = data.caveExplorationTeams.size,
             forgeSlotCount = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.FORGE).count { it.isWorking },
             alchemySlotCount = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY).count { it.isWorking },
@@ -132,8 +129,7 @@ class SaveService @Inject constructor(
         materials: List<Material>,
         herbs: List<Herb>,
         seeds: List<Seed>,
-        battleLogs: List<BattleLog>,
-        teams: List<ExplorationTeam>
+        battleLogs: List<BattleLog>
     ) {
         stateStore.loadFromSnapshot(
             gameData = loadedGameData,
@@ -146,7 +142,6 @@ class SaveService @Inject constructor(
             materials = materials,
             herbs = herbs,
             seeds = seeds,
-            teams = teams,
             battleLogs = battleLogs
         )
         DomainLog.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipmentInstances.size} equipment instances, recruitList=${loadedGameData.recruitList.size} unrecruited disciples")
@@ -204,7 +199,6 @@ class SaveService @Inject constructor(
             "herbCount" to stateStore.herbs.value.size,
             "seedCount" to stateStore.seeds.value.size,
             "battleLogCount" to stateStore.battleLogs.value.size,
-            "explorationTeams" to stateStore.teams.value.size,
             "caveExplorations" to data.caveExplorationTeams.size,
             "activeForgingSlots" to productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.FORGE).count { it.isWorking },
             "activeAlchemySlots" to productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY).count { it.isWorking },

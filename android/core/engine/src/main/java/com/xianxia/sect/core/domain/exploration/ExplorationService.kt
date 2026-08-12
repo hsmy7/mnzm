@@ -12,7 +12,6 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.exploration.BeastAttackDetector
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
-import com.xianxia.sect.core.exploration.ExplorationTeamManager
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.exploration.PatrolBattleSystem
 import com.xianxia.sect.core.exploration.WorldLevelManager
@@ -26,7 +25,6 @@ import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -65,7 +63,6 @@ import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -79,7 +76,6 @@ import javax.inject.Singleton
  * - [processMonthlyWorldLevels] — 由 ExplorationTickSystem 调用
  * - [resolveBeastAttackPayTribute] / [resolveBeastAttackFight] — 玩家主动操作
  * - [consumePendingPatrolResults] — UI 层定时消费
- * - [getTeams] — UI 层读取
  */
 @Singleton
 class ExplorationService @Inject constructor(
@@ -93,7 +89,6 @@ class ExplorationService @Inject constructor(
     private val beastAttackDetector: BeastAttackDetector,
     private val patrolBattleSystem: PatrolBattleSystem,
     private val lootCalculator: LootCalculator,
-    private val explorationTeamManager: ExplorationTeamManager,
     private val rngManager: GameRngManager,
     private val encounterBattleService: EncounterBattleService,
     private val deathHandler: DiscipleDeathHandler
@@ -106,6 +101,8 @@ class ExplorationService @Inject constructor(
         private val BEAST_DEFENDER_EXCLUDE_STATUSES = setOf(
             DiscipleStatus.ON_MISSION,
             DiscipleStatus.IN_TEAM,
+            DiscipleStatus.SECRET_REALM,        // 远古秘境成员不可防守
+            DiscipleStatus.WAREHOUSE_GARRISON,  // 仓库驻守不可防守
             DiscipleStatus.REFLECTING,
             DiscipleStatus.GARRISONING,
             DiscipleStatus.REFINING
@@ -735,28 +732,6 @@ class ExplorationService @Inject constructor(
     }
 
     // ── 掠夺计算已迁移到 LootCalculator ─────────────────────────────────────
-
-    // ── 探索队伍管理（委派到 ExplorationTeamManager） ──────────────────────
-
-    /** 获取探索队伍列表 */
-    fun getTeams(): StateFlow<List<ExplorationTeam>> =
-        stateStore.teams
-
-    /** 从探索队伍撤回弟子 */
-    suspend fun recallDiscipleFromTeam(
-        teamId: String, discipleId: String
-    ): Boolean =
-        explorationTeamManager.recallDiscipleFromTeam(
-            teamId, discipleId
-        )
-
-    /** 完成探索（成功或失败） */
-    suspend fun completeExploration(
-        teamId: String, success: Boolean,
-        survivorIds: List<String>
-    ) = explorationTeamManager.completeExploration(
-        teamId, success, survivorIds
-    )
 
     // ── 死亡标记已迁移到 DiscipleDeathHandler ────────────────────────────────
     // ── 弟子状态更新已迁移到 DiscipleFacade ─────────────────────────────────────

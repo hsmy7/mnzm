@@ -77,12 +77,14 @@ class LawEnforcementProcessor @Inject constructor(
     companion object {
         private const val TAG = "LawEnforcementProc"
 
-        /** 叛逃免疫状态：战斗/任务/血炼/思过中的弟子不参与叛逃判定（其余状态均随时可叛逃） */
+        /** 叛逃免疫状态：战斗/任务/血炼/思过/秘境中的弟子不参与叛逃判定（其余状态均随时可叛逃）。
+         * 注意：WAREHOUSE_GARRISON 不在免疫集合——仓库驻守弟子可叛逃（与 GARRISONING 现状一致）。 */
         private val DESERTION_IMMUNE_STATUSES = setOf(
             DiscipleStatus.ON_MISSION,   // 任务中
             DiscipleStatus.REFLECTING,   // 思过中
             DiscipleStatus.REFINING,     // 血炼中
-            DiscipleStatus.IN_TEAM       // 队伍中（探索/战斗中）
+            DiscipleStatus.IN_TEAM,      // 队伍中（探索/战斗中）
+            DiscipleStatus.SECRET_REALM  // 远古秘境中
         )
     }
 

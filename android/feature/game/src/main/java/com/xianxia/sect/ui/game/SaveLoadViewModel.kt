@@ -703,7 +703,6 @@ class SaveLoadViewModel @Inject constructor(
                     herbs = saveData.herbs,
                     seeds = saveData.seeds,
                     storageBags = saveData.storageBags,
-                    teams = saveData.teams,
                     battleLogs = saveData.battleLogs,
                     alliances = saveData.alliances,
                     productionSlots = saveData.productionSlots
@@ -1289,8 +1288,7 @@ class SaveLoadViewModel @Inject constructor(
                     materials = snapshot.materials,
                     herbs = snapshot.herbs,
                     seeds = snapshot.seeds,
-                    teams = snapshot.teams,
-                        battleLogs = snapshot.battleLogs,
+                    battleLogs = snapshot.battleLogs,
                     alliances = snapshot.alliances,
                     productionSlots = snapshot.productionSlots,
                     storageBags = snapshot.storageBags,
@@ -1778,7 +1776,6 @@ class SaveLoadViewModel @Inject constructor(
             herbs = reconciled.herbs,
             seeds = reconciled.seeds,
             storageBags = reconciled.storageBags,
-            teams = reconciled.teams,
             battleLogs = reconciled.battleLogs,
             alliances = reconciled.alliances,
             productionSlots = reconciled.productionSlots

@@ -28,7 +28,6 @@ class SaveStorageImpl @Inject constructor(
             materials = snapshot.materials,
             herbs = snapshot.herbs,
             seeds = snapshot.seeds,
-            teams = snapshot.teams,
             battleLogs = snapshot.battleLogs,
             alliances = snapshot.alliances,
             productionSlots = snapshot.productionSlots,

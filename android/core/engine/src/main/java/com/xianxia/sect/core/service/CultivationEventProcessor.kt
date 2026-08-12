@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -468,32 +467,6 @@ class CultivationEventProcessor @Inject constructor(
                 // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
                 deathHandler.markAllDead(this, deadIds, stateStore.gameData.value.gameYear)
             }
-        }
-    }
-    fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
-        val currentDisciplesList = stateStore.disciples.value.toMutableList()
-        team.memberIds.forEach { memberId ->
-            val index = currentDisciplesList.indexOfFirst { it.id == memberId }
-            if (index >= 0) {
-                val disciple = currentDisciplesList[index]
-                val shouldKeepAlive = disciple.isAlive && survivorIds.contains(memberId)
-                if (shouldKeepAlive) {
-                    val hp = survivorHpMap[memberId] ?: disciple.combat.currentHp
-                    val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
-                    currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
-                } else {
-                    discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
-                    currentDisciplesList[index] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                }
-            }
-        }
-        stateStore.update {
-            discipleTables.replaceAll(currentDisciplesList)
-            // handleDiscipleDeath 已设置 deathYears 但被 replaceAll 清空，
-            // 由 DiscipleDeathHandler 统一补写
-            deathHandler.backfillDeathYears(
-                discipleTables, currentDisciplesList, stateStore.gameData.value.gameYear
-            )
         }
     }
     // ── 游戏结束 ──────────────────────────────────────────────────────

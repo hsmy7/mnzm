@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ExploredSectInfo
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameHeavyData
@@ -40,10 +39,6 @@ interface DiscipleRepository {
 }
 
 interface WorldRepository {
-    fun getTeams(slotId: Int = 0): Flow<List<ExplorationTeam>>
-    fun getActiveTeams(slotId: Int = 0): Flow<List<ExplorationTeam>>
-    suspend fun getTeamById(id: String, slotId: Int = 0): ExplorationTeam?
-    suspend fun getAllTeamsSync(slotId: Int = 0): List<ExplorationTeam>
     fun getBuildingSlots(buildingId: String, slotId: Int = 0): Flow<List<BuildingSlot>>
     fun getAllBuildingSlots(slotId: Int = 0): Flow<List<BuildingSlot>>
     suspend fun getBuildingSlotsSync(buildingId: String, slotId: Int = 0): List<BuildingSlot>

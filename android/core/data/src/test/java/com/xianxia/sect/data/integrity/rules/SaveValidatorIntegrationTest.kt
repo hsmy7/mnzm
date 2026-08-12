@@ -37,7 +37,7 @@ class SaveValidatorIntegrationTest {
             gameData = GameData(sectName = "测试宗", gameYear = 5, gameMonth = 6),
             disciples = listOf(makeDisciple()),
             pills = emptyList(), materials = emptyList(), herbs = emptyList(),
-            seeds = emptyList(), teams = emptyList()
+            seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
         assertTrue("预期 Passed，实际得到 $result", result is IntegrityResult.Passed)
@@ -58,7 +58,7 @@ class SaveValidatorIntegrationTest {
             gameData = GameData(sectName = "", gameYear = 0, gameMonth = 0),
             disciples = listOf(d1, d2),
             pills = emptyList(), materials = emptyList(), herbs = emptyList(),
-            seeds = emptyList(), teams = emptyList()
+            seeds = emptyList()
         )
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired（多项修复），实际得到 $result", result is IntegrityResult.Repaired)

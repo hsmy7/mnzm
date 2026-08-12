@@ -136,7 +136,7 @@ private fun BasicInfoIdentityRow(
             color = Color.Black
         )
         Text(
-            text = disciple.status.displayName,
+            text = disciple.statusText,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Color.Black

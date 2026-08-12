@@ -613,8 +613,7 @@ class ProductionProcessorTest {
             herbs = EntityStore(herbs),
             seeds = EntityStore(seeds),
             storageBags = EntityStore(emptyList()),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = false,
             isLoading = false,
             isSaving = false

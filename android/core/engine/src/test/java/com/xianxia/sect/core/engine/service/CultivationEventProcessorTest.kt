@@ -60,8 +60,7 @@ class CultivationEventProcessorTest {
             herbs = com.xianxia.sect.core.state.EntityStore(),
             seeds = com.xianxia.sect.core.state.EntityStore(),
             storageBags = com.xianxia.sect.core.state.EntityStore(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
         whenever(stateStore.update(any())).thenAnswer { inv ->

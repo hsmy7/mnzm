@@ -10,4 +10,4 @@ package com.xianxia.sect.data.local
 //   InventoryDaos.kt — PillDao, MaterialDao, SeedDao, HerbDao, StorageBagDao
 //   ProductionDaos.kt — BuildingSlotDao, RecipeDao, ForgeSlotDao, AlchemySlotDao
 //   BattleLogDao.kt — BattleLogDao
-//   MiscDaos.kt — ExplorationTeamDao, GameHeavyDataDao
+//   GameHeavyDataDao.kt — GameHeavyDataDao

@@ -55,7 +55,7 @@ class StateRevertRegressionTest {
                     manualStacks = emptyList(), manualInstances = emptyList(),
                     pills = emptyList(), materials = emptyList(),
                     herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
-                    teams = emptyList(), battleLogs = emptyList(),
+                    battleLogs = emptyList(),
                     isPaused = false, isLoading = false, isSaving = false
                 )
                 null
@@ -106,7 +106,7 @@ class StateRevertRegressionTest {
             manualStacks = emptyList(), manualInstances = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
         val records = store.gameDataSnapshot.gameEventRecords
@@ -143,7 +143,7 @@ class StateRevertRegressionTest {
             manualStacks = emptyList(), manualInstances = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
         val loaded = store.gameDataSnapshot.gameEventRecords
@@ -169,7 +169,7 @@ class StateRevertRegressionTest {
             manualStacks = emptyList(), manualInstances = emptyList(),
             pills = emptyList(), materials = emptyList(),
             herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
         TestPolling.awaitCondition("新档聚合就绪") { store.discipleAggregatesSnapshot.size == 4 }

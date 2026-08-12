@@ -81,6 +81,6 @@ class AgeLifespanRuleTest {
     private fun saveData(d: List<Disciple>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
         disciples = d, pills = emptyList(), materials = emptyList(),
-        herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        herbs = emptyList(), seeds = emptyList()
     )
 }

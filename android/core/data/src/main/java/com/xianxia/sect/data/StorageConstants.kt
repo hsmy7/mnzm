@@ -170,7 +170,6 @@ object StorageConstants {
         const val HERB = 160L
         const val SEED = 140L
         const val BATTLE_LOG = 600L
-        const val TEAM = 450L
         const val ALLIANCE = 300L
         const val PRODUCTION_SLOT = 200L
     }

@@ -178,8 +178,7 @@ class RecruitListCleanupRuleTest {
     ): SaveData = SaveData(
         gameData = gd, disciples = disciples, pills = emptyList(),
         materials = emptyList(), herbs = emptyList(), seeds = emptyList(),
-        teams = emptyList()
-    )
+            )
 
     private fun createRecruit(
         name: String = "弟子",

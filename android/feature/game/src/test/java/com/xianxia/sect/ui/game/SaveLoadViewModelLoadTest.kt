@@ -132,8 +132,7 @@ class SaveLoadViewModelLoadTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList()
-        )
+                    )
     }
 
     // ──────────────────────────────────────────────────────────────────

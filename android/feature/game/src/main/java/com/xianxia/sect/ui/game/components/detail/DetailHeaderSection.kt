@@ -19,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ResignGateResult
+import com.xianxia.sect.core.model.evaluateResignGate
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.GameViewModel
@@ -39,6 +41,7 @@ data class DetailActionCallbacks(
     val onRenameDisciple: (() -> Unit)? = null,
     val onNavigateToDisciple: ((DiscipleAggregate) -> Unit)?,
     val onShowChat: () -> Unit = {},  // 交谈
+    val onShowResignConfirm: () -> Unit = {},  // 卸任（分流逻辑在 DiscipleDetailScreen）
 )
 
 @Composable
@@ -196,6 +199,16 @@ fun DetailRightPanel(
                     .clickableWithSound(enabled = !hasMaster) { dismissDropdown(); actions.onShowApprentice() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (hasMaster) "已拜师" else "拜师", fontSize = 10.sp, color = Color.White) }
+            // 卸任按钮：空闲/死亡置灰；其余状态点击后由 DiscipleDetailScreen 按状态分流
+            val resignDisabled = evaluateResignGate(disciple.status, disciple.isAlive) is ResignGateResult.Disabled
+            Box(
+                modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                    .background(if (resignDisabled) Color(0xFF9E9E9E) else Color(0xFF607D8B))
+                    .clickableWithSound(enabled = !resignDisabled) {
+                        dismissDropdown(); actions.onShowResignConfirm()
+                    }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) { Text("卸任", fontSize = 10.sp, color = Color.White) }
         }
         Spacer(modifier = Modifier.weight(0.5f))
     }

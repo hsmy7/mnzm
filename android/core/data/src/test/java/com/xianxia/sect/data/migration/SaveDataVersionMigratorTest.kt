@@ -31,8 +31,7 @@ class SaveDataVersionMigratorTest {
             materials = emptyList(),
             herbs = emptyList(),
             seeds = emptyList(),
-            teams = emptyList()
-        )
+                    )
     }
 
     @Test

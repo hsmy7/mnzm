@@ -147,7 +147,7 @@ class BattleLogRefRuleTest {
     private fun saveData(battleLogs: List<BattleLog>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 5, gameMonth = 6),
         disciples = emptyList(), pills = emptyList(), materials = emptyList(),
-        herbs = emptyList(), seeds = emptyList(), teams = emptyList(),
+        herbs = emptyList(), seeds = emptyList(),
         battleLogs = battleLogs
     )
 }

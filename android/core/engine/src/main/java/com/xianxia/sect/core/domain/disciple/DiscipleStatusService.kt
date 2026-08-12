@@ -4,9 +4,9 @@ import com.xianxia.sect.core.engine.service.SecretRealmService
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
-import com.xianxia.sect.core.model.ExplorationStatus
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.MANAGING_FALLBACK
+import com.xianxia.sect.core.model.POSITION_NAME_KEY
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.spiritPlanting
@@ -32,12 +32,7 @@ class DiscipleStatusService @Inject constructor(
     private val secretRealmService: SecretRealmService
 ) {
     companion object {
-        /** 活跃探索队伍状态集合（internal 供 ProductionProcessor.buildOccupiedSlotDiscipleIds 复用，单一来源防集合漂移） */
-        internal val explorationStatuses = setOf(
-            ExplorationStatus.TRAVELING, ExplorationStatus.EXPLORING,
-            ExplorationStatus.SCOUTING, ExplorationStatus.DANGER
-        )
-        /** 活跃洞穴探索队伍状态集合（复用说明同上） */
+        /** 活跃洞穴探索队伍状态集合（internal 供 ProductionProcessor.buildOccupiedSlotDiscipleIds 复用，单一来源防集合漂移） */
         internal val caveExplorationStatuses = setOf(
             CaveExplorationStatus.TRAVELING, CaveExplorationStatus.EXPLORING
         )
@@ -50,8 +45,9 @@ class DiscipleStatusService @Inject constructor(
          *
          * 优先级顺序（匹配 syncAllDiscipleStatuses 的 when 链）：
          * 死亡 → 活跃任务（ON_MISSION 从 activeMissions 推导，非无条件保护）
-         * → 受保护状态（REFLECTING/REFINING）→ 驻守 → 队伍 → 执法 → 传道 →
-         * 执事 → 管理 → 学习 → 采矿 → 巡视 → 炼丹 → 锻造 → 灵植 → 空闲
+         * → 受保护状态（REFLECTING/REFINING）→ 远古秘境 → 仓库驻守 → 据点驻守 →
+         * 队伍 → 执法 → 传道 → 执事 → 管理 → 学习 → 采矿 → 巡视 → 炼丹 → 锻造 →
+         * 灵植 → 空闲
          *
          * 注：ON_MISSION 不再是无条件受保护状态，而是通过 [hasActiveMission] 参数
          * 从实际数据推导。这修复了旧存档中任务已移除但弟子卡在 ON_MISSION 的问题。
@@ -72,6 +68,8 @@ class DiscipleStatusService @Inject constructor(
             hasActiveMission -> DiscipleStatus.ON_MISSION
             currentStatus == DiscipleStatus.REFLECTING -> DiscipleStatus.REFLECTING
             currentStatus == DiscipleStatus.REFINING -> DiscipleStatus.REFINING
+            slotFlags.inSecretRealm -> DiscipleStatus.SECRET_REALM
+            slotFlags.inWarehouseGarrison -> DiscipleStatus.WAREHOUSE_GARRISON
             slotFlags.inGarrison -> DiscipleStatus.GARRISONING
             slotFlags.inTeam -> DiscipleStatus.IN_TEAM
             slotFlags.lawEnforcing -> DiscipleStatus.LAW_ENFORCING
@@ -92,94 +90,54 @@ class DiscipleStatusService @Inject constructor(
          *
          * @param discipleId 弟子 ID
          * @param data 当前游戏数据快照
-         * @param activeTeams 当前活跃的探索队列表（可选，不传则 inTeam 不包含探索队检查）
          * @return 该弟子的槽位归属标志
          */
         fun buildSlotFlagsFor(
             discipleId: String,
-            data: GameData,
-            activeTeams: List<ExplorationTeam> = emptyList()
+            data: GameData
         ): SlotFlags {
-            val playerSect = data.worldMapSects.find { it.isPlayerSect }
-            val elderSlots = data.elderSlots
-
-            val inExploration = activeTeams.any { team ->
-                team.memberIds.contains(discipleId) &&
-                    team.status in explorationStatuses
-            }
-            val inCaveExploration = data.caveExplorationTeams.any { team ->
-                team.memberIds.contains(discipleId) &&
-                    team.status in caveExplorationStatuses
-            }
-            // 远古秘境：探索会话存在且秘境在地图上时，成员视为队伍占用（IN_TEAM）
-            val inSecretRealm = data.secretRealmState.exists &&
-                data.secretRealmSession.members.any { it.discipleId == discipleId && !it.isDead }
-
-            val inGarrison =
-                playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
-                // 与 buildGarrisonIds 对齐：仓库驻守同样视为驻守，防止被推导为 IDLE
-                // 而从"显示所有弟子"弹窗被误选（回归：此前只查宗门驻守，仓库驻守
-                // 弟子显示为可用，可在不释放的情况下被再分配）
-                || data.warehouseGarrisons.any { it.discipleId == discipleId }
-            val inTeam = data.battleTeams
-                .any { t -> t.slots.any { it.discipleId == discipleId } }
-                || inExploration || inCaveExploration || inSecretRealm
-            val lawEnforcing = elderSlots.lawEnforcementElder == discipleId
-                || elderSlots.lawEnforcementDisciples
-                    .any { it.discipleId == discipleId }
-            val preaching = elderSlots.preachingElder == discipleId
-                || elderSlots.preachingMasters.any { it.discipleId == discipleId }
-                || elderSlots.qingyunPreachingElder == discipleId
-                || elderSlots.qingyunPreachingMasters
-                    .any { it.discipleId == discipleId }
-            val deaconing = elderSlots.spiritMineDeaconDisciples
-                .any { it.discipleId == discipleId }
-            val managing = elderSlots.viceSectMaster == discipleId
-                || elderSlots.outerElder == discipleId
-                || elderSlots.innerElder == discipleId
-                || elderSlots.forgeElder == discipleId
-                || elderSlots.alchemyElder == discipleId
-                || elderSlots.herbGardenElder == discipleId
-                // 回归（2026-08-10）：纳徒长老此前漏推——被推导为 IDLE 后
-                // 从"可用弟子"列表可见，月度自动排班等入口将其当作空闲调动
-                || elderSlots.recruitingElder == discipleId
-                || elderSlots.herbGardenDisciples
-                    .any { it.discipleId == discipleId }
-                || elderSlots.alchemyDisciples
-                    .any { it.discipleId == discipleId }
-                || elderSlots.forgeDisciples
-                    .any { it.discipleId == discipleId }
-            val studying =
-                data.librarySlots.any { it.discipleId == discipleId }
-            val mining =
-                data.spiritMineSlots.any { it.discipleId == discipleId }
-            val patrolling =
-                data.patrolSlots.any { it.discipleId == discipleId }
-            val alchemy = data.productionSlots
-                .any { it.assignedDiscipleId == discipleId
-                    && it.buildingId == "alchemy" }
-            val forge = data.productionSlots
-                .any { it.assignedDiscipleId == discipleId
-                    && it.buildingId == "forge" }
-            val spiritPlanting = data.productionSlots
-                .any { it.assignedDiscipleId == discipleId
-                    && it.buildingId == "herbGarden" }
-
+            val team = buildTeamFlags(data, discipleId)
+            val officer = buildOfficerFlags(data.elderSlots, discipleId)
+            val production = buildProductionFlags(data, discipleId)
             return SlotFlags(
-                inGarrison = inGarrison,
-                inTeam = inTeam,
-                lawEnforcing = lawEnforcing,
-                preaching = preaching,
-                deaconing = deaconing,
-                managing = managing,
-                studying = studying,
-                mining = mining,
-                patrolling = patrolling,
-                alchemy = alchemy,
-                forge = forge,
-                spiritPlanting = spiritPlanting
+                inGarrison = team.inGarrison,
+                inWarehouseGarrison = team.inWarehouseGarrison,
+                inTeam = team.inTeam,
+                inSecretRealm = team.inSecretRealm,
+                lawEnforcing = officer.lawEnforcing,
+                preaching = officer.preaching,
+                deaconing = officer.deaconing,
+                managing = buildManagingFlag(data.elderSlots, discipleId),
+                studying = production.studying,
+                mining = production.mining,
+                patrolling = production.patrolling,
+                alchemy = production.alchemy,
+                forge = production.forge,
+                spiritPlanting = production.spiritPlanting
             )
         }
+
+        /**
+         * 全量同步的 O(n) 集合索引：一次遍历构建所有槽位 ID 集合，循环内 O(1) 查含。
+         * 与 [buildSlotFlagsFor]（单弟子 O(n)）互补——全量同步不走纯函数避免 O(n²)。
+         */
+        private data class SyncIndex(
+            val lawEnforcerIds: Set<String>,
+            val preachingIds: Set<String>,
+            val deaconingIds: Set<String>,
+            val managingIds: Set<String>,
+            val studyingIds: Set<String>,
+            val miningIds: Set<String>,
+            val garrisonIds: Set<String>,
+            val warehouseGarrisonIds: Set<String>,
+            val inTeamIds: Set<String>,
+            val secretRealmIds: Set<String>,
+            val patrollingIds: Set<String>,
+            val alchemyIds: Set<String>,
+            val forgeIds: Set<String>,
+            val plantIds: Set<String>,
+            val activeMissionDiscipleIds: Set<String>
+        )
     }
 
     /**
@@ -188,7 +146,9 @@ class DiscipleStatusService @Inject constructor(
      */
     data class SlotFlags(
         val inGarrison: Boolean = false,
+        val inWarehouseGarrison: Boolean = false,
         val inTeam: Boolean = false,
+        val inSecretRealm: Boolean = false,
         val lawEnforcing: Boolean = false,
         val preaching: Boolean = false,
         val deaconing: Boolean = false,
@@ -222,9 +182,6 @@ class DiscipleStatusService @Inject constructor(
         return ids
     }
 
-    private fun buildDeaconingIds(elderSlots: ElderSlots): Set<String> =
-        elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }.toSet()
-
     private fun buildManagingIds(elderSlots: ElderSlots): Set<String> {
         val ids = mutableSetOf<String>()
         elderSlots.viceSectMaster?.let { ids.add(it) }
@@ -240,9 +197,6 @@ class DiscipleStatusService @Inject constructor(
         elderSlots.forgeDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }
         return ids
     }
-
-    private fun buildStudyingIds(data: GameData): Set<String> =
-        data.librarySlots.mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }.toSet()
 
     private fun buildMiningIds(data: GameData, tables: DiscipleTables): Set<String> =
         data.spiritMineSlots
@@ -270,37 +224,39 @@ class DiscipleStatusService @Inject constructor(
         data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
             ?.filter { it.discipleId.isNotEmpty() }
             ?.forEach { ids.add(it.discipleId) }
-        data.warehouseGarrisons.filter { it.discipleId.isNotEmpty() }.forEach { ids.add(it.discipleId) }
         return ids
     }
 
-    private fun buildInTeamIds(data: GameData): MutableSet<String> =
-        buildInTeamIds(data, stateStore.teams.value)
+    /** 仓库驻守弟子 ID 集合（WAREHOUSE_GARRISON 数据源，与 buildSlotFlagsFor 的 inWarehouseGarrison 对称） */
+    private fun buildWarehouseGarrisonIds(data: GameData): Set<String> =
+        data.warehouseGarrisons
+            .filter { it.discipleId.isNotEmpty() }
+            .map { it.discipleId }
+            .toSet()
 
-    private fun buildInTeamIds(data: GameData, teams: List<ExplorationTeam>): MutableSet<String> {
+    /** 远古秘境成员 ID 集合（SECRET_REALM 数据源，与 buildSlotFlagsFor 的 inSecretRealm 对称——
+     * 对抗性审查 S5：此前仅纯函数版本含秘境成员，syncAllDiscipleStatuses 推导为 IDLE） */
+    private fun buildSecretRealmIds(data: GameData): Set<String> =
+        if (data.secretRealmState.exists) {
+            data.secretRealmSession.members
+                .filter { !it.isDead }
+                .map { it.discipleId }
+                .toSet()
+        } else {
+            emptySet()
+        }
+
+    private fun buildInTeamIds(data: GameData): MutableSet<String> {
         val ids = mutableSetOf<String>()
         data.battleTeams.flatMap { it.slots }
             .filter { it.discipleId.isNotEmpty() }
             .forEach { ids.add(it.discipleId) }
-        // 探索/洞窟队伍成员
-        ids.addAll(teams
-            .filter { it.status in explorationStatuses }
-            .flatMap { it.memberIds })
+        // 洞府探索队伍成员
         ids.addAll(data.caveExplorationTeams
             .filter { it.status in caveExplorationStatuses }
             .flatMap { it.memberIds })
-        // 远古秘境探索成员（与 buildSlotFlagsFor 的 inSecretRealm 保持一致——
-        // 对抗性审查 S5：此前仅纯函数版本含秘境成员，syncAllDiscipleStatuses 推导为 IDLE）
-        if (data.secretRealmState.exists) {
-            ids.addAll(data.secretRealmSession.members
-                .filter { !it.isDead }
-                .map { it.discipleId })
-        }
         return ids
     }
-
-    private fun buildPatrollingIds(data: GameData): Set<String> =
-        data.patrolSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
 
     // ── 公开 API ──────────────────────────────────────
 
@@ -316,66 +272,84 @@ class DiscipleStatusService @Inject constructor(
         stateStore.update {
             val data = gameData
             val tables = discipleTables
-
-            val lawEnforcerIds = buildLawEnforcerIds(data.elderSlots)
-            val preachingIds = buildPreachingIds(data.elderSlots)
-            val deaconingIds = buildDeaconingIds(data.elderSlots)
-            val managingIds = buildManagingIds(data.elderSlots)
-            val studyingIds = buildStudyingIds(data)
-            val miningIds = buildMiningIds(data, tables)
-            val garrisonIds = buildGarrisonIds(data)
-            val inTeamIds = buildInTeamIds(data, teams)
-            val patrollingIds = buildPatrollingIds(data)
-
-            val alchemyIds = data.productionSlots
-                .filter { !it.assignedDiscipleId.isNullOrEmpty()
-                    && it.buildingId == "alchemy" }
-                .mapNotNull { it.assignedDiscipleId }.toSet()
-            val forgeIds = data.productionSlots
-                .filter { !it.assignedDiscipleId.isNullOrEmpty()
-                    && it.buildingId == "forge" }
-                .mapNotNull { it.assignedDiscipleId }.toSet()
-            val plantIds = data.productionSlots
-                .filter { !it.assignedDiscipleId.isNullOrEmpty()
-                    && it.buildingId == "herbGarden" }
-                .mapNotNull { it.assignedDiscipleId }.toSet()
+            val index = buildSyncIndex(data, tables)
 
             fixInvalidMiningSlots(data, tables)
 
-            // 构建活跃任务弟子 ID 集合 — 用于推导 ON_MISSION
-            val activeMissionDiscipleIds = data.activeMissions.flatMap { it.discipleIds }.toSet()
-
             for (id in tables.ids) {
-                val isAlive = tables.isAlive[id] == 1
-                val status = tables.statuses[id]
-                if (!isAlive) continue
-
-                val discipleId = id.toString()
-                val newStatus = deriveDiscipleStatus(
-                    isAlive = true,
-                    currentStatus = status,
-                    slotFlags = SlotFlags(
-                        inGarrison = garrisonIds.contains(discipleId),
-                        inTeam = inTeamIds.contains(discipleId),
-                        lawEnforcing = lawEnforcerIds.contains(discipleId),
-                        preaching = preachingIds.contains(discipleId),
-                        deaconing = deaconingIds.contains(discipleId),
-                        managing = managingIds.contains(discipleId),
-                        studying = studyingIds.contains(discipleId),
-                        mining = miningIds.contains(discipleId),
-                        patrolling = patrollingIds.contains(discipleId),
-                        alchemy = alchemyIds.contains(discipleId),
-                        forge = forgeIds.contains(discipleId),
-                        spiritPlanting = plantIds.contains(discipleId)
-                    ),
-                    hasActiveMission = discipleId in activeMissionDiscipleIds
-                )
-
-                if (status != newStatus) {
-                    tables.statuses[id] = newStatus
-                }
+                syncStatusFromIndex(id, tables, data, index)
             }
         }
+    }
+
+    /** 全量同步 O(n) 索引构建（syncAllDiscipleStatuses 第一步，防单函数超限拆分） */
+    private fun buildSyncIndex(data: GameData, tables: DiscipleTables): SyncIndex {
+        val alchemyIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "alchemy" }
+            .mapNotNull { it.assignedDiscipleId }.toSet()
+        val forgeIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "forge" }
+            .mapNotNull { it.assignedDiscipleId }.toSet()
+        val plantIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "herbGarden" }
+            .mapNotNull { it.assignedDiscipleId }.toSet()
+        return SyncIndex(
+            lawEnforcerIds = buildLawEnforcerIds(data.elderSlots),
+            preachingIds = buildPreachingIds(data.elderSlots),
+            deaconingIds = data.elderSlots.spiritMineDeaconDisciples
+                .mapNotNull { it.discipleId }.toSet(),
+            managingIds = buildManagingIds(data.elderSlots),
+            studyingIds = data.librarySlots
+                .mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }.toSet(),
+            miningIds = buildMiningIds(data, tables),
+            garrisonIds = buildGarrisonIds(data),
+            warehouseGarrisonIds = buildWarehouseGarrisonIds(data),
+            inTeamIds = buildInTeamIds(data),
+            secretRealmIds = buildSecretRealmIds(data),
+            patrollingIds = data.patrolSlots
+                .filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet(),
+            alchemyIds = alchemyIds,
+            forgeIds = forgeIds,
+            plantIds = plantIds,
+            activeMissionDiscipleIds = data.activeMissions.flatMap { it.discipleIds }.toSet()
+        )
+    }
+
+    /** 全量同步循环体：单个弟子的状态推导 + 写入（含 positionName） */
+    private fun syncStatusFromIndex(
+        id: Int,
+        tables: DiscipleTables,
+        data: GameData,
+        index: SyncIndex
+    ) {
+        if (tables.isAlive[id] != 1) return
+        val status = tables.statuses[id]
+        val discipleId = id.toString()
+        val newStatus = deriveDiscipleStatus(
+            isAlive = true,
+            currentStatus = status,
+            slotFlags = SlotFlags(
+                inGarrison = index.garrisonIds.contains(discipleId),
+                inWarehouseGarrison = index.warehouseGarrisonIds.contains(discipleId),
+                inTeam = index.inTeamIds.contains(discipleId),
+                inSecretRealm = index.secretRealmIds.contains(discipleId),
+                lawEnforcing = index.lawEnforcerIds.contains(discipleId),
+                preaching = index.preachingIds.contains(discipleId),
+                deaconing = index.deaconingIds.contains(discipleId),
+                managing = index.managingIds.contains(discipleId),
+                studying = index.studyingIds.contains(discipleId),
+                mining = index.miningIds.contains(discipleId),
+                patrolling = index.patrollingIds.contains(discipleId),
+                alchemy = index.alchemyIds.contains(discipleId),
+                forge = index.forgeIds.contains(discipleId),
+                spiritPlanting = index.plantIds.contains(discipleId)
+            ),
+            hasActiveMission = discipleId in index.activeMissionDiscipleIds
+        )
+        if (status != newStatus) {
+            tables.statuses[id] = newStatus
+        }
+        writePositionName(data, tables, id, newStatus)
     }
 
     /**
@@ -389,7 +363,6 @@ class DiscipleStatusService @Inject constructor(
      */
     fun syncSingleDiscipleStatus(discipleId: String) {
         val id = discipleId.toIntOrNull() ?: return
-        val activeTeams = stateStore.teams.value
         stateStore.update {
             if (id !in discipleTables.ids) return@update
             val isAlive = discipleTables.isAlive[id] == 1
@@ -404,8 +377,7 @@ class DiscipleStatusService @Inject constructor(
                 currentStatus = currentStatus,
                 slotFlags = buildSlotFlagsFor(
                     discipleId = discipleId,
-                    data = data,
-                    activeTeams = activeTeams
+                    data = data
                 ),
                 hasActiveMission = hasActiveMission
             )
@@ -413,13 +385,44 @@ class DiscipleStatusService @Inject constructor(
             if (currentStatus != newStatus) {
                 discipleTables.statuses[id] = newStatus
             }
+            writePositionName(data, discipleTables, id, newStatus)
+        }
+    }
+
+    /**
+     * 写入/清除 positionName 派生数据（仅 MANAGING 状态持有，UI 职位文案数据源）。
+     *
+     * - MANAGING：写入 [ElderSlots.resolvePositionName] 解析结果（无职位时兜底"管理中"），
+     *   仅值变化时写（定向 `+`，防每旬同步刷脏 statusData 列）
+     * - 非 MANAGING：定向删除既有 positionName key（`-`，保留血炼 buildingId、思过
+     *   reflectionStartYear/reflectionEndYear 等既有 key——禁止整体覆盖）
+     *
+     * syncAll / syncSingle 双路径共用，保证卸任后职位名残留能被清除。
+     *
+     * statusData 派生 key 与兜底文案定义在 core/domain（DiscipleStatusData.kt 单一来源，
+     * engine 推导与 UI statusText 消费共用），此处通过 import 引用。
+     */
+    private fun writePositionName(
+        data: GameData,
+        tables: DiscipleTables,
+        id: Int,
+        newStatus: DiscipleStatus
+    ) {
+        val current = tables.statusData.getOrNull(id) ?: emptyMap()
+        if (newStatus == DiscipleStatus.MANAGING) {
+            val resolved = data.elderSlots.resolvePositionName(id.toString()) ?: MANAGING_FALLBACK
+            if (current[POSITION_NAME_KEY] != resolved) {
+                tables.statusData[id] = current + (POSITION_NAME_KEY to resolved)
+            }
+        } else if (POSITION_NAME_KEY in current) {
+            tables.statusData[id] = current - POSITION_NAME_KEY
         }
     }
 
     /**
      * 重置所有弟子为 IDLE 状态。
      * 保留 REFLECTING / REFINING 不受影响。
-     * 清除所有槽位分配（灵脉矿/藏经阁/长老/驻守/探索队伍/任务）。
+     * 清除所有槽位分配（灵脉矿/藏经阁/长老/驻守/洞府探索队伍/任务/秘境会话）。
      */
     suspend fun resetAllDisciplesStatus() {
         val protectedIds = stateStore.updateAndReturn { clearSlotsForReset() }
@@ -472,14 +475,6 @@ class DiscipleStatusService @Inject constructor(
         val clearedActiveMissions = gameData.activeMissions.filter { mission ->
             mission.discipleIds.all { it in ids }
         }
-        val updatedTeams = teams.map { team ->
-            if (team.memberIds.any { it !in ids }) {
-                team.copy(
-                    memberIds = emptyList(), memberNames = emptyList(),
-                    status = ExplorationStatus.COMPLETED
-                )
-            } else team
-        }
         // 回归：重置漏清巡逻/仓库驻守/战斗队伍/生产槽，重置后派生状态把残留弟子
         // 重新推导回非 IDLE，与"重置为 IDLE"语义冲突（与 DiscipleSlotCleanup 对齐）
         val clearedPatrolSlots = gameData.patrolSlots.map {
@@ -513,7 +508,6 @@ class DiscipleStatusService @Inject constructor(
             battleTeams = clearedBattleTeams,
             productionSlots = clearedProductionSlots
         )
-        teams = updatedTeams
 
         // 远古秘境：重置所有弟子时终止探索会话（背包结算入仓 + 秘境消失 + 冷却）
         if (gameData.secretRealmSession.isActive || gameData.secretRealmState.exists) {
@@ -571,4 +565,98 @@ class DiscipleStatusService @Inject constructor(
 
         return updated
     }
+}
+
+// ── 文件级私有构建函数（buildSlotFlagsFor 拆分：控制单函数圈复杂度且不计入类函数数）──
+
+/** 队伍/秘境/驻守类 flag（与 [buildSlotFlagsFor] 拆分的复杂度隔离） */
+private data class TeamFlags(
+    val inGarrison: Boolean,
+    val inWarehouseGarrison: Boolean,
+    val inTeam: Boolean,
+    val inSecretRealm: Boolean
+)
+
+/** 执法/传道/执事 flag 中间载体 */
+private data class OfficerFlags(
+    val lawEnforcing: Boolean,
+    val preaching: Boolean,
+    val deaconing: Boolean
+)
+
+/** 生产/建筑职务 flag 中间载体 */
+private data class ProductionFlags(
+    val studying: Boolean,
+    val mining: Boolean,
+    val patrolling: Boolean,
+    val alchemy: Boolean,
+    val forge: Boolean,
+    val spiritPlanting: Boolean
+)
+
+private fun buildTeamFlags(data: GameData, discipleId: String): TeamFlags {
+    val inCaveExploration = data.caveExplorationTeams.any { team ->
+        team.memberIds.contains(discipleId) &&
+            team.status in DiscipleStatusService.caveExplorationStatuses
+    }
+    // 远古秘境：探索会话存在且秘境在地图上时，成员标记为秘境占用（SECRET_REALM）
+    val inSecretRealm = data.secretRealmState.exists &&
+        data.secretRealmSession.members.any { it.discipleId == discipleId && !it.isDead }
+    val inGarrison =
+        data.worldMapSects.find { it.isPlayerSect }
+            ?.garrisonSlots?.any { it.discipleId == discipleId } == true
+    // 仓库驻守单独标记（WAREHOUSE_GARRISON），不再并入 inGarrison——
+    // 文案需区分"驻守中"（据点驻军）与"仓库驻守中"
+    val inWarehouseGarrison =
+        data.warehouseGarrisons.any { it.discipleId == discipleId }
+    val inTeam = data.battleTeams
+        .any { t -> t.slots.any { it.discipleId == discipleId } }
+        || inCaveExploration
+    return TeamFlags(inGarrison, inWarehouseGarrison, inTeam, inSecretRealm)
+}
+
+private fun buildOfficerFlags(elderSlots: ElderSlots, discipleId: String): OfficerFlags {
+    val lawEnforcing = elderSlots.lawEnforcementElder == discipleId
+        || elderSlots.lawEnforcementDisciples
+            .any { it.discipleId == discipleId }
+    val preaching = elderSlots.preachingElder == discipleId
+        || elderSlots.preachingMasters.any { it.discipleId == discipleId }
+        || elderSlots.qingyunPreachingElder == discipleId
+        || elderSlots.qingyunPreachingMasters
+            .any { it.discipleId == discipleId }
+    val deaconing = elderSlots.spiritMineDeaconDisciples
+        .any { it.discipleId == discipleId }
+    return OfficerFlags(lawEnforcing, preaching, deaconing)
+}
+
+/** 管理职位 flag（副宗主/各长老/直属弟子）——9 条件独立成函数防超限 */
+private fun buildManagingFlag(elderSlots: ElderSlots, discipleId: String): Boolean =
+    elderSlots.viceSectMaster == discipleId
+        || elderSlots.outerElder == discipleId
+        || elderSlots.innerElder == discipleId
+        || elderSlots.forgeElder == discipleId
+        || elderSlots.alchemyElder == discipleId
+        || elderSlots.herbGardenElder == discipleId
+        // 回归（2026-08-10）：纳徒长老此前漏推——被推导为 IDLE 后
+        // 从"可用弟子"列表可见，月度自动排班等入口将其当作空闲调动
+        || elderSlots.recruitingElder == discipleId
+        || elderSlots.herbGardenDisciples
+            .any { it.discipleId == discipleId }
+        || elderSlots.alchemyDisciples
+            .any { it.discipleId == discipleId }
+        || elderSlots.forgeDisciples
+            .any { it.discipleId == discipleId }
+
+/** 生产/建筑职务类 flag（藏经阁/矿场/巡视/炼丹/锻造/灵植） */
+private fun buildProductionFlags(data: GameData, discipleId: String): ProductionFlags {
+    val studying = data.librarySlots.any { it.discipleId == discipleId }
+    val mining = data.spiritMineSlots.any { it.discipleId == discipleId }
+    val patrolling = data.patrolSlots.any { it.discipleId == discipleId }
+    val alchemy = data.productionSlots
+        .any { it.assignedDiscipleId == discipleId && it.buildingId == "alchemy" }
+    val forge = data.productionSlots
+        .any { it.assignedDiscipleId == discipleId && it.buildingId == "forge" }
+    val spiritPlanting = data.productionSlots
+        .any { it.assignedDiscipleId == discipleId && it.buildingId == "herbGarden" }
+    return ProductionFlags(studying, mining, patrolling, alchemy, forge, spiritPlanting)
 }

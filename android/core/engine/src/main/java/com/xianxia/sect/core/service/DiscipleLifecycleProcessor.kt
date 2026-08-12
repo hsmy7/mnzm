@@ -164,7 +164,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
     ) {
         val id = agedDisciple.id.toIntOrNull() ?: return
         // ── 槽位清理（事务内版本，替换 handleDiscipleDeath 的独立 update）──
-        // state 级：Gate + GameData 槽位 + 世界地图探索队（teams）一次清完
+        // state 级：Gate + GameData 槽位一次清完（世界地图探索队已下线移除）
         discipleSlotCleanup.clearAllSlotsState(this, agedDisciple.id, includeResidence = true)
 
         // ── 哀悼期批量写（L1b 列直写：替代 propagateGriefToRelatives 全列表 map + replaceAll 全表重建）──
@@ -449,7 +449,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     fun clearDiscipleFromAllSlots(discipleId: String) {
         // 在 update 锁内完成清理，避免 TOCTOU（锁外读取 gameData 再用整块覆写会丢其他并发写入）
-        // state 级：Gate + GameData 槽位 + 世界地图探索队（teams）一次清完
+        // state 级：Gate + GameData 槽位一次清完（世界地图探索队已下线移除）
         stateStore.update {
             discipleSlotCleanup.clearAllSlotsState(this, discipleId, includeResidence = true)
         }

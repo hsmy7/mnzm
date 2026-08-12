@@ -191,12 +191,6 @@ class GameEventsTest {
         assertEquals("alliance_dissolved", event.type)
     }
 
-    @Test
-    fun explorationCompletedEvent_type() {
-        val event = ExplorationCompletedEvent(teamId = "t1", success = true)
-        assertEquals("exploration_completed", event.type)
-    }
-
     // ==================== Data class equality ====================
 
     @Test
@@ -318,12 +312,6 @@ class GameEventsTest {
         val event = AllianceDissolvedEvent(sectId = "s1")
         assertEquals("", event.sectName)
         assertEquals("", event.reason)
-    }
-
-    @Test
-    fun explorationCompletedEvent_defaults() {
-        val event = ExplorationCompletedEvent(teamId = "t1", success = true)
-        assertEquals(0, event.survivorCount)
     }
 
     @Test

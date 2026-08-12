@@ -14,7 +14,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.io.File
 
-
 /**
  * Room 数据库迁移测试。
  *
@@ -78,6 +77,7 @@ class RoomMigrationTest {
         private val M41_42 = MIGRATION_41_42
         private val M42_43 = MIGRATION_42_43
         private val M43_44 = MIGRATION_43_44
+        private val M44_45 = MIGRATION_44_45
 
         /** v44 新增的弟子职业 4 列（disciples 与 disciples_attributes 两表共用） */
         private val PROFESSION_COLUMNS = listOf(
@@ -142,6 +142,18 @@ class RoomMigrationTest {
                     0
                 )
         """.trimIndent()
+
+        /** v44 种子行：v43 基础上补职业 4 列（alchemyLevel 等 NOT NULL 无默认值） */
+        private val SEED_DISCIPLES_V44: String = SEED_DISCIPLES_V43
+            .replace(
+                "usage_hasClearAllEffect\n",
+                "alchemyLevel, alchemyPromotionCount, forgeLevel, forgePromotionCount, usage_hasClearAllEffect\n"
+            )
+            .replace(
+                "\n        0\n    )",
+                "\n        0,                     0,                     0,                     0,\n        0\n    )"
+            )
+
         private val SEED_DISCIPLES_ATTRIBUTES_V43 = """
             INSERT INTO disciples_attributes (
                     discipleId, slot_id, intelligence, charm,
@@ -344,7 +356,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 38).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 42：仅注册 M38_39 时 Room 要求 38→42 迁移路径
-                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43, M43_44)
+                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43, M43_44, M44_45)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -376,7 +388,8 @@ class RoomMigrationTest {
                     M16_17, M17_18, M18_19, M19_20, M20_21, M21_22,
                     M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
                     M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36,
-                    M36_37, M37_38, M38_39, M39_40, M40_41, M41_42, M42_43, M43_44
+                    M36_37, M37_38, M38_39, M39_40, M40_41, M41_42, M42_43, M43_44,
+                    M44_45
                 )
                 .build()
             roomDb.openHelper.writableDatabase
@@ -400,7 +413,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 39).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 42：完整迁移路径 39→42
-                .addMigrations(M39_40, M40_41, M41_42, M42_43, M43_44)
+                .addMigrations(M39_40, M40_41, M41_42, M42_43, M43_44, M44_45)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -453,7 +466,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 40).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M40_41, M41_42, M42_43, M43_44)
+                .addMigrations(M40_41, M41_42, M42_43, M43_44, M44_45)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -475,7 +488,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 41).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M41_42, M42_43, M43_44)
+                .addMigrations(M41_42, M42_43, M43_44, M44_45)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -492,7 +505,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 42).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M42_43, M43_44)
+                .addMigrations(M42_43, M43_44, M44_45)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -588,7 +601,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 43).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M43_44)
+                .addMigrations(M43_44, M44_45)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -625,6 +638,74 @@ class RoomMigrationTest {
                 c.moveToFirst(); c.getInt(0)
             }
             assertEquals("旧属性数据保留", 60, pillRefining)
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    /**
+     * 真实 Room 校验：v44 库升级到 v45（世界地图探索队 exploration_teams 表删除），
+     * 触发 onValidateSchema——表仍存在或列定义不一致都会在此崩溃。
+     */
+    @Test
+    fun `MIGRATION_44_TO_45 passes real Room schema validation`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_44_45_room_validate"
+        context.deleteDatabase(dbName)
+        try {
+            createDatabaseFromSchema(context, dbName, 44).close()
+            val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
+                .addMigrations(M44_45)
+                .build()
+            db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_44_TO_45 drops exploration_teams table keeps other data`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_44_45_drop_table"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 44)
+            // v44 库 disciples 表含职业 4 列（NOT NULL 无默认），用补齐后的种子行
+            db.execSQL(SEED_DISCIPLES_V44)
+            // v44 库含 exploration_teams 表（世界地图探索队，已下线）——seed 一行验证删除
+            db.execSQL(
+                """
+                INSERT INTO exploration_teams (
+                    id, slot_id, name, caveName, dungeon, dungeonName, memberIds, memberNames,
+                    startYear, startMonth, startDay, duration, status, progress, scoutTargetSectName,
+                    currentX, currentY, targetX, targetY, moveProgress, arrivalYear, arrivalMonth,
+                    arrivalDay, route, currentRouteIndex, currentSegmentProgress,
+                    pityCounterEquipment, pityCounterPill, pityCounterManual
+                ) VALUES (
+                    't1', 1, '探索队', '', '', '', '["d1"]', '["弟子1"]',
+                    2026, 1, 1, 30, 'EXPLORING', 50, '',
+                    0.0, 0.0, 0.0, 0.0, 0.5, 2026, 2,
+                    1, '[]', 0, 0.0,
+                    0, 0, 0
+                )
+                """
+            )
+            // 手动执行迁移 SQL（真实 Room 校验由上一测试覆盖）
+            listOf(M44_45).forEach { it.migrate(db) }
+
+            // 表已删除
+            val tableExists = db.query(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='exploration_teams'"
+            ).use { c -> c.moveToFirst(); c.getInt(0) }
+            assertEquals("exploration_teams 表应被删除", 0, tableExists)
+
+            // 其它数据保留
+            val disciple = db.query("SELECT name, isAlive FROM disciples WHERE id = 'd1'").use { c ->
+                c.moveToFirst(); c.getString(0) to c.getInt(1)
+            }
+            assertEquals("旧弟子数据保留", "测试弟子" to 1, disciple)
             db.close()
         } finally {
             context.deleteDatabase(dbName)
@@ -1161,7 +1242,6 @@ class RoomMigrationTest {
     fun `MIGRATION_32_TO_33 adds musicEnabled to game_data`() {
         testSingleMigration("m_32_33_me", 31, 33, listOf(M31_32, M32_33), "game_data", "musicEnabled")
     }
-
 
     @Test
     fun `MIGRATION_33_TO_34 adds prisonerSpiritRootFilter to game_data`() {
@@ -1765,10 +1845,8 @@ class RoomMigrationTest {
      * 新谓词：当前 user_version < DATABASE_VERSION 且备份与当前同版本（备份创建后
      * 迁移从未完成）→ 触发恢复。
      *
-     * 注：restoreFromBackupIfNeeded 全流程在 Robolectric 下不稳定（sqlite4java 对
-     * ".pre_migrate_backup" 路径的打开与时序相关——现有 "backup and restore" 测试
-     * 能通过依赖时序巧合），判定逻辑提取为 GameDatabaseConfig.shouldRestoreFromBackup
-     * 纯函数后在此直接覆盖全部分支；-wal/-shm 清理顺序由代码审查保证。
+     * 注：restoreFromBackupIfNeeded 全流程在 Robolectric 下不稳定（时序相关），
+     * 判定逻辑提取为纯函数后在此直接覆盖全部分支。
      */
     @Test
     fun `shouldRestoreFromBackup - migration pending restores`() {
@@ -1839,8 +1917,6 @@ class RoomMigrationTest {
             )
         )
     }
-
-
 
     /** 在 v2 种子库插入最小 game_data 行（v2 createSql 列集），供全链迁移测试使用 */
     private fun insertMinimalGameDataV2(db: SupportSQLiteDatabase) {

@@ -11,7 +11,6 @@ import com.xianxia.sect.core.engine.removeDirectDisciple
 import com.xianxia.sect.core.engine.removeDiscipleFromLibrarySlot
 import com.xianxia.sect.core.engine.updateGameDataAndSync
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.production.ProductionSlot

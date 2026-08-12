@@ -48,6 +48,5 @@ class SpiritStoneNonNegativeRuleTest {
     private fun saveData(gd: GameData) = SaveData(
         gameData = gd, disciples = emptyList(), pills = emptyList(),
         materials = emptyList(), herbs = emptyList(), seeds = emptyList(),
-        teams = emptyList()
-    )
+            )
 }

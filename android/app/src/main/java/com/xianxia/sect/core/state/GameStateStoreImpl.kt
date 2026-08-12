@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -225,7 +224,6 @@ class GameStateStoreImpl @Inject constructor(
     internal val _seedsFlow = MutableStateFlow<List<Seed>>(emptyList())
     internal val _storageBagsFlow = MutableStateFlow<List<StorageBag>>(emptyList())
     internal val _battleLogsFlow = MutableStateFlow<List<BattleLog>>(emptyList())
-    internal val _teamsFlow = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
     internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
     /** 通知队列（替代单值 _pendingNotificationFlow） */
@@ -282,7 +280,6 @@ class GameStateStoreImpl @Inject constructor(
     override val seeds: StateFlow<List<Seed>> = _seedsFlow.asStateFlow()
     override val storageBags: StateFlow<List<StorageBag>> = _storageBagsFlow.asStateFlow()
     override val battleLogs: StateFlow<List<BattleLog>> = _battleLogsFlow.asStateFlow()
-    override val teams: StateFlow<List<ExplorationTeam>> = _teamsFlow.asStateFlow()
 
     // === GameStateSnapshotProvider 接口实现 ===
     override val gameDataSnapshot: GameData get() = _gameDataFlow.value
@@ -296,7 +293,6 @@ class GameStateStoreImpl @Inject constructor(
     override val herbsSnapshot: List<Herb> get() = _herbsFlow.value
     override val seedsSnapshot: List<Seed> get() = _seedsFlow.value
     override val storageBagsSnapshot: List<StorageBag> get() = _storageBagsFlow.value
-    override val teamsSnapshot: List<ExplorationTeam> get() = _teamsFlow.value
     override val battleLogsSnapshot: List<BattleLog> get() = _battleLogsFlow.value
 
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = transactionLock.withLock {
@@ -312,7 +308,6 @@ class GameStateStoreImpl @Inject constructor(
             herbs = _herbsFlow.value,
             seeds = _seedsFlow.value,
             storageBags = _storageBagsFlow.value,
-            teams = _teamsFlow.value,
             battleLogs = _battleLogsFlow.value
         )
     }
@@ -407,7 +402,6 @@ class GameStateStoreImpl @Inject constructor(
         _herbsFlow,
         _seedsFlow,
         _storageBagsFlow,
-        _teamsFlow,
         _battleLogsFlow
     ) { args ->
         GameStateStore.EntityState(
@@ -421,8 +415,7 @@ class GameStateStoreImpl @Inject constructor(
             herbs = args[7] as List<Herb>,
             seeds = args[8] as List<Seed>,
             storageBags = args[9] as List<StorageBag>,
-            teams = args[10] as List<ExplorationTeam>,
-            battleLogs = args[11] as List<BattleLog>
+            battleLogs = args[10] as List<BattleLog>
         )
     }.stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.EntityState())
 
@@ -693,7 +686,6 @@ class GameStateStoreImpl @Inject constructor(
         seeds = EntityStore(),
         storageBags = EntityStore(),
         battleLogs = emptyList(),
-        teams = emptyList(),
         isPaused = true,
         isLoading = false,
         isSaving = false,
@@ -819,7 +811,6 @@ class GameStateStoreImpl @Inject constructor(
         val seeds: List<Seed>,
         val storageBags: List<StorageBag>,
         val battleLogs: List<BattleLog>,
-        val teams: List<ExplorationTeam>,
         val isPaused: Boolean,
         val isLoading: Boolean,
         val isSaving: Boolean,
@@ -1029,7 +1020,6 @@ class GameStateStoreImpl @Inject constructor(
         seeds = _seedsFlow.value,
         storageBags = _storageBagsFlow.value,
         battleLogs = _battleLogsFlow.value,
-        teams = _teamsFlow.value,
         isPaused = _isPaused.value,
         isLoading = _isLoading.value,
         isSaving = _isSaving.value,
@@ -1055,7 +1045,6 @@ class GameStateStoreImpl @Inject constructor(
             seeds = EntityStore(baseline.seeds)
             storageBags = EntityStore(baseline.storageBags)
             battleLogs = baseline.battleLogs
-            teams = baseline.teams
             isPaused = baseline.isPaused
             isLoading = baseline.isLoading
             isSaving = baseline.isSaving
@@ -1118,8 +1107,6 @@ class GameStateStoreImpl @Inject constructor(
             _seedsFlow.value = reusableMutableState.seeds.items
         if (reusableMutableState.storageBags.items !== baseline.storageBags)
             _storageBagsFlow.value = reusableMutableState.storageBags.items
-        if (reusableMutableState.teams !== baseline.teams)
-            _teamsFlow.value = reusableMutableState.teams
         if (reusableMutableState.battleLogs !== baseline.battleLogs)
             _battleLogsFlow.value = reusableMutableState.battleLogs
         if (flags.notificationChanged)
@@ -1142,7 +1129,6 @@ class GameStateStoreImpl @Inject constructor(
             herbs = reusableMutableState.herbs.items !== baseline.herbs,
             seeds = reusableMutableState.seeds.items !== baseline.seeds,
             storageBags = reusableMutableState.storageBags.items !== baseline.storageBags,
-            teams = reusableMutableState.teams !== baseline.teams,
             battleLogs = reusableMutableState.battleLogs !== baseline.battleLogs
         )
     }
@@ -1164,7 +1150,6 @@ class GameStateStoreImpl @Inject constructor(
         || reusableMutableState.herbs.items !== baseline.herbs
         || reusableMutableState.seeds.items !== baseline.seeds
         || reusableMutableState.storageBags.items !== baseline.storageBags
-        || reusableMutableState.teams !== baseline.teams
         || reusableMutableState.battleLogs !== baseline.battleLogs
         || flags.finalPaused != baseline.isPaused
         || flags.finalLoading != baseline.isLoading
@@ -1245,7 +1230,6 @@ class GameStateStoreImpl @Inject constructor(
         val herbs: List<Herb>,
         val seeds: List<Seed>,
         val storageBags: List<StorageBag>,
-        val teams: List<ExplorationTeam>,
         val battleLogs: List<BattleLog>,
         val isPaused: Boolean,
         val isLoading: Boolean,
@@ -1265,7 +1249,6 @@ class GameStateStoreImpl @Inject constructor(
         herbs: List<Herb>,
         seeds: List<Seed>,
         storageBags: List<StorageBag>,
-        teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>,
         isPaused: Boolean,
         isLoading: Boolean,
@@ -1302,7 +1285,6 @@ class GameStateStoreImpl @Inject constructor(
                 herbs = _herbsFlow.value,
                 seeds = _seedsFlow.value,
                 storageBags = _storageBagsFlow.value,
-                teams = _teamsFlow.value,
                 battleLogs = _battleLogsFlow.value,
                 isPaused = _isPaused.value,
                 isLoading = _isLoading.value,
@@ -1331,7 +1313,6 @@ class GameStateStoreImpl @Inject constructor(
                 _herbsFlow.value = herbs
                 _seedsFlow.value = seeds
                 _storageBagsFlow.value = storageBags
-                _teamsFlow.value = teams
                 _battleLogsFlow.value = battleLogs
                 _isPaused.value = isPaused
                 _isLoading.value = isLoading
@@ -1424,7 +1405,6 @@ class GameStateStoreImpl @Inject constructor(
         _herbsFlow.value = baseline.herbs
         _seedsFlow.value = baseline.seeds
         _storageBagsFlow.value = baseline.storageBags
-        _teamsFlow.value = baseline.teams
         _battleLogsFlow.value = baseline.battleLogs
         _isPaused.value = baseline.isPaused
         _isLoading.value = baseline.isLoading
@@ -1477,7 +1457,6 @@ class GameStateStoreImpl @Inject constructor(
             _herbsFlow.value = emptyList()
             _seedsFlow.value = emptyList()
             _storageBagsFlow.value = emptyList()
-            _teamsFlow.value = emptyList()
             _battleLogsFlow.value = emptyList()
             _pendingBattleResultFlow.value = null
             _pendingNotificationFlow.value = null

@@ -32,8 +32,7 @@ class SaveDataReconcilerTest {
         materials = emptyList(),
         herbs = emptyList(),
         seeds = emptyList(),
-        teams = emptyList()
-    )
+            )
 
     @Test
     fun `reconcileStacks - 新格式原样返回`() {

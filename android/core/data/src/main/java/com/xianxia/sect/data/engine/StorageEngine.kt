@@ -129,7 +129,6 @@ class StorageEngine @Inject constructor(
             size += data.herbs.size * es.HERB
             size += data.seeds.size * es.SEED
             size += data.battleLogs.size * es.BATTLE_LOG
-            size += data.teams.size * es.TEAM
             size += data.alliances.size * es.ALLIANCE
 
             val serializationOverhead = (size * StorageConstants.ESTIMATE_SERIALIZATION_OVERHEAD_RATIO).toLong()
@@ -649,7 +648,6 @@ class StorageEngine @Inject constructor(
                     core.database.materialDao().deleteAll(slot)
                     core.database.seedDao().deleteAll(slot)
                     core.database.herbDao().deleteAll(slot)
-                    core.database.explorationTeamDao().deleteAll(slot)
                     core.database.buildingSlotDao().deleteAll(slot)
                     core.database.recipeDao().deleteAll(slot)
                     core.database.productionSlotDao().deleteBySlot(slot)
@@ -1008,7 +1006,6 @@ class StorageEngine @Inject constructor(
         core.database.herbDao().deleteAll(slot)
         core.database.seedDao().deleteAll(slot)
         core.database.storageBagDao().deleteAll(slot)
-        core.database.explorationTeamDao().deleteAll(slot)
         core.database.battleLogDao().deleteAll(slot)
         core.database.recipeDao().deleteAll(slot)
         core.database.productionSlotDao().deleteBySlot(slot)
@@ -1044,8 +1041,6 @@ class StorageEngine @Inject constructor(
         data.seeds.chunked(MAX_BATCH_SIZE).forEach { core.database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
 
         data.storageBags.chunked(MAX_BATCH_SIZE).forEach { core.database.storageBagDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
-
-        data.teams.chunked(MAX_BATCH_SIZE).forEach { core.database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
 
         data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { core.database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
 
@@ -1377,7 +1372,6 @@ class StorageEngine @Inject constructor(
         val deferredHerbs = async { core.database.herbDao().getAllSync(slot) }
         val deferredSeeds = async { core.database.seedDao().getAllSync(slot) }
         val deferredStorageBags = async { core.database.storageBagDao().getAll(slot) }
-        val deferredTeams = async { core.database.explorationTeamDao().getAllSync(slot) }
         val deferredBattleLogs = async { core.database.battleLogDao().getAllSync(slot) }
         var deferredProductionSlots = async { core.database.productionSlotDao().getBySlotSync(slot) }
 
@@ -1391,7 +1385,6 @@ class StorageEngine @Inject constructor(
         val herbs = deferredHerbs.await()
         val seeds = deferredSeeds.await()
         val storageBags = deferredStorageBags.await()
-        val teams = deferredTeams.await()
         val battleLogs = deferredBattleLogs.await()
         var productionSlots = deferredProductionSlots.await()
 
@@ -1439,7 +1432,6 @@ class StorageEngine @Inject constructor(
             herbs = materialized.herbs,
             seeds = materialized.seeds,
             storageBags = storageBags,
-            teams = teams,
             battleLogs = battleLogs,
             alliances = alliances,
             productionSlots = productionSlots,

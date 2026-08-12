@@ -136,6 +136,6 @@ class CultivationCapRuleTest {
     private fun saveData(disciples: List<Disciple>) = SaveData(
         gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1),
         disciples = disciples, pills = emptyList(), materials = emptyList(),
-        herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        herbs = emptyList(), seeds = emptyList()
     )
 }

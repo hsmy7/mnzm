@@ -17,7 +17,6 @@ import com.xianxia.sect.data.local.SeedDao
 import com.xianxia.sect.data.local.StorageBagDao
 import com.xianxia.sect.data.local.BattleLogDao
 import com.xianxia.sect.data.local.BuildingSlotDao
-import com.xianxia.sect.data.local.ExplorationTeamDao
 import com.xianxia.sect.data.local.ProductionSlotDao
 import com.xianxia.sect.data.local.RecipeDao
 import com.xianxia.sect.data.incremental.ChangeLogDao
@@ -51,7 +50,6 @@ data class ItemDaos(
 
 /** 世界/系统域 DAO 分组 */
 data class WorldDaos(
-    val explorationTeamDao: ExplorationTeamDao,
     val buildingSlotDao: BuildingSlotDao,
     val recipeDao: RecipeDao,
     val battleLogDao: BattleLogDao,

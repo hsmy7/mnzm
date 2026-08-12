@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
@@ -163,7 +162,7 @@ class BootSequenceControllerTest {
             disciples = emptyList(), equipmentStacks = emptyList(), equipmentInstances = emptyList(),
             manualStacks = emptyList(), manualInstances = emptyList(), pills = emptyList(),
             materials = emptyList(), herbs = emptyList(), seeds = emptyList(),
-            storageBags = emptyList(), teams = emptyList(), battleLogs = emptyList(),
+            storageBags = emptyList(), battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
         // gameDataSnapshot stub 同步到注入数据（boot Step 3.5 溢出迁移/边界迁移读取）
@@ -475,8 +474,8 @@ class BootSequenceControllerTest {
 /**
  * 用于 [BootSequenceControllerTest] 的 [GameStateStore] Fake 实现。
  *
- * 与 [ExplorationTeamManagerTest] 中的无操作存根不同，本 Fake 会实际修改
- * [bootPhase] 和 [runState] 的 StateFlow 值，以便 [BootSequenceController]
+ * 与无操作存根不同，本 Fake 会实际修改 [bootPhase] 和 [runState] 的
+ * StateFlow 值，以便 [BootSequenceController]
  * 在启动过程中读取到正确的当前状态。同时记录 [advanceBootPhase] /
  * [resetBootPhase] / [setReloading] 等调用历史供测试断言使用。
  */
@@ -545,7 +544,6 @@ private class FakeGameStateStore : GameStateStore {
     override val herbs = MutableStateFlow<List<Herb>>(emptyList())
     override val seeds = MutableStateFlow<List<Seed>>(emptyList())
     override val storageBags = MutableStateFlow<List<StorageBag>>(emptyList())
-    override val teams = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
     override val isPaused = MutableStateFlow(false)
     override val isLoading = MutableStateFlow(false)
@@ -578,7 +576,6 @@ private class FakeGameStateStore : GameStateStore {
     override val herbsSnapshot: List<Herb> get() = herbs.value
     override val seedsSnapshot: List<Seed> get() = seeds.value
     override val storageBagsSnapshot: List<StorageBag> get() = storageBags.value
-    override val teamsSnapshot: List<ExplorationTeam> get() = teams.value
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
 
     // ── 兼容层 API ──
@@ -625,13 +622,12 @@ private class FakeGameStateStore : GameStateStore {
         equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,
         pills: List<Pill>, materials: List<Material>, herbs: List<Herb>, seeds: List<Seed>,
-        storageBags: List<StorageBag>, teams: List<ExplorationTeam>,
+        storageBags: List<StorageBag>,
         battleLogs: List<BattleLog>, isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
     ) {
         this._gameData.value = gameData
         this.disciples.value = disciples
-        this.teams.value = teams
-        this.battleLogs.value = battleLogs
+                this.battleLogs.value = battleLogs
         this.isPaused.value = isPaused
         this.isLoading.value = isLoading
         this.isSaving.value = isSaving
@@ -649,8 +645,7 @@ private class FakeGameStateStore : GameStateStore {
         val m = newMutable()
         block(m)
         _gameData.value = m.gameData
-        teams.value = m.teams
-        battleLogs.value = m.battleLogs
+                battleLogs.value = m.battleLogs
         isPaused.value = m.isPaused
         isLoading.value = m.isLoading
         isSaving.value = m.isSaving
@@ -660,8 +655,7 @@ private class FakeGameStateStore : GameStateStore {
         val m = newMutable()
         val result = block(m)
         _gameData.value = m.gameData
-        teams.value = m.teams
-        battleLogs.value = m.battleLogs
+                battleLogs.value = m.battleLogs
         isPaused.value = m.isPaused
         isLoading.value = m.isLoading
         isSaving.value = m.isSaving
@@ -685,8 +679,7 @@ private class FakeGameStateStore : GameStateStore {
         herbs = EntityStore(),
         seeds = EntityStore(),
         storageBags = EntityStore(),
-        teams = teams.value,
-        battleLogs = battleLogs.value,
+                battleLogs = battleLogs.value,
         isPaused = isPaused.value,
         isLoading = isLoading.value,
         isSaving = isSaving.value

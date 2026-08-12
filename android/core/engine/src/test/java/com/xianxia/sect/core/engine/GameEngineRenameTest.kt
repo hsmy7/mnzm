@@ -12,7 +12,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -209,8 +208,7 @@ private class RenameStore : GameStateStore {
             herbs = hrbs,
             seeds = sds,
             storageBags = stBags,
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = false,
             isLoading = false,
             isSaving = false
@@ -241,7 +239,6 @@ private class RenameStore : GameStateStore {
     override val herbs = MutableStateFlow<List<Herb>>(emptyList())
     override val seeds = MutableStateFlow<List<Seed>>(emptyList())
     override val storageBags = MutableStateFlow<List<StorageBag>>(emptyList())
-    override val teams = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
     override val isPaused = MutableStateFlow(false)
     override val isLoading = MutableStateFlow(false)
@@ -267,7 +264,6 @@ private class RenameStore : GameStateStore {
     override val herbsSnapshot: List<Herb> get() = emptyList()
     override val seedsSnapshot: List<Seed> get() = emptyList()
     override val storageBagsSnapshot: List<StorageBag> get() = emptyList()
-    override val teamsSnapshot: List<ExplorationTeam> get() = emptyList()
     override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = emptyList()
     override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
@@ -298,7 +294,7 @@ private class RenameStore : GameStateStore {
             manualStacks = mnStacks, manualInstances = mnInstances,
             pills = pils, materials = mats, herbs = hrbs,
             seeds = sds, storageBags = stBags,
-            teams = emptyList(), battleLogs = emptyList(),
+            battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false)
         val r = block(m)
         gameDataValue = m.gameData
@@ -314,7 +310,7 @@ private class RenameStore : GameStateStore {
         manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,
         pills: List<Pill>, materials: List<Material>, herbs: List<Herb>,
         seeds: List<Seed>, storageBags: List<StorageBag>,
-        teams: List<ExplorationTeam>, battleLogs: List<BattleLog>,
+        battleLogs: List<BattleLog>,
         isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
     ) { this.gameDataValue = gameData }
     override suspend fun reset() { gameDataValue = GameData() }

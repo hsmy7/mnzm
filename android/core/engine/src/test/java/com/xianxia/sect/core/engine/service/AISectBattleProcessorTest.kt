@@ -27,7 +27,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.GameData
@@ -347,8 +346,7 @@ class AISectBattleProcessorTest {
             herbs = EntityStore(),
             seeds = EntityStore(),
             storageBags = EntityStore(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
     }
@@ -527,7 +525,7 @@ class AISectBattleProcessorTest {
     // 集成链路：到期预警 → 真实防御战斗（AI 强弟子全灭玩家）→ deadDefenderIds 清槽
 
     @Test
-    fun `玩家防守阵亡 - 生产槽矿洞槽世界地图探索队清除`() {
+    fun `玩家防守阵亡 - 生产槽矿洞槽清除`() {
         val playerId = "1"
         val tables = DiscipleTables().apply { writeAllowed = true }
         tables.insert(makeWeakDefender(playerId))
@@ -559,9 +557,6 @@ class AISectBattleProcessorTest {
             )
         )
         val state = makeState(data, tables)
-        state.teams = listOf(
-            ExplorationTeam(id = "t1", memberIds = listOf(playerId), memberNames = listOf("防守弟子"))
-        )
 
         val processor = makeDefenseProcessor(state)
         processor.processPlayerDefenseBattles()
@@ -571,8 +566,6 @@ class AISectBattleProcessorTest {
         // 槽位清理（2026-08-10 修复：此前只清锻造 Repository 且跳过 isWorking）
         assertTrue("生产槽镜像清空", state.gameData.productionSlots.all { it.assignedDiscipleId == null })
         assertEquals("矿洞槽清空", "", state.gameData.spiritMineSlots[0].discipleId)
-        // 世界地图探索队：空队整体删除
-        assertTrue("空探索队删除", state.teams.isEmpty())
         // 到期预警已删除
         assertTrue("到期预警已删除", state.gameData.activeAttackWarnings.isEmpty())
     }

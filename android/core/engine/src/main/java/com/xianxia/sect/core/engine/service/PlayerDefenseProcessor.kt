@@ -143,6 +143,8 @@ class PlayerDefenseProcessor @Inject constructor(
             it.isAlive && it.status !in setOf(
                 DiscipleStatus.ON_MISSION,
                 DiscipleStatus.IN_TEAM,
+                DiscipleStatus.SECRET_REALM,        // 远古秘境成员不可防守
+                DiscipleStatus.WAREHOUSE_GARRISON,  // 仓库驻守不可防守
                 DiscipleStatus.REFLECTING,
                 DiscipleStatus.GARRISONING,
                 DiscipleStatus.REFINING

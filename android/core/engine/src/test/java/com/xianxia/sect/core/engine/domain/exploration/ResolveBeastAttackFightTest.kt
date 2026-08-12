@@ -62,7 +62,6 @@ class ResolveBeastAttackFightTest {
         // 灵石不足用例正需要 Insufficient（非 Success → paid=false）
         Mockito.doReturn(DeductResult.Insufficient(balance = 0, required = 0))
             .`when`(spiritStoneWallet).deduct(any(), any(), any(), any(), any(), any(), any())
-        val explorationTeamManager = mockSmart(com.xianxia.sect.core.exploration.ExplorationTeamManager::class.java)
 
         `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
@@ -87,7 +86,6 @@ class ResolveBeastAttackFightTest {
             encounterBattleService = encounterBattleService,
             cultivationService = cultivationService,
             spiritStoneWallet = spiritStoneWallet,
-            explorationTeamManager = explorationTeamManager,
             deathHandler = mockSmart(DiscipleDeathHandler::class.java)
         )
     }

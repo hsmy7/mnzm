@@ -154,8 +154,7 @@ class BuildingBatchRemovalTest {
         herbs = EntityStore(emptyList()),
         seeds = EntityStore(emptyList()),
         storageBags = EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
+                battleLogs = emptyList(),
         isPaused = false,
         isLoading = false,
         isSaving = false

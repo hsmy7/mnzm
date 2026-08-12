@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
@@ -36,6 +35,5 @@ interface GameStateSnapshotProvider {
     val herbsSnapshot: List<Herb>
     val seedsSnapshot: List<Seed>
     val storageBagsSnapshot: List<StorageBag>
-    val teamsSnapshot: List<ExplorationTeam>
     val battleLogsSnapshot: List<BattleLog>
 }

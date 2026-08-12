@@ -28,6 +28,8 @@ import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ResignGateResult
+import com.xianxia.sect.core.model.evaluateResignGate
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
@@ -200,6 +202,11 @@ fun DiscipleDetailDialog(
     var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
+    // 卸任分流对话框：血炼/监牢二次确认 + 任务/秘境/队伍不可卸任提示
+    var showResignConfirmDialog by remember { mutableStateOf(false) }
+    var resignConfirmMessage by remember { mutableStateOf("") }
+    var showResignBlockedDialog by remember { mutableStateOf(false) }
+    var resignBlockedMessage by remember { mutableStateOf("") }
     var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
     var selectedPhysique by remember { mutableStateOf<Physique?>(null) }
@@ -382,6 +389,21 @@ fun DiscipleDetailDialog(
                             onShowApprentice = { showApprenticeSelectDialog = true },
                             onRenameDisciple = { showRenameDialog = true },
                             onShowChat = { showChatDialog = true },
+                            onShowResignConfirm = {
+                                when (val result = evaluateResignGate(disciple.status, disciple.isAlive)) {
+                                    is ResignGateResult.CanResign ->
+                                        viewModel?.releaseDiscipleForReassignment(disciple.id)
+                                    is ResignGateResult.ConfirmRequired -> {
+                                        resignConfirmMessage = result.message
+                                        showResignConfirmDialog = true
+                                    }
+                                    is ResignGateResult.Blocked -> {
+                                        resignBlockedMessage = result.message
+                                        showResignBlockedDialog = true
+                                    }
+                                    is ResignGateResult.Disabled -> Unit
+                                }
+                            },
                             onNavigateToDisciple = onNavigateToDisciple,
                         ),
                         viewModel = viewModel
@@ -481,6 +503,32 @@ fun DiscipleDetailDialog(
             },
             dismissLabel = "取消",
             onDismiss = { showExpelConfirmDialog = false }
+        )
+    }
+
+    if (showResignConfirmDialog) {
+        StandardPromptDialog(
+            onDismissRequest = { showResignConfirmDialog = false },
+            title = "卸任确认",
+            text = resignConfirmMessage,
+            confirmLabel = "确认卸任",
+            onConfirm = {
+                viewModel?.releaseDiscipleForReassignment(disciple.id)
+                showResignConfirmDialog = false
+            },
+            dismissLabel = "取消",
+            onDismiss = { showResignConfirmDialog = false }
+        )
+    }
+
+    if (showResignBlockedDialog) {
+        StandardPromptDialog(
+            onDismissRequest = { showResignBlockedDialog = false },
+            title = "无法卸任",
+            text = resignBlockedMessage,
+            confirmLabel = "确定",
+            onConfirm = { showResignBlockedDialog = false },
+            onDismiss = { showResignBlockedDialog = false }
         )
     }
 

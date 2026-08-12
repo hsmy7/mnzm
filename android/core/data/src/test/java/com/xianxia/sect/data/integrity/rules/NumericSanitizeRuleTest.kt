@@ -292,6 +292,6 @@ class NumericSanitizeRuleTest {
     ) = SaveData(
         gameData = gameData,
         disciples = disciples, pills = emptyList(), materials = emptyList(),
-        herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        herbs = emptyList(), seeds = emptyList()
     )
 }

@@ -20,7 +20,7 @@
     <ID>LongMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
     <ID>LongMethod:GameMonitorManager.kt$GameMonitorManager$private fun registerDefaultMetrics()</ID>
     <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override fun update(block: MutableGameState.() -&gt; Unit)</ID>
-    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun loadFromSnapshot( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt;, isPaused: Boolean, isLoading: Boolean, isSaving: Boolean )</ID>
+    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun loadFromSnapshot( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, battleLogs: List&lt;BattleLog&gt;, isPaused: Boolean, isLoading: Boolean, isSaving: Boolean )</ID>
     <ID>LongMethod:MainActivity.kt$@Composable fun MainScreen( sessionManager: SessionManager, complianceDialogState: MutableState&lt;MainActivity.ComplianceDialogState?&gt;, tapTapReady: Boolean = false, onLoginSuccess: () -&gt; Unit, onPrivacyAgreed: () -&gt; Unit = {} )</ID>
     <ID>LongMethod:MainActivity.kt$MainActivity$internal fun showSaveSelectScreen()</ID>
     <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun FullPrivacyPolicyScreen( onBack: () -&gt; Unit )</ID>
@@ -269,7 +269,6 @@
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _rewardCardQueueFlow = MutableStateFlow&lt;List&lt;RewardCardItem&gt;&gt;(emptyList())</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _seedsFlow = MutableStateFlow&lt;List&lt;Seed&gt;&gt;(emptyList())</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _storageBagsFlow = MutableStateFlow&lt;List&lt;StorageBag&gt;&gt;(emptyList())</ID>
-    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _teamsFlow = MutableStateFlow&lt;List&lt;ExplorationTeam&gt;&gt;(emptyList())</ID>
     <ID>VariableNaming:SpiritRootGeneratorTest.kt$SpiritRootGeneratorTest$val N = 100000</ID>
                                                                                                                                                                                                                                                               </CurrentIssues>
 </SmellBaseline>

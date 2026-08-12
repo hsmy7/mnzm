@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
@@ -295,8 +294,7 @@ private class TrialTestStore : GameStateStore {
             herbs = EntityStore(hrbs.all()),
             seeds = EntityStore(sds.all()),
             storageBags = EntityStore(stBags.all()),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             isPaused = false,
             isLoading = false,
             isSaving = false
@@ -359,7 +357,6 @@ private class TrialTestStore : GameStateStore {
     override val herbsSnapshot: List<Herb> get() = hrbs.all()
     override val seedsSnapshot: List<Seed> get() = sds.all()
     override val storageBagsSnapshot: List<StorageBag> get() = stBags.all()
-    override val teamsSnapshot: List<ExplorationTeam> get() = emptyList()
     override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = emptyList()
     override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
@@ -390,7 +387,6 @@ private class TrialTestStore : GameStateStore {
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
     override val pendingMarriageProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
     override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
-    override val teams = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
     override val isPaused = MutableStateFlow(false)
     override val isLoading = MutableStateFlow(false)
@@ -422,8 +418,7 @@ private class TrialTestStore : GameStateStore {
         herbs: List<Herb>,
         seeds: List<Seed>,
         storageBags: List<StorageBag>,
-        teams: List<ExplorationTeam>,
-        battleLogs: List<BattleLog>,
+                battleLogs: List<BattleLog>,
         isPaused: Boolean,
         isLoading: Boolean,
         isSaving: Boolean

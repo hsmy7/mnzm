@@ -397,8 +397,7 @@ class SaveFileManagerTest {
             herbs = emptyList(),
             seeds = emptyList(),
             storageBags = emptyList(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
+                        battleLogs = emptyList(),
             alliances = emptyList(),
             productionSlots = emptyList()
         )

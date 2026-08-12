@@ -89,7 +89,6 @@ import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ForgeRecipe
 import com.xianxia.sect.core.model.ForgeSlot
 import com.xianxia.sect.core.model.ForgeSlotStatus
@@ -611,7 +610,6 @@ class GameViewModel @Inject constructor(
     val herbs: StateFlow<List<Herb>> get() = gameEngine.herbs
     val seeds: StateFlow<List<Seed>> get() = gameEngine.seeds
     val storageBags: StateFlow<List<StorageBag>> get() = gameEngine.storageBags
-    val teams: StateFlow<List<ExplorationTeam>> get() = gameEngine.teams
     val battleLogs: StateFlow<List<BattleLog>> get() = gameEngine.battleLogs
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = gameEngine.pendingBattleResult
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = gameEngine.pendingBattleRewardCards

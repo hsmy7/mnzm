@@ -358,4 +358,71 @@ class DiscipleFilterUtilsTest {
         assertEquals(1, result.size)
         assertEquals("ok", ids.single())
     }
+
+    // -- filterByDiscipleStatus：显示所有可用弟子开关 -------------------------
+
+    @Test
+    fun filterByDiscipleStatus_showAll_excludesSecretRealmAndTeamAndMission() {
+        // 回归：秘境成员由推导系统标记为 SECRET_REALM（不再并入 IN_TEAM），
+        // 漏排除会在"显示所有"弹窗变成可选中（可被误分配）
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val secretRealm = createAggregate(id = "secret", status = DiscipleStatus.SECRET_REALM)
+        val inTeam = createAggregate(id = "team", status = DiscipleStatus.IN_TEAM)
+        val onMission = createAggregate(id = "mission", status = DiscipleStatus.ON_MISSION)
+        val refining = createAggregate(id = "refining", status = DiscipleStatus.REFINING)
+
+        val result = listOf(idle, secretRealm, inTeam, onMission, refining)
+            .filterByDiscipleStatus(showAllEnabled = true)
+
+        val ids = result.map { it.id }.toSet()
+        assertTrue("空闲中弟子应显示", "idle" in ids)
+        assertTrue("血炼中弟子应显示（showAll 可见，选中触发血炼失败）", "refining" in ids)
+        assertTrue("远古秘境中弟子必须排除", "secret" !in ids)
+        assertTrue("队伍中弟子必须排除", "team" !in ids)
+        assertTrue("任务中弟子必须排除", "mission" !in ids)
+    }
+
+    @Test
+    fun filterByDiscipleStatus_showAll_warehouseGarrisonVisible() {
+        // WAREHOUSE_GARRISON 与 GARRISONING 一致：showAll 可见可选中（选中走正常卸任）
+        val warehouse = createAggregate(id = "wh", status = DiscipleStatus.WAREHOUSE_GARRISON)
+        val garrisoning = createAggregate(id = "gar", status = DiscipleStatus.GARRISONING)
+
+        val result = listOf(warehouse, garrisoning)
+            .filterByDiscipleStatus(showAllEnabled = true)
+
+        val ids = result.map { it.id }.toSet()
+        assertTrue("仓库驻守中弟子应可见", "wh" in ids)
+        assertTrue("据点驻守中弟子应可见", "gar" in ids)
+    }
+
+    @Test
+    fun filterByDiscipleStatus_idleOnly_unchangedForSecretRealmAndWarehouse() {
+        // 不勾选 showAll 时仅 IDLE——新状态同样被排除
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val secretRealm = createAggregate(id = "secret", status = DiscipleStatus.SECRET_REALM)
+        val warehouse = createAggregate(id = "wh", status = DiscipleStatus.WAREHOUSE_GARRISON)
+
+        val result = listOf(idle, secretRealm, warehouse)
+            .filterByDiscipleStatus(showAllEnabled = false)
+
+        val ids = result.map { it.id }.toSet()
+        assertEquals(1, result.size)
+        assertEquals("idle", ids.single())
+    }
+
+    @Test
+    fun filterByDiscipleStatus_battleAndExplorationIds_stillExcluded() {
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val busy = createAggregate(id = "busy", status = DiscipleStatus.IDLE)
+
+        val result = listOf(idle, busy)
+            .filterByDiscipleStatus(
+                showAllEnabled = true,
+                battleAndExplorationIds = setOf("busy")
+            )
+
+        val ids = result.map { it.id }.toSet()
+        assertEquals("idle", ids.single())
+    }
 }
