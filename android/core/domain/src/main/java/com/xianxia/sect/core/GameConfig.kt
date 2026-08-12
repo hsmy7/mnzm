@@ -112,6 +112,8 @@ object GameConfig {
         const val MIN_AGE = 5
         const val MAX_AGE = 100
         const val PROTECTION_MONTHS = 12
+        /** 基础技能属性上限（资质/悟性/智力等 10 项；忠诚单独用 MAX_LOYALTY=100） */
+        const val SKILL_MAX = 200
     }
 
     object Elder {
@@ -796,11 +798,12 @@ object GameConfig {
         const val HERB_GARDEN_ELDER_SPIRIT_BASE = 80
         const val HERB_GARDEN_ELDER_SPIRIT_STEP = 4
 
-        // 长老技能基线 / 加成除数
+        // 长老技能基线 / 加成除数（ELDER_SKILL_BASELINE 同时被教学公式引用，勿改名）
         const val ELDER_SKILL_BASELINE = 80
-        const val ELDER_BONUS_DIVISOR = 5
-        /** 内外门长老突破率加成最大步数（每次1%），即最多+5% */
-        const val ELDER_BREAKTHROUGH_MAX_STEPS = 5
+        /** 突破率加成除数：每高基准 4 点 +1%（弟子自身与内外门长老共用同一公式） */
+        const val ELDER_BONUS_DIVISOR = 4
+        /** 突破率加成最大步数（每次1%），即最多+10%（弟子自身与内外门长老共用同一公式） */
+        const val ELDER_BREAKTHROUGH_MAX_STEPS = 10
         const val SPEED_REDUCTION_DIVISOR = 4.0
         const val HERB_GARDEN_ELDER_MAX = 0.20
         const val HERB_GARDEN_DISCIPLE_SPIRIT_BASE = 50

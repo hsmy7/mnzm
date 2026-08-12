@@ -28,6 +28,7 @@ data class DiscipleAttributes(
     var mining: Int = 50,
     var teaching: Int = 50,
     var morality: Int = 50,
+    var aptitude: Int = 50,
     var salaryPaidCount: Int = 0,
     var salaryMissedCount: Int = 0,
     var alchemyLevel: Int = 0,
@@ -35,8 +36,6 @@ data class DiscipleAttributes(
     var forgeLevel: Int = 0,
     var forgePromotionCount: Int = 0
 ) {
-    val comprehensionSpeedBonus: Double get() = 1.0 + (comprehension - 50) * 0.02
-
     companion object {
         fun fromDisciple(disciple: Disciple): DiscipleAttributes {
             return DiscipleAttributes(
@@ -51,6 +50,7 @@ data class DiscipleAttributes(
                 mining = disciple.skills.mining,
                 teaching = disciple.skills.teaching,
                 morality = disciple.skills.morality,
+                aptitude = disciple.skills.aptitude,
                 salaryPaidCount = disciple.skills.salaryPaidCount,
                 salaryMissedCount = disciple.skills.salaryMissedCount,
                 alchemyLevel = disciple.skills.alchemyLevel,

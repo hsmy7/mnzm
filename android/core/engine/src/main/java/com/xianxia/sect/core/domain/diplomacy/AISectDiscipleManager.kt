@@ -7,6 +7,7 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -146,12 +147,14 @@ object AISectDiscipleManager {
         val spiritRoot = generateSpiritRoot()
         val spiritRootCount = spiritRoot.split(",").size
         val comprehension = when (spiritRootCount) {
-            1 -> 80 + rng.nextInt(21)
-            2 -> 60 + rng.nextInt(41)
-            3 -> 40 + rng.nextInt(61)
-            4 -> 20 + rng.nextInt(81)
-            else -> 1 + rng.nextInt(100)
+            1 -> 80 + rng.nextInt(121)
+            2 -> 60 + rng.nextInt(141)
+            3 -> 40 + rng.nextInt(161)
+            4 -> 20 + rng.nextInt(181)
+            else -> 1 + rng.nextInt(200)
         }
+        // 资质：与悟性一致的按灵根阶梯生成（上界统一 200，防 AI 对抗不对称；避开哨兵 50）
+        val aptitude = rollAptitudeByRootCount(spiritRootCount)
         val hpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val mpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val physicalAttackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
@@ -202,16 +205,17 @@ object AISectDiscipleManager {
             ),
             equipment = EquipmentSet(),
             skills = SkillStats(
-                intelligence = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                charm = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                loyalty = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                intelligence = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                charm = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                loyalty = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.MAX_LOYALTY),
                 comprehension = comprehension,
-                morality = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                artifactRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                pillRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                spiritPlanting = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                mining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
-                teaching = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100)
+                morality = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                artifactRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                pillRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                spiritPlanting = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                mining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                teaching = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, GameConfig.Disciple.SKILL_MAX),
+                aptitude = aptitude
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -229,6 +233,22 @@ object AISectDiscipleManager {
     }
 
     private fun generateSpiritRoot(): String = SpiritRootGenerator.generate(rng.asKotlinRandom())
+
+    /** 资质按灵根阶梯生成（与悟性阶梯一致，上界 200），并避开哨兵值 50 防自愈误判 */
+    private fun rollAptitudeByRootCount(spiritRootCount: Int): Int =
+        avoidSentinel50(
+            when (spiritRootCount) {
+                1 -> 80 + rng.nextInt(121)
+                2 -> 60 + rng.nextInt(141)
+                3 -> 40 + rng.nextInt(161)
+                4 -> 20 + rng.nextInt(181)
+                else -> 1 + rng.nextInt(200)
+            }
+        )
+
+    /** 资质生成避开哨兵值 50（==50 强制 +1）：与 [DiscipleTables.healDefaultAptitudes] 收敛逻辑一致，防自愈误判 */
+    private fun avoidSentinel50(roll: Int): Int =
+        if (roll == DiscipleTables.DEFAULT_APTITUDE) DiscipleTables.DEFAULT_APTITUDE + 1 else roll
 
     /**
      * 弟子装备/功法是否达到宗门等级标准数量（老档补全早退判定用）。
@@ -728,7 +748,6 @@ object AISectDiscipleManager {
     private fun applyMonthlyProficiencyGain(disciple: Disciple): Disciple {
         if (!ManualDatabase.isInitialized || disciple.manualIds.isEmpty()) return disciple
         val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
-            disciple.skills.comprehension,
             libraryBonus = 0.0
         ) * PHASES_PER_MONTH
         val validIds = disciple.manualIds.toSet()

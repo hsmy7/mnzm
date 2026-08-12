@@ -33,35 +33,35 @@ fun AttributesSection(disciple: DiscipleAggregate) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            DiscipleAttrText("资质", baseStats.aptitude, Modifier.weight(1f))
             DiscipleAttrText("悟性", baseStats.comprehension, Modifier.weight(1f))
             DiscipleAttrText("智力", baseStats.intelligence, Modifier.weight(1f))
-            DiscipleAttrText("魅力", baseStats.charm, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            DiscipleAttrText("魅力", baseStats.charm, Modifier.weight(1f))
             DiscipleAttrText("忠诚", baseStats.loyalty, Modifier.weight(1f))
             DiscipleAttrText("炼器", baseStats.artifactRefining, Modifier.weight(1f))
-            DiscipleAttrText("炼丹", baseStats.pillRefining, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            DiscipleAttrText("炼丹", baseStats.pillRefining, Modifier.weight(1f))
             DiscipleAttrText("灵植", baseStats.spiritPlanting, Modifier.weight(1f))
             DiscipleAttrText("传道", baseStats.teaching, Modifier.weight(1f))
-            DiscipleAttrText("道德", baseStats.morality, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            DiscipleAttrText("道德", baseStats.morality, Modifier.weight(1f))
             DiscipleAttrText("采矿", baseStats.mining, Modifier.weight(1f))
-            Spacer(Modifier.weight(1f))
             Spacer(Modifier.weight(1f))
         }
     }

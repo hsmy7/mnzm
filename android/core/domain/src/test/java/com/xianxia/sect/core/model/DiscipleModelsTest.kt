@@ -27,23 +27,16 @@ class DiscipleModelsTest {
     }
 
     @Test
-    fun discipleAttributes_comprehensionSpeedBonus_at50() {
-        val attrs = DiscipleAttributes(comprehension = 50)
-        assertEquals(1.0, attrs.comprehensionSpeedBonus, 0.001)
+    fun discipleAttributes_aptitude_default50() {
+        val attrs = DiscipleAttributes()
+        // 资质默认 50 为旧档自愈哨兵值（2026-08-12 悟性重设计新增固定属性）
+        assertEquals(50, attrs.aptitude)
     }
 
     @Test
-    fun discipleAttributes_comprehensionSpeedBonus_above50() {
-        val attrs = DiscipleAttributes(comprehension = 75)
-        // 1.0 + (75 - 50) * 0.02 = 1.0 + 0.5 = 1.5
-        assertEquals(1.5, attrs.comprehensionSpeedBonus, 0.001)
-    }
-
-    @Test
-    fun discipleAttributes_comprehensionSpeedBonus_below50() {
-        val attrs = DiscipleAttributes(comprehension = 30)
-        // 1.0 + (30 - 50) * 0.02 = 1.0 - 0.4 = 0.6
-        assertEquals(0.6, attrs.comprehensionSpeedBonus, 0.001)
+    fun discipleAttributes_aptitude_customValue() {
+        val attrs = DiscipleAttributes(discipleId = "d1", aptitude = 120)
+        assertEquals(120, attrs.aptitude)
     }
 
     @Test
@@ -318,16 +311,15 @@ class DiscipleModelsTest {
     }
 
     @Test
-    fun skillStats_comprehensionSpeedBonus_at50() {
-        val stats = SkillStats(comprehension = 50)
-        assertEquals(1.0, stats.comprehensionSpeedBonus, 0.001)
+    fun skillStats_aptitude_default50() {
+        val stats = SkillStats()
+        assertEquals(50, stats.aptitude)
     }
 
     @Test
-    fun skillStats_comprehensionSpeedBonus_above50() {
-        val stats = SkillStats(comprehension = 100)
-        // 1.0 + (100 - 50) * 0.02 = 2.0
-        assertEquals(2.0, stats.comprehensionSpeedBonus, 0.001)
+    fun skillStats_aptitude_customValue() {
+        val stats = SkillStats(aptitude = 160)
+        assertEquals(160, stats.aptitude)
     }
 
     // ---- UsageTracking ----

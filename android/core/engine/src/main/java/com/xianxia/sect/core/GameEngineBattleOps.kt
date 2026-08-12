@@ -691,18 +691,30 @@ private fun GameEngine.applyWorldLevelVictoryTransaction(
 private fun GameEngine.applyDeterministicWinAttr(id: Int, state: MutableGameState) {
     // 确定性随机：用弟子 ID 散列代替 kotlin.random.Random 确保读档一致性
     val r = ((id * 527 + 31) % 17).let { if (it < 0) -it else it }
+    // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
     when (r) {
-        0 -> discipleTables.intelligences[id] = discipleTables.intelligences[id] + 1
-        1 -> discipleTables.comprehensions[id] = discipleTables.comprehensions[id] + 1
-        2 -> discipleTables.charms[id] = discipleTables.charms[id] + 1
-        3 -> discipleTables.loyalties[id] = discipleTables.loyalties[id] + 1
-        4 -> discipleTables.artifactRefinings[id] = discipleTables.artifactRefinings[id] + 1
-        5 -> discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id] + 1
-        6 -> discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id] + 1
-        7 -> discipleTables.minings[id] = discipleTables.minings[id] + 1
-        8 -> discipleTables.teachings[id] = discipleTables.teachings[id] + 1
+        0 -> discipleTables.intelligences[id] =
+            minOf(discipleTables.intelligences[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        1 -> discipleTables.comprehensions[id] =
+            minOf(discipleTables.comprehensions[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        2 -> discipleTables.charms[id] =
+            minOf(discipleTables.charms[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        3 -> discipleTables.loyalties[id] =
+            minOf(discipleTables.loyalties[id] + 1, GameConfig.Disciple.MAX_LOYALTY)
+        4 -> discipleTables.artifactRefinings[id] =
+            minOf(discipleTables.artifactRefinings[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        5 -> discipleTables.pillRefinings[id] =
+            minOf(discipleTables.pillRefinings[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        6 -> discipleTables.spiritPlantings[id] =
+            minOf(discipleTables.spiritPlantings[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        7 -> discipleTables.minings[id] =
+            minOf(discipleTables.minings[id] + 1, GameConfig.Disciple.SKILL_MAX)
+        8 -> discipleTables.teachings[id] =
+            minOf(discipleTables.teachings[id] + 1, GameConfig.Disciple.SKILL_MAX)
         9 -> {
-            val newMoral = discipleTables.moralities[id] + 1
+            val newMoral = minOf(
+                discipleTables.moralities[id] + 1, GameConfig.Disciple.SKILL_MAX
+            )
             discipleTables.moralities[id] = newMoral
             // 道德变化后即时触发偷盗判定（事务内版本）
             if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {

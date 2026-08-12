@@ -67,8 +67,7 @@ class DiscipleMergeCoverageTest {
         "manualCompletionMonth", "manualCompletionPhase",
         "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
         "social",
-        "usage",
-        "lifeEvents"
+        "usage"
     )
 
     /**
@@ -107,7 +106,9 @@ class DiscipleMergeCoverageTest {
         "speed", "maxHp", "maxMp", "hpPercent", "mpPercent",
         "equippedItems", "learnedManuals",
         "genderName", "genderSymbol", "hasPartner",
-        "comprehensionSpeedBonus"
+        "aptitude",
+        // @Ignore 字段（不参与 Room 持久化，需单独登记核对）
+        "lifeEvents"
     )
 
     // ============ 测试 ============
@@ -177,6 +178,32 @@ class DiscipleMergeCoverageTest {
                 "以下字段在分类清单中但不存在于 Disciple 类的任何属性中:\n" +
                 "  ${nonexistent.sorted().joinToString("\n  ")}\n\n" +
                 "这些字段可能已被删除或重命名，请更新分类清单。"
+            )
+        }
+    }
+
+    @Test
+    fun `every Disciple getter and delegated property is listed in computedProps`() {
+        // 守卫：新增 getter/委托属性（如资质 aptitude）必须登记到 computedProps，
+        // 否则后续在 Disciple 上新增计算属性时会漏掉 copy() 合并语义核对。
+        val constructorParamNames = Disciple::class.constructors
+            .first()
+            .parameters
+            .map { it.name!! }
+            .filter { it !in syntheticParams }
+            .toSet()
+        // companionObject 是反射合成的伴生对象属性，非真实业务字段
+        val allProps = Disciple::class.memberProperties
+            .map { it.name }
+            .filter { it != "companionObject" }
+            .toSet()
+        val unlisted = allProps - constructorParamNames - computedProps
+
+        if (unlisted.isNotEmpty()) {
+            fail(
+                "Disciple 新增了未登记到 computedProps 的 getter/委托属性:\n" +
+                "  ${unlisted.sorted().joinToString("\n  ")}\n\n" +
+                "请在 computedProps 集合中登记（不参与 copy() 合并，但需核对语义）。"
             )
         }
     }

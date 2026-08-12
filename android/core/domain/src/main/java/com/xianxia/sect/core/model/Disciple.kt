@@ -192,7 +192,7 @@ data class Disciple(
     val genderSymbol: String get() = if (gender == "male") "\u2642" else "\u2640"
     val hasPartner: Boolean get() = social.hasPartner
 
-    val comprehensionSpeedBonus: Double get() = skills.comprehensionSpeedBonus
+    val aptitude: Int get() = skills.aptitude
 
     // ==================== copyWith 已删除 ====================
     // 组件表架构下不再需要 copyWith，所有字段更新通过 DiscipleTables 直接操作。
@@ -476,7 +476,8 @@ data class DiscipleStats(
     val mining: Int = 0,
     val spiritPlanting: Int = 0,
     val artifactRefining: Int = 0,
-    val pillRefining: Int = 0
+    val pillRefining: Int = 0,
+    val aptitude: Int = 0
 ) {
     operator fun plus(other: DiscipleStats): DiscipleStats {
         return DiscipleStats(
@@ -499,7 +500,8 @@ data class DiscipleStats(
             mining = mining + other.mining,
             spiritPlanting = spiritPlanting + other.spiritPlanting,
             artifactRefining = artifactRefining + other.artifactRefining,
-            pillRefining = pillRefining + other.pillRefining
+            pillRefining = pillRefining + other.pillRefining,
+            aptitude = aptitude + other.aptitude
         )
     }
 }

@@ -36,7 +36,6 @@ import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.accessoryId
 import com.xianxia.sect.core.model.armorId
 import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.comprehension
 import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.GameUtils
@@ -235,7 +234,8 @@ private fun elderBreakthroughComprehension(
     val elder = elderId?.let { discipleMap[it] }
     if (disciple.discipleType != discipleType) return 0
     return if (elder != null && elder.isAlive && disciple.realm >= elder.realm) {
-        elder.comprehension
+        // 有效悟性（含天赋 Flat，如顿悟+18），与突破结算口径一致
+        elder.getBaseStats().comprehension
     } else {
         0
     }

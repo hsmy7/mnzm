@@ -547,12 +547,26 @@ class PatrolBattleSystem @Inject constructor(
                 }) {
                     val attr = rng.nextInt(WIN_BATTLE_ATTR_COUNT)
                     val s = m.skills; val c = m.combat
+                    // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
                     when (attr) {
-                        0 -> s.intelligence++; 1 -> s.comprehension++
-                        2 -> s.charm++; 3 -> s.loyalty++
-                        4 -> s.artifactRefining++; 5 -> s.pillRefining++
-                        6 -> s.spiritPlanting++; 7 -> s.mining++
-                        8 -> s.teaching++; 9 -> s.morality++
+                        0 -> s.intelligence =
+                            minOf(s.intelligence + 1, GameConfig.Disciple.SKILL_MAX)
+                        1 -> s.comprehension =
+                            minOf(s.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
+                        2 -> s.charm = minOf(s.charm + 1, GameConfig.Disciple.SKILL_MAX)
+                        3 -> s.loyalty =
+                            minOf(s.loyalty + 1, GameConfig.Disciple.MAX_LOYALTY)
+                        4 -> s.artifactRefining =
+                            minOf(s.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
+                        5 -> s.pillRefining =
+                            minOf(s.pillRefining + 1, GameConfig.Disciple.SKILL_MAX)
+                        6 -> s.spiritPlanting =
+                            minOf(s.spiritPlanting + 1, GameConfig.Disciple.SKILL_MAX)
+                        7 -> s.mining = minOf(s.mining + 1, GameConfig.Disciple.SKILL_MAX)
+                        8 -> s.teaching =
+                            minOf(s.teaching + 1, GameConfig.Disciple.SKILL_MAX)
+                        9 -> s.morality =
+                            minOf(s.morality + 1, GameConfig.Disciple.SKILL_MAX)
                         10 -> c.baseHp++; 11 -> c.baseMp++
                         12 -> c.basePhysicalAttack++; 13 -> c.baseMagicAttack++
                         14 -> c.basePhysicalDefense++; 15 -> c.baseMagicDefense++

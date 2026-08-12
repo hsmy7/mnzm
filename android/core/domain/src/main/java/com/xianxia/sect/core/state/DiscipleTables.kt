@@ -296,6 +296,7 @@ class DiscipleTables {
     val minings = IntComponentTable()
     val teachings = IntComponentTable()
     val moralities = IntComponentTable()
+    val aptitudes = IntComponentTable()                  // 资质（固定属性；默认 50 为"未生成"哨兵，读档自愈按灵根补算）
     val salaryPaidCounts = IntComponentTable()
     val salaryMissedCounts = IntComponentTable()
     val alchemyLevels = IntComponentTable()              // id → 炼丹师职业等级（0=无职业）
@@ -326,6 +327,15 @@ class DiscipleTables {
 
         /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
         const val GRIEF_YEAR_NULL_SENTINEL = -1
+
+        /** 资质默认值：=50 表示"未生成"（旧档 Migration/序列化默认），读档自愈 [healDefaultAptitudes] 按灵根补算 */
+        const val DEFAULT_APTITUDE = 50
+
+        /** 资质自愈确定性散列乘数（仿 applyDeterministicWinAttr 的 id 散列模式，Long 防 Int 溢出） */
+        private const val APTITUDE_HASH_MULTIPLIER = 527L
+
+        /** 资质自愈确定性散列偏移 */
+        private const val APTITUDE_HASH_OFFSET = 31L
 
         /** 合法的死亡原因集合 */
         private val VALID_DEATH_CAUSES = setOf("age", "battle", "scout", "exploration", "cave", "unknown")
@@ -573,6 +583,7 @@ class DiscipleTables {
             "minings" to AssembleGroup.SKILLS,
             "teachings" to AssembleGroup.SKILLS,
             "moralities" to AssembleGroup.SKILLS,
+            "aptitudes" to AssembleGroup.SKILLS,
             "salaryPaidCounts" to AssembleGroup.SKILLS,
             "salaryMissedCounts" to AssembleGroup.SKILLS,
             "alchemyLevels" to AssembleGroup.SKILLS,
@@ -658,6 +669,7 @@ class DiscipleTables {
         IntTableRef(minings, DiscipleTables::minings, "minings"),
         IntTableRef(teachings, DiscipleTables::teachings, "teachings"),
         IntTableRef(moralities, DiscipleTables::moralities, "moralities"),
+        IntTableRef(aptitudes, DiscipleTables::aptitudes, "aptitudes"),
         IntTableRef(salaryPaidCounts, DiscipleTables::salaryPaidCounts, "salaryPaidCounts"),
         IntTableRef(salaryMissedCounts, DiscipleTables::salaryMissedCounts, "salaryMissedCounts"),
         IntTableRef(alchemyLevels, DiscipleTables::alchemyLevels, "alchemyLevels"),
@@ -758,7 +770,17 @@ class DiscipleTables {
         val idStr = id.toString()
         _ids.add(id)
         // copy() 不复制 class body 属性（如 lifeEvents），手动保留
-        val d = disciple.copy(id = idStr)
+        val d = if (disciple.skills.aptitude == DEFAULT_APTITUDE) {
+            // 旧档 recruitList/俘虏资质未生成（哨兵 50）→ 入宗时按灵根阶梯补算，
+            // 避免本局内资质保持 50、下次读档才自愈的"招募后资质跳变"窗口
+            val rootCount = disciple.spiritRootType.takeIf { it.isNotBlank() }?.split(",")?.size ?: 5
+            disciple.copy(
+                id = idStr,
+                skills = disciple.skills.copy(aptitude = rollHealedAptitude(id, rootCount))
+            )
+        } else {
+            disciple.copy(id = idStr)
+        }
         d.lifeEvents = disciple.lifeEvents
         writeAllFields(d)
         recordChangedId(id)
@@ -955,6 +977,7 @@ class DiscipleTables {
         artifactRefinings[id] = sk.artifactRefining; pillRefinings[id] = sk.pillRefining
         spiritPlantings[id] = sk.spiritPlanting; minings[id] = sk.mining
         teachings[id] = sk.teaching; moralities[id] = sk.morality
+        aptitudes[id] = sk.aptitude
         salaryPaidCounts[id] = sk.salaryPaidCount; salaryMissedCounts[id] = sk.salaryMissedCount
         alchemyLevels[id] = sk.alchemyLevel; alchemyPromotionCounts[id] = sk.alchemyPromotionCount
         forgeLevels[id] = sk.forgeLevel; forgePromotionCounts[id] = sk.forgePromotionCount
@@ -1123,6 +1146,8 @@ class DiscipleTables {
         spiritPlanting = spiritPlantings.getOrDefault(id, 0),
         mining = minings.getOrDefault(id, 0), teaching = teachings.getOrDefault(id, 0),
         morality = moralities.getOrDefault(id, 0),
+        // 资质默认值必须为 DEFAULT_APTITUDE(50)（自愈哨兵，与列直读/Migration/序列化统一）
+        aptitude = aptitudes.getOrDefault(id, DEFAULT_APTITUDE),
         salaryPaidCount = salaryPaidCounts.getOrDefault(id, 0),
         salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0),
         alchemyLevel = alchemyLevels.getOrDefault(id, 0),
@@ -1130,6 +1155,54 @@ class DiscipleTables {
         forgeLevel = forgeLevels.getOrDefault(id, 0),
         forgePromotionCount = forgePromotionCounts.getOrDefault(id, 0)
     )
+
+    /**
+     * 旧档资质自愈：资质 == [DEFAULT_APTITUDE]（未生成哨兵）的弟子按灵根数阶梯
+     * 确定性重算资质（id 散列，幂等——同一 id 每次重算结果稳定）。
+     *
+     * 阶梯与生成站点（DiscipleFactory/AISectDiscipleManager/RedeemCodeManager）一致：
+     * 1根[80,200] 2根[60,200] 3根[40,200] 4根[20,200] 5根[1,200]。
+     * 生成站点与自愈均避开哨兵值（重算命中 [DEFAULT_APTITUDE] 时强制 +1 收敛），
+     * 保证"资质==50 ⇔ 未生成"判定在两次读档之间稳定，不会重复重算。
+     *
+     * @return 被补算的弟子数量（0 = 无修改，调用方据此决定是否需要持久化/重锚）
+     */
+    fun healDefaultAptitudes(): Int {
+        var count = 0
+        for (id in ids) {
+            if (aptitudes.getOrDefault(id, DEFAULT_APTITUDE) != DEFAULT_APTITUDE) continue
+            // 空串/空灵根兜底按 5 根（最宽区间），避免空数据误判 1 根生成低档资质
+            val rootCount = spiritRootTypes.getOrNull(id)
+                ?.takeIf { it.isNotBlank() }
+                ?.split(",")?.size ?: 5
+            aptitudes[id] = rollHealedAptitude(id, rootCount)
+            count++
+        }
+        return count
+    }
+
+    /**
+     * 按灵根数阶梯确定性散列资质（id 散列，幂等——同一 id 每次结果稳定），
+     * 命中哨兵 [DEFAULT_APTITUDE] 时强制 +1 收敛。自愈与入宗补算共用同一实现，
+     * 保证读档自愈与 [allocateAndInsert] 补算结果一致。
+     */
+    private fun rollHealedAptitude(id: Int, rootCount: Int): Int {
+        val (min, span) = when (rootCount) {
+            1 -> 80 to 121
+            2 -> 60 to 141
+            3 -> 40 to 161
+            4 -> 20 to 181
+            else -> 1 to 200 // 5 灵根；异常灵根数兜底到最宽区间 [1,200]
+        }
+        // 确定性散列（Long 运算防 Int 溢出，floorMod 保证非负），span 恰好覆盖 [min, 200]
+        val roll = Math.floorMod(
+            id.toLong() * APTITUDE_HASH_MULTIPLIER + APTITUDE_HASH_OFFSET,
+            span.toLong()
+        ).toInt()
+        val aptitude = min + roll
+        // 收敛：重算命中哨兵值时强制 +1，保证幂等稳定（3/4/5 根区间均含 50）
+        return if (aptitude == DEFAULT_APTITUDE) DEFAULT_APTITUDE + 1 else aptitude
+    }
 
     private fun assembleUsage(id: Int) = UsageTracking(
         usedFunctionalPillTypes = usedFunctionalPillTypes.getOrNull(id) ?: emptyList(),

@@ -335,6 +335,42 @@ class CultivationRateEquivalenceTest {
     }
 
     @Test
+    fun `aptitude 120 disciple stays equivalent across both paths`() {
+        // 2026-08-12 资质乘区（80 基准每点+1% 最多+40%）：两入口必须一致
+        val tables = DiscipleTables()
+        val d = makeDisciple(id = "1", skills = SkillStats(aptitude = 120))
+        tables.insert(d)
+        val data = GameData(gameYear = 5, gameMonth = 3)
+
+        val objectRate = calculator.calculateDiscipleCultivationPerPhase(d, data, tables)
+        val columnRate = calculator.calculateCultivationPerPhaseById(1, data, tables)
+        assertEquals("资质120：object=$objectRate column=$columnRate", objectRate, columnRate, 1e-9)
+        // 资质120 → +40% 封顶：与默认资质 50 相比差 1.40 倍
+        val baseTables = DiscipleTables()
+        baseTables.insert(makeDisciple(id = "2", skills = SkillStats(aptitude = 50)))
+        val baseRate = calculator.calculateCultivationPerPhaseById(2, data, baseTables)
+        assertEquals("资质120 应比 50 快 40%", baseRate * 1.40, objectRate, 1e-9)
+    }
+
+    @Test
+    fun `missing aptitude column defaults to 50 across both paths`() {
+        // 守护统一默认值：列缺失（旧档自愈前）时 assemble 与列直读均回退
+        // DEFAULT_APTITUDE=50，资质加成 0——两入口不得因默认值分叉
+        val tables = DiscipleTables()
+        tables.insert(makeDisciple(id = "1")) // insert 写入 skills.aptitude=50
+        // 模拟旧档：清空 aptitudes 列（自愈前的读档窗口）
+        tables.aptitudes[1] = DiscipleTables.DEFAULT_APTITUDE
+        val data = GameData(gameYear = 5, gameMonth = 3)
+
+        val objectRate = calculator.calculateDiscipleCultivationPerPhase(
+            makeDisciple(id = "1", skills = SkillStats(aptitude = DiscipleTables.DEFAULT_APTITUDE)),
+            data, tables
+        )
+        val columnRate = calculator.calculateCultivationPerPhaseById(1, data, tables)
+        assertEquals("列缺失默认50：object=$objectRate column=$columnRate", objectRate, columnRate, 1e-9)
+    }
+
+    @Test
     fun `grief sentinel -1 with tampered negative year stays equivalent`() {
         // F2 回归：篡改存档使 gameYear 为负 + griefEndYears 哨兵 -1 时，
         // 列直读路径必须与 assemble 路径（takeIf 过滤哨兵 → null）严格一致

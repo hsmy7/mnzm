@@ -304,7 +304,8 @@ class DiscipleBreakthroughHandlerTest {
     @Test
     fun `performBreakthrough - adBreakthroughBonus is cleared on failure`() {
         // 必败构造：境界7层5 + 五灵根 → BREAKTHROUGH_CHANCES[7][5]=0.00 → chance=0 必然失败
-        // （悟性与突破率无关，仅长老加成需要；无长老时 elderBonus=0）
+        // （2026-08-12 悟性重设计：自身悟性进入 selfBonus 乘区，但基础 0 × 加成仍为 0；
+        // 长老未配置故无 elderBonus）
         insertDiscipleForBreakthrough(
             id = 1, realm = 7, realmLayer = 5,
             spiritRootType = "metal,wood,water,fire,earth",

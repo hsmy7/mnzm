@@ -39,6 +39,17 @@
 - **测试** — `ExplorationTeamManagerTest` 整删；30+ 测试文件 teams 参数清理；`ResolveBeastAttackFightTest`/`StorageConstantsTest`/`GameStateStore*Test`/`StateRevertRegressionTest` 等专项清理；全量通过
 - **兼容性** — 存档格式变更（删 ProtoBuf 字段，旧档跳过未知字段兼容）；Room Migration 44→45；全仓 grep 零残留（仅迁移实现与其测试保留）
 
+### 新增 + 调整（2026-08-12 悟性重设计 + 资质属性 + 属性上限 200）
+
+- **悟性重设计（只管突破率）** — 弟子自身悟性进入突破乘区 `BreakthroughZones.selfBonus`（与魂力/丹药/师徒同乘区内加算）：`comprehensionBreakthroughBonus(c)` 以 80 为基准，每高 4 点 +1%，最多 +10%（整数除法步进，与长老公式**共用同一函数**）；`GameConfig.PolicyConfig.ELDER_BONUS_DIVISOR` 5→4、`ELDER_BREAKTHROUGH_MAX_STEPS` 5→10；长老与弟子均取**有效悟性**（`getBaseStats().comprehension`，含天赋 Flat 如顿悟+18，UI 侧 `DetailBasicInfoSection` 同步口径）；`ManualProficiencySystem` 悟性因子移除（删 `COMPREHENSION_BASELINE`/`COMPREHENSION_BONUS_PER_POINT`，签名改 `calculateProficiencyGainPerPhase(libraryBonus)`，3 调用点同步）；`comprehensionSpeedBonus` 死代码 4 定义 + 测试引用全清
+- **新增"资质"属性（固定不可成长）** — 与悟性同阶梯生成（1根[80,200] 2根[60,200] 3根[40,200] 4根[20,200] 5根[1,200]）；进入修炼速度乘区 `CultivationSpeedZones.aptitudeBonus`（与天赋/体质同乘区加算）：`aptitudeCultivationBonus(a) = ((a-80).coerceAtLeast(0)*0.01).coerceAtMost(0.40)`（连续，篡改防御）；资质**不走 statsProvider**（无 Flat 来源，直读 `skills.aptitude`/`tables.aptitudes`）；三生成站点（`DiscipleFactory`/`AISectDiscipleManager`/`RedeemCodeManager`）；洗炼灵根不重算（固定属性）
+- **数据链路（8 层贯穿）** — `SkillStats.aptitude=50`（自愈哨兵）+ `Disciple.kt` 委托 + `DiscipleStats` 及 plus 同步 + `DiscipleAttributes`(Room) + `DiscipleTables.aptitudes` 列（5 处注册）+ `DiscipleSerializer`（`@ProtoNumber(110)` + `@EncodeDefault(ALWAYS)`，50 非零默认必须 ALWAYS）+ Migration 45→46（两表 `ADD COLUMN aptitude INTEGER NOT NULL DEFAULT 50`，DEFAULT 50 与序列化默认/列直读 `getOrDefault(id,50)`/assembleSkills 四处统一）+ UI（AttributesSection 资质行/筛选器/突破明细"悟性加成"行/长老有效悟性）
+- **属性上限 200（忠诚 100）** — 出生生成 3 站点 gaussianInt clamp `1,100`→`1,200`（忠诚保持 `MAX_LOYALTY=100`，`GameConfig.Disciple.SKILL_MAX=200` 新常量）；成长路径 6 处补 clamp（`PillEffectApplier`/`GameEngineBattleOps.applyDeterministicWinAttr`/`ExplorationService`/`PatrolBattleSystem`/`DiscipleFacadeImpl`/`DiscipleLifecycleProcessor`）；**只 clamp 10 项技能属性，7 项战斗属性不 clamp**
+- **旧档资质自愈（含对抗性审查收敛）** — `DiscipleTables.healDefaultAptitudes(): Int` 纯函数（遍历 `aptitudes[id]==50` 哨兵 → 按灵根阶梯 + 确定性 id 散列 `floorMod(id*527+31, span)` 重算，返回补算数量）：命中哨兵 50 时强制 +1 收敛（3/4/5 根区间含 50，防"资质==50 ⇔ 未生成"判定每次读档重复触发）、空串灵根兜底按 5 根最宽区间（防误判 1 根低档）；生成 3 站点（`DiscipleFactory`/`AISectDiscipleManager`/`RedeemCodeManager`）同款 `avoidSentinel50`；`allocateAndInsert` 入宗即时补算旧档 recruitList/俘虏（消除"招募后资质跳变"窗口，与自愈共用 `rollHealedAptitude` 散列实现）；`BootSequenceController` Step 6.4 编排（`updateGameData {}` 写作用域，try/catch 不阻断启动），自愈后同步 `checkpointAllDisciples` 重锚修炼检查点（防旧档首次加载投影虚高）+ 日志记录补算人数
+- **测试（12 文件）** — `DiscipleStatCalculatorTest` 长老/自身悟性新公式 + 资质连续公式 + 乘区内加算（self120+elder120→+20% 非乘算）+ DiscipleStats plus 含 aptitude；`DiscipleFactoryTest` 资质阶梯镜像 + 上限 200 + 生成避开哨兵 50；`DiscipleTablesSelfHealTest`（新）13 用例（阶梯区间/确定性幂等/哨兵跳过/空表/收敛 50→51/空串兜底/入宗补算/已生成不动）；`CultivationRateEquivalenceTest` 资质 120 双入口等价 + 列缺失默认 50 双入口等价（统一默认值守护）；`RoomMigrationTest` 45→46 真实 Room 校验 + 数据保真；`DiscipleSerializerProfessionTest` aptitude round-trip + 旧档哨兵 50；`ManualProficiencySystemTest`/`AISectDiscipleManagerTest` 新签名；`DiscipleModelsTest`/`DiscipleMergeCoverageTest` 换资质字段
+- **行为影响（如实报告）** — 上限 200 后无封顶消费公式随属性放大（仅可经丹药/成长达高位）：灵矿产出 `(采矿-70)*0.02`（采矿 200 → +260%）、生产长老/弟子加成 `diff*0.01`、副宗主智力 `((智力-50)/5)*0.01`（智力 200 → +30%）；多数公式已自带封顶不受影响
+- **兼容性** — ProtoBuf 新字段 110（旧档未知字段跳过）+ `@EncodeDefault ALWAYS`；Room Migration 45→46；自愈幂等确定性；版本号不递增（changelog 双入口已同步，4.00.96 changes 追加 3 条玩家视角描述）
+
 ## [4.00.95] - 2026-08-12
 
 ### 新增（2026-08-12 聚合广告接入爱奇艺 / 百青藤两个广告网络）

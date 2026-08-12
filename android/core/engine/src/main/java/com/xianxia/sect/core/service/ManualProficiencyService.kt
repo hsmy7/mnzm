@@ -33,9 +33,7 @@ class ManualProficiencyService @Inject constructor() {
         val libraryBonus = if (inLibrary)
             ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
         val profGainPerPhase =
-            ManualProficiencySystem.calculateProficiencyGainPerPhase(
-                disciple.skills.comprehension, libraryBonus
-            )
+            ManualProficiencySystem.calculateProficiencyGainPerPhase(libraryBonus)
         val totalProfGain = profGainPerPhase * phasesToSettle
         if (totalProfGain <= 0.0) return
 
@@ -65,9 +63,7 @@ class ManualProficiencyService @Inject constructor() {
         val libraryBonus = if (inLibrary)
             ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
         val profGainPerPhase =
-            ManualProficiencySystem.calculateProficiencyGainPerPhase(
-                disciple.skills.comprehension, libraryBonus
-            )
+            ManualProficiencySystem.calculateProficiencyGainPerPhase(libraryBonus)
         val totalProfGain = profGainPerPhase * phasesToSettle
         if (totalProfGain <= 0.0) return
 
@@ -170,14 +166,11 @@ class ManualProficiencyService @Inject constructor() {
         val data = state.gameData
         val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
         val discipleId = id.toString()
-        val comprehension = tables.comprehensions.getOrDefault(id, 0)
         val inLibrary = libraryDiscipleIds?.contains(discipleId)
             ?: data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary)
             ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
-            comprehension, libraryBonus
-        )
+        val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(libraryBonus)
         if (profGain <= 0.0) return
 
         // S10 修复（对抗性审查）：批量模式下从 pending 读累积视图。

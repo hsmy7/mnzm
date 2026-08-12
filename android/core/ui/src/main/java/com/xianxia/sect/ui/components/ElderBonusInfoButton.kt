@@ -244,14 +244,14 @@ object ElderBonusInfoProvider {
         title = "外门长老",
         requiredAttribute = "悟性",
         effectDescription = "提升外门弟子突破率（仅外门弟子有效，弟子境界超过长老时不生效）",
-        bonusFormula = "悟性以80为基准，每高5点增加1%突破率，最多增加5%。\n悟性低于80时无加成效果。\n仅对境界不超过长老的外门弟子生效。"
+        bonusFormula = "悟性以80为基准，每高4点增加1%突破率，最多增加10%。\n悟性低于80时无加成效果。\n仅对境界不超过长老的外门弟子生效。"
     )
 
     fun getInnerElderInfo(): ElderBonusInfo = ElderBonusInfo(
         title = "内门长老",
         requiredAttribute = "悟性",
         effectDescription = "提升内门弟子突破成功率",
-        bonusFormula = "悟性以80为基准，每高5点增加1%突破率，最多增加5%。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
+        bonusFormula = "悟性以80为基准，每高4点增加1%突破率，最多增加10%。\n仅对内门弟子有效，弟子境界超过长老境界时不享受增益。"
     )
 
     fun getWenDaoPreachingElderInfo(): ElderBonusInfo = ElderBonusInfo(

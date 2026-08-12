@@ -236,6 +236,7 @@ fun BreakthroughDetailDialog(
         if (detail.pillBonus > 0) add("丹药加成" to detail.pillBonus)
         if (detail.adBonus > 0) add("玉符加成" to detail.adBonus)
         if (detail.masterDiscipleBonus > 0) add("师徒加成" to detail.masterDiscipleBonus)
+        if (detail.selfComprehensionBonus > 0) add("悟性加成" to detail.selfComprehensionBonus)
         if (detail.griefPenalty > 0) add("丧亲减益" to -detail.griefPenalty)
         if (detail.lifespanPenalty > 0) add("寿元将尽" to -detail.lifespanPenalty)
     }

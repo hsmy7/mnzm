@@ -190,7 +190,9 @@ class CultivationRateCalculator @Inject constructor(
                 cultivationSpeedDuration = tables.cultivationSpeedDurations.getOrDefault(id, 0),
                 cultivationSpeedBonus = tables.cultivationSpeedBonuses.getOrDefault(id, 0.0),
                 pillEffectDuration = tables.pillEffectDurations.getOrDefault(id, 0),
-                pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0)
+                pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
+                // 默认值与 assemble 路径统一（资质=50 为自愈哨兵），防两入口分歧
+                aptitude = tables.aptitudes.getOrDefault(id, DiscipleTables.DEFAULT_APTITUDE)
             ),
             manuals = manualInstanceMap,
             manualProficiencies = discipleProficiencies,

@@ -543,12 +543,26 @@ class ExplorationService @Inject constructor(
                     val r = rngManager.getRng(RngPartition.BATTLE)
                         .nextInt(17)
                     val sk = m.skills; val cb = m.combat
+                    // 技能属性（0-9）clamp 到基础属性上限（忠诚 100 例外）；战斗属性（10-16）不 clamp
                     when (r) {
-                        0 -> sk.intelligence++; 1 -> sk.comprehension++
-                        2 -> sk.charm++; 3 -> sk.loyalty++
-                        4 -> sk.artifactRefining++; 5 -> sk.pillRefining++
-                        6 -> sk.spiritPlanting++; 7 -> sk.mining++
-                        8 -> sk.teaching++; 9 -> sk.morality++
+                        0 -> sk.intelligence =
+                            minOf(sk.intelligence + 1, GameConfig.Disciple.SKILL_MAX)
+                        1 -> sk.comprehension =
+                            minOf(sk.comprehension + 1, GameConfig.Disciple.SKILL_MAX)
+                        2 -> sk.charm = minOf(sk.charm + 1, GameConfig.Disciple.SKILL_MAX)
+                        3 -> sk.loyalty =
+                            minOf(sk.loyalty + 1, GameConfig.Disciple.MAX_LOYALTY)
+                        4 -> sk.artifactRefining =
+                            minOf(sk.artifactRefining + 1, GameConfig.Disciple.SKILL_MAX)
+                        5 -> sk.pillRefining =
+                            minOf(sk.pillRefining + 1, GameConfig.Disciple.SKILL_MAX)
+                        6 -> sk.spiritPlanting =
+                            minOf(sk.spiritPlanting + 1, GameConfig.Disciple.SKILL_MAX)
+                        7 -> sk.mining = minOf(sk.mining + 1, GameConfig.Disciple.SKILL_MAX)
+                        8 -> sk.teaching =
+                            minOf(sk.teaching + 1, GameConfig.Disciple.SKILL_MAX)
+                        9 -> sk.morality =
+                            minOf(sk.morality + 1, GameConfig.Disciple.SKILL_MAX)
                         10 -> cb.baseHp++; 11 -> cb.baseMp++
                         12 -> cb.basePhysicalAttack++
                         13 -> cb.baseMagicAttack++

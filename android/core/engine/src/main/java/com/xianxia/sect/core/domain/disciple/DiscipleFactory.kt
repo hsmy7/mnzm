@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import javax.inject.Inject
@@ -24,19 +25,27 @@ import kotlin.math.sqrt
 private const val VARIANCE_MIN = -50
 private const val VARIANCE_MAX = 51
 private const val COMPREHENSION_1_ROOT_MIN = 80
-private const val COMPREHENSION_1_ROOT_MAX = 101
+private const val COMPREHENSION_1_ROOT_MAX = 201
 private const val COMPREHENSION_2_ROOT_MIN = 60
-private const val COMPREHENSION_2_ROOT_MAX = 101
+private const val COMPREHENSION_2_ROOT_MAX = 201
 private const val COMPREHENSION_3_ROOT_MIN = 40
-private const val COMPREHENSION_3_ROOT_MAX = 101
+private const val COMPREHENSION_3_ROOT_MAX = 201
 private const val COMPREHENSION_4_ROOT_MIN = 20
-private const val COMPREHENSION_4_ROOT_MAX = 101
+private const val COMPREHENSION_4_ROOT_MAX = 201
 private const val COMPREHENSION_5_ROOT_MIN = 1
-private const val COMPREHENSION_5_ROOT_MAX = 101
+private const val COMPREHENSION_5_ROOT_MAX = 201
+
+// 资质阶梯（与悟性一致的按灵根数决定基础数值，上界统一 200）
+private const val APTITUDE_1_ROOT_MIN = 80
+private const val APTITUDE_2_ROOT_MIN = 60
+private const val APTITUDE_3_ROOT_MIN = 40
+private const val APTITUDE_4_ROOT_MIN = 20
+private const val APTITUDE_5_ROOT_MIN = 1
+private const val APTITUDE_MAX = 201
 
 /** 正态分布参数 */
 private const val SKILL_MEAN = 50.5       // 技能属性均值
-private const val SKILL_SIGMA = 16.5       // 技能属性标准差（99/6，3-sigma覆盖[1,100]）
+private const val SKILL_SIGMA = 16.5       // 技能属性标准差（99/6，3-sigma覆盖[1,200]）
 private const val VARIANCE_MEAN = 0.0      // 方差均值
 private const val VARIANCE_SIGMA = 16.667   // 方差标准差（50/3，3-sigma覆盖[-50,50]）
 
@@ -56,6 +65,13 @@ private fun gaussianInt(
     val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
     return (z * sigma + mean).roundToInt().coerceIn(min, max)
 }
+
+/**
+ * 资质生成避开哨兵值 50（==50 强制 +1 收敛）：与自愈 [DiscipleTables.healDefaultAptitudes]
+ * 保持一致，保证"资质 == 50 ⇔ 未生成"判定在生成与读档之间稳定，不误触自愈重算。
+ */
+private fun avoidSentinel50(roll: Int): Int =
+    if (roll == DiscipleTables.DEFAULT_APTITUDE) DiscipleTables.DEFAULT_APTITUDE + 1 else roll
 
 /**
  * 统一弟子构造工厂。
@@ -106,7 +122,7 @@ class DiscipleFactory @Inject constructor() {
         val magicDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
         val speedVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
 
-        // 2. 灵根数量 → 悟性
+        // 2. 灵根数量 → 悟性（与资质同阶梯；资质为固定属性，创建后不再变化）
         val spiritRootCount = seed.spiritRootType.split(",").size
         val comprehension = when (spiritRootCount) {
             1 -> r(COMPREHENSION_1_ROOT_MIN, COMPREHENSION_1_ROOT_MAX)
@@ -115,6 +131,15 @@ class DiscipleFactory @Inject constructor() {
             4 -> r(COMPREHENSION_4_ROOT_MIN, COMPREHENSION_4_ROOT_MAX)
             else -> r(COMPREHENSION_5_ROOT_MIN, COMPREHENSION_5_ROOT_MAX)
         }
+        val aptitude = avoidSentinel50(
+            when (spiritRootCount) {
+                1 -> r(APTITUDE_1_ROOT_MIN, APTITUDE_MAX)
+                2 -> r(APTITUDE_2_ROOT_MIN, APTITUDE_MAX)
+                3 -> r(APTITUDE_3_ROOT_MIN, APTITUDE_MAX)
+                4 -> r(APTITUDE_4_ROOT_MIN, APTITUDE_MAX)
+                else -> r(APTITUDE_5_ROOT_MIN, APTITUDE_MAX)
+            }
+        )
 
         // 3. 天赋 / 体质 / 词条（三分类，各 0-5 个；走 seed.random 分区 PRNG，保证读档可复现）
         val talentIds = TalentDatabase.generateTalentsForDisciple(seed.random)
@@ -152,16 +177,17 @@ class DiscipleFactory @Inject constructor() {
             ),
             social = seed.social,
             skills = SkillStats(
-                intelligence = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                charm = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                loyalty = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                intelligence = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                charm = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                loyalty = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.MAX_LOYALTY),
                 comprehension = comprehension,
-                morality = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                artifactRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                pillRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                spiritPlanting = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                mining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
-                teaching = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100)
+                morality = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                artifactRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                pillRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                spiritPlanting = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                mining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                teaching = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+                aptitude = aptitude
             )
         ).apply {
             // 4. 基础属性

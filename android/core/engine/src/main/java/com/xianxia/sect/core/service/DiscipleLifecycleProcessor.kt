@@ -422,8 +422,10 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     status = DiscipleStatus.IDLE,
                     statusData = disciple.statusData - "reflectionStartYear" - "reflectionEndYear",
                     skills = disciple.skills.copy(
-                        morality = disciple.skills.morality + REFLECTION_RELEASE_MORALITY_BONUS,
-                        loyalty = disciple.skills.loyalty + REFLECTION_RELEASE_LOYALTY_BONUS
+                        morality = (disciple.skills.morality + REFLECTION_RELEASE_MORALITY_BONUS)
+                            .coerceAtMost(GameConfig.Disciple.SKILL_MAX),
+                        loyalty = (disciple.skills.loyalty + REFLECTION_RELEASE_LOYALTY_BONUS)
+                            .coerceAtMost(GameConfig.Disciple.MAX_LOYALTY)
                     )
                 )
             }

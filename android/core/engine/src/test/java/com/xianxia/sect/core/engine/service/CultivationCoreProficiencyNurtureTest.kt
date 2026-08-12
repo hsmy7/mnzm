@@ -205,9 +205,9 @@ class CultivationCoreProficiencyNurtureTest {
         }
         assertTrue("熟练度应大于0", proficiencies.isNotEmpty())
         assertTrue("熟练度值应大于0", proficiencies[0].proficiency > 0.0)
-        // 悟性=100 时，comprehensionBonus = 1.0 + (100-70)*0.1 = 4.0
-        // 每旬增长 = 6.0 * 4.0 * 1.0 * 2000/1000 = 48.0
-        assertEquals("每旬增长应等于48.0", 48.0, proficiencies[0].proficiency, 0.01)
+        // 2026-08-12 悟性重设计：悟性不再影响功法熟练度
+        // 每旬增长 = 6.0 * 1.0 * 2000/1000 = 12.0
+        assertEquals("每旬增长应等于12.0", 12.0, proficiencies[0].proficiency, 0.01)
     }
 
     @Test
@@ -303,8 +303,9 @@ class CultivationCoreProficiencyNurtureTest {
         val p2 = checkNotNull(state.gameData.manualProficiencies["2"]) {
             "弟子2应有熟练度"
         }
-        assertTrue("弟子1熟练度应大于弟子2（悟性更高）",
-            p1[0].proficiency > p2[0].proficiency)
+        // 2026-08-12 悟性重设计：悟性不再影响功法熟练度，不同悟性弟子增长一致
+        assertEquals("不同悟性弟子熟练度增长应一致",
+            p1[0].proficiency, p2[0].proficiency, 0.01)
     }
 
     // ==================== 装备孕养每旬增长 ====================

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.model
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -139,6 +140,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
             mining = value.skills.mining,
             teaching = value.skills.teaching,
             morality = value.skills.morality,
+            aptitude = value.skills.aptitude,
             salaryPaidCount = value.skills.salaryPaidCount,
             salaryMissedCount = value.skills.salaryMissedCount,
             alchemyLevel = value.skills.alchemyLevel,
@@ -276,6 +278,7 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 mining = surrogate.mining,
                 teaching = surrogate.teaching,
                 morality = surrogate.morality,
+                aptitude = surrogate.aptitude,
                 salaryPaidCount = surrogate.salaryPaidCount,
                 salaryMissedCount = surrogate.salaryMissedCount,
                 alchemyLevel = surrogate.alchemyLevel,
@@ -420,6 +423,9 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(107) val alchemyPromotionCount: Int = 0,
         @ProtoNumber(108) val forgeLevel: Int = 0,
         @ProtoNumber(109) val forgePromotionCount: Int = 0,
+        // 资质（@EncodeDefault ALWAYS：旧档无此字段时反序列化得默认值 50，
+        // 读档自愈（DiscipleTables.healDefaultAptitudes）会按灵根数补算）
+        @ProtoNumber(110) @EncodeDefault(EncodeDefault.Mode.ALWAYS) val aptitude: Int = 50,
 
         // ===== UsageTracking @Embedded =====
         @ProtoNumber(75) val usedFunctionalPillTypes: List<String> = emptyList(),

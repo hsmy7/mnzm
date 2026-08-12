@@ -37,6 +37,22 @@ object DiscipleStatCalculator {
     private const val ELDER_TEACHING_MAX_BONUS = 0.10
     private const val MASTER_TEACHING_MAX_BONUS = 0.05
 
+    // ---- 资质→修炼速度加成（80 基准每点 +1%，最多 +40%，乘区算法） ----
+    private const val APTITUDE_BASELINE = 80
+    private const val APTITUDE_BONUS_PER_POINT = 0.01
+    private const val APTITUDE_MAX_BONUS = 0.40
+    // 列式入口资质默认值：必须与 DiscipleTables.DEFAULT_APTITUDE(50) 统一（CultivationRateEquivalenceTest 守护双入口等价）
+    private const val DEFAULT_COLUMN_APTITUDE = 50
+
+    /**
+     * 资质修炼速度加成（连续公式）。
+     * 资质 ≥80 时每多一点 +1% 修炼速度，最多 +40%。
+     * 篡改防御：资质低于基准或负值时归零，超大值（如存档篡改 10000）钳制到 40%。
+     */
+    private fun aptitudeCultivationBonus(aptitude: Int): Double =
+        ((aptitude - APTITUDE_BASELINE).coerceAtLeast(0) * APTITUDE_BONUS_PER_POINT)
+            .coerceAtMost(APTITUDE_MAX_BONUS)
+
     /** 突破失败后气血/法力的剩余比例（修为清零外，HP/MP 打一折，玩家与 AI 共用） */
     const val BREAKTHROUGH_FAILURE_HP_MP_RATIO = 0.1
 
@@ -263,6 +279,7 @@ object DiscipleStatCalculator {
         val charm: Int,
         val loyalty: Int,
         val comprehension: Int,
+        val aptitude: Int,
         val teaching: Int,
         val morality: Int,
         val mining: Int,
@@ -329,6 +346,7 @@ object DiscipleStatCalculator {
             charm = skills.charm + charmFlat,
             loyalty = skills.loyalty + loyaltyFlat,
             comprehension = skills.comprehension + comprehensionFlat,
+            aptitude = skills.aptitude,
             teaching = skills.teaching + teachingFlat,
             morality = skills.morality + moralityFlat,
             mining = skills.mining + miningFlat,
@@ -363,6 +381,7 @@ object DiscipleStatCalculator {
                 charm = s.charm,
                 loyalty = s.loyalty,
                 comprehension = s.comprehension,
+                aptitude = s.aptitude,
                 teaching = s.teaching,
                 morality = s.morality,
                 mining = s.mining,
@@ -398,6 +417,7 @@ object DiscipleStatCalculator {
                 charm = attr?.charm ?: 50,
                 loyalty = attr?.loyalty ?: 50,
                 comprehension = attr?.comprehension ?: 50,
+                aptitude = attr?.aptitude ?: 50,
                 teaching = attr?.teaching ?: 50,
                 morality = attr?.morality ?: 50,
                 mining = attr?.mining ?: 50,
@@ -442,6 +462,7 @@ object DiscipleStatCalculator {
                 charm = attr?.charm ?: 50,
                 loyalty = attr?.loyalty ?: 50,
                 comprehension = attr?.comprehension ?: 50,
+                aptitude = attr?.aptitude ?: 50,
                 teaching = attr?.teaching ?: 50,
                 morality = attr?.morality ?: 50,
                 mining = attr?.mining ?: 50,
@@ -764,61 +785,73 @@ object DiscipleStatCalculator {
         ).coerceAtLeast(MIN_CULTIVATION_PER_PHASE)
     }
 
+    /**
+     * 修炼乘区计算的输入字段。
+     *
+     * 16 项原始参数分组为一个数据类，避免 detekt LongParameterList 违规；
+     * 由 [buildCultivationZones] / [calculateCultivationPerPhaseColumn] 提取组装。
+     */
+    data class CultivationZoneInput(
+        val mergedEffects: Map<String, Double>,
+        val physiqueEffects: PhysiqueEffects,
+        val manualIds: List<String>,
+        val manuals: Map<String, ManualInstance>,
+        val manualProficiencies: Map<String, ManualProficiencyData>,
+        val buildingBonus: Double,
+        val preachingElderBonus: Double,
+        val preachingMastersBonus: Double,
+        val parentCultivationBonus: Double,
+        val masterDiscipleBonus: Double,
+        val cultivationSubsidyBonus: Double,
+        val griefCultivationSpeedPenalty: Double,
+        val age: Int,
+        val lifespan: Int,
+        val temporaryBonus: Double,
+        val aptitude: Int = DEFAULT_COLUMN_APTITUDE
+    )
+
     private fun computeCultivationZones(
-        mergedEffects: Map<String, Double>,
-        physiqueEffects: PhysiqueEffects,
-        manualIds: List<String>,
-        manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData>,
-        buildingBonus: Double,
-        preachingElderBonus: Double,
-        preachingMastersBonus: Double,
-        parentCultivationBonus: Double,
-        masterDiscipleBonus: Double,
-        cultivationSubsidyBonus: Double,
-        griefCultivationSpeedPenalty: Double,
-        age: Int,
-        lifespan: Int,
-        temporaryBonus: Double
+        input: CultivationZoneInput
     ): CultivationSpeedZones {
-        // ── 资质乘区：天赋(旧存档可能有) + 体质 + 词条 ──
-        val aptitudeBonus = (mergedEffects["cultivationSpeed"] ?: 0.0) +
-            physiqueEffects.cultivationSpeedBonus
+        // ── 资质乘区：天赋(旧存档可能有) + 体质 + 词条 + 资质属性 ──
+        val aptitudeBonus = (input.mergedEffects["cultivationSpeed"] ?: 0.0) +
+            input.physiqueEffects.cultivationSpeedBonus +
+            aptitudeCultivationBonus(input.aptitude)
 
         // ── 资源乘区：功法 + 建筑 ──
-        var resourceBonus = (buildingBonus - 1.0)
-        if (manuals.isNotEmpty()) {
-            manualIds.forEach { manualId ->
-                val manual = manuals[manualId] ?: return@forEach
-                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+        var resourceBonus = (input.buildingBonus - 1.0)
+        if (input.manuals.isNotEmpty()) {
+            input.manualIds.forEach { manualId ->
+                val manual = input.manuals[manualId] ?: return@forEach
+                val masteryLevel = input.manualProficiencies[manualId]?.masteryLevel ?: 0
                 val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
                 resourceBonus += manual.cultivationSpeedPercent * masteryBonus / 100.0
             }
-        } else if (manualIds.isNotEmpty()) {
+        } else if (input.manualIds.isNotEmpty()) {
             // 兜底路径：调用方未传 manuals 实例映射时，从 ManualDatabase 静态查询
             // 影响：不支持动态实例属性（如孕养等级），但用于 UI 显示预览足够
-            manualIds.forEach { manualId ->
+            input.manualIds.forEach { manualId ->
                 val manual = ManualDatabase.getById(manualId) ?: return@forEach
-                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryLevel = input.manualProficiencies[manualId]?.masteryLevel ?: 0
                 val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
                 resourceBonus += (manual.stats["cultivationSpeedPercent"] ?: 0) * masteryBonus / 100.0
             }
         }
 
         // ── 社交乘区：师徒 + 传道长老/师兄 + 父母 ──
-        val socialBonus = preachingElderBonus + preachingMastersBonus +
-            parentCultivationBonus + masterDiscipleBonus
+        val socialBonus = input.preachingElderBonus + input.preachingMastersBonus +
+            input.parentCultivationBonus + input.masterDiscipleBonus
 
         // ── 状态乘区：政策津贴 - 丧亲 - 寿命 ──
-        val lifespanPenalty = calculateLifespanCultivationPenalty(age, lifespan)
-        val statusBonus = cultivationSubsidyBonus - griefCultivationSpeedPenalty - lifespanPenalty
+        val lifespanPenalty = calculateLifespanCultivationPenalty(input.age, input.lifespan)
+        val statusBonus = input.cultivationSubsidyBonus - input.griefCultivationSpeedPenalty - lifespanPenalty
 
         return CultivationSpeedZones(
             aptitudeBonus = aptitudeBonus,
             resourceBonus = resourceBonus,
             socialBonus = socialBonus,
             statusBonus = statusBonus,
-            temporaryBonus = temporaryBonus
+            temporaryBonus = input.temporaryBonus
         )
     }
 
@@ -845,21 +878,24 @@ object DiscipleStatCalculator {
             temporaryBonus += disciple.pillEffects.pillCultivationSpeedBonus
         }
         return computeCultivationZones(
-            mergedEffects = getMergedEffects(disciple),
-            physiqueEffects = getPhysiqueEffects(disciple),
-            manualIds = disciple.manualIds,
-            manuals = manuals,
-            manualProficiencies = manualProficiencies,
-            buildingBonus = buildingBonus,
-            preachingElderBonus = preachingElderBonus,
-            preachingMastersBonus = preachingMastersBonus,
-            parentCultivationBonus = parentCultivationBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus,
-            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
-            age = disciple.age,
-            lifespan = disciple.lifespan,
-            temporaryBonus = temporaryBonus
+            CultivationZoneInput(
+                mergedEffects = getMergedEffects(disciple),
+                physiqueEffects = getPhysiqueEffects(disciple),
+                manualIds = disciple.manualIds,
+                manuals = manuals,
+                manualProficiencies = manualProficiencies,
+                buildingBonus = buildingBonus,
+                preachingElderBonus = preachingElderBonus,
+                preachingMastersBonus = preachingMastersBonus,
+                parentCultivationBonus = parentCultivationBonus,
+                masterDiscipleBonus = masterDiscipleBonus,
+                cultivationSubsidyBonus = cultivationSubsidyBonus,
+                griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
+                age = disciple.age,
+                lifespan = disciple.lifespan,
+                temporaryBonus = temporaryBonus,
+                aptitude = disciple.skills.aptitude
+            )
         )
     }
 
@@ -887,21 +923,24 @@ object DiscipleStatCalculator {
             temporaryBonus += ext.pillCultivationSpeedBonus
         }
         return computeCultivationZones(
-            mergedEffects = getMergedEffects(aggregate),
-            physiqueEffects = getPhysiqueEffects(aggregate),
-            manualIds = aggregate.manualIds,
-            manuals = manuals,
-            manualProficiencies = manualProficiencies,
-            buildingBonus = buildingBonus,
-            preachingElderBonus = preachingElderBonus,
-            preachingMastersBonus = preachingMastersBonus,
-            parentCultivationBonus = parentCultivationBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus,
-            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
-            age = aggregate.age,
-            lifespan = aggregate.lifespan,
-            temporaryBonus = temporaryBonus
+            CultivationZoneInput(
+                mergedEffects = getMergedEffects(aggregate),
+                physiqueEffects = getPhysiqueEffects(aggregate),
+                manualIds = aggregate.manualIds,
+                manuals = manuals,
+                manualProficiencies = manualProficiencies,
+                buildingBonus = buildingBonus,
+                preachingElderBonus = preachingElderBonus,
+                preachingMastersBonus = preachingMastersBonus,
+                parentCultivationBonus = parentCultivationBonus,
+                masterDiscipleBonus = masterDiscipleBonus,
+                cultivationSubsidyBonus = cultivationSubsidyBonus,
+                griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
+                age = aggregate.age,
+                lifespan = aggregate.lifespan,
+                temporaryBonus = temporaryBonus,
+                aptitude = aggregate.aptitude
+            )
         )
     }
 
@@ -925,7 +964,8 @@ object DiscipleStatCalculator {
         val cultivationSpeedDuration: Int,
         val cultivationSpeedBonus: Double,
         val pillEffectDuration: Int,
-        val pillCultivationSpeedBonus: Double
+        val pillCultivationSpeedBonus: Double,
+        val aptitude: Int = DEFAULT_COLUMN_APTITUDE
     )
 
     /**
@@ -955,24 +995,27 @@ object DiscipleStatCalculator {
             temporaryBonus += input.pillCultivationSpeedBonus
         }
         val zones = computeCultivationZones(
-            mergedEffects = mergeEffects(
-                computeTalentEffects(input.talentIds),
-                AffixDatabase.calculateAffixEffects(input.affixIds)
-            ),
-            physiqueEffects = PhysiqueDatabase.aggregatePhysiqueEffects(input.physiqueIds),
-            manualIds = input.manualIds,
-            manuals = manuals,
-            manualProficiencies = manualProficiencies,
-            buildingBonus = buildingBonus,
-            preachingElderBonus = preachingElderBonus,
-            preachingMastersBonus = preachingMastersBonus,
-            parentCultivationBonus = parentCultivationBonus,
-            masterDiscipleBonus = masterDiscipleBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus,
-            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
-            age = input.age,
-            lifespan = input.lifespan,
-            temporaryBonus = temporaryBonus
+            CultivationZoneInput(
+                mergedEffects = mergeEffects(
+                    computeTalentEffects(input.talentIds),
+                    AffixDatabase.calculateAffixEffects(input.affixIds)
+                ),
+                physiqueEffects = PhysiqueDatabase.aggregatePhysiqueEffects(input.physiqueIds),
+                manualIds = input.manualIds,
+                manuals = manuals,
+                manualProficiencies = manualProficiencies,
+                buildingBonus = buildingBonus,
+                preachingElderBonus = preachingElderBonus,
+                preachingMastersBonus = preachingMastersBonus,
+                parentCultivationBonus = parentCultivationBonus,
+                masterDiscipleBonus = masterDiscipleBonus,
+                cultivationSubsidyBonus = cultivationSubsidyBonus,
+                griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
+                age = input.age,
+                lifespan = input.lifespan,
+                temporaryBonus = temporaryBonus,
+                aptitude = input.aptitude
+            )
         )
         return calculateCultivationPerPhase(input.realm, input.spiritRootCount, zones)
     }
@@ -1043,6 +1086,19 @@ object DiscipleStatCalculator {
         val adFlatBonus: Double = 0.0,     // 广告扁平加成（不经过乘区缩放，直接加在最终值上）
     )
 
+    /** 突破乘区加成输入（参数分组，规避 LongParameterList） */
+    private data class BreakthroughZoneBonusInput(
+        val innerElderComprehension: Int = 0,
+        val outerElderComprehension: Int = 0,
+        val selfComprehension: Int = 0,
+        val pillBonus: Double = 0.0,
+        val adBonus: Double = 0.0,
+        val griefBreakthroughPenalty: Double = 0.0,
+        val masterDiscipleBonus: Double = 0.0,
+        val innerElderPositionBonus: Double = 0.0,
+        val outerElderPositionBonus: Double = 0.0
+    )
+
     private fun computeBreakthroughZones(
         realm: Int,
         realmLayer: Int,
@@ -1050,19 +1106,14 @@ object DiscipleStatCalculator {
         soulPower: Int,
         age: Int,
         lifespan: Int,
-        innerElderComprehension: Int,
-        outerElderComprehension: Int,
-        pillBonus: Double,
-        adBonus: Double,
-        griefBreakthroughPenalty: Double,
-        masterDiscipleBonus: Double,
-        innerElderPositionBonus: Double = 0.0,
-        outerElderPositionBonus: Double = 0.0
+        bonuses: BreakthroughZoneBonusInput
     ): BreakthroughZones {
         val baseZone = GameConfig.Realm.getBreakthroughChance(realm, spiritRootCount, realmLayer)
         // 长老职能效果 × (1 + PositionBonus)：PositionBonus 来自长老弟子（非突破弟子）的天赋/词条
-        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension) * (1.0 + innerElderPositionBonus)
-        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension) * (1.0 + outerElderPositionBonus)
+        val innerElderBonus = comprehensionBreakthroughBonus(bonuses.innerElderComprehension) *
+            (1.0 + bonuses.innerElderPositionBonus)
+        val outerElderBonus = comprehensionBreakthroughBonus(bonuses.outerElderComprehension) *
+            (1.0 + bonuses.outerElderPositionBonus)
         val soulPowerBonus = getSoulPowerBreakthroughBonus(soulPower)
         val lifespanPenalty = calculateLifespanBreakthroughPenalty(age, lifespan)
 
@@ -1070,9 +1121,10 @@ object DiscipleStatCalculator {
         return BreakthroughZones(
             baseZone = baseZone,
             elderGuidance = innerElderBonus + outerElderBonus,
-            selfBonus = pillBonus + soulPowerBonus + masterDiscipleBonus,
-            statusPenalty = griefBreakthroughPenalty + lifespanPenalty,
-            adFlatBonus = adBonus
+            selfBonus = bonuses.pillBonus + soulPowerBonus + bonuses.masterDiscipleBonus +
+                comprehensionBreakthroughBonus(bonuses.selfComprehension),
+            statusPenalty = bonuses.griefBreakthroughPenalty + lifespanPenalty,
+            adFlatBonus = bonuses.adBonus
         )
     }
 
@@ -1096,14 +1148,17 @@ object DiscipleStatCalculator {
         soulPower = disciple.soulPower,
         age = disciple.age,
         lifespan = disciple.lifespan,
-        innerElderComprehension = innerElderComprehension,
-        outerElderComprehension = outerElderComprehension,
-        pillBonus = pillBonus,
-        adBonus = adBonus,
-        griefBreakthroughPenalty = griefBreakthroughPenalty,
-        masterDiscipleBonus = masterDiscipleBonus,
-        innerElderPositionBonus = innerElderPositionBonus,
-        outerElderPositionBonus = outerElderPositionBonus
+        bonuses = BreakthroughZoneBonusInput(
+            innerElderComprehension = innerElderComprehension,
+            outerElderComprehension = outerElderComprehension,
+            selfComprehension = disciple.getBaseStats().comprehension,
+            pillBonus = pillBonus,
+            adBonus = adBonus,
+            griefBreakthroughPenalty = griefBreakthroughPenalty,
+            masterDiscipleBonus = masterDiscipleBonus,
+            innerElderPositionBonus = innerElderPositionBonus,
+            outerElderPositionBonus = outerElderPositionBonus
+        )
     )
 
     /**
@@ -1126,14 +1181,17 @@ object DiscipleStatCalculator {
         soulPower = aggregate.soulPower,
         age = aggregate.age,
         lifespan = aggregate.lifespan,
-        innerElderComprehension = innerElderComprehension,
-        outerElderComprehension = outerElderComprehension,
-        pillBonus = pillBonus,
-        adBonus = adBonus,
-        griefBreakthroughPenalty = griefBreakthroughPenalty,
-        masterDiscipleBonus = masterDiscipleBonus,
-        innerElderPositionBonus = innerElderPositionBonus,
-        outerElderPositionBonus = outerElderPositionBonus
+        bonuses = BreakthroughZoneBonusInput(
+            innerElderComprehension = innerElderComprehension,
+            outerElderComprehension = outerElderComprehension,
+            selfComprehension = aggregate.getBaseStats().comprehension,
+            pillBonus = pillBonus,
+            adBonus = adBonus,
+            griefBreakthroughPenalty = griefBreakthroughPenalty,
+            masterDiscipleBonus = masterDiscipleBonus,
+            innerElderPositionBonus = innerElderPositionBonus,
+            outerElderPositionBonus = outerElderPositionBonus
+        )
     )
 
     /**
@@ -1151,10 +1209,10 @@ object DiscipleStatCalculator {
     }
 
     /**
-     * 长老突破率加成（内外门共用）。
-     * 悟性80基准，每5点+1%，最多+5%。
+     * 悟性突破率加成（弟子自身与内外门长老共用同一公式）。
+     * 悟性80基准，每高4点+1%，最多+10%（2026-08-12 悟性重设计）。
      */
-    private fun elderBreakthroughBonus(comprehension: Int): Double {
+    private fun comprehensionBreakthroughBonus(comprehension: Int): Double {
         if (comprehension < GameConfig.PolicyConfig.ELDER_SKILL_BASELINE) {
             return 0.0
         }
@@ -1226,6 +1284,8 @@ object DiscipleStatCalculator {
         val pillBonus: Double,
         val adBonus: Double,
         val masterDiscipleBonus: Double,
+        /** 弟子自身悟性突破率加成（悟性80基准每4点+1%，最多+10%） */
+        val selfComprehensionBonus: Double,
         val griefPenalty: Double,
         val lifespanPenalty: Double,
         val total: Double
@@ -1240,7 +1300,10 @@ object DiscipleStatCalculator {
         griefBreakthroughPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
     ): BreakthroughBonusDetail {
-        if (aggregate.realm < 0) return BreakthroughBonusDetail(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        if (aggregate.realm < 0) return BreakthroughBonusDetail(
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        )
         val zones = buildBreakthroughZones(
             aggregate, innerElderComprehension, outerElderComprehension,
             pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
@@ -1248,14 +1311,15 @@ object DiscipleStatCalculator {
         val total = calculateBreakthroughChance(zones)
         return BreakthroughBonusDetail(
             baseChance = zones.baseZone,
-            innerElderBonus = elderBreakthroughBonus(innerElderComprehension),
-            outerElderBonus = elderBreakthroughBonus(outerElderComprehension),
+            innerElderBonus = comprehensionBreakthroughBonus(innerElderComprehension),
+            outerElderBonus = comprehensionBreakthroughBonus(outerElderComprehension),
             // 旧存档弟子可能有 breakthroughChance 天赋，仅供显示，不参与 total 计算
             talentBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
             soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower),
             pillBonus = pillBonus,
             adBonus = adBonus,
             masterDiscipleBonus = masterDiscipleBonus,
+            selfComprehensionBonus = comprehensionBreakthroughBonus(aggregate.getBaseStats().comprehension),
             griefPenalty = griefBreakthroughPenalty,
             lifespanPenalty = calculateLifespanBreakthroughPenalty(aggregate.age, aggregate.lifespan),
             total = total

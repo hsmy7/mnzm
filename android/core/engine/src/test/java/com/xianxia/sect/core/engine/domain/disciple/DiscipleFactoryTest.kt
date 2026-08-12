@@ -57,16 +57,17 @@ class DiscipleFactoryTest {
     fun `create - skills are deterministic given nextInt`() {
         val d = factory.create(newSeed())
         // 同 gaussianInt 逻辑：u1=0.0001, u2=0.0, z≈4.291
-        // skill = round(4.291*16.5 + 50.5) = round(121.3) = 121 -> 截断至 100
-        assertEquals(100, d.skills.intelligence)
-        assertEquals(100, d.skills.charm)
+        // skill = round(4.291*16.5 + 50.5) = round(121.3) = 121
+        // 2026-08-12 上限 100→200：121 不再截断（原断言 100）；loyalty 上限 100 不变仍截断
+        assertEquals(121, d.skills.intelligence)
+        assertEquals(121, d.skills.charm)
         assertEquals(100, d.skills.loyalty)
-        assertEquals(100, d.skills.morality)
-        assertEquals(100, d.skills.artifactRefining)
-        assertEquals(100, d.skills.pillRefining)
-        assertEquals(100, d.skills.spiritPlanting)
-        assertEquals(100, d.skills.mining)
-        assertEquals(100, d.skills.teaching)
+        assertEquals(121, d.skills.morality)
+        assertEquals(121, d.skills.artifactRefining)
+        assertEquals(121, d.skills.pillRefining)
+        assertEquals(121, d.skills.spiritPlanting)
+        assertEquals(121, d.skills.mining)
+        assertEquals(121, d.skills.teaching)
     }
 
     @Test
@@ -99,6 +100,39 @@ class DiscipleFactoryTest {
     fun `create - five spirit roots yield worst comprehension`() {
         val d = factory.create(newSeed(spiritRootType = "火,水,木,金,土"))
         assertEquals(1, d.skills.comprehension)
+    }
+
+    // ---- 资质（2026-08-12 新增固定属性，与悟性同阶梯）----
+
+    @Test
+    fun `create - aptitude ladder mirrors comprehension per root count`() {
+        // nextInt 固定返回 from：1根→80、2根→60、3根→40、4根→20、5根→1（同悟性阶梯）
+        assertEquals(80, factory.create(newSeed(spiritRootType = "火")).skills.aptitude)
+        assertEquals(60, factory.create(newSeed(spiritRootType = "火,水")).skills.aptitude)
+        assertEquals(40, factory.create(newSeed(spiritRootType = "火,水,木")).skills.aptitude)
+        assertEquals(20, factory.create(newSeed(spiritRootType = "火,水,木,金")).skills.aptitude)
+        assertEquals(1, factory.create(newSeed(spiritRootType = "火,水,木,金,土")).skills.aptitude)
+    }
+
+    @Test
+    fun `create - aptitude generation avoids sentinel 50`() {
+        // nextInt 在资质 5 根段（from=1, until=201）命中哨兵 50 → 生成强制 +1 收敛为 51，
+        // 否则资质==50 会被读档自愈误判为"未生成"重复重算（资质跳变）。
+        // 其他段（数组索引如 PortraitPool）返回 from 保持安全。
+        val seed = newSeed(spiritRootType = "火,水,木,金,土").copy(
+            nextInt = { from, until -> if (from == 1 && until == 201) 50 else from }
+        )
+        assertEquals(51, factory.create(seed).skills.aptitude)
+    }
+
+    @Test
+    fun `create - aptitude range respects SKILL_MAX 200`() {
+        // 全值域抽样：资质（与悟性同区间 [min, 200]）恒 ≤ 200
+        repeat(50) { i ->
+            val d = factory.create(newSeed(id = "range-$i"))
+            assertTrue("资质应 ≤ 200，实际 ${d.skills.aptitude}", d.skills.aptitude <= 200)
+            assertTrue("资质应 ≥ 1，实际 ${d.skills.aptitude}", d.skills.aptitude >= 1)
+        }
     }
 
     // ---- 基础属性（calculateBaseStatsWithVariance） ----

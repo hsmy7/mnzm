@@ -5,6 +5,10 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatsProvider
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.DiscipleStats
@@ -14,6 +18,111 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class DiscipleStatCalculatorTest {
+
+    /**
+     * 临时绑定真实 statsProvider（自身悟性经 Disciple.getBaseStats() 晚绑定读取）。
+     * finally 还原，避免污染其他测试类共享的静态状态。
+     */
+    private fun <T> withRealStatsProvider(block: () -> T): T {
+        val original = DiscipleAggregate.statsProvider
+        DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
+            override fun getBaseStats(disciple: Disciple) =
+                DiscipleStatCalculator.getBaseStats(disciple)
+            override fun getBaseStats(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getBaseStats(aggregate)
+            override fun getTalentEffects(disciple: Disciple) =
+                DiscipleStatCalculator.getTalentEffects(disciple)
+            override fun getTalentEffects(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getTalentEffects(aggregate)
+            override fun getStatsWithEquipment(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
+            override fun getStatsWithEquipment(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(aggregate, equipments)
+            override fun getFinalStats(
+                disciple: Disciple,
+                equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
+            override fun getFinalStats(
+                aggregate: DiscipleAggregate,
+                equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
+            override fun calculateCultivationSpeed(
+                disciple: Disciple,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                buildingBonus: Double,
+                additionalBonus: Double,
+                preachingElderBonus: Double,
+                preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double,
+                parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                disciple, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus
+            )
+            override fun calculateCultivationSpeed(
+                aggregate: DiscipleAggregate,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                buildingBonus: Double,
+                additionalBonus: Double,
+                preachingElderBonus: Double,
+                preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double,
+                parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                aggregate, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus
+            )
+            override fun getBreakthroughChance(
+                disciple: Disciple,
+                innerElderComprehension: Int,
+                outerElderComprehension: Int,
+                pillBonus: Double,
+                adBonus: Double,
+                griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                disciple, innerElderComprehension, outerElderComprehension, pillBonus,
+                adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            )
+            override fun getBreakthroughChance(
+                aggregate: DiscipleAggregate,
+                innerElderComprehension: Int,
+                outerElderComprehension: Int,
+                pillBonus: Double,
+                adBonus: Double,
+                griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                aggregate, innerElderComprehension, outerElderComprehension, pillBonus,
+                adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            )
+        }
+        try {
+            return block()
+        } finally {
+            DiscipleAggregate.statsProvider = original
+        }
+    }
 
     private fun createDisciple(
         realm: Int = 9,
@@ -29,6 +138,7 @@ class DiscipleStatCalculatorTest {
         charm: Int = 50,
         loyalty: Int = 50,
         comprehension: Int = 50,
+        aptitude: Int = 50,
         teaching: Int = 50,
         morality: Int = 50,
         talentIds: List<String> = emptyList(),
@@ -81,6 +191,7 @@ class DiscipleStatCalculatorTest {
                 charm = charm,
                 loyalty = loyalty,
                 comprehension = comprehension,
+                aptitude = aptitude,
                 teaching = teaching,
                 morality = morality
             ),
@@ -843,7 +954,7 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `getBreakthroughChance - 内门长老加成正确计算`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
-        // 悟性90 → (90-80)/5*0.01 = 0.02
+        // 悟性90 → (90-80)/4*0.01 = 0.02（2026-08-12 新公式：每高4点+1%）
         // 乘区法公式：base * (1 + elderBonus)，差值 = 0.42 * 0.02 = 0.0084
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
@@ -856,6 +967,7 @@ class DiscipleStatCalculatorTest {
     fun `getBreakthroughChance - 外门长老加成正确计算`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
         // 外门长老加成已预计算为Double，直接传入
+        // 悟性95 → (95-80)/4*0.01 = 0.03
         // 乘区法公式：base * (1 + elderBonus)，差值 = 0.42 * 0.03 = 0.0126
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bonusChance = DiscipleStatCalculator.getBreakthroughChance(
@@ -867,16 +979,16 @@ class DiscipleStatCalculatorTest {
     @Test
     fun `getBreakthroughChance - 内门和外门长老加成可叠加`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
-        // 内门长老悟性100 → (100-80)/5*0.01 = 0.04
+        // 内门长老悟性100 → (100-80)/4*0.01 = 0.05
         // 外门长老加成直接传入0.03
-        // 乘区法：elderGuidance = 0.07，差值 = 0.42 * 0.07 = 0.0294
+        // 乘区法：elderGuidance = 0.08，差值 = 0.42 * 0.08 = 0.0336
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
         val bothChance = DiscipleStatCalculator.getBreakthroughChance(
             disciple,
             innerElderComprehension = 100,
             outerElderComprehension = 95
         )
-        assertEquals(0.0294, bothChance - baseChance, 0.001)
+        assertEquals(0.0336, bothChance - baseChance, 0.001)
     }
 
     @Test
@@ -890,20 +1002,20 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `getBreakthroughChance - 内门长老悟性加成上限为5`() {
+    fun `getBreakthroughChance - 内门长老悟性加成上限为10`() {
         val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal")
-        // 悟性105 → (105-80)/5 = 5步 → +5% (未触及上限)
+        // 悟性105 → (105-80)/4 = 6步 → +6% (未触及上限)
         val chance105 = DiscipleStatCalculator.getBreakthroughChance(
             disciple, innerElderComprehension = 105
         )
-        // 悟性130 → (130-80)/5 = 10步 → 上限5步 → +5%
+        // 悟性130 → (130-80)/4 = 12步 → 上限10步 → +10%
         val chance130 = DiscipleStatCalculator.getBreakthroughChance(
             disciple, innerElderComprehension = 130
         )
         val baseChance = DiscipleStatCalculator.getBreakthroughChance(disciple)
-        // 乘区法：差值 = 0.42 * 0.05 = 0.021
-        assertEquals(0.021, chance105 - baseChance, 0.001)
-        assertEquals(0.021, chance130 - baseChance, 0.001)
+        // 乘区法：差值 = 0.42 * 0.06 = 0.0252 / 0.42 * 0.10 = 0.042
+        assertEquals(0.0252, chance105 - baseChance, 0.001)
+        assertEquals(0.042, chance130 - baseChance, 0.001)
     }
 
     @Test
@@ -913,7 +1025,7 @@ class DiscipleStatCalculatorTest {
             DiscipleAggregate.fromDisciple(disciple),
             innerElderComprehension = 90
         )
-        // 悟性90 → (90-80)/5*0.01 = 0.02（整数除法）
+        // 悟性90 → (90-80)/4*0.01 = 0.02（整数除法）
         assertEquals(0.02, detail.innerElderBonus, 0.001)
         assertEquals(0.0, detail.outerElderBonus, 0.001)
     }
@@ -940,10 +1052,10 @@ class DiscipleStatCalculatorTest {
             innerElderComprehension = 100,
             outerElderComprehension = 95
         )
-        // 内门长老悟性100 → 0.04 + 外门长老 0.03 = 0.07
-        // 乘区法：base(0.42) * (1 + 0.07) - 0.42 = 0.0294
-        assertEquals(0.0294, bothDetail.total - baseDetail.total, 0.001)
-        assertEquals(0.04, bothDetail.innerElderBonus, 0.001)
+        // 内门长老悟性100 → 0.05 + 外门长老 0.03 = 0.08
+        // 乘区法：base(0.42) * (1 + 0.08) - 0.42 = 0.0336
+        assertEquals(0.0336, bothDetail.total - baseDetail.total, 0.001)
+        assertEquals(0.05, bothDetail.innerElderBonus, 0.001)
         assertEquals(0.03, bothDetail.outerElderBonus, 0.001)
     }
 
@@ -1069,5 +1181,136 @@ class DiscipleStatCalculatorTest {
         assertEquals("plus 漏加 artifactRefining 会清零", 9, sum.artifactRefining)
         assertEquals("plus 漏加 pillRefining 会清零", 7, sum.pillRefining)
         assertEquals("既有字段不受影响", 50, sum.intelligence)
+    }
+
+    // ── 2026-08-12 悟性重设计：资质 → 修炼速度乘区（80 基准每点+1% 最多+40%）──
+
+    @Test
+    fun `calculateCultivationPerPhase - 资质80无加成`() {
+        val disciple = createDisciple(aptitude = 80)
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
+        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
+        assertEquals(base, speed, 0.001)
+    }
+
+    @Test
+    fun `calculateCultivationPerPhase - 资质81加成1percent`() {
+        val disciple = createDisciple(aptitude = 81)
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
+        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
+        assertEquals(base * 1.01, speed, 0.001)
+    }
+
+    @Test
+    fun `calculateCultivationPerPhase - 资质120加成40percent封顶`() {
+        val disciple = createDisciple(aptitude = 120)
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
+        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
+        assertEquals(base * 1.40, speed, 0.001)
+    }
+
+    @Test
+    fun `calculateCultivationPerPhase - 资质200与10000均封顶40percent`() {
+        val speed200 = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 200))
+        val speed10000 = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 10000))
+        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
+        assertEquals(base * 1.40, speed200, 0.001)
+        assertEquals("篡改防御：超大值钳 0.40", base * 1.40, speed10000, 0.001)
+    }
+
+    @Test
+    fun `calculateCultivationPerPhase - 资质低于80与负值无加成`() {
+        val low = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 79))
+        val negative = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = -100))
+        val base = DiscipleStatCalculator.calculateCultivationPerPhase(createDisciple(aptitude = 50))
+        assertEquals("资质79无加成", base, low, 0.001)
+        assertEquals("篡改防御：负值归零", base, negative, 0.001)
+    }
+
+    @Test
+    fun `getBaseStats - 资质进入DiscipleStats`() {
+        val stats = DiscipleStatCalculator.getBaseStats(createDisciple(aptitude = 120))
+        assertEquals(120, stats.aptitude)
+    }
+
+    // ── 自身悟性 → 突破率 selfBonus（与长老同一公式，乘区内加算）──
+    // 自身悟性经 Disciple.getBaseStats() 晚绑定 statsProvider 读取 → withRealStatsProvider 包裹
+
+    @Test
+    fun `getBreakthroughChance - 弟子自身悟性加成与长老同公式`() {
+        withRealStatsProvider {
+            val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 120)
+            val base = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 50)
+            val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+            val baseChance = DiscipleStatCalculator.getBreakthroughChance(base)
+            // 悟性120 → (120-80)/4 = 10步 → +10%（整数除法，与长老公式一致）
+            assertEquals(0.042, chance - baseChance, 0.001) // 0.42 * 0.10
+        }
+    }
+
+    @Test
+    fun `getBreakthroughChance - 自身悟性加成上限10percent`() {
+        withRealStatsProvider {
+            val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 130)
+            val base = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 50)
+            val chance = DiscipleStatCalculator.getBreakthroughChance(disciple)
+            val baseChance = DiscipleStatCalculator.getBreakthroughChance(base)
+            assertEquals(0.042, chance - baseChance, 0.001) // (130-80)/4=12步→上限10步→+10%
+        }
+    }
+
+    @Test
+    fun `getBreakthroughChance - 自身悟性低于80无加成`() {
+        withRealStatsProvider {
+            val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 79)
+            val base = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 50)
+            assertEquals(
+                DiscipleStatCalculator.getBreakthroughChance(base),
+                DiscipleStatCalculator.getBreakthroughChance(disciple),
+                0.001
+            )
+        }
+    }
+
+    @Test
+    fun `getBreakthroughChance - 自身悟性与长老加成乘区内加算`() {
+        withRealStatsProvider {
+            val self = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 120)
+            val selfWithElder = DiscipleStatCalculator.getBreakthroughChance(
+                self, innerElderComprehension = 120
+            )
+            val base = DiscipleStatCalculator.getBreakthroughChance(
+                createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 50)
+            )
+            // 自身+10% 与 长老+10% 同属 selfBonus/elderGuidance 两个乘区：
+            // base * (1 + 0.10 + 0.10) = base * 1.20，非乘算 1.21
+            assertEquals(base * 1.20, selfWithElder, 0.001)
+        }
+    }
+
+    @Test
+    fun `getBreakthroughBonusDetail - 悟性加成行selfComprehensionBonus正确`() {
+        withRealStatsProvider {
+            val disciple = createDisciple(realm = 6, realmLayer = 1, spiritRootType = "metal", comprehension = 100)
+            val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
+                DiscipleAggregate.fromDisciple(disciple)
+            )
+            // 悟性100 → (100-80)/4 = 5步 → +5%
+            assertEquals(0.05, detail.selfComprehensionBonus, 0.001)
+            assertEquals(
+                "明细合计应与总突破率一致",
+                detail.total,
+                detail.baseChance * (1 + detail.selfComprehensionBonus),
+                0.001
+            )
+        }
+    }
+
+    @Test
+    fun `DiscipleStats plus - 资质字段叠加不清零`() {
+        val base = DiscipleStats(aptitude = 120)
+        val bonus = DiscipleStats(intelligence = 10)
+        val sum = base + bonus
+        assertEquals("plus 漏加 aptitude 会清零", 120, sum.aptitude)
     }
 }

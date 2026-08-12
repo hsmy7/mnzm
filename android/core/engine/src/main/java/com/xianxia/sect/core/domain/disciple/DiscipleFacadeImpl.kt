@@ -436,21 +436,25 @@ class DiscipleFacadeImpl @Inject constructor(
                 pillManager.pillToItemEffect(pill)
             )
         ) {
-            discipleTables.intelligences[id] = discipleTables.intelligences[id] + effect.intelligenceAdd
-            discipleTables.charms[id] = discipleTables.charms[id] + effect.charmAdd
-            discipleTables.loyalties[id] = discipleTables.loyalties[id] + effect.loyaltyAdd
-            discipleTables.comprehensions[id] = discipleTables.comprehensions[id] + effect.comprehensionAdd
-            discipleTables.artifactRefinings[id] = discipleTables.artifactRefinings[id] + effect.artifactRefiningAdd
-            discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id] + effect.pillRefiningAdd
-            discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd
-            discipleTables.teachings[id] = discipleTables.teachings[id] + effect.teachingAdd
-            discipleTables.moralities[id] = discipleTables.moralities[id] + effect.moralityAdd
+            discipleTables.intelligences[id] = discipleTables.intelligences[id].boundedAdd(effect.intelligenceAdd)
+            discipleTables.charms[id] = discipleTables.charms[id].boundedAdd(effect.charmAdd)
+            discipleTables.loyalties[id] =
+                discipleTables.loyalties[id].boundedAdd(effect.loyaltyAdd, GameConfig.Disciple.MAX_LOYALTY)
+            discipleTables.comprehensions[id] = discipleTables.comprehensions[id].boundedAdd(effect.comprehensionAdd)
+            discipleTables.artifactRefinings[id] =
+                discipleTables.artifactRefinings[id].boundedAdd(effect.artifactRefiningAdd)
+            discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id].boundedAdd(effect.pillRefiningAdd)
+            discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id].boundedAdd(effect.spiritPlantingAdd)
+            discipleTables.teachings[id] = discipleTables.teachings[id].boundedAdd(effect.teachingAdd)
+            discipleTables.moralities[id] = discipleTables.moralities[id].boundedAdd(effect.moralityAdd)
             // 道德降低后即时触发偷盗判定（事务内版本，避免重入写覆盖）
             val newMoral = discipleTables.moralities[id]
             if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
                 lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
             }
-            discipleTables.minings[id] = discipleTables.minings[id] + effect.miningAdd
+            discipleTables.minings[id] =
+                (discipleTables.minings[id] + effect.miningAdd)
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX)
 
             // 记录永久属性丹使用
             val itemEffect = pillManager.pillToItemEffect(pill)
@@ -969,3 +973,10 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 }
+
+/**
+ * 有界累加：`this + add` 后钳制到 [0, max]（属性上限 200 / 忠诚 100 统一入口）。
+ * 列直写场景的行宽受限（120 字符），抽为扩展函数保持调用点单行可读。
+ */
+/** 属性值有界累加：默认钳到技能上限（忠诚等特殊上限显式传参覆盖）。 */
+private fun Int.boundedAdd(add: Int, max: Int = GameConfig.Disciple.SKILL_MAX): Int = (this + add).coerceIn(0, max)

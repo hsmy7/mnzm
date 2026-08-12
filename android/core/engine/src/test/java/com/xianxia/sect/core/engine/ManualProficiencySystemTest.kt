@@ -130,43 +130,21 @@ class ManualProficiencySystemTest {
     }
 
     @Test
-    fun `COMPREHENSION_BASELINE 为70`() {
-        assertEquals(70, ManualProficiencySystem.COMPREHENSION_BASELINE)
-    }
-
-    @Test
     fun `LIBRARY_PROFICIENCY_BONUS_RATE 为0_5`() {
         assertEquals(0.5, ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE, 0.01)
     }
 
     @Test
-    fun `calculateProficiencyGainPerPhase - 悟性70无加成`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(70)
+    fun `calculateProficiencyGainPerPhase - 无加成基准`() {
+        // 2026-08-12 悟性重设计：悟性唯一作用改为突破率，熟练度不再受悟性影响
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase()
         assertEquals(12.0, gain, 0.01)  // 6.0/s × 2.0s/旬
     }
 
     @Test
-    fun `calculateProficiencyGainPerPhase - 悟性低于基准无加成`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(50)
-        assertEquals(12.0, gain, 0.01)
-    }
-
-    @Test
-    fun `calculateProficiencyGainPerPhase - 悟性80加成翻倍`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(80)
-        assertEquals(24.0, gain, 0.01)  // 12.0/s × 2.0s/旬
-    }
-
-    @Test
     fun `calculateProficiencyGainPerPhase - 藏经阁加成50%`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(70, 0.5)
+        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(0.5)
         assertEquals(18.0, gain, 0.01)  // 9.0/s × 2.0s/旬
-    }
-
-    @Test
-    fun `calculateProficiencyGainPerPhase - 悟性加成与藏经阁加成叠加`() {
-        val gain = ManualProficiencySystem.calculateProficiencyGainPerPhase(80, 0.5)
-        assertEquals(36.0, gain, 0.01)  // 18.0/s × 2.0s/旬
     }
 
     @Test

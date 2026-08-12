@@ -142,7 +142,7 @@ data class SocialData(
 
 /**
  * 技能属性组件
- * 包含各项技能值和俸禄统计，共11个字段
+ * 包含各项技能值、资质和俸禄统计，共12个字段
  */
 @Serializable
 data class SkillStats(
@@ -157,6 +157,8 @@ data class SkillStats(
     var mining: Int = 50,
     var teaching: Int = 50,
     var morality: Int = 50,
+    // 资质（固定属性，创建时按灵根数生成后不可成长；≥80 每点 +1% 修炼速度，最多 +40%）
+    var aptitude: Int = 50,
 
     // 年俸累计次数
     var salaryPaidCount: Int = 0,
@@ -169,9 +171,7 @@ data class SkillStats(
     var forgeLevel: Int = 0,
     // 当前解锁最高阶的成功锻造次数（晋升炼器师等级用，低阶不计数）
     var forgePromotionCount: Int = 0
-) {
-    val comprehensionSpeedBonus: Double get() = 1.0 + (comprehension - 50) * 0.02
-}
+)
 
 /**
  * 使用追踪组件

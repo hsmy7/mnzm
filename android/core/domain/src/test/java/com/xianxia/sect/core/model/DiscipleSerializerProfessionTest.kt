@@ -67,4 +67,29 @@ class DiscipleSerializerProfessionTest {
         assertEquals("丹圣等级 round-trip 不丢", 5, decoded.skills.alchemyLevel)
         assertEquals(5, decoded.skills.forgeLevel)
     }
+
+    // ---- 资质（2026-08-12 新增固定属性，@ProtoNumber(110) + @EncodeDefault ALWAYS）----
+
+    @Test
+    fun `aptitude round-trip preserves value`() {
+        val disciple = Disciple(
+            id = "d4",
+            skills = SkillStats(aptitude = 120)
+        )
+        val bytes = proto.encodeToByteArray(Disciple.serializer(), disciple)
+        val decoded = proto.decodeFromByteArray<Disciple>(bytes)
+
+        assertEquals("资质 round-trip 不丢", 120, decoded.skills.aptitude)
+    }
+
+    @Test
+    fun `aptitude defaults to 50 for old save (sentinel for self-heal)`() {
+        // 旧档（无字段 110）解码 → 默认 50（自愈哨兵；@EncodeDefault ALWAYS
+        // 保证 encode 时总是写入，不会因 encodeDefaults=false 丢字段）
+        val disciple = Disciple(id = "d5", name = "旧档弟子")
+        val bytes = proto.encodeToByteArray(Disciple.serializer(), disciple)
+        val decoded = proto.decodeFromByteArray<Disciple>(bytes)
+
+        assertEquals("缺省资质应为自愈哨兵 50", 50, decoded.skills.aptitude)
+    }
 }

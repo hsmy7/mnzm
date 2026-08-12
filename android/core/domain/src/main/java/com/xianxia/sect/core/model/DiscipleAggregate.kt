@@ -133,6 +133,7 @@ data class DiscipleAggregate(
     val charm: Int get() = attributes?.charm ?: DEFAULT_SKILL
     val loyalty: Int get() = attributes?.loyalty ?: DEFAULT_SKILL
     val comprehension: Int get() = attributes?.comprehension ?: DEFAULT_SKILL
+    val aptitude: Int get() = attributes?.aptitude ?: DEFAULT_SKILL
     val artifactRefining: Int get() = attributes?.artifactRefining ?: DEFAULT_SKILL
     val pillRefining: Int get() = attributes?.pillRefining ?: DEFAULT_SKILL
     val spiritPlanting: Int get() = attributes?.spiritPlanting ?: DEFAULT_SKILL
@@ -180,10 +181,7 @@ data class DiscipleAggregate(
     
     /** 是否有道侣 */
     val hasPartner: Boolean get() = partnerId != null
-    
-    /** 悟性速度加成 */
-    val comprehensionSpeedBonus: Double get() = comprehension / 100.0
-    
+
     // 已装备的物品映射（简化版，返回空map）
     val equippedItems: Map<EquipmentSlot, EquipmentInstance?> get() = emptyMap()
     
@@ -318,6 +316,7 @@ data class DiscipleAggregate(
                 mining = mining,
                 teaching = teaching,
                 morality = morality,
+                aptitude = aptitude,
                 salaryPaidCount = salaryPaidCount,
                 salaryMissedCount = salaryMissedCount,
                 alchemyLevel = alchemyLevel,

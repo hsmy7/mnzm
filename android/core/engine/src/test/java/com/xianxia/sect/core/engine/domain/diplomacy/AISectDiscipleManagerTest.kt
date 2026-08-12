@@ -386,7 +386,7 @@ class AISectDiscipleManagerTest {
             .copy(manualIds = listOf("atk_4_0"), manualMasteries = mapOf("atk_4_0" to 100))
         val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 2, SectLevel.SMALL)
             .first()
-        val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(90, 0.0) * 3
+        val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(0.0) * 3
         val expected = ((100 + perMonthGain).toInt() + perMonthGain).toInt()
         assertEquals("熟练度应逐月按玩家公式增长（1 月=3 旬）", expected, result.manualMasteries["atk_4_0"])
     }
@@ -497,7 +497,7 @@ class AISectDiscipleManagerTest {
             disciple.manualMasteries.values.all { it == 0 }
         )
         val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 2, SectLevel.SMALL).first()
-        val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(90, 0.0) * 3
+        val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(0.0) * 3
         result.manualMasteries.values.forEach { mastery ->
             // 实现内逐月 (mastery + perMonthGain).toInt()，两次取整与整月增益一致
             assertEquals("熟练度应逐月按玩家公式增长（1 月=3 旬）", (perMonthGain * 2).toInt(), mastery)

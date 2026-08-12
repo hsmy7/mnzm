@@ -37,6 +37,7 @@ import com.xianxia.sect.core.model.magicAttackVariance
 import com.xianxia.sect.core.model.magicDefenseVariance
 import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.model.mpVariance
 import com.xianxia.sect.core.model.physicalAttackVariance
 import com.xianxia.sect.core.model.physicalDefenseVariance
@@ -720,22 +721,32 @@ object RedeemCodeManager {
                 speedVariance = speedVariance
             ),
             skills = SkillStats(
-                intelligence = cfg.intelligence ?: 1 + random.nextInt(100),
+                intelligence = cfg.intelligence ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
                 comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
-                    1 -> 80 + random.nextInt(21)
-                    2 -> 60 + random.nextInt(41)
-                    3 -> 40 + random.nextInt(61)
-                    4 -> 20 + random.nextInt(81)
-                    else -> 1 + random.nextInt(100)
+                    1 -> 80 + random.nextInt(121)
+                    2 -> 60 + random.nextInt(141)
+                    3 -> 40 + random.nextInt(161)
+                    4 -> 20 + random.nextInt(181)
+                    else -> 1 + random.nextInt(200)
                 },
-                charm = cfg.charm ?: 1 + random.nextInt(100),
-                loyalty = cfg.loyalty ?: 1 + random.nextInt(100),
-                artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(100),
-                pillRefining = cfg.pillRefining ?: 1 + random.nextInt(100),
-                spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(100),
-                mining = cfg.mining ?: 1 + random.nextInt(100),
-                teaching = cfg.teaching ?: 1 + random.nextInt(100),
-                morality = cfg.morality ?: 1 + random.nextInt(100)
+                charm = cfg.charm ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                loyalty = cfg.loyalty ?: 1 + random.nextInt(GameConfig.Disciple.MAX_LOYALTY),
+                artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                pillRefining = cfg.pillRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                mining = cfg.mining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                teaching = cfg.teaching ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                morality = cfg.morality ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+                // 资质：按灵根阶梯生成（固定属性，配置不覆盖，最小改动；避开哨兵 50 防自愈误判）
+                aptitude = avoidSentinel50(
+                    when (spiritRootType.split(",").size) {
+                        1 -> 80 + random.nextInt(121)
+                        2 -> 60 + random.nextInt(141)
+                        3 -> 40 + random.nextInt(161)
+                        4 -> 20 + random.nextInt(181)
+                        else -> 1 + random.nextInt(200)
+                    }
+                )
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -810,6 +821,10 @@ object RedeemCodeManager {
 
     /** P-2：属性方差生成（-50..50，替代原逐行重复的 nextInt 表达式）。 */
     private fun generateVariance(random: kotlin.random.Random): Int = -50 + random.nextInt(101)
+
+    /** 资质生成避开哨兵值 50（==50 强制 +1）：与 [DiscipleTables.healDefaultAptitudes] 收敛逻辑一致，防自愈误判 */
+    private fun avoidSentinel50(roll: Int): Int =
+        if (roll == DiscipleTables.DEFAULT_APTITUDE) DiscipleTables.DEFAULT_APTITUDE + 1 else roll
 
     /** 生成随机天赋（internal 供测试验证；统一走 TalentDatabase 的弟子分布，与玩家招募一致） */
     internal fun generateRandomTalents(random: kotlin.random.Random = kotlin.random.Random): List<String> =

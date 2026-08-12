@@ -19,6 +19,7 @@ internal val SPIRIT_ROOT_FILTER_OPTIONS = listOf(
 )
 
 internal val ATTRIBUTE_FILTER_OPTIONS = listOf(
+    AttributeFilterOption("aptitude", "资质"),
     AttributeFilterOption("comprehension", "悟性"),
     AttributeFilterOption("intelligence", "智力"),
     AttributeFilterOption("charm", "魅力"),
@@ -35,6 +36,7 @@ internal val REALM_FILTER_OPTIONS: List<Pair<Int, String>> =
     (0..9).map { it to GameConfig.Realm.getName(it) }
 
 internal fun DiscipleAggregate.getAttributeValue(key: String): Int = when (key) {
+    "aptitude" -> aptitude
     "comprehension" -> comprehension
     "intelligence" -> intelligence
     "charm" -> charm

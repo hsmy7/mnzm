@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ItemEffect
 import com.xianxia.sect.core.model.PillEffects
@@ -140,20 +141,25 @@ class PillEffectApplier @Inject constructor() {
         return disciple.copy(
             skills = disciple.skills.copy(
                 intelligence = (disciple.skills.intelligence + effect.intelligenceAdd)
-                    .coerceAtLeast(0),
-                charm = (disciple.skills.charm + effect.charmAdd).coerceAtLeast(0),
-                loyalty = (disciple.skills.loyalty + effect.loyaltyAdd).coerceAtLeast(0),
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
+                charm = (disciple.skills.charm + effect.charmAdd)
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
+                loyalty = (disciple.skills.loyalty + effect.loyaltyAdd)
+                    .coerceIn(0, GameConfig.Disciple.MAX_LOYALTY),
                 comprehension = (disciple.skills.comprehension + effect.comprehensionAdd)
-                    .coerceAtLeast(0),
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
                 artifactRefining = (disciple.skills.artifactRefining +
-                    effect.artifactRefiningAdd).coerceAtLeast(0),
+                    effect.artifactRefiningAdd).coerceIn(0, GameConfig.Disciple.SKILL_MAX),
                 pillRefining = (disciple.skills.pillRefining + effect.pillRefiningAdd)
-                    .coerceAtLeast(0),
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
                 spiritPlanting = (disciple.skills.spiritPlanting + effect.spiritPlantingAdd)
-                    .coerceAtLeast(0),
-                teaching = (disciple.skills.teaching + effect.teachingAdd).coerceAtLeast(0),
-                morality = (disciple.skills.morality + effect.moralityAdd).coerceAtLeast(0),
-                mining = (disciple.skills.mining + effect.miningAdd).coerceAtLeast(0)
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
+                teaching = (disciple.skills.teaching + effect.teachingAdd)
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
+                morality = (disciple.skills.morality + effect.moralityAdd)
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX),
+                mining = (disciple.skills.mining + effect.miningAdd)
+                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX)
             )
         )
     }

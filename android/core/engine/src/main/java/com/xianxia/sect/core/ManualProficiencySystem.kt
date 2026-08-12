@@ -1,17 +1,9 @@
 package com.xianxia.sect.core.engine
 
-import kotlin.math.max
-
 object ManualProficiencySystem {
 
     /** 基础熟练度增长速度（每秒） */
     const val BASE_PROFICIENCY_RATE = 6.0
-
-    /** 悟性基准值，低于此值无额外加成 */
-    const val COMPREHENSION_BASELINE = 70
-
-    /** 悟性每超出基准1点增加10% */
-    const val COMPREHENSION_BONUS_PER_POINT = 0.1
 
     /** 最大熟练度（各品阶统一） */
     const val MAX_PROFICIENCY = 30000.0
@@ -88,16 +80,15 @@ object ManualProficiencySystem {
     /**
      * 统一熟练度增长公式（每旬增长量）
      *
-     * 公式：BASE_PROFICIENCY_RATE × 悟性加成 × 藏经阁加成 × 每旬秒数
-     * - 悟性加成：1.0 + max(0, comprehension - 70) × 0.1
+     * 公式：BASE_PROFICIENCY_RATE × 藏经阁加成 × 每旬秒数
      * - 藏经阁加成：1.0 + libraryBonus
+     *
+     * 2026-08-12 悟性重设计：悟性唯一作用改为突破率，熟练度增长不再受悟性影响。
      */
     fun calculateProficiencyGainPerPhase(
-        comprehension: Int,
         libraryBonus: Double = 0.0
     ): Double {
-        val comprehensionBonus = 1.0 + max(0, comprehension - COMPREHENSION_BASELINE) * COMPREHENSION_BONUS_PER_POINT
-        val perSecond = BASE_PROFICIENCY_RATE * comprehensionBonus * (1.0 + libraryBonus)
+        val perSecond = BASE_PROFICIENCY_RATE * (1.0 + libraryBonus)
         // 转为每旬
         return perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
     }

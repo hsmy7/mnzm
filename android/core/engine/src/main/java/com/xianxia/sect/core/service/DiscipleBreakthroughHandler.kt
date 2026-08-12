@@ -264,25 +264,29 @@ class DiscipleBreakthroughHandler @Inject constructor(
         val elderSlots = data.elderSlots
 
         val innerElderId = elderSlots.innerElder
+        val outerElderId = data.elderSlots.outerElder
+
+        // 长老职务加成（PositionBonus）：从长老弟子的天赋/词条中提取，作为乘算因子作用于长老职能效果
+        val allDisciples = stateStore.disciples.value.associateBy { it.id }
+
+        // 长老有效悟性 = 基础悟性 + 天赋 Flat（顿悟等加成生效），与 UI 显示口径一致
         val innerElderComprehension = if (innerElderId.isNotEmpty() && disciple.discipleType == TYPE_INNER) {
             val elderId = innerElderId.toIntOrNull()
             if (elderId != null && tables.isAlive[elderId] == 1
                 && disciple.realm >= tables.realms[elderId]) {
-                tables.comprehensions[elderId]
+                allDisciples[innerElderId]?.getBaseStats()?.comprehension
+                    ?: tables.comprehensions[elderId]
             } else { 0 }
         } else { 0 }
 
-        val outerElderId = data.elderSlots.outerElder
         val outerElderComprehension = if (disciple.discipleType == TYPE_OUTER && outerElderId.isNotEmpty()) {
             val oid = outerElderId.toIntOrNull()
             if (oid != null && tables.isAlive[oid] == 1
                 && disciple.realm >= tables.realms[oid]) {
-                tables.comprehensions[oid]
+                allDisciples[outerElderId]?.getBaseStats()?.comprehension
+                    ?: tables.comprehensions[oid]
             } else { 0 }
         } else { 0 }
-
-        // 长老职务加成（PositionBonus）：从长老弟子的天赋/词条中提取，作为乘算因子作用于长老职能效果
-        val allDisciples = stateStore.disciples.value.associateBy { it.id }
         val innerElderPositionBonus = if (innerElderId.isNotEmpty() && disciple.discipleType == TYPE_INNER) {
             allDisciples[innerElderId]?.let { elder ->
                 DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.INNER_ELDER)
