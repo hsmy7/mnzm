@@ -25,7 +25,7 @@
     <ID>LongMethod:MainActivity.kt$MainActivity$internal fun showSaveSelectScreen()</ID>
     <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun FullPrivacyPolicyScreen( onBack: () -&gt; Unit )</ID>
     <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun PrivacyConsentScreen( onAgree: () -&gt; Unit, onDisagree: () -&gt; Unit )</ID>
-    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable private fun PrivacySummaryContent( onPrivacyLinkClick: () -&gt; Unit = {}, onTapTapSdkLinkClick: () -&gt; Unit = {}, onMmkvLinkClick: () -&gt; Unit = {}, onDirichletAdSdkLinkClick: () -&gt; Unit = {}, onPangleSdkLinkClick: () -&gt; Unit = {}, onGdtSdkLinkClick: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable private fun PrivacySummaryContent( onPrivacyLinkClick: () -&gt; Unit = {}, onTapTapSdkLinkClick: () -&gt; Unit = {}, onMmkvLinkClick: () -&gt; Unit = {}, onDirichletAdSdkLinkClick: () -&gt; Unit = {}, onPangleSdkLinkClick: () -&gt; Unit = {}, onGdtSdkLinkClick: () -&gt; Unit = {}, onIqiyiSdkLinkClick: () -&gt; Unit = {}, onBaiduSdkLinkClick: () -&gt; Unit = {} )</ID>
     <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSelectScreen( saveSlots: List&lt;SaveSlot&gt;, onLoadSlot: (Int) -&gt; Unit, onNewGame: (Int, String) -&gt; Unit, onDeleteSlot: (Int) -&gt; Unit, onLogout: () -&gt; Unit )</ID>
     <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSlotCard( slot: SaveSlot, dateFormat: SimpleDateFormat, onLoad: () -&gt; Unit, onNewGame: () -&gt; Unit, onDelete: () -&gt; Unit )</ID>
     <ID>LongMethod:UiError.kt$UiError.Companion$fun fromAppError(error: AppError): UiError</ID>

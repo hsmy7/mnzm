@@ -1,3 +1,13 @@
+## [4.00.95] - 2026-08-12
+
+### 新增（2026-08-12 聚合广告接入爱奇艺 / 百青藤两个广告网络）
+
+- **Dirichlet 聚合 5.1.1.1 扩展两个广告网络** — 爱奇艺（`DirichletAD_IQY_Adapter_5.1.1.1.aar` + `iadsdk-release-2.3.102.110.aar` 本地 AAR）+ 百度百青藤（`DirichletAD_BD_Adapter_5.1.1.1.aar` 本地 AAR + `com.baidu:mobads:9.45.0` Maven Central）；三个 AAR 与现有 `DirichletAD_Mediation/CSJ/GDT_5.1.1.1` 同源于官方 `dirichlet_ad_mediation_5.1.1.1.zip`；媒体 1105785 / 广告位 1061442 与播放链路零改动（聚合后台配置流量，客户端无业务代码变更；adapter 包 `com.tapsdk.tapad.lib_iqyadapter/lib_bdadapter` 由既有 `com.tapsdk.tapad.**` 规则覆盖）
+- **ProGuard** — `proguard-rules.pro` 新增 `com.mcto.sspsdk.**`（爱奇艺 iadsdk，含 `com.mcto.unionsdk/com.mcto.cupid` dontwarn）与 `com.baidu.mobads.**`（百青藤，含 `com.style.widget/com.component/com.baidu.ad.magic.flute/com.baidu.mobstat.forbes`）手动 keep + dontwarn，延续穿山甲/优量汇"与 AAR 自带 proguard.txt 保持一致"模式（已对账 AAR 内 proguard.txt）；百度 SDK 主体以 DEX 形式位于 `assets/bdxadsdk.jar` 运行时动态加载，keep 规则必需
+- **隐私合规双入口（设计方案规则 5）** — 游戏内 `PrivacyConsentScreen.kt` 新增 2.6 爱奇艺 / 2.7 百青藤小节，摘要段 / OAID 段 / Android ID 段 / 信息共享段 / 2.3 聚合模式句同步追加（个性化广告关闭句含新网络）；`docs/index.html` 2.3 表格 +2 行、note / 共享段同步；爱奇艺 https://privacy.iqiyi.com/ 、百青藤 https://union.baidu.com/bqt/#/legal/policies 均验证 200 可访问；两处更新日期改 2026-08-12
+- **兼容性** — 无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；iadsdk 7 个 Activity + VIBRATE/WAKE_LOCK/QUERY_ALL_PACKAGES + queries、mobads 组件 + BdFileProvider（authority `${applicationId}.bd.provider`）由 manifest merger 自动合并，无 authority 冲突；需真机验证：聚合后台为爱奇艺/百青藤配流量后广告位填充、R8 混淆包无崩溃
+- **测试** — 纯构建/配置/文案变更，无业务逻辑改动，无新增单测；compileReleaseKotlin + lintRelease + assembleRelease（R8 fullMode）通过；changelog 双入口已同步（本条目 + changelog_entries.json v4.00.95 新条目 1 条玩家视角描述）；版本号 4.00.94 → 4.00.95
+
 ## [4.00.94] - 2026-08-10
 
 ### 新增（2026-08-11 聚合广告 SDK 升级 + 玉符广告按钮 + 个性化广告开关）

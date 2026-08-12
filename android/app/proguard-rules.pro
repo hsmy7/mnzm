@@ -34,6 +34,23 @@
 -keep class com.qq.e.** { *; }
 -dontwarn com.qq.e.**
 
+# 爱奇艺广告 SDK（iQiyi，AAR iadsdk-release-2.3.102.110，经 Dirichlet 聚合接入）
+# 以下规则与 AAR 自带 proguard.txt 保持一致
+-keep class com.mcto.sspsdk.** { *; }
+-dontwarn com.mcto.sspsdk.**
+-dontwarn com.mcto.unionsdk.**
+-dontwarn com.mcto.cupid.**
+
+# 百度百青藤广告 SDK（Baidu / mobads，Maven com.baidu:mobads:9.45.0）
+# 以下规则与 AAR 自带 proguard.txt 保持一致（BD adapter 内 proguard.txt 含 ignorewarnings + 完整 keep；
+# SDK 主体以 DEX 形式位于 assets/bdxadsdk.jar 运行时动态加载，必须 keep）
+-keep class com.baidu.mobads.** { *; }
+-dontwarn com.baidu.mobads.**
+-keep class com.style.widget.** { *; }
+-keep class com.component.** { *; }
+-keep class com.baidu.ad.magic.flute.** { *; }
+-keep class com.baidu.mobstat.forbes.** { *; }
+
 # TapTap SDK annotations
 -keep class com.taptap.sdk.servicemanager.annotation.** { *; }
 -keep class com.taptap.sdk.startup.annotation.** { *; }
