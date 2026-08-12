@@ -145,6 +145,64 @@ class GameEngineCoreJadeReloadInterleavingTest {
         assertTrue("收尾 stop 必须成功", stoppedAtEnd)
     }
 
+    // ── 冷启动读档窗口竞态（2026-08-12 新增）──
+    // 玩家反馈"读档后看广告玉符 20→3"：前台服务 ACTION_START 在读档 I/O 窗口
+    // 抢先启动循环，onLoopStart 从空快照锚定 totalCount=0；boot 的 startGameLoop
+    // 因循环已运行直接 return（永不重锚），广告发放 0+3=3 绝对值覆盖已读入的 20。
+    // 修复：startGameLoop"已运行"分支无条件重锚（startGameLoop 必须在 loadData
+    // 之后再次调用——boot Step 7 保证）。
+
+    @Test
+    fun `loop started by third party during load window is re-anchored by boot startGameLoop`() {
+        // jadeDayAnchorMs=MAX_VALUE：消除循环线程首帧 maybeDayReset 的并发 update
+        // （FakeAtomicStateStore 无锁，见测试 1 注释）；jadeSymbols=0 模拟初始空快照
+        store.update { gameData = gameData.copy(jadeDayAnchorMs = Long.MAX_VALUE) }
+
+        // 竞态 1：前台服务 ACTION_START 抢先启动循环 → onLoopStart 从空快照锚定 0
+        core.startGameLoop()
+        Thread.sleep(200) // 等循环完成第一帧，进入稳定暂停态
+        assertEquals("抢先启动必须从空快照锚定 0", 0, jadeSymbolService.runtimeState.value.total)
+
+        // 竞态 2：读档完成，快照替换为新档（玉符 99）
+        store.update { gameData = gameData.copy(jadeSymbols = 99) }
+
+        // 竞态 3：boot Step 7 startGameLoop——循环已运行，必须重锚而非 no-op
+        core.startGameLoop()
+        assertEquals("boot 的 startGameLoop 必须重锚新档余额", 99, jadeSymbolService.runtimeState.value.total)
+
+        // 修复后：广告发放基于新档余额，绝对值写不覆盖持久化值
+        jadeSymbolService.grantFromAd(3)
+        assertEquals("广告发放 99 + 3 = 102", 102, store.gameDataSnapshot.jadeSymbols)
+        jadeSymbolService.checkpointNow()
+        assertEquals("checkpoint 后绝对值写不回退", 102, store.gameDataSnapshot.jadeSymbols)
+
+        // 显式收尾（同测试 3 注释：避免活循环拖慢全量回归）
+        val stopped = runBlocking { core.stopGameLoopAndWait(5000) }
+        assertTrue("收尾 stop 必须成功", stopped)
+    }
+
+    @Test
+    fun `repeated watchdog fallback starts during load window keep final balance`() {
+        store.update { gameData = gameData.copy(jadeDayAnchorMs = Long.MAX_VALUE) }
+        core.startGameLoop() // 第一次：ACTION_START 抢先启动
+        Thread.sleep(200)
+
+        // watchdog 兜底多次调用：每次走"已运行"分支重锚（幂等）
+        core.startGameLoop()
+        core.startGameLoop()
+        core.startGameLoop()
+
+        store.update { gameData = gameData.copy(jadeSymbols = 99) } // loadData
+        core.startGameLoop() // boot Step 7：重锚 99
+
+        assertEquals("多次兜底启动后重锚余额必须为新档值", 99, jadeSymbolService.runtimeState.value.total)
+        jadeSymbolService.grantFromAd(3)
+        assertEquals("余额 99 + 广告 3 = 102，不被兜底启动破坏", 102, store.gameDataSnapshot.jadeSymbols)
+
+        val stopped = runBlocking { core.stopGameLoopAndWait(5000) }
+        assertTrue("收尾 stop 必须成功", stopped)
+    }
+
     // ── 工具 ──
 
     private class FakeTimeSource(var nowMs: Long) : TimeSource {

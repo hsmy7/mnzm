@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.CombatAttributes
+import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
@@ -998,5 +999,75 @@ class DiscipleStatCalculatorTest {
         )
         val withDefault = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
         assertEquals("null 与默认参数应完全一致", withDefault, withNull)
+    }
+
+    // ==================== 生产 Flat 天赋加成（2026-08-12 修复：3 个生产 key 接线） ====================
+    // 修复前 computeBaseStats 只消费 7 个 Flat key，spiritPlantingFlat/artifactRefiningFlat/
+    // pillRefiningFlat 无落点——洗出"青帝(灵植+18)"后面板灵植不变（Bug 2 根因）。
+
+    @Test
+    fun `getBaseStats - 青帝灵植flat加18`() {
+        val raw = DiscipleStatCalculator.getBaseStats(createDisciple()).spiritPlanting
+        val stats = DiscipleStatCalculator.getBaseStats(
+            createDisciple(talentIds = listOf("r3_base_plant"))
+        )
+        assertEquals("青帝(灵植+18)应计入基础属性", raw + 18, stats.spiritPlanting)
+    }
+
+    @Test
+    fun `getBaseStats - 天工炼器flat加18`() {
+        val raw = DiscipleStatCalculator.getBaseStats(createDisciple()).artifactRefining
+        val stats = DiscipleStatCalculator.getBaseStats(
+            createDisciple(talentIds = listOf("r3_base_arti"))
+        )
+        assertEquals("天工(炼器+18)应计入基础属性", raw + 18, stats.artifactRefining)
+    }
+
+    @Test
+    fun `getBaseStats - 天丹炼丹flat加18`() {
+        val raw = DiscipleStatCalculator.getBaseStats(createDisciple()).pillRefining
+        val stats = DiscipleStatCalculator.getBaseStats(
+            createDisciple(talentIds = listOf("r3_base_pill"))
+        )
+        assertEquals("天丹(炼丹+18)应计入基础属性", raw + 18, stats.pillRefining)
+    }
+
+    @Test
+    fun `getBaseStats - 负面flat减6`() {
+        val rawSp = DiscipleStatCalculator.getBaseStats(createDisciple()).spiritPlanting
+        val rawAr = DiscipleStatCalculator.getBaseStats(createDisciple()).artifactRefining
+        val rawPi = DiscipleStatCalculator.getBaseStats(createDisciple()).pillRefining
+        val stats = DiscipleStatCalculator.getBaseStats(
+            createDisciple(talentIds = listOf("neg_base_craft"))
+        )
+        assertEquals("百艺生疏(炼器/炼丹/种植-6)应计入基础属性",
+            rawAr - 6, stats.artifactRefining)
+        assertEquals("百艺生疏(炼器/炼丹/种植-6)应计入基础属性",
+            rawPi - 6, stats.pillRefining)
+        assertEquals("百艺生疏(炼器/炼丹/种植-6)应计入基础属性",
+            rawSp - 6, stats.spiritPlanting)
+    }
+
+    @Test
+    fun `getBaseStats - 三生产flat同生效互不覆盖`() {
+        val raw = DiscipleStatCalculator.getBaseStats(createDisciple())
+        val stats = DiscipleStatCalculator.getBaseStats(
+            createDisciple(talentIds = listOf("r2_base_arti", "r2_base_pill", "r2_base_plant"))
+        )
+        assertEquals(raw.spiritPlanting + 10, stats.spiritPlanting)
+        assertEquals(raw.artifactRefining + 10, stats.artifactRefining)
+        assertEquals(raw.pillRefining + 10, stats.pillRefining)
+    }
+
+    @Test
+    fun `DiscipleStats plus - 生产字段叠加不清零`() {
+        // 装备/功法/丹药叠加走 plus（total + it）；漏加新字段会把对应值清零（回归守卫）
+        val base = DiscipleStats(intelligence = 50)
+        val bonus = DiscipleStats(spiritPlanting = 12, artifactRefining = 9, pillRefining = 7)
+        val sum = base + bonus
+        assertEquals("plus 漏加 spiritPlanting 会清零", 12, sum.spiritPlanting)
+        assertEquals("plus 漏加 artifactRefining 会清零", 9, sum.artifactRefining)
+        assertEquals("plus 漏加 pillRefining 会清零", 7, sum.pillRefining)
+        assertEquals("既有字段不受影响", 50, sum.intelligence)
     }
 }

@@ -242,25 +242,42 @@ object DiscipleStatCalculator {
         return Pair(maxHp, maxMp)
     }
 
+    /**
+     * 战斗属性方差输入组（computeBaseStats 参数收拢——detekt LongParameterList
+     * functionThreshold 8，2026-08-12 加 3 生产属性后 22 参数超限且旧 baseline
+     * 条目失配，禁止新增条目 → 抽参数组，签名降为 5 计数）。
+     */
+    private data class VarianceInputs(
+        val hpVariance: Int,
+        val mpVariance: Int,
+        val physicalAttackVariance: Int,
+        val magicAttackVariance: Int,
+        val physicalDefenseVariance: Int,
+        val magicDefenseVariance: Int,
+        val speedVariance: Int
+    )
+
+    /** 技能属性输入组（同上参数收拢；含 2026-08-12 新接线的 3 个生产属性） */
+    private data class SkillInputs(
+        val intelligence: Int,
+        val charm: Int,
+        val loyalty: Int,
+        val comprehension: Int,
+        val teaching: Int,
+        val morality: Int,
+        val mining: Int,
+        val spiritPlanting: Int,
+        val artifactRefining: Int,
+        val pillRefining: Int
+    )
+
     private fun computeBaseStats(
         realm: Int,
         realmLayer: Int,
-        hpVariance: Int,
-        mpVariance: Int,
-        physicalAttackVariance: Int,
-        magicAttackVariance: Int,
-        physicalDefenseVariance: Int,
-        magicDefenseVariance: Int,
-        speedVariance: Int,
+        variances: VarianceInputs,
         talentEffects: Map<String, Double>,
         bloodRefinementPct: BloodRefinementPctTotal? = null,
-        intelligence: Int,
-        charm: Int,
-        loyalty: Int,
-        comprehension: Int,
-        teaching: Int,
-        morality: Int,
-        mining: Int
+        skills: SkillInputs
     ): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(realm)
         val layerMult = safeLayerMult(realmLayer)
@@ -282,15 +299,20 @@ object DiscipleStatCalculator {
         val teachingFlat = (talentEffects["teachingFlat"] ?: 0.0).toInt()
         val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
         val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
+        val spiritPlantingFlat = (talentEffects["spiritPlantingFlat"] ?: 0.0).toInt()
+        val artifactRefiningFlat = (talentEffects["artifactRefiningFlat"] ?: 0.0).toInt()
+        val pillRefiningFlat = (talentEffects["pillRefiningFlat"] ?: 0.0).toInt()
 
-        val paVar = safeVarianceMultiplier(physicalAttackVariance)
-        val maVar = safeVarianceMultiplier(magicAttackVariance)
-        val pdVar = safeVarianceMultiplier(physicalDefenseVariance)
-        val mdVar = safeVarianceMultiplier(magicDefenseVariance)
-        val spdVar = safeVarianceMultiplier(speedVariance)
+        val paVar = safeVarianceMultiplier(variances.physicalAttackVariance)
+        val maVar = safeVarianceMultiplier(variances.magicAttackVariance)
+        val pdVar = safeVarianceMultiplier(variances.physicalDefenseVariance)
+        val mdVar = safeVarianceMultiplier(variances.magicDefenseVariance)
+        val spdVar = safeVarianceMultiplier(variances.speedVariance)
 
         // maxHp/maxMp 共用实现（computeBaseHpMp），与列直读版公式单一来源
-        val (maxHp, maxMp) = computeBaseHpMp(realm, realmLayer, hpVariance, mpVariance, talentEffects, bloodRefinementPct)
+        val (maxHp, maxMp) = computeBaseHpMp(
+            realm, realmLayer, variances.hpVariance, variances.mpVariance, talentEffects, bloodRefinementPct
+        )
 
         return DiscipleStats(
             hp = maxHp,
@@ -303,13 +325,16 @@ object DiscipleStatCalculator {
             magicDefense = (realmConfig.baseMagicDefense * mdVar * layerMult * (1.0 + magicDefenseBonus)).roundToInt(),
             speed = (realmConfig.baseSpeed * spdVar * layerMult * (1.0 + speedBonus)).roundToInt(),
             critRate = BASE_CRIT_RATE + critBonus,
-            intelligence = intelligence + intelligenceFlat,
-            charm = charm + charmFlat,
-            loyalty = loyalty + loyaltyFlat,
-            comprehension = comprehension + comprehensionFlat,
-            teaching = teaching + teachingFlat,
-            morality = morality + moralityFlat,
-            mining = mining + miningFlat
+            intelligence = skills.intelligence + intelligenceFlat,
+            charm = skills.charm + charmFlat,
+            loyalty = skills.loyalty + loyaltyFlat,
+            comprehension = skills.comprehension + comprehensionFlat,
+            teaching = skills.teaching + teachingFlat,
+            morality = skills.morality + moralityFlat,
+            mining = skills.mining + miningFlat,
+            spiritPlanting = skills.spiritPlanting + spiritPlantingFlat,
+            artifactRefining = skills.artifactRefining + artifactRefiningFlat,
+            pillRefining = skills.pillRefining + pillRefiningFlat
         )
     }
 
@@ -318,25 +343,33 @@ object DiscipleStatCalculator {
         bloodRefinementPct: BloodRefinementPctTotal? = null
     ): DiscipleStats {
         val c = disciple.combat
+        val s = disciple.skills
         return computeBaseStats(
             realm = disciple.realm,
             realmLayer = disciple.realmLayer,
-            hpVariance = c.hpVariance,
-            mpVariance = c.mpVariance,
-            physicalAttackVariance = c.physicalAttackVariance,
-            magicAttackVariance = c.magicAttackVariance,
-            physicalDefenseVariance = c.physicalDefenseVariance,
-            magicDefenseVariance = c.magicDefenseVariance,
-            speedVariance = c.speedVariance,
+            variances = VarianceInputs(
+                hpVariance = c.hpVariance,
+                mpVariance = c.mpVariance,
+                physicalAttackVariance = c.physicalAttackVariance,
+                magicAttackVariance = c.magicAttackVariance,
+                physicalDefenseVariance = c.physicalDefenseVariance,
+                magicDefenseVariance = c.magicDefenseVariance,
+                speedVariance = c.speedVariance
+            ),
             talentEffects = getMergedEffects(disciple),
             bloodRefinementPct = bloodRefinementPct,
-            intelligence = disciple.skills.intelligence,
-            charm = disciple.skills.charm,
-            loyalty = disciple.skills.loyalty,
-            comprehension = disciple.skills.comprehension,
-            teaching = disciple.skills.teaching,
-            morality = disciple.skills.morality,
-            mining = disciple.skills.mining
+            skills = SkillInputs(
+                intelligence = s.intelligence,
+                charm = s.charm,
+                loyalty = s.loyalty,
+                comprehension = s.comprehension,
+                teaching = s.teaching,
+                morality = s.morality,
+                mining = s.mining,
+                spiritPlanting = s.spiritPlanting,
+                artifactRefining = s.artifactRefining,
+                pillRefining = s.pillRefining
+            )
         )
     }
 
@@ -349,22 +382,29 @@ object DiscipleStatCalculator {
         return computeBaseStats(
             realm = aggregate.realm,
             realmLayer = aggregate.realmLayer,
-            hpVariance = cs?.hpVariance ?: 0,
-            mpVariance = cs?.mpVariance ?: 0,
-            physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
-            magicAttackVariance = cs?.magicAttackVariance ?: 0,
-            physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
-            magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
-            speedVariance = cs?.speedVariance ?: 0,
+            variances = VarianceInputs(
+                hpVariance = cs?.hpVariance ?: 0,
+                mpVariance = cs?.mpVariance ?: 0,
+                physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
+                magicAttackVariance = cs?.magicAttackVariance ?: 0,
+                physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
+                magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
+                speedVariance = cs?.speedVariance ?: 0
+            ),
             talentEffects = getMergedEffects(aggregate),
             bloodRefinementPct = bloodRefinementPct,
-            intelligence = attr?.intelligence ?: 50,
-            charm = attr?.charm ?: 50,
-            loyalty = attr?.loyalty ?: 50,
-            comprehension = attr?.comprehension ?: 50,
-            teaching = attr?.teaching ?: 50,
-            morality = attr?.morality ?: 50,
-            mining = attr?.mining ?: 50
+            skills = SkillInputs(
+                intelligence = attr?.intelligence ?: 50,
+                charm = attr?.charm ?: 50,
+                loyalty = attr?.loyalty ?: 50,
+                comprehension = attr?.comprehension ?: 50,
+                teaching = attr?.teaching ?: 50,
+                morality = attr?.morality ?: 50,
+                mining = attr?.mining ?: 50,
+                spiritPlanting = attr?.spiritPlanting ?: 50,
+                artifactRefining = attr?.artifactRefining ?: 50,
+                pillRefining = attr?.pillRefining ?: 50
+            )
         )
     }
 
@@ -386,22 +426,29 @@ object DiscipleStatCalculator {
         return computeBaseStats(
             realm = aggregate.realm,
             realmLayer = aggregate.realmLayer,
-            hpVariance = cs?.hpVariance ?: 0,
-            mpVariance = cs?.mpVariance ?: 0,
-            physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
-            magicAttackVariance = cs?.magicAttackVariance ?: 0,
-            physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
-            magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
-            speedVariance = cs?.speedVariance ?: 0,
+            variances = VarianceInputs(
+                hpVariance = cs?.hpVariance ?: 0,
+                mpVariance = cs?.mpVariance ?: 0,
+                physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
+                magicAttackVariance = cs?.magicAttackVariance ?: 0,
+                physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
+                magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
+                speedVariance = cs?.speedVariance ?: 0
+            ),
             talentEffects = getMergedEffects(aggregate),
             bloodRefinementPct = bloodRefinementPct,
-            intelligence = attr?.intelligence ?: 50,
-            charm = attr?.charm ?: 50,
-            loyalty = attr?.loyalty ?: 50,
-            comprehension = attr?.comprehension ?: 50,
-            teaching = attr?.teaching ?: 50,
-            morality = attr?.morality ?: 50,
-            mining = attr?.mining ?: 50
+            skills = SkillInputs(
+                intelligence = attr?.intelligence ?: 50,
+                charm = attr?.charm ?: 50,
+                loyalty = attr?.loyalty ?: 50,
+                comprehension = attr?.comprehension ?: 50,
+                teaching = attr?.teaching ?: 50,
+                morality = attr?.morality ?: 50,
+                mining = attr?.mining ?: 50,
+                spiritPlanting = attr?.spiritPlanting ?: 50,
+                artifactRefining = attr?.artifactRefining ?: 50,
+                pillRefining = attr?.pillRefining ?: 50
+            )
         )
     }
 

@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.model.spiritPlanting
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -42,7 +41,9 @@ object HerbGardenAuraService {
         if (elderId.isBlank()) return 0.0
 
         val elder = allDisciples.find { it.id == elderId } ?: return 0.0
-        val sp = elder.spiritPlanting
+        // 2026-08-12 修复：读含天赋 Flat 加成的属性（getBaseStats），否则
+        // "灵植+18"天赋对灵植阁成熟度光环无效
+        val sp = DiscipleStatCalculator.getBaseStats(elder).spiritPlanting
         if (sp <= GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_BASE) return 0.0
 
         val bonus = ((sp - GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_BASE) /
@@ -56,7 +57,7 @@ object HerbGardenAuraService {
         val activeSlot = elderSlots.herbGardenDisciples.firstOrNull { it.isActive } ?: return 0.0
 
         val disciple = allDisciples.find { it.id == activeSlot.discipleId } ?: return 0.0
-        val sp = disciple.spiritPlanting
+        val sp = DiscipleStatCalculator.getBaseStats(disciple).spiritPlanting
         if (sp <= GameConfig.PolicyConfig.HERB_GARDEN_DISCIPLE_SPIRIT_BASE) return 0.0
 
         val bonus = ((sp - GameConfig.PolicyConfig.HERB_GARDEN_DISCIPLE_SPIRIT_BASE) /

@@ -470,7 +470,10 @@ data class DiscipleStats(
     val comprehension: Int = 0,
     val teaching: Int = 0,
     val morality: Int = 0,
-    val mining: Int = 0
+    val mining: Int = 0,
+    val spiritPlanting: Int = 0,
+    val artifactRefining: Int = 0,
+    val pillRefining: Int = 0
 ) {
     operator fun plus(other: DiscipleStats): DiscipleStats {
         return DiscipleStats(
@@ -490,7 +493,10 @@ data class DiscipleStats(
             comprehension = comprehension + other.comprehension,
             teaching = teaching + other.teaching,
             morality = morality + other.morality,
-            mining = mining + other.mining
+            mining = mining + other.mining,
+            spiritPlanting = spiritPlanting + other.spiritPlanting,
+            artifactRefining = artifactRefining + other.artifactRefining,
+            pillRefining = pillRefining + other.pillRefining
         )
     }
 }

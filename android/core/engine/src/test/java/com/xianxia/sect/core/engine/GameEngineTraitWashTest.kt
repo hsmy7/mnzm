@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.GameConfig.TraitWashType
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -466,6 +467,28 @@ class GameEngineTraitWashTest {
     }
 
     // ── lifespan 同步（对抗性审查 2026-08-09 数据篡改者：洗炼前后寿命必须与新特质一致） ──
+
+    // ── 端到端：确认洗炼产物后 getBaseStats 立即反映 Flat 加成（2026-08-12 Bug 2 修复） ──
+    // 修复前 spiritPlantingFlat 无落点：洗出"青帝(灵植+18)"后属性页灵植不变
+
+    @Test
+    fun `confirmTraitWash - 确认青帝后 getBaseStats 含灵植flat加18`() = runBlocking {
+        seedStandardDisciple()
+        val before = assembleDisciple()
+        val targetId = before.talentIds.first()
+        // 青帝 r3 阶（灵植+18）；template "base_plant" 与保留槽位（r1 base_*）互异，可确认
+        val qingdi = "r3_base_plant"
+
+        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, targetId, qingdi)
+
+        assertTrue("期望 Success，实际 $result", result is TraitWashConfirmResult.Success)
+        val after = assembleDisciple()
+        assertEquals("青帝应落库到目标槽位", listOf(qingdi, before.talentIds[1]), after.talentIds)
+        val stats = DiscipleStatCalculator.getBaseStats(after)
+        assertEquals("确认青帝后灵植 = 原始 + 18",
+            before.skills.spiritPlanting + 18, stats.spiritPlanting)
+        assertEquals("其余类型不得被触碰", before.physiqueIds, after.physiqueIds)
+    }
 
     @Test
     fun `confirmTraitWash - 洗入延年词条后 lifespan 按境界基准上调`() = runBlocking {

@@ -136,6 +136,11 @@ class JadeSymbolService @Inject constructor(
     /**
      * 游戏循环启动钩子：从 GameData 快照恢复运行时字段（读档/切档/重启天然正确），
      * 并立即执行一次跨天检查（启动时若已跨天，今日计数直接归零）。
+     *
+     * 可重复调用（幂等重锚）：仅 volatile 内存写 + UI 发布，不写 store
+     * （跨天/锚定写入经 [pendingDayResetCheck] 延迟到引擎线程首帧 tick），
+     * 任意线程调用安全；循环已被第三方（前台服务/watchdog）抢先启动后
+     * 再次调用即以最新快照重锚——冷启动读档竞态的根治手段。
      */
     fun onLoopStart() {
         val gd = stateStore.gameDataSnapshot
@@ -240,6 +245,10 @@ class JadeSymbolService @Inject constructor(
      * @return 是否成功（余额不足或金额非正返回 false，状态不变）
      */
     fun deduct(state: MutableGameState, amount: Int): Boolean {
+        // 懒重锚守卫（与 grantFromAd 对称）：未 onLoopStart 过时先从快照恢复
+        // totalCount 再判定余额，防止零值基累计误判（消耗路径正常在 boot
+        // 完成后调用，本守卫为未来调用点漂移提供纵深防御）
+        if (lastSampleMs == 0L) onLoopStart()
         if (amount <= 0 || totalCount < amount) return false
         totalCount -= amount
         state.gameData = state.gameData.copy(jadeSymbols = totalCount)
@@ -262,6 +271,10 @@ class JadeSymbolService @Inject constructor(
      */
     fun grantFromAd(amount: Int): Boolean {
         if (amount <= 0) return false
+        // 对称 checkpointNow 哨兵（lastSampleMs==0）：全新进程循环从未启动时
+        // 先按快照懒重锚再发放，防止"读档 I/O 窗口 0 基累计 + 广告发放"
+        // 绝对值覆盖已持久化余额（冷启动竞态纵深防御，主修复见 startGameLoop 重锚）
+        if (lastSampleMs == 0L) onLoopStart()
         totalCount += amount
         stateStore.update {
             gameData = gameData.copy(jadeSymbols = totalCount)

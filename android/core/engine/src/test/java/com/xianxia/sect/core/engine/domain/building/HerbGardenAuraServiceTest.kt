@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.engine.domain.building
 
+import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,6 +35,33 @@ class HerbGardenAuraServiceTest {
         // Result depends on GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_BASE
         // We just verify it returns a non-negative value
         assertTrue("Bonus should be non-negative", result >= 0.0)
+    }
+
+    // ---- 灵植 Flat 天赋跨门槛（2026-08-12 修复：光环读 getBaseStats） ----
+    // 修复前读原始 skills.spiritPlanting，"青帝(灵植+10)"对成熟度光环无效
+
+    @Test
+    fun calculateElderMaturityBonus_flatTalentCrossesThreshold_yieldsBonus() {
+        val elderSlots = ElderSlots(herbGardenElder = "elder1")
+        val plain = Disciple(id = "elder1", name = "长老", skills = SkillStats(spiritPlanting = 75))
+        // 75 < 80 门槛 → 无加成
+        assertEquals(0.0, HerbGardenAuraService.calculateElderMaturityBonus(elderSlots, listOf(plain)), 0.001)
+        // 青帝 r2（+10）→ 75+10 = 85 → (85-80)/4 = 1（Int 除法截断）→ 0.01
+        val withTalent = plain.copy(talentIds = listOf("r2_base_plant"))
+        assertEquals(0.01, HerbGardenAuraService.calculateElderMaturityBonus(elderSlots, listOf(withTalent)), 0.001)
+    }
+
+    @Test
+    fun calculateAuraMaturityBonus_flatTalentCrossesThreshold_yieldsBonus() {
+        val elderSlots = ElderSlots(
+            herbGardenDisciples = listOf(DirectDiscipleSlot(index = 0, discipleId = "d1"))
+        )
+        val plain = Disciple(id = "d1", name = "弟子", skills = SkillStats(spiritPlanting = 45))
+        // 45 ≤ 50 门槛 → 无加成
+        assertEquals(0.0, HerbGardenAuraService.calculateAuraMaturityBonus(elderSlots, listOf(plain)), 0.001)
+        // 青帝 r2（+10）→ 45+10 = 55 → (55-50)/5 × 0.01 = 0.01
+        val withTalent = plain.copy(talentIds = listOf("r2_base_plant"))
+        assertEquals(0.01, HerbGardenAuraService.calculateAuraMaturityBonus(elderSlots, listOf(withTalent)), 0.001)
     }
 
     // ---- calculateAuraMaturityBonus ----

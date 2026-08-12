@@ -551,7 +551,14 @@ class GameEngineCore @Inject constructor(
     @Suppress("LongMethod", "CyclomaticComplexMethod", "TooGenericExceptionCaught")
     fun startGameLoop(resetWatchdogAttempts: Boolean = true) {
         if (gameLoopJob?.isActive == true) {
-            DomainLog.w(TAG, "Game loop already running")
+            // 冷启动读档竞态修复：循环已被第三方（前台服务 ACTION_START / watchdog
+            // 兜底 / START_STICKY 重投递）抢先启动，而运行时玉符仍锚定在读档前的
+            // 旧/空快照——boot 的 startGameLoop 走到此处若直接 return，后续
+            // grantFromAd/checkpointNow/settleGrants 的绝对值写会覆盖已持久化余额
+            // （玩家反馈：读档后看广告玉符 20→3）。无条件重锚（幂等：volatile
+            // 内存写 + UI 发布，写库延迟到引擎线程首帧 tick，主线程调用安全）。
+            jadeSymbolService.onLoopStart()
+            DomainLog.w(TAG, "startGameLoop: 循环已运行，重锚玉符运行时")
             return
         }
         // D-07 状态机：仅 STOPPED → RUNNING。RESTARTING（emergency 独占）/

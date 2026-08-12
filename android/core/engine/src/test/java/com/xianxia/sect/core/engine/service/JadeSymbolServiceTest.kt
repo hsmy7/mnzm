@@ -368,6 +368,34 @@ class JadeSymbolServiceTest {
         assertEquals(3, service.runtimeState.value.total)
     }
 
+    // ── 懒重锚守卫（冷启动读档窗口竞态纵深防御，2026-08-12 新增）──
+
+    @Test
+    fun `grantFromAd - 未 onLoopStart 时懒重锚并基于快照发放`() {
+        // 模拟"持久化余额已就位但循环从未启动"（冷启动读档窗口）：
+        // store 有 20，运行时 totalCount 仍是进程初值 0
+        store.update { gameData = gameData.copy(jadeSymbols = 20) }
+
+        val ok = service.grantFromAd(3)
+
+        assertTrue(ok)
+        // 懒重锚后基于快照 20 发放：20 + 3 = 23（修复前为 0 + 3 = 3，覆盖持久化余额）
+        assertEquals(23, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(23, service.runtimeState.value.total)
+    }
+
+    @Test
+    fun `grantFromAd - 懒重锚后 checkpointNow 幂等不回涨`() {
+        store.update { gameData = gameData.copy(jadeSymbols = 20) }
+
+        service.grantFromAd(3)
+        service.checkpointNow()
+
+        assertEquals("checkpoint 绝对值写不回退", 23, store.gameDataSnapshot.jadeSymbols)
+        assertEquals("今日计数不受广告发放影响", 0, store.gameDataSnapshot.jadeSymbolsToday)
+        assertEquals(23, service.runtimeState.value.total)
+    }
+
     // ── UI 节流 ──
 
     @Test

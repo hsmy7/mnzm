@@ -17,6 +17,10 @@ import com.xianxia.sect.ui.components.DiscipleAttrText
 
 @Composable
 fun AttributesSection(disciple: DiscipleAggregate) {
+    // 2026-08-12 修复：属性区只显示最终值（含天赋 Flat 加成，如洗炼"青帝 灵植+18"），
+    // 不再显示基础值——洗出加灵植的天赋后面板应立即体现（用户确认口径：不显示括号加成）
+    val baseStats = remember(disciple) { disciple.getBaseStats() }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "属性",
@@ -29,34 +33,34 @@ fun AttributesSection(disciple: DiscipleAggregate) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            DiscipleAttrText("悟性", disciple.comprehension, Modifier.weight(1f))
-            DiscipleAttrText("智力", disciple.intelligence, Modifier.weight(1f))
-            DiscipleAttrText("魅力", disciple.charm, Modifier.weight(1f))
+            DiscipleAttrText("悟性", baseStats.comprehension, Modifier.weight(1f))
+            DiscipleAttrText("智力", baseStats.intelligence, Modifier.weight(1f))
+            DiscipleAttrText("魅力", baseStats.charm, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            DiscipleAttrText("忠诚", disciple.loyalty, Modifier.weight(1f))
-            DiscipleAttrText("炼器", disciple.artifactRefining, Modifier.weight(1f))
-            DiscipleAttrText("炼丹", disciple.pillRefining, Modifier.weight(1f))
+            DiscipleAttrText("忠诚", baseStats.loyalty, Modifier.weight(1f))
+            DiscipleAttrText("炼器", baseStats.artifactRefining, Modifier.weight(1f))
+            DiscipleAttrText("炼丹", baseStats.pillRefining, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            DiscipleAttrText("灵植", disciple.spiritPlanting, Modifier.weight(1f))
-            DiscipleAttrText("传道", disciple.teaching, Modifier.weight(1f))
-            DiscipleAttrText("道德", disciple.morality, Modifier.weight(1f))
+            DiscipleAttrText("灵植", baseStats.spiritPlanting, Modifier.weight(1f))
+            DiscipleAttrText("传道", baseStats.teaching, Modifier.weight(1f))
+            DiscipleAttrText("道德", baseStats.morality, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            DiscipleAttrText("采矿", disciple.mining, Modifier.weight(1f))
+            DiscipleAttrText("采矿", baseStats.mining, Modifier.weight(1f))
             Spacer(Modifier.weight(1f))
             Spacer(Modifier.weight(1f))
         }
@@ -95,10 +99,6 @@ fun CombatStatsSection(
         disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
     }
 
-    val baseStats = remember(disciple) {
-        disciple.getBaseStats()
-    }
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = "战斗属性",
@@ -111,23 +111,23 @@ fun CombatStatsSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItemWithBonus("物攻", baseStats.physicalAttack, finalStats.physicalAttack, Modifier.weight(1f))
-            StatItemWithBonus("法攻", baseStats.magicAttack, finalStats.magicAttack, Modifier.weight(1f))
+            StatItem("物攻", finalStats.physicalAttack, Modifier.weight(1f))
+            StatItem("法攻", finalStats.magicAttack, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItemWithBonus("物防", baseStats.physicalDefense, finalStats.physicalDefense, Modifier.weight(1f))
-            StatItemWithBonus("法防", baseStats.magicDefense, finalStats.magicDefense, Modifier.weight(1f))
+            StatItem("物防", finalStats.physicalDefense, Modifier.weight(1f))
+            StatItem("法防", finalStats.magicDefense, Modifier.weight(1f))
         }
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatItemWithBonus("速度", baseStats.speed, finalStats.speed, Modifier.weight(1f))
+            StatItem("速度", finalStats.speed, Modifier.weight(1f))
             StatItem("神魂", disciple.soulPower, Modifier.weight(1f))
         }
     }
@@ -151,36 +151,6 @@ fun StatItem(name: String, value: Int, modifier: Modifier = Modifier) {
             fontWeight = FontWeight.Bold,
             color = Color.Black
         )
-    }
-}
-
-@Composable
-fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, modifier: Modifier = Modifier, currentDisplay: String? = null) {
-    val bonus = finalValue - baseValue
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-    ) {
-        Text(
-            text = name,
-            fontSize = 11.sp,
-            color = Color.Black
-        )
-        Text(
-            text = currentDisplay ?: finalValue.toString(),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        if (bonus > 0) {
-            Text(
-                text = "(+$bonus)",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF27AE60)
-            )
-        }
     }
 }
 

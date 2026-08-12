@@ -26,6 +26,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.state.GameStateStore
@@ -784,21 +785,21 @@ class BuildingService @Inject constructor(
         return when (buildingId) {
             BuildingNames.FORGE -> {
                 val diff = (
-                    elderDisciple.skills.artifactRefining -
+                    DiscipleStatCalculator.getBaseStats(elderDisciple).artifactRefining -
                         GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 ).coerceAtLeast(0)
                 diff * 0.01
             }
             BuildingNames.ALCHEMY -> {
                 val diff = (
-                    elderDisciple.skills.pillRefining -
+                    DiscipleStatCalculator.getBaseStats(elderDisciple).pillRefining -
                         GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 ).coerceAtLeast(0)
                 diff * 0.01
             }
             "herbGarden" -> {
                 val diff = (
-                    elderDisciple.skills.spiritPlanting -
+                    DiscipleStatCalculator.getBaseStats(elderDisciple).spiritPlanting -
                         GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 ).coerceAtLeast(0)
                 diff * 0.01
