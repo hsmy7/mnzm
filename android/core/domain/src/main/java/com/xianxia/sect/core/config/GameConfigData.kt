@@ -159,7 +159,8 @@ data class GameConfigData(
         data class RealmGapSection(
             val damageBonusPerLayer: Double = 0.30,
             val damageReductionPerLayer: Double = 0.30,
-            val instantKillGap: Int = 1
+            val instantKillGap: Int = 1,
+            val damageBonusPerMajorRealm: Double = 1.0
         )
     }
 

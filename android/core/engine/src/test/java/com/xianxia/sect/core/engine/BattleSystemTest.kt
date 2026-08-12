@@ -492,6 +492,12 @@ class BattleSystemTest {
     }
 
     @Test
+    fun `calculateRealmGapFactors - 高 1 大境界透传大境界加成`() {
+        val factors = battleSystem.calculateRealmGapFactors(8, 1, 9, 1)
+        assertEquals(1.0, factors.majorRealmDamageAmplification, 0.001)
+    }
+
+    @Test
     fun `Combatant - hasControlEffect with stun`() {
         val stunBuff = CombatBuff(BuffType.STUN, 1.0, 2)
         val combatant = Combatant(

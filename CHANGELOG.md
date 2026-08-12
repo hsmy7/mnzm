@@ -58,6 +58,14 @@
 - **测试** — `DiscipleFactoryTest` 哨兵收敛用例改 3 根段（`from==40 && until==61` 命中 50 → 断言 51，5 根 [1,21) 不再含 50）；`BootSequenceControllerTest` 重命名 `recover - preload failure aborts recovery`（改依赖 `onPreloadResources` 抛异常）；全量通过
 - **兼容性** — 纯生成逻辑变更 + 死代码删除，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不动）；旧档已生成资质不重算（≠50 跳过）；游戏内 changelog 无数值细节无需更新；版本号不递增
 
+### 新增（2026-08-12 跨大境界伤害加成）
+
+- **跨大境界加成** — 攻击方比防守方每高 1 个大境界 +100% 伤害（`damageBonusPerMajorRealm`，默认 1.0，累加不封顶），作为**独立乘区**（`DamageZones.majorRealmDamageAmplification`）与小层境界压制（每层 +30%）独立乘算叠加、不进任何加算乘区被稀释（不受乘区衰减）；**仅增伤方向**（反向无对称减伤，小层减伤封顶 100% 兜底）；DoT（中毒/灼烧）同样吃该加成。**斩杀优先语义**（对抗性审查决策）：直伤路径上高 2 个大境界及以上时 `checkInstantKill`（`INSTANT_KILL_GAP=1`）必杀优先，大境界加成在"高 1 个大境界"及 DoT 路径完整生效；因子仍按大境界差累加计算（DoT 全档生效）
+- **对抗性审查修复（3 agent 恶意角色审查）** — ① `safeRealm` 钳制：`calculateRealmGapFactors` 入口 realm 钳制 [0,9]（Room 列无 CHECK 约束，存档篡改 realm=-1 原可致大境界因子无上限爆炸；与 `GameConfig.Realm.MAX_REALM_INDEX` 新常量对齐，`safeLayer` 同级防御）；② `checkInstantKill` 同族修复：Long 中间运算 + safeRealm/safeLayer 钳制（原 Int 运算经篡改可误斩秒杀任意目标/漏判斩杀）；③ `processDotEffects` 多段 DoT 改 Long 累加 + `coerceIn(MIN_DAMAGE, Int.MAX)`（原两段 Int.MAX 累加 Int 回绕成负 → 伤害失真兜底 1）；④ 大境界因子非负钳制 `maxOf(0.0, …)`（负配置 × 减伤超额原可"负负得正"反转伤害语义）；⑤ `calculateDamage` KDoc 注明 zones 应为空乘区（加法注入双计陷阱）
+- **实现** — `BattleCalculator.calculateRealmGapFactors` 双轨计算（`majorGap = defenderRealm - attackerRealm` 与 `layerGap` 分开，Long 运算防存档篡改溢出；`gap==0` 早退删除，三因子统一归零）；`RealmGapFactors`/`DamageZones` 各 +1 字段（末尾带默认值，既有构造调用兼容）；`buildDamageZones`/`calculateDamage`（CombatantStats 路径加法注入）/`calculateFinalDamage`/`estimateDamage`/`dotRealmFactor` 五处同步；配置三件套：`GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_MAJOR_REALM`（默认 1.0）+ `RealmGapSection.damageBonusPerMajorRealm` + `game_config.json`；生产调用方（BattleSystem/AISectAttackManager/PatrolBattleSystem/HeavenlyTrialCombatLogic/BattleAI）经既有管线自动生效零改动
+- **测试** — `BattleCalculatorTest` +7（跨大境界双因子并存/高 2/3 大境界累加不封顶/防守方高无对称减伤/同大境界零值/与小层及 buff 两则独立乘算 both>additive）；`BattleCalculatorCoverageTest` buildDamageZones 断言扩展 + DoT 期望 155→310（DoT 吃大境界加成属预期行为变化）+ 高 2 大境界 DoT 960 + estimateDamage ×7.4；`BattleSystemTest` +1 透传；`GameConfigConsistencyTest` +1、`ConfigLoaderTest` +1；全量串行通过
+- **兼容性** — 纯引擎数值 + 配置扩展（`RealmGapSection` 带默认值，旧配置 JSON 缺字段走默认），无 Entity/Migration/存档格式变更（DATABASE_VERSION 不动）；版本号不递增（changelog 双入口已同步，4.00.96 changes 追加 1 条玩家视角描述）
+
 ## [4.00.95] - 2026-08-12
 
 ### 新增（2026-08-12 聚合广告接入爱奇艺 / 百青藤两个广告网络）

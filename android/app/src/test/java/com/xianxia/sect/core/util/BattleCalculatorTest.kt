@@ -343,6 +343,75 @@ class BattleCalculatorTest {
     }
 
     @Test
+    fun `calculateRealmGapFactors - 越界 realm 钳制到 0 至 9`() {
+        // 存档篡改 realm=-1（超越仙人）：钳制到 0 后 vs 炼气(9) → majorGap=9 封顶，不再无上限爆炸
+        val negative = BattleCalculator.calculateRealmGapFactors(-1, 1, 9, 1)
+        assertEquals(24.3, negative.damageAmplification, 0.001) // 0.30 × 81（钳制后合法域最大值）
+        assertEquals(9.0, negative.majorRealmDamageAmplification, 0.001) // 1.0 × 9
+        // 篡改 realm=Int.MAX_VALUE：钳制到 9 后与防守方同为炼气 → 全部归零
+        val maxRealm = BattleCalculator.calculateRealmGapFactors(Int.MAX_VALUE, 1, 9, 1)
+        assertEquals(0.0, maxRealm.damageAmplification, 0.001)
+        assertEquals(0.0, maxRealm.damageReduction, 0.001)
+        assertEquals(0.0, maxRealm.majorRealmDamageAmplification, 0.001)
+        // 篡改 realm=Int.MIN_VALUE：钳制到 0 → 与 -1 同结果（合法域内封顶）
+        val minRealm = BattleCalculator.calculateRealmGapFactors(Int.MIN_VALUE, 1, 9, 1)
+        assertEquals(24.3, minRealm.damageAmplification, 0.001)
+        assertEquals(9.0, minRealm.majorRealmDamageAmplification, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 负配置大境界因子钳制为零`() {
+        // 配置 damageBonusPerMajorRealm=-2.0（篡改/误配）：因子钳制 0 而非负数（负数 × 减伤超额会"负负得正"反转伤害语义）
+        val factors = BattleCalculator.calculateRealmGapFactors(
+            8, 1, 9, 1, damageBonusPerMajorRealm = -2.0
+        )
+        assertEquals(0.0, factors.majorRealmDamageAmplification, 0.001)
+        // 小层因子不受影响
+        assertEquals(2.7, factors.damageAmplification, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 跨大境界大境界加成`() {
+        // 筑基一层(8,1) 打 炼气一层(9,1)：小层增伤 0.30×9=2.7 + 大境界增伤 1.0（双因子并存叠加）
+        val factors = BattleCalculator.calculateRealmGapFactors(8, 1, 9, 1)
+        assertEquals(2.7, factors.damageAmplification, 0.001) // 0.30 × 9
+        assertEquals(0.0, factors.damageReduction, 0.001)
+        assertEquals(1.0, factors.majorRealmDamageAmplification, 0.001) // 高 1 大境界 +100%
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 高 2 大境界大境界加成累加`() {
+        // 金丹一层(7,1) 打 炼气一层(9,1)：高 2 大境界 → +200%
+        val factors = BattleCalculator.calculateRealmGapFactors(7, 1, 9, 1)
+        assertEquals(2.0, factors.majorRealmDamageAmplification, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 高 3 大境界大境界加成不封顶`() {
+        // 元婴一层(6,1) 打 炼气一层(9,1)：高 3 大境界 → +300%（不封顶）
+        val factors = BattleCalculator.calculateRealmGapFactors(6, 1, 9, 1)
+        assertEquals(3.0, factors.majorRealmDamageAmplification, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 防守方高境界无大境界减伤对称`() {
+        // 炼气一层(9,1) 打 筑基一层(8,1)：防守方高境界 → 小层减伤封顶兜底，大境界因子恒 0（仅增伤方向）
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 1, 8, 1)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(1.0, factors.damageReduction, 0.001)
+        assertEquals(0.0, factors.majorRealmDamageAmplification, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 同大境界大境界因子为零`() {
+        // 炼气三层(9,3) 打 炼气五层(9,5)：同大境界（majorGap=0）→ 大境界因子 0，小层减伤照常
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 3, 9, 5)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(0.6, factors.damageReduction, 0.001)
+        assertEquals(0.0, factors.majorRealmDamageAmplification, 0.001)
+    }
+
+    @Test
     fun `generateBattleMessage - dodge message`() {
         val result = DamageResult(damage = 0, isCrit = false, isPhysical = true, isDodged = true)
         val message = BattleCalculator.generateBattleMessage("张三", "李四", result)
@@ -463,6 +532,7 @@ class BattleCalculatorTest {
             (1.0 + zones.physiqueDamageAmplification) *
             (1.0 + zones.affixDamageAmplification) *
             (1.0 + zones.realmGapDamageAmplification) *
+            (1.0 + zones.majorRealmDamageAmplification) *
             (1.0 - zones.damageReduction) *
             (1.0 - zones.physiqueDamageReduction) *
             (1.0 - zones.affixDamageReduction) *
@@ -635,7 +705,8 @@ class BattleCalculatorTest {
             affixCritDamageBonus = 0.25,
             affixDamageReduction = 0.10,
             affixDefenseBonus = 0.25,
-            realmGapDamageAmplification = 0.50 // 境界压制增伤，独立乘算（等价 ×1.5）
+            realmGapDamageAmplification = 0.50, // 境界压制增伤，独立乘算（等价 ×1.5）
+            majorRealmDamageAmplification = 1.0 // 跨大境界增伤，独立乘算（等价 ×2.0）
         )
         val expected = expectedFinalDamage(
             rawAttack = 1000,
@@ -696,6 +767,61 @@ class BattleCalculatorTest {
             damageReduction = 0.30 // 0.10 + 0.20，加算
         ))
         assertTrue("境界压制减伤应独立乘算: both=$both, additive=$additive", both > additive)
+    }
+
+    @Test
+    fun `majorRealmDamageAmplification - 大境界加成与小层境界加成独立乘算`() {
+        // 独立乘算：base × (1+小层) × (1+大境界)，而非 base × (1+小层+大境界)
+        val both = baseFinal(zones = baseZones().copy(
+            realmGapDamageAmplification = 0.30, majorRealmDamageAmplification = 1.0
+        ))
+        val additive = baseFinal(zones = baseZones().copy(
+            realmGapDamageAmplification = 1.30 // 0.30 + 1.0，加算
+        ))
+        assertTrue("大境界加成应与小层境界加成独立乘算: both=$both, additive=$additive", both > additive)
+    }
+
+    @Test
+    fun `majorRealmDamageAmplification - 大境界加成与 buff 增伤独立乘算`() {
+        // 独立乘算：base × (1+buff) × (1+大境界)，而非 base × (1+buff+大境界)
+        val both = baseFinal(zones = baseZones().copy(
+            damageAmplification = 0.10, majorRealmDamageAmplification = 1.0
+        ))
+        val additive = baseFinal(zones = baseZones().copy(
+            damageAmplification = 1.10 // 0.10 + 1.0，加算
+        ))
+        assertTrue("大境界加成应独立乘算不被乘区稀释: both=$both, additive=$additive", both > additive)
+    }
+
+    @Test
+    fun `calculateDamage - CombatantStats 路径注入大境界加成`() {
+        // 筑基一层(8,1) 打 炼气一层(9,1)：伤害 = 基线 × (1+2.7) × (1+1.0) = ×7.4
+        // （CombatantStats.realmLayer 默认 0 → safeLayer 回退初层 1；critRate=0 无暴击、同速无闪避，仅波动）
+        val attackerHigh = createCombatant(physicalAttack = 200, critRate = 0.0, realm = 8)
+        val attackerBase = createCombatant(physicalAttack = 200, critRate = 0.0, realm = 9)
+        val defender = createCombatant(physicalDefense = 50, realm = 9)
+        var totalMajor = 0
+        var totalBase = 0
+        var count = 0
+        for (i in 1..1000) {
+            totalMajor += BattleCalculator.withRng(rng).calculateDamage(
+                attackerHigh, defender,
+                isPhysicalAttack = true,
+                dodgeChanceModifier = 0.0
+            ).damage
+            totalBase += BattleCalculator.withRng(rng).calculateDamage(
+                attackerBase, defender,
+                isPhysicalAttack = true,
+                dodgeChanceModifier = 0.0
+            ).damage
+            count++
+        }
+        val avgMajor = totalMajor.toDouble() / count
+        val avgBase = totalBase.toDouble() / count
+        assertTrue(
+            "大境界加成应使 CombatantStats 路径伤害 ≈ ×7.4: avgMajor=$avgMajor, avgBase=$avgBase",
+            avgMajor > avgBase * 5.0 && avgMajor < avgBase * 10.0
+        )
     }
 
     @Test

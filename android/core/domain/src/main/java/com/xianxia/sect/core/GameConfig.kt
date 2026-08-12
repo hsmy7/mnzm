@@ -239,6 +239,9 @@ object GameConfig {
     }
     
     object Realm {
+        /** 境界索引合法域上界（0=仙人 … MAX_REALM_INDEX=炼气）；存档篡改防御钳制用 */
+        const val MAX_REALM_INDEX = 9
+
         val CONFIGS = mapOf(
             9 to RealmConfig(9, "炼气", 98, 10,
                 maxAge = 80, maxLayers = 9,
@@ -702,6 +705,9 @@ object GameConfig {
                 get() = config()?.battle?.realmGap?.damageReductionPerLayer ?: 0.30
             val INSTANT_KILL_GAP: Int
                 get() = config()?.battle?.realmGap?.instantKillGap ?: 1
+            /** 跨大境界增伤：攻击方每高 1 个大境界 +100%（累加不封顶，独立乘算） */
+            val DAMAGE_BONUS_PER_MAJOR_REALM: Double
+                get() = config()?.battle?.realmGap?.damageBonusPerMajorRealm ?: 1.0
         }
     }
     

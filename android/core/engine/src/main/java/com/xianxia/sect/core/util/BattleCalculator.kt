@@ -36,6 +36,7 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * 境界压制独立乘算因子（与 buff/体质/词条分开，独立乘算，不进任何加算乘区被稀释）：
  * - realmGapDamageAmplification：进攻方境界压制伤害加成（每高 1 小层 +30%）
  * - realmGapDamageReduction：防守方境界压制减伤（每高 1 小层 +30%，封顶 100%）
+ * - majorRealmDamageAmplification：进攻方跨大境界增伤（每高 1 大境界 +100%，累加不封顶）
  */
 data class DamageZones(
     val attackBuffs: Double = 0.0,
@@ -57,6 +58,8 @@ data class DamageZones(
     // 境界压制独立乘算因子（buildDamageZones 按层差填充；与 buff 乘区分开，独立乘算不衰减）
     val realmGapDamageAmplification: Double = 0.0,
     val realmGapDamageReduction: Double = 0.0,
+    // 跨大境界增伤因子（每高 1 大境界 +100%，独立乘算，与小层境界压制因子可叠加）
+    val majorRealmDamageAmplification: Double = 0.0,
 )
 
 object BattleCalculator {
@@ -149,6 +152,7 @@ object BattleCalculator {
             affixDefenseBonus = defender?.affix?.defenseBonus ?: 0.0,
             realmGapDamageAmplification = realmGap.damageAmplification,
             realmGapDamageReduction = realmGap.damageReduction,
+            majorRealmDamageAmplification = realmGap.majorRealmDamageAmplification,
         )
     }
 
@@ -158,7 +162,7 @@ object BattleCalculator {
      * 公式：
      *   effectiveAtk × skillMult × (1 - 防御减伤率)
      *   × critMult × physiqueCritMult × affixCritMult
-     *   × (1 + 增伤) × (1 + 体质增伤) × (1 + 词条增伤) × (1 + 境界压制增伤)
+     *   × (1 + 增伤) × (1 + 体质增伤) × (1 + 词条增伤) × (1 + 境界压制增伤) × (1 + 大境界增伤)
      *   × (1 - 减伤) × (1 - 体质减伤) × (1 - 词条减伤) × (1 - 境界压制减伤)
      *   × 波动
      *
@@ -171,6 +175,8 @@ object BattleCalculator {
      * - affixCritMult = 暴击时 (1 + 词条暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
      * - 境界压制增伤/减伤：独立乘算因子（不进任何加算乘区被稀释），
      *   由 buildDamageZones 按双方小层差距填充，至多一个因子生效
+     * - 大境界增伤：独立乘算因子（不进任何加算乘区被稀释），每高 1 大境界 +100%（累加不封顶），
+     *   仅增伤方向，与小层境界压制因子独立乘算可叠加
      */
     fun calculateFinalDamage(
         rawAttack: Int,
@@ -201,6 +207,7 @@ object BattleCalculator {
             * (1.0 + zones.physiqueDamageAmplification)
             * (1.0 + zones.affixDamageAmplification)
             * (1.0 + zones.realmGapDamageAmplification)
+            * (1.0 + zones.majorRealmDamageAmplification)
             * (1.0 - zones.damageReduction)
             * (1.0 - zones.physiqueDamageReduction)
             * (1.0 - zones.affixDamageReduction)
@@ -268,6 +275,10 @@ object BattleCalculator {
      * 注意：此入口默认 zones 为空，不应用体质/词条等独立乘算因子。
      * 生产环境应优先使用 [calculateCombatantDamage]（接收 Combatant，自动构建 zones）。
      * 此入口保留主要用于测试场景。
+     *
+     * 注意：传入的 `zones` 应为"不含境界因子"的空乘区（默认 [DamageZones] 即可）——
+     * 本入口会把境界三因子（含大境界因子）以加法注入 zones，若传入已含境界因子的 zones
+     * （如 [buildDamageZones] 产物）会造成因子二次叠加（对抗性审查发现，仅测试路径可达）。
      */
     fun calculateDamage(
         attacker: CombatantStats,
@@ -303,7 +314,8 @@ object BattleCalculator {
         )
         val zonesWithRealmGap = zones.copy(
             realmGapDamageAmplification = zones.realmGapDamageAmplification + realmGap.damageAmplification,
-            realmGapDamageReduction = zones.realmGapDamageReduction + realmGap.damageReduction
+            realmGapDamageReduction = zones.realmGapDamageReduction + realmGap.damageReduction,
+            majorRealmDamageAmplification = zones.majorRealmDamageAmplification + realmGap.majorRealmDamageAmplification
         )
         val variance = calculateDamageVariance(rng)
 
@@ -341,10 +353,15 @@ object BattleCalculator {
      *
      * realm 数值越小境界越高（0=仙人，9=炼气），realmLayer 1~9（1=初层）。
      * 小层差距沿用 [checkInstantKill] 的归一化公式：
-     *   gap = (defenderRealm - attackerRealm) × LAYERS_PER_REALM + (attackerLayer - defenderLayer)
-     * gap > 0 表示攻击方境界更高：增伤因子 = 每层加成 × gap（不封顶）
-     * gap < 0 表示防守方境界更高：减伤 = min(1.0, 每层减伤 × (-gap))（封顶 100%）
-     * gap == 0 同境界同层：双因子均为 0，伤害倍率 1.0。
+     *   layerGap = (defenderRealm - attackerRealm) × LAYERS_PER_REALM + (attackerLayer - defenderLayer)
+     * layerGap > 0 表示攻击方境界更高：增伤因子 = 每层加成 × layerGap（不封顶）
+     * layerGap < 0 表示防守方境界更高：减伤 = min(1.0, 每层减伤 × (-layerGap))（封顶 100%）
+     * 大境界差 = defenderRealm - attackerRealm，> 0 表示攻击方高 N 个大境界：
+     *   大境界增伤因子 = 每大境界加成 × 大境界差（仅增伤方向，反向无对称减伤）。
+     * 三因子各自独立乘算，可同时生效（大境界加成与小层加成叠加）。
+     *
+     * 注意（对抗性审查结论）：直伤路径上高 2 个大境界及以上时 [checkInstantKill] 必杀优先，
+     * 大境界加成仅在"高 1 个大境界"及 DoT 路径完整生效；因子仍按大境界差累加计算（DoT 全档生效）。
      *
      * @param attackerRealm 攻击方境界（数值越小境界越高）
      * @param attackerLayer 攻击方小层（1~9，0/越界按初层 1 回退）
@@ -357,28 +374,42 @@ object BattleCalculator {
         defenderRealm: Int,
         defenderLayer: Int,
         damageBonusPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_LAYER,
-        damageReductionPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_REDUCTION_PER_LAYER
+        damageReductionPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_REDUCTION_PER_LAYER,
+        damageBonusPerMajorRealm: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_MAJOR_REALM
     ): RealmGapFactors {
+        // 存档篡改防御：realm 无合法域校验（Room 列无 CHECK 约束），钳制到 [0,9] 防止
+        // 负值/超大值导致增伤因子无上限爆炸（口径与 GameConfig.Realm 0~9 对齐）；
+        // 与 safeLayer 同级的 realm 防御（对抗性审查发现 1）
+        val attackerRealmSafe = safeRealm(attackerRealm)
+        val defenderRealmSafe = safeRealm(defenderRealm)
         // Long 中间运算防存档篡改后 Int 溢出回绕
-        val gap = (defenderRealm.toLong() - attackerRealm.toLong()) * LAYERS_PER_REALM +
-            (safeLayer(attackerLayer) - safeLayer(defenderLayer))
-        if (gap == 0L) return RealmGapFactors()
-        return if (gap > 0L) {
-            // 攻击方境界更高：每高 1 小层 +30% 伤害（不封顶）
-            RealmGapFactors(damageAmplification = damageBonusPerLayer * gap)
-        } else {
-            // 防守方境界更高：每高 1 小层 +30% 减伤（封顶 100%）
-            RealmGapFactors(damageReduction = minOf(1.0, damageReductionPerLayer * (-gap)))
-        }
+        val majorGap = defenderRealmSafe.toLong() - attackerRealmSafe.toLong()
+        val layerGap = majorGap * LAYERS_PER_REALM + (safeLayer(attackerLayer) - safeLayer(defenderLayer))
+        val damageAmplification = if (layerGap > 0L) damageBonusPerLayer * layerGap else 0.0
+        // 防守方境界更高：每高 1 小层 +30% 减伤（封顶 100%）
+        val damageReduction = if (layerGap < 0L) minOf(1.0, damageReductionPerLayer * (-layerGap)) else 0.0
+        // 大境界加成仅增伤方向：攻击方每高 1 大境界 +100%，反向无对称减伤。
+        // 配置为负值时钳制为 0（负因子 × 减伤超额会"负负得正"反转伤害语义，对抗性审查发现 3）
+        val majorRealmAmplification = if (majorGap > 0L) maxOf(0.0, damageBonusPerMajorRealm * majorGap) else 0.0
+        return RealmGapFactors(
+            damageAmplification = damageAmplification,
+            damageReduction = damageReduction,
+            majorRealmDamageAmplification = majorRealmAmplification
+        )
     }
 
     /** 小层境界安全钳制（1~9）：0/越界（未知、存档篡改）回退合法层数 */
     private fun safeLayer(layer: Int): Int = layer.coerceIn(1, LAYERS_PER_REALM)
 
-    /** 境界压制双因子（增伤 + 减伤），与 buff/体质/词条乘区独立乘算 */
+    /** 大境界安全钳制（0~9，0=仙人，9=炼气）：负值/越界（存档篡改）回退合法域，与 [GameConfig.Realm] 口径一致 */
+    private fun safeRealm(realm: Int): Int = realm.coerceIn(0, GameConfig.Realm.MAX_REALM_INDEX)
+
+    /** 境界压制三因子（小层增伤 + 小层减伤 + 大境界增伤），与 buff/体质/词条乘区独立乘算 */
     data class RealmGapFactors(
         val damageAmplification: Double = 0.0,
-        val damageReduction: Double = 0.0
+        val damageReduction: Double = 0.0,
+        /** 跨大境界增伤因子（每高 1 大境界 +100%，累加不封顶；仅增伤方向） */
+        val majorRealmDamageAmplification: Double = 0.0
     )
 
     fun generateBattleMessage(
@@ -567,6 +598,7 @@ object BattleCalculator {
             (1.0 + damageZones.physiqueDamageAmplification) *
             (1.0 + damageZones.affixDamageAmplification) *
             (1.0 + damageZones.realmGapDamageAmplification) *
+            (1.0 + damageZones.majorRealmDamageAmplification) *
             (1.0 - damageZones.damageReduction) *
             (1.0 - damageZones.physiqueDamageReduction) *
             (1.0 - damageZones.affixDamageReduction) *
@@ -670,30 +702,36 @@ object BattleCalculator {
             val poisonBuffs = combatant.buffs.filter { it.type == BuffType.POISON && it.remainingDuration > 0 }
             val burnBuffs = combatant.buffs.filter { it.type == BuffType.BURN && it.remainingDuration > 0 }
 
-            var dotDamage = 0
+            // 对抗性审查修复：Long 累加防多段 DoT Int 溢出回绕（两段 Int.MAX 累加成负数 → 伤害失真兜底 1），
+            // 最后钳制到 [MIN_DAMAGE, Int.MAX]，与 computeDamagePipeline 多段伤害同款模式
+            var dotDamage = 0L
             poisonBuffs.forEach { buff ->
-                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toInt()
+                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toLong()
             }
             burnBuffs.forEach { buff ->
-                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toInt()
+                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toLong()
             }
-            dotDamage = dotDamage.coerceAtLeast(1)
+            val dotDamageFinal = dotDamage
+                .coerceIn(GameConfig.Battle.MIN_DAMAGE.toLong(), Int.MAX_VALUE.toLong())
+                .toInt()
 
-            if (dotDamage > 0) {
-                val newHp = maxOf(0, combatant.hp - dotDamage)
-                results.add(DotResult(combatant, dotDamage, newHp))
+            if (dotDamageFinal > 0) {
+                val newHp = maxOf(0, combatant.hp - dotDamageFinal)
+                results.add(DotResult(combatant, dotDamageFinal, newHp))
             }
         }
 
         return results
     }
 
-    /** DoT 境界压制倍率 = 增伤因子 × (1 - 减伤因子)（与普攻/技能伤害同公式，独立乘算不进乘区） */
+    /** DoT 境界压制倍率 = (1 + 小层增伤) × (1 + 大境界增伤) × (1 - 减伤)（与普攻/技能伤害同公式，独立乘算不进乘区） */
     private fun dotRealmFactor(buff: CombatBuff, defender: Combatant): Double {
         val factors = calculateRealmGapFactors(
             buff.sourceRealm, buff.sourceRealmLayer, defender.realm, defender.realmLayer
         )
-        return (1.0 + factors.damageAmplification) * (1.0 - factors.damageReduction)
+        return (1.0 + factors.damageAmplification) *
+            (1.0 + factors.majorRealmDamageAmplification) *
+            (1.0 - factors.damageReduction)
     }
 
     fun executeSupportSkill(
@@ -843,12 +881,16 @@ object BattleCalculator {
      * （攻击方层数越高越强，差距增大；防御方层数越高越强，差距缩小）。
      * 攻击方比防御方高 [GameConfig.Battle.RealmGap.INSTANT_KILL_GAP] 个以上大境界（层数微调）时触发斩杀。
      *
+     * 对抗性审查修复：与 [calculateRealmGapFactors] 同族——realm/realmLayer 经存档篡改可越界，
+     * 原 Int 运算会溢出回绕（realmLayer=Int.MAX_VALUE 误斩秒杀任意目标、巨大 realm 漏斩），
+     * 改用 Long 中间运算 + safeRealm/safeLayer 钳制。
+     *
      * @param attackerRealm 攻击方境界（数值越小境界越高）
      * @param defenderRealm 防御方境界（数值越小境界越高）
      */
     fun checkInstantKill(attackerRealm: Int, defenderRealm: Int, attackerLayer: Int, defenderLayer: Int): Boolean {
-        val gap = (defenderRealm - attackerRealm) * LAYERS_PER_REALM +
-            (attackerLayer - defenderLayer)
+        val gap = (safeRealm(defenderRealm).toLong() - safeRealm(attackerRealm).toLong()) * LAYERS_PER_REALM +
+            (safeLayer(attackerLayer).toLong() - safeLayer(defenderLayer).toLong())
         return gap > GameConfig.Battle.RealmGap.INSTANT_KILL_GAP * LAYERS_PER_REALM
     }
 

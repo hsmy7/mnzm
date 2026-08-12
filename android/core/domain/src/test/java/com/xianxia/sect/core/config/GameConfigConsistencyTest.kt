@@ -72,6 +72,16 @@ class GameConfigConsistencyTest {
         )
     }
 
+    @Test
+    fun `damageBonusPerMajorRealm 两源一致`() {
+        val data = GameConfigData().battle.realmGap
+        assertEquals(
+            GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_MAJOR_REALM,
+            data.damageBonusPerMajorRealm,
+            0.001
+        )
+    }
+
     // ── LawEnforcement ──
     @Test
     fun `probPerPoint 两源一致`() {

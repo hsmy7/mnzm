@@ -54,16 +54,6 @@ class GameConfigProvider @Inject constructor(
         val capacityPerBuilding: Int get() = s.capacityPerBuilding
     }
 
-    /** 战斗配置 */
-    val battle: BattleConfig get() = BattleConfig(config.battle)
-
-    class BattleConfig(private val s: GameConfigData.BattleSection) {
-        val damageBonusPerLayer: Double get() = s.realmGap.damageBonusPerLayer
-        val damageReductionPerLayer: Double get() = s.realmGap.damageReductionPerLayer
-        val maxTeamSize: Int get() = s.maxTeamSize
-        val maxTurns: Int get() = s.maxTurns
-    }
-
     companion object {
         private const val TAG = "GameConfigProvider"
     }

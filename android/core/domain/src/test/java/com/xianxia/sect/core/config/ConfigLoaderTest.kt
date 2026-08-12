@@ -69,6 +69,7 @@ class ConfigLoaderTest {
         assertEquals(0.30, config.battle.realmGap.damageBonusPerLayer, 0.001)
         assertEquals(0.30, config.battle.realmGap.damageReductionPerLayer, 0.001)
         assertEquals(1, config.battle.realmGap.instantKillGap)
+        assertEquals(1.0, config.battle.realmGap.damageBonusPerMajorRealm, 0.001)
     }
 
     @Test

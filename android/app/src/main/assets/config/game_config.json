@@ -92,7 +92,8 @@
     "realmGap": {
       "damageBonusPerLayer": 0.3,
       "damageReductionPerLayer": 0.3,
-      "instantKillGap": 1
+      "instantKillGap": 1,
+      "damageBonusPerMajorRealm": 1.0
     }
   },
   "policyConfig": {

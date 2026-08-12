@@ -72,6 +72,38 @@ class BattleCalculatorCoverageTest {
     }
 
     @Test
+    fun `checkInstantKill - 篡改 layer 为 Int MAX 不误斩（钳制到合法域）`() {
+        // 对抗性审查修复：layer 未钳制时 Int.MAX_VALUE 使 gap 溢出触发误斩秒杀任意目标；
+        // 钳制到 [1,9] 后同境界最大层差 8，永不触发
+        assertFalse(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 5, defenderRealm = 5, attackerLayer = Int.MAX_VALUE, defenderLayer = 1
+            )
+        )
+        assertFalse(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 5, defenderRealm = 5, attackerLayer = Int.MIN_VALUE, defenderLayer = 9
+            )
+        )
+    }
+
+    @Test
+    fun `checkInstantKill - 篡改 realm 巨大值不溢出回绕漏斩`() {
+        // 对抗性审查修复：原 Int 运算 (d-a)×9 在巨大 realm 差时回绕为负 → 高境界攻击方漏判斩杀；
+        // Long 运算后高 2 大境界仍触发、同境界不触发
+        assertTrue(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 0, defenderRealm = 2, attackerLayer = 1, defenderLayer = 1
+            )
+        )
+        assertFalse(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = Int.MAX_VALUE, defenderRealm = Int.MAX_VALUE, attackerLayer = 1, defenderLayer = 1
+            )
+        )
+    }
+
+    @Test
     fun `calculateCombatantDamage - target realm higher than attacker does not instant kill`() {
         val attacker = combatant(id = "weak_attacker", realm = 5, realmLayer = 1, physAtk = 500)
         val defender = combatant(
@@ -375,16 +407,18 @@ class BattleCalculatorCoverageTest {
         val zones = BattleCalculator.buildDamageZones(attacker, defender)
         assertEquals(2.1, zones.realmGapDamageAmplification, 1e-9)
         assertEquals(0.0, zones.realmGapDamageReduction, 1e-9)
+        assertEquals(1.0, zones.majorRealmDamageAmplification, 1e-9) // 高 1 大境界 +100%
 
-        // 同境界同层 → 双因子 0
+        // 同境界同层 → 三因子 0
         val neutral = BattleCalculator.buildDamageZones(combatant(id = "a"), combatant(id = "d"))
         assertEquals(0.0, neutral.realmGapDamageAmplification, 1e-9)
         assertEquals(0.0, neutral.realmGapDamageReduction, 1e-9)
+        assertEquals(0.0, neutral.majorRealmDamageAmplification, 1e-9)
     }
 
     @Test
     fun `processDotEffects - 施放者高境界 DoT 增伤`() {
-        // 筑基三层 buff 施放到 炼气五层：dotFactor = 1 + 0.30×7 = 3.1
+        // 筑基三层 buff 施放到 炼气五层：dotFactor = (1 + 0.30×7) × (1 + 1.0 大境界) = 6.2
         val poisoned = combatant(id = "victim", realm = 9, realmLayer = 5, hp = 1000, maxHp = 1000).copy(
             buffs = listOf(CombatBuff(
                 type = BuffType.POISON, value = 0.05, remainingDuration = 3,
@@ -392,7 +426,20 @@ class BattleCalculatorCoverageTest {
             ))
         )
         val results = BattleCalculator.processDotEffects(listOf(poisoned))
-        assertEquals(155, results.single().damage) // 1000 × 0.05 × 3.1
+        assertEquals(310, results.single().damage) // 1000 × 0.05 × 6.2
+    }
+
+    @Test
+    fun `processDotEffects - 高 2 大境界 DoT 大境界加成累加`() {
+        // 金丹一层 buff 施放到 炼气一层：dotFactor = (1 + 0.30×18) × (1 + 2.0) = 19.2
+        val poisoned = combatant(id = "victim", realm = 9, realmLayer = 1, hp = 1000, maxHp = 1000).copy(
+            buffs = listOf(CombatBuff(
+                type = BuffType.POISON, value = 0.05, remainingDuration = 3,
+                sourceRealm = 7, sourceRealmLayer = 1
+            ))
+        )
+        val results = BattleCalculator.processDotEffects(listOf(poisoned))
+        assertEquals(960, results.single().damage) // 1000 × 0.05 × 19.2
     }
 
     @Test
@@ -418,5 +465,46 @@ class BattleCalculatorCoverageTest {
         )
         val results = BattleCalculator.processDotEffects(listOf(poisoned))
         assertEquals(50, results.single().damage) // 1000 × 0.05 × 1.0
+    }
+
+    @Test
+    fun `processDotEffects - 多段 DoT Int 累加不溢出回绕失真`() {
+        // 对抗性审查修复：两段各 ≈7.9e9 的 DoT 原 Int 累加回绕成负 → 兜底 1；
+        // Long 累加后封顶 Int.MAX
+        val poisoned = combatant(
+            id = "victim", realm = 9, realmLayer = 1, hp = Int.MAX_VALUE, maxHp = Int.MAX_VALUE
+        ).copy(
+            buffs = listOf(
+                CombatBuff(
+                    type = BuffType.POISON, value = 0.5, remainingDuration = 3,
+                    sourceRealm = 8, sourceRealmLayer = 1
+                ),
+                CombatBuff(
+                    type = BuffType.BURN, value = 0.5, remainingDuration = 3,
+                    sourceRealm = 8, sourceRealmLayer = 1
+                )
+            )
+        )
+        val results = BattleCalculator.processDotEffects(listOf(poisoned))
+        // 单段 = 2147483647 × 0.5 × 7.4 ≈ 7.9e9，两段 ≈ 1.59e10 → Long 累加封顶 Int.MAX
+        assertEquals(Int.MAX_VALUE, results.single().damage)
+    }
+
+    @Test
+    fun `estimateDamage - AI 估算含大境界加成`() {
+        // 筑基一层(8,1) 打 炼气一层(9,1)：估算 = 基线 × (1+2.7) × (1+1.0) = ×7.4（确定性无随机）
+        val attacker = combatant(id = "attacker", realm = 8, realmLayer = 1, physAtk = 300)
+        val defender = combatant(id = "defender", realm = 9, realmLayer = 1, physDef = 100)
+        val skill = CombatSkill(
+            name = "普攻", damageType = DamageType.PHYSICAL,
+            damageMultiplier = 1.0, mpCost = 0, cooldown = 0
+        )
+        val estMajor = BattleCalculator.estimateDamage(attacker, defender, skill)
+        val estBase = BattleCalculator.estimateDamage(attacker.copy(realm = 9), defender, skill)
+        val expected = (estBase * 7.4).toInt()
+        assertTrue(
+            "大境界加成应使 AI 估算 ≈ ×7.4: estMajor=$estMajor, estBase=$estBase",
+            estMajor in (expected - 2)..(expected + 2)
+        )
     }
 }
