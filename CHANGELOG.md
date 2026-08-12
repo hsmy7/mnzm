@@ -1,3 +1,13 @@
+## [4.00.96] - 2026-08-12
+
+### 新增（2026-08-12 一键拆除·区域选择）
+
+- **区域选择模式** — 一键拆除模式下「区域选择」按钮（使用美术素材「区域选择按钮」，文本叠加在按钮内部正下方——未激活显示「区域」/ 激活显示「关闭」）进入区域选中模式：点击地图任意格即以该格为中心、正方形直径 N 格（默认 3，可调 3~20）范围内与区域矩形重叠的所有可拆除建筑一次性加入选中（并集累积 + Set 幂等——新区域内已选中的建筑保持选中，重复框选不取消）；再次点击按钮退出区域模式，进度条消失，已选中建筑保留（拆除模式本身也保持）
+- **直径调整进度条** — 区域模式下按钮正上方显示自绘进度条（白色圆角轨道 + 青色圆点滑块，圆点中心钳制在轨道两端半径内——永不超出进度条；Canvas + pointerInput 自绘手势，material3 Slider 无法满足圆点不越轨约束），上方数字行：左 3（最小）/ 中当前值 / 右 20（最大）；每次进入区域模式直径重置为默认 3
+- **实现** — `AreaSelectControls.kt` 新建（internal 常量 AREA_MIN/MAX/DEFAULT_DIAMETER + `AreaSelectButton` 素材按钮组件 + `AreaDiameterSlider` 自绘进度条组件）；`MainGameScreen.kt` 新增 `isAreaSelectMode`/`areaDiameter` 状态 + 顶层 internal 纯函数 `buildingsInSquare(...)`（矩形半开区间重叠判定 + `BuildingFeatureRegistry` 可拆除过滤 + 直径 `coerceIn` 防御；奇数直径中心对称、偶数偏左半格）；素材无损 WebP 双模块 drawable-nodpi + `SpriteResRegistry` 注册 `area_select_button`；onTap 拆除分支区域模式不要求格上有建筑（越界格纯几何安全）；退出拆除模式的全部 6 处路径同步重置区域模式；选中高亮沿用 `demolishSelectedIds` → `demolishHighlightData` 既有推送链，渲染层零改动
+- **测试** — `BuildingsInSquareTest` 新建 11 用例：直径 3/4/5/20 几何、部分重叠/紧贴边界/大建筑宽高参与判定、不可拆除排除、空列表、直径越界钳制、重复框选并集累积幂等守卫；对抗性审查要点自查通过（连点 toggle/拖动与 tap 隔离/进度条边界/退出路径全量/圆点不越轨）
+- **兼容性** — 纯 UI + 纯函数改动，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；版本号 4.00.95 → 4.00.96（changelog 双入口已同步，4.00.96 changes 追加 1 条玩家视角描述）
+
 ## [4.00.95] - 2026-08-12
 
 ### 新增（2026-08-12 聚合广告接入爱奇艺 / 百青藤两个广告网络）

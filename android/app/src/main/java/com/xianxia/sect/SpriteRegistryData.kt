@@ -342,7 +342,9 @@ internal val SPRITES_UI = mapOf(
         "ui_leaderboard_button" to R.drawable.ui_leaderboard_button,
         // 历战翻页按钮
         "ui_flip_left" to R.drawable.ui_flip_left,
-        "ui_flip_right" to R.drawable.ui_flip_right
+        "ui_flip_right" to R.drawable.ui_flip_right,
+        // 一键拆除-区域选择按钮（素材：区域选择按钮.png）
+        "area_select_button" to R.drawable.area_select_button
 )
 
 /** SPRITES_BEAST — 精灵图资源映射（原 XianxiaApplication.onCreate 逐行搬移） */

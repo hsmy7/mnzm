@@ -57,6 +57,11 @@ import com.xianxia.sect.ui.game.components.OverlayCallbacks
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.GoldFingerState
+import com.xianxia.sect.ui.game.main.AREA_DEFAULT_DIAMETER
+import com.xianxia.sect.ui.game.main.AREA_MAX_DIAMETER
+import com.xianxia.sect.ui.game.main.AREA_MIN_DIAMETER
+import com.xianxia.sect.ui.game.main.AreaDiameterSlider
+import com.xianxia.sect.ui.game.main.AreaSelectButton
 import com.xianxia.sect.ui.game.main.DemolishButton
 import com.xianxia.sect.ui.game.main.GoldFingerIcon
 import com.xianxia.sect.ui.game.main.GoldFingerSelectionOverlay
@@ -124,6 +129,8 @@ private const val TILE_TREE1 = 4
 private const val TILE_TREE2 = 5
 private const val TILE_BUILDING = 6
 
+// 一键拆除-区域选择模式常量见 AreaSelectControls.kt（internal，含进度条组件与按钮组件）
+
 @Composable
 fun MainGameScreen(
     mapPreloadData: MapPreloadData,
@@ -171,6 +178,9 @@ fun MainGameScreen(
     // 一键拆除模式状态
     var isDemolishMode by remember { mutableStateOf(false) }
     var demolishSelectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 区域选择模式：进入时直径重置为默认值
+    var isAreaSelectMode by remember { mutableStateOf(false) }
+    var areaDiameter by remember { mutableIntStateOf(AREA_DEFAULT_DIAMETER) }
 
     // 建筑移动状态（长按拖动）
     var movingBuilding by remember { mutableStateOf<GridBuildingData?>(null) }
@@ -343,6 +353,7 @@ fun MainGameScreen(
                 movingBuilding = null
                 buildingBarExpanded = false
                 isDemolishMode = false
+                isAreaSelectMode = false
                 demolishSelectedIds = emptySet()
                 // 防金手指覆盖层悬浮在非放置模式（预存缺陷：开对话框时漏重置）
                 goldFingerState = GoldFingerState()
@@ -381,6 +392,7 @@ fun MainGameScreen(
             goldFingerState.isActive -> goldFingerState = GoldFingerState()
             isDemolishMode -> {
                 isDemolishMode = false
+                isAreaSelectMode = false
                 demolishSelectedIds = emptySet()
             }
             else -> movingBuilding = null
@@ -546,6 +558,29 @@ fun MainGameScreen(
         // 用户交互时取消动画
         val cancelCameraAnim: () -> Unit = { cameraAnimator.cancel() }
 
+        // 拆除模式点击处理（提取自 onTap，防 LongMethod；闭包访问模式状态）。
+        // 区域模式：以点击格为中心做正方形范围选中（并集累积 + Set 幂等——
+        // 新区域内已选中的建筑保持选中，重复框选不取消；点击任意格都触发，
+        // 不要求格上有建筑——越界格纯几何计算天然安全）。
+        // 单点模式：点击建筑切换选中状态。
+        fun handleDemolishTap(gx: Int, gy: Int) {
+            if (isAreaSelectMode) {
+                demolishSelectedIds = demolishSelectedIds + buildingsInSquare(
+                    buildings = effectivePlacedBuildings,
+                    centerX = gx,
+                    centerY = gy,
+                    diameter = areaDiameter
+                )
+            } else {
+                val b = buildingIndex.findBuildingAt(gx, gy) ?: return
+                if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
+                    demolishSelectedIds = if (b.instanceId in demolishSelectedIds)
+                        demolishSelectedIds - b.instanceId
+                    else demolishSelectedIds + b.instanceId
+                }
+            }
+        }
+
         val touchEngine = remember(cameraState, buildingIndex, gridSystem) {
             SectMapTouchEngine(
                 callbacks = object : TouchEngineCallbacks {
@@ -560,14 +595,9 @@ fun MainGameScreen(
                         val wy = cameraState.screenToWorldY(screenY)
                         val gx = (wx / tileSize).toInt()
                         val gy = (wy / tileSize).toInt()
-                        // 拆除模式：点击建筑切换选中状态，不弹详情
+                        // 拆除模式：单点切换选中 / 区域模式范围选中，不弹详情
                         if (isDemolishMode) {
-                            val b = buildingIndex.findBuildingAt(gx, gy) ?: return
-                            if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
-                                demolishSelectedIds = if (b.instanceId in demolishSelectedIds)
-                                    demolishSelectedIds - b.instanceId
-                                else demolishSelectedIds + b.instanceId
-                            }
+                            handleDemolishTap(gx, gy)
                             return
                         }
                         val clicked = buildingIndex.findBuildingAt(gx, gy)
@@ -1118,12 +1148,14 @@ fun MainGameScreen(
                         movingBuilding = null
                         goldFingerState = GoldFingerState()
                         isDemolishMode = false
+                        isAreaSelectMode = false
                         demolishSelectedIds = emptySet()
                     },
                     onCancelPlacement = {
                         isPlacingBuilding = false
                         movingBuilding = null
                         isDemolishMode = false
+                        isAreaSelectMode = false
                         demolishSelectedIds = emptySet()
                         // 防御性补齐：退出放置时清金手指（toggle 已重置，此处兜底）
                         goldFingerState = GoldFingerState()
@@ -1147,7 +1179,7 @@ fun MainGameScreen(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
             ) {
-                // 按钮行：建造栏外部上方最右侧；拆除模式显示 取消+确认，否则显示 一键拆除
+                // 按钮行：建造栏外部上方最右侧；拆除模式显示 区域选择+取消+确认，否则显示 一键拆除
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1156,10 +1188,29 @@ fun MainGameScreen(
                 ) {
                     Spacer(modifier = Modifier.weight(1f))
                     if (isDemolishMode) {
+                        // 区域选择按钮 + 正上方的直径调整进度条（仅区域模式激活时显示）
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (isAreaSelectMode) {
+                                AreaDiameterSlider(
+                                    diameter = areaDiameter,
+                                    onDiameterChange = { areaDiameter = it }
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                            AreaSelectButton(
+                                isActive = isAreaSelectMode,
+                                onClick = {
+                                    isAreaSelectMode = !isAreaSelectMode
+                                    if (isAreaSelectMode) areaDiameter = AREA_DEFAULT_DIAMETER
+                                }
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         GameButton(
                             text = "取消拆除",
                             onClick = {
                                 isDemolishMode = false
+                                isAreaSelectMode = false
                                 demolishSelectedIds = emptySet()
                             }
                         )
@@ -1170,6 +1221,7 @@ fun MainGameScreen(
                             onClick = {
                                 viewModel.demolishBuildings(demolishSelectedIds.toList())
                                 isDemolishMode = false
+                                isAreaSelectMode = false
                                 demolishSelectedIds = emptySet()
                             }
                         )
@@ -1178,6 +1230,7 @@ fun MainGameScreen(
                             text = "一键拆除",
                             onClick = {
                                 isDemolishMode = true
+                                isAreaSelectMode = false
                                 demolishSelectedIds = emptySet()
                                 isPlacingBuilding = false
                                 placingBuildingName = ""
@@ -1342,6 +1395,47 @@ internal fun buildDemolishHighlightData(
                 DemolishHighlightMark.GREEN.toByte()
         }
     }
+}
+
+/**
+ * 区域选择命中建筑计算（纯函数）。
+ *
+ * 以 (centerX, centerY) 为中心、diameter 格边长的正方形区域（含中心格），
+ * 返回与该区域矩形重叠（含部分重叠）的所有**可拆除**建筑 instanceId。
+ *
+ * ## 对称性（half = diameter / 2 整数截断）
+ * 区域列范围 [centerX-half, centerX+diameter-1-half]，共 diameter 列：
+ * 奇数直径中心对称（d=3 → [cx-1, cx+1]）；偶数直径中心偏左半格
+ * （d=4 → [cx-2, cx+1]）——整数网格的必然取舍，均包含中心列。
+ *
+ * ## 矩形重叠（半开区间）
+ * 建筑占 [gridX, gridX+width)，区域占 [minX, minX+diameter)；
+ * 重叠 ⟺ gridX < minX+diameter && gridX+width > minX（Y 向同理）；
+ * 紧贴边界（gridX+width == minX）不算重叠。
+ *
+ * 排除不可拆除建筑（BuildingFeatureRegistry.findByDisplayName == null，
+ * 与 buildDemolishHighlightData 的 NONE 判定同源）。
+ * 注意：并集累积语义在调用方（demolishSelectedIds + 返回值），本函数无状态。
+ */
+internal fun buildingsInSquare(
+    buildings: List<GridBuildingData>,
+    centerX: Int,
+    centerY: Int,
+    diameter: Int
+): Set<String> {
+    val d = diameter.coerceIn(AREA_MIN_DIAMETER, AREA_MAX_DIAMETER)
+    val minX = centerX - d / 2
+    val minY = centerY - d / 2
+    val maxXExclusive = minX + d
+    val maxYExclusive = minY + d
+    return buildings.asSequence()
+        .filter { BuildingFeatureRegistry.findByDisplayName(it.displayName) != null }
+        .filter { b ->
+            b.gridX < maxXExclusive && b.gridX + b.width > minX &&
+                b.gridY < maxYExclusive && b.gridY + b.height > minY
+        }
+        .map { it.instanceId }
+        .toSet()
 }
 
 // BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（P-7，同包 internal）
