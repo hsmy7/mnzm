@@ -1,19 +1,5 @@
 ## [4.00.97] - 2026-08-13
 
-### 新增（2026-08-13 TapADN 聚合广告 SDK 升级 5.1.1.1 → 5.1.2.3）
-
-> 来源：官方资源下载页（https://ssp.dirichlet.cn/docs/resource-download/）最新版 5.1.2.3（2026-08-12 发布，修订说明"提升稳定性"）。官方 zip `dirichlet_ad_mediation_5.1.2.3.zip` MD5 `671c17b9d3636cc7c55c67cb615d3860` 已校验一致。
-
-- **AAR 替换（5 个）** — `android/app/src/main/libs/` 下 Mediation/CSJ/GDT/IQY/BD 适配器全部换为 5.1.2.3（iadsdk-release-2.3.102.110 字节级相同不换）；新 AAR MD5：Mediation `be93471a7c806e879698ba089a8f7884`、CSJ `cd5c05ed65a85dc693b4f66acc9d84e5`、GDT `76a5ea11602eeeb4989138b4252ff588`、IQY `4eaf1dc3ce1b72c4500153b0ca50f396`、BD `440caa1848878dcd3024359f1981b13b`
-- **兼容性验证（静态，三重确认）** — ① 项目所用全部 API 类（`DirichletSdk`/`InitListener`/`DirichletAdConfig$Builder`/`DirichletAdManager`/`DirichletAdNative$RewardVideoAutoAdListener`/`DirichletAdRequest$Builder`/`Constants`）在新版 classes.jar 均存在；② 新旧 Mediation AAR 自带 proguard.txt 完全一致 → proguard-rules.pro 零改动；③ 新旧 AndroidManifest.xml 完全一致 → Manifest/权限/FileProvider 零改动。业务代码（RewardVideoAdManager/AdServiceImpl/MainActivity）零改动
-- **Maven 依赖不变** — 5.1.2.3 发布记录无第三方 SDK 升级项：Pangle 7.6.1.2 / GDT 4.690.1560 / Baidu 9.45.0 保持
-- **体积缩减** — Mediation AAR 9.1MB→6.0MB（`assets/dirichlet/bundles/core.drch` 3.96MB→0.75MB 官方内部优化）
-- **隐私合规双入口（设计方案规则 5）** — 游戏内 `PrivacyConsentScreen.kt`（v5.1.2.3 两处 + 更新/生效日期 2026-08-13）、`docs/index.html`（v5.1.2.3 + 日期同步）
-- **兼容性** — 无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；需真机验证：广告位 1061442 填充、玉符发放、个性化广告开关、白名单直发
-- **测试** — 纯二进制替换 + 文案/版本号变更，无业务逻辑改动，无新增单测；compileReleaseKotlin + lintRelease + assembleRelease（R8 fullMode）通过；changelog 双入口已同步（本条目 + changelog_entries.json v4.00.97 新条目 1 条玩家视角描述）；版本号 4.00.96 → 4.00.97（versionCode 4096→4097）
-
-## [4.00.96] - 2026-08-12
-
 ### 引擎重构（2026-08-13 对标 Godot 架构借鉴重构——八大维度批次 0~5）
 
 > 背景：用户指令"查阅 Godot 开源引擎并与自研引擎对比，指出缺陷并给出重构级优化方案"。方案文档见 `docs/` 与计划 `godot-github-delightful-parasol.md`（32 条官方来源 + 三路代码探索 + 13 条设计代理审校修正）。路线决策：**借鉴重构**（保留 Kotlin 自研引擎，采纳 Godot 机制；迁移不可行——LibGodot Android surface 嵌入未就绪 + 确定性 RNG/惰性结算/列式 COW 为本项目优势）。
@@ -81,6 +67,20 @@
 - 双 changelog 同步 + 全量串行测试 + detekt（baseline 只缩不增：删除 2 条陈旧 NativeSurfaceView 条目）+ 原生双架构构建 + RNG 审计
 
 **验证** — `test --max-workers=1` 全绿（2534+ 用例）、`detekt` 全绿、`externalNativeBuildRelease`（arm64-v8a + armeabi-v7a）全绿、`compileReleaseKotlin` 全绿、RNG 审计无 kotlin.random.Random 残留。
+
+### 新增（2026-08-13 TapADN 聚合广告 SDK 升级 5.1.1.1 → 5.1.2.3）
+
+> 来源：官方资源下载页（https://ssp.dirichlet.cn/docs/resource-download/）最新版 5.1.2.3（2026-08-12 发布，修订说明"提升稳定性"）。官方 zip `dirichlet_ad_mediation_5.1.2.3.zip` MD5 `671c17b9d3636cc7c55c67cb615d3860` 已校验一致。
+
+- **AAR 替换（5 个）** — `android/app/src/main/libs/` 下 Mediation/CSJ/GDT/IQY/BD 适配器全部换为 5.1.2.3（iadsdk-release-2.3.102.110 字节级相同不换）；新 AAR MD5：Mediation `be93471a7c806e879698ba089a8f7884`、CSJ `cd5c05ed65a85dc693b4f66acc9d84e5`、GDT `76a5ea11602eeeb4989138b4252ff588`、IQY `4eaf1dc3ce1b72c4500153b0ca50f396`、BD `440caa1848878dcd3024359f1981b13b`
+- **兼容性验证（静态，三重确认）** — ① 项目所用全部 API 类（`DirichletSdk`/`InitListener`/`DirichletAdConfig$Builder`/`DirichletAdManager`/`DirichletAdNative$RewardVideoAutoAdListener`/`DirichletAdRequest$Builder`/`Constants`）在新版 classes.jar 均存在；② 新旧 Mediation AAR 自带 proguard.txt 完全一致 → proguard-rules.pro 零改动；③ 新旧 AndroidManifest.xml 完全一致 → Manifest/权限/FileProvider 零改动。业务代码（RewardVideoAdManager/AdServiceImpl/MainActivity）零改动
+- **Maven 依赖不变** — 5.1.2.3 发布记录无第三方 SDK 升级项：Pangle 7.6.1.2 / GDT 4.690.1560 / Baidu 9.45.0 保持
+- **体积缩减** — Mediation AAR 9.1MB→6.0MB（`assets/dirichlet/bundles/core.drch` 3.96MB→0.75MB 官方内部优化）
+- **隐私合规双入口（设计方案规则 5）** — 游戏内 `PrivacyConsentScreen.kt`（v5.1.2.3 两处 + 更新/生效日期 2026-08-13）、`docs/index.html`（v5.1.2.3 + 日期同步）
+- **兼容性** — 无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；需真机验证：广告位 1061442 填充、玉符发放、个性化广告开关、白名单直发
+- **测试** — 纯二进制替换 + 文案/版本号变更，无业务逻辑改动，无新增单测；compileReleaseKotlin + lintRelease + assembleRelease（R8 fullMode）通过；changelog 双入口已同步（本条目 + changelog_entries.json v4.00.97 新条目 1 条玩家视角描述）；版本号 4.00.96 → 4.00.97（versionCode 4096→4097）
+
+## [4.00.96] - 2026-08-12
 
 ### 修复 + 调整（2026-08-12 玉符倒计时居中 + 发放节奏）
 
