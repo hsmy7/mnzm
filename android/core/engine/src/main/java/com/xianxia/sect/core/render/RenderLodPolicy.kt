@@ -19,11 +19,11 @@ package com.xianxia.sect.core.render
  */
 object RenderLodPolicy {
 
-    /** 装饰层质量因子阈值：qualityFactor < 0.6 时降级（与帧缓冲 RGB_565 阈值同常量） */
-    const val DECOR_QUALITY_THRESHOLD = 0.6f
+    /** 装饰层质量因子阈值（由 SpriteAtlasDef 生成提供——与 C++ TextureAtlas.h 同源） */
+    const val DECOR_QUALITY_THRESHOLD = SpriteAtlasDef.DECOR_QUALITY_THRESHOLD
 
-    /** 装饰层缩放阈值：scale < 0.6 时降级（双端对齐常量） */
-    const val DECOR_ZOOM_THRESHOLD = 0.6f
+    /** 装饰层缩放阈值：scale < 0.6 时降级（C++ 侧与质量阈值共用同源常量） */
+    const val DECOR_ZOOM_THRESHOLD = SpriteAtlasDef.DECOR_QUALITY_THRESHOLD
 
     /**
      * 判定装饰层是否应绘制。

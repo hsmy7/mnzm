@@ -41,7 +41,6 @@ class SoftwareCanvasBackend(
         private const val MAX_SCALE = 3.0f
 
         /** 热控降质阈值：qualityFactor < 0.6 时装饰层跳过 + 帧缓冲降为 RGB_565（与 C++ skipDecor 同常量双端对齐） */
-        private const val DECOR_QUALITY_THRESHOLD = 0.6f
 
         /** 阴影填充色（ARGB 半透明黑；alpha 与 BuildingRenderGeometry.SHADOW_ALPHA 同值） */
         private val shadowPaintColor = android.graphics.Color.argb(
@@ -453,6 +452,9 @@ class SoftwareCanvasBackend(
         isAntiAlias = false
         isDither = false
     }
+
+    /** 批次 3 插值消费链：上一帧作物原始进度（key=gx/gy 编码，见 [cropProgressKey]） */
+    private val lastCropProgress = HashMap<Long, Float>()
 
     // ── 精灵图源矩形（延迟初始化） ──
 
@@ -917,6 +919,8 @@ class SoftwareCanvasBackend(
         val cropData = frame.spiritCropData ?: return
         val count = cropData.size / CROP_DATA_STRIDE
         val fade = fadeAlpha.coerceIn(0f, 1f)
+        val alpha = frame.currentAlpha
+        val activeKeys = HashSet<Long>(count * 2)
         for (i in 0 until count) {
             val idx = i * CROP_DATA_STRIDE
             val gx = cropData[idx]
@@ -928,11 +932,26 @@ class SoftwareCanvasBackend(
             // 视口剔除（屏幕坐标，与 drawSelectionHighlight 同风格）
             val rect = cropScreenRect(frame, idx, canvas.width, canvas.height) ?: continue
 
+            // 批次 3 插值消费链：draw = prev + (cur - prev) × frameAlpha——
+            // 与 C++ 作物段同数学（SpiritCropRender.smoothedProgress）；
+            // 插值基准存原始逻辑值（存平滑值会累积漂移），平滑值仅用于绘制
+            val key = SpiritCropRender.cropProgressKey(gx, gy)
+            activeKeys += key
+            val prev = lastCropProgress[key]
+            val drawProgress = if (prev != null && alpha > 0f) {
+                SpiritCropRender.smoothedProgress(prev, progress, alpha)
+            } else {
+                progress
+            }
+            lastCropProgress[key] = progress
+
             // computeStage 恒返回 [0, CROP_STAGES)（内部 NaN/Inf/clamp 防御）→ 索引安全
-            val stage = SpiritCropRender.computeStage(progress)
-            cropPaint.alpha = (SpiritCropRender.crossfade(progress) * fade * 255).toInt()
+            val stage = SpiritCropRender.computeStage(drawProgress)
+            cropPaint.alpha = (SpiritCropRender.crossfade(drawProgress) * fade * 255).toInt()
             canvas.drawBitmap(atlas, cropSrcRects[stage], rect, cropPaint)
         }
+        // 帧末裁剪：收获/拆除后清除残留进度条目（作物数量少，O(n) 可接受）
+        lastCropProgress.keys.retainAll(activeKeys)
         cropPaint.alpha = 255 // 防御性恢复（cropPaint 仅本方法使用，保持惯例防未来共享）
     }
 
@@ -975,7 +994,8 @@ class SoftwareCanvasBackend(
         val qualityChanged = qualityFactor != lastQualityFactor
         val fb = frameBuffer
         if (fb == null || fb.width != vpW || fb.height != vpH || qualityChanged) {
-            val bmpConfig = if (qualityFactor < DECOR_QUALITY_THRESHOLD) {
+            // 帧缓冲降级阈值与 RenderLodPolicy 同源（SpriteAtlasDef 生成常量）
+            val bmpConfig = if (qualityFactor < RenderLodPolicy.DECOR_QUALITY_THRESHOLD) {
                 Bitmap.Config.RGB_565
             } else {
                 Bitmap.Config.ARGB_8888

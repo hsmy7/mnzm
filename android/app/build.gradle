@@ -437,9 +437,10 @@ tasks.named('check').configure { dependsOn('validateChangelogJson') }
 // ============================================================
 tasks.register('generateFootprintHeader') {
     group = 'build'
-    description = '从 SpriteAtlasDef.kt 生成 NativeBridge.cpp 引用的 footprint_table.h'
+    description = '从生成版 SpriteAtlasDef.kt 生成 NativeBridge.cpp 引用的 footprint_table.h'
+    dependsOn ':core:engine:generateSpriteAtlasDef'
     doLast {
-        def srcFile = file("${rootProject.projectDir}/core/engine/src/main/java/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
+        def srcFile = file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
         def lines = srcFile.readLines()
         // 行级锚定：仅提取 FOOTPRINT_BY_NAME_INDEX 声明块内的 "N to N"，
         // 避免误匹配文件其他位置的 "N to N" 模式（注释/其他数组）
@@ -494,8 +495,65 @@ static const int FP_COUNT = ${pairs.size};
         logger.lifecycle("generateFootprintHeader: ${out} (${pairs.size} entries)")
     }
 }
-// preBuild 前生成——确保 native 编译时头文件最新
-tasks.named('preBuild').configure { dependsOn('generateFootprintHeader') }
+// ============================================================
+// 2026-08-13：资源管线 codegen（对标 Godot 导入管线）
+// 权威源链：drawable-nodpi/*.webp → resource-manifest.mjs（atlas-manifest.json：
+// 名称/模块/相对路径/大小/MD5/UID）→ build-atlas.mjs --codegen（SpriteRegistryData.kt
+// + TextureAtlas.h，内容 hash 增量）。生成物在 build/generated/sprite/，不入库。
+// 手工版 SpriteRegistryData.kt / TextureAtlas.h 已删除；禁止手改生成物。
+// ============================================================
+tasks.register('generateResourceManifest') {
+    group = 'build'
+    description = '扫描双模块 drawable-nodpi 生成 atlas-manifest.json（MD5/UID）'
+    doLast {
+        def proc = ['node', 'scripts/resource-manifest.mjs'].execute(null, rootProject.projectDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException("generateResourceManifest: resource-manifest.mjs 退出码 ${exit}")
+        }
+    }
+}
+
+tasks.register('generateSpriteCode') {
+    group = 'build'
+    description = '从 LAYOUT + resource-registry.json + atlas-manifest.json 生成 SpriteRegistryData.kt / TextureAtlas.h'
+    dependsOn 'generateResourceManifest'
+    doLast {
+        def proc = ['node', 'scripts/build-atlas.mjs', '--codegen'].execute(null, rootProject.projectDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException("generateSpriteCode: build-atlas.mjs 退出码 ${exit}")
+        }
+    }
+}
+// 生成物目录（build/generated/sprite/ 下需匹配包路径 com/xianxia/sect）
+kotlin {
+    sourceSets {
+        main {
+            kotlin.srcDir('build/generated/sprite')
+        }
+    }
+}
+
+// 生成 SpriteRegistryData.kt（app R 引用）与 TextureAtlas.h 的 Gradle 生成目录供 CMake include
+android {
+    defaultConfig {
+        externalNativeBuild {
+            cmake {
+                arguments '-DSPRITE_GENERATED_DIR=' + file('build/generated/sprite').absolutePath
+            }
+        }
+    }
+}
+
+// preBuild 前生成全链路——确保 Kotlin/C++ 编译时生成物最新
+tasks.named('preBuild').configure {
+    dependsOn(':core:engine:generateSpriteAtlasDef', 'generateFootprintHeader', 'generateSpriteCode')
+}
+// 守卫测试读取生成物文本——测试前必须已生成
+tasks.withType(Test).configureEach { dependsOn('generateResourceManifest', 'generateSpriteCode') }
 
 // ============================================================
 // 2026-08-10（WP7）：图集 ASTC 压缩产物生成任务
@@ -508,6 +566,7 @@ tasks.named('preBuild').configure { dependsOn('generateFootprintHeader') }
 tasks.register('generateAstcAtlas') {
     group = 'build'
     description = '从权威源生成 ASTC 压缩图集（KTX1 + manifest）'
+    dependsOn 'generateResourceManifest'
     doLast {
         def astcencDir = file('scripts/tools/astcenc/bin')
         def hasAstcenc = astcencDir.exists() && [

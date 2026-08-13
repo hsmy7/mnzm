@@ -6,17 +6,17 @@ import android.os.Build
 import kotlin.concurrent.thread
 import android.view.MotionEvent
 import android.view.Surface
-import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.animation.FadeTransition
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.platform.SurfaceEventListener
+import com.xianxia.sect.core.platform.SurfaceProvider
 import com.xianxia.sect.core.render.FrameDropPolicy
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
-import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
 import com.xianxia.sect.core.touch.TouchData
@@ -34,12 +34,20 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 2. Vulkan init 失败时自动降级到 SOFTWARE
  *
  * 在 Compose UI 中以 AndroidView 方式嵌入，作为宗门地图的渲染目标。
- * 生命周期与 Surface 绑定：surfaceCreated → 初始化渲染器 → 每帧渲染 → surfaceDestroyed → 关闭。
+ *
+ * ## 平台解耦（2026-08-13 重构）
+ * surface 生命周期事件经 [SurfaceProvider] 消费（默认 [AndroidSurfaceProvider]）：
+ * 宿主不再直接实现 SurfaceHolder.Callback——平台回调翻译（创建+初始尺寸合并 /
+ * 尺寸变化 / 销毁）与生命周期防御（纪元防 stale、首帧清除、10s 初始化超时安全网）
+ * 全部下沉到 AndroidSurfaceProvider。本类仅剩：Compose 桥接 + 渲染线程编排 + 帧通道。
+ * iOS 化时替换 SurfaceProvider 实现（Metal 等价物）即可，宿主零改动。
+ *
+ * 渲染线程模型不变：仍共用同一 RenderThread、VsyncGate、RenderCommandBus。
  */
 class NativeSurfaceView(
     context: Context,
     private val config: NativeRenderConfig
-) : SurfaceView(context), SurfaceHolder.Callback {
+) : SurfaceView(context) {
 
     // ============================================================
     // 渲染模式
@@ -58,7 +66,7 @@ class NativeSurfaceView(
     private var renderMode: RenderMode = RenderMode.VULKAN
 
     /**
-     * 强制指定渲染模式。在 [surfaceChanged] 前设置生效。
+     * 强制指定渲染模式。在 surface 可用事件前设置生效。
      * - 模拟器/Vulkan 问题设备：设置为 SOFTWARE 跳过 Vulkan 初始化
      * - 正常设备：保持 VULKAN（默认）
      */
@@ -72,8 +80,8 @@ class NativeSurfaceView(
 
     /**
      * 当前激活的渲染后端（[RenderBackend] 统一入口，iOS Metal 迁移点）。
-     * 由 [surfaceChanged] 按渲染模式创建，渲染线程每帧调用；
-     * [surfaceDestroyed] 中 release 并置空。
+     * 由 surface 可用事件按渲染模式创建，渲染线程每帧调用；
+     * 销毁事件中 release 并置空。
      */
     private var activeBackend: RenderBackend? = null
 
@@ -83,26 +91,18 @@ class NativeSurfaceView(
     /** 渲染线程 */
     private var renderThread: RenderThread? = null
 
-    /** 是否正在初始化（防止 surfaceChanged 重复调用导致并发 init） */
+    /** 是否正在初始化（防止 surface 可用事件重复触发导致并发 init） */
     @Volatile
     private var initInProgress: Boolean = false
 
     /**
      * 是否有等待中的 post 初始化。
-     * 防止 surfaceDestroyed 后 stale post 回调执行导致竞态。
+     * 防止 surface 销毁后 stale post 回调执行导致竞态。
      */
     @Volatile
     private var pendingInit: Boolean = false
 
-    /**
-     * Surface 版本计数器，每次 surfaceChanged 递增。
-     * 用于检测 VulkanInit 线程的 post Runnable 是否在 surface 已被销毁后执行。
-     * post Runnable 在捕获时的 generation 与当前值不匹配时跳过执行。
-     */
-    @Volatile
-    private var surfaceGeneration: Int = 0
-
-    /** VulkanInit 后台线程引用，供 surfaceDestroyed 时中断取消 */
+    /** VulkanInit 后台线程引用，供 surface 销毁时中断取消 */
     @Volatile
     private var vulkanInitThread: Thread? = null
 
@@ -137,7 +137,7 @@ class NativeSurfaceView(
      * 渲染质量转发目标（测试可注入 Fake 断言转发序列）。
      * 默认推送到 C++ 热控全局量（NativeBridge.setRenderQuality）；
      * nativeReady 守卫：仅 Vulkan 渲染器就绪后转发（native 库已加载）。
-     * 就绪前触发的转发由 [pushRenderQuality] 在 surfaceChanged 初始化完成后补发，
+     * 就绪前触发的转发由 [pushRenderQuality] 在 surface 初始化完成后补发，
      * 防止 surface 重建（shutdownRenderer 重置 C++ 全局量）后热控状态丢失。
      */
     var renderQualitySink: (qualityFactor: Float, decorationsDisabled: Boolean) -> Unit =
@@ -185,11 +185,6 @@ class NativeSurfaceView(
             renderQualitySink(renderQualityFactor, value)
         }
 
-    /** surface 重建（shutdownRenderer 重置 C++ 全局量）后重放当前热控状态 */
-    private fun pushRenderQuality() {
-        renderQualitySink(renderQualityFactor, renderDecorationsDisabled)
-    }
-
     /** 统一创建软件渲染后端（应用当前质量/装饰值，防 surface 重建后丢失降级状态） */
     private fun createSoftwareBackend(): SoftwareCanvasBackend =
         SoftwareCanvasBackend(config).apply {
@@ -234,14 +229,6 @@ class NativeSurfaceView(
     var atlasBitmap: android.graphics.Bitmap? = null
 
     /**
-     * 构建纹理图集 — 将所有装饰和建筑精灵合并到单张 2048×2048 纹理。
-     * 布局与 C++ TextureAtlas.h 中的 MAP_SPRITES 定义一致。
-     * 必须在渲染器就绪后调用。
-     *
-     * - Vulkan 路径：上传到 GPU 并返回纹理 ID
-     * - Canvas 路径：保存 Bitmap 引用供软件渲染使用
-     */
-    /**
      * 是否应尝试 ASTC 压缩图集（WP7 分支决策：Vulkan 路径且开关开启）。
      * 独立纯函数供守卫测试锁定分支逻辑（完整 buildAtlas 的 RGBA 上传为 native 调用，
      * JVM 测试无法覆盖——由真机验证）。
@@ -271,7 +258,7 @@ class NativeSurfaceView(
 
         val atlas: android.graphics.Bitmap
         try {
-            atlas = buildAtlasBitmap(context)
+            atlas = SectAtlasAssembler.buildAtlasBitmap(context)
             atlasBitmap = atlas
         } catch (t: Throwable) {
             android.util.Log.e("NativeSurfaceView", "buildAtlas failed", t)
@@ -304,12 +291,6 @@ class NativeSurfaceView(
         return texId
     }
 
-    /**
-     * 构建纹理图集 Bitmap — 将所有装饰和建筑精灵合并到单张 2048×2048 Bitmap。
-     * 布局与 C++ TextureAtlas.h 中的 MAP_SPRITES 定义一致。
-     * 精灵位置来自 [SpriteAtlasDef]（唯一来源），资源 ID 运行时查找。
-     * 供 Canvas 回退渲染器使用（不上传 GPU）。
-     */
     companion object {
         /** 每秒纳秒数 */
         private const val NANOS_PER_SECOND = 1_000_000_000L
@@ -321,138 +302,8 @@ class NativeSurfaceView(
         private const val DEFAULT_DISPLAY_FPS = 60
         /** ASTC 压缩图集资产路径（WP7，scripts/build-atlas.mjs 产物） */
         private const val ASTC_ATLAS_ASSET_PATH = "atlas/atlas_astc.ktx"
-
-        fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap {
-            val atlas = android.graphics.Bitmap.createBitmap(
-                SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H,
-                android.graphics.Bitmap.Config.ARGB_8888
-            )
-            val canvas = android.graphics.Canvas(atlas)
-            val paint = android.graphics.Paint().apply { isFilterBitmap = false }
-
-            data class SpriteSlot(
-                val name: String,
-                val x: Int, val y: Int, val w: Int, val h: Int,
-                val resId: Int
-            )
-
-            // 瓦片/装饰精灵 R.drawable 预建映射（替代 getIdentifier
-            // 运行时查找，避免华为 HarmonyOS 资源表分片返回 0
-            // 导致精灵图加载为空白）
-            val tileDrawableMap = mapOf(
-                "map_tile" to R.drawable.map_tile,
-                "map_tile_v2" to R.drawable.map_tile_v2,
-                "decoration_grass_small" to R.drawable.decoration_grass_small,
-                "decoration_grass_medium" to R.drawable.decoration_grass_medium,
-                "decoration_grass_large" to R.drawable.decoration_grass_large,
-                "decoration_tree1" to R.drawable.decoration_tree1,
-                "decoration_tree2" to R.drawable.decoration_tree2,
-            )
-
-            // 地砖精灵 R.drawable 映射
-            val floorTileDrawableMap = mapOf(
-                "floor_tile_2x2" to R.drawable.floor_tile_2x2,
-                "floor_tile_2x3" to R.drawable.floor_tile_2x3,
-                "floor_tile_3x2" to R.drawable.floor_tile_3x2,
-                "floor_tile_3x3" to R.drawable.floor_tile_3x3,
-                "spirit_mine_ground" to R.drawable.spirit_mine_ground,
-            )
-            fun res(name: String): Int {
-                val id = tileDrawableMap[name] ?: 0
-                if (id == 0) android.util.Log.w("NativeSurfaceView",
-                    "buildAtlas: res not found: $name")
-                return id
-            }
-
-            val buildingMap = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.all.associate { it.displayName to it.drawableRes }
-
-            // 瓦片精灵：来自 SpriteAtlasDef.TileType
-            val tileSlots = mutableListOf<SpriteSlot>()
-            for (tile in SpriteAtlasDef.TileType.values()) {
-                val name = when (tile) {
-                    SpriteAtlasDef.TileType.GROUND -> "map_tile"
-                    SpriteAtlasDef.TileType.GRASS_SMALL -> "decoration_grass_small"
-                    SpriteAtlasDef.TileType.GRASS_MEDIUM -> "decoration_grass_medium"
-                    SpriteAtlasDef.TileType.GRASS_LARGE -> "decoration_grass_large"
-                    SpriteAtlasDef.TileType.TREE1 -> "decoration_tree1"
-                    SpriteAtlasDef.TileType.TREE2 -> "decoration_tree2"
-                    SpriteAtlasDef.TileType.TILE_BUILDING -> ""
-                    SpriteAtlasDef.TileType.GROUND_V2 -> "map_tile_v2"
-                    else -> ""
-                }
-                val sr = tile.rect
-                val id = if (name.isEmpty()) 0 else res(name)
-                tileSlots.add(SpriteSlot(name, sr.x, sr.y, sr.w, sr.h, id))
-            }
-
-            // 建筑精灵：来自 SpriteAtlasDef.BUILDING_NAMES
-            val buildingSlots = mutableListOf<SpriteSlot>()
-            for (idx in SpriteAtlasDef.BUILDING_NAMES.indices) {
-                val name = SpriteAtlasDef.BUILDING_NAMES[idx]
-                val sr = SpriteAtlasDef.buildingRect(idx)
-                buildingSlots.add(SpriteSlot(name, sr.x, sr.y, sr.w, sr.h,
-                    buildingMap[name] ?: 0))
-            }
-
-            // 地砖精灵：来自 SpriteAtlasDef.FloorTileType
-            val floorTileSlots = mutableListOf<SpriteSlot>()
-            for (ft in SpriteAtlasDef.FloorTileType.values()) {
-                val r = ft.pixelRect
-                floorTileSlots.add(SpriteSlot(ft.key, r.x, r.y, r.w, r.h,
-                    floorTileDrawableMap[ft.key] ?: 0))
-            }
-
-            // 灵田作物精灵：来自 SpriteAtlasDef.CropStage（WP6 生长动画——
-            // 图集 y=0 行 832/896/960 空槽，与 C++ crop_seedling/growing/mature 同步）
-            val cropDrawableMap = listOf(
-                R.drawable.growing_spiritgrass7,
-                R.drawable.growing_spiritgrass8,
-                R.drawable.growing_spiritgrass9,
-            )
-            val cropSlots = mutableListOf<SpriteSlot>()
-            for (stage in SpriteAtlasDef.CropStage.values()) {
-                val r = stage.rect
-                cropSlots.add(SpriteSlot(
-                    stage.name, r.x, r.y, r.w, r.h,
-                    cropDrawableMap.getOrNull(stage.ordinal) ?: 0
-                ))
-            }
-
-            val slots = tileSlots + buildingSlots + floorTileSlots + cropSlots
-
-            // 绘制每个精灵到图集
-            var loadedCount = 0
-            for (slot in slots) {
-                if (slot.resId == 0) continue
-                try {
-                    val bmp = android.graphics.BitmapFactory.decodeResource(
-                        context.resources, slot.resId
-                    )
-                    if (bmp != null) {
-                        canvas.drawBitmap(bmp, null,
-                            android.graphics.Rect(slot.x, slot.y,
-                                slot.x + slot.w, slot.y + slot.h),
-                            paint)
-                        // ★ 不调 recycle()：避免国产 ROM NativeAllocationRegistry
-                        //   CleanerThunk double-free SIGABRT (#11008)。子精灵
-                        //   Bitmap 很小（<1KB～4KB），自然 GC 消耗可忽略
-                        loadedCount++
-                    } else {
-                        android.util.Log.w("NativeSurfaceView",
-                            "buildAtlas: null bitmap for '${slot.name}'")
-                        com.xianxia.sect.core.render.RenderMetrics.atlasLoadSpriteFailed.incrementAndGet()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("NativeSurfaceView",
-                        "buildAtlas: error loading '${slot.name}': ${e.message}")
-                    com.xianxia.sect.core.render.RenderMetrics.atlasLoadSpriteFailed.incrementAndGet()
-                }
-            }
-
-            android.util.Log.i("NativeSurfaceView",
-                "buildAtlas: $loadedCount/${slots.size} sprites loaded")
-            return atlas
-        }
+        /** 渲染线程停止等待截止（纳秒）：2s 绝对截止轮询（防 vk 调用阻塞时资源释放竞态） */
+        private const val JOIN_DEADLINE_NS = 2_000_000_000L
     }
 
     /**
@@ -562,224 +413,118 @@ class NativeSurfaceView(
     /** 跨平台手势引擎 */
     var touchEngine: SectMapTouchEngine? = null
 
-    init {
-        holder.apply {
-            addCallback(this@NativeSurfaceView)
-            setFormat(PixelFormat.RGBA_8888)
+    // ============================================================
+    // 平台 surface 事件（SurfaceProvider 抽象 — iOS 迁移点）
+    // ============================================================
+
+    /**
+     * 平台 surface 事件监听器 — 由 [surfaceProvider] 派发（主线程同步）。
+     * 各事件处理逻辑 = 原 SurfaceHolder.Callback 实现（2026-08-13 平台抽象重构，
+     * 防御语义逐条保留）。
+     */
+    private val surfaceEventListener: SurfaceEventListener = HostSurfaceEventListener()
+
+    /** 渲染初始化协调器（Vulkan/软件启动三函数内聚，2026-08-13 内类化） */
+    private val initCoordinator = InitCoordinator()
+
+    /**
+     * 平台 surface 事件监听实现（2026-08-13 具名内类化——
+     * 宿主函数数收敛，事件语义与原匿名对象逐字一致）。
+     */
+    private inner class HostSurfaceEventListener : SurfaceEventListener {
+        override fun onSurfaceAvailable(width: Int, height: Int) {
+            handleSurfaceAvailable()
         }
+
+        override fun onSurfaceSizeChanged(width: Int, height: Int) {
+            handleSurfaceSizeChanged(width, height)
+        }
+
+        override fun onSurfaceDestroyed() {
+            handleSurfaceDestroyed()
+        }
+
+        override fun onSurfaceInitTimeout() {
+            handleSurfaceInitTimeout()
+        }
+    }
+
+    /**
+     * 平台 surface 事件提供者 — 渲染宿主经此消费 surface 生命周期事件，
+     * 与 Android SurfaceHolder.Callback 直接耦合剥离（iOS 化替换点）。
+     *
+     * 默认 [AndroidSurfaceProvider]（构造即注册平台回调）；
+     * 外部（SectMapViewport 经 Hilt 工厂）可替换——替换时自动解绑旧监听器并绑定新实例。
+     */
+    var surfaceProvider: SurfaceProvider = AndroidSurfaceProvider(holder)
+        set(value) {
+            field.setEventListener(null)
+            field = value
+            value.setEventListener(surfaceEventListener)
+        }
+
+    init {
+        holder.setFormat(PixelFormat.RGBA_8888)
+        // 属性初始化器不走 setter——默认实例需手动绑定监听器
+        surfaceProvider.setEventListener(surfaceEventListener)
         // 必须设置 clickable 才能接收触摸事件
         isClickable = true
         isFocusableInTouchMode = true
     }
 
     // ============================================================
-    // SurfaceHolder.Callback
+    // Surface 事件处理（经 SurfaceProvider 派发；= 原 SurfaceHolder.Callback 逻辑）
     // ============================================================
 
-    override fun surfaceCreated(holder: SurfaceHolder) {
-        // VULKAN/HYBRID 模式才需要加载 native 库和纹理图集，
-        // SOFTWARE 模式完全使用 Canvas 渲染，不加载 native 库
-        if (useRenderMode != RenderMode.SOFTWARE) {
-            NativeBridge.ensureLoaded()
-            NativeBridge.initAtlas()
-        }
+    /**
+     * 表面可用（含初始尺寸）— 初始化渲染器（= 原 surfaceChanged 初始化分支）。
+     *
+     * 注意：初始化使用 View 布局尺寸（[width]/[height]），与重构前一致；
+     * provider 传入的 surface 尺寸仅供 resize 路径（[handleSurfaceSizeChanged]）。
+     */
+    private fun handleSurfaceAvailable() {
+        // 防御保留：无有效 surface 句柄不初始化（原 `if (!isReady && holder.surface == null)
+        // return` 语义——某些 ROM/时序下可用事件可能早于物理 surface 就绪；
+        // Robolectric 下 holder.surface 恒 null → 安全 no-op 路径）。
+        // provider.isSurfaceValid 为第二道守卫（provider 仅 ACTIVE 状态派发本事件，双保险）；
+        // isReady/initInProgress 防重复初始化（Vulkan init 成功/超时降级回调均经 isReady 守卫拦截）
+        val canInit = holder.surface != null && surfaceProvider.isSurfaceValid && !isReady && !initInProgress
+        if (!canInit) return
+        initInProgress = true
 
-        // 首帧绘制：在 surface 刚创建时立即画一帧纯黑背景，防止 GPU surface
-        // 分配延迟期间（100-500ms）SurfaceFlinger 合成未初始化的透明/脏缓冲区。
-        // 此处的 lockCanvas 同步等待 buffer queue 就绪，完成后即使后续渲染线程
-        // 尚未启动，surface 也始终显示有效内容而非黑框。
-        try {
-            val clearCanvas = holder.lockCanvas()
-            if (clearCanvas != null) {
-                clearCanvas.drawColor(android.graphics.Color.BLACK)
-                holder.unlockCanvasAndPost(clearCanvas)
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("NativeSurfaceView",
-                "surfaceCreated: clear failed (non-fatal)", e)
-        }
-    }
+        // 对抗性审查修复：新 surface 重置帧率声明与 EWMA 状态——
+        // 旋转/重建后 lastDeclaredFrameRate 残留会阻止新 surface 降频声明，
+        // 旧 EWMA 残留会导致新渲染线程首帧即被误判低帧率
+        lastDeclaredFrameRate = 0
+        adaptiveFpsTracker.reset()
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
-        if (!isReady && holder.surface == null) return
+        // 捕获纪元：所有异步回调（post）通过此值检测跨 surface stale
+        val currentGen = surfaceProvider.generation
 
-        if (!isReady) {
-            if (initInProgress) return  // 防止重复调用
-            initInProgress = true
-
-            // 对抗性审查修复：新 surface 重置帧率声明与 EWMA 状态——
-            // 旋转/重建后 lastDeclaredFrameRate 残留会阻止新 surface 降频声明，
-            // 旧 EWMA 残留会导致新渲染线程首帧即被误判低帧率
-            lastDeclaredFrameRate = 0
-            adaptiveFpsTracker.reset()
-
-            // 递增 Surface 版本，所有 post Runnable 通过此检测 stale 回调
-            surfaceGeneration++
-            val currentGen = surfaceGeneration
-
-            // ★ 渲染模式预判：若策略要求 SOFTWARE 则直接走软件渲染
-            if (useRenderMode == RenderMode.SOFTWARE) {
-                android.util.Log.i("NativeSurfaceView",
-                    "RenderMode.SOFTWARE (by policy) — starting software backend")
-
-                // ★ 修复：同步清除 Surface，防止 emulator 上 Activity 切换导致的残留内容闪烁
-                try {
-                    val clearCanvas = holder.lockCanvas()
-                    if (clearCanvas != null) {
-                        clearCanvas.drawColor(android.graphics.Color.DKGRAY)
-                        holder.unlockCanvasAndPost(clearCanvas)
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("NativeSurfaceView",
-                        "SOFTWARE init: surface clear failed (non-fatal)", e)
-                }
-
-                pendingInit = true
-                post {
-                    // ★ 修复：检查 surfaceDestroyed 后 stale post 不执行
-                    if (currentGen != surfaceGeneration) return@post
-                    if (pendingInit && !isReady) {
-                        // 先设置渲染模式和软件后端，再通知上层上传纹理
-                        // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
-                        // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
-                        softwareBackend = createSoftwareBackend()
-                        activeBackend = SoftwareRenderBackend(this)
-                        renderMode = RenderMode.SOFTWARE
-                        // 通知 Compose 层上传纹理（TextureAtlas 已在 surfaceCreated 中 init）
-                        onRendererReady?.invoke()
-                        isReady = true
-                        renderThread = RenderThread().also { it.start() }
-                    }
-                    initInProgress = false
-                }
-                return
-            }
-
-            val surface = holder.surface ?: return
-
-            // 初始化超时安全网（10 秒）：超时降级完整初始化软件后端（而非只置
-            // isReady——否则 698 行 `if (isReady) return@post` 拦截后续 Vulkan init
-            // 成功回调，渲染线程永不启动 → 永久黑屏）。generation 守卫拦截
-            // surfaceDestroyed 后残留的 stale 超时回调（防跨 surface 误置状态）。
-            val timeoutRunnable = Runnable {
-                if (currentGen != surfaceGeneration) return@Runnable
-                if (!isReady) {
-                    android.util.Log.w("NativeSurfaceView",
-                        "Vulkan init timed out (10s) — falling back to software renderer")
-                    initInProgress = false
-                    // 完整初始化（对齐降级路径语义）：后端 + 渲染线程 + isReady，
-                    // 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截
-                    softwareBackend = createSoftwareBackend()
-                    activeBackend = SoftwareRenderBackend(this)
-                    renderMode = RenderMode.SOFTWARE
-                    onRendererReady?.invoke()
-                    isReady = true
-                    renderThread = RenderThread().also { it.start() }
-                }
-            }
-            postDelayed(timeoutRunnable, 10_000L)
-
-            // Layer 4: 取消之前的初始化线程（如有），防止竞态
-            vulkanInitThread?.interrupt()
-            vulkanInitThread = null
-
-            vulkanInitThread = kotlin.concurrent.thread(name = "VulkanInit") {
-                try {
-                    val initStart = System.currentTimeMillis()
-
-                    // Layer 2: Phase 2 写前标记 — initRenderer 前写入
-                    vulkanInitListener?.onSurfaceInitStarted()
-
-                    val ok = NativeBridge.initRenderer(
-                        viewportW = width,
-                        viewportH = height,
-                        worldW = config.worldPixelWidth,
-                        worldH = config.worldPixelHeight,
-                        tileSize = config.tileSize,
-                        surface = surface
-                    )
-
-                    if (ok) {
-                        post {
-                            if (currentGen != surfaceGeneration) return@post
-                            removeCallbacks(timeoutRunnable)
-                            initInProgress = false
-                            vulkanInitThread = null
-                            if (isReady) return@post
-
-                            // 先上传纹理（地面 + 图集），再启动渲染线程
-                            onRendererReady?.invoke()
-
-                            isReady = true
-                            // ★ 热控状态补发：shutdownRenderer 重置了 C++ 全局量，
-                            //   此处把 Kotlin 侧当前值（可能已热控降级）重放到 C++
-                            pushRenderQuality()
-                            activeBackend = VulkanRenderBackend(this)
-                            renderThread = RenderThread().also { it.start() }
-                        }
-                    } else {
-                        // Layer 2: 失败 → 清除写前标记 + 记录持久化失败
-                        vulkanInitListener?.onSurfaceInitFailed()
-
-                        android.util.Log.e("NativeSurfaceView",
-                            "Vulkan init failed after ${System.currentTimeMillis() - initStart}ms — " +
-                            "falling back to software renderer")
-
-                        post {
-                            if (currentGen != surfaceGeneration) return@post
-                            removeCallbacks(timeoutRunnable)
-                            initInProgress = false
-                            vulkanInitThread = null
-                            if (!isReady) {
-                                // 降级到软件渲染
-                                softwareBackend = createSoftwareBackend()
-                                activeBackend = SoftwareRenderBackend(this)
-                                renderMode = RenderMode.SOFTWARE
-                                onRendererReady?.invoke()
-                                isReady = true
-                                renderThread = RenderThread().also { it.start() }
-                            }
-                        }
-                    }
-                } catch (t: Throwable) {
-                    // Layer 4: 线程被中断（surfaceDestroyed），不做降级
-                    if (t is InterruptedException || Thread.interrupted()) {
-                        android.util.Log.w("NativeSurfaceView",
-                            "Vulkan init interrupted — surface was destroyed")
-                        initInProgress = false
-                        vulkanInitThread = null
-                        return@thread
-                    }
-                    // 其他异常（如 OOM），记录并降级
-                    android.util.Log.e("NativeSurfaceView",
-                        "Vulkan init crashed: ${t.message}", t)
-                    vulkanInitListener?.onSurfaceInitFailed()
-                    post {
-                        if (currentGen != surfaceGeneration) return@post
-                        removeCallbacks(timeoutRunnable)
-                        initInProgress = false
-                        vulkanInitThread = null
-                        if (!isReady) {
-                            softwareBackend = createSoftwareBackend()
-                            activeBackend = SoftwareRenderBackend(this)
-                            renderMode = RenderMode.SOFTWARE
-                            onRendererReady?.invoke()
-                            isReady = true
-                            renderThread = RenderThread().also { it.start() }
-                        }
-                    }
-                }
-            }
+        // ★ 渲染模式预判：若策略要求 SOFTWARE 则直接走软件渲染
+        if (useRenderMode == RenderMode.SOFTWARE) {
+            initCoordinator.startSoftwareBackend(currentGen)
         } else {
-            // 窗口变化：统一由后端适配器处理（Vulkan=resizeRenderer / Canvas=视口重建）
-            activeBackend?.resize(w, h)
+            initCoordinator.startVulkanInit(currentGen)
         }
     }
 
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        // ★ 修复：递增 surfaceGeneration，使所有已 post 但未执行的
-        // Vulkan init 回调被 currentGen != surfaceGeneration 守卫拦截
-        surfaceGeneration++
+    /**
+     * 尺寸变化（可用后非首次）— 统一由后端适配器处理
+     * （Vulkan=resizeRenderer / Canvas=视口重建）。
+     *
+     * @param width 新宽度（像素）
+     * @param height 新高度（像素）
+     */
+    private fun handleSurfaceSizeChanged(width: Int, height: Int) {
+        activeBackend?.resize(width, height)
+    }
+
+    /**
+     * 表面销毁 — 停止渲染线程、释放后端并清空 surface 关联资源
+     * （= 原 surfaceDestroyed；纪元递增由 provider 完成）。
+     */
+    private fun handleSurfaceDestroyed() {
         isReady = false
         initInProgress = false
         pendingInit = false
@@ -789,31 +534,7 @@ class NativeSurfaceView(
         // 中断渲染线程，加速从 Thread.sleep() 中退出
         renderThread?.interrupt()
         // 等待渲染线程安全停止后再释放资源
-        // 使用绝对截止时间（2s）的轮询等待，而非固定 3x500ms 循环，
-        // 防止 vkWaitForFences/vkAcquireNextImageKHR 阻塞超过预期时间时
-        // Vulkan 资源在 RenderThread 仍在执行时被销毁 → use-after-free
-        renderThread?.let { thread ->
-            thread.running = false
-            val deadlineNs = System.nanoTime() + 2_000_000_000L // 2s 截止时间
-            var joined = false
-            while (System.nanoTime() < deadlineNs) {
-                try {
-                    thread.join(200)
-                    if (!thread.isAlive) { joined = true; break }
-                } catch (_: InterruptedException) { break }
-            }
-            if (!joined) {
-                android.util.Log.w("NativeSurfaceView",
-                    "RenderThread did not stop after 2s deadline — " +
-                    "skipping backend release (thread may be blocked in vk call; " +
-                    "releasing now would delete g_renderer under it → use-after-free). " +
-                    "Resources are rebuilt by next initRenderer (device-ready → initSurface)")
-            } else {
-                // ★ 修复：仅在渲染线程确认停止后释放 backend 资源。
-                //   统一经 RenderBackend 适配器释放（Vulkan=shutdownRenderer / Canvas=canvas release）
-                activeBackend?.release()
-            }
-        }
+        stopRenderThread()
         renderThread = null
         activeBackend = null
         softwareBackend = null
@@ -823,6 +544,235 @@ class NativeSurfaceView(
         atlasTextureId = 0
         // 注：atlasBitmap 禁止 recycle()（国产 ROM double-free 教训），置 null 让 GC
         atlasBitmap = null
+    }
+
+    /**
+     * 等待渲染线程安全停止（2s 绝对截止的轮询，而非固定 3x500ms 循环），
+     * 防止 vkWaitForFences/vkAcquireNextImageKHR 阻塞超过预期时间时 Vulkan
+     * 资源在 RenderThread 仍在执行时被销毁 → use-after-free。
+     * 仅在确认停止后 release backend（Vulkan=shutdownRenderer / Canvas=canvas release）。
+     */
+    private fun stopRenderThread() {
+        val thread = renderThread ?: return
+        thread.running = false
+        val deadlineNs = System.nanoTime() + JOIN_DEADLINE_NS
+        var joined = false
+        while (System.nanoTime() < deadlineNs) {
+            try {
+                thread.join(200)
+                if (!thread.isAlive) { joined = true; break }
+            } catch (_: InterruptedException) { break }
+        }
+        if (!joined) {
+            android.util.Log.w("NativeSurfaceView",
+                "RenderThread did not stop after 2s deadline — " +
+                "skipping backend release (thread may be blocked in vk call; " +
+                "releasing now would delete g_renderer under it → use-after-free). " +
+                "Resources are rebuilt by next initRenderer (device-ready → initSurface)")
+        } else {
+            // ★ 修复：仅在渲染线程确认停止后释放 backend 资源。
+            //   统一经 RenderBackend 适配器释放（Vulkan=shutdownRenderer / Canvas=canvas release）
+            activeBackend?.release()
+        }
+    }
+
+    /**
+     * 渲染初始化协调器（2026-08-13 内类化——Vulkan/软件初始化启动三函数
+     * 职责内聚，NativeSurfaceView 顶层函数数收敛；语义与原顶层函数逐字一致）。
+     */
+    private inner class InitCoordinator {
+
+        /** surface 重建（shutdownRenderer 重置 C++ 全局量）后重放当前热控状态 */
+        fun pushRenderQuality() {
+            renderQualitySink(renderQualityFactor, renderDecorationsDisabled)
+        }
+
+        /**
+         * SOFTWARE 策略路径 — 直接启动软件渲染（= 原 surfaceChanged SOFTWARE 分支）。
+         *
+         * @param currentGen 发起时的 surface 纪元（post 回调 stale 守卫）
+         */
+        fun startSoftwareBackend(currentGen: Int) {
+            android.util.Log.i("NativeSurfaceView",
+                "RenderMode.SOFTWARE (by policy) — starting software backend")
+
+            // ★ 修复：同步清除 Surface，防止 emulator 上 Activity 切换导致的残留内容闪烁
+            surfaceProvider.clearSurface(android.graphics.Color.DKGRAY)
+
+            pendingInit = true
+            post {
+                // ★ 修复：检查 surfaceDestroyed 后 stale post 不执行
+                if (currentGen != surfaceProvider.generation) return@post
+                if (pendingInit && !isReady) {
+                    // 先设置渲染模式和软件后端，再通知上层上传纹理
+                    // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
+                    // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
+                    softwareBackend = createSoftwareBackend()
+                    activeBackend = SoftwareRenderBackend(this@NativeSurfaceView)
+                    renderMode = RenderMode.SOFTWARE
+                    // 通知 Compose 层上传纹理（TextureAtlas 已在 surface 可用事件中 init）
+                    onRendererReady?.invoke()
+                    isReady = true
+                    renderThread = RenderThread().also { it.start() }
+                }
+                initInProgress = false
+            }
+        }
+
+        /**
+         * VULKAN 路径 — 启动异步初始化（= 原 surfaceChanged VULKAN 分支）。
+         * 初始化在独立线程执行，成功/失败/异常均 post 回主线程（经纪元守卫）。
+         *
+         * @param currentGen 发起时的 surface 纪元（post 回调 stale 守卫）
+         */
+        fun startVulkanInit(currentGen: Int) {
+            // 原 surfaceCreated 语义：VULKAN 模式加载 native 库与纹理图集
+            //（SOFTWARE 模式完全使用 Canvas 渲染，不加载 native 库——
+            // 策略预判路径在 handleSurfaceAvailable 已分流，不会到达此处）
+            NativeBridge.ensureLoaded()
+            NativeBridge.initAtlas()
+
+            val surface = holder.surface ?: return
+
+            // 初始化超时安全网（10 秒）：超时降级完整初始化软件后端（而非只置
+            // isReady——否则 Vulkan init 成功回调被 isReady 守卫拦截，渲染线程永不
+            // 启动 → 永久黑屏）。纪元守卫在 provider 内部拦截 surfaceDestroyed 后
+            // 残留的 stale 超时回调（防跨 surface 误置状态）。
+            surfaceProvider.startInitTimeout()
+
+            // Layer 4: 取消之前的初始化线程（如有），防止竞态
+            vulkanInitThread?.interrupt()
+            vulkanInitThread = null
+
+            vulkanInitThread = kotlin.concurrent.thread(name = "VulkanInit") {
+                runVulkanInitThread(currentGen, surface)
+            }
+        }
+
+        /** Vulkan 初始化线程体（独立线程；post 回主线程前先做纪元守卫） */
+        // 本函数是原生初始化崩溃的唯一归因入口：Throwable 全捕获 + 分型降级
+        //（中断=surface 销毁不降级/其他异常降级）是崩溃防御设计本身
+        @Suppress("TooGenericExceptionCaught")
+        private fun runVulkanInitThread(currentGen: Int, surface: Surface) {
+            try {
+                val initStart = System.currentTimeMillis()
+
+                // Layer 2: Phase 2 写前标记 — initRenderer 前写入
+                vulkanInitListener?.onSurfaceInitStarted()
+
+                val ok = NativeBridge.initRenderer(
+                    viewportW = width,
+                    viewportH = height,
+                    worldW = config.worldPixelWidth,
+                    worldH = config.worldPixelHeight,
+                    tileSize = config.tileSize,
+                    surface = surface
+                )
+
+                if (ok) {
+                    post { handleVulkanInitSuccess(currentGen) }
+                } else {
+                    handleVulkanInitFailure(initStart, currentGen)
+                }
+            } catch (t: Throwable) {
+                handleVulkanInitCrash(currentGen, t)
+            }
+        }
+    }
+
+    /** Vulkan 初始化成功（post 回主线程；= 原成功分支） */
+    private fun handleVulkanInitSuccess(currentGen: Int) {
+        if (currentGen != surfaceProvider.generation) return
+        surfaceProvider.notifyInitCompleted()
+        initInProgress = false
+        vulkanInitThread = null
+        if (isReady) return
+
+        // 先上传纹理（地面 + 图集），再启动渲染线程
+        onRendererReady?.invoke()
+
+        isReady = true
+        // ★ 热控状态补发：shutdownRenderer 重置了 C++ 全局量，
+        //   此处把 Kotlin 侧当前值（可能已热控降级）重放到 C++
+        initCoordinator.pushRenderQuality()
+        activeBackend = VulkanRenderBackend(this)
+        renderThread = RenderThread().also { it.start() }
+    }
+
+    /** Vulkan 初始化失败（initRenderer 返回 false；线程内记录，post 回主线程降级） */
+    private fun handleVulkanInitFailure(initStart: Long, currentGen: Int) {
+        // Layer 2: 失败 → 清除写前标记 + 记录持久化失败
+        vulkanInitListener?.onSurfaceInitFailed()
+
+        android.util.Log.e("NativeSurfaceView",
+            "Vulkan init failed after ${System.currentTimeMillis() - initStart}ms — " +
+            "falling back to software renderer")
+
+        post { handleVulkanInitFailurePost(currentGen) }
+    }
+
+    /**
+     * Vulkan 初始化失败/异常后的主线程降级（= 原失败/异常分支 post 内容，
+     * 两路径共用同一降级语义）。
+     */
+    private fun handleVulkanInitFailurePost(currentGen: Int) {
+        if (currentGen != surfaceProvider.generation) return
+        surfaceProvider.notifyInitCompleted()
+        initInProgress = false
+        vulkanInitThread = null
+        if (!isReady) {
+            // 降级到软件渲染
+            fallbackToSoftwareRenderer()
+        }
+    }
+
+    /**
+     * Vulkan 初始化异常（线程内捕获；中断 = surface 销毁不降级，其他异常降级）。
+     */
+    private fun handleVulkanInitCrash(currentGen: Int, t: Throwable) {
+        // Layer 4: 线程被中断（surfaceDestroyed），不做降级
+        if (t is InterruptedException || Thread.interrupted()) {
+            android.util.Log.w("NativeSurfaceView",
+                "Vulkan init interrupted — surface was destroyed")
+            // ★ gen 守卫（对抗性审查 2026-08-13 状态破坏者补充发现）：旧纪元
+            // 线程不得清空新纪元状态——destroy 后立即重建时，旧线程的中断处理
+            // 迟到执行会清掉新 surface 的 vulkanInitThread 引用与 initInProgress
+            if (currentGen != surfaceProvider.generation) return
+            initInProgress = false
+            vulkanInitThread = null
+            return
+        }
+        // 其他异常（如 OOM），记录并降级
+        android.util.Log.e("NativeSurfaceView",
+            "Vulkan init crashed: ${t.message}", t)
+        vulkanInitListener?.onSurfaceInitFailed()
+        post { handleVulkanInitFailurePost(currentGen) }
+    }
+
+    /**
+     * 完整初始化软件渲染（对齐降级路径语义）：后端 + 渲染线程 + isReady，
+     * 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截。
+     */
+    private fun fallbackToSoftwareRenderer() {
+        softwareBackend = createSoftwareBackend()
+        activeBackend = SoftwareRenderBackend(this)
+        renderMode = RenderMode.SOFTWARE
+        onRendererReady?.invoke()
+        isReady = true
+        renderThread = RenderThread().also { it.start() }
+    }
+
+    /**
+     * Vulkan 初始化超时（10s，provider 触发）— 降级软件渲染。
+     * 纪元守卫在 provider 内部完成（跨 surface stale 超时不触发）。
+     */
+    private fun handleSurfaceInitTimeout() {
+        if (!isReady) {
+            initInProgress = false
+            // 完整初始化（对齐降级路径语义）：后端 + 渲染线程 + isReady，
+            // 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截
+            fallbackToSoftwareRenderer()
+        }
     }
 
     // ============================================================
@@ -868,22 +818,15 @@ class NativeSurfaceView(
         override fun run() {
             // ★ 地图淡入：渲染线程每次启动（= 每次 surface 初始化：首次进入/
             // 重入/降级路径）触发——覆盖所有初始化路径，天然幂等。
-            // surfaceCreated 后 C++ g_fadeAlpha 已由 shutdownRenderer 重置为 1，
+            // surface 可用后 C++ g_fadeAlpha 已由 shutdownRenderer 重置为 1，
             // 此处 fadeIn 重置起始时间戳，本帧起 alpha 从 0 淡入
             fadeIn()
 
             // 首帧快速清除 Surface 缓冲区，防止华为模拟器等设备上
             // SurfaceFlinger 未正确清除新分配缓冲区导致残留内容显示
+            //（clearSurface 内部吞异常——非关键操作，失败不影响后续渲染）
             if (renderMode == RenderMode.SOFTWARE) {
-                try {
-                    val clearCanvas = holder.lockCanvas()
-                    if (clearCanvas != null) {
-                        clearCanvas.drawColor(android.graphics.Color.BLACK)
-                        holder.unlockCanvasAndPost(clearCanvas)
-                    }
-                } catch (_: Exception) {
-                    // 首帧清除非关键操作，失败不影响后续渲染
-                }
+                surfaceProvider.clearSurface(android.graphics.Color.BLACK)
             }
 
             // ★ WP5 vsync 帧节奏：Canvas 路径用 VsyncGate 对齐显示刷新率；
@@ -937,7 +880,7 @@ class NativeSurfaceView(
                 if (tick % pacing.step.toLong() != 0L) continue
 
                 // ★ 统一渲染入口：RenderBackend 抽象（VULKAN/SOFTWARE 分支已收敛到
-                //   surfaceChanged 创建处），渲染循环只面向接口——iOS Metal 后端
+                //   surface 初始化创建处），渲染循环只面向接口——iOS Metal 后端
                 //   实现同一接口即可接入，循环零改动
                 val renderElapsedNs = renderTick()
 

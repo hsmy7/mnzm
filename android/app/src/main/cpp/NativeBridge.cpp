@@ -3,6 +3,9 @@
 #include <android/native_window_jni.h>
 #include <cstring>
 #include <atomic>
+#include <algorithm>
+#include <map>
+#include <vector>
 #include <android/log.h>
 #include "Renderer2D.h"
 #include "VulkanBackend.h"
@@ -52,7 +55,8 @@ static int g_worldPixelsH = 0;
 // 渲染质量热控状态（由 setRenderQuality 更新，渲染线程单消费者读）
 // std::atomic 保证 Compose 线程写 / 渲染线程读的可见性（仿 setCamera 独立通道）。
 // 装饰层跳过条件与 Canvas 侧 SoftwareCanvasBackend 对齐：
-//   decorationsDisabled || qualityFactor < 0.6f（同 Canvas 帧缓冲 RGB_565 阈值 0.6）
+//   decorationsDisabled || qualityFactor < DECOR_QUALITY_THRESHOLD
+//   （阈值由生成 TextureAtlas.h 提供——与 SpriteAtlasDef 同源，2026-08-13 收敛）
 // ============================================================
 
 /** 热控质量因子（0-1，1 = 全质量） */
@@ -60,9 +64,6 @@ static std::atomic<float> g_qualityFactor{1.0f};
 
 /** 装饰层关闭标志（热控/省电） */
 static std::atomic<bool> g_decorationsDisabled{false};
-
-/** 装饰层跳过阈值（与 Canvas SoftwareCanvasBackend.qualityFactor < 0.6f 对齐） */
-static constexpr float DECOR_QUALITY_THRESHOLD = 0.6f;
 
 // ============================================================
 // 渲染特性开关（由 setRenderFlags 更新，渲染线程单消费者读）
@@ -83,11 +84,8 @@ static std::atomic<bool> g_selectionHighlight{true};
  *  不含 g_scale 条件，行为 = 特性未实现前现状，用于低端设备兜底） */
 static std::atomic<bool> g_decorLod{true};
 
-/** 阴影偏移量（格数）：建筑右下偏移 0.25 格（与 BuildingRenderGeometry.SHADOW_OFFSET_TILES 同值） */
-static constexpr float SHADOW_OFFSET_TILES = 0.25f;
-
-/** 阴影不透明度（0-1）：半透明黑（与 BuildingRenderGeometry.SHADOW_ALPHA 同值） */
-static constexpr float SHADOW_ALPHA = 0.2f;
+// SHADOW_OFFSET_TILES / SHADOW_ALPHA 由生成 TextureAtlas.h 提供
+//（与 SpriteAtlasDef 同源，2026-08-13 收敛——原此处手工常量已删除）
 
 // ============================================================
 // 地图淡入过渡状态（由 setFadeAlpha 更新，渲染线程单消费者读）
@@ -107,9 +105,8 @@ static inline bool isRectVisible(float x, float y, float w, float h) {
              y + h <= g_viewTop || y >= g_viewBottom);
 }
 
-/** 瓷砖类型常量（与 SectMapTileGenerator.kt 保持一致） */
-static constexpr int TILE_GROUND       = 0;
-static constexpr int TILE_BUILDING     = 6;
+// 瓷砖类型常量（TILE_GROUND / TILE_BUILDING / TILE_GROUND_V2）
+// 由生成 TextureAtlas.h 提供（与 SpriteAtlasDef.TileType.index 同源，2026-08-13 收敛）
 
 // ============================================================
 // 纹理图集
@@ -386,7 +383,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloatArray buildingUVMap,
     jfloatArray floorTileUVMap,  // 建筑 UV 映射 + 地砖 UV 映射
     jfloatArray cropData,        // 灵田作物数据 [gx, gy, progress01] × N（WP6，可 null）
-    jfloatArray cropUVMap) {     // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6，可 null）
+    jfloatArray cropUVMap,       // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6，可 null）
+    jfloat frameAlpha) {         // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑）
 
     if (!g_renderer || !tileData || !uvMap) return;
 
@@ -408,14 +406,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     // ---- 1. 瓦片层 ----
     // 每格先画地面，再装饰叠加上方（建筑格的地面由建筑精灵覆盖）
     // 同一 batcher 中先 add 的先画 → 地面最先画，装饰浮在地面上
-    // 地面纹理：默认格用 uvMap[0]，TILE_GROUND_V2(7) 用 uvMap[7]
-    static const int TILE_GROUND_V2 = 7;
-    // 灵田在图集 BUILDING_NAMES 中的索引 = 2（唯一不画地砖的建筑）
-    static const int SPIRIT_FIELD_NAME_INDEX = 2;
-    // 灵矿场在图集 BUILDING_NAMES 中的索引 = 0（使用专属地皮覆盖）
-    static const int SPIRIT_MINE_NAME_INDEX = 0;
-    // 灵矿场地皮覆盖在 floorTileUVMap 中的索引（第5个，index=4）
-    static const int SPIRIT_MINE_GROUND_UV_INDEX = 4;
+    // 地面纹理：默认格用 uvMap[TILE_GROUND]，TILE_GROUND_V2 用 uvMap[7]
+    //（TILE_GROUND_V2 / SPIRIT_* 索引全部由生成 TextureAtlas.h 提供，2026-08-13 收敛）
 
     for (int row = 0; row < rows; row++) {
         jint rowBase = row * cols;
@@ -604,6 +596,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         jsize cuvCount = env->GetArrayLength(cropUVMap) / 4;
         jsize cropCount = env->GetArrayLength(cropData) / 3;
 
+        // 批次 3 插值消费链：上一帧作物原始进度（key = gx/gy 网格编码）——
+        // 插值基准必须存原始逻辑值（存平滑值会累积漂移），平滑值仅用于绘制
+        static std::map<int64_t, float> g_lastCropProgress;
+        // 帧内活跃 key 集合（帧末裁剪：收获/拆除后清除残留条目）
+        static std::vector<int64_t> g_activeCropKeys;
+
         for (int i = 0; i < cropCount; i++) {
             int idx = i * 3;
             float gx = crops[idx];
@@ -617,17 +615,42 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 恒返回可见，GPU 对 NaN 顶点行为未定义）——与 Canvas 侧同式防御
             if (gx != gx || gy != gy) continue;
 
+            // 帧间平滑（与 Kotlin SpiritCropRender.smoothedProgress 同数学：
+            // draw = prev + (cur - prev) × frameAlpha；插值基准存原始 cur）
+            const int64_t key = (static_cast<int64_t>(static_cast<int>(gx)) << 32) |
+                                static_cast<int64_t>(static_cast<int>(gy));
+            g_activeCropKeys.push_back(key);
+            float drawProgress = progress;
+            const auto prevIt = g_lastCropProgress.find(key);
+            if (prevIt != g_lastCropProgress.end()) {
+                const float prev = prevIt->second;
+                // frameAlpha 防御（对抗性审查 2026-08-13 边界#2）：NaN 比较恒 false
+                // 会穿透 clamp——显式 isNaN 拦截为 0（无插值 = 直接用当前进度）
+                float a = frameAlpha;
+                if (a != a) {
+                    a = 0.0f;
+                } else if (a < 0.0f) {
+                    a = 0.0f;
+                } else if (a > 1.0f) {
+                    a = 1.0f;
+                }
+                drawProgress = prev + (progress - prev) * a;
+                if (drawProgress < 0.0f) drawProgress = 0.0f;
+                if (drawProgress > 1.0f) drawProgress = 1.0f;
+            }
+            g_lastCropProgress[key] = progress;
+
             int stage;
             float alpha;
-            if (progress < 1.0f / 3.0f) {
+            if (drawProgress < 1.0f / 3.0f) {
                 stage = 0;
-                alpha = progress * 3.0f;
-            } else if (progress < 2.0f / 3.0f) {
+                alpha = drawProgress * 3.0f;
+            } else if (drawProgress < 2.0f / 3.0f) {
                 stage = 1;
-                alpha = (progress - 1.0f / 3.0f) * 3.0f;
+                alpha = (drawProgress - 1.0f / 3.0f) * 3.0f;
             } else {
                 stage = 2;
-                alpha = (progress - 2.0f / 3.0f) * 3.0f;
+                alpha = (drawProgress - 2.0f / 3.0f) * 3.0f;
             }
             if (stage >= (int)cuvCount) continue;
 
@@ -642,6 +665,23 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                 cuvs[stage * 4 + 3] - UV_EPSILON,
                 1.0f, 1.0f, 1.0f, alpha * fadeAlpha);
         }
+
+        // 帧末裁剪：无作物的格清除残留进度条目（收获/拆除场景）。
+        // 复杂度 O(n×m)（std::find 嵌套——对抗性审查 2026-08-13 逆向#3 修正注释）；
+        // 上界 = 同屏作物数（有界且小），未来作物 >500 时需改 unordered_set 查重。
+        // 静态残留说明：shutdownRenderer 不重置本静态量，surface 重建后首帧旧条目
+        // 被本裁剪/覆盖清除——仅首帧插值基准可能偏差一帧，视觉可忽略（逆向#4 接受现状）。
+        for (auto it = g_lastCropProgress.begin(); it != g_lastCropProgress.end();) {
+            const bool active = std::find(g_activeCropKeys.begin(), g_activeCropKeys.end(),
+                it->first) != g_activeCropKeys.end();
+            if (!active) {
+                it = g_lastCropProgress.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        g_activeCropKeys.clear();
+
         env->ReleaseFloatArrayElements(cropData, crops, JNI_ABORT);
         env->ReleaseFloatArrayElements(cropUVMap, cuvs, JNI_ABORT);
     }

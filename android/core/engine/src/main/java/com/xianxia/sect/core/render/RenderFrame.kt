@@ -104,6 +104,14 @@ data class RenderFrame(
     val camY: Float = 0f,
     val scale: Float = 1f,
 
+    /**
+     * 逻辑帧插值因子（0~1，GameEngineCore.currentAlpha 的快照）——
+     * 渲染端在连续量（灵田作物进度）上做两帧逻辑状态间平滑的权重
+     * （对标 Godot get_physics_interpolation_fraction 被渲染消费）。
+     * 仅渲染契约字段：任何引擎状态写入路径不得读取（确定性守卫测试锁定）。
+     */
+    val currentAlpha: Float = 0f,
+
     // 预览覆盖层（建造/移动模式）
     val showPreview: Boolean = false,
     val previewX: Float = 0f,

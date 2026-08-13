@@ -97,7 +97,6 @@
     <ID>CyclomaticComplexMethod:SectMapTileGenerator.kt$SectMapTileGenerator$fun computeAutotileBitmask(tileData: Array&lt;IntArray&gt;): Array&lt;ByteArray&gt;</ID>
     <ID>CyclomaticComplexMethod:SectMapTouchEngine.kt$SectMapTouchEngine$private fun handleDown(data: TouchData)</ID>
     <ID>CyclomaticComplexMethod:SpiritStoneWallet.kt$SpiritStoneWallet$fun batch( state: MutableGameState, operations: List&lt;SpiritStoneOperation&gt;, autoConvert: Boolean = false ): BatchResult</ID>
-    <ID>CyclomaticComplexMethod:SpriteAtlasDef.kt$SpriteAtlasDef$fun floorTileIndex(gw: Int, gh: Int): Int</ID>
     <ID>CyclomaticComplexMethod:ThermalController.kt$ThermalController$private fun evaluateLevel(temp: Float, recentFps: Float): DegradationLevel</ID>
     <ID>CyclomaticComplexMethod:WorldMapGenerator.kt$WorldMapGenerator$private fun generateDisciplesForLevel(level: Int): Map&lt;Int, Int&gt;</ID>
     <ID>CyclomaticComplexMethod:WorldMapGenerator.kt$WorldMapGenerator$private fun generateSectLevelAndDisciples(level: Int): SectLevelInfo</ID>
@@ -113,7 +112,6 @@
     <ID>EmptyFunctionBlock:MailService.kt$MailService${ }</ID>
     <ID>EmptyFunctionBlock:TimeSystem.kt$TimeSystem${}</ID>
     <ID>ForEachOnRange:ProductionSlotRepository.kt$ProductionSlotRepository$0 until slotCount</ID>
-    <ID>FunctionNaming:CameraAnimator.kt$CameraAnimator.Companion$fun EaseOutCubic(t: Float): Float</ID>
     <ID>FunctionNaming:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$private fun _isInCaveExploration(discipleId: String): Boolean</ID>
     <ID>FunctionNaming:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$private fun _isInExploration(discipleId: String): Boolean</ID>
     <ID>FunctionNaming:DiscipleService.kt$DiscipleService$private fun _isInCaveExploration(discipleId: String): Boolean</ID>
@@ -838,7 +836,6 @@
     <ID>NewLineAtEndOfFile:BloodRefinementSimpleInterestTest.kt$com.xianxia.sect.core.domain.disciple.BloodRefinementSimpleInterestTest.kt</ID>
     <ID>NewLineAtEndOfFile:SectCombatPowerCalculator.kt$com.xianxia.sect.core.engine.SectCombatPowerCalculator.kt</ID>
     <ID>NewLineAtEndOfFile:SectCombatPowerCalculatorTest.kt$com.xianxia.sect.core.engine.SectCombatPowerCalculatorTest.kt</ID>
-    <ID>RethrowCaughtException:CameraAnimator.kt$CameraAnimator$throw e</ID>
     <ID>RethrowCaughtException:SectMapTouchEngine.kt$SectMapTouchEngine$throw e</ID>
     <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$fun checkAttackConditions( attacker: WorldSect, defender: WorldSect, gameData: GameData, aiDisciplesMap: Map&lt;String, List&lt;Disciple&gt;&gt; = emptyMap(), playerGarrisonMap: Map&lt;String, List&lt;Disciple&gt;&gt; = emptyMap() ): Boolean</ID>
     <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$fun decidePlayerAttack(gameData: GameData): PlayerAttackDecision</ID>

@@ -247,6 +247,14 @@ class EventBus @Inject constructor(
 
     private var droppedEventCount = 0L
     private var lastDropLogTime = 0L
+
+    /**
+     * 事件丢弃上报器（2026-08-13 批次 5：溢出不再仅日志——app 层注入
+     * Bugly 自定义事件实现，core/domain 零 Android 依赖）。
+     * 调用方已按 5s 节流（与 DomainLog 同频）。
+     */
+    @Volatile
+    var dropReporter: EventDropReporter? = null
     
     init {
         startProcessing()
@@ -274,6 +282,12 @@ class EventBus @Inject constructor(
             if (now - lastDropLogTime > 5000) {
                 DomainLog.w("EventBus", "Event dropped (total: $droppedEventCount), type=${event.type}. Consider reducing event frequency.")
                 lastDropLogTime = now
+                // 批次 5：溢出上报化（节流内调用；上报失败不得影响事件通道）
+                try {
+                    dropReporter?.onEventDropped(droppedEventCount, event.type)
+                } catch (e: Exception) {
+                    DomainLog.w("EventBus", "dropReporter failed (non-fatal)", e)
+                }
             }
         }
     }

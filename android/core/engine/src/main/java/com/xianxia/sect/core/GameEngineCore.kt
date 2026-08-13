@@ -11,6 +11,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.GameTimeClock
+import com.xianxia.sect.core.loop.JitterSmoother
 import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
@@ -435,6 +436,9 @@ class GameEngineCore @Inject constructor(
     var currentAlpha: Float = 0f
         private set
 
+    // ★ 插值因子时间平滑器（2026-08-13 批次 3；循环重启时 reset 防残留滤波状态）
+    private val jitterSmoother = JitterSmoother()
+
     // ── 自适应忙等 ──
     @Volatile
     private var antiFreezeEnabled = false
@@ -714,6 +718,8 @@ class GameEngineCore @Inject constructor(
 
         // ★ 帧驱动 Accumulator 循环
         var state = LoopIterationState(accumulatorNs = 0L, lastFrameTimeNs = System.nanoTime())
+        // 循环启动/换线程重启：清插值平滑状态（防旧线程残留滤波值污染新循环首帧）
+        jitterSmoother.reset()
         // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）
         thermalMonitor.createHintSession(TARGET_FRAME_DURATION_60FPS_NS)
         try {
@@ -771,8 +777,10 @@ class GameEngineCore @Inject constructor(
                 stepsExecuted++
             }
 
-            // Step 4: 插值因子
-            currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
+            // Step 4: 插值因子（2026-08-13 批次 3：经 JitterSmoother 一阶滤波——
+            // 只平滑渲染契约 alpha，游戏时间由 GameTimeClock 独立累积不受影响）
+            val rawAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
+            currentAlpha = jitterSmoother.filter(rawAlpha)
 
             // Step 5: 闲置超时检测
             checkIdleTimeout(nowNs)

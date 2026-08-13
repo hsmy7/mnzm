@@ -512,11 +512,13 @@ fun MainGameScreen(
                     worldHeightCells = worldHeightCells,
                     forceSoftwareRendering = forceSoftwareRendering,
                     vulkanInitListener = vulkanInitListener,
+                    surfaceProviderFactory = viewModel.getSurfaceProviderFactory(),
                     buildingSpriteSizes = buildingSpriteSizes,
                     selectedGrid = selectedBuildingGrid,
                     spiritCropData = spiritCropData.value,
                     demolishHighlightData = demolishHighlightData.value,
-                    gridOverlayVisible = isPlacingBuilding || movingBuilding != null
+                    gridOverlayVisible = isPlacingBuilding || movingBuilding != null,
+                    alphaProvider = { viewModel.gameEngineCore.currentAlpha }
                 )
             }
         }

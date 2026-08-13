@@ -5,6 +5,25 @@ import kotlinx.coroutines.delay
 
 /**
  * 单体攻击动画序列（飞向目标、命中抖动、伤害数字、返回原位）
+ *
+ * ## EngineTween 迁移评估结论（2026-08-13，批次 1b）：明确不迁移
+ *
+ * 评估结论（详见 HeavenlyTrialAnimationGuardTest 守卫测试证据）：
+ * 1. **结构性结算耦合**：`applyResult`（HP 结算应用）内嵌于本动画序列**尾部**——
+ *    结算应用时机由动画序列结构决定（守卫测试断言"applyResult 必须为序列最后一个
+ *    结算回调"）。动画非纯表现层，而是"结算应用的载体"。
+ * 2. **机制不匹配**：本序列是离散相位编排（MOVE→IMPACT→RETURN→APPLY），非连续值
+ *    插值——EngineTween/Timeline 的核心能力（缓动曲线/时间归一化）在此无用武之地；
+ *    位移/抖动/伤害数字的实际插值已由 Compose Animatable + tween(LinearEasing) 完成
+ *    （见 HeavenlyTrialComponents.kt），本文件只负责相位定速。
+ * 3. **Compose 生命周期适配**：delay() 跑在 LaunchedEffect 结构化并发内（dispose 自动
+ *    取消动画与结算协程）；EngineTween 的 TimeSource 轮询模型需额外帧时钟接线，
+ *    收益为零、风险非零。
+ *
+ * 守卫测试（HeavenlyTrialAnimationGuardTest）已建立三条不变量，任何改动破坏即失败：
+ * - 动画路径零 RNG 消耗（本地战斗 PRNG 快照前后全等，1000 次）
+ * - 回调顺序：结算回调（applyResult）必须位于视觉相位序列末尾
+ * - 固定种子 1000 次战斗结算序列（含 RNG 消耗序列）全等
  */
 internal suspend fun playAttackSequence(
     event: AttackAnimationEvent,

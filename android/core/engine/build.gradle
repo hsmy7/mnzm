@@ -58,6 +58,37 @@ android {
     }
 }
 
+// ============================================================
+// 2026-08-13：精灵图集布局 Kotlin 生成任务（Godot 导入管线 codegen 接线）
+// 权威源：scripts/build-atlas.mjs 的 LAYOUT 常量（内容 hash 增量，未变则跳过）
+// 产物：build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt（不入库）
+// 原手工版 SpriteAtlasDef.kt 已删除；禁止手改生成物——改布局只改 LAYOUT 常量。
+// ============================================================
+tasks.register('generateSpriteAtlasDef') {
+    group = 'build'
+    description = '从 build-atlas.mjs LAYOUT 源数据生成 SpriteAtlasDef.kt（core/engine 编译单元）'
+    doLast {
+        def proc = ['node', 'scripts/build-atlas.mjs', '--atlas-def-only'].execute(null, rootProject.projectDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException("generateSpriteAtlasDef: build-atlas.mjs 退出码 ${exit}")
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn('generateSpriteAtlasDef') }
+// 生成物一致性守卫测试读取生成文件——测试前必须已生成
+tasks.withType(Test).configureEach { dependsOn('generateSpriteAtlasDef') }
+
+// 生成物目录（build/generated/sprite/ 下需匹配包路径 com/xianxia/sect/core/render）
+kotlin {
+    sourceSets {
+        main {
+            kotlin.srcDir('build/generated/sprite')
+        }
+    }
+}
+
 protobuf {
     protoc {
         artifact = libs.protobuf.protoc.get().toString()

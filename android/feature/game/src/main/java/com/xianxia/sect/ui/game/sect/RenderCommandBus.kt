@@ -8,6 +8,13 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 提供一条从 ViewModel/GameEngine 直达渲染线程的建筑数据通道，
  * 绕过 Compose 反应式管线和帧率门控。
  *
+ * ## 2026-08-13 对抗性审查决策（逆向工程师 #1）：仅保留覆盖槽单通道
+ * 曾实现命令 FIFO 双通道 + RenderCommand/RenderResourceRegistry——对抗性审查
+ * 确认全生产代码零消费者（surface 事件经 SurfaceProvider 监听器同步派发，
+ * 图集无运行时重建场景），违反项目"禁止为未来臆造"惯例（FrameDrawCommand
+ * 死代码教训）。已删除命令通道与配套类型，待出现真实消费场景（如纹理流送/
+ * 动态图集重建）时再按需实现。
+ *
  * ## KMP 化备注（iOS 迁移）
  * 本类暂留 :feature:game（使用 java.util.concurrent.atomic.AtomicBoolean）。
  * iOS 侧等价物：kotlinx.atomicfu（KMP 官方原子库），迁移时仅替换
@@ -17,11 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * ## 设计对标
  *
  * - **UE ENQUEUE_RENDER_COMMAND**：游戏线程将参数化的命令推入线程安全队列，
- *   渲染线程在 `ProcessRenderThread()` 中按序消费。本项目使用单槽覆盖式
- *   SPSC 模式替代队列，因为只有单一数据类型且 latest-value-wins。
- * - **Godot RenderingServer.call_on_render_thread**：命令通过锁自由
- *   CommandQueueMT 从主线程推送到渲染线程。本项目使用 @Volatile +
- *   AtomicBoolean 实现更轻量的等效模式。
+ *   渲染线程按序消费。本项目使用单槽覆盖式 SPSC 模式替代队列，因为只有
+ *   单一数据类型且 latest-value-wins。
  * - **本项目相机独立通道**：`setCamera()` → @Volatile renderCamX/Y/scale，
  *   渲染线程直接读取覆盖 RenderFrame。本总线复制此已验证模式。
  *
@@ -33,8 +37,6 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - `copyOf()` 防御性拷贝防止调用方后续修改已推送的数组
  * - `AtomicBoolean` 保证脏标记的原子 RMW 操作
  * - 写-写不竞争（单一生产者），读-读不竞争（单一消费者）
- *
- * @param initialTileData 可选初始瓦片数据（加载时即推送，减少首帧延迟）
  */
 class RenderCommandBus {
 

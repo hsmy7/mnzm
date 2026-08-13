@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.util
 
+import com.xianxia.sect.core.render.SpriteAtlasDef
+
 /**
  * 宗门地图瓦片数据生成器。
  *
@@ -8,15 +10,16 @@ package com.xianxia.sect.core.util
  */
 object SectMapTileGenerator {
 
-    // 瓦片类型常量
-    const val TILE_GROUND = 0
-    const val TILE_GRASS_SMALL = 1
-    const val TILE_GRASS_MEDIUM = 2
-    const val TILE_GRASS_LARGE = 3
-    const val TILE_TREE1 = 4
-    const val TILE_TREE2 = 5
-    const val TILE_BUILDING = 6
-    const val TILE_GROUND_V2 = 7   // 地面变体2（与 TILE_GROUND 随机混用）
+    // 瓦片类型常量（2026-08-13 起由 SpriteAtlasDef.TileType.index 生成提供——
+    // 与 C++ TextureAtlas.h TILE_* 定义同源，双端索引单一数据源）
+    val TILE_GROUND = SpriteAtlasDef.TileType.GROUND.index
+    val TILE_GRASS_SMALL = SpriteAtlasDef.TileType.GRASS_SMALL.index
+    val TILE_GRASS_MEDIUM = SpriteAtlasDef.TileType.GRASS_MEDIUM.index
+    val TILE_GRASS_LARGE = SpriteAtlasDef.TileType.GRASS_LARGE.index
+    val TILE_TREE1 = SpriteAtlasDef.TileType.TREE1.index
+    val TILE_TREE2 = SpriteAtlasDef.TileType.TREE2.index
+    val TILE_BUILDING = SpriteAtlasDef.TileType.TILE_BUILDING.index
+    val TILE_GROUND_V2 = SpriteAtlasDef.TileType.GROUND_V2.index   // 地面变体2（与 TILE_GROUND 随机混用）
 
     /**
      * 基于位置哈希的宗门地图瓦片数据生成（确定性）。

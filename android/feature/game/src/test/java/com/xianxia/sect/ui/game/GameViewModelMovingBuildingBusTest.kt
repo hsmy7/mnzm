@@ -26,6 +26,7 @@ import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
+import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.every
@@ -126,7 +127,9 @@ class GameViewModelMovingBuildingBusTest {
                 buildingFacade, discipleFacade,
                 IoDispatcher(testDispatcher),
                 sessionManager
-            )
+            ),
+            // 2026-08-13 平台抽象：surface 提供者工厂（本测试不触达渲染路径）
+            SurfaceProviderFactory { mockk() }
         )
     }
 

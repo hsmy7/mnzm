@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -45,6 +46,8 @@ class SectMapViewportParamsTest {
         worldHeightCells = 24,
         forceSoftwareRendering = false,
         vulkanInitListener = null,
+        // 2026-08-13 平台抽象：工厂不在此测试触达（参数相等性/引用稳定性断言）
+        surfaceProviderFactory = SurfaceProviderFactory { error("not used in this test") },
         buildingSpriteSizes = emptyMap()
     )
 

@@ -3,17 +3,21 @@ package com.xianxia.sect.core.animation
 import com.xianxia.sect.core.camera.CameraState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * 平滑动画引擎 — 驱动 [CameraState] 以 EaseOutCubic 插值动画移动到目标位置/缩放。
+ * 平滑动画引擎 — 驱动 [CameraState] 以 EngineTween + EaseOutCubic 插值动画移动到目标位置/缩放。
  *
  * ## 插值器
- * - 默认: EaseOutCubic (t → 1-(1-t)³)，快速启动柔和结束，游戏行业标准
+ * - 默认: EaseOutCubic（[EasingConstants.EASE_OUT_CUBIC]，t → 1-(1-t)³），
+ *   快速启动柔和结束，游戏行业标准——曲线来源已收敛到 [EasingConstants] 统一常量表
  * - 参考: https://easings.net/ (Robert Penner's Easing Functions)
+ *
+ * ## 驱动模型
+ * - 2026-08-13 迁移：原"协程内逐帧 delay(16) + 手写插值循环"重构为
+ *   [EngineTween]（[timeSource] 驱动 + 缓动回调）驱动——插值数学/时长归一化/完成判定
+ *   下沉到统一动画库，本类只保留"相机位置写入"职责；对外 API 行为不变
+ *   （[animateTo]/[cancel]/[isRunning]，回归测试 CameraAnimatorTest 保证位置序列全等）
  *
  * ## 交互优先
  * - [cancel] 在用户触摸时立即调用，动画让位于直接操控
@@ -42,7 +46,7 @@ class CameraAnimator(
     /**
      * 动画移动到目标位置。
      *
-     * 使用 EaseOutCubic 插值，以 ~60fps（每帧 16ms）驱动 [CameraState]。
+     * 使用 EaseOutCubic 插值，以 [EngineTween] 时间源驱动（~60fps 帧节拍轮询）。
      * 动画过程中会 cancel 之前的动画，确保不会有多个动画同时运行。
      *
      * @param target 目标位置（含可选的缩放目标）
@@ -58,37 +62,25 @@ class CameraAnimator(
         }
         job?.cancel()
         job = scope.launch {
-            try {
-                val startX = cameraState.cameraX
-                val startY = cameraState.cameraY
-                val startScale = cameraState.scale
-                val startTime = timeSource.nanoTime()
-
-                while (isActive) {
-                    val elapsed = (timeSource.nanoTime() - startTime) / 1_000_000f
-                    val progress = elapsed / durationMs.toFloat()
-                    val t = when {
-                        progress < 0f -> 0f
-                        progress > 1f -> 1f
-                        else -> progress
-                    }
-                    val eased = EaseOutCubic(t)
-
+            val startX = cameraState.cameraX
+            val startY = cameraState.cameraY
+            val startScale = cameraState.scale
+            val tween = EngineTween(
+                timeSource = timeSource,
+                durationMs = durationMs,
+                easing = EasingConstants.EASE_OUT_CUBIC,
+                onUpdate = { eased ->
                     cameraState.setPosition(
                         lerp(startX, target.x, eased),
                         lerp(startY, target.y, eased)
                     )
                     target.scale?.let { scaleTarget ->
-                        val newScale = lerp(startScale, scaleTarget, eased)
-                        cameraState.applyScale(newScale)
+                        cameraState.applyScale(lerp(startScale, scaleTarget, eased))
                     }
-
-                    if (t >= 1f) break
-                    delay(16L) // ~60fps
                 }
-            } catch (e: CancellationException) {
-                throw e
-            }
+            )
+            tween.play()
+            tween.awaitCompletion()
         }
     }
 
@@ -103,15 +95,7 @@ class CameraAnimator(
         job = null
     }
 
-    companion object {
-        /**
-         * EaseOutCubic 缓动函数: t ∈ [0,1] → 1-(1-t)³
-         *
-         * 快速启动、柔和结束，适合相机跟随/界面弹入等场景。
-         * 参考: https://easings.net/#easeOutCubic
-         */
-        fun EaseOutCubic(t: Float): Float = 1 - (1 - t) * (1 - t) * (1 - t)
-
+    private companion object {
         /** 线性插值: a + (b - a) * t，t ∈ [0,1] */
         fun lerp(a: Float, b: Float, t: Float): Float = a + (b - a) * t
     }

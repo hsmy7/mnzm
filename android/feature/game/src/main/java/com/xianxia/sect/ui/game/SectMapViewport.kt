@@ -17,6 +17,7 @@ import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
+import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 
 /** 建筑名称 → 精灵图集索引（P-7 从 MainGameScreen 移入——SectMapViewport 与 buildBuildingDataArray 共用） */
 internal val BUILDING_NAME_INDEX: Map<String, Int> = SpriteAtlasDef.BUILDING_NAME_INDEX
@@ -58,6 +59,10 @@ internal fun SectMapViewport(
             NativeSurfaceView(ctx, params.nativeConfig).also { view ->
                 onViewCreated(view)
 
+                // 平台 surface 提供者替换（Hilt 工厂创建；setter 自动解绑默认实例监听器，
+                // 旧实例仍挂在 holder 上但不再派发事件——平台回调翻译归 provider 管理）
+                view.surfaceProvider = params.surfaceProviderFactory.create(view.holder)
+
                 // 强制软件渲染（模拟器/Vulkan 不可用设备）
                 if (params.forceSoftwareRendering) {
                     view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
@@ -80,7 +85,8 @@ internal fun SectMapViewport(
                         camX = params.cameraState.cameraX,
                         camY = params.cameraState.cameraY,
                         scale = params.cameraState.scale,
-                        spiritCropData = params.spiritCropData
+                        spiritCropData = params.spiritCropData,
+                        currentAlpha = params.alphaProvider()
                     )
                 )
             }
@@ -196,7 +202,9 @@ internal fun SectMapViewport(
                         // ★ 拆除模式高亮 + 网格线：低频变化（模式进出/选中切换）走帧率
                         // 门控 RenderFrame——与精灵同帧同相机快照，消除 Compose 覆盖层相位差
                         demolishHighlightData = params.demolishHighlightData,
-                        gridOverlayVisible = params.gridOverlayVisible
+                        gridOverlayVisible = params.gridOverlayVisible,
+                        // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑权重）
+                        currentAlpha = params.alphaProvider()
                     )
                 )   // view.updateRenderState()
             }   // if (now - lastRenderDataSyncNs >= minIntervalNs)
@@ -222,6 +230,8 @@ internal data class SectMapViewportParams(
     val worldHeightCells: Int,
     val forceSoftwareRendering: Boolean,
     val vulkanInitListener: NativeSurfaceView.VulkanInitListener?,
+    /** 平台 surface 提供者工厂（Hilt 注入；替换默认 provider，iOS 化替换点） */
+    val surfaceProviderFactory: SurfaceProviderFactory,
     val buildingSpriteSizes: Map<String, GridSnapHelper.BuildingSize>,
     /** 点击选中格坐标（null=无选中，渲染端经 findBuildingIndex 转换为建筑索引） */
     val selectedGrid: Pair<Int, Int>? = null,
@@ -230,7 +240,12 @@ internal data class SectMapViewportParams(
     /** 拆除模式高亮标记（与 buildingDataArray 同序；null=非拆除模式，双后端跳过整层） */
     val demolishHighlightData: ByteArray? = null,
     /** 放置/移动模式全视口网格线开关（true=双后端画视口内网格线） */
-    val gridOverlayVisible: Boolean = false
+    val gridOverlayVisible: Boolean = false,
+    /**
+     * 逻辑帧插值因子提供者（2026-08-13 批次 3：读 GameEngineCore.currentAlpha
+     * 快照——渲染端对连续量做帧间平滑的权重；仅渲染契约，不写任何游戏状态）
+     */
+    val alphaProvider: () -> Float = { 0f }
 )
 
 /**

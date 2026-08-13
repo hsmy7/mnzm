@@ -177,9 +177,10 @@ class AtlasLayoutSyncTest {
      * 格式：`{ "name", x, y, w, h },`，单行格式正则提取可靠。
      */
     private fun parseMapSprites(): List<CppEntry> {
-        val headerFile = File("src/main/cpp/TextureAtlas.h")
+        // 2026-08-13 起 TextureAtlas.h 为 build-atlas.mjs codegen 产物（不再手工维护于 src/main/cpp）
+        val headerFile = File("build/generated/sprite/TextureAtlas.h")
         assertTrue(
-            "TextureAtlas.h 不存在：${headerFile.absolutePath}",
+            "TextureAtlas.h 不存在：${headerFile.absolutePath}——请先运行 codegen（generateSpriteCode 任务）",
             headerFile.exists()
         )
         val source = headerFile.readText()

@@ -100,7 +100,9 @@ class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBackend {
                 // ★ 灵田作物数据（WP6）：低频变化走帧率门控 RenderFrame，
                 // C++ 侧按进度计算阶段索引 + 淡化 alpha（与 Kotlin SpiritCropRender 同数学）
                 cropData = frame.spiritCropData,
-                cropUVMap = SpriteAtlasDef.CROP_UV_MAP
+                cropUVMap = SpriteAtlasDef.CROP_UV_MAP,
+                // 批次 3 插值消费链：作物进度帧间平滑权重（仅渲染契约）
+                frameAlpha = frame.currentAlpha
             )
         }
 

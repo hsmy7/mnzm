@@ -237,33 +237,36 @@ class ResourcePreloader @Inject constructor(
     private fun preloadRemainingSprites(): Map<Int, ImageBitmap> {
         val allRemaining = mutableSetOf<Int>()
 
-        // 装备精灵图
-        allRemaining.addAll(SpriteResRegistry.allEquipmentResIds)
+        // ── 统一精灵图分类（codegen 注册，自动发现） ──
+        // 装备/妖兽材料/草药种子成长期（ITEM）/储物袋/灵石/宗门图标/妖兽/洞穴/天劫试炼/背景/地图精灵图
+        SpriteResRegistry.categoryResIds(SpriteCategory.EQUIPMENT)
+            .forEach { allRemaining.add(it) }
 
         // 药丸/功法精灵图（已在 L1 加载，但通过 resId 查重去重）
         allRemaining.addAll(allPillSpriteResIds())
         allRemaining.addAll(allManualSpriteResIds())
 
         // 妖兽材料精灵图
-        SpriteResRegistry.materialSprites.values.forEach { allRemaining.add(it) }
+        SpriteResRegistry.categoryResIds(SpriteCategory.MATERIAL)
+            .forEach { allRemaining.add(it) }
 
         // 草药/种子/成长期精灵图（已通过 SpriteCategory.ITEM 注册）
         SpriteResRegistry.categoryResIds(SpriteCategory.ITEM).forEach { allRemaining.add(it) }
 
         // 储物袋精灵图
-        SpriteResRegistry.storageBagSprites.values.forEach { allRemaining.add(it) }
+        SpriteResRegistry.categoryResIds(SpriteCategory.STORAGE_BAG)
+            .forEach { allRemaining.add(it) }
 
         // 灵石精灵图
-        SpriteResRegistry.spiritStoneSprites.values
+        SpriteResRegistry.categoryResIds(SpriteCategory.SPIRIT_STONE)
             .filter { it != 0 }
             .forEach { allRemaining.add(it) }
 
         // 宗门图标
-        SpriteResRegistry.sectIconSprites.values
+        SpriteResRegistry.categoryResIds(SpriteCategory.SECT_ICON)
             .filter { it != 0 }
             .forEach { allRemaining.add(it) }
 
-        // ── 统一精灵图分类（自动发现） ──
         // 妖兽/洞穴/天劫试炼/背景/地图精灵图
         SpriteResRegistry.categoryResIds(SpriteCategory.BEAST)
             .forEach { allRemaining.add(it) }

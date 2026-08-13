@@ -102,6 +102,13 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     var unsafeAllowMainThreadUpdateForTest = false
 
+    /**
+     * 主线程违规上报钩子（2026-08-13 批次 5）：Release 构建下主线程违规
+     * update 不再仅日志——DI 注入崩溃上报自定义事件（如 Bugly），使架构
+     * 违规可观测。默认 null = 仅日志（测试/无上报环境）。
+     */
+    var mainThreadViolationReporter: (() -> Unit)? = null
+
     @Volatile
     override var activeTab: String = "OVERVIEW"
 
@@ -842,6 +849,13 @@ class GameStateStoreImpl @Inject constructor(
                         "必须通过 GameEngine.launchOnEngine 派发到引擎线程。",
                     IllegalStateException("主线程调用堆栈")
                 )
+                // 2026-08-13 批次 5：违规上报化——静默丢弃 → 可观测
+                //（DI 注入 Bugly 自定义事件；上报自身失败不得影响跳过语义）
+                try {
+                    mainThreadViolationReporter?.invoke()
+                } catch (e: Exception) {
+                    DomainLog.w(TAG, "mainThreadViolationReporter failed (non-fatal)", e)
+                }
                 return
             }
         }

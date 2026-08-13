@@ -168,4 +168,41 @@ class CameraAnimatorTest {
         advanceTimeBy(1000)
         assertEquals("cancel 后不得再写入相机", writesBeforeCancel, camera.writeCount)
     }
+
+    @Test
+    fun `animateTo - 位置序列与原实现参考曲线全等（迁移回归）`() = runTest {
+        // 2026-08-13 EngineTween 迁移回归测试：原实现（协程内逐帧 delay + 手写插值循环）
+        // 每帧按 墙钟 elapsed → EaseOutCubic(t) → lerp 写入相机。
+        // 迁移后由 EngineTween 驱动，本测试逐帧采样位置序列并与参考曲线全等——
+        // 若驱动方式改变（起始时刻捕获偏移/跳帧/缓动曲线漂移/缺末帧），序列即偏离。
+        val time = FakeTimeSource()
+        val camera = FakeCameraState()
+        val animator = CameraAnimator(camera, this, time)
+
+        animator.animateTo(CameraTarget(100f, 200f), durationMs = 400)
+        advanceTimeBy(16)
+
+        // 以 16ms 帧节拍采样 0..400ms 共 26 帧（含完成帧）
+        val samples = mutableListOf<Pair<Long, Float>>()
+        repeat(25) { frame ->
+            time.now = frame * 16L * 1_000_000L
+            advanceTimeBy(16)
+            samples += (frame * 16L) to camera.cameraX
+        }
+        time.now = 400L * 1_000_000L
+        advanceTimeBy(16)
+        samples += 400L to camera.cameraX
+
+        // 参考曲线：x(t) = 0 + (100-0) × EaseOutCubic(t/400)，与原实现同公式
+        assertEquals("首帧 t=0 应写起点", 0f, samples.first().second, 0.001f)
+        assertEquals("末帧应达目标", 100f, samples.last().second, 0.001f)
+        for ((elapsedMs, x) in samples) {
+            val t = (elapsedMs.toFloat() / 400f).coerceIn(0f, 1f)
+            val eased = 1f - (1f - t) * (1f - t) * (1f - t)
+            assertEquals(
+                "t=${elapsedMs}ms 处位置应与参考曲线全等",
+                100f * eased, x, 0.001f
+            )
+        }
+    }
 }

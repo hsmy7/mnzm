@@ -38,6 +38,8 @@
 | gesture_tap | 点击建筑 | ✅ | ✅ | ✅ | 手势引擎共用 |
 | gesture_longpress | 长按拖动 | ✅ | ✅ | ✅ | 手势引擎共用 |
 | gesture_fling | 惯性滑行 | ✅ | ✅ | ✅ | 手势引擎共用 |
+| shared_constants | 双端共享渲染常量 codegen 收敛（LOD 阈值/阴影常量/瓦片索引/语义建筑索引——LAYOUT 单一数据源，Kotlin SpriteAtlasDef + C++ TextureAtlas.h 双产物自动一致） | ✅ | ✅ | ✅ | 2026-08-13 批次 2（SpriteCodegenSyncTest 双端常量全等守卫） |
+| render_command_bus | 渲染命令总线（单槽覆盖式建筑数据通道——命令 FIFO 双通道已按对抗性审查删除：零生产消费者，见 RenderCommandBus.kt KDoc） | ✅ | ✅ | ✅ | 2026-08-13 批次 2 + 对抗性审查修正 |
 
 ## 新增特性流程
 

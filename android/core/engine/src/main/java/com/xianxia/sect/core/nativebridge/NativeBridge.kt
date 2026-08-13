@@ -120,6 +120,9 @@ object NativeBridge {
     external fun setFadeAlpha(fadeAlpha: Float)
 
     /** 统一瓦片绘制（地面+装饰+建筑+地砖合并到图集单次 draw call） */
+    // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
+    // LongParameterList 抑制为声明性豁免，参数语义见逐行注释
+    @Suppress("LongParameterList")
     external fun drawAllTiles(
         tileData: IntArray,          // 展平瓦片类型数组 [0..N]
         cols: Int, rows: Int,        // 地图网格尺寸
@@ -132,7 +135,8 @@ object NativeBridge {
         buildingUVMap: FloatArray?,  // 建筑 UV 映射
         floorTileUVMap: FloatArray?, // 地砖 UV 映射 [u0,v0,u1,v1] × 4
         cropData: FloatArray? = null, // 灵田作物数据 [gx, gy, progress01] × N（WP6，可为 null）
-        cropUVMap: FloatArray? = null // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6）
+        cropUVMap: FloatArray? = null, // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6）
+        frameAlpha: Float = 0f // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑权重）
     )
 
     /** 绘制纯色矩形（网格线/放置预览） */

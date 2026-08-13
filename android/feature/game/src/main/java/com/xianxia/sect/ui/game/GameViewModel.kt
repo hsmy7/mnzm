@@ -74,6 +74,7 @@ import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
+import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.core.model.AlchemySlot
 import com.xianxia.sect.core.model.AlchemySlotStatus
@@ -155,7 +156,8 @@ class GameViewModel @Inject constructor(
     private val audioServices: GameVmAudioServices,
     private val coreServices: GameVmCoreServices,
     private val uiServices: GameVmUiServices,
-    private val delegateServices: GameVmDelegateServices
+    private val delegateServices: GameVmDelegateServices,
+    private val surfaceProviderFactory: SurfaceProviderFactory
 ) : BaseViewModel() {
 
     // ── 新提取的领域委托 ──
@@ -297,6 +299,12 @@ class GameViewModel @Inject constructor(
 
     /** 获取渲染命令总线实例（由 MainGameScreen 注入到 NativeSurfaceView） */
     fun getRenderCommandBus(): RenderCommandBus = _renderCommandBus
+
+    /**
+     * 获取平台 surface 提供者工厂（Hilt 注入；由 MainGameScreen 组装进
+     * [SectMapViewportParams]，替换 NativeSurfaceView 默认 surfaceProvider）。
+     */
+    fun getSurfaceProviderFactory(): SurfaceProviderFactory = surfaceProviderFactory
 
     /** 建筑精灵尺寸缓存（运行时不变，供直达推送协程使用） */
     private val _buildingSpriteSizesCache: Map<String, GridSnapHelper.BuildingSize> by lazy {

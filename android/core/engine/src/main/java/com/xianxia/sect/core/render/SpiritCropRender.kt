@@ -50,4 +50,32 @@ object SpiritCropRender {
         val local = (p - stageStart) * CROP_STAGES.toFloat()
         return local.coerceIn(0f, 1f)
     }
+
+    /**
+     * 逻辑帧间平滑进度（2026-08-13 批次 3 插值消费链）：
+     * `prev + (cur - prev) × alpha`——渲染端在相邻两帧逻辑进度间插值，
+     * 消除 10Hz 逻辑步下的生长跳变（对标 Godot 物理插值消费
+     * get_physics_interpolation_fraction）。alpha=1 时等于当前值（无平滑）。
+     *
+     * @param previous 上一逻辑帧进度（无历史/非法时为 null → 返回当前值）
+     * @param current 当前逻辑帧进度（NaN/Inf 防御原样返回）
+     * @param alpha 插值因子 0..1（越界钳制）
+     * @return 平滑后进度 [0, 1]
+     */
+    fun smoothedProgress(previous: Float?, current: Float, alpha: Float): Float {
+        val safePrev = if (previous != null && !previous.isNaN() && !previous.isInfinite()) previous else null
+        if (current.isNaN() || current.isInfinite() || safePrev == null) return current
+        // alpha NaN 防御（对抗性审查 2026-08-13 边界#2）：Float.coerceIn 对 NaN
+        // 返回自身会穿透——显式拦截为 0（无插值 = 直接用当前进度）
+        val a = if (alpha.isNaN()) 0f else alpha.coerceIn(0f, 1f)
+        return (safePrev + (current - safePrev) * a).coerceIn(0f, 1f)
+    }
+
+    /**
+     * 作物进度插值键：gx/gy 网格坐标编码为 Long（与 C++ 作物段 key 编码
+     * 同语义——网格坐标为整数浮点，取整编码无精度损失）。双后端插值
+     * 状态表共用同一键语义。
+     */
+    fun cropProgressKey(gx: Float, gy: Float): Long =
+        (gx.toInt().toLong() shl 32) or (gy.toInt().toLong() and 0xFFFFFFFFL)
 }

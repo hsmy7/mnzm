@@ -13,11 +13,11 @@ package com.xianxia.sect.core.render
  */
 object BuildingRenderGeometry {
 
-    /** 阴影偏移量（格数）：阴影相对占地右下偏移 0.25 格 */
-    const val SHADOW_OFFSET_TILES = 0.25f
+    /** 阴影偏移量（格数）：阴影相对占地右下偏移 0.25 格（由 SpriteAtlasDef 生成提供） */
+    const val SHADOW_OFFSET_TILES = SpriteAtlasDef.SHADOW_OFFSET_TILES
 
-    /** 阴影不透明度（0-1）：半透明黑（C++ SHADOW_ALPHA 同值） */
-    const val SHADOW_ALPHA = 0.2f
+    /** 阴影不透明度（0-1）：半透明黑（C++ SHADOW_ALPHA 同源生成） */
+    const val SHADOW_ALPHA = SpriteAtlasDef.SHADOW_ALPHA
 
     /**
      * 建筑精灵底部对齐偏移（世界像素）。

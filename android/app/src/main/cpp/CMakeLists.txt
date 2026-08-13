@@ -14,6 +14,12 @@ endif()
 # SPIR-V 着色器头文件路径（构建前已由 gen_header.py 预生成）
 set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 
+# 精灵图集生成头目录（TextureAtlas.h 由 build-atlas.mjs --codegen 生成，
+# 通过 Gradle externalNativeBuild cmake arguments 注入 -DSPRITE_GENERATED_DIR）
+if(NOT DEFINED SPRITE_GENERATED_DIR)
+    set(SPRITE_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+
 # 主库
 add_library(native-renderer SHARED
     VulkanBackend.cpp
@@ -26,6 +32,7 @@ add_library(native-renderer SHARED
 target_include_directories(native-renderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${SHADER_DIR}
+    ${SPRITE_GENERATED_DIR}
     ${Vulkan_INCLUDE_DIRS}
 )
 

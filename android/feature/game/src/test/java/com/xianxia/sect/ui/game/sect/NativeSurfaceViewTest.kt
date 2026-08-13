@@ -104,8 +104,12 @@ class NativeSurfaceViewTest {
         view.renderDecorationsDisabled = true
 
         // Robolectric 下 holder.surface 恒为 null → surfaceChanged 安全 no-op
-        // （既有的 `if (!isReady && holder.surface == null) return` 早退路径）
-        view.surfaceChanged(view.holder, 0, 200, 200)
+        // （既有的 `if (!isReady && holder.surface == null) return` 早退路径；
+        // 2026-08-13 平台抽象：事件经 view.surfaceProvider（AndroidSurfaceProvider）派发，
+        // 状态机需先 surfaceCreated 再 surfaceChanged 才能到达宿主初始化入口）
+        val provider = view.surfaceProvider as AndroidSurfaceProvider
+        provider.surfaceCreated(view.holder)
+        provider.surfaceChanged(view.holder, 0, 200, 200)
         shadowOf(Looper.getMainLooper()).idle()
 
         // 无 surface 不崩溃、不误初始化；渲染线程未启动（防 Robolectric 线程泄漏）

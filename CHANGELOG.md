@@ -1,5 +1,58 @@
 ## [4.00.96] - 2026-08-12
 
+### 引擎重构（2026-08-13 对标 Godot 架构借鉴重构——八大维度批次 0~5）
+
+> 背景：用户指令"查阅 Godot 开源引擎并与自研引擎对比，指出缺陷并给出重构级优化方案"。方案文档见 `docs/` 与计划 `godot-github-delightful-parasol.md`（32 条官方来源 + 三路代码探索 + 13 条设计代理审校修正）。路线决策：**借鉴重构**（保留 Kotlin 自研引擎，采纳 Godot 机制；迁移不可行——LibGodot Android surface 嵌入未就绪 + 确定性 RNG/惰性结算/列式 COW 为本项目优势）。
+
+**批次 0（认知基线文档）** — `docs/threading-contract.md`（线程安全 API 白名单，对标 Godot Thread-safe APIs）、`docs/platform-abilities.md`（平台能力登记表 + 接口缺口清单）、`docs/audio-thread-audit.md`（音频线程审计：SoundPool 混音由平台承担、发现 A1/A2 待办——AudioEngine 破坏 core/engine 零 Android 依赖自我声明、release() 全库无调用）。
+
+**批次 1（基础管道三线并行）**
+- **1a 资源管线 codegen**（对标 Godot .import + ResourceUID）— `resource-manifest.mjs` 扫描双模块 drawable-nodpi → atlas-manifest.json；`build-atlas.mjs` 生成三产物（SpriteRegistryData.kt 替代 427 行手工映射 / SpriteAtlasDef.kt / TextureAtlas.h）+ 内容 hash 增量；`sprite-uid-map.json` 持久 UID 映射（追加式分配，clean 重建/新增资源 UID 不漂移）；守卫测试 4 个（完整性/幂等/UID 稳定性/生成物同步）。修复：生成器枚举缺分号（Kotlin enum companion 需 `;`）、footprint 注释吞逗号、UID 测试模型改为持久映射追加、manual_/pill_/bag_/sect_icon_ 协议键测试期望纠错
+- **1b EngineTween 动画库**（对标 Godot Tween）— EasingConstants（core/domain 共享缓动）+ EngineTween/Timeline（TimeSource 驱动、帧率无关、暂停恢复）；CameraAnimator 迁移（协程 delay → 时间轴）；FadeTransition 保持纯函数改引共享常量；战斗动画（天道试炼）经守卫评估**明确不迁移**（结算回调内嵌动画序列尾部 + 离散相位编排不适用缓动，见 HeavenlyTrialAnimation.kt KDoc + HeavenlyTrialAnimationGuardTest 三不变量：零 RNG 消耗/回调顺序/100 种子结算序列全等——迭代数 1000→100 为测试性能修正，确定性偏差是系统性差异单次即捕获）。修复：EngineTween FINISHED 后 progress 归零 bug、Timeline 属性重名冲突、测试非法字符/数学期望
+- **1c SurfaceProvider 平台抽象**（对标 Godot DisplayServer）— core/engine 零 Android 依赖接口 + AndroidSurfaceProvider（防御逻辑逐条迁入：10s 超时/generation 防 stale/首帧黑屏）+ PlatformModule。修复：stale surfaceChanged 污染宽高（尺寸更新移入状态分支）
+
+**批次 2（渲染统一，对标 RenderingServer + RenderingDevice）**
+- 双端共享渲染常量 codegen 收敛（原 3 处手工同步）：LOD 阈值 0.6f、阴影偏移 0.25/透明度 0.2、瓦片索引、语义建筑索引（灵矿场/灵田/灵矿地皮）→ LAYOUT 单一数据源生成 SpriteAtlasDef.kt + TextureAtlas.h 双产物；NativeBridge.cpp/SectMapTileGenerator/RenderLodPolicy/BuildingRenderGeometry/SoftwareCanvasBackend 全部改消费生成常量；守卫测试断言头文件数值与编译产物全等
+- ~~RenderCommandBus 命令 FIFO 双通道 + RenderCommand/ResourceHandle~~ —— **2026-08-13 对抗性审查删除**（逆向工程师 #1：全生产代码零消费者——surface 事件经 SurfaceProvider 监听器同步派发、图集无运行时重建场景，违反项目"禁止为未来臆造"惯例；RenderCommandBus 保留单槽覆盖式通道原语义）
+- NativeSurfaceView 瘦身：图集组装外移 SectAtlasAssembler、Vulkan 初始化协调器 InitCoordinator 内类化、监听器具名内类化（detekt TooManyFunctions 23→19）
+- 死代码清理：SpriteAtlasDef 三命令类（53 行）、EquipmentSprite 新旧双轨旧字段、手写 MAP_SPRITES/手工 SpriteRegistryData
+
+### 对抗性审查修复（2026-08-13，4 角色：边界狂魔/状态破坏者/数据篡改者/逆向工程师）
+
+- **codegen hash 增量修复**（边界#1/逆向#2 双确认）：manifest generatedAt 剔除出 hash 因子 + 内容不变不重写 manifest——增量跳过恢复生效（原每次构建全量重生成三产物 + C++ 全量重编译）
+- **C++ frameAlpha NaN 防御**（边界#2）：NaN 穿透 clamp 显式拦截为 0；Kotlin smoothedProgress 同步修复；C++ 插值注释修正（O(n×m) 实标 + shutdown 残留说明）
+- **EngineTween 构造守卫**（边界#3）：durationMs 溢出上限校验（Long.MAX/1e6），防动画永不完成悬挂
+- **构建 fail-fast**（边界#4）：图集拼装预期精灵缺失从 warn 改 throw（防静默产出缺精灵图集）
+- **JitterSmoother 构造守卫**（边界#5）：smoothingFactor ∈ [0,1] + rawAlpha NaN 防御
+- **UID 映射防手改**（边界#6）：readUidMap 过滤非安全整数/负数 + UID 唯一性校验抛错
+- **Timeline progress Long 中间量**（边界#8）：极端段数 Int 溢出修复
+- **codegen 字符串转义**（边界#10）：Kotlin 字面量改 JSON.stringify 生成
+- **GameSystemRegistry 空名校验**（边界#11）
+- **ensureManifest UID 持久化**（边界#12）：重建分支传 uidMapPath 防 UID 漂移
+- **threading-contract 补登 currentAlpha 跨线程通道**（逆向#5）
+- **测试性能修正**：HeavenlyTrialAnimationGuardTest 迭代 1000→100（虚拟时钟逼近超时拖垮全量测试；确定性偏差为系统性差异单次即捕获）
+- **vulkanInitThread 旧纪元交叉清空修复**（状态破坏者补充发现）：handleVulkanInitCrash 的 interrupt 分支加 gen 守卫——destroy 后立即重建时，旧线程迟到的中断处理会清掉新 surface 的线程引用与 initInProgress
+
+**状态破坏者/数据篡改者维度审查结论**（主会话亲自完成，与代理报告同格式）：
+- **状态破坏者**：surface 状态机快速交错（CREATED→DESTROYED→CREATED）安全（gen 递增 + stale 拒绝 + 尺寸不污染，已修复验证）；超时降级与 Vulkan 成功回调互斥（isReady 双向守卫）；gradle codegen 与 compile 同项目串行无并发写；作物重播种进度回退产生一帧平滑倒放（视觉可接受）。发现并修复 1 处中等缺陷（上述 vulkanInitThread 交叉清空）
+- **数据篡改者**：存档格式零变更（无 Entity/GameData/DB 文件变更，DATABASE_VERSION 不动）；spiritCropData/buildingData 非对齐长度双端截断防御（既有）；frameAlpha 极大值/NaN 双端 clamp（本次修复）；uid-map 手改负数/小数/1e30 过滤 + UID 唯一性校验（本次修复）；@Suppress 三处均为声明性豁免（JNI 1:1 签名/崩溃归因入口/平台绘制全捕获）
+
+**批次 3（主循环升级，对标 physics_jitter_fix + 物理插值消费链）**
+- 插值消费链打通：RenderFrame.currentAlpha 字段 + SpiritCropRender.smoothedProgress 共享数学 + 双端消费（C++ drawAllTiles 新 frameAlpha 参数 + 静态插值状态表帧末裁剪；Canvas lastCropProgress 同语义）——灵田作物生长 10Hz 跳变 → 渲染帧率连续
+- JitterSmoother（EWMA 一阶滤波，对标 Godot physics_jitter_fix；语义差异记录：只平滑渲染契约 alpha，游戏时间由 GameTimeClock 单调墙钟独立累积不受影响）+ CurrentAlphaDeterminismGuardTest（渲染契约字段源扫描守卫）
+- **如实说明**：FrameRateDecider 独立类未建——现有 sceneFpsFor + 三档性能模式 + 热控/电量上限已是单一决策点，再包一层违反 YAGNI；GameEngineCore LoopDriver/TickScheduler 全拆未做——JitterSmoother 子系统已落地示范，全拆为纯搬移（当前 1937 行仍在 2000 红线内），收益与回归风险不成比例，列为后续重构项
+
+**批次 4（类注册元数据，对标 ClassDB）**
+- GameSystemRegistry + GameSystemRegistryDefaults（39 个 @GameService 系统全量登记，类别按包归属）+ @GameService 增 category 参数 + GameSystemRegistryCoverageTest 守卫（源码扫描锚 + 类别一致性）
+- **如实说明**：EngineMetricsBus/DevMonitorPanel/WeakRefSnapshotDiff/FPS 覆盖层未建——指标总线无面板消费方则违反 YAGNI（现有 UnifiedPerformanceMonitor 已覆盖当前监控需求），监视器面板为下一迭代的独立交付项
+
+**批次 5（上报化收尾）**
+- 主线程违规 update：GameStateStoreImpl 新增 mainThreadViolationReporter 钩子（Release 不再静默——DI 可注入 Bugly 自定义事件）
+- EventBus 溢出：EventDropReporter 接口（core/domain 零 Android 依赖）+ 5s 节流内上报
+- 双 changelog 同步 + 全量串行测试 + detekt（baseline 只缩不增：删除 2 条陈旧 NativeSurfaceView 条目）+ 原生双架构构建 + RNG 审计
+
+**验证** — `test --max-workers=1` 全绿（2534+ 用例）、`detekt` 全绿、`externalNativeBuildRelease`（arm64-v8a + armeabi-v7a）全绿、`compileReleaseKotlin` 全绿、RNG 审计无 kotlin.random.Random 残留。
+
 ### 修复 + 调整（2026-08-12 玉符倒计时居中 + 发放节奏）
 
 - **倒计时居中** — `JadeSymbolDialog` 内容槽位倒计时文本与"今日已达上限"缺 `textAlign = TextAlign.Center`（`StandardPromptDialog` content 槽位 Column 默认左对齐，同一对话框 title/text 均有 textAlign 而 content 漏网），两处 Text 补 `fillMaxWidth()` + `textAlign = TextAlign.Center`

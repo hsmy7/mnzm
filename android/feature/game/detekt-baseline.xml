@@ -71,8 +71,6 @@
     <ID>CyclomaticComplexMethod:MerchantDialog.kt$@Composable fun MerchantDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:MerchantInventoryDialog.kt$@Composable private fun &lt;T&gt; InventorySelectGrid( items: List&lt;T&gt;, selectedItems: MutableMap&lt;String, Int&gt;, emptyMessage: String, watchedKeys: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel? = null )</ID>
     <ID>CyclomaticComplexMethod:MerchantInventoryDialog.kt$@Composable private fun AllItemsSelectGrid( equipment: List&lt;EquipmentStack&gt;, manuals: List&lt;ManualStack&gt;, pills: List&lt;Pill&gt;, selectedItems: MutableMap&lt;String, Int&gt;, watchedKeys: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel? = null )</ID>
-    <ID>CyclomaticComplexMethod:NativeSurfaceView.kt$NativeSurfaceView$override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int)</ID>
-    <ID>CyclomaticComplexMethod:NativeSurfaceView.kt$NativeSurfaceView.Companion$fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap</ID>
     <ID>CyclomaticComplexMethod:PlantingDialog.kt$@Composable fun PlantingDialog( seeds: List&lt;Seed&gt;, gameData: GameData, viewModel: GameViewModel, activeSectId: String, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:ResidenceDialog.kt$@Composable fun ResidenceDialog( buildingInstanceId: String, viewModel: GameViewModel, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>

@@ -10,6 +10,7 @@ import com.xianxia.sect.core.engine.grantJadeSymbolsFromAd
 import com.xianxia.sect.core.engine.service.AdPurpose
 import com.xianxia.sect.ui.game.delegate.AdsDelegate
 import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
+import com.xianxia.sect.ui.game.sect.SurfaceProviderFactory
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.setActiveDialog
@@ -203,7 +204,9 @@ class GameViewModelTest {
                 //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
                 IoDispatcher(testDispatcher),
                 sessionManager
-            )
+            ),
+            // 2026-08-13 平台抽象：surface 提供者工厂（本测试不触达渲染路径）
+            SurfaceProviderFactory { mockk() }
         )
     }
 

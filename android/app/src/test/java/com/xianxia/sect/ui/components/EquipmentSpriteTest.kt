@@ -28,17 +28,14 @@ class EquipmentSpriteTest {
 
     @Before
     fun setUp() {
-        // 初始化 SpriteResRegistry，模拟 Tier 1-2 已注册的场景
-        SpriteResRegistry.initialize(
-            equipmentSprites = emptyMap(),
-            manualSprites = emptyMap(),
-            pillSprites = emptyMap(),
-            spiritStoneSprites = emptyMap(),
-            materialSprites = emptyMap(),
-            storageBagSprites = emptyMap(),
-            sectIconSprites = emptyMap(),
-            allEquipmentResIds = emptyList()
-        )
+        // 清理其他测试类可能注册的分类（每分类 map 覆盖式注册，恢复空状态）
+        SpriteResRegistry.register(SpriteCategory.ITEM, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.EQUIPMENT, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.MATERIAL, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.PILL, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.STORAGE_BAG, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.SPIRIT_STONE, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.SECT_ICON, emptyMap())
         // 通过 register API 注册测试用的精灵图数据（herb/seed/growing 均通过 resolve(name) 查找）
         SpriteResRegistry.register(SpriteCategory.ITEM, mapOf(
             "聚灵草" to FAKE_HERB_GRASS1,
@@ -56,16 +53,13 @@ class EquipmentSpriteTest {
     @After
     fun tearDown() {
         // 恢复空状态，避免影响其他测试类
-        SpriteResRegistry.initialize(
-            equipmentSprites = emptyMap(),
-            manualSprites = emptyMap(),
-            pillSprites = emptyMap(),
-            spiritStoneSprites = emptyMap(),
-            materialSprites = emptyMap(),
-            storageBagSprites = emptyMap(),
-            sectIconSprites = emptyMap(),
-            allEquipmentResIds = emptyList()
-        )
+        SpriteResRegistry.register(SpriteCategory.ITEM, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.EQUIPMENT, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.MATERIAL, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.PILL, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.STORAGE_BAG, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.SPIRIT_STONE, emptyMap())
+        SpriteResRegistry.register(SpriteCategory.SECT_ICON, emptyMap())
     }
 
     // ============================================================

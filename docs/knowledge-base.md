@@ -30,6 +30,20 @@
 
 ---
 
+## 引擎架构组件（2026-08-13 对标 Godot 借鉴重构新增）
+
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `SectAtlasAssembler` | `feature/game/.../sect/` | 宗门地图图集运行时组装（自 NativeSurfaceView companion 外移） |
+| `SurfaceProvider` / `AndroidSurfaceProvider` | `core/engine/.../platform/` / `feature/game/.../sect/` | 渲染表面生命周期平台抽象（iOS 迁移点；防御逻辑：10s 超时/generation 防 stale/首帧黑屏） |
+| `EngineTween` / `Timeline` / `EasingConstants` | `core/engine/.../animation/` / `core/domain/.../animation/` | 统一缓动库（TimeSource 驱动、帧率无关；CameraAnimator 已迁移；战斗动画经守卫评估不迁移） |
+| `RenderCommandBus` 双通道 | `feature/game/.../sect/` | 帧数据覆盖槽 + RenderCommand 命令 FIFO（SPSC 无锁环形缓冲）；`RenderCommand`/`ResourceHandle` 契约在 `core/engine/.../core/render/` |
+| `JitterSmoother` | `core/engine/.../loop/` | 插值因子 EWMA 平滑（对标 Godot physics_jitter_fix；仅渲染契约，确定性守卫锁定） |
+| `GameSystemRegistry` / `GameSystemRegistryDefaults` | `core/engine/.../registry/` | @GameService 静态注册中心（39 系统；守卫测试锚） |
+| 资源管线 codegen | `android/scripts/resource-manifest.mjs` + `build-atlas.mjs` | 扫描 drawable-nodpi → atlas-manifest.json + 三产物（SpriteRegistryData/SpriteAtlasDef/TextureAtlas.h）+ `sprite-uid-map.json` 持久 UID；生成物 build/generated 不入库 |
+
+**双端共享渲染常量**（LOD 阈值/阴影常量/瓦片索引/语义建筑索引）单一数据源 = build-atlas.mjs LAYOUT——修改布局只改 LAYOUT，运行 codegen 后 Kotlin/C++ 双产物自动一致（守卫：SpriteCodegenSyncTest 头文本 ↔ 编译产物全等）。
+
 ## Building Y-Sort Rule
 
 - **Y轴排序规则（2026-07-27）** — 宗门地图建筑渲染使用 Painter's Algorithm，排序键为**占地底部 Y 坐标**（`gridY + footprintHeight`），而非占地顶部（`gridY`）。当建筑占地高度不一致时按 `gridY` 排序会导致 z-order 错误。在 `MainGameScreen.buildBuildingDataArray()` 中实现，与 Unity Transparency Sort Axis(Y)、Godot Y Sort、Supercell(CoC) back-to-front 等行业标准一致
