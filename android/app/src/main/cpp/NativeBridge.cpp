@@ -98,6 +98,12 @@ static std::atomic<bool> g_decorLod{true};
 /** 地图淡入 alpha（0-1，1 = 完全不透明） */
 static std::atomic<float> g_fadeAlpha{1.0f};
 
+// 作物插值状态（2026-08-13 批次 3；文件级 static——shutdownRenderer 需清空，
+// 防 surface 代际残留：旧 surface 的进度基准污染新 surface 播种闪帧，
+// 对抗性审查 2026-08-13 状态破坏者#1）
+static std::map<int64_t, float> g_lastCropProgress;
+static std::vector<int64_t> g_activeCropKeys;
+
 /** 检查世界坐标矩形是否与视口相交（可见性检测） */
 static inline bool isRectVisible(float x, float y, float w, float h) {
     // 矩形完全在视口之外才返回 false
@@ -231,6 +237,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     g_decorLod.store(true);
     // 淡入同理：新 RenderThread 启动时 fadeIn() 重置 startNs 并推送新 alpha
     g_fadeAlpha.store(1.0f);
+    // 作物插值状态清空（对抗性审查 2026-08-13 状态破坏者#1）：
+    // 旧 surface 的进度基准不得污染新 surface 的播种/收获插值
+    g_lastCropProgress.clear();
+    g_activeCropKeys.clear();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -318,15 +328,22 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
     float safeScale = scale;
     if (!(safeScale > 0.001f)) safeScale = 1.0f;  // NaN 比较恒 false 一并拦截
 
+    // 对抗性审查 2026-08-13 数据篡改者#3：camX/camY NaN 漏网（M2 仅 sanitize
+    // scale）——NaN 相机 → 投影矩阵全 NaN → Vulkan 全屏黑且相机静止时不可自愈
+    float safeCamX = camX;
+    float safeCamY = camY;
+    if (!(safeCamX > -1e9f && safeCamX < 1e9f)) safeCamX = 0.0f;  // NaN 比较恒 false 一并拦截
+    if (!(safeCamY > -1e9f && safeCamY < 1e9f)) safeCamY = 0.0f;
+
     g_scale = safeScale;
-    cameraProjMatrix(g_projMatrix, camX, camY, safeScale, (float)vpW, (float)vpH);
+    cameraProjMatrix(g_projMatrix, safeCamX, safeCamY, safeScale, (float)vpW, (float)vpH);
     if (g_renderer) g_renderer->setProjection(g_projMatrix);
 
     // 记录视口世界坐标范围（供 drawAllTiles 可见性检测使用）
-    g_viewLeft   = camX;
-    g_viewTop    = camY;
-    g_viewRight  = camX + (float)vpW / safeScale;
-    g_viewBottom = camY + (float)vpH / safeScale;
+    g_viewLeft   = safeCamX;
+    g_viewTop    = safeCamY;
+    g_viewRight  = safeCamX + (float)vpW / safeScale;
+    g_viewBottom = safeCamY + (float)vpH / safeScale;
 }
 
 /** 渲染质量热控状态推送（仿 setCamera 独立通道：Compose 线程写、渲染线程单消费者读） */
@@ -387,6 +404,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloat frameAlpha) {         // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑）
 
     if (!g_renderer || !tileData || !uvMap) return;
+
+    // 深度防御（对抗性审查 2026-08-13 数据篡改者#1）：tileData 是唯一无长度
+    // 校验的数组（building/crop/uvMap 均有防御）——rows×cols 超数组实际长度
+    // 即堆越界读 → SIGSEGV。生产路径同源一致，此为防篡改兜底。
+    const jsize tileCount = env->GetArrayLength(tileData);
+    if ((jsize)rows * cols > tileCount) return;
 
     // ★ 地图淡入 alpha（本帧单次读取——所有 add 共用同一值，避免逐次 atomic load）
     const float fadeAlpha = g_fadeAlpha.load();
@@ -597,11 +620,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         jsize cropCount = env->GetArrayLength(cropData) / 3;
 
         // 批次 3 插值消费链：上一帧作物原始进度（key = gx/gy 网格编码）——
-        // 插值基准必须存原始逻辑值（存平滑值会累积漂移），平滑值仅用于绘制
-        static std::map<int64_t, float> g_lastCropProgress;
-        // 帧内活跃 key 集合（帧末裁剪：收获/拆除后清除残留条目）
-        static std::vector<int64_t> g_activeCropKeys;
-
+        // 插值基准必须存原始逻辑值（存平滑值会累积漂移），平滑值仅用于绘制；
+        // 状态为文件级 static（g_lastCropProgress/g_activeCropKeys），
+        // shutdownRenderer 清空防 surface 代际残留（状态破坏者#1）
         for (int i = 0; i < cropCount; i++) {
             int idx = i * 3;
             float gx = crops[idx];
@@ -617,6 +638,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 
             // 帧间平滑（与 Kotlin SpiritCropRender.smoothedProgress 同数学：
             // draw = prev + (cur - prev) × frameAlpha；插值基准存原始 cur）
+            // 范围检查（对抗性审查 2026-08-13 数据篡改者#5）：超 int 范围的
+            // float 转 int 是 UB（实践 INT_MIN 饱和）→ 多值收敛同 key 串扰；
+            // 真实网格坐标为小整数，1e6 上限远大于任何合法地图
+            if (gx < -1e6f || gx > 1e6f || gy < -1e6f || gy > 1e6f) continue;
             const int64_t key = (static_cast<int64_t>(static_cast<int>(gx)) << 32) |
                                 static_cast<int64_t>(static_cast<int>(gy));
             g_activeCropKeys.push_back(key);
@@ -669,8 +694,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         // 帧末裁剪：无作物的格清除残留进度条目（收获/拆除场景）。
         // 复杂度 O(n×m)（std::find 嵌套——对抗性审查 2026-08-13 逆向#3 修正注释）；
         // 上界 = 同屏作物数（有界且小），未来作物 >500 时需改 unordered_set 查重。
-        // 静态残留说明：shutdownRenderer 不重置本静态量，surface 重建后首帧旧条目
-        // 被本裁剪/覆盖清除——仅首帧插值基准可能偏差一帧，视觉可忽略（逆向#4 接受现状）。
+        // 代际残留已由 shutdownRenderer 清空（状态破坏者#1）——本裁剪只负责
+        // 同代内的收获/拆除清理。
         for (auto it = g_lastCropProgress.begin(); it != g_lastCropProgress.end();) {
             const bool active = std::find(g_activeCropKeys.begin(), g_activeCropKeys.end(),
                 it->first) != g_activeCropKeys.end();

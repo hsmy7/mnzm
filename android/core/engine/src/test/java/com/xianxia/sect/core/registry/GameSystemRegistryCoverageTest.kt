@@ -36,6 +36,41 @@ class GameSystemRegistryCoverageTest {
         }
     }
 
+    @Test
+    fun `全部 @GameService 的 name 与类名一致`() {
+        // 对抗性审查 2026-08-13 数据篡改者#6：注册 key=className——若未来
+        // @GameService(name="中文名") 与类名脱钩，find(name) 查不到；本守卫
+        // 锁死 name==类名 约定（脱钩时需同步改造注册表以消费 name）
+        val mismatched = scanAnnotatedNames().filter { it.first != it.second }
+        assertTrue(
+            "@GameService.name 与类名不一致: ${mismatched.map { "${it.second}:name=${it.first}" }}——" +
+                "注册表以类名为 key（GameSystemRegistryDefaults），name 必须等于类名或注册表改消费 name",
+            mismatched.isEmpty()
+        )
+    }
+
+    /** 解析 @GameService(name = "...") 标注值（name=类名 时 Kotlin 省略 name 参数） */
+    private fun scanAnnotatedNames(): List<Pair<String, String>> {
+        val roots = listOf(
+            File("src/main/java/com/xianxia/sect/core/engine"),
+            File("src/main/java/com/xianxia/sect/core/domain"),
+        )
+        val results = mutableListOf<Pair<String, String>>()
+        for (root in roots) {
+            if (!root.exists()) continue
+            root.walkTopDown().filter { it.isFile && it.extension == "kt" }.forEach { file ->
+                val text = file.readText()
+                if (!text.contains("@GameService")) return@forEach
+                val className = file.nameWithoutExtension
+                val named = Regex("""@GameService\(\s*name\s*=\s*"([^"]+)"\s*""").find(text)
+                // 无 name 参数 = 省略写法（约定 name==类名）；显式 name 必须等于类名
+                val nameValue = named?.groupValues?.get(1) ?: className
+                results += nameValue to className
+            }
+        }
+        return results.sortedBy { it.second }
+    }
+
     private data class AnnotatedService(val className: String, val category: String)
 
     /** 包路径归属 → 类别（与 GameSystemRegistryDefaults 的类别规则一致） */

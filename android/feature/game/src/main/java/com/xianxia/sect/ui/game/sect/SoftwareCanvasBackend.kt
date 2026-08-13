@@ -929,7 +929,9 @@ class SoftwareCanvasBackend(
             if (progress.isNaN() || progress.isInfinite()) continue // NaN/Inf 防御
             if (progress < 0f || progress > 1f) continue // 越界防御（生成侧漏网兜底）
 
-            // 视口剔除（屏幕坐标，与 drawSelectionHighlight 同风格）
+            // 视口剔除 + gx/gy 合法性（对抗性审查 2026-08-13 数据篡改者#4：
+            // NaN 坐标经 roundToInt 收敛到 (0,0) 漂浮 + key 碰撞串扰——与 C++
+            // 侧 gx != gx 防御同语义，收敛于 cropScreenRect 单一出口）
             val rect = cropScreenRect(frame, idx, canvas.width, canvas.height) ?: continue
 
             // 批次 3 插值消费链：draw = prev + (cur - prev) × frameAlpha——
@@ -956,13 +958,18 @@ class SoftwareCanvasBackend(
     }
 
     /**
-     * 作物屏幕矩形（视口剔除：视口外/退化尺寸 → null）。
+     * 作物屏幕矩形（视口剔除：视口外/退化尺寸/非法坐标 → null）。
      *
      * @param idx cropData 内的条目起始下标（gx/gy 读取自 [RenderFrame.spiritCropData]）
      */
     private fun cropScreenRect(frame: RenderFrame, idx: Int, vpW: Int, vpH: Int): Rect? {
         val cropData = frame.spiritCropData
-        if (cropData == null) return null
+        // NaN/Inf 坐标防御（对抗性审查 2026-08-13 数据篡改者#4）：
+        // 非法坐标既不参与绘制也不进入插值状态表（共享防御入口 SpiritCropRender）
+        val coordValid = cropData != null &&
+            SpiritCropRender.isValidCropCoord(cropData[idx]) &&
+            SpiritCropRender.isValidCropCoord(cropData[idx + 1])
+        if (!coordValid) return null
         val gx = cropData[idx]
         val gy = cropData[idx + 1]
         val tileSize = config.tileSize

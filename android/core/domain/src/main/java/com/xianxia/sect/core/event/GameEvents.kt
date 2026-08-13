@@ -208,6 +208,9 @@ data class AllianceDissolvedEvent(
     override val type: String = "alliance_dissolved"
 ) : DomainEvent
 
+/** 事件丢弃上报节流窗口（毫秒）——与 DomainLog 同频 */
+private const val DROP_REPORT_THROTTLE_MS = 5000L
+
 interface DomainEventSubscriber {
     fun onEvent(event: DomainEvent)
     val subscribedTypes: Set<String>
@@ -245,8 +248,8 @@ class EventBus @Inject constructor(
     
     private var isProcessing = false
 
-    private var droppedEventCount = 0L
-    private var lastDropLogTime = 0L
+    private val droppedEventCount = java.util.concurrent.atomic.AtomicLong(0L)
+    private val lastDropLogTime = java.util.concurrent.atomic.AtomicLong(0L)
 
     /**
      * 事件丢弃上报器（2026-08-13 批次 5：溢出不再仅日志——app 层注入
@@ -277,25 +280,33 @@ class EventBus @Inject constructor(
     override suspend fun emit(event: DomainEvent) {
         val result = eventChannel.trySend(event)
         if (!result.isSuccess) {
-            droppedEventCount++
-            val now = System.currentTimeMillis()
-            if (now - lastDropLogTime > 5000) {
-                DomainLog.w("EventBus", "Event dropped (total: $droppedEventCount), type=${event.type}. Consider reducing event frequency.")
-                lastDropLogTime = now
-                // 批次 5：溢出上报化（节流内调用；上报失败不得影响事件通道）
-                try {
-                    dropReporter?.onEventDropped(droppedEventCount, event.type)
-                } catch (e: Exception) {
-                    DomainLog.w("EventBus", "dropReporter failed (non-fatal)", e)
-                }
-            }
+            reportDrop(event)
+        }
+    }
+
+    /**
+     * 丢弃上报（CAS 节流赢家制——对抗性审查 2026-08-13 状态破坏者#4：
+     * 多线程并发 emit 同时穿 5s 节流窗口 → 仅一个赢家上报，计数原子）。
+     */
+    private fun reportDrop(event: DomainEvent) {
+        val total = droppedEventCount.incrementAndGet()
+        val now = System.currentTimeMillis()
+        val previous = lastDropLogTime.get()
+        if (now - previous < DROP_REPORT_THROTTLE_MS) return
+        if (!lastDropLogTime.compareAndSet(previous, now)) return
+        DomainLog.w("EventBus", "Event dropped (total: $total), type=${event.type}. Consider reducing event frequency.")
+        // 批次 5：溢出上报化（节流内调用；上报失败不得影响事件通道）
+        try {
+            dropReporter?.onEventDropped(total, event.type)
+        } catch (e: Exception) {
+            DomainLog.w("EventBus", "dropReporter failed (non-fatal)", e)
         }
     }
     
     override fun emitSync(event: DomainEvent): Boolean {
         val result = eventChannel.trySend(event)
         if (!result.isSuccess) {
-            droppedEventCount++
+            droppedEventCount.incrementAndGet()
         }
         return result.isSuccess
     }

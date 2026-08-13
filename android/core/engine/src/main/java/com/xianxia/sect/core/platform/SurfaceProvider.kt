@@ -89,6 +89,14 @@ interface SurfaceProvider {
      * 幂等：超时已触发或未启动计时时无操作。宿主初始化成功/失败回调均需调用。
      */
     fun notifyInitCompleted()
+
+    /**
+     * 解除平台回调注册（换绑 provider 时调用——对抗性审查 2026-08-13
+     * 状态破坏者#6：旧实例残留 addCallback 注册，同事件被双 provider 接收）。
+     *
+     * 幂等：重复调用安全；调用后本实例不再派发事件、超时不再触发。
+     */
+    fun unregister()
 }
 
 /**

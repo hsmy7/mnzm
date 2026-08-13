@@ -24,7 +24,12 @@ class JitterSmoother(
         }
     }
 
+    // @Volatile（对抗性审查 2026-08-13 状态破坏者#5）：紧急重启换线程时
+    // reset 与旧循环线程最后一轮 filter 并发——EWMA 状态跨线程可见
+    @Volatile
     private var smoothed = 0f
+
+    @Volatile
     private var initialized = false
 
     /**

@@ -33,9 +33,24 @@
 - **测试性能修正**：HeavenlyTrialAnimationGuardTest 迭代 1000→100（虚拟时钟逼近超时拖垮全量测试；确定性偏差为系统性差异单次即捕获）
 - **vulkanInitThread 旧纪元交叉清空修复**（状态破坏者补充发现）：handleVulkanInitCrash 的 interrupt 分支加 gen 守卫——destroy 后立即重建时，旧线程迟到的中断处理会清掉新 surface 的线程引用与 initInProgress
 
-**状态破坏者/数据篡改者维度审查结论**（主会话亲自完成，与代理报告同格式）：
-- **状态破坏者**：surface 状态机快速交错（CREATED→DESTROYED→CREATED）安全（gen 递增 + stale 拒绝 + 尺寸不污染，已修复验证）；超时降级与 Vulkan 成功回调互斥（isReady 双向守卫）；gradle codegen 与 compile 同项目串行无并发写；作物重播种进度回退产生一帧平滑倒放（视觉可接受）。发现并修复 1 处中等缺陷（上述 vulkanInitThread 交叉清空）
-- **数据篡改者**：存档格式零变更（无 Entity/GameData/DB 文件变更，DATABASE_VERSION 不动）；spiritCropData/buildingData 非对齐长度双端截断防御（既有）；frameAlpha 极大值/NaN 双端 clamp（本次修复）；uid-map 手改负数/小数/1e30 过滤 + UID 唯一性校验（本次修复）；@Suppress 三处均为声明性豁免（JNI 1:1 签名/崩溃归因入口/平台绘制全捕获）
+### 对抗性审查第二轮修复（2026-08-13，状态破坏者 7 条 + 数据篡改者 10 条报告到达后）
+
+**数据篡改者**（3 中 7 轻，全部处置）：
+- **tileData 长度零防御**（中#1）：C++ drawAllTiles 入口加 GetArrayLength 校验（rows×cols 超长即返回）——唯一裸奔数组补齐
+- **setCamera camX/camY NaN 漏网**（中#3）：与 M2 safeScale 同式 isNaN 归一为 0（投影矩阵/视口范围统一用安全值）
+- **Canvas drawCrops gx/gy NaN 防御**（轻#4）：与 C++ L1 同款防御（NaN 坐标左上角漂浮 + key 碰撞串扰）
+- **C++ crop key int 转换 UB**（轻#5）：gx/gy 超 ±1e6 范围跳过（float→int UB 饱和串扰）
+- **守卫测试 name 脱钩盲区**（轻#6）：补 @GameService.name==类名 断言
+- frameAlpha NaN / uid-map 负数 / EngineTween 溢出（中#2/轻#7/轻#10）已在第一轮修复 ✓；currentAlpha @Volatile 核实已有（轻#9 误报）；存档零变更确认 ✓
+
+**状态破坏者**（3 中 4 轻，全部处置）：
+- **超时降级后旧 Vulkan 线程并发 initRenderer**（中#3）：handleSurfaceInitTimeout 降级前 interrupt + 短 join vulkanInitThread（带 2s 截止）——防与重建后新 init 线程并发操作 C++ 无锁 g_renderer 裸指针 SIGSEGV
+- **作物插值静态表跨 surface 代际残留**（中#1）：g_lastCropProgress 移为文件级 static + shutdownRenderer 清空（与 Kotlin backend 实例生命周期对齐）
+- **命令 FIFO 内存序缺陷**（中#2）：随命令通道删除 moot ✓
+- **EventBus 节流竞争**（轻#4）：droppedEventCount/lastDropLogTime 改 AtomicLong + CAS 节流赢家制上报
+- **jitterSmoother 换线程竞态**（轻#5）：滤波状态字段改 @Volatile
+- **provider 换绑回调滞留**（轻#6）：SurfaceProvider 接口增 unregister()（removeCallback），setter 换绑时调用
+- **Vulkan init 线程读 View 尺寸**（轻#7）：startVulkanInit 捕获视口尺寸传参线程体（与 currentGen 同模式）
 
 **批次 3（主循环升级，对标 physics_jitter_fix + 物理插值消费链）**
 - 插值消费链打通：RenderFrame.currentAlpha 字段 + SpiritCropRender.smoothedProgress 共享数学 + 双端消费（C++ drawAllTiles 新 frameAlpha 参数 + 静态插值状态表帧末裁剪；Canvas lastCropProgress 同语义）——灵田作物生长 10Hz 跳变 → 渲染帧率连续

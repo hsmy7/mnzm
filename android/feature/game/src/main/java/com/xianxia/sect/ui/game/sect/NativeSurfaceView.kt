@@ -459,6 +459,9 @@ class NativeSurfaceView(
     var surfaceProvider: SurfaceProvider = AndroidSurfaceProvider(holder)
         set(value) {
             field.setEventListener(null)
+            // 解除旧 provider 的平台回调注册（对抗性审查 2026-08-13 状态破坏者#6：
+            // 旧实例残留 addCallback，同事件被双 provider 接收、genCounter 空转）
+            field.unregister()
             field = value
             value.setEventListener(surfaceEventListener)
         }
@@ -644,8 +647,12 @@ class NativeSurfaceView(
             vulkanInitThread?.interrupt()
             vulkanInitThread = null
 
+            // 捕获视口尺寸传入线程体（对抗性审查 2026-08-13 状态破坏者#7：
+            // 后台线程读主线程维护的 View 字段属数据竞争——与 currentGen 同模式）
+            val viewportW = width
+            val viewportH = height
             vulkanInitThread = kotlin.concurrent.thread(name = "VulkanInit") {
-                runVulkanInitThread(currentGen, surface)
+                runVulkanInitThread(currentGen, surface, viewportW, viewportH)
             }
         }
 
@@ -653,7 +660,7 @@ class NativeSurfaceView(
         // 本函数是原生初始化崩溃的唯一归因入口：Throwable 全捕获 + 分型降级
         //（中断=surface 销毁不降级/其他异常降级）是崩溃防御设计本身
         @Suppress("TooGenericExceptionCaught")
-        private fun runVulkanInitThread(currentGen: Int, surface: Surface) {
+        private fun runVulkanInitThread(currentGen: Int, surface: Surface, viewportW: Int, viewportH: Int) {
             try {
                 val initStart = System.currentTimeMillis()
 
@@ -661,8 +668,8 @@ class NativeSurfaceView(
                 vulkanInitListener?.onSurfaceInitStarted()
 
                 val ok = NativeBridge.initRenderer(
-                    viewportW = width,
-                    viewportH = height,
+                    viewportW = viewportW,
+                    viewportH = viewportH,
                     worldW = config.worldPixelWidth,
                     worldH = config.worldPixelHeight,
                     tileSize = config.tileSize,
@@ -676,6 +683,26 @@ class NativeSurfaceView(
                 }
             } catch (t: Throwable) {
                 handleVulkanInitCrash(currentGen, t)
+            }
+        }
+
+        /**
+         * 中断并等待旧 Vulkan init 线程退出（带截止，仿 [stopRenderThread] 风格）。
+         * 未在截止内退出时放弃等待（interrupt 已发出，C++ 侧 init 失败即返回）。
+         */
+        fun interruptAndJoinVulkanInitThread() {
+            val thread = vulkanInitThread ?: return
+            thread.interrupt()
+            val deadlineNs = System.nanoTime() + JOIN_DEADLINE_NS
+            var alive = thread.isAlive
+            while (alive && System.nanoTime() < deadlineNs) {
+                alive = try {
+                    thread.join(200)
+                    thread.isAlive
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    false
+                }
             }
         }
     }
@@ -721,7 +748,8 @@ class NativeSurfaceView(
         initInProgress = false
         vulkanInitThread = null
         if (!isReady) {
-            // 降级到软件渲染
+            // 降级到软件渲染（失败线程已自行返回，无需 join——
+            // 状态破坏者#3 的并发窗口在超时降级路径，见 handleSurfaceInitTimeout）
             fallbackToSoftwareRenderer()
         }
     }
@@ -769,6 +797,11 @@ class NativeSurfaceView(
     private fun handleSurfaceInitTimeout() {
         if (!isReady) {
             initInProgress = false
+            // 对抗性审查 2026-08-13 状态破坏者#3：超时降级时旧 Vulkan init
+            // 线程仍在阻塞（超时正是因为 initRenderer 卡住）——必须 interrupt +
+            // 短 join，否则该线程与新 surface 的 init 线程并发操作 C++ 无锁
+            // 裸指针 g_renderer（SIGSEGV）
+            initCoordinator.interruptAndJoinVulkanInitThread()
             // 完整初始化（对齐降级路径语义）：后端 + 渲染线程 + isReady，
             // 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截
             fallbackToSoftwareRenderer()

@@ -121,6 +121,16 @@ class AndroidSurfaceProvider(
         cancelInitTimeout()
     }
 
+    override fun unregister() {
+        // 解除平台回调（对抗性审查 2026-08-13 状态破坏者#6）
+        holder.removeCallback(this)
+        cancelInitTimeout()
+        listener = null
+        state = SurfaceState.DESTROYED
+        width = 0
+        height = 0
+    }
+
     // ============================================================
     // SurfaceHolder.Callback — 事件翻译 + 生命周期防御
     // ============================================================

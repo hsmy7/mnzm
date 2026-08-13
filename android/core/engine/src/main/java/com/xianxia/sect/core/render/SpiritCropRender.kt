@@ -78,4 +78,10 @@ object SpiritCropRender {
      */
     fun cropProgressKey(gx: Float, gy: Float): Long =
         (gx.toInt().toLong() shl 32) or (gy.toInt().toLong() and 0xFFFFFFFFL)
+
+    /**
+     * 作物坐标合法性（NaN/Inf 非法——与 C++ 侧 `gx != gx` 防御同语义；
+     * 对抗性审查 2026-08-13 数据篡改者#4 共享防御入口）。
+     */
+    fun isValidCropCoord(value: Float): Boolean = !value.isNaN() && !value.isInfinite()
 }
