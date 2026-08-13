@@ -413,7 +413,7 @@ private fun PrivacySummaryContent(
     val dirichletAnnotatedString = buildAnnotatedString {
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) {
-                append("TapADN 聚合广告 SDK（Dirichlet 聚合广告 SDK，v5.1.1.1）")
+                append("TapADN 聚合广告 SDK（Dirichlet 聚合广告 SDK，v5.1.2.3）")
             }
             append("\n")
             withStyle(bodyStyle) {
@@ -571,7 +571,7 @@ fun FullPrivacyPolicyScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "更新日期：2026年8月12日 | 生效日期：2026年8月12日",
+                    text = "更新日期：2026年8月13日 | 生效日期：2026年8月13日",
                     fontSize = 12.sp,
                     color = GameColors.TextTertiary,
                     modifier = Modifier.fillMaxWidth(),
@@ -804,7 +804,7 @@ fun FullPrivacyPolicyScreen(
                         )
                     }
 
-                    FullPolicySubSection("2.3 TapADN 聚合广告 SDK（v5.1.1.1）") {
+                    FullPolicySubSection("2.3 TapADN 聚合广告 SDK（v5.1.2.3）") {
                         Text(
                             text = "由上海艾得蒽数字科技有限公司提供。仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。\n\n" +
                                 "• 聚合模式：本 SDK 为聚合广告 SDK，除 Dirichlet 自有广告外，还聚合了" +
