@@ -452,6 +452,8 @@ SaveValidator.validate(SaveData)
 |---|---|---|---|---|
 | D-26 | 测试 mock 批次（commit `1e563548`） | `GameStateRepository`（app 模块 **final 具体类**）被 `GameStateStoreImpl` 相关测试裸 `mock(GameStateRepository::class.java)` 注入——与本次根治的 `ProductionSlotRepository` 同款风险：final 类 mock 拦截依赖类加载时机，顺序敏感 flaky（显式 stub 也救不了，stub 注册后的第一次调用可能真实执行方法体）。**治理方向**：改用真实实例（参考 engine 测试 `TestMockSupport.testProductionSlotRepository()` 工厂模式）或 `mockSmart` + doReturn 风格 | 待定 | 待办 |
 | D-27 | 测试 mock 批次（commit `1e563548`） | 测试规范固化：新 Service 测试若需 `ProductionSlotRepository` 必须走共享工厂 `com.xianxia.sect.core.engine.testProductionSlotRepository()`（真实实例 + mockSmart 端口 + `loadSlots` 预填充），禁止自行 `ProductionSlotRepository(dao = mock(), ...)` 内联构造；返回 sealed 类型（`DomainResult` / `DeductResult`）的 stub 统一 doReturn 风格（ByteBuddy 无法代理 sealed）。可作为 `rules/testing.md` 或代码审查清单条目固化 | 待定 | 待办 |
+| D-28 | Godot 对标重构（commit `e8c7bb97`） | **网络层 Gson 遗留清理**：项目其余处统一用 kotlinx.serialization，仅网络层遗留 Gson（knowledge-base iOS 基线表已标注"遗留"）——两套序列化并存易错；统一为 kotlinx.serialization（Retrofit converter 替换）；详见 platform-abilities.md G7 | 待定 | 待办 |
+| D-29 | Godot 对标重构（commit `e8c7bb97`） | **DataStore/MMKV 双存储并存合并**：两套本地 K-V 并存；MMKV 已跨平台、DataStore Android 独占——偏好设置逐步迁入 MMKV，移除 DataStore 依赖（iOS 迁移前置项之一）；详见 platform-abilities.md G8 | 待定 | 待办 |
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 

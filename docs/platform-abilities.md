@@ -38,6 +38,8 @@
 | G4 | Room 无接口层 | 新数据层组件优先跨平台选型（SQLDelight 评估中），存量不动 | 登记待办 |
 | G5 | DI 无抽象 | Koin/手写 DI 评估，迁移前置条件之一 | 登记待办 |
 | G6 | UI 框架 Compose 独占 | Compose Multiplatform 评估（最高风险点，需专项 ADR） | 登记待办 |
+| G7 | **网络层 Gson 遗留**（2026-08-13 登记） | 项目其余处统一用 kotlinx.serialization，仅网络层用 Gson——两套序列化并存易错；统一为 kotlinx.serialization（Retrofit converter 替换），iOS 迁移前无需先决 | 登记待办 |
+| G8 | **DataStore/MMKV 双存储并存**（2026-08-13 登记） | 两套本地 K-V 干一件事；MMKV 已跨平台、DataStore Android 独占——偏好设置逐步迁入 MMKV，移除 DataStore 依赖（iOS 迁移前置项之一） | 登记待办 |
 
 ## 三、既有接口清单（新代码必须复用，禁止另起炉灶）
 
