@@ -26,6 +26,17 @@
 - **兼容性** — DATABASE_VERSION 46→47 单向迁移（旧档 pending_trait_adds 默认空列表）；洗炼/新增共用新分布仅影响抽取概率，无存档结构变化；生成路径（负面 30% 四档）不受影响
 - **经济登记** — `docs/knowledge-base.md` 玉符消耗登记表新增洗炼天赋/体质/词条与新增天赋/体质/词条两行（源与汇闭环）
 
+### 修复（2026-08-15 广告 SDK 重复初始化——MainActivity 重建触发 DirichletSdk.init 重复调用）
+
+> 背景：广告公司反馈"重复初始化"。根因证据链：`MainActivity.initAdSdk()` 无幂等守卫，每次 MainActivity 重建（登出 recreate / 合规弹窗"退出/切换账号" recreate / 系统回收后重建）都会经 `onLoadingComplete → initTapTapSDK → initAdSdk` 重复调用 `DirichletSdk.init`（广告聚合 SDK 全局初始化 API，行业标准要求进程内仅一次）。
+
+- **新增 `SdkInitGuard`**（app/taptap，进程级 AtomicBoolean CAS 守卫）— `DirichletSdk.init` / `TapTapAuthManager.init` 全局仅首次放行；广告 SDK **同步初始化失败**时 `releaseAdSdkInit()` 允许下次重建重试（异步 `onInitFail` 不复位——SDK 已执行过 init）
+- **`MainActivity`** — `initTapTapSDK()` 内 `TapTapAuthManager.init` 接入 `tryInitTapTapSdk()`（SDK 全局一次）；`initAdSdk()` 开头接入 `tryInitAdSdk()`（首次放行，后续跳过并记日志）；每次重建**保持执行**的部分：`tapTapReady` UI 状态刷新、`ComplianceManager.registerCallback`（绑定新 Activity 实例）、登录态分支——行为不变
+- **`TapDBManager`** — `startGameDurationTracking` 加 `trackingStarted` CAS 守卫（防重复构建 `GameDurationService` / 重复注册 `ActivityLifecycleTracker`，避免游玩时长统计重复/重置），SDK 构建失败复位允许重试；`stopGameDurationTracking` 复位标志允许登出后重新启动
+- **测试** — 新增 `SdkInitGuardTest`（6 用例：首次放行/重复拦截/失败释放重试/双守卫独立/16 线程并发 CAS 单赢家/测试复位）、`TapDBManagerInitGuardTest`（2 用例：失败复位可重试/停止后重启；Robolectric 下 TapDB SDK 不可用——performance_hint 服务缺失——成功路径幂等由同构 SdkInitGuardTest 覆盖）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；首次进入游戏初始化行为与现状一致，仅消除重复 init 副作用；无新增权限、无数据收集变化，隐私政策无需更新
+- **途中发现预存问题** — 3 项已登记 `docs/architecture.md` 待完成项登记表（D-30：`GameConfig.initialize`/`BuildingConfigService.initialize` 无幂等守卫每次 boot 重复加载配置；D-31：`GameEngineCore`（@Singleton）初始化状态被 `GameForegroundService` 生命周期驱动导致每次进出游戏重跑 `systemManager.initializeAll()`——当前各系统 initialize 均幂等，属架构级设计取舍；D-32：`MainActivity.kt` L280 预存 121 字符超长行）
+
 ## [4.00.97] - 2026-08-13
 
 ### 引擎重构（2026-08-13 对标 Godot 架构借鉴重构——八大维度批次 0~5）

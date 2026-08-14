@@ -518,15 +518,21 @@ class MainActivity : ComponentActivity() {
             try {
                 // 必须先初始化 TapTap 核心 SDK，再初始化 Ad SDK
                 // TapAdSdk 内部依赖 TapTapKit.context，反序会导致 lateinit context 未初始化崩溃
-                TapTapAuthManager.init(
-                    this@MainActivity,
-                    BuildConfig.TAPTAP_CLIENT_ID,
-                    BuildConfig.TAPTAP_CLIENT_TOKEN,
-                    BuildConfig.TAPTAP_IS_CN
-                )
-                // 反射验证 context 并通过 isReady() 双重确认
+                // 幂等守卫：SDK 全局初始化仅进程内首次执行，MainActivity 重建（登出/合规切换/
+                // 系统回收重建）不重复初始化（广告公司反馈"重复初始化"同类问题一并根治）
+                if (com.xianxia.sect.taptap.SdkInitGuard.tryInitTapTapSdk()) {
+                    TapTapAuthManager.init(
+                        this@MainActivity,
+                        BuildConfig.TAPTAP_CLIENT_ID,
+                        BuildConfig.TAPTAP_CLIENT_TOKEN,
+                        BuildConfig.TAPTAP_IS_CN
+                    )
+                    Log.d(TAG, "TapTap SDK初始化成功，就绪状态: ${TapTapAuthManager.isReady()}")
+                } else {
+                    Log.d(TAG, "TapTap SDK already initialized, skipping")
+                }
+                // 反射验证 context 并通过 isReady() 双重确认（每次重建均刷新，登录按钮依赖此状态）
                 tapTapReady.value = TapTapAuthManager.isReady()
-                Log.d(TAG, "TapTap SDK初始化成功，就绪状态: ${tapTapReady.value}")
 
                 initAdSdk()
                 com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
@@ -536,12 +542,16 @@ class MainActivity : ComponentActivity() {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: java.util.concurrent.TimeoutException) {
+                // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）
+                com.xianxia.sect.taptap.SdkInitGuard.releaseTapTapSdkInit()
                 tapTapReady.value = false
                 Log.e(TAG, "TapTap SDK初始化超时，尝试降级模式", e)
                 withContext(Dispatchers.Main) {
                     showSaveSelectScreen()
                 }
             } catch (e: Exception) {
+                // 初始化失败：释放守卫占用，允许下次 MainActivity 重建重试（防永久不可用）
+                com.xianxia.sect.taptap.SdkInitGuard.releaseTapTapSdkInit()
                 tapTapReady.value = false
                 Log.e(TAG, "TapTap SDK初始化失败: ${e.message}", e)
             }
@@ -550,6 +560,13 @@ class MainActivity : ComponentActivity() {
 
     /** 初始化 Dirichlet 聚合 Ad SDK（在 TapTapAuthManager.init() 后调用） */
     private fun initAdSdk() {
+        // 幂等守卫：广告聚合 SDK 全局初始化仅进程内首次执行，MainActivity 每次重建
+        // （登出 recreate / 合规切换 recreate / 系统回收重建）都会走到本方法，
+        // 无守卫时 DirichletSdk.init 被重复调用（广告公司反馈"重复初始化"）
+        if (!com.xianxia.sect.taptap.SdkInitGuard.tryInitAdSdk()) {
+            Log.d(TAG, "Ad SDK already initialized, skipping")
+            return
+        }
         try {
             val config = com.tapsdk.tapad.group.DirichletAdConfig.Builder()
                 .withMediaId(1105785)
@@ -574,6 +591,9 @@ class MainActivity : ComponentActivity() {
                 }
             )
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // 同步构建失败：释放守卫占用，允许下次 MainActivity 重建重试初始化
+            //（异步 onInitFail 不复位——SDK 已执行过 init，重试意义有限）
+            com.xianxia.sect.taptap.SdkInitGuard.releaseAdSdkInit()
             Log.e(TAG, "Dirichlet 聚合 SDK 初始化失败: ${e.message}", e)
         }
     }

@@ -20,6 +20,13 @@ object TapDBManager {
 
     private var gameDurationService: GameDurationService? = null
 
+    /** 时长统计启动守卫：MainActivity 每次重建都会调用本方法，进程内仅真正构建一次服务 */
+    private val trackingStarted = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /** 测试可观察：实际进入 SDK 构建体的次数（含失败重试） */
+    internal var durationTrackingStartCount = 0
+        private set
+
     private val dbInstance: TapDB?
         get() = try {
             TapDB.getInstance()
@@ -29,7 +36,14 @@ object TapDBManager {
         }
 
     fun startGameDurationTracking(app: Application) {
+        // 幂等守卫：重复调用直接跳过，避免重复构建 GameDurationService / 重复注册
+        // ActivityLifecycleTracker（广告公司反馈"重复初始化"同类问题一并根治）
+        if (!trackingStarted.compareAndSet(false, true)) {
+            Log.d(TAG, "Game duration tracking already started, skipping")
+            return
+        }
         try {
+            durationTrackingStartCount++
             val db = TapDB.getInstance()
             val prefs = app.getSharedPreferences("tap_game_duration", Context.MODE_PRIVATE)
             val json = Json { ignoreUnknownKeys = true }
@@ -49,12 +63,16 @@ object TapDBManager {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
+            // SDK 初始化失败：复位守卫，允许下次 MainActivity 重建重试
+            trackingStarted.set(false)
             Log.e(TAG, "startGameDurationTracking failed: ${e.message}", e)
         }
     }
 
     fun stopGameDurationTracking() {
         try {
+            // 复位守卫：登出/退出后重新登录允许再次启动时长统计
+            trackingStarted.set(false)
             gameDurationService = null
             Log.d(TAG, "Game duration tracking stopped")
         } catch (e: CancellationException) {
