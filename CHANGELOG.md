@@ -46,6 +46,15 @@
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；TapTap 登录 SDK 启动初始化行为不变（登录按钮体验不变）；TapTap init 超时降级模式（跳过登录进本地存档选择）广告不初始化与现状一致；登出→再登录：`SdkInitGuard` 拦截广告 SDK 重复 init、`TapDBManager.stopGameDurationTracking` 复位后重新启动时长统计（设计意图不变）；无新增权限、无数据收集变化，隐私政策无需更新
 - **测试** — `SdkInitGuardTest` / `TapDBManagerInitGuardTest` 覆盖的幂等守卫机制未改动，语义不变；测试注释同步更新为新的调用时机描述。调用点编排为 Activity 生命周期/登录回调层变更（项目无 HiltActivity 测试设施、MainActivity 无既有测试），由代码审查与真机验证覆盖
 
+### 修复（2026-08-15 退出游戏再登录卡在登录界面——登出路径未清 TapTap SDK 会话，静默登录后防沉迷验证不触发）
+
+> 背景：真机实测"登录进入游戏 → 退出游戏 → 再登录 → 卡在登录界面（已显示'登录成功'但无法进入模式选择）"。日志证据链：卡死场景为 SDK **静默登录**——无 `TapTapLoginActivity`，SDK 直接回传残留会话；正常场景（杀进程重进）走完整登录页，防沉迷验证链路（`startup` → 实名结果回调 → `CODE_LOGIN_SUCCESS`）全部正常。根因：`GameActivity.onLogout` 仅 `sessionManager.clearSession()`，未清 TapTap SDK 登录态（对比 `handleUserExit` 的完整登出），SDK 残留会话使再次登录静默成功，而静默会话下 `TapTapCompliance.startup` 不弹认证且无回调 → 永远等不到 `CODE_LOGIN_SUCCESS` → 卡死。
+
+- **登出路径统一（对齐 `handleUserExit`）** — 四处登出入口补全 `TapTapAuthManager.logout()` + `TapDBManager.stopGameDurationTracking()` + `ComplianceManager.unregisterCallback()`：① `GameActivity.onLogout`（游戏内设置退出登录）；② `MainActivity` 模式选择界面"退出登录"；③ 合规限制弹窗"退出游戏/切换账号"；④ 实名认证界面"切换账号"。登出 = 清本地会话 + 清 SDK 登录态 + 停时长统计 + 解绑回调，下次登录必走完整登录页与防沉迷验证（TapTap 登录页一键确认，体验损失可接受）
+- **防沉迷验证超时兜底** — `startComplianceCheck` 新增 30s 超时提示（`scheduleComplianceTimeoutHint`，`COMPLIANCE_TIMEOUT_MS`）：SDK 静默失败（startup 后无任何回调）时 Toast"实名认证无响应，请退出后重新登录"引导用户，验证成功（`complianceVerified` 置位）后自动失效；任务挂 `lifecycleScope`，Activity 销毁自动取消——杜绝无反馈死卡
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；行为变化：登出更彻底（下次登录需重新走 TapTap 授权页）；广告/统计幂等守卫语义不变
+- **测试** — 登出编排为 Activity 层变更（项目无 HiltActivity 测试设施），由真机复测覆盖：退出游戏 → 再登录 → 弹登录页 → 防沉迷验证 → 进入模式选择
+
 ### 修复（2026-08 荣耀 X70 创建宗门键盘反复弹出收起根治）
 
 > 背景：实测荣耀 X70（MagicOS 9 / Android 15）在创建宗门输入宗门名称时键盘反复弹出收起。根因证据链（四环）：① `MainActivity/GameActivity.onWindowFocusChanged → hideSystemBars()` 无条件调用 `WindowInsetsControllerCompat.hide()`，构成"焦点变化→窗口操作"放大器；② 荣耀 MagicOS 键盘弹出/收起期间窗口焦点抖动（荣耀官方社区同症状报告 + 2025-11 荣耀智慧输入法大规模故障事件佐证）；③ Android 15 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗引发 insets 翻转（本项目 hideSystemBars 在 API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径行为不同）；④ 自动聚焦为单次 requestFocus 无确认无重试，键盘首次弹出失败后无恢复，与系统自动重弹叠加成振荡。四环合并 → "弹出→收起→再弹出"回路。此前三轮修复（小米 `076f3236`/OPPO、Vivo `274aa307`/内联覆盖层 `57352e02`）均只修对话框内部避让双重位移，未触及 Activity 层放大器，换 ROM 再爆。

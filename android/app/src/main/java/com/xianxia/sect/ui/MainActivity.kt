@@ -40,6 +40,7 @@ import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -177,6 +178,8 @@ class MainActivity : ComponentActivity() {
         private const val TAP_SDK_READY_WAIT_MS = 5_000L
         /** TapTap 登录 SDK 就绪轮询间隔 */
         private const val TAP_SDK_READY_POLL_INTERVAL_MS = 100L
+        /** 防沉迷验证超时兜底：SDK 静默失败（无任何回调）时提示用户，避免死卡登录界面 */
+        private const val COMPLIANCE_TIMEOUT_MS = 30_000L
         const val EXTRA_SLOT = "slot"
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
@@ -185,6 +188,9 @@ class MainActivity : ComponentActivity() {
 
     /** 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治） */
     private val systemBarRestoreListener: () -> Unit = { hideSystemBars() }
+
+    /** 防沉迷验证超时兜底任务（验证成功回调后自动失效） */
+    private var complianceTimeoutJob: Job? = null
     
     public sealed class ComplianceDialogState {
         data class Restrict(val title: String, val message: String) : ComplianceDialogState()
@@ -410,6 +416,11 @@ class MainActivity : ComponentActivity() {
                     },
                     onLogout = {
                         sessionManager.clearSession()
+                        // 完整登出（对齐 handleUserExit）：清 TapTap SDK 登录态——否则残留
+                        // 会话使再次登录走"静默登录"（不弹登录页），防沉迷验证不触发
+                        // 导致卡在登录界面；停时长统计
+                        TapTapAuthManager.logout()
+                        TapDBManager.stopGameDurationTracking()
                         ComplianceManager.unregisterCallback()
                         recreate()
                     },
@@ -677,6 +688,26 @@ class MainActivity : ComponentActivity() {
     internal fun startComplianceCheck(unionId: String) {
         Log.d(TAG, "开始合规认证检查，unionId: $unionId")
         ComplianceManager.startup(this, unionId)
+        scheduleComplianceTimeoutHint()
+    }
+
+    /**
+     * 防沉迷验证超时兜底：SDK 静默失败（startup 后无任何回调，如残留会话
+     * 场景）时弹提示引导重新登录，避免用户无反馈地卡在登录界面。
+     * 验证成功（[SessionManager.complianceVerified] 置位）后自动失效。
+     */
+    private fun scheduleComplianceTimeoutHint() {
+        if (complianceTimeoutJob?.isActive == true) return
+        complianceTimeoutJob = lifecycleScope.launch {
+            delay(COMPLIANCE_TIMEOUT_MS)
+            if (!sessionManager.complianceVerified && !isFinishing && !isDestroyed) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "实名认证无响应，请退出后重新登录",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
     
     private fun showComplianceVerificationScreen(unionId: String) {
@@ -693,6 +724,8 @@ class MainActivity : ComponentActivity() {
                         onLogout = {
                             sessionManager.clearSession()
                             TapTapAuthManager.logout()
+                            TapDBManager.stopGameDurationTracking()
+                            ComplianceManager.unregisterCallback()
                             showMainScreen()
                         }
                     )
@@ -973,6 +1006,18 @@ private fun dialogRenderableInComposition(): Boolean {
     return lifecycleState.canRenderDialogs()
 }
 
+/**
+ * 合规限制弹窗"退出游戏/切换账号"：清会话 + 完整登出（清 TapTap SDK 登录态 /
+ * 停时长统计 / 解绑合规回调，对齐 [MainActivity.handleUserExit]）+ 重建主界面。
+ */
+private fun performComplianceLogout(sessionManager: SessionManager, context: Context) {
+    sessionManager.clearSession()
+    TapTapAuthManager.logout()
+    TapDBManager.stopGameDurationTracking()
+    ComplianceManager.unregisterCallback()
+    (context as? MainActivity)?.recreate()
+}
+
 /** 隐私政策展示 + 合规限制对话框（适龄限制/账号封禁提示） */
 @Composable
 private fun MainComplianceDialogs(
@@ -1002,9 +1047,7 @@ private fun MainComplianceDialogs(
                             text = "退出游戏",
                             onClick = {
                                 complianceDialogState.value = null
-                                sessionManager.clearSession()
-                                TapTapAuthManager.logout()
-                                (context as? MainActivity)?.recreate()
+                                performComplianceLogout(sessionManager, context)
                             }
                         )
                     },
@@ -1013,9 +1056,7 @@ private fun MainComplianceDialogs(
                             text = "切换账号",
                             onClick = {
                                 complianceDialogState.value = null
-                                sessionManager.clearSession()
-                                TapTapAuthManager.logout()
-                                (context as? MainActivity)?.recreate()
+                                performComplianceLogout(sessionManager, context)
                             }
                         )
                     }
