@@ -18,6 +18,8 @@ import com.xianxia.sect.core.engine.MerchantRefreshResult
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
 import com.xianxia.sect.core.engine.SpiritRootWashResult
+import com.xianxia.sect.core.engine.TraitAddConfirmResult
+import com.xianxia.sect.core.engine.TraitAddResult
 import com.xianxia.sect.core.engine.TraitWashConfirmResult
 import com.xianxia.sect.core.engine.TraitWashResult
 import com.xianxia.sect.core.engine.apprenticeToMaster
@@ -744,6 +746,18 @@ class GameViewModel @Inject constructor(
         disciple.confirmPhysique(discipleId, targetId, newId)
     suspend fun confirmAffix(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
         disciple.confirmAffix(discipleId, targetId, newId)
+
+    // ── 新增天赋/体质/词条（玉符消耗玩法，流程复用洗炼界面；刷新即扣玉符、结果持久化）──
+
+    suspend fun addTalent(discipleId: String): TraitAddResult = disciple.addTalent(discipleId)
+    suspend fun addPhysique(discipleId: String): TraitAddResult = disciple.addPhysique(discipleId)
+    suspend fun addAffix(discipleId: String): TraitAddResult = disciple.addAffix(discipleId)
+    suspend fun confirmAddTalent(discipleId: String, newId: String): TraitAddConfirmResult =
+        disciple.confirmAddTalent(discipleId, newId)
+    suspend fun confirmAddPhysique(discipleId: String, newId: String): TraitAddConfirmResult =
+        disciple.confirmAddPhysique(discipleId, newId)
+    suspend fun confirmAddAffix(discipleId: String, newId: String): TraitAddConfirmResult =
+        disciple.confirmAddAffix(discipleId, newId)
     fun getLifeEvents(discipleId: String): List<String> = delegateServices.discipleFacade.getLifeEvents(discipleId)
     fun initializeLifeEvents(discipleId: String) {
         // 写操作必须派发到引擎线程（对齐 enterSect 模式），否则主线程直调 stateStore.update 触发架构违规守卫

@@ -33,6 +33,7 @@ import com.xianxia.sect.core.model.MineSlot
 import com.xianxia.sect.core.model.Mission
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.PendingTraitAdd
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SecretRealmAITeam
@@ -573,6 +574,18 @@ object CollectionConverters {
     @JvmStatic
     fun toMailClaimRecordList(value: String): List<MailClaimRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(MailClaimRecord.serializer()), value) { emptyList() }
+
+    // ==================== 新增特质待确认产物转换器（v47） ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromPendingTraitAddList(value: List<PendingTraitAdd>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(PendingTraitAdd.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toPendingTraitAddList(value: String): List<PendingTraitAdd> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(PendingTraitAdd.serializer()), value) { emptyList() }
 
     // ==================== 宗门等级领取记录转换器 ====================
 

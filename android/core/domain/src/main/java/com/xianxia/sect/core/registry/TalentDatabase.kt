@@ -588,13 +588,14 @@ object TalentDatabase {
         return result
     }
 
-    /** 洗炼候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
+    /** 洗炼/新增候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
     fun hasTalentCandidates(excludedTemplates: Set<String> = emptySet()): Boolean =
         allTalentsData.values
-            .any { it.type !in DEPRECATED_TALENT_TYPES && it.template !in excludedTemplates }
+            .any { it.type !in DEPRECATED_TALENT_TYPES && !it.isNegative && it.template !in excludedTemplates }
 
     /**
-     * 单次洗炼抽取一个天赋（品阶分布与生成一致：[rollTraitQuality] 四档）。
+     * 单次洗炼/新增抽取一个天赋（无负面，品阶分布与洗炼一致：[rollWashTraitQuality] 三档
+     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同，2026-08-15 需求变更）。
      *
      * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
      * 调用方应先用 [hasTalentCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
@@ -604,9 +605,9 @@ object TalentDatabase {
         excludedTemplates: Set<String> = emptySet()
     ): TalentData? {
         val candidates = allTalentsData.values
-            .filter { it.type !in DEPRECATED_TALENT_TYPES && it.template !in excludedTemplates }
+            .filter { it.type !in DEPRECATED_TALENT_TYPES && !it.isNegative && it.template !in excludedTemplates }
         if (candidates.isEmpty()) return null
-        return pickTalentByDistribution(candidates, random)
+        return pickPositiveWash(candidates, random) { it.rarity }
     }
 
     fun generateTalentsForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Talent> {

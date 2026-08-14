@@ -14,6 +14,18 @@
 - **渲染特性清单** — `android/docs/renderer-feature-checklist.md` 新增 render_scale / refresh_rate_declaration / dirty_frame_skip / power_save_mode / dynamic_adpf_target 五行
 - **真机验证清单（待测）** — ① 2560×1600 平板 120Hz 挂机 30 分钟功耗对比（目标 ≤1.3× 手机）；② 平板 IDLE 静止时渲染负载归零（dirty frame skip）；③ 手机 1080p 回归（行为与改造前一致）；④ 软件渲染平板（黑名单机型）帧耗时下降 ≥50%；⑤ 120Hz 面板切刷新率黑屏窗口（首帧 60 声明 + 淡入遮罩）；⑥ 系统省电模式开关 → 30fps 生效；⑦ C++ 双 ABI（arm64-v8a + armeabi-v7a）编译
 
+### 新功能（2026-08-15 消耗玉符新增弟子天赋/体质/词条 + 洗炼概率调整）
+
+> 背景：用户需求"新增消耗玉符新增弟子词条、体质、天赋功能"。弟子详情天赋/体质/词条栏右侧新增 + 号入口，点击弹出"新增XX"界面（复用洗炼界面）：消耗 1 玉符刷新出随机特质（无负面）→ 确认新增或继续消耗；刷新结果**持久化**（未确认关闭界面再打开仍显示，可直接确认新增）；每类上限 5。同时洗炼天赋/体质/词条刷新概率改为下品40%/中品30%/上品30%（无负面）。
+
+- **引擎** — 新增 `GameEngineTraitAddOps.kt`（`rollTraitAdd`/`confirmTraitAdd`）：刷新事务内扣 1 玉符（`JadeSymbolService.deduct`，sealed 三态 + 不足不消耗 RNG 序列 + 事务外 `publishJadeSymbolStateNow`，对齐洗炼契约）并**持久化 pending**（`GameData.pendingTraitAdds`）；确认新增把产物追加到弟子列表末尾（`appendId`）并清除 pending（不消耗玉符）。校验链：存在/存活/上限 5/候选预检（扣费前）；确认路径同步 lifespan（复用 `syncLifespanForTraitChange`，原 `syncLifespanForWash` 更名 internal）与 `checkpointDisciple`（体质/词条影响修炼速率）
+- **概率** — `WeightedRoll` 新增 `WASH_TRAIT_QUALITY_DISTRIBUTION`（1=下品40%/2=中品30%/3=上品30%，无负面）+ `rollWashTraitQuality` + `pickPositiveWash`（正向池抽取）；`rollSingleTalent/Physique/Affix` 与 `hasXxxCandidates` 改为**正向池 + 新分布**（洗炼与新增共用；生成路径四档含负面分布不变）
+- **UI** — 新增 `TraitAddDialog.kt` 复用洗炼弹窗结构与样式（标题"新增XX" + 右上角关闭 + 点击屏幕外关闭 + 防连点 AtomicBoolean + 防中途关闭 + 错误平台 Dialog 透传）；中间下横线初始为空、刷新后横线上方显示产物（品阶着色）；按钮"消耗玉符"→"确认新增"+"继续消耗"；`TalentsSection/PhysiquesSection/AffixesSection` 标题行右侧 + 号（SpriteImage `ui_add_button`，未达上限 5 显示），`DiscipleDetailDialog` 根 Box 末尾渲染覆盖层
+- **持久化** — `GameData.pendingTraitAdds: List[PendingTraitAdd]`（@ProtoNumber 162，v47 迁移 `MIGRATION_46_47`：game_data 加列 `pending_trait_adds` TEXT NOT NULL DEFAULT ''，ProtobufConverters Base64 编码，与 watchedItemIds 等 List 列先例一致）
+- **测试** — `GameEngineTraitAddTest`（扣减同步/不足不耗 RNG/pending 持久化与覆盖/上限/死亡/非法/确认追加+清 pending/template 冲突/lifespan/Flat 加成/重开确认/checkpoint 不回涨）、`WeightedRollTest` +4（40/30/30 分布/无负面/权重和/确定性）、`TraitWashRollTest` +2（无负面守卫/预检-抽取同池守卫）、`RoomMigrationV46To47Test`（真实 Room schema 校验 + 数据留存）、`TraitAddDialogActionTest`（Success/Error/玉符不足/持久化重开）
+- **兼容性** — DATABASE_VERSION 46→47 单向迁移（旧档 pending_trait_adds 默认空列表）；洗炼/新增共用新分布仅影响抽取概率，无存档结构变化；生成路径（负面 30% 四档）不受影响
+- **经济登记** — `docs/knowledge-base.md` 玉符消耗登记表新增洗炼天赋/体质/词条与新增天赋/体质/词条两行（源与汇闭环）
+
 ## [4.00.97] - 2026-08-13
 
 ### 引擎重构（2026-08-13 对标 Godot 架构借鉴重构——八大维度批次 0~5）

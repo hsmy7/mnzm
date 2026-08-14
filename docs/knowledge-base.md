@@ -668,6 +668,8 @@ fun watchAdForNewFeature() {
 |------|------|------|---------|
 | 产（源） | 在线时长 | 真实前台运行每满 10 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 20，墙钟次日 0 点重置（今日计数与周期累计时长均清零） | `JadeSymbolService.kt`、`GameConfig.Jade` |
 | 耗（汇） | 洗炼灵根 | 每次 1 枚（`GameConfig.SpiritRoot.WASH_JADE_COST`），事务内 `deduct` 扣减，3 连保底 | `GameEngineSpiritRootOps.kt`、`GameConfig.SpiritRoot` |
+| 耗（汇） | 洗炼天赋/体质/词条 | 每次 1 枚（`GameConfig.TraitWash.WASH_JADE_COST`），事务内 `deduct` 扣减，3 连保底上品；单槽替换 | `GameEngineTraitWashOps.kt`、`GameConfig.TraitWash` |
+| 耗（汇） | 新增天赋/体质/词条 | **每次刷新 1 枚**（`GameConfig.TraitAdd.JADE_COST`），刷新即扣并**持久化 pending**（未确认关闭界面再打开仍可确认），确认新增免费；每类上限 5 | `GameEngineTraitAddOps.kt`、`GameConfig.TraitAdd` |
 
 **玉符消耗统一通道（2026-08-08 洗炼灵根建立，未来新增消耗/发放玩法必须走此通道）**：
 1. **唯一写入入口 = `JadeSymbolService`**——玉符是**绝对值覆盖写模型**（运行时 `@Volatile totalCount` 以绝对值覆盖写 `GameData.jadeSymbols`，`checkpointNow`/`settleGrants` 内部写）。消耗必须事务内调 `jadeSymbolService.deduct(state, cost)`（同步递减 totalCount，否则 checkpoint 把余额写回扣减前值——**玉符回涨**）；禁止在任何 Service/GameEngine 直接 `copy(jadeSymbols = ...)`，守卫测试 `JadeSymbolConsumptionGuardTest`（扫描 engine 主源码 copy/赋值反模式 + 白名单 `JadeSymbolService.kt`）自动拦截

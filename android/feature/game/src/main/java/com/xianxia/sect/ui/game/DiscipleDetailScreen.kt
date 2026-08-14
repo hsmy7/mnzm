@@ -86,6 +86,7 @@ import com.xianxia.sect.ui.game.components.detail.StorageBagDialog
 import com.xianxia.sect.ui.game.components.detail.TalentsSection
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
 import com.xianxia.sect.ui.game.dialogs.SpiritRootWashDialog
+import com.xianxia.sect.ui.game.dialogs.TraitAddDialog
 import com.xianxia.sect.ui.game.dialogs.TraitWashDialog
 import com.xianxia.sect.ui.game.dialogs.WashSessionControl
 import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
@@ -171,6 +172,8 @@ fun DiscipleDetailDialog(
     var talentWashPityCount by remember { mutableIntStateOf(0) }
     var physiqueWashPityCount by remember { mutableIntStateOf(0) }
     var affixWashPityCount by remember { mutableIntStateOf(0) }
+    // 新增天赋/体质/词条弹窗开关（单一类型值：三个 + 号入口互斥，同一时刻只开一个新增弹窗）
+    var showTraitAddType by remember { mutableStateOf<TraitWashType?>(null) }
 
     // 洗炼弹窗互斥入口（对抗性审查 2026-08-09 状态破坏者：四个洗炼入口若只置位自己的
     // bool，快速连点可在同帧叠加两个内联覆盖层，下层弹窗的洗炼按钮仍可被点到造成双扣玉符）
@@ -330,11 +333,24 @@ fun DiscipleDetailDialog(
                                         onBreakthroughJadeClick = { showBreakthroughJadeDialog = true }
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
+                                    TalentsSection(
+                                        talents,
+                                        disciple.statusData,
+                                        onTalentClick = { selectedTalent = it },
+                                        onAddClick = { showTraitAddType = TraitWashType.TALENT }
+                                    )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    PhysiquesSection(physiques, onPhysiqueClick = { selectedPhysique = it })
+                                    PhysiquesSection(
+                                        physiques,
+                                        onPhysiqueClick = { selectedPhysique = it },
+                                        onAddClick = { showTraitAddType = TraitWashType.PHYSIQUE }
+                                    )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    AffixesSection(affixes, onAffixClick = { selectedAffix = it })
+                                    AffixesSection(
+                                        affixes,
+                                        onAffixClick = { selectedAffix = it },
+                                        onAddClick = { showTraitAddType = TraitWashType.AFFIX }
+                                    )
                                 }
                                 1 -> {
                                     AttributesSection(disciple)
@@ -456,6 +472,20 @@ fun DiscipleDetailDialog(
                             }
                         },
                         onDismiss = { showBreakthroughJadeDialog = false }
+                    )
+                }
+                // 新增天赋/体质/词条弹窗（同洗炼弹窗：内联覆盖层渲染在根 Box 最末，z 序最高；
+                // 刷新结果由引擎持久化到 GameData.pendingTraitAdds——关闭再打开仍显示，可直接确认新增）
+                showTraitAddType?.let { type ->
+                    TraitAddDialog(
+                        disciple = disciple,
+                        type = type,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        pendingTraitId = gameData?.pendingTraitAdds
+                            ?.firstOrNull { it.discipleId == disciple.id && it.type == type.name }
+                            ?.traitId,
+                        viewModel = viewModel,
+                        onDismiss = { showTraitAddType = null }
                     )
                 }
             }

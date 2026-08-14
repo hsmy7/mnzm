@@ -435,6 +435,23 @@ object GameConfig {
     }
 
     /**
+     * 新增天赋/体质/词条（2026-08-15 新增，玉符消耗玩法，界面复用洗炼）。
+     *
+     * 流程：消耗 1 玉符刷新出随机特质（下品40%/中品30%/上品30%，无负面，与洗炼共用
+     * [WeightedRoll.WASH_TRAIT_QUALITY_DISTRIBUTION]）→ 确认新增把特质追加到弟子
+     * （确认不消耗玉符）；刷新结果持久化到 GameData.pendingTraitAdds，关闭界面再打开
+     * 仍可继续确认。
+     */
+    object TraitAdd {
+
+        /** 单次刷新消耗玉符数。 */
+        const val JADE_COST = 1
+
+        /** 弟子单类特质上限（天赋/体质/词条各自独立；达到上限后隐藏新增入口并拒绝引擎操作）。 */
+        const val MAX_TRAITS_PER_CATEGORY = 5
+    }
+
+    /**
      * 玉符购买玩法（2026-08-11 新增，替代原广告加成路径；与洗炼灵根共用 1 玉符消耗）。
      */
     object JadePurchase {

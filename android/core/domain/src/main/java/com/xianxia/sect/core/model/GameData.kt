@@ -29,6 +29,21 @@ data class MailClaimRecord(
 )
 
 /**
+ * 新增天赋/体质/词条的"已刷新未确认"产物记录（discipleId + 类型 → traitId）。
+ *
+ * 玉符消耗玩法（2026-08-15 新增）：刷新即扣 1 玉符并**立即持久化**该产物——
+ * 玩家不确认直接关闭界面，下次打开仍显示该产物，可直接确认新增（确认不消耗玉符）。
+ * [type] 存 [com.xianxia.sect.core.GameConfig.TraitWashType].name（TALENT/PHYSIQUE/AFFIX）。
+ */
+@Keep
+@Serializable
+data class PendingTraitAdd(
+    @ProtoNumber(1) val discipleId: String,
+    @ProtoNumber(2) val type: String,
+    @ProtoNumber(3) val traitId: String
+)
+
+/**
  * 宗门等级每周奖励领取记录。
  * 使用现实时间戳判断 7 天间隔。
  */
@@ -837,6 +852,14 @@ data class GameData(
     @ColumnInfo(defaultValue = "1")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var musicEnabled: Boolean = true,
+
+    // 新增天赋/体质/词条：已刷新未确认的新增产物（discipleId+type → traitId）。
+    // 刷新即扣玉符并立即持久化——关闭界面再打开仍显示该产物，可直接确认新增
+    // （确认不消耗玉符）。空列表经 ProtobufConverters 编码为空字符串。
+    @ProtoNumber(162)
+    @ColumnInfo(name = "pending_trait_adds", defaultValue = "")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var pendingTraitAdds: List<PendingTraitAdd> = emptyList(),
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

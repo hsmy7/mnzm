@@ -7,7 +7,8 @@ import org.junit.Test
 
 /**
  * 验证弟子特质公共分布工具（WeightedRoll）：
- * 数量 0-5（35/35/20/6/3/1）、品阶四档（负面30/下品50/中品18/上品2）、确定性。
+ * 数量 0-5（35/35/20/6/3/1）、品阶四档（负面30/下品50/中品18/上品2）、确定性；
+ * 洗炼/新增品阶三档（下品40/中品30/上品30，无负面）、确定性。
  */
 class WeightedRollTest {
 
@@ -49,6 +50,24 @@ class WeightedRollTest {
     }
 
     @Test
+    fun `rollWashTraitQuality - large sample matches configured distribution and never negative`() {
+        // 洗炼/新增（玉符消耗玩法）品阶分布：下品40% / 中品30% / 上品30%，无负面（恒不返回 0）
+        val rng = kotlin.random.Random(2026)
+        val counts = IntArray(4)
+        repeat(SAMPLE_SIZE) { counts[rollWashTraitQuality(rng)]++ }
+
+        assertEquals("洗炼品阶分布不得包含负面（quality=0）", 0, counts[0])
+        val expected = listOf(0.40, 0.30, 0.30)
+        for (quality in 1..3) {
+            val actual = counts[quality].toDouble() / SAMPLE_SIZE
+            assertTrue(
+                "quality=$quality actual=$actual expected≈${expected[quality - 1]}",
+                abs(actual - expected[quality - 1]) <= TOLERANCE
+            )
+        }
+    }
+
+    @Test
     fun `rollTraitCount - weights sum to 1`() {
         assertEquals(1.0, DISCIPLE_TRAIT_COUNT_DISTRIBUTION.sumOf { it.second }, 1e-9)
     }
@@ -56,6 +75,11 @@ class WeightedRollTest {
     @Test
     fun `rollTraitQuality - weights sum to 1`() {
         assertEquals(1.0, DISCIPLE_TRAIT_QUALITY_DISTRIBUTION.sumOf { it.second }, 1e-9)
+    }
+
+    @Test
+    fun `rollWashTraitQuality - weights sum to 1`() {
+        assertEquals(1.0, WASH_TRAIT_QUALITY_DISTRIBUTION.sumOf { it.second }, 1e-9)
     }
 
     @Test
@@ -73,6 +97,15 @@ class WeightedRollTest {
         val r2 = kotlin.random.Random(7)
         val s1 = List(1000) { rollTraitQuality(r1) }
         val s2 = List(1000) { rollTraitQuality(r2) }
+        assertEquals(s1, s2)
+    }
+
+    @Test
+    fun `rollWashTraitQuality - same seed produces identical sequence`() {
+        val r1 = kotlin.random.Random(7)
+        val r2 = kotlin.random.Random(7)
+        val s1 = List(1000) { rollWashTraitQuality(r1) }
+        val s2 = List(1000) { rollWashTraitQuality(r2) }
         assertEquals(s1, s2)
     }
 }

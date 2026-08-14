@@ -310,12 +310,13 @@ object PhysiqueDatabase {
         )
     }
 
-    /** 洗炼候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
+    /** 洗炼/新增候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
     fun hasPhysiqueCandidates(excludedTemplates: Set<String> = emptySet()): Boolean =
-        allPhysiquesData.values.any { it.template !in excludedTemplates }
+        allPhysiquesData.values.any { !it.isNegative && it.template !in excludedTemplates }
 
     /**
-     * 单次洗炼抽取一个体质（品阶分布与生成一致：[rollTraitQuality] 四档）。
+     * 单次洗炼/新增抽取一个体质（无负面，品阶分布与洗炼一致：[rollWashTraitQuality] 三档
+     * 下品40%/中品30%/上品30%；与生成的四档含负面分布不同，2026-08-15 需求变更）。
      *
      * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
      * 调用方应先用 [hasPhysiqueCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
@@ -324,9 +325,10 @@ object PhysiqueDatabase {
         random: kotlin.random.Random = kotlin.random.Random,
         excludedTemplates: Set<String> = emptySet()
     ): PhysiqueData? {
-        val candidates = allPhysiquesData.values.filter { it.template !in excludedTemplates }
+        val candidates = allPhysiquesData.values
+            .filter { !it.isNegative && it.template !in excludedTemplates }
         if (candidates.isEmpty()) return null
-        return pickByDistribution(candidates, random)
+        return pickPositiveWash(candidates, random) { it.rarity }
     }
 
     fun generateForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Physique> {

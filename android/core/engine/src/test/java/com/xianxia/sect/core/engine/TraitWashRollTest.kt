@@ -9,6 +9,7 @@ import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.asKotlinRandom
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,6 +21,9 @@ import org.junit.Test
  * 固定种子确定性、保底计数语义、排除模板过滤（新条目不与保留槽位 template 冲突）、
  * 池全排除 → 无候选（预检/抽取双兜底）、以及守卫——三类型 3 阶正向池非空（保底不变量前提）、
  * 单条抽取品阶分布有效（两种品阶情形均出现）。
+ *
+ * 品阶分布（2026-08-15 需求变更）：洗炼/新增共用无负面三档（下品40%/中品30%/上品30%，
+ * 见 WeightedRollTest.rollWashTraitQuality），普通路径恒产出正向条目。
  */
 class TraitWashRollTest {
 
@@ -197,6 +201,43 @@ class TraitWashRollTest {
                 "同种子同输入必须同产物 (${type.displayName})",
                 type.rollSingle(rng1, excluded),
                 type.rollSingle(rng2, excluded)
+            )
+        }
+    }
+
+    @Test
+    fun `Database单条抽取 - 洗炼恒产出正向条目且品阶1-3（无负面，2026-08-15 需求变更）`() {
+        // 需求：刷新概率 下品40%/中品30%/上品30%，不可刷新负面——普通洗炼路径必须无负面
+        for (type in washTypes) {
+            repeat(200) { seed ->
+                val random = DeterministicRng.fromSeed(seed.toLong() + 80_000).asKotlinRandom()
+                val entry = type.rollSingle(random, excludedTemplates = emptySet())
+                assertNotNull("单条抽取必须产出条目 (${type.displayName}, seed=$seed)", entry)
+                assertTrue(
+                    "洗炼不得产出负面/越界品阶 (${type.displayName}, seed=$seed): " +
+                        "${entry!!.id} rarity=${entry.rarity}",
+                    entry.rarity in 1..3
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `guard - hasRollCandidate 与 rollSingle 同池同过滤 仅剩负面时预检false且抽取null`() {
+        // 守卫：预检与抽取必须同池同过滤（正向 + 排除 template）。若候选池仅剩负面条目
+        // （正向模板全被排除），预检 false + 抽取 null——防止"预检通过但抽取为空"导致
+        // 扣费后白抽（deduct 后事务内异常 = 玉符永久损失）
+        for (type in washTypes) {
+            val positiveTemplates: Set<String> = when (type) {
+                TraitWashType.TALENT -> TalentDatabase.getPositiveTalents().map { type.templateOf(it.id) }.toSet()
+                TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPositivePhysiques().map { type.templateOf(it.id) }.toSet()
+                TraitWashType.AFFIX -> AffixDatabase.getPositiveAffixes().map { type.templateOf(it.id) }.toSet()
+            }
+
+            assertFalse("仅剩负面时预检必须为 false (${type.displayName})", type.hasRollCandidate(positiveTemplates))
+            assertNull(
+                "仅剩负面时抽取必须返回 null (${type.displayName})",
+                type.rollSingle(DeterministicRng.fromSeed(1L).asKotlinRandom(), positiveTemplates)
             )
         }
     }
