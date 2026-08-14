@@ -64,6 +64,16 @@
 - **兼容性** — 无 Entity/Migration/存档变更；行为不变（仅失败路径从"阻断登录"变为"跳过初始化并记日志"，广告/统计在异常时不可用但登录正常）
 - **测试** — Activity 层编排变更，真机复测覆盖：登录 → 进游戏 → 退出 → 再登录 → 正常进入；异常路径由日志（`SDK 服务初始化异常`）观测
 
+### 机制（2026-08-15 防回归固化——SDK 初始化生命周期规则 + 关键路径隔离契约 + 测试守护）
+
+> 背景：本日两个真机回归（广告重复初始化 / 退出游戏再登录卡死）暴露同一类问题——初始化/登出类改动缺少约束与守卫，跨域副作用可静默破坏登录链路。为杜绝复发，将教训固化为四层机制（代码结构 + 测试 + 审查清单 + 规则文档）：
+
+- **代码结构固化** — `safeRunAfterSdkInit` 顶层编排函数（MainActivity.kt）：初始化抛 `Exception` 只记日志、**仍执行**后续关键步骤（防沉迷验证/界面跳转）；`CancellationException` 重抛、`Error` 不拦截；登录成功回调与已登录冷启动两个调用点全部改走该编排（替换原 `safeEnsureSdkServicesInitialized` 方法），`ensureSdkServicesInitialized` 契约 = 幂等 + 永不抛出
+- **测试守护** — 新增 `SafeRunAfterSdkInitTest`（6 用例：正常路径/初始化异常仍执行关键步骤/异常传递给日志回调/CancellationException 重抛/Error 不拦截/block 异常上抛）——未来改动编排破坏契约即测试失败
+- **审查清单** — `CLAUDE.md` 13.3 新增 🔴 条目："登录/主流程关键路径上的非必要初始化必须解耦（幂等、永不抛出、经 `safeRunAfterSdkInit` 编排）；登出路径必须完整清理 TapTap SDK 会话"
+- **规则文档** — 新增 `rules/sdk-init-lifecycle.md`：SDK 初始化清单与时机表、关键路径隔离契约、登出完整四件套清单（4 处登出入口）、修改检查清单、真机冒烟清单
+- **验证** — `SafeRunAfterSdkInitTest`(6) + `SdkInitGuardTest`(7) + `TapDBManagerInitGuardTest`(2) 全绿；compileReleaseKotlin + detekt + lintRelease 通过
+
 ### 修复（2026-08 荣耀 X70 创建宗门键盘反复弹出收起根治）
 
 > 背景：实测荣耀 X70（MagicOS 9 / Android 15）在创建宗门输入宗门名称时键盘反复弹出收起。根因证据链（四环）：① `MainActivity/GameActivity.onWindowFocusChanged → hideSystemBars()` 无条件调用 `WindowInsetsControllerCompat.hide()`，构成"焦点变化→窗口操作"放大器；② 荣耀 MagicOS 键盘弹出/收起期间窗口焦点抖动（荣耀官方社区同症状报告 + 2025-11 荣耀智慧输入法大规模故障事件佐证）；③ Android 15 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗引发 insets 翻转（本项目 hideSystemBars 在 API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径行为不同）；④ 自动聚焦为单次 requestFocus 无确认无重试，键盘首次弹出失败后无恢复，与系统自动重弹叠加成振荡。四环合并 → "弹出→收起→再弹出"回路。此前三轮修复（小米 `076f3236`/OPPO、Vivo `274aa307`/内联覆盖层 `57352e02`）均只修对话框内部避让双重位移，未触及 Activity 层放大器，换 ROM 再爆。

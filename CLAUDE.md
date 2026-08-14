@@ -501,6 +501,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🔴 | 新增给玩家发放物品（装备/丹药/草药/材料/种子/功法/储物袋）的代码路径**必须通过 `InventorySystem.addXxx` 统一入口**（`StackableItemStore` 自动合并，禁止手写 `find`+追加/`coerceAtMost` 截断/手写 `StackableItemStore(`——守卫测试 `InventoryAddPathGuardTest` 会拦截），并包裹 `withTrackingSource("来源名")`（来源名必须加入 `OverflowMailSender.SOURCE_DISPLAY_NAMES` 映射，否则来源映射守卫测试失败） |
 | 🔴 | 新增广告类型（`AdPurpose` 枚举值）已在 ViewModel 中通过 `adService.watchAd()` 统一入口调用，白名单守卫由 `AdServiceImpl` 自动继承。详见 `docs/knowledge-base.md#免广告特权白名单` |
 | 🔴 | 新增物品发放路径须判定**溢出语义类别**：**凭据类**（玩家可重试的领取/获得——兑换码/宗门等级/引导/邮件领取/没收/卸装）必须包裹 `withOverflowMailSuppressed`（溢出不转邮件，失败保留凭据重试补齐）；**发放类**（自动入库——战斗/探索/灵田/生产/商人/AutoBuy/储物袋开启）不包裹（溢出自动转邮件）——选错类别会导致物品重复发放或丢失（对抗性审查 C1/C2/C3/H1/H2 教训） |
+| 🔴 | 登录/主流程**关键路径上的非必要初始化必须解耦**：与登录无因果关系的初始化（广告 SDK/统计/回调注册）不得与关键步骤（防沉迷验证/界面跳转）串行绑定在同一调用链——初始化调用必须幂等、**永不抛出**，且经 `safeRunAfterSdkInit` 编排（语义由 `SafeRunAfterSdkInitTest` 守护）；登出路径必须完整清理 TapTap SDK 会话（防静默登录导致防沉迷验证不触发）。详见 `rules/sdk-init-lifecycle.md`（2026-08-15 "退出游戏再登录卡死"回归教训） |
 | 🔴 | 新增玉符（`jadeSymbols`）消耗/发放路径**必须收敛于 `JadeSymbolService`**（消耗走事务内 `deduct(state, cost)` 同步运行时 totalCount，发放走服务内部结算），禁止在 Service/GameEngine 直接 `copy(jadeSymbols = ...)`——玉符是绝对值覆盖写模型，绕过 totalCount 同步则 `checkpointNow` 把余额写回覆盖前值（玉符回涨）；守卫测试 `JadeSymbolConsumptionGuardTest` 会拦截。模式参照：洗炼灵根 `GameEngineSpiritRootOps.washSpiritRoot`（先扣后抽 + sealed 三态 + 事务外 `publishJadeSymbolStateNow`） |
 
 **扩展方向（2026-08 新增，为未来扩展做准备）：**
