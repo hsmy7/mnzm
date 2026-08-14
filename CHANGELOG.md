@@ -55,6 +55,15 @@
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；行为变化：登出更彻底（下次登录需重新走 TapTap 授权页）；广告/统计幂等守卫语义不变
 - **测试** — 登出编排为 Activity 层变更（项目无 HiltActivity 测试设施），由真机复测覆盖：退出游戏 → 再登录 → 弹登录页 → 防沉迷验证 → 进入模式选择
 
+### 修复（2026-08-15 SDK 服务初始化与登录流程解耦——初始化异常不得阻断防沉迷验证）
+
+> 背景：复盘"退出游戏再登录卡死"时发现，上一轮 SDK 初始化时机调整（`8844f31b`）引入结构性缺陷：把"合规回调注册/广告/统计初始化"（`ensureSdkServicesInitialized`）放进了**登录成功回调的串行关键路径**（与 `startComplianceCheck` 同在一个 runnable、且排在其前）。该初始化与登录无因果关系，却有能力阻断登录：`ComplianceManager.registerCallback` 内部仅 `catch (Exception)`，SDK 回调注册在残留会话等异常状态下若抛 Error 类（`NoClassDefFoundError`/`VerifyError` 等），异常冒泡使 `startComplianceCheck` 被跳过 → "登录成功但卡在登录界面"（实测日志特征：登录成功日志后无任何"开始合规认证检查"日志）。已登录冷启动分支同理（初始化异常会连带阻断界面跳转）。
+
+- **`ensureSdkServicesInitialized` 契约改为"永不抛出"** — 内部 `registerCallback` 用 `runCatching` 全量兜底（含 Error 类，不触发 detekt 通用 catch 规则），任何异常只记日志
+- **新增 `safeEnsureSdkServicesInitialized`** — 调用点二次兜底（`catch Exception` + `CancellationException` 重抛），两个调用点（登录成功回调 / 已登录冷启动）全部改走安全入口，`startComplianceCheck` 与界面跳转**永远执行**——广告/统计/回调注册与登录彻底解耦
+- **兼容性** — 无 Entity/Migration/存档变更；行为不变（仅失败路径从"阻断登录"变为"跳过初始化并记日志"，广告/统计在异常时不可用但登录正常）
+- **测试** — Activity 层编排变更，真机复测覆盖：登录 → 进游戏 → 退出 → 再登录 → 正常进入；异常路径由日志（`SDK 服务初始化异常`）观测
+
 ### 修复（2026-08 荣耀 X70 创建宗门键盘反复弹出收起根治）
 
 > 背景：实测荣耀 X70（MagicOS 9 / Android 15）在创建宗门输入宗门名称时键盘反复弹出收起。根因证据链（四环）：① `MainActivity/GameActivity.onWindowFocusChanged → hideSystemBars()` 无条件调用 `WindowInsetsControllerCompat.hide()`，构成"焦点变化→窗口操作"放大器；② 荣耀 MagicOS 键盘弹出/收起期间窗口焦点抖动（荣耀官方社区同症状报告 + 2025-11 荣耀智慧输入法大规模故障事件佐证）；③ Android 15 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗引发 insets 翻转（本项目 hideSystemBars 在 API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径行为不同）；④ 自动聚焦为单次 requestFocus 无确认无重试，键盘首次弹出失败后无恢复，与系统自动重弹叠加成振荡。四环合并 → "弹出→收起→再弹出"回路。此前三轮修复（小米 `076f3236`/OPPO、Vivo `274aa307`/内联覆盖层 `57352e02`）均只修对话框内部避让双重位移，未触及 Activity 层放大器，换 ROM 再爆。

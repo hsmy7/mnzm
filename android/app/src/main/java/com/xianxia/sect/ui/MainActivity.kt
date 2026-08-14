@@ -332,8 +332,9 @@ class MainActivity : ComponentActivity() {
 
             if (sessionManager.isLoggedIn) {
                 // 已登录冷启动兜底：登录发生在上个进程（进程销毁复用），
-                // 本进程未经过登录成功回调，在此补做一次 SDK 服务初始化
-                ensureSdkServicesInitialized()
+                // 本进程未经过登录成功回调，在此补做一次 SDK 服务初始化。
+                // 初始化失败不得阻断主流程（解耦：广告/统计/回调注册与登录无关）
+                safeEnsureSdkServicesInitialized()
                 if (sessionManager.complianceVerified) {
                     showModeSelectionScreen()
                 } else {
@@ -606,7 +607,14 @@ class MainActivity : ComponentActivity() {
      * API，不阻塞）。
      */
     internal fun ensureSdkServicesInitialized() {
-        ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
+        // runCatching 兜底：SDK 回调注册在异常状态下可能抛 Error 类
+        // （registerCallback 内部仅 catch Exception），此处全量拦截——
+        // 本方法契约 = 永不抛出，不得阻断登录/主流程
+        runCatching {
+            ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
+        }.onFailure {
+            Log.e(TAG, "合规回调注册异常（不影响后续流程）", it)
+        }
         lifecycleScope.launch(ioDispatcher.dispatcher) {
             // 冷启动路径下本协程与 initTapTapLoginSdk 并发，广告聚合 SDK 依赖
             // TapTapKit.context（TapTapAuthManager.init 反射兜底），必须先等其就绪；
@@ -614,6 +622,24 @@ class MainActivity : ComponentActivity() {
             awaitTapTapSdkReady()
             initAdSdk()
             TapDBManager.startGameDurationTracking(application)
+        }
+    }
+
+    /**
+     * 安全执行 SDK 服务初始化：任何异常只记日志，绝不阻断登录/主流程。
+     *
+     * [ensureSdkServicesInitialized] 的调用方（登录成功回调、已登录冷启动）后续
+     * 都紧跟关键流程（防沉迷验证、界面跳转），SDK 注册/初始化在异常状态下可能
+     * 抛出 Error 类（registerCallback 内部仅 catch Exception 挡不住），必须在此
+     * 兜底解耦——广告/统计/回调注册与登录无关，不得有能力阻断登录。
+     */
+    internal fun safeEnsureSdkServicesInitialized() {
+        try {
+            ensureSdkServicesInitialized()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "SDK 服务初始化异常（不影响登录/主流程）", e)
         }
     }
 
@@ -1145,9 +1171,10 @@ private fun TapTapLoginButton(
                     onLoadingChange(false)
                     val act = context as? MainActivity
                     act?.runOnUiThread {
-                        // 登录成功回调：一次性初始化广告/统计/合规服务（进程级幂等），
-                        // 必须先于 startComplianceCheck 注册合规回调，避免验证结果回调丢失
-                        act.ensureSdkServicesInitialized()
+                        // 登录成功回调：一次性初始化广告/统计/合规服务（进程级幂等）。
+                        // 经 safeEnsure 解耦——初始化异常只记日志，不得阻断防沉迷验证
+                        // （必须先于 startComplianceCheck 注册合规回调，防验证结果丢失）
+                        act.safeEnsureSdkServicesInitialized()
                         act.startComplianceCheck(unionId)
                     }
                 }
