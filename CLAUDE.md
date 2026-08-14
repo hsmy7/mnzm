@@ -481,7 +481,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🔴 | 新增生产类政策已同步在 `SectPolicyToggleUseCase` 中触发 `checkpointAllProduction()` |
 | 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |
 | 🔴 | 新增对话框已遵循 `rules/new-dialog-checklist.md` 标准流程（注册 DialogType → 渲染 when 分支） |
-| 🔴 | 新增包含输入框的对话框已检查 `DialogSoftInputGuard` 保护（详见 `rules/dialog-soft-input-guard.md`） |
+| 🔴 | 新增包含输入框的对话框已按 `rules/dialog-soft-input-guard.md` 三件套检查：① 避让机制二选一（平台 Dialog 窗口 `DialogSoftInputGuard` / Activity 覆盖层 `imePadding`，禁止叠加）；② 声明 `freezeSystemBars = true`（自定义容器直接接 `SystemBarFreezeScope`，荣耀 X70 键盘频闪根治）；③ 自动聚焦一律用 `rememberImeAwareAutoFocusRequester()`（禁止裸单次 `requestFocus`） |
 | 🔴 | 新增使用 Compose `Dialog()` 或 Material3 `AlertDialog` 的组件已添加 `DialogSystemBarGuard()` 调用（Dialog Window 不继承 Activity 的 `hideSystemBars()`，需独立隐藏状态栏） |
 | 🔴 | 新增聊天/对话类对话框使用 `UnifiedGameDialog` 容器（详见 `rules/chat-dialog-design.md`） |
 | 🔴 | 新增标记 `isAlive=0` / `status=DEAD` 的代码路径必须调用 `discipleTables.markDead(id, year)` 而非手动写三个字段；仅 `handleDiscipleDeath` 可豁免（已内置 deathYears 写入） |
