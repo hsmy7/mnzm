@@ -173,6 +173,29 @@ class ThermalMonitor @Inject constructor(
     }
 
     /**
+     * 动态更新 ADPF 目标帧时长（2026-08-14 平板省电：实际帧率 30/10fps 时向系统
+     * 声明真实预算，替代硬编码 60fps 目标——系统按需调度大核，不再为 60fps 保留性能）。
+     *
+     * 由 GameEngineCore 收集 renderFrameRate StateFlow 联动（场景/模式/热控/电量
+     * 任何一次重算自动生效）。API 31+（Session.updateTargetWorkDuration 与
+     * createHintSession 同版本）；session 未创建时 no-op（仅记录日志）。
+     * synchronized([sessionLock])：与 create/close 互斥；updateTargetWorkDuration
+     * 为 Session 线程安全 API（官方文档标注），与 owner 线程无关。
+     */
+    fun setTargetWorkDuration(targetDurationNanos: Long) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            synchronized(sessionLock) {
+                try {
+                    (hintSession as? PerformanceHintManager.Session)
+                        ?.updateTargetWorkDuration(targetDurationNanos)
+                } catch (e: Exception) {
+                    DomainLog.w(TAG, "setTargetWorkDuration failed", e)
+                }
+            }
+        }
+    }
+
+    /**
      * 关闭 Hint Session。
      * 在游戏引擎关闭时调用。
      *

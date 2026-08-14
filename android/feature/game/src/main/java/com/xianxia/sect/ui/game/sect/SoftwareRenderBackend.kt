@@ -161,7 +161,7 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                     // ★ 对抗性审查修复：continue 前退出标志已由 while 条件重查（时序安全）
                     continue
                 }
-                surfaceCanvas.drawBitmap(rendered, 0f, 0f, null)
+                commitBitmap(surfaceCanvas, rendered)
                 host.holder.unlockCanvasAndPost(surfaceCanvas)
                 committed = true
             } catch (e: RuntimeException) {
@@ -171,6 +171,45 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
         }
         return committed
     }
+
+    /**
+     * 帧缓冲提交到物理 surface。
+     *
+     * render scale = 1.0 时走逐位兼容的直贴路径（drawBitmap 原尺寸零缩放）；
+     * render scale < 1.0 时降采样帧缓冲双线性上采样拉伸到物理 surface
+     * （render scale 2026-08-14 平板省电——与 Vulkan 路径 vkCmdBlitImage 同语义）。
+     */
+    private fun commitBitmap(surfaceCanvas: android.graphics.Canvas, rendered: Bitmap) {
+        val rs = host.softwareRenderer?.renderScale ?: 1.0f
+        val needsUpscale = rs < 1.0f &&
+            (rendered.width < surfaceCanvas.width || rendered.height < surfaceCanvas.height)
+        if (!needsUpscale) {
+            surfaceCanvas.drawBitmap(rendered, 0f, 0f, null)
+            return
+        }
+        val upscalePaint = upscalePaint()
+        surfaceCanvas.drawBitmap(
+            rendered, null,
+            android.graphics.Rect(0, 0, surfaceCanvas.width, surfaceCanvas.height),
+            upscalePaint
+        )
+    }
+
+    /** 上采样 Paint（双线性滤波；懒创建复用——提交路径仅本方法使用） */
+    private fun upscalePaint(): android.graphics.Paint {
+        var p = upscalePaintRef
+        if (p == null) {
+            p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+                isDither = false
+                isAntiAlias = false
+            }
+            upscalePaintRef = p
+        }
+        return p
+    }
+
+    /** 上采样 Paint 缓存（懒创建，渲染线程单消费者无竞态） */
+    private var upscalePaintRef: android.graphics.Paint? = null
 
     /**
      * 重试条件每循环重估（isReady/中断标志实时变化）。

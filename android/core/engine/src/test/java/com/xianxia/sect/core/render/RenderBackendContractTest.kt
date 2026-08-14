@@ -119,4 +119,26 @@ class RenderBackendContractTest {
         assertEquals(0.25f, frame.previewTintBlue, 0.001f)
         assertEquals(0.5f, frame.previewAlpha, 0.001f)
     }
+
+    @Test
+    fun `渲染缩放契约 - 接口保持物理像素参数语义`() {
+        // 2026-08-14 平板省电：render scale 是后端内部像素密度参数（Vulkan 离屏
+        // 目标 / Canvas 降采样帧缓冲），RenderBackend 接口继续以物理视口像素
+        // 为契约——相机/命中测试/世界可视范围全部不受缩放影响。
+        // 本测试锁定：viewportW/H 语义恒为物理像素（实现类内部自行缩放）。
+        val backend = RecordingBackend()
+        val frame = RenderFrame(IntArray(64) { 0 }, cols = 8, rows = 8)
+
+        backend.setCamera(0f, 0f, 1f, 2560, 1600)
+        backend.renderFrame(frame, 2560, 1600)
+
+        assertEquals(
+            "平板物理视口 2560×1600 必须原样传入接口（缩放由实现内部处理）",
+            listOf(
+                "setCamera(0.0,0.0,1.0,2560,1600)",
+                "renderFrame(2560,1600)"
+            ),
+            backend.calls
+        )
+    }
 }

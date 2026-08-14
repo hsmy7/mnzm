@@ -55,6 +55,7 @@ class GameEngineCoreFpsPolicyTest {
     /** 可配置的电池状态提供者（测试注入） */
     private class FakeBatteryStatus(
         override val isLowBattery: Boolean = false,
+        override val isPowerSaveMode: Boolean = false,
         override val fpsCap: Int = com.xianxia.sect.core.thermal.BatteryAwareController.MAX_FPS_CAP,
         override val thermalThresholdOffsetC: Float = 0f
     ) : BatteryStatusProvider
@@ -303,6 +304,33 @@ class GameEngineCoreFpsPolicyTest {
     }
 
     // ── 工具 ──
+
+    // ── 动态 ADPF 目标（2026-08-14 平板省电） ──
+
+    @Test
+    fun `adpf - frameDurationNs converts fps to nanos`() {
+        assertEquals(16_666_666L, GameEngineCore.frameDurationNs(60))
+        assertEquals(33_333_333L, GameEngineCore.frameDurationNs(30))
+        assertEquals(100_000_000L, GameEngineCore.frameDurationNs(10))
+    }
+
+    @Test
+    fun `adpf - frameDurationNs clamps to 10-60 fps range`() {
+        // 0/负值 → clamp 下限 10fps；超高值 → clamp 上限 60fps（防除零/越界）
+        assertEquals(100_000_000L, GameEngineCore.frameDurationNs(0))
+        assertEquals(100_000_000L, GameEngineCore.frameDurationNs(-5))
+        assertEquals(16_666_666L, GameEngineCore.frameDurationNs(240))
+        assertEquals(16_666_666L, GameEngineCore.frameDurationNs(Int.MAX_VALUE))
+    }
+
+    @Test
+    fun `adpf - startGameLoop with dynamic target does not crash`() {
+        // prepareLoopStart 新增 renderFrameRate collect 联动（mock scope 下 launch
+        // 不真正执行）——冒烟验证启动路径无异常、状态机正常推进
+        core.startGameLoop()
+        assertEquals(60, core.renderFrameRate.value)
+        core.stopGameLoop()
+    }
 
     private fun scopeProvider(): CoroutineScopeProvider {
         val scope = mockSmart(CoroutineScope::class.java)

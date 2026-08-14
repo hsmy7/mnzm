@@ -158,6 +158,39 @@ class ThermalMonitorTest {
         monitor.closeHintSession()  // SDK 分支直接返回，无异常
     }
 
+    // ── 动态 ADPF 目标（2026-08-14 平板省电） ──
+
+    @Test
+    fun `setTargetWorkDuration - 转发至 session`() {
+        val session = mock(PerformanceHintManager.Session::class.java)
+        monitor.createHintSession(TARGET_DURATION_NS)
+        monitor.hintSession = session
+
+        monitor.setTargetWorkDuration(33_333_333L)
+
+        verify(session).updateTargetWorkDuration(33_333_333L)
+    }
+
+    @Test
+    fun `setTargetWorkDuration - session 为空时 no-op 不崩溃`() {
+        monitor.createHintSession(TARGET_DURATION_NS)
+        // Robolectric 下真实 createHintSession 产出 null session
+        monitor.setTargetWorkDuration(100_000_000L)
+        // 不抛异常即通过（no-op 语义）
+    }
+
+    @Test
+    fun `setTargetWorkDuration - 异常吞掉不冒泡`() {
+        val session = mock(PerformanceHintManager.Session::class.java)
+        `when`(session.updateTargetWorkDuration(anyLong()))
+            .thenThrow(RuntimeException("session closed"))
+        monitor.createHintSession(TARGET_DURATION_NS)
+        monitor.hintSession = session
+
+        monitor.setTargetWorkDuration(33_333_333L)
+        // 不抛异常即通过（log-and-continue）
+    }
+
     @Test
     fun `createHintSession 与 closeHintSession - 并发交错无异常且字段自洽`() {
         // 模拟真实场景：旧循环 close 与新循环 create 在换线程重启时并发交错。

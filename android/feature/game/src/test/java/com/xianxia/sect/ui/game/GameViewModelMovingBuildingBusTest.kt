@@ -22,6 +22,7 @@ import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.data.SessionManager
@@ -126,7 +127,9 @@ class GameViewModelMovingBuildingBusTest {
                 mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
                 IoDispatcher(testDispatcher),
-                sessionManager
+                sessionManager,
+                // 2026-08-14 平板省电：GPU 档位检测（本测试不触达渲染路径，detect 不调用）
+                GpuTierDetector()
             ),
             // 2026-08-13 平台抽象：surface 提供者工厂（本测试不触达渲染路径）
             SurfaceProviderFactory { mockk() }

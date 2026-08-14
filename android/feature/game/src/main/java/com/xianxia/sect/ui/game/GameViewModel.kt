@@ -118,6 +118,7 @@ import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
+import com.xianxia.sect.core.perf.GpuTier
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
@@ -305,6 +306,12 @@ class GameViewModel @Inject constructor(
      * [SectMapViewportParams]，替换 NativeSurfaceView 默认 surfaceProvider）。
      */
     fun getSurfaceProviderFactory(): SurfaceProviderFactory = surfaceProviderFactory
+
+    /**
+     * 获取 GPU 能力档位（2026-08-14 平板省电：RenderScalePolicy 决策输入）。
+     * GpuTierDetector 首次调用执行检测（EGL 查询，~几十 ms），后续 O(1) 缓存返回。
+     */
+    fun getGpuTier(): GpuTier = delegateServices.gpuTierDetector.detect()
 
     /** 建筑精灵尺寸缓存（运行时不变，供直达推送协程使用） */
     private val _buildingSpriteSizesCache: Map<String, GridSnapHelper.BuildingSize> by lazy {

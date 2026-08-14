@@ -40,10 +40,17 @@ object NativeBridge {
     // 渲染器生命周期
     // ============================================================
 
-    /** 初始化渲染器（surface = android.view.Surface 对象） */
+    /**
+     * 初始化渲染器（surface = android.view.Surface 对象）。
+     *
+     * @param renderScale 渲染缩放（0.5–1.0；1.0 = 直渲全分辨率）。渲染进
+     * 离屏降采样目标后 vkCmdBlitImage 上采样到交换链（2026-08-14 平板省电），
+     * NaN/越界由 C++ 侧消毒
+     */
     external fun initRenderer(
         viewportW: Int, viewportH: Int,
         worldW: Int, worldH: Int, tileSize: Int,
+        renderScale: Float,
         surface: android.view.Surface
     ): Boolean
 
@@ -52,6 +59,15 @@ object NativeBridge {
 
     /** 调整窗口大小 */
     external fun resizeRenderer(width: Int, height: Int): Boolean
+
+    /**
+     * 动态更新渲染缩放（渲染线程调用；内部重建离屏目标，语义同 resize）。
+     * 通道模式仿 [setRenderQuality]：Compose 线程仅写 @Volatile，渲染线程消费后调用本方法。
+     *
+     * @param renderScale 渲染缩放（0.5–1.0；NaN/越界由 C++ 侧消毒为安全值）
+     * @return 实际生效的渲染缩放值
+     */
+    external fun setRenderScale(renderScale: Float): Float
 
     // ============================================================
     // 纹理上传

@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
+import com.xianxia.sect.core.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.data.SessionManager
 import javax.inject.Inject
@@ -44,5 +45,6 @@ class GameVmDelegateServices @Inject constructor(
     val buildingFacade: BuildingFacade,
     val discipleFacade: DiscipleFacade,
     val ioDispatcher: IoDispatcher,
-    val sessionManager: SessionManager
+    val sessionManager: SessionManager,
+    val gpuTierDetector: GpuTierDetector
 )

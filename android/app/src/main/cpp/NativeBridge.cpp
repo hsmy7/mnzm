@@ -2,6 +2,7 @@
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <cstring>
+#include <cmath>
 #include <atomic>
 #include <algorithm>
 #include <map>
@@ -170,12 +171,14 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanDriverVersion(
     return static_cast<jint>(VulkanBackend::s_driverVersion);
 }
 
-/** Phase 2: 初始化 Surface（在 SurfaceView 就绪后调用） */
+/** Phase 2: 初始化 Surface（在 SurfaceView 就绪后调用）。renderScale 为渲染缩放
+ *  （0.5–1.0，1.0 = 直渲全分辨率），NaN/越界由 VulkanBackend 消毒。 */
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     JNIEnv* env, jobject /*thiz*/,
     jint viewportW, jint viewportH,
     jint worldW, jint worldH, jint tileSize,
+    jfloat renderScale,
     jobject surface) {
 
     ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
@@ -187,7 +190,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     if (g_renderer) {
         auto* vb = static_cast<VulkanBackend*>(g_renderer);
         if (vb->isDeviceReady()) {
-            // Phase 1 已完成，只需初始化 Surface
+            // Phase 1 已完成，只需初始化 Surface。先记录 renderScale（swapchain
+            // 未创建时 setRenderScale 仅记录），initSurface 的 createOffscreenTargets
+            // 按此创建离屏降采样目标。
+            vb->setRenderScale(renderScale);
             bool ok = vb->initSurface(window, viewportW, viewportH);
             return ok ? JNI_TRUE : JNI_FALSE;
         }
@@ -204,10 +210,22 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
     config.worldWidth = worldW;
     config.worldHeight = worldH;
     config.tileSize = tileSize;
-    config.renderScale = 1.0f;
+    config.renderScale = renderScale;
 
     bool ok = g_renderer->init(config, window);
     return ok ? JNI_TRUE : JNI_FALSE;
+}
+
+/** 动态更新渲染缩放（渲染线程调用；内部重建离屏目标，语义同 resize）。
+ *  mirror setRenderQuality 通道：Compose 线程仅写 @Volatile，渲染线程消费后调用本方法。 */
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderScale(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat renderScale) {
+
+    if (!g_renderer) return 1.0f;
+    auto* vb = static_cast<VulkanBackend*>(g_renderer);
+    return vb->setRenderScale(renderScale);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -432,16 +450,26 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     // 地面纹理：默认格用 uvMap[TILE_GROUND]，TILE_GROUND_V2 用 uvMap[7]
     //（TILE_GROUND_V2 / SPIRIT_* 索引全部由生成 TextureAtlas.h 提供，2026-08-13 收敛）
 
-    for (int row = 0; row < rows; row++) {
+    // 可见范围钳制迭代（2026-08-14 平板省电优化）：此前双重循环遍历全部
+    // rows×cols（128×128=16384 格）后逐格剔除，平板默认视口仅可见 ~1700 格。
+    // 按 g_view* 世界坐标钳制行列区间（setCamera 同帧先写，天然可用）；
+    // 树装饰为 2×2 格且向左上偏移 1 格，边界扩展 ±1 格保证边缘装饰不闪断。
+    const float tileSizeF = (float)tileSize;
+    const int minCol = std::max(0, (int)std::floor(g_viewLeft / tileSizeF) - 1);
+    const int maxCol = std::min(cols - 1, (int)std::ceil(g_viewRight / tileSizeF) + 1);
+    const int minRow = std::max(0, (int)std::floor(g_viewTop / tileSizeF) - 1);
+    const int maxRow = std::min(rows - 1, (int)std::ceil(g_viewBottom / tileSizeF) + 1);
+
+    for (int row = minRow; row <= maxRow; row++) {
         jint rowBase = row * cols;
         float wy = (float)(row * tileSize);
-        for (int col = 0; col < cols; col++) {
+        for (int col = minCol; col <= maxCol; col++) {
             int tile = static_cast<int>(tiles[rowBase + col]);
 
             float wx = (float)(col * tileSize);
 
-            // 可见性检测
-            if (!isRectVisible(wx, wy, (float)tileSize, (float)tileSize)) continue;
+            // 可见性检测（钳制区间内仍保留——钳制边界含装饰溢出 1 格，地面格用精确检测）
+            if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 
             // (A) 地面底图（所有格子都有）
             // 地面变体格(7)用自身纹理，其他格(0/装饰/建筑)用默认地面纹理uvMap[0]

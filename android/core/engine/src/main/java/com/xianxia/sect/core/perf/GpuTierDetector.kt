@@ -21,76 +21,24 @@ enum class GpuTier {
 }
 
 /**
- * GPU 分层渲染参数 — 每个等级对应一组渲染配置
+ * GPU 分层渲染参数 — 每个等级对应一组渲染配置。
  *
- * 来源: docs/huawei-performance-research.md §4.2
+ * 2026-08-14 死字段清理：mapResolution/bakeBuildings/useArgb8888/showTrees/
+ * gridLineMode/auraEffectMode/particleEffectMode/textureLodOffset 全项目零消费者
+ * （grep 验证），删除；thermalRenderScale 表删除（热控×模式画质因子已由引擎
+ * `renderingQualityFactor` StateFlow 聚合，见 [com.xianxia.sect.core.render.RenderScalePolicy]）。
+ * 保留 baseRenderScale 作为 [RenderScalePolicy] 的 GPU 档位缩放上限。
  */
 @Immutable
 data class GpuRenderConfig(
-    /** 地图分辨率 (cells) — LOW=24, MEDIUM=32, HIGH/ULTRA=48 */
-    val mapResolution: Int,
-    /** 是否启用建筑烘焙 */
-    val bakeBuildings: Boolean,
-    /** Bitmap 格式: true=ARGB_8888, false=RGB_565 */
-    val useArgb8888: Boolean,
-    /** 基础渲染缩放 (1.0 = 原始分辨率) */
-    val baseRenderScale: Float,
-    /** 是否绘制树木装饰 */
-    val showTrees: Boolean,
-    /** 网格线模式: "full"=完整, "border"=仅边界 */
-    val gridLineMode: String,
-    /** 光环效果模式: "full"=完整, "simple"=简化(仅圆形轮廓), "off"=禁用 */
-    val auraEffectMode: String,
-    /** 粒子特效模式: "full"=完整, "simple"=简化, "off"=禁用 */
-    val particleEffectMode: String,
-    /** 纹理 LOD 偏移: 正值=更模糊(省显存), 0=默认, 负值=更清晰 */
-    val textureLodOffset: Int
+    /** 基础渲染缩放上限 (1.0 = 原始分辨率) — 消费方：RenderScalePolicy.computeRenderScale */
+    val baseRenderScale: Float
 ) {
     companion object {
-        val LOW = GpuRenderConfig(
-            mapResolution = 24,
-            bakeBuildings = false,
-            useArgb8888 = false,
-            baseRenderScale = 0.6f,
-            showTrees = false,
-            gridLineMode = "border",
-            auraEffectMode = "off",
-            particleEffectMode = "off",
-            textureLodOffset = 1
-        )
-        val MEDIUM = GpuRenderConfig(
-            mapResolution = 32,
-            bakeBuildings = true,
-            useArgb8888 = false,
-            baseRenderScale = 0.8f,
-            showTrees = true,
-            gridLineMode = "full",
-            auraEffectMode = "simple",
-            particleEffectMode = "simple",
-            textureLodOffset = 0
-        )
-        val HIGH = GpuRenderConfig(
-            mapResolution = 48,
-            bakeBuildings = true,
-            useArgb8888 = true,
-            baseRenderScale = 1.0f,
-            showTrees = true,
-            gridLineMode = "full",
-            auraEffectMode = "full",
-            particleEffectMode = "full",
-            textureLodOffset = 0
-        )
-        val ULTRA = GpuRenderConfig(
-            mapResolution = 48,
-            bakeBuildings = true,
-            useArgb8888 = true,
-            baseRenderScale = 1.0f,
-            showTrees = true,
-            gridLineMode = "full",
-            auraEffectMode = "full",
-            particleEffectMode = "full",
-            textureLodOffset = -1
-        )
+        val LOW = GpuRenderConfig(baseRenderScale = 0.6f)
+        val MEDIUM = GpuRenderConfig(baseRenderScale = 0.8f)
+        val HIGH = GpuRenderConfig(baseRenderScale = 1.0f)
+        val ULTRA = GpuRenderConfig(baseRenderScale = 1.0f)
 
         fun forTier(tier: GpuTier): GpuRenderConfig = when (tier) {
             GpuTier.LOW -> LOW
@@ -99,45 +47,6 @@ data class GpuRenderConfig(
             GpuTier.ULTRA -> ULTRA
         }
     }
-}
-
-/**
- * 温控阈值分级 — 按 GpuTier 设置不同温控下的 renderScale
- *
- * 来源: docs/huawei-performance-research.md §4.5
- */
-fun thermalRenderScale(gpuTier: GpuTier, thermalState: ThermalState): Float {
-    val map = when (gpuTier) {
-        GpuTier.LOW -> mapOf(
-            ThermalState.NORMAL to 0.7f,
-            ThermalState.LIGHT to 0.5f,
-            ThermalState.MODERATE to 0.4f,
-            ThermalState.SEVERE to 0.3f,
-            ThermalState.EMERGENCY to 0.25f
-        )
-        GpuTier.MEDIUM -> mapOf(
-            ThermalState.NORMAL to 0.9f,
-            ThermalState.LIGHT to 0.7f,
-            ThermalState.MODERATE to 0.5f,
-            ThermalState.SEVERE to 0.4f,
-            ThermalState.EMERGENCY to 0.3f
-        )
-        GpuTier.HIGH -> mapOf(
-            ThermalState.NORMAL to 1.0f,
-            ThermalState.LIGHT to 0.85f,
-            ThermalState.MODERATE to 0.65f,
-            ThermalState.SEVERE to 0.5f,
-            ThermalState.EMERGENCY to 0.4f
-        )
-        GpuTier.ULTRA -> mapOf(
-            ThermalState.NORMAL to 1.0f,
-            ThermalState.LIGHT to 0.9f,
-            ThermalState.MODERATE to 0.75f,
-            ThermalState.SEVERE to 0.6f,
-            ThermalState.EMERGENCY to 0.5f
-        )
-    }
-    return map[thermalState] ?: 1.0f
 }
 
 /**

@@ -6,6 +6,7 @@ import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderLodPolicy
+import com.xianxia.sect.core.render.RenderScalePolicy
 import com.xianxia.sect.core.render.SpiritCropRender
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import kotlin.math.roundToInt
@@ -106,6 +107,21 @@ class SoftwareCanvasBackend(
 
     @Volatile
     var decorationsDisabled: Boolean = false
+
+    // ── 渲染分辨率缩放（2026-08-14 平板省电：帧缓冲降采样 + 上采样提交） ──
+
+    @Volatile
+    var renderScale: Float = 1.0f
+        set(value) {
+            // NaN/Inf/越界消毒为 1.0（直渲）；变化时帧缓冲尺寸随之变化，
+            // ensureFrameBuffer 检测尺寸差自动重建
+            val safe = if (value.isFinite()) {
+                value.coerceIn(RenderScalePolicy.MIN_RENDER_SCALE, RenderScalePolicy.MAX_RENDER_SCALE)
+            } else {
+                1.0f
+            }
+            field = safe
+        }
 
     // ── 帧缓冲区 ──
 
@@ -527,12 +543,29 @@ class SoftwareCanvasBackend(
         // 在 ensureFrameBuffer 前计算——帧缓冲重建时按合并值重置 chunk 失效基准，
         // 防"此处比较一处、别处判断另一处"的漂移
         val decorSkip = computeDecorSkip(frame)
-        ensureFrameBuffer(vpW, vpH, decorSkip)
+
+        // render scale（2026-08-14 平板省电）：物理视口 → 降采样帧缓冲尺寸。
+        // resizeRequested 在此消费（物理尺寸），再统一乘 renderScale——帧缓冲
+        // 尺寸 = round(物理 × renderScale)，绘制比例 drawScale = scale × renderScale
+        var physW = vpW
+        var physH = vpH
+        if (resizeRequested) {
+            resizeRequested = false
+            physW = resizeRequestedW
+            physH = resizeRequestedH
+        }
+        val rs = renderScale
+        val fbW = (physW * rs).roundToInt().coerceAtLeast(1)
+        val fbH = (physH * rs).roundToInt().coerceAtLeast(1)
+        ensureFrameBuffer(fbW, fbH, decorSkip)
         val canvas = frameCanvas
         val fb = frameBuffer
         val scale = sanitizeScale(frame)
         // 三守卫合并（canvas/fb 生命周期绑定；scale 非法时返回旧帧缓冲不渲染）
         if (canvas == null || fb == null || scale == null) return fb
+        // 世界→帧缓冲像素的生效比例（fbW/drawScale = physW/scale 比率自洽，
+        // 可视世界范围与物理路径逐位一致——render scale 不改变视野）
+        val drawScale = scale * rs
         val tileSize = config.tileSize
         val td = frame.tileData
         val buildingArray = frame.buildingData
@@ -551,16 +584,16 @@ class SoftwareCanvasBackend(
         }
 
         // 合成可见 chunk → 灵田作物层 → 选中高亮 → 拆除高亮 → 预览精灵 → 网格线
-        composeVisibleChunks(canvas, frame, tileSize, scale, vpW, vpH, fadeAlpha)
-        drawCrops(canvas, atlas, frame, fadeAlpha)
+        composeVisibleChunks(canvas, frame, tileSize, drawScale, fbW, fbH, fadeAlpha)
+        drawCrops(canvas, atlas, frame, fadeAlpha, drawScale)
         if (config.renderFlags.selectionHighlight) {
-            drawSelectionHighlight(canvas, frame)
+            drawSelectionHighlight(canvas, frame, drawScale)
         }
-        drawDemolishHighlight(canvas, frame)
+        drawDemolishHighlight(canvas, frame, drawScale)
         if (frame.showPreview) {
-            drawPreview(canvas, atlas, frame)
+            drawPreview(canvas, atlas, frame, drawScale)
         }
-        drawGridOverlay(canvas, frame, vpW, vpH)
+        drawGridOverlay(canvas, frame, drawScale, fbW, fbH)
 
         return fb
     }
@@ -709,15 +742,17 @@ class SoftwareCanvasBackend(
         canvas: Canvas,
         frame: RenderFrame,
         tileSize: Int,
-        scale: Float,
-        vpW: Int,
-        vpH: Int,
+        drawScale: Float,
+        fbW: Int,
+        fbH: Int,
         fadeAlpha: Float
     ) {
+        // 可视世界范围 = fbW/drawScale = physW/scale（比率自洽）——render scale
+        // 不改变可见 chunk 集合，仅改变其屏幕像素尺寸
         val viewLeft = frame.camX
         val viewTop = frame.camY
-        val viewRight = frame.camX + vpW / scale
-        val viewBottom = frame.camY + vpH / scale
+        val viewRight = frame.camX + fbW / drawScale
+        val viewBottom = frame.camY + fbH / drawScale
 
         val firstChunkCol = ((viewLeft / tileSize) / CHUNK_SIZE_TILES).toInt()
             .coerceIn(0, NUM_CHUNKS_COL - 1)
@@ -733,17 +768,19 @@ class SoftwareCanvasBackend(
         val reuseRect = Rect()
         val firstChunkWorldX = (firstChunkCol * CHUNK_SIZE_TILES * tileSize).toFloat()
         val firstChunkWorldY = (firstChunkRow * CHUNK_SIZE_TILES * tileSize).toFloat()
-        val baseScreenX = ((firstChunkWorldX - frame.camX) * scale).roundToInt()
-        val baseScreenY = ((firstChunkWorldY - frame.camY) * scale).roundToInt()
-        val scaledW = (CHUNK_PIXEL * scale).roundToInt().coerceAtLeast(1)
-        val scaledH = (CHUNK_PIXEL * scale).roundToInt().coerceAtLeast(1)
+        val baseScreenX = ((firstChunkWorldX - frame.camX) * drawScale).roundToInt()
+        val baseScreenY = ((firstChunkWorldY - frame.camY) * drawScale).roundToInt()
+        val scaledW = (CHUNK_PIXEL * drawScale).roundToInt().coerceAtLeast(1)
+        val scaledH = (CHUNK_PIXEL * drawScale).roundToInt().coerceAtLeast(1)
         for (chunkCol in firstChunkCol..lastChunkCol) {
             for (chunkRow in firstChunkRow..lastChunkRow) {
                 val chunk = chunkCaches[chunkCol][chunkRow]
                 val screenX = baseScreenX + (chunkCol - firstChunkCol) * scaledW
                 val screenY = baseScreenY + (chunkRow - firstChunkRow) * scaledH
-                if (screenX + scaledW < 0 || screenY + scaledH < 0 ||
-                    screenX > vpW || screenY > vpH) continue
+                // 越界判定拆两半（detekt ComplexCondition ≤4）
+                val offLeftOrTop = screenX + scaledW < 0 || screenY + scaledH < 0
+                val offRightOrBottom = screenX > fbW || screenY > fbH
+                if (offLeftOrTop || offRightOrBottom) continue
                 reuseRect.set(screenX, screenY, screenX + scaledW, screenY + scaledH)
                 val chunkBmp = chunk.bitmap ?: continue
                 canvas.drawBitmap(chunkBmp, null, reuseRect, paint)
@@ -760,7 +797,7 @@ class SoftwareCanvasBackend(
      * 数据源与瓦片/建筑绘制同一份 frame.buildingData（总线脏帧时索引已被
      * SoftwareRenderBackend 重置为 -1，此处只需防御性校验）。
      */
-    private fun drawSelectionHighlight(canvas: Canvas, frame: RenderFrame) {
+    private fun drawSelectionHighlight(canvas: Canvas, frame: RenderFrame, drawScale: Float) {
         val buildingData = frame.buildingData
         val index = frame.selectedBuildingIndex
         val base = index * SELECTED_DATA_STRIDE
@@ -769,24 +806,23 @@ class SoftwareCanvasBackend(
         if (!validIndex) return
 
         val tileSize = config.tileSize
-        val scale = frame.scale
         val gx = buildingData[base].toInt()
         val gy = buildingData[base + 1].toInt()
         val nameIdx = buildingData[base + 4].toInt()
         val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX
             .getOrElse(nameIdx) { 2 to 2 }
 
-        val left = ((gx * tileSize - frame.camX) * scale).roundToInt()
-        val top = ((gy * tileSize - frame.camY) * scale).roundToInt()
-        val right = (((gx + fpW) * tileSize - frame.camX) * scale).roundToInt()
-        val bottom = (((gy + fpH) * tileSize - frame.camY) * scale).roundToInt()
+        val left = ((gx * tileSize - frame.camX) * drawScale).roundToInt()
+        val top = ((gy * tileSize - frame.camY) * drawScale).roundToInt()
+        val right = (((gx + fpW) * tileSize - frame.camX) * drawScale).roundToInt()
+        val bottom = (((gy + fpH) * tileSize - frame.camY) * drawScale).roundToInt()
         val offScreenX = right <= 0 || left >= canvas.width
         val offScreenY = bottom <= 0 || top >= canvas.height
         val degenerate = right - left <= 0 || bottom - top <= 0
         if (offScreenX || offScreenY || degenerate) return
 
-        // 目标屏幕线宽 max(2px, tileSize×0.06×scale)（Canvas 坐标 = 屏幕像素，无需换算）
-        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale)
+        // 帧缓冲线宽（上采样后恢复物理屏幕线宽：物理线宽 × renderScale 已并入 drawScale）
+        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * drawScale)
 
         // 填充 → 上边 → 下边 → 左边 → 右边（描边盖住填充边缘）
         highlightPaint.color = HIGHLIGHT_FILL_COLOR
@@ -809,7 +845,7 @@ class SoftwareCanvasBackend(
      * 总线脏帧时 markers 已被 SoftwareRenderBackend 置 null（下帧随重组恢复），
      * 此处只需防御性 clamp。
      */
-    private fun drawDemolishHighlight(canvas: Canvas, frame: RenderFrame) {
+    private fun drawDemolishHighlight(canvas: Canvas, frame: RenderFrame, drawScale: Float) {
         val markers = frame.demolishHighlightData
         val buildingData = frame.buildingData
         if (markers == null || buildingData == null) return
@@ -819,7 +855,7 @@ class SoftwareCanvasBackend(
         for (i in 0 until count) {
             val base = i * SELECTED_DATA_STRIDE
             if (base + SELECTED_DATA_STRIDE - 1 >= buildingData.size) return // 截断防御
-            drawDemolishMarker(canvas, frame, buildingData, base, markers[i])
+            drawDemolishMarker(canvas, frame, buildingData, base, markers[i], drawScale)
         }
     }
 
@@ -832,27 +868,27 @@ class SoftwareCanvasBackend(
         frame: RenderFrame,
         buildingData: FloatArray,
         base: Int,
-        marker: Byte
+        marker: Byte,
+        drawScale: Float
     ) {
         if (marker == DemolishHighlightMark.NONE.toByte()) return
         val tileSize = config.tileSize
-        val scale = frame.scale
         val gx = buildingData[base].toInt()
         val gy = buildingData[base + 1].toInt()
         val nameIdx = buildingData[base + 4].toInt()
         val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX
             .getOrElse(nameIdx) { 2 to 2 }
 
-        val left = ((gx * tileSize - frame.camX) * scale).roundToInt()
-        val top = ((gy * tileSize - frame.camY) * scale).roundToInt()
-        val right = (((gx + fpW) * tileSize - frame.camX) * scale).roundToInt()
-        val bottom = (((gy + fpH) * tileSize - frame.camY) * scale).roundToInt()
+        val left = ((gx * tileSize - frame.camX) * drawScale).roundToInt()
+        val top = ((gy * tileSize - frame.camY) * drawScale).roundToInt()
+        val right = (((gx + fpW) * tileSize - frame.camX) * drawScale).roundToInt()
+        val bottom = (((gy + fpH) * tileSize - frame.camY) * drawScale).roundToInt()
         val offScreenX = right <= 0 || left >= canvas.width
         val offScreenY = bottom <= 0 || top >= canvas.height
         val degenerate = right - left <= 0 || bottom - top <= 0
         if (offScreenX || offScreenY || degenerate) return
 
-        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale)
+        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * drawScale)
         demolishPaint.color = if (marker == DemolishHighlightMark.SELECTED.toByte()) {
             DEMOLISH_RED_FILL_COLOR
         } else {
@@ -876,27 +912,27 @@ class SoftwareCanvasBackend(
      * 视口内行列区间并钳制到世界边界（frame.camX 来自 mergeCameraAndBuildingData
      * 合并后的最新相机，与 chunk 同帧同相机——消除 Compose 覆盖层相位差）。
      */
-    private fun drawGridOverlay(canvas: Canvas, frame: RenderFrame, vpW: Int, vpH: Int) {
+    private fun drawGridOverlay(canvas: Canvas, frame: RenderFrame, drawScale: Float, fbW: Int, fbH: Int) {
         if (!frame.gridOverlayVisible) return
         val tileSize = config.tileSize
-        val scale = frame.scale
-        if (vpW <= 0 || vpH <= 0) return
+        if (fbW <= 0 || fbH <= 0) return
 
+        // 可视范围用 fbW/drawScale（= 物理 vpW/scale，比率自洽，网格集合与物理路径一致）
         val firstCol = (frame.camX / tileSize).toInt().coerceAtLeast(0)
-        val lastCol = ((frame.camX + vpW / scale) / tileSize).toInt()
+        val lastCol = ((frame.camX + fbW / drawScale) / tileSize).toInt()
             .coerceAtMost(frame.cols)
         val firstRow = (frame.camY / tileSize).toInt().coerceAtLeast(0)
-        val lastRow = ((frame.camY + vpH / scale) / tileSize).toInt()
+        val lastRow = ((frame.camY + fbH / drawScale) / tileSize).toInt()
             .coerceAtMost(frame.rows)
 
         gridPaint.color = GRID_OVERLAY_COLOR
         for (col in firstCol..lastCol) {
-            val sx = (col * tileSize - frame.camX) * scale
-            canvas.drawLine(sx, 0f, sx, vpH.toFloat(), gridPaint)
+            val sx = (col * tileSize - frame.camX) * drawScale
+            canvas.drawLine(sx, 0f, sx, fbH.toFloat(), gridPaint)
         }
         for (row in firstRow..lastRow) {
-            val sy = (row * tileSize - frame.camY) * scale
-            canvas.drawLine(0f, sy, vpW.toFloat(), sy, gridPaint)
+            val sy = (row * tileSize - frame.camY) * drawScale
+            canvas.drawLine(0f, sy, fbW.toFloat(), sy, gridPaint)
         }
     }
 
@@ -915,7 +951,7 @@ class SoftwareCanvasBackend(
      * 防御：progress NaN/Inf/越界跳过（与 C++ `progress != progress` 判定同语义）；
      * 视口剔除与 [drawSelectionHighlight] 同风格（屏幕坐标整型化）。
      */
-    private fun drawCrops(canvas: Canvas, atlas: Bitmap, frame: RenderFrame, fadeAlpha: Float) {
+    private fun drawCrops(canvas: Canvas, atlas: Bitmap, frame: RenderFrame, fadeAlpha: Float, drawScale: Float) {
         val cropData = frame.spiritCropData ?: return
         val count = cropData.size / CROP_DATA_STRIDE
         val fade = fadeAlpha.coerceIn(0f, 1f)
@@ -932,7 +968,7 @@ class SoftwareCanvasBackend(
             // 视口剔除 + gx/gy 合法性（对抗性审查 2026-08-13 数据篡改者#4：
             // NaN 坐标经 roundToInt 收敛到 (0,0) 漂浮 + key 碰撞串扰——与 C++
             // 侧 gx != gx 防御同语义，收敛于 cropScreenRect 单一出口）
-            val rect = cropScreenRect(frame, idx, canvas.width, canvas.height) ?: continue
+            val rect = cropScreenRect(frame, idx, drawScale, canvas.width, canvas.height) ?: continue
 
             // 批次 3 插值消费链：draw = prev + (cur - prev) × frameAlpha——
             // 与 C++ 作物段同数学（SpiritCropRender.smoothedProgress）；
@@ -961,8 +997,11 @@ class SoftwareCanvasBackend(
      * 作物屏幕矩形（视口剔除：视口外/退化尺寸/非法坐标 → null）。
      *
      * @param idx cropData 内的条目起始下标（gx/gy 读取自 [RenderFrame.spiritCropData]）
+     * @param drawScale 世界→帧缓冲像素比例（含 renderScale）
+     * @param fbW 帧缓冲宽度（降采样后）
+     * @param fbH 帧缓冲高度（降采样后）
      */
-    private fun cropScreenRect(frame: RenderFrame, idx: Int, vpW: Int, vpH: Int): Rect? {
+    private fun cropScreenRect(frame: RenderFrame, idx: Int, drawScale: Float, fbW: Int, fbH: Int): Rect? {
         val cropData = frame.spiritCropData
         // NaN/Inf 坐标防御（对抗性审查 2026-08-13 数据篡改者#4）：
         // 非法坐标既不参与绘制也不进入插值状态表（共享防御入口 SpiritCropRender）
@@ -973,13 +1012,12 @@ class SoftwareCanvasBackend(
         val gx = cropData[idx]
         val gy = cropData[idx + 1]
         val tileSize = config.tileSize
-        val scale = frame.scale
-        val left = ((gx * tileSize - frame.camX) * scale).roundToInt()
-        val top = ((gy * tileSize - frame.camY) * scale).roundToInt()
-        val right = (((gx + 1) * tileSize - frame.camX) * scale).roundToInt()
-        val bottom = (((gy + 1) * tileSize - frame.camY) * scale).roundToInt()
-        val offScreenX = right <= 0 || left >= vpW
-        val offScreenY = bottom <= 0 || top >= vpH
+        val left = ((gx * tileSize - frame.camX) * drawScale).roundToInt()
+        val top = ((gy * tileSize - frame.camY) * drawScale).roundToInt()
+        val right = (((gx + 1) * tileSize - frame.camX) * drawScale).roundToInt()
+        val bottom = (((gy + 1) * tileSize - frame.camY) * drawScale).roundToInt()
+        val offScreenX = right <= 0 || left >= fbW
+        val offScreenY = bottom <= 0 || top >= fbH
         val degenerate = right - left <= 0 || bottom - top <= 0
         val visible = !offScreenX && !offScreenY && !degenerate
         return if (visible) Rect(left, top, right, bottom) else null
@@ -989,14 +1027,13 @@ class SoftwareCanvasBackend(
     // 帧缓冲区管理
     // ============================================================
 
+    /**
+     * 帧缓冲尺寸检查/重建。入参为目标缓冲尺寸（= round(物理视口 × renderScale)，
+     * 在 renderFrame 入口计算）；尺寸变化由 renderScale/resize/旋转自动驱动。
+     */
     private fun ensureFrameBuffer(vpWIn: Int, vpHIn: Int, decorSkip: Boolean) {
-        var vpW = vpWIn
-        var vpH = vpHIn
-        if (resizeRequested) {
-            resizeRequested = false
-            vpW = resizeRequestedW
-            vpH = resizeRequestedH
-        }
+        val vpW = vpWIn
+        val vpH = vpHIn
         if (vpW <= 0 || vpH <= 0) return
         val qualityChanged = qualityFactor != lastQualityFactor
         val fb = frameBuffer
@@ -1027,14 +1064,13 @@ class SoftwareCanvasBackend(
     // 预览精灵绘制
     // ============================================================
 
-    private fun drawPreview(canvas: Canvas, atlas: Bitmap, frame: RenderFrame) {
-        val scale = frame.scale
+    private fun drawPreview(canvas: Canvas, atlas: Bitmap, frame: RenderFrame, drawScale: Float) {
         val pOffX = frame.previewX - frame.camX
         val pOffY = frame.previewY - frame.camY
-        val dstLeft = (pOffX * scale).roundToInt()
-        val dstTop = (pOffY * scale).roundToInt()
-        val dstRight = ((pOffX + frame.previewW) * scale).roundToInt()
-        val dstBottom = ((pOffY + frame.previewH) * scale).roundToInt()
+        val dstLeft = (pOffX * drawScale).roundToInt()
+        val dstTop = (pOffY * drawScale).roundToInt()
+        val dstRight = ((pOffX + frame.previewW) * drawScale).roundToInt()
+        val dstBottom = ((pOffY + frame.previewH) * drawScale).roundToInt()
         val pw = dstRight - dstLeft
         val ph = dstBottom - dstTop
         if (pw <= 0 || ph <= 0) return

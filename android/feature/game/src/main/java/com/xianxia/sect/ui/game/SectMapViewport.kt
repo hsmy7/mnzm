@@ -68,6 +68,10 @@ internal fun SectMapViewport(
                     view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
                 }
 
+                // GPU 能力档位（2026-08-14 平板省电：渲染缩放决策输入——
+                // 在 surface 初始化事件前设置，recomputeRenderScale 消费）
+                view.gpuTier = params.gpuTier
+
                 // 渲染器就绪后上传纹理（地面/装饰/建筑全部在单张图集中）
                 view.onRendererReady = {
                     view.atlasTextureId = view.buildAtlas(ctx)
@@ -232,6 +236,8 @@ internal data class SectMapViewportParams(
     val vulkanInitListener: NativeSurfaceView.VulkanInitListener?,
     /** 平台 surface 提供者工厂（Hilt 注入；替换默认 provider，iOS 化替换点） */
     val surfaceProviderFactory: SurfaceProviderFactory,
+    /** GPU 能力档位（2026-08-14 平板省电：RenderScalePolicy 决策输入，GameViewModel 注入） */
+    val gpuTier: com.xianxia.sect.core.perf.GpuTier,
     val buildingSpriteSizes: Map<String, GridSnapHelper.BuildingSize>,
     /** 点击选中格坐标（null=无选中，渲染端经 findBuildingIndex 转换为建筑索引） */
     val selectedGrid: Pair<Int, Int>? = null,

@@ -48,6 +48,8 @@ class SectMapViewportParamsTest {
         vulkanInitListener = null,
         // 2026-08-13 平台抽象：工厂不在此测试触达（参数相等性/引用稳定性断言）
         surfaceProviderFactory = SurfaceProviderFactory { error("not used in this test") },
+        // 2026-08-14 平板省电：GPU 档位（参数相等性断言用，固定 MEDIUM）
+        gpuTier = com.xianxia.sect.core.perf.GpuTier.MEDIUM,
         buildingSpriteSizes = emptyMap()
     )
 

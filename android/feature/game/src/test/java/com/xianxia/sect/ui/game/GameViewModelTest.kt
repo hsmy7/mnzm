@@ -36,6 +36,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.model.WorldSect
@@ -203,7 +204,9 @@ class GameViewModelTest {
                 // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
                 //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
                 IoDispatcher(testDispatcher),
-                sessionManager
+                sessionManager,
+                // 2026-08-14 平板省电：GPU 档位检测（本测试不触达渲染路径，detect 不调用）
+                GpuTierDetector()
             ),
             // 2026-08-13 平台抽象：surface 提供者工厂（本测试不触达渲染路径）
             SurfaceProviderFactory { mockk() }

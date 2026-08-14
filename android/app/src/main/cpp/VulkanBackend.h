@@ -63,6 +63,17 @@ public:
     /** 设备是否已初始化（供 NativeBridge 判断是否需要回退到完整 init） */
     bool isDeviceReady() const { return m_deviceReady; }
 
+    // === render scale 离屏降采样渲染（平板/大屏省电，2026-08-14） ===
+
+    /**
+     * 设置渲染缩放（0.5–1.0；NaN/越界消毒为安全值）。渲染线程调用——内部
+     * 重建离屏渲染目标（vkDeviceWaitIdle + 资源重建，语义同 resize）。
+     * 设备不支持 blit 时强制 1.0（直渲路径）。
+     *
+     * @return 实际生效的渲染缩放值
+     */
+    float setRenderScale(float scale);
+
 private:
     // === 初始化辅助 ===
     bool createInstance();
@@ -77,6 +88,10 @@ private:
     bool loadShaders();
     bool createFramebuffers();  // 必须在 createRenderPass() 之后调用
     VkShaderModule compileShader(const uint32_t* code, size_t size);
+
+    // === render scale 离屏目标 ===
+    bool createOffscreenTargets();   // 必须在 createRenderPass() + createFramebuffers() 之后
+    void destroyOffscreenTargets();
 
     // === Pipeline Cache 持久化 ===
     static constexpr const char* PIPELINE_CACHE_FILENAME = "vulkan_pipeline_cache.bin";
@@ -188,4 +203,14 @@ private:
 
     ANativeWindow* m_nativeWindow = nullptr;
     bool m_ready = false;
+
+    // === render scale 离屏降采样渲染状态 ===
+    float m_renderScale = 1.0f;                              // 当前渲染缩放（1.0 = 直渲）
+    bool m_usingOffscreen = false;                           // 是否启用离屏渲染目标
+    bool m_blitSupported = true;                             // 交换链格式是否支持 BLIT_DST（不支持自动回退直渲）
+    VkExtent2D m_offscreenExtent{};                          // 离屏目标尺寸 = round(swapchain × renderScale)
+    VkImage m_offscreenImages[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkImageView m_offscreenViews[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkDeviceMemory m_offscreenMemories[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkFramebuffer m_offscreenFramebuffers[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
 };

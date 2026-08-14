@@ -17,6 +17,8 @@ import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
+import com.xianxia.sect.core.render.RenderScalePolicy
+import com.xianxia.sect.core.perf.GpuTier
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
 import com.xianxia.sect.core.touch.TouchData
@@ -133,6 +135,59 @@ class NativeSurfaceView(
     @Volatile
     private var lastDeclaredFrameRate = 0
 
+    /** 等待防抖的帧率升档候选（0 = 无；30→60 回升 2s 稳定后执行，防频繁切刷新率黑屏） */
+    private var declareCandidateFps = 0
+
+    /** 防抖候选起始时间（System.currentTimeMillis） */
+    private var declareCandidateSinceMs = 0L
+
+    // ============================================================
+    // 渲染分辨率缩放（2026-08-14 平板省电：RenderScalePolicy 决策 + 双端下发）
+    // ============================================================
+
+    /**
+     * GPU 档位（由 GameViewModel 经 SectMapViewportParams 注入，
+     * RenderScalePolicy.computeRenderScale 决策输入）。默认 MEDIUM（检测失败回退档）。
+     */
+    @Volatile
+    var gpuTier: GpuTier = GpuTier.MEDIUM
+
+    /**
+     * 渲染分辨率缩放（RenderScalePolicy 决策值；Compose 线程写、渲染线程消费）。
+     * 变化时：软件后端即时应用（帧缓冲尺寸在 renderFrame 自适应重建）；
+     * Vulkan 经 pendingRenderScale 由渲染线程调 NativeBridge.setRenderScale
+     * （重建离屏目标，语义同 resize）。
+     */
+    @Volatile
+    var renderResolutionScale: Float = 1.0f
+        set(value) {
+            val safe = if (value.isFinite()) {
+                value.coerceIn(RenderScalePolicy.MIN_RENDER_SCALE, RenderScalePolicy.MAX_RENDER_SCALE)
+            } else {
+                1.0f
+            }
+            if (safe == field) return
+            field = safe
+            softwareBackend?.renderScale = safe
+            pendingRenderScale = safe
+            softwareRenderScaleVersion++
+        }
+
+    /** Vulkan 待消费渲染缩放（渲染线程单消费者；= appliedRenderScale 表示已消费） */
+    @Volatile
+    private var pendingRenderScale: Float = 1.0f
+
+    /** Vulkan 已应用的渲染缩放（渲染线程消费 pending 后写回） */
+    @Volatile
+    private var appliedRenderScale: Float = 1.0f
+
+    /** 渲染缩放版本号（软件路径脏帧跳过信号：Compose 线程写、渲染线程对比） */
+    @Volatile
+    private var softwareRenderScaleVersion: Long = 0L
+
+    /** 渲染线程已见的缩放版本（脏帧跳过对比基准） */
+    private var lastRenderedScaleVersion: Long = 0L
+
     /**
      * 渲染质量转发目标（测试可注入 Fake 断言转发序列）。
      * 默认推送到 C++ 热控全局量（NativeBridge.setRenderQuality）；
@@ -167,6 +222,7 @@ class NativeSurfaceView(
      * 渲染质量因子转发（MainGameScreen 接线；backend 创建后立即应用，防初始发射丢失）。
      * Compose 线程写、渲染线程读，@Volatile 保证可见性。
      * 转发时携带当前装饰标志（单边 setter 触发时 C++ 状态保持完整）。
+     * 同时重算渲染缩放（qualityFactor 是 RenderScalePolicy 决策输入之一）。
      */
     @Volatile
     var renderQualityFactor: Float = 1.0f
@@ -174,6 +230,7 @@ class NativeSurfaceView(
             field = value
             softwareBackend?.qualityFactor = value
             renderQualitySink(value, renderDecorationsDisabled)
+            initCoordinator.recomputeRenderScale()
         }
 
     /** 装饰层关闭标志转发（语义同上，转发时携带当前质量因子） */
@@ -294,12 +351,12 @@ class NativeSurfaceView(
     companion object {
         /** 每秒纳秒数 */
         private const val NANOS_PER_SECOND = 1_000_000_000L
-        /** 面板降频声明阈值（fps）：≤30 声明省屏耗，>30 不主动降 */
-        private const val FPS_DECLARE_THRESHOLD = 30
         /** 帧率下限保护（防除零与非法值） */
         private const val MIN_FPS_VALUE = 1
         /** 显示刷新率兜底（provider 未知/异常返回 0 时按 60Hz 兜底，防 1Hz 慢渲染） */
         private const val DEFAULT_DISPLAY_FPS = 60
+        /** 高刷面板升档声明防抖窗口（毫秒）：30→60 回升稳定 2s 才声明（防切刷新率黑屏） */
+        private const val UPSHIFT_DEBOUNCE_MS = 2_000L
         /** ASTC 压缩图集资产路径（WP7，scripts/build-atlas.mjs 产物） */
         private const val ASTC_ATLAS_ASSET_PATH = "atlas/atlas_astc.ktx"
         /** 渲染线程停止等待截止（纳秒）：2s 绝对截止轮询（防 vk 调用阻塞时资源释放竞态） */
@@ -499,6 +556,13 @@ class NativeSurfaceView(
         // 旋转/重建后 lastDeclaredFrameRate 残留会阻止新 surface 降频声明，
         // 旧 EWMA 残留会导致新渲染线程首帧即被误判低帧率
         lastDeclaredFrameRate = 0
+        // 2026-08-14 平板省电：防抖候选与渲染缩放消费状态同步重置
+        //（跨 surface 残留会让新会话跳过首帧 60Hz 声明 / 误判缩放已应用）
+        declareCandidateFps = 0
+        declareCandidateSinceMs = 0L
+        appliedRenderScale = 1.0f
+        pendingRenderScale = renderResolutionScale
+        softwareRenderScaleVersion++
         adaptiveFpsTracker.reset()
 
         // 捕获纪元：所有异步回调（post）通过此值检测跨 surface stale
@@ -520,6 +584,8 @@ class NativeSurfaceView(
      * @param height 新高度（像素）
      */
     private fun handleSurfaceSizeChanged(width: Int, height: Int) {
+        // 面积档位随视口变化（旋转/分屏/折叠）——重算后 resize
+        initCoordinator.recomputeRenderScale()
         activeBackend?.resize(width, height)
     }
 
@@ -591,6 +657,26 @@ class NativeSurfaceView(
         }
 
         /**
+         * 重算渲染缩放（surface 初始化/resize/画质因子/GPU 档位变化时调用）。
+         * 决策输入：面积分级 × GPU 档 cap × 软件路径因子 × 引擎画质因子；
+         * RenderFlags.renderScaleEnabled 关闭 → 恒 1.0（行为 = 特性未实现前现状）。
+         */
+        fun recomputeRenderScale() {
+            val newScale = if (config.renderFlags.renderScaleEnabled) {
+                RenderScalePolicy.computeRenderScale(
+                    gpuTier = gpuTier,
+                    softwarePath = renderMode == RenderMode.SOFTWARE,
+                    screenWidth = width,
+                    screenHeight = height,
+                    qualityFactor = renderQualityFactor
+                )
+            } else {
+                1.0f
+            }
+            renderResolutionScale = newScale
+        }
+
+        /**
          * SOFTWARE 策略路径 — 直接启动软件渲染（= 原 surfaceChanged SOFTWARE 分支）。
          *
          * @param currentGen 发起时的 surface 纪元（post 回调 stale 守卫）
@@ -613,6 +699,8 @@ class NativeSurfaceView(
                     softwareBackend = createSoftwareBackend()
                     activeBackend = SoftwareRenderBackend(this@NativeSurfaceView)
                     renderMode = RenderMode.SOFTWARE
+                    // 软件路径确定后重算渲染缩放（pathFactor 0.8 生效）
+                    initCoordinator.recomputeRenderScale()
                     // 通知 Compose 层上传纹理（TextureAtlas 已在 surface 可用事件中 init）
                     onRendererReady?.invoke()
                     isReady = true
@@ -651,8 +739,10 @@ class NativeSurfaceView(
             // 后台线程读主线程维护的 View 字段属数据竞争——与 currentGen 同模式）
             val viewportW = width
             val viewportH = height
+            // 渲染缩放同捕获（RenderScalePolicy 决策值，线程体内传给 initRenderer）
+            val initRenderScale = renderResolutionScale
             vulkanInitThread = kotlin.concurrent.thread(name = "VulkanInit") {
-                runVulkanInitThread(currentGen, surface, viewportW, viewportH)
+                runVulkanInitThread(currentGen, surface, viewportW, viewportH, initRenderScale)
             }
         }
 
@@ -660,7 +750,9 @@ class NativeSurfaceView(
         // 本函数是原生初始化崩溃的唯一归因入口：Throwable 全捕获 + 分型降级
         //（中断=surface 销毁不降级/其他异常降级）是崩溃防御设计本身
         @Suppress("TooGenericExceptionCaught")
-        private fun runVulkanInitThread(currentGen: Int, surface: Surface, viewportW: Int, viewportH: Int) {
+        private fun runVulkanInitThread(
+            currentGen: Int, surface: Surface, viewportW: Int, viewportH: Int, initRenderScale: Float
+        ) {
             try {
                 val initStart = System.currentTimeMillis()
 
@@ -673,6 +765,7 @@ class NativeSurfaceView(
                     worldW = config.worldPixelWidth,
                     worldH = config.worldPixelHeight,
                     tileSize = config.tileSize,
+                    renderScale = initRenderScale,
                     surface = surface
                 )
 
@@ -785,6 +878,8 @@ class NativeSurfaceView(
         softwareBackend = createSoftwareBackend()
         activeBackend = SoftwareRenderBackend(this)
         renderMode = RenderMode.SOFTWARE
+        // 软件路径确定后重算渲染缩放（pathFactor 0.8 生效）
+        initCoordinator.recomputeRenderScale()
         onRendererReady?.invoke()
         isReady = true
         renderThread = RenderThread().also { it.start() }
@@ -897,6 +992,8 @@ class NativeSurfaceView(
             var effectiveFps = targetFps.coerceAtLeast(MIN_FPS_VALUE)
 
             var tick = 0L
+            // 脏帧跳过基准（2026-08-14 平板省电：引用比较 + 缩放版本，零每帧分配）
+            var lastRenderedFrame: RenderFrame? = null
 
             while (running && isReady) {
                 val now = System.nanoTime()
@@ -912,10 +1009,23 @@ class NativeSurfaceView(
                 tick++
                 if (tick % pacing.step.toLong() != 0L) continue
 
+                // Vulkan 渲染缩放消费（渲染线程独占；重建离屏目标语义同 resize）
+                consumePendingRenderScale()
+
+                // ★ 脏帧跳过（2026-08-14 平板省电）：静止画面跳过渲染与指标——
+                //   相机不动、帧引用未变、总线不脏、淡入完成、缩放未变 五守卫全通过
+                //   才跳过（FrameSkipPolicy 纯函数）。跳帧不 recordFrameTime/不上报
+                //   ObservedFps（防 EWMA 虚高误降级）；相机脏标记不消费（保持 true
+                //   直至真实渲染，防相机移动丢失）
+                val frame = currentFrame
+                if (shouldSkipFrame(frame, lastRenderedFrame)) continue
+
                 // ★ 统一渲染入口：RenderBackend 抽象（VULKAN/SOFTWARE 分支已收敛到
                 //   surface 初始化创建处），渲染循环只面向接口——iOS Metal 后端
                 //   实现同一接口即可接入，循环零改动
                 val renderElapsedNs = renderTick()
+                lastRenderedFrame = frame
+                lastRenderedScaleVersion = softwareRenderScaleVersion
 
                 // ★ 统一 EWMA 渲染能力追踪（VULKAN/SOFTWARE 双路径一致）。
                 // 关键设计：**不写回 targetFps**——渲染线程内部维护 effectiveFps =
@@ -928,8 +1038,29 @@ class NativeSurfaceView(
                 // 主动省电降帧（IDLE 10fps）不误判为渲染能力不足）
                 reportObservedFps(now, ewmaFps)
 
-                // 帧率变化后向系统声明（降频省屏耗 + 回升恢复，防面板粘滞）
-                maybeDeclareFrameRate(effectiveFps)
+                // 帧率变化后向系统声明（高刷面板声明 60/30 省屏耗 + 升档防抖）
+                maybeDeclareFrameRate(effectiveFps, pacing.displayFps, System.currentTimeMillis())
+            }
+        }
+
+        /** 脏帧跳过判定（信号收集 + FrameSkipPolicy 纯函数） */
+        private fun shouldSkipFrame(frame: RenderFrame?, lastRenderedFrame: RenderFrame?): Boolean {
+            return FrameSkipPolicy.shouldSkipFrame(
+                FrameSkipInputs(
+                    cameraDirty = cameraDirty.get(),
+                    frameChanged = frame !== lastRenderedFrame,
+                    buildingBusDirty = commandBus?.buildingDirty?.get() ?: false,
+                    fadeActive = fadeAlpha < 1f,
+                    scaleChanged = softwareRenderScaleVersion != lastRenderedScaleVersion
+                )
+            )
+        }
+
+        /** 渲染线程消费 pending 渲染缩放（Vulkan：setRenderScale 重建离屏目标，仅渲染线程调用） */
+        private fun consumePendingRenderScale() {
+            val pending = pendingRenderScale
+            if (pending != appliedRenderScale && renderMode == RenderMode.VULKAN && isReady) {
+                appliedRenderScale = NativeBridge.setRenderScale(pending)
             }
         }
 
@@ -1043,27 +1174,83 @@ class NativeSurfaceView(
          * Surface.setFrameRate（API 30+）：有效帧率变化时向系统声明，让高刷面板
          * 匹配刷新率（屏幕功耗是持续大头，60Hz vs 120Hz 差约 50% 屏耗）。
          *
-         * 降频（≤30fps）声明省屏耗；回升时**恢复声明**防部分 OEM 面板粘滞在低刷新率
-         * 造成 judder（"让系统自然恢复"在华为/小米等 ROM 上不成立）。
+         * 决策由 [FrameRateDeclarationPolicy] 纯函数给出（2026-08-14 平板省电重构）：
+         * - ≤60Hz 面板：旧行为逐位一致（≤30fps 声明 + 回升恢复声明防 OEM 面板粘滞）
+         * - >60Hz 面板：会话首帧声明 60（恰逢地图淡入遮罩）、≤30 声明 30、升档
+         *   2s 防抖（FIXED_SOURCE 切刷新率在部分 OEM 触发 ~1s 黑屏，仅闲置周期
+         *   回收时一次，可接受）
+         * - [RenderFlags.refreshRateDeclaration] 关闭 → 按 60Hz 面板语义（旧行为）
+         *
          * 渲染线程调用（surface 生命周期有效）；任何异常吞掉不杀死渲染线程。
          *
          * **iOS 对等**：`CADisplayLink.preferredFrameRateRange`（ProMotion 屏按
          * 内容帧率降刷新率）——无黑屏切换问题，直接声明目标帧率即可。
          */
-        private fun maybeDeclareFrameRate(effectiveFps: Int) {
+        private fun maybeDeclareFrameRate(effectiveFps: Int, displayFps: Int, nowMs: Long) {
+            // 开关关闭 → 按 60Hz 面板语义（= 旧行为逐位一致）
+            val effectiveDisplayFps = if (config.renderFlags.refreshRateDeclaration) {
+                displayFps
+            } else {
+                FrameRateDeclarationPolicy.DISPLAY_FPS_NORMAL_MAX
+            }
+            val target = resolveDeclarationTarget(effectiveFps, effectiveDisplayFps, nowMs) ?: return
+            doDeclareFrameRate(target, effectiveDisplayFps)
+        }
+
+        /**
+         * 解析帧率声明目标（防抖窗口 / 策略决策 / 升档防抖三阶段——null = 本帧不声明）。
+         * 仅高刷面板升档防抖（FIXED_SOURCE 切刷新率黑屏风险；60Hz DEFAULT
+         * 回升必须立即声明防 OEM 面板粘滞——旧注释语义保留）。
+         */
+        private fun resolveDeclarationTarget(effectiveFps: Int, displayFps: Int, nowMs: Long): Int? {
+            return when {
+                declareCandidateFps > 0 -> resolveDebounceCandidate(nowMs)
+                else -> resolvePolicyTarget(effectiveFps, displayFps, nowMs)
+            }
+        }
+
+        /** 防抖候选：稳定满 2s 执行候选并清除；否则继续等待（null = 本帧不声明） */
+        private fun resolveDebounceCandidate(nowMs: Long): Int? {
+            return if (nowMs - declareCandidateSinceMs >= UPSHIFT_DEBOUNCE_MS) {
+                declareCandidateFps.also { declareCandidateFps = 0 }
+            } else {
+                null
+            }
+        }
+
+        /** 策略决策 + 升档防抖：升档目标进防抖队列（null），降档/首帧立即声明 */
+        private fun resolvePolicyTarget(effectiveFps: Int, displayFps: Int, nowMs: Long): Int? {
+            val target = FrameRateDeclarationPolicy.targetDeclareFps(
+                displayFps, effectiveFps, lastDeclaredFrameRate
+            ) ?: return null
+
+            val isHighRefreshUpshift = target > lastDeclaredFrameRate && lastDeclaredFrameRate > 0 &&
+                FrameRateDeclarationPolicy.useFixedSource(displayFps)
+            return if (isHighRefreshUpshift) {
+                declareCandidateFps = target
+                declareCandidateSinceMs = nowMs
+                null
+            } else {
+                target
+            }
+        }
+
+        /** 执行帧率声明（API 30 守卫在本函数内——lint 数据流可追踪；
+         *  异常吞掉不杀死渲染线程；FIXED_SOURCE 仅高刷面板） */
+        private fun doDeclareFrameRate(fps: Int, displayFps: Int) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
                 return
             }
-            val fps = effectiveFps
-            if (fps != lastDeclaredFrameRate &&
-                (fps <= FPS_DECLARE_THRESHOLD || lastDeclaredFrameRate > 0)
-            ) {
-                lastDeclaredFrameRate = fps
-                try {
-                    holder.surface.setFrameRate(fps.toFloat(), Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
-                } catch (e: Exception) {
-                    android.util.Log.w("NativeSurfaceView", "setFrameRate failed: ${e.message}", e)
+            lastDeclaredFrameRate = fps
+            try {
+                val compat = if (FrameRateDeclarationPolicy.useFixedSource(displayFps)) {
+                    Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE
+                } else {
+                    Surface.FRAME_RATE_COMPATIBILITY_DEFAULT
                 }
+                holder.surface.setFrameRate(fps.toFloat(), compat)
+            } catch (e: Exception) {
+                android.util.Log.w("NativeSurfaceView", "setFrameRate failed: ${e.message}", e)
             }
         }
 

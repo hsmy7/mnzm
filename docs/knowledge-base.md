@@ -311,6 +311,22 @@ interface SaveValidationRule {
 
 `ThermalController` 消费 `ThermalReader` 温度数据驱动四档降级阶梯（GREEN/YELLOW/ORANGE/RED），联动渲染质量、目标帧率。
 
+## 平板省电体系（2026-08-14）
+
+用户反馈平板耗电 3 倍。根因：120Hz 面板不降刷新率（×2 屏耗）+ 每帧全物理分辨率渲染（×1.58 像素填充），叠加黑名单平板走 CPU 软件渲染。五工作包：
+
+| 机制 | 决策/实现 | 位置 |
+|------|----------|------|
+| 渲染分辨率缩放 | `RenderScalePolicy`（面积分级 COMPACT/STANDARD/LARGE/XLARGE × GPU 档 cap × 软件路径 0.8 × qualityFactor，floorTo05 离散 + clamp [0.5,1.0]；**COMPACT 手机恒 1.0 逐位不变基线**） | `core/engine/.../render/RenderScalePolicy.kt` |
+| Vulkan 降采样渲染 | 离屏颜色目标 + `vkCmdBlitImage` 上采样；blit 能力守卫回退直渲；setRenderScale 重建语义同 resize | `VulkanBackend.cpp/.h` |
+| Canvas 降采样渲染 | 帧缓冲 = round(物理×renderScale) + drawScale 公式适配 + 双线性上采样提交 | `SoftwareCanvasBackend.kt` / `SoftwareRenderBackend.kt` |
+| 帧率↔刷新率联动 | `FrameRateDeclarationPolicy`：>60Hz 面板 {60,30} 两档（首帧 60 恰逢淡入）+ 升档 2s 防抖；≤60Hz 旧行为一致 | `feature/game/.../sect/FrameRateDeclarationPolicy.kt` |
+| 脏帧跳过 | `FrameSkipPolicy` 五守卫（相机/帧引用/总线/淡入/缩放）；跳帧不统计 EWMA 防虚高 | `feature/game/.../sect/FrameSkipPolicy.kt` |
+| 动态 ADPF 目标 | `frameDurationNs(fps)` 替代硬编码 60fps；renderFrameRate collect 联动 | `GameEngineCore.kt` / `ThermalMonitor.setTargetWorkDuration` |
+| 省电模式监听 | `isPowerSaveMode` + `ACTION_POWER_SAVE_MODE_CHANGED`；fpsCap = min(低电量45, 省电30) | `BatteryAwareController.kt` |
+
+**关键设计**：render scale 是后端内部像素密度参数——`RenderBackend` 接口契约保持物理像素（相机/命中测试/世界可视范围全部不受缩放影响）；`RenderFlags.renderScaleEnabled`/`refreshRateDeclaration` 开关可二分定位回退。
+
 ---
 
 ## Hot Path Rules

@@ -316,8 +316,15 @@ class GameEngineCore @Inject constructor(
         // ★ 帧驱动 Accumulator 常量
         private val LOGIC_DT_NS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(100)  // 逻辑步长 100ms
         private val MAX_ACCUMULATOR_NS = LOGIC_DT_NS * 5  // 最多累积 5 步
-        // ADPF Performance Hint 目标帧时长：60 FPS
-        private const val TARGET_FRAME_DURATION_60FPS_NS = 16_666_667L
+        // ADPF Performance Hint 目标帧时长（2026-08-14 动态化：按实际帧率换算，
+        // 替代硬编码 60fps——挂机 30/10fps 时系统按真实预算调度，不再保留 60fps 性能）
+        private const val NANOS_PER_SECOND = 1_000_000_000L
+        private const val ADPF_MIN_FPS = 10
+        private const val ADPF_MAX_FPS = 60
+
+        /** ADPF 目标帧时长纯函数：帧率 → 纳秒预算（10-60fps 钳制防除零/越界；internal 供单测） */
+        internal fun frameDurationNs(fps: Int): Long =
+            NANOS_PER_SECOND / fps.coerceIn(ADPF_MIN_FPS, ADPF_MAX_FPS)
         // 自适应忙等等阈值
         private const val ANTI_FREEZE_TRIGGER_THRESHOLD = 3
         private const val ANTI_FREEZE_NORMAL_THRESHOLD = 20
@@ -453,6 +460,9 @@ class GameEngineCore @Inject constructor(
     }
     private var engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
     private var engineScope: CoroutineScope = CoroutineScope(engineJob + gameDispatcher + engineExceptionHandler)
+
+    /** ADPF 目标帧时长联动协程（2026-08-14；prepareLoopStart 重启前取消防堆积） */
+    private var adpfTargetJob: Job? = null
 
     fun launchInScope(block: suspend CoroutineScope.() -> Unit): Job = engineScope.launch(block = block)
 
@@ -662,6 +672,15 @@ class GameEngineCore @Inject constructor(
         // start 无条件重建轮询 job 绑定新 scope）。stop 侧对称见
         // stopGameLoopUnchecked（stopGameLoop/shutdown/pauseForBackground 全经此）
         thermalMonitor.start(engineScope)
+        // ADPF 目标帧时长联动（2026-08-14 平板省电）：有效帧率（场景/模式/热控/
+        // 电量四层 min）任何一次重算 → 系统性能预算同步。专用 job 重启前取消，
+        // 防 stop→start 周期在单 scope 内堆积多个 collect 协程
+        adpfTargetJob?.cancel()
+        adpfTargetJob = engineScope.launch {
+            renderFrameRate.collect { fps ->
+                thermalMonitor.setTargetWorkDuration(frameDurationNs(fps))
+            }
+        }
         // D-01 崩溃恢复：启动/重启（含 emergencyRestart）必经路径——排空上次
         // 崩溃遗留的持久化草稿（幂等，无草稿即空转；非挂起异步调度不阻塞启动）
         overflowMailHandler.drainPersistedDrafts()
@@ -720,8 +739,10 @@ class GameEngineCore @Inject constructor(
         var state = LoopIterationState(accumulatorNs = 0L, lastFrameTimeNs = System.nanoTime())
         // 循环启动/换线程重启：清插值平滑状态（防旧线程残留滤波值污染新循环首帧）
         jitterSmoother.reset()
-        // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）
-        thermalMonitor.createHintSession(TARGET_FRAME_DURATION_60FPS_NS)
+        // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）。
+        // 目标按当前有效帧率换算（2026-08-14 动态化；后续帧率变化经
+        // prepareLoopStart 的 renderFrameRate collect 联动更新）
+        thermalMonitor.createHintSession(frameDurationNs(_renderFrameRate.value))
         try {
             while (isActive) {
                 state = gameLoopIteration(state)

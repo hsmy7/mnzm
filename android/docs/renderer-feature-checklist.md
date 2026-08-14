@@ -40,6 +40,11 @@
 | gesture_fling | 惯性滑行 | ✅ | ✅ | ✅ | 手势引擎共用 |
 | shared_constants | 双端共享渲染常量 codegen 收敛（LOD 阈值/阴影常量/瓦片索引/语义建筑索引——LAYOUT 单一数据源，Kotlin SpriteAtlasDef + C++ TextureAtlas.h 双产物自动一致） | ✅ | ✅ | ✅ | 2026-08-13 批次 2（SpriteCodegenSyncTest 双端常量全等守卫） |
 | render_command_bus | 渲染命令总线（单槽覆盖式建筑数据通道——命令 FIFO 双通道已按对抗性审查删除：零生产消费者，见 RenderCommandBus.kt KDoc） | ✅ | ✅ | ✅ | 2026-08-13 批次 2 + 对抗性审查修正 |
+| render_scale | 渲染分辨率缩放（平板/大屏省电：RenderScalePolicy 决策 → Vulkan 离屏目标 + vkCmdBlitImage 上采样 / Canvas 降采样帧缓冲 + 双线性拉伸提交；renderScale=1.0 时两端行为与现状逐位一致为回归基线；接口契约保持物理像素） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP1（RenderScalePolicyTest + SoftwareCanvasBackendRenderScaleTest + RenderBackendContractTest 基线） |
+| refresh_rate_declaration | 帧率↔刷新率联动声明（>60Hz 面板声明 {60,30} 两档省屏耗 + 升档 2s 防抖；≤60Hz 面板旧行为逐位一致；RenderFlags.refreshRateDeclaration 开关回退） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP2（FrameRateDeclarationPolicyTest） |
+| dirty_frame_skip | 脏帧跳过（静止画面跳过渲染与指标：相机/帧引用/总线/淡入/缩放五守卫；EWMA 跳帧不统计防虚高） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP3（FrameSkipPolicyTest） |
+| power_save_mode | 系统省电模式监听（ACTION_POWER_SAVE_MODE_CHANGED → fpsCap 30；与低电量 45 取 min；evaluatePowerPolicy 纯函数） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP5（BatteryAwareControllerTest 扩展） |
+| dynamic_adpf_target | ADPF 目标帧时长动态化（实际帧率 → 系统性能预算；frameDurationNs 纯函数 + renderFrameRate collect 联动） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP4（GameEngineCoreFpsPolicyTest + ThermalMonitorTest 扩展） |
 
 ## 新增特性流程
 

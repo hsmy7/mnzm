@@ -513,6 +513,7 @@ fun MainGameScreen(
                     forceSoftwareRendering = forceSoftwareRendering,
                     vulkanInitListener = vulkanInitListener,
                     surfaceProviderFactory = viewModel.getSurfaceProviderFactory(),
+                    gpuTier = viewModel.getGpuTier(),
                     buildingSpriteSizes = buildingSpriteSizes,
                     selectedGrid = selectedBuildingGrid,
                     spiritCropData = spiritCropData.value,

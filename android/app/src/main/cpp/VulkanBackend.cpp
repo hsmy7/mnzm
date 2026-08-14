@@ -4,6 +4,7 @@
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
 #include <vector>
 #include <set>
@@ -246,6 +247,7 @@ bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH
     if (!createSwapchain(viewportW, viewportH)) { LOGE("initSurface: createSwapchain failed"); return false; }
     if (!createRenderPass()) { LOGE("initSurface: createRenderPass failed"); return false; }
     if (!createFramebuffers()) { LOGE("initSurface: createFramebuffers failed"); return false; }
+    if (!createOffscreenTargets()) { LOGE("initSurface: createOffscreenTargets failed"); return false; }
 
     // Pipeline（使用预创建的 ShaderModule + PipelineCache 加速）
     if (!createPipeline()) { LOGE("initSurface: createPipeline failed"); return false; }
@@ -277,7 +279,13 @@ bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH
 
 bool VulkanBackend::init(const RenderConfig& config, void* nativeWindow) {
     m_config = config;
-    LOGI("init(%dx%d, window=%p)", config.viewportW, config.viewportH, nativeWindow);
+    LOGI("init(%dx%d, window=%p, renderScale=%.2f)",
+         config.viewportW, config.viewportH, nativeWindow, config.renderScale);
+
+    // 消费 renderScale（离屏降采样目标在 initSurface → createOffscreenTargets 中按此创建）
+    m_renderScale = std::isfinite(config.renderScale)
+        ? std::max(0.5f, std::min(1.0f, config.renderScale))
+        : 1.0f;
 
     if (m_deviceReady) {
         // 已经过 initDevice 预加载，只初始化 Surface
@@ -306,6 +314,7 @@ void VulkanBackend::shutdown() {
     }
 
     destroyPipelineObjects();
+    destroyOffscreenTargets();  // 离屏目标必须在 vkDestroyDevice 前释放
     destroySwapchain();
 
     // 清理白色纹理（每个 vkDestroy* 后立即置空，防止二次调用时双重释放）
@@ -617,7 +626,8 @@ bool VulkanBackend::createSwapchain(int width, int height) {
     swapInfo.imageColorSpace = m_swapchainColorSpace;
     swapInfo.imageExtent = m_swapchainExtent;
     swapInfo.imageArrayLayers = 1;
-    swapInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    // TRANSFER_DST：render scale 离屏渲染路径将降采样图像 blit 上采样到交换链
+    swapInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     swapInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     swapInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
@@ -658,9 +668,19 @@ bool VulkanBackend::createSwapchain(int width, int height) {
     // ImageView 创建后不立即创建 Framebuffer —— 此时 m_renderPass 尚未初始化，
     // framebuffer 需在 createRenderPass() 之后通过 createFramebuffers() 创建。
 
-    LOGI("Swapchain created: %dx%d, %d images, format=%d",
+    // blit 能力守卫：交换链格式不支持 BLIT_DST 时 render scale 强制回退 1.0（直渲路径）。
+    // 行货 GPU 的 RGBA8/BGRA8 交换链格式均支持，此守卫仅针对极端定制驱动。
+    VkFormatProperties formatProps;
+    vkGetPhysicalDeviceFormatProperties(m_physDevice, m_swapchainFormat, &formatProps);
+    m_blitSupported = (formatProps.optimalTilingFeatures & VK_FORMAT_FEATURE_BLIT_DST_BIT) != 0;
+    if (!m_blitSupported) {
+        m_renderScale = 1.0f;
+        LOGW("Swapchain format %d lacks BLIT_DST — render scale disabled", m_swapchainFormat);
+    }
+
+    LOGI("Swapchain created: %dx%d, %d images, format=%d, blit=%d",
          m_swapchainExtent.width, m_swapchainExtent.height,
-         imgCount, m_swapchainFormat);
+         imgCount, m_swapchainFormat, m_blitSupported ? 1 : 0);
     return true;
 }
 
@@ -703,6 +723,176 @@ bool VulkanBackend::createFramebuffers() {
     return true;
 }
 
+// ============================================================
+// Render scale 离屏降采样目标（平板/大屏省电，2026-08-14）
+// ============================================================
+
+void VulkanBackend::destroyOffscreenTargets() {
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        if (m_offscreenFramebuffers[i]) vkDestroyFramebuffer(m_device, m_offscreenFramebuffers[i], nullptr);
+        m_offscreenFramebuffers[i] = VK_NULL_HANDLE;
+        if (m_offscreenViews[i]) vkDestroyImageView(m_device, m_offscreenViews[i], nullptr);
+        m_offscreenViews[i] = VK_NULL_HANDLE;
+        if (m_offscreenImages[i]) vkDestroyImage(m_device, m_offscreenImages[i], nullptr);
+        m_offscreenImages[i] = VK_NULL_HANDLE;
+        if (m_offscreenMemories[i]) vkFreeMemory(m_device, m_offscreenMemories[i], nullptr);
+        m_offscreenMemories[i] = VK_NULL_HANDLE;
+    }
+    m_offscreenExtent = {};
+    m_usingOffscreen = false;
+}
+
+bool VulkanBackend::createOffscreenTargets() {
+    // 缩放 1.0 或设备不支持 blit → 直渲路径（不创建离屏目标）
+    if (m_renderScale >= 1.0f || !m_blitSupported || m_renderPass == VK_NULL_HANDLE) {
+        m_usingOffscreen = false;
+        return true;
+    }
+
+    // 降采样尺寸：round(物理 × renderScale)，下限 1px
+    uint32_t offW = (uint32_t)std::max(1, (int)llround(m_swapchainExtent.width * m_renderScale));
+    uint32_t offH = (uint32_t)std::max(1, (int)llround(m_swapchainExtent.height * m_renderScale));
+    m_offscreenExtent = { offW, offH };
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkImageCreateInfo imgInfo{};
+        imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imgInfo.imageType = VK_IMAGE_TYPE_2D;
+        imgInfo.format = m_swapchainFormat;  // 与交换链同格式（blit 格式兼容性最安全）
+        imgInfo.extent = { offW, offH, 1 };
+        imgInfo.mipLevels = 1;
+        imgInfo.arrayLayers = 1;
+        imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imgInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+        if (vkCreateImage(m_device, &imgInfo, nullptr, &m_offscreenImages[i]) != VK_SUCCESS) {
+            LOGE("createOffscreenTargets: vkCreateImage[%d] failed (%ux%u)", i, offW, offH);
+            destroyOffscreenTargets();
+            m_renderScale = 1.0f;  // 回退直渲
+            return true;
+        }
+
+        VkMemoryRequirements memReq;
+        vkGetImageMemoryRequirements(m_device, m_offscreenImages[i], &memReq);
+
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < memProps.memoryTypeCount; j++) {
+            if ((memReq.memoryTypeBits & (1u << j)) &&
+                (memProps.memoryTypes[j].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+                memType = j;
+                break;
+            }
+        }
+        if (memType == UINT32_MAX) {
+            LOGE("createOffscreenTargets: no DEVICE_LOCAL memory type for offscreen image");
+            destroyOffscreenTargets();
+            m_renderScale = 1.0f;
+            return true;
+        }
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = memType;
+
+        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_offscreenMemories[i]) != VK_SUCCESS) {
+            LOGE("createOffscreenTargets: vkAllocateMemory[%d] failed", i);
+            destroyOffscreenTargets();
+            m_renderScale = 1.0f;
+            return true;
+        }
+        vkBindImageMemory(m_device, m_offscreenImages[i], m_offscreenMemories[i], 0);
+
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = m_offscreenImages[i];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = m_swapchainFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &viewInfo, nullptr, &m_offscreenViews[i]) != VK_SUCCESS) {
+            LOGE("createOffscreenTargets: vkCreateImageView[%d] failed", i);
+            destroyOffscreenTargets();
+            m_renderScale = 1.0f;
+            return true;
+        }
+
+        VkFramebufferCreateInfo fbInfo{};
+        fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        fbInfo.renderPass = m_renderPass;
+        fbInfo.attachmentCount = 1;
+        fbInfo.pAttachments = &m_offscreenViews[i];
+        fbInfo.width = offW;
+        fbInfo.height = offH;
+        fbInfo.layers = 1;
+
+        if (vkCreateFramebuffer(m_device, &fbInfo, nullptr, &m_offscreenFramebuffers[i]) != VK_SUCCESS) {
+            LOGE("createOffscreenTargets: vkCreateFramebuffer[%d] failed", i);
+            destroyOffscreenTargets();
+            m_renderScale = 1.0f;
+            return true;
+        }
+    }
+
+    m_usingOffscreen = true;
+    LOGI("Offscreen render targets created: %ux%u (scale=%.2f, %d frames in flight)",
+         offW, offH, m_renderScale, MAX_FRAMES_IN_FLIGHT);
+    return true;
+}
+
+float VulkanBackend::setRenderScale(float scale) {
+    // NaN/Inf 消毒为直渲；越界钳制到 [0.5, 1.0]
+    if (!std::isfinite(scale)) scale = 1.0f;
+    scale = std::max(0.5f, std::min(1.0f, scale));
+
+    if (!m_blitSupported) {
+        m_renderScale = 1.0f;
+        return m_renderScale;
+    }
+    if (std::fabs(scale - m_renderScale) < 0.001f) return m_renderScale;
+    if (m_device == VK_NULL_HANDLE || m_swapchain == VK_NULL_HANDLE) {
+        // surface 未就绪：仅记录，initSurface/resize 的 createOffscreenTargets 时生效
+        m_renderScale = scale;
+        return m_renderScale;
+    }
+
+    // 同 resize 语义：挡住渲染线程 + 等待 GPU 空闲后重建
+    m_ready = false;
+    vkDeviceWaitIdle(m_device);
+
+    bool wasOffscreen = m_usingOffscreen;
+    destroyOffscreenTargets();
+    m_renderScale = scale;
+    createOffscreenTargets();  // 内部失败自动回退 1.0
+
+    // 渲染目标尺寸变化 → viewport/scissor 变 → 重建管线（Pipeline Cache 加速，~ms 级）
+    if (wasOffscreen != m_usingOffscreen) {
+        destroyGraphicsObjects();
+        if (!createRenderPass() || !createFramebuffers() || !createPipeline()) {
+            LOGE("setRenderScale: pipeline rebuild failed — falling back to direct render");
+            destroyOffscreenTargets();
+            m_renderScale = 1.0f;
+            m_usingOffscreen = false;
+            destroyGraphicsObjects();
+            createRenderPass();
+            createFramebuffers();
+            createPipeline();
+        }
+    }
+
+    m_ready = true;
+    LOGI("Render scale set to %.2f (offscreen=%d)", m_renderScale, m_usingOffscreen ? 1 : 0);
+    return m_renderScale;
+}
+
 bool VulkanBackend::resize(int width, int height) {
     if (m_device == VK_NULL_HANDLE) return false;
 
@@ -714,6 +904,7 @@ bool VulkanBackend::resize(int width, int height) {
     vkDeviceWaitIdle(m_device);
 
     destroySwapchain();
+    destroyOffscreenTargets();  // 离屏目标尺寸基于旧 swapchain extent，一并重建
     destroyGraphicsObjects();  // 保留 ShaderModule（它们不依赖 Surface）
 
     m_config.viewportW = width;
@@ -723,6 +914,7 @@ bool VulkanBackend::resize(int width, int height) {
     if (!createRenderPass()) return false;
     if (!createFramebuffers()) return false;
     // 跳过 loadShaders() — ShaderModule 在 initDevice 时已创建，跨 resize 复用
+    if (!createOffscreenTargets()) return false;  // 内部失败自动回退直渲（返回 true）
     if (!createPipeline()) return false;
 
     // 保存 Pipeline Cache（可能已有新优化数据）
@@ -981,18 +1173,20 @@ bool VulkanBackend::createPipeline() {
     inputAssem.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     inputAssem.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-    // 视口
+    // 视口 — render scale 离屏模式用降采样 extent；投影矩阵仍为物理尺寸，
+    // NDC→viewport 映射自动把同一世界范围压进更少像素（缩放仅此一处公式适配）
+    const VkExtent2D rtExtent = m_usingOffscreen ? m_offscreenExtent : m_swapchainExtent;
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)m_swapchainExtent.width;
-    viewport.height = (float)m_swapchainExtent.height;
+    viewport.width = (float)rtExtent.width;
+    viewport.height = (float)rtExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor{};
     scissor.offset = {0, 0};
-    scissor.extent = m_swapchainExtent;
+    scissor.extent = rtExtent;
 
     VkPipelineViewportStateCreateInfo vpState{};
     vpState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -1100,6 +1294,11 @@ void VulkanBackend::destroyGraphicsObjects() {
     m_pipelineLayout = VK_NULL_HANDLE;
     if (m_renderPass) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
     m_renderPass = VK_NULL_HANDLE;
+    // 预存泄漏修复（2026-08-14）：descriptorPool 销毁时自动释放其 descriptorSet。
+    // 此前 resize 每次重建管线泄漏 pool+set 一对（resize 高频场景下累积显存）。
+    if (m_descriptorPool) vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
+    m_descriptorPool = VK_NULL_HANDLE;
+    if (m_descriptorSet) m_descriptorSet = VK_NULL_HANDLE;
     if (m_descriptorSetLayout) vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     m_descriptorSetLayout = VK_NULL_HANDLE;
 }
@@ -1922,12 +2121,14 @@ void VulkanBackend::submitFrame() {
 
     VkClearValue clearColor = { { { 0.95f, 0.93f, 0.89f, 1.0f } } }; // #F2EDE4
 
+    // render scale 离屏模式：渲染进降采样目标（offscreen），提交前 blit 上采样到交换链
+    const bool offscreen = m_usingOffscreen;
     VkRenderPassBeginInfo rpBegin{};
     rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rpBegin.renderPass = m_renderPass;
-    rpBegin.framebuffer = m_framebuffers[imageIndex];
+    rpBegin.framebuffer = offscreen ? m_offscreenFramebuffers[m_currentFrame] : m_framebuffers[imageIndex];
     rpBegin.renderArea.offset = {0, 0};
-    rpBegin.renderArea.extent = m_swapchainExtent;
+    rpBegin.renderArea.extent = offscreen ? m_offscreenExtent : m_swapchainExtent;
     rpBegin.clearValueCount = 1;
     rpBegin.pClearValues = &clearColor;
 
@@ -1985,6 +2186,82 @@ void VulkanBackend::submitFrame() {
     }
 
     vkCmdEndRenderPass(cmd);
+
+    // render scale 离屏模式：offscreen → swapchain 硬件双线性上采样 blit。
+    // 屏障序列：offscreen（renderPass 结束态）→ TRANSFER_SRC；swapchain acquire 后
+    // 布局为 UNDEFINED → TRANSFER_DST → blit → PRESENT_SRC。
+    // 直渲模式（renderScale=1.0）零改动：renderPass finalLayout 直接 PRESENT_SRC。
+    if (offscreen) {
+        const uint32_t swapIdx = imageIndex;
+
+        VkImageMemoryBarrier offscreenToBlit{};
+        offscreenToBlit.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        offscreenToBlit.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        offscreenToBlit.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        offscreenToBlit.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;  // renderPass finalLayout
+        offscreenToBlit.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        offscreenToBlit.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreenToBlit.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        offscreenToBlit.image = m_offscreenImages[m_currentFrame];
+        offscreenToBlit.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        offscreenToBlit.subresourceRange.levelCount = 1;
+        offscreenToBlit.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier swapToBlitDst{};
+        swapToBlitDst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapToBlitDst.srcAccessMask = 0;  // UNDEFINED 布局：丢弃旧内容
+        swapToBlitDst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        swapToBlitDst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        swapToBlitDst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        swapToBlitDst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapToBlitDst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapToBlitDst.image = m_swapchainImages[swapIdx];
+        swapToBlitDst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapToBlitDst.subresourceRange.levelCount = 1;
+        swapToBlitDst.subresourceRange.layerCount = 1;
+
+        VkImageMemoryBarrier barriers[2] = { offscreenToBlit, swapToBlitDst };
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0, 0, nullptr, 0, nullptr, 2, barriers);
+
+        VkImageBlit blitRegion{};
+        blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blitRegion.srcSubresource.layerCount = 1;
+        blitRegion.srcOffsets[0] = { 0, 0, 0 };
+        blitRegion.srcOffsets[1] = {
+            (int32_t)m_offscreenExtent.width, (int32_t)m_offscreenExtent.height, 1 };
+        blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blitRegion.dstSubresource.layerCount = 1;
+        blitRegion.dstOffsets[0] = { 0, 0, 0 };
+        blitRegion.dstOffsets[1] = {
+            (int32_t)m_swapchainExtent.width, (int32_t)m_swapchainExtent.height, 1 };
+
+        vkCmdBlitImage(cmd,
+                       m_offscreenImages[m_currentFrame], VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       m_swapchainImages[swapIdx], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                       1, &blitRegion, VK_FILTER_LINEAR);
+
+        VkImageMemoryBarrier swapToPresent{};
+        swapToPresent.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        swapToPresent.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        swapToPresent.dstAccessMask = 0;
+        swapToPresent.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        swapToPresent.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        swapToPresent.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapToPresent.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swapToPresent.image = m_swapchainImages[swapIdx];
+        swapToPresent.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        swapToPresent.subresourceRange.levelCount = 1;
+        swapToPresent.subresourceRange.layerCount = 1;
+
+        vkCmdPipelineBarrier(cmd,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &swapToPresent);
+    }
+
     vkEndCommandBuffer(cmd);
 
     // 提交 GPU
