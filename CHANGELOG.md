@@ -37,6 +37,15 @@
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；首次进入游戏初始化行为与现状一致，仅消除重复 init 副作用；无新增权限、无数据收集变化，隐私政策无需更新
 - **途中发现预存问题** — 3 项已登记 `docs/architecture.md` 待完成项登记表（D-30：`GameConfig.initialize`/`BuildingConfigService.initialize` 无幂等守卫每次 boot 重复加载配置；D-31：`GameEngineCore`（@Singleton）初始化状态被 `GameForegroundService` 生命周期驱动导致每次进出游戏重跑 `systemManager.initializeAll()`——当前各系统 initialize 均幂等，属架构级设计取舍；D-32：`MainActivity.kt` L280 预存 121 字符超长行）
 
+### 修复（2026-08-15 广告 SDK 初始化时机——从通用启动协程移出，收敛到登录成功回调）
+
+> 背景：上轮 `SdkInitGuard` 仅解决**同进程内** Activity 重建（登出 recreate / 合规切换 recreate / 系统回收重建）的重复初始化；**进程销毁复用**（进程被杀后从最近任务恢复）时进程级守卫清零，MainActivity 重建仍会经 `onLoadingComplete → initTapTapSDK → initAdSdk` 重复调用 SDK 内部方法（`DirichletSdk.init` / `TapActivityLifecycleTracker.initialize` / `GameDurationService` 构建），广告公司反馈"还是存在重复初始化"。本轮按用户方案将 SDK 初始化从 MainActivity 通用启动协程移出，仅在登录成功回调中调用一次，从调用时机上根除"进程销毁复用→重建→重复初始化"链路。
+
+- **`MainActivity`** — `initTapTapSDK()` 拆分为二：`initTapTapLoginSdk()`（仅 TapTap 登录 SDK——登录按钮前置依赖，`TapTapAuthManager.login` 内部 `isReady()` 检查不通过会拒绝登录，必须保留在登录发起前，自身 `isInitialized` 静态守卫幂等）+ 新增 `ensureSdkServicesInitialized()`（广告聚合 SDK / TapDB 时长统计 / 合规回调注册三件套，各子系统内部自带幂等守卫）。`ensureSdkServicesInitialized` 调用点收敛为两个：① **登录成功回调**（`TapTapAuthManager.login.onSuccess` 中经 `runOnUiThread` 执行，且**先于** `startComplianceCheck` 同步注册合规回调——防验证结果回调因未注册而丢失的竞态）；② **已登录冷启动兜底**（`SessionManager` 持久化登录态，进程销毁复用恢复后 `isLoggedIn == true` 直接进游戏、不经过登录回调——不补做则游戏内激励视频广告全部失效）
+- **`SdkInitGuard`** — KDoc 更新：进程销毁复用后进程级守卫清零并重新放行是预期行为；因广告 SDK 已收敛到登录成功回调，进程复用后未重新登录则初始化入口根本不会被调用，无需再依赖守卫拦截
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；TapTap 登录 SDK 启动初始化行为不变（登录按钮体验不变）；TapTap init 超时降级模式（跳过登录进本地存档选择）广告不初始化与现状一致；登出→再登录：`SdkInitGuard` 拦截广告 SDK 重复 init、`TapDBManager.stopGameDurationTracking` 复位后重新启动时长统计（设计意图不变）；无新增权限、无数据收集变化，隐私政策无需更新
+- **测试** — `SdkInitGuardTest` / `TapDBManagerInitGuardTest` 覆盖的幂等守卫机制未改动，语义不变；测试注释同步更新为新的调用时机描述。调用点编排为 Activity 生命周期/登录回调层变更（项目无 HiltActivity 测试设施、MainActivity 无既有测试），由代码审查与真机验证覆盖
+
 ### 修复（2026-08 荣耀 X70 创建宗门键盘反复弹出收起根治）
 
 > 背景：实测荣耀 X70（MagicOS 9 / Android 15）在创建宗门输入宗门名称时键盘反复弹出收起。根因证据链（四环）：① `MainActivity/GameActivity.onWindowFocusChanged → hideSystemBars()` 无条件调用 `WindowInsetsControllerCompat.hide()`，构成"焦点变化→窗口操作"放大器；② 荣耀 MagicOS 键盘弹出/收起期间窗口焦点抖动（荣耀官方社区同症状报告 + 2025-11 荣耀智慧输入法大规模故障事件佐证）；③ Android 15 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗引发 insets 翻转（本项目 hideSystemBars 在 API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径行为不同）；④ 自动聚焦为单次 requestFocus 无确认无重试，键盘首次弹出失败后无恢复，与系统自动重弹叠加成振荡。四环合并 → "弹出→收起→再弹出"回路。此前三轮修复（小米 `076f3236`/OPPO、Vivo `274aa307`/内联覆盖层 `57352e02`）均只修对话框内部避让双重位移，未触及 Activity 层放大器，换 ROM 再爆。

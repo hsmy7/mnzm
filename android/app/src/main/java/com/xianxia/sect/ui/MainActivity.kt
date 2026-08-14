@@ -40,6 +40,7 @@ import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.xianxia.sect.BuildConfig
@@ -50,6 +51,7 @@ import com.xianxia.sect.taptap.TapTapAuthManager
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.taptap.LoginData
 import com.xianxia.sect.taptap.ComplianceManager
+import com.xianxia.sect.taptap.TapDBManager
 import com.xianxia.sect.ui.game.GameActivity
 import com.xianxia.sect.ui.game.LoadingScreen
 import com.xianxia.sect.ui.util.ActionModeSafeCallback
@@ -171,6 +173,10 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_CODE_POST_NOTIFICATIONS = 1001
+        /** 等待 TapTap 登录 SDK 就绪的超时（广告聚合 SDK 依赖 TapTapKit.context） */
+        private const val TAP_SDK_READY_WAIT_MS = 5_000L
+        /** TapTap 登录 SDK 就绪轮询间隔 */
+        private const val TAP_SDK_READY_POLL_INTERVAL_MS = 100L
         const val EXTRA_SLOT = "slot"
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
@@ -312,9 +318,16 @@ class MainActivity : ComponentActivity() {
         }
 
         lifecycleScope.launch {
-            initTapTapSDK()
+            // 仅初始化 TapTap 登录 SDK（登录按钮前置依赖，自身幂等）。
+            // 广告聚合 SDK / 游戏时长统计 / 合规回调已从通用启动协程移出，
+            // 只在登录成功回调（或已登录冷启动兜底）中初始化一次，
+            // 避免进程销毁复用后 MainActivity 重建时重复调用 SDK 内部方法
+            initTapTapLoginSdk()
 
             if (sessionManager.isLoggedIn) {
+                // 已登录冷启动兜底：登录发生在上个进程（进程销毁复用），
+                // 本进程未经过登录成功回调，在此补做一次 SDK 服务初始化
+                ensureSdkServicesInitialized()
                 if (sessionManager.complianceVerified) {
                     showModeSelectionScreen()
                 } else {
@@ -523,13 +536,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun initTapTapSDK() {
+    /**
+     * 初始化 TapTap 登录 SDK（登录按钮前置依赖，必须在登录发起前就绪）。
+     *
+     * 广告聚合 SDK / 游戏时长统计 / 合规回调不在此处初始化——它们已收敛到
+     * [ensureSdkServicesInitialized]（登录成功回调 + 已登录冷启动兜底），
+     * 避免进程销毁复用后 MainActivity 重建时重复调用 SDK 内部方法。
+     */
+    private fun initTapTapLoginSdk() {
         lifecycleScope.launch(ioDispatcher.dispatcher) {
             try {
-                // 必须先初始化 TapTap 核心 SDK，再初始化 Ad SDK
-                // TapAdSdk 内部依赖 TapTapKit.context，反序会导致 lateinit context 未初始化崩溃
-                // 幂等守卫：SDK 全局初始化仅进程内首次执行，MainActivity 重建（登出/合规切换/
-                // 系统回收重建）不重复初始化（广告公司反馈"重复初始化"同类问题一并根治）
+                // 幂等守卫：SDK 全局初始化仅进程内首次执行，MainActivity 重建
+                // （登出/合规切换/系统回收重建）不重复初始化（广告公司反馈
+                // "重复初始化"同类问题一并根治）
                 if (com.xianxia.sect.taptap.SdkInitGuard.tryInitTapTapSdk()) {
                     TapTapAuthManager.init(
                         this@MainActivity,
@@ -541,14 +560,8 @@ class MainActivity : ComponentActivity() {
                 } else {
                     Log.d(TAG, "TapTap SDK already initialized, skipping")
                 }
-                // 反射验证 context 并通过 isReady() 双重确认（每次重建均刷新，登录按钮依赖此状态）
+                // 反射验证 context 并通过 isReady() 双重确认（登录按钮依赖此状态）
                 tapTapReady.value = TapTapAuthManager.isReady()
-
-                initAdSdk()
-                com.xianxia.sect.taptap.TapDBManager.startGameDurationTracking(application)
-                withContext(Dispatchers.Main) {
-                    ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
-                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: java.util.concurrent.TimeoutException) {
@@ -568,11 +581,55 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 初始化 Dirichlet 聚合 Ad SDK（在 TapTapAuthManager.init() 后调用） */
+    /**
+     * 登录成功后（或已登录冷启动兜底）进程级一次性初始化 SDK 服务：
+     * 广告聚合 SDK（DirichletSdk.init）、游戏时长统计（TapDB）、合规回调注册。
+     *
+     * 已从通用启动协程移出：进程销毁复用后 MainActivity 重建不再触发 SDK 内部
+     * 初始化方法，仅在用户真实登录（或此前已登录的进程复用场景）时执行。
+     * 各子系统内部自带幂等守卫（SdkInitGuard / TapDBManager / ComplianceManager），
+     * 同进程内重复调用安全。
+     *
+     * 合规回调须在主线程同步注册且先于 [startComplianceCheck]（防验证结果回调
+     * 因未注册而丢失）；广告 SDK 与时长统计异步执行（DirichletSdk.init 为异步
+     * API，不阻塞）。
+     */
+    internal fun ensureSdkServicesInitialized() {
+        ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
+        lifecycleScope.launch(ioDispatcher.dispatcher) {
+            // 冷启动路径下本协程与 initTapTapLoginSdk 并发，广告聚合 SDK 依赖
+            // TapTapKit.context（TapTapAuthManager.init 反射兜底），必须先等其就绪；
+            // 登录成功路径 SDK 必已就绪（login 前置检查），零等待
+            awaitTapTapSdkReady()
+            initAdSdk()
+            TapDBManager.startGameDurationTracking(application)
+        }
+    }
+
+    /** 等待 TapTap 登录 SDK 就绪；超时则跳过（降级模式，SdkInitGuard 未占用可重试） */
+    private suspend fun awaitTapTapSdkReady() {
+        // var：轮询累加器，copy-on-write 不可行
+        var waitedMs = 0L
+        while (!TapTapAuthManager.isReady() && waitedMs < TAP_SDK_READY_WAIT_MS) {
+            delay(TAP_SDK_READY_POLL_INTERVAL_MS)
+            waitedMs += TAP_SDK_READY_POLL_INTERVAL_MS
+        }
+        if (!TapTapAuthManager.isReady()) {
+            Log.w(TAG, "TapTap 登录 SDK 未就绪，跳过广告/统计 SDK 初始化")
+        }
+    }
+
+    /**
+     * 初始化 Dirichlet 聚合 Ad SDK（在 TapTapAuthManager.init() 后调用）。
+     *
+     * 仅在 [ensureSdkServicesInitialized]（登录成功回调 / 已登录冷启动兜底）中调用，
+     * 已从通用启动协程移出——进程销毁复用后 MainActivity 重建不再重复触发
+     * SDK 内部初始化方法。
+     */
     private fun initAdSdk() {
-        // 幂等守卫：广告聚合 SDK 全局初始化仅进程内首次执行，MainActivity 每次重建
-        // （登出 recreate / 合规切换 recreate / 系统回收重建）都会走到本方法，
-        // 无守卫时 DirichletSdk.init 被重复调用（广告公司反馈"重复初始化"）
+        // 幂等守卫：广告聚合 SDK 全局初始化仅进程内首次执行，登出后再次登录、
+        // MainActivity 重建（登出 recreate / 合规切换 recreate / 系统回收重建）
+        // 都会走到本方法，无守卫时 DirichletSdk.init 被重复调用（广告公司反馈"重复初始化"）
         if (!com.xianxia.sect.taptap.SdkInitGuard.tryInitAdSdk()) {
             Log.d(TAG, "Ad SDK already initialized, skipping")
             return
@@ -1047,6 +1104,9 @@ private fun TapTapLoginButton(
                     onLoadingChange(false)
                     val act = context as? MainActivity
                     act?.runOnUiThread {
+                        // 登录成功回调：一次性初始化广告/统计/合规服务（进程级幂等），
+                        // 必须先于 startComplianceCheck 注册合规回调，避免验证结果回调丢失
+                        act.ensureSdkServicesInitialized()
                         act.startComplianceCheck(unionId)
                     }
                 }

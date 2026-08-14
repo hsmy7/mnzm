@@ -13,10 +13,12 @@ import org.robolectric.annotation.Config
 /**
  * TapDBManager 时长统计幂等守卫测试。
  *
- * 背景：MainActivity 每次重建都会调用 [TapDBManager.startGameDurationTracking]，
- * 无守卫时重复构建 GameDurationService / 重复注册 ActivityLifecycleTracker
- * （广告公司反馈"重复初始化"的同类问题）。守卫为 AtomicBoolean CAS
- * （与 [SdkInitGuard] 同构，CAS 幂等/重复拦截语义由 SdkInitGuardTest 直接覆盖）。
+ * 背景：`startGameDurationTracking` 仅在登录成功回调（或已登录冷启动兜底）的
+ * `MainActivity.ensureSdkServicesInitialized` 中调用，登出后再登录、MainActivity
+ * 重建都会再次走到本方法。无守卫时重复构建 GameDurationService / 重复注册
+ * ActivityLifecycleTracker（广告公司反馈"重复初始化"的同类问题）。守卫为
+ * AtomicBoolean CAS（与 [SdkInitGuard] 同构，CAS 幂等/重复拦截语义由
+ * SdkInitGuardTest 直接覆盖）。
  *
  * Robolectric 环境下 TapDB SDK 不可用（performance_hint 系统服务缺失，
  * GameDurationService 构建抛异常），首次调用必然走"失败复位"路径。因此本测试
