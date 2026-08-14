@@ -7,16 +7,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -24,6 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
+import com.xianxia.sect.ui.components.rememberImeAwareAutoFocusRequester
 import com.xianxia.sect.core.util.InputValidator
 
 /** 改名弹窗配置（宗门/弟子共用，差异：标题/占位符/长度/校验器） */
@@ -48,8 +46,8 @@ fun RenameDialog(
 ) {
     var input by remember { mutableStateOf(currentName) }
     var error by remember { mutableStateOf<String?>(null) }
-    val focusRequester = remember { FocusRequester() }
-    val dialogView = LocalView.current
+    // 自动聚焦 + 键盘弹出确认重试（荣耀X70根治：键盘首次弹出失败/被系统收起时有限重试）
+    val focusRequester = rememberImeAwareAutoFocusRequester()
     // 确认逻辑供确认按钮与键盘 Done 键共用，杜绝两处逻辑漂移
     val confirm: () -> Unit = {
         val name = input.trim()
@@ -66,12 +64,9 @@ fun RenameDialog(
         scrimEnabled = scrimEnabled,
         onConfirm = confirm,
         onDismiss = onDismiss,
+        // 含输入框：挂载期间冻结宿主窗口系统栏操作（键盘频闪根治，见 SystemBarFreezeScope）
+        freezeSystemBars = true,
         content = {
-            LaunchedEffect(Unit) {
-                // 布局完成后再请求焦点（view.post 替代固定 delay(100)，对齐创建宗门方案，
-                // 内联覆盖层无平台 Dialog 入场动画，不再需要固定延迟）
-                dialogView.post { focusRequester.requestFocus() }
-            }
             OutlinedTextField(
                 value = input,
                 onValueChange = { newValue ->

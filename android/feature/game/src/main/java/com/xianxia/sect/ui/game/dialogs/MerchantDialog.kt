@@ -113,6 +113,8 @@ fun MerchantDialog(
         titleAlignment = Alignment.CenterStart,
         mode = DialogMode.Full,
         scrollableContent = false,
+        // 含购买数量常驻输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        freezeSystemBars = true,
         // 玉符购买弹窗（InlineStandardPromptDialog 覆盖层）渲染在窗口级 overlay 槽位：
         // content 列内渲染会作为第二个 fillMaxSize 兄弟子项被挤压为 0 高度而不可见
         // （57352e02 兑换码事故同源回归机制，见 StandardPromptDialogTest 0 高度用例）
@@ -386,7 +388,13 @@ private fun AcquisitionSellConfirmDialog(
     val maxSellable = minOf(warehouseQuantity, item.quantity)
     var sellQuantity by remember { mutableIntStateOf(1) }
     val totalPrice = item.price * sellQuantity
-    UnifiedGameDialog(onDismissRequest = onDismiss, title = "出售确认", mode = DialogMode.Half) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "出售确认",
+        mode = DialogMode.Half,
+        // 含出售数量常驻输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        freezeSystemBars = true
+    ) {
         Column(Modifier.padding(20.dp)) {
             Text(item.name, fontWeight = FontWeight.Bold, color = com.xianxia.sect.ui.theme.getRarityColor(item.rarity), fontSize = 14.sp)
             Spacer(Modifier.height(12.dp))

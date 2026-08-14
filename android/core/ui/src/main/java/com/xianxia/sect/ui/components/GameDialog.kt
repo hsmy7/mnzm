@@ -78,8 +78,14 @@ fun UnifiedGameDialog(
         ?: R.drawable.bg_horizontal,
     @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
         ?: R.drawable.ui_close_button,
+    /** 含文本输入框时传 true：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治，见 SystemBarFreezeScope KDoc） */
+    freezeSystemBars: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    // 输入对话框挂载期间冻结宿主窗口系统栏操作，切断键盘弹出收起振荡回路的
+    // 放大器环节（荣耀 X70 根治，见 SystemBarFreezeScope KDoc）
+    SystemBarFreezeEffect(freezeSystemBars)
+
     // 对话框窗口内任意触摸 → 刷新引擎闲置计时（独立 Window 不触发
     // Activity.onUserInteraction）。由宿主 CompositionLocal 提供
     // （GameOverlayHost 统一接线），防对话框内挂机误触发动态帧率降档。

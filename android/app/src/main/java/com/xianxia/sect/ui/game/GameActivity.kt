@@ -41,6 +41,8 @@ import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.util.GameForegroundService
+import com.xianxia.sect.core.util.ImeVisibilityTracker
+import com.xianxia.sect.core.util.SystemBarHidePolicy
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.ui.util.ActionModeSafeCallback
@@ -54,6 +56,7 @@ import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -83,6 +86,9 @@ class GameActivity : ComponentActivity() {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
     }
+
+    /** 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治） */
+    private val systemBarRestoreListener: () -> Unit = { hideSystemBars() }
 
     private val viewModel: GameViewModel by viewModels()
     private val saveLoadViewModel: SaveLoadViewModel by viewModels()
@@ -476,6 +482,9 @@ class GameActivity : ComponentActivity() {
         Log.i(TAG, "Render strategy: ${renderStrategy.description}")
 
         enableEdgeToEdge()
+        // 键盘可见性跟踪 + 输入对话框解冻恢复（荣耀X70键盘频闪根治）
+        ImeVisibilityTracker.attach(window)
+        SystemBarFreezeScope.addOnUnfreezeListener(systemBarRestoreListener)
         hideSystemBars()
     }
 
@@ -644,6 +653,13 @@ class GameActivity : ComponentActivity() {
     }
 
     private fun hideSystemBars() {
+        // 双守卫（荣耀X70键盘频闪根治）：输入对话框冻结期间或键盘可见期间
+        // 跳过窗口系统栏操作，切断"焦点抖动→hide()→insets翻转→键盘收起→
+        // 焦点抖动"振荡回路的放大器环节（详见 SystemBarHidePolicy KDoc）
+        if (SystemBarHidePolicy.shouldSkipHide()) {
+            Log.d(TAG, "hideSystemBars 跳过（IME 守卫）: ${SystemBarHidePolicy.skipReason()}")
+            return
+        }
         WindowInsetsControllerCompat(window, window.decorView).let { controller ->
             controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -762,6 +778,7 @@ class GameActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        SystemBarFreezeScope.removeOnUnfreezeListener(systemBarRestoreListener)
         actionModeTracker?.finishActiveActionMode()
         actionModeTracker = null
         super.onDestroy()

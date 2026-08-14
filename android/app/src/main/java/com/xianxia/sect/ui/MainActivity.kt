@@ -33,7 +33,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
+import com.xianxia.sect.core.util.ImeVisibilityTracker
+import com.xianxia.sect.core.util.SystemBarHidePolicy
 import com.xianxia.sect.ui.components.DialogFocusGuard
+import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
@@ -173,6 +176,9 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SECT_NAME = "sect_name"
         const val EXTRA_CLOUD_SAVE_LOAD = "cloud_save_load"
     }
+
+    /** 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治） */
+    private val systemBarRestoreListener: () -> Unit = { hideSystemBars() }
     
     public sealed class ComplianceDialogState {
         data class Restrict(val title: String, val message: String) : ComplianceDialogState()
@@ -194,6 +200,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
+        // 键盘可见性跟踪（荣耀X70键盘频闪根治：键盘弹出期间冻结系统栏隐藏）
+        ImeVisibilityTracker.attach(window)
+        // 输入对话框销毁解冻后恢复系统栏隐藏
+        SystemBarFreezeScope.addOnUnfreezeListener(systemBarRestoreListener)
         hideSystemBars()
         // 安装 ActionMode 安全回调，防御文本选择工具栏 BadTokenException
         installActionModeSafeCallback()
@@ -681,6 +691,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun hideSystemBars() {
+        // 双守卫（荣耀X70键盘频闪根治）：输入对话框冻结期间或键盘可见期间
+        // 跳过窗口系统栏操作，切断"焦点抖动→hide()→insets翻转→键盘收起→
+        // 焦点抖动"振荡回路的放大器环节（详见 SystemBarHidePolicy KDoc）
+        if (SystemBarHidePolicy.shouldSkipHide()) {
+            Log.d(TAG, "hideSystemBars 跳过（IME 守卫）: ${SystemBarHidePolicy.skipReason()}")
+            return
+        }
         WindowInsetsControllerCompat(window, window.decorView).let { controller ->
             controller.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -715,6 +732,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        SystemBarFreezeScope.removeOnUnfreezeListener(systemBarRestoreListener)
         actionModeTracker?.finishActiveActionMode()
         actionModeTracker = null
         loadHandler.removeCallbacksAndMessages(null)

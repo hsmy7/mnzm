@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
@@ -81,6 +82,13 @@ fun PlantingDialog(
 ) {
     // 切换 softInputMode，防止 Xiaomi HyperOS 键盘频闪
     DialogSoftInputGuard()
+
+    // 含数量常驻输入框：挂载期间冻结宿主窗口系统栏操作
+    // （荣耀X70键盘频闪根治，见 SystemBarFreezeScope KDoc）
+    DisposableEffect(Unit) {
+        SystemBarFreezeScope.enterFreeze()
+        onDispose { SystemBarFreezeScope.exitFreeze() }
+    }
 
     // ── 本地状态 ───────────────────────────────────────────
     var selectedSeedId by remember { mutableStateOf<String?>(null) }

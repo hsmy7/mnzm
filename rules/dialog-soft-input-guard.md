@@ -11,6 +11,15 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 - Xiaomi MIUI/HyperOS 已知缺陷：imePadding 在 Dialog 窗口上无法正确处理 keyboard insets
 - StackOverflow 社区共识：adjustPan 是 Compose Dialog 输入框的最佳实践（但必须与 imePadding 二选一）
 
+## 第二根因（2026-08 荣耀 X70 根治新增）
+
+**Activity 层窗口操作放大器**：`onWindowFocusChanged → hideSystemBars()` 无条件调用 `WindowInsetsControllerCompat.hide()`。荣耀 MagicOS 键盘弹出/收起期间存在窗口焦点抖动，每次抖动都触发 hide()；Android 15 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，hide() 与其对抗 → insets 翻转 → 键盘收起再弹出，形成独立于对话框避让机制的**第二条振荡回路**。此前三轮修复（小米/OPPO/Vivo）均未触及该放大器，荣耀 MagicOS 9 + Android 15 是首个打爆组合。
+
+**第二根因防御法则：输入对话框挂载期间冻结宿主窗口系统栏操作。**
+- 含输入框的对话框统一通过 `SystemBarFreezeScope`（core/ui）冻结：`InlineStandardPromptDialog` / `UnifiedGameDialog` 传 `freezeSystemBars = true`；自定义容器（如 `PlantingDialog`）直接 `DisposableEffect { enterFreeze(); onDispose { exitFreeze() } }`
+- Activity 侧 `hideSystemBars()` 必须接入双守卫 `SystemBarHidePolicy.shouldSkipHide()`（输入对话框冻结期间 或 `ImeVisibilityTracker.isImeVisible` 键盘可见期间 → 跳过），并注册 `SystemBarFreezeScope.addOnUnfreezeListener` 在解冻后恢复隐藏
+- `MainActivity` 与 `GameActivity` 两个入口都受此法则约束（游戏内改名/兑换码/数量输入同模式）
+
 ## 双机制避让（2026-08-06 根治后规则）
 
 | 渲染上下文 | 唯一避让机制 | 实现 |
@@ -24,11 +33,11 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 
 | 容器 | 形态 | 避让机制 | 备注 |
 |------|------|---------|------|
-| `UnifiedGameDialog` | 平台 Dialog 窗口 | `DialogSoftInputGuard(ADJUST_PAN)` | 无输入框对话框直接使用；含输入框时内层禁用 imePadding |
+| `UnifiedGameDialog` | 平台 Dialog 窗口 | `DialogSoftInputGuard(ADJUST_PAN)` | 无输入框对话框直接使用；含输入框时内层禁用 imePadding + `freezeSystemBars = true` |
 | `StandardPromptDialog` | 平台 Dialog 窗口 | `DialogSoftInputGuard(ADJUST_PAN)` | 同上 |
 | `SmallScreenDialog` | 平台 Dialog 窗口 | `DialogSoftInputGuard(ADJUST_PAN)` | 同上 |
-| `InlineStandardPromptDialog` | 内联 Box 覆盖层（无平台窗口） | 双上下文自动：Activity 层 `imePadding` / Dialog 窗口内无（外层 ADJUST_PAN） | **含文本输入的对话框（创建宗门/改名/兑换码/出售数量）统一使用此组件** |
-| `PlantingDialog` | 内联全屏覆盖层 | Activity 窗口 ADJUST_PAN 单一避让（容器内置 guard） | 已内联 + 单一避让，稳定 |
+| `InlineStandardPromptDialog` | 内联 Box 覆盖层（无平台窗口） | 双上下文自动：Activity 层 `imePadding` / Dialog 窗口内无（外层 ADJUST_PAN） | **含文本输入的对话框（创建宗门/改名/兑换码/出售数量）统一使用此组件**，含输入框时 `freezeSystemBars = true` |
+| `PlantingDialog` | 内联全屏覆盖层 | Activity 窗口 ADJUST_PAN 单一避让（容器内置 guard）+ 手动 `SystemBarFreezeScope` 冻结 | 已内联 + 单一避让 + 冻结，稳定 |
 
 ## 判断法则
 
@@ -37,29 +46,33 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 ```
 新增的输入框放在哪里？
   ├─ InlineStandardPromptDialog（文本输入）
-  │  → ✅ 不处理，组件已自动双上下文避让
+  │  → ✅ 传 freezeSystemBars = true，自动聚焦用 rememberImeAwareAutoFocusRequester()
   ├─ StandardPromptDialog / UnifiedGameDialog / SmallScreenDialog（平台 Dialog 窗口）
-  │  → ✅ 不处理，窗口已有 ADJUST_PAN；内层严禁 imePadding
+  │  → ✅ 不处理避让（窗口已有 ADJUST_PAN；内层严禁 imePadding）；
+  │     UnifiedGameDialog 含输入框时传 freezeSystemBars = true
   ├─ PlantingDialog
   │  → ✅ 同上
   └─ 新创建的自定义 Dialog { } 或 Box overlay
-     → 🔴 二选一：
+     → 🔴 二选一避让 + 必接冻结：
         ├─ 平台 Dialog 窗口 → 顶部调用 DialogSoftInputGuard()（ADJUST_PAN），
-        │    禁止 imePadding
+        │    禁止 imePadding；含输入框时 DisposableEffect 接入 SystemBarFreezeScope
         └─ Activity 层 Box 覆盖层 → 挂 imePadding()（保持 manifest adjustResize），
-             不要调用 DialogSoftInputGuard()
+             不要调用 DialogSoftInputGuard()；含输入框时同样接入 SystemBarFreezeScope
 ```
 
-**社交扩展（2026-08-04 起）：** 未来社交/排行界面的搜索框、好友备注输入框同样按此法则判断——优先放入 `InlineStandardPromptDialog`；自定义容器必须严格二选一。
+**社交扩展（2026-08-04 起）：** 未来社交/排行界面的搜索框、好友备注输入框同样按此法则判断——优先放入 `InlineStandardPromptDialog`；自定义容器必须严格二选一 + 输入框冻结。
 
 ## 违规后果
 
 - 平台 Dialog 窗口内叠加 `imePadding`（pan + padding 双重位移）→ 国产 ROM 键盘反复弹出/收起，界面闪屏，输入无法正常使用
 - 无任何避让的 Dialog + 输入框 → 键盘遮挡输入框或触发 adjustResize 振荡
-- 复现条件：HyperOS / ColorOS / FuntouchOS + 含输入框对话框 + 输入框获得焦点
+- 含输入框但未冻结系统栏操作（缺 `freezeSystemBars` / `SystemBarFreezeScope`）→ 荣耀 MagicOS 9 + Android 15 上"键盘弹出→收起→再弹出"振荡回路（hideSystemBars 放大器）
+- 复现条件：HyperOS / ColorOS / FuntouchOS / MagicOS + 含输入框对话框 + 输入框获得焦点
 
 ## 注意点
 
 - `DialogSoftInputGuard` 支持两种窗口类型：平台 `DialogWindowProvider`（Compose `Dialog`）和 `Activity.window`（Box overlay 覆盖层），自动检测无需区分；如果找不到目标窗口（极少见边缘情况）会 `Log.w` 后返回，不影响功能
 - 保护的是**容器存在期间**的窗口 softInputMode，容器销毁后自动恢复，无副作用
 - 含输入框的对话框应使用 `InlineStandardPromptDialog` 而非平台 Dialog 容器（2026-08-06 根治决策：平台 Dialog 窗口与 IME 的交互在国产 ROM 上不可靠，历史上 OPPO/Vivo/HyperOS 三系均复现，见 `docs/adr/dialog-system-refactoring.md`）
+- **Activity 侧必备**（2026-08 荣耀 X70 根治）：`hideSystemBars()` 接入 `SystemBarHidePolicy.shouldSkipHide()` 双守卫 + `ImeVisibilityTracker.attach(window)` + `SystemBarFreezeScope.addOnUnfreezeListener`；`MainActivity`/`GameActivity` 两个入口都必须具备，缺一即遗留放大器
+- 自动聚焦一律使用 `rememberImeAwareAutoFocusRequester()`（IME 弹出确认 + 有限重试），禁止裸 `LaunchedEffect { requestFocus() }` 单次聚焦（荣耀智慧输入法首次弹出失败场景无恢复）

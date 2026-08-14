@@ -21,7 +21,9 @@ internal fun SellConfirmDialog(
         confirmLabel = "出售",
         onConfirm = { onConfirm(sellQuantity) },
         dismissLabel = "取消",
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        // 含数量常驻输入框：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        freezeSystemBars = true
     ) {
         Spacer(modifier = Modifier.weight(1f))
         QuantitySelector(

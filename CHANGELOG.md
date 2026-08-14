@@ -37,6 +37,22 @@
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；首次进入游戏初始化行为与现状一致，仅消除重复 init 副作用；无新增权限、无数据收集变化，隐私政策无需更新
 - **途中发现预存问题** — 3 项已登记 `docs/architecture.md` 待完成项登记表（D-30：`GameConfig.initialize`/`BuildingConfigService.initialize` 无幂等守卫每次 boot 重复加载配置；D-31：`GameEngineCore`（@Singleton）初始化状态被 `GameForegroundService` 生命周期驱动导致每次进出游戏重跑 `systemManager.initializeAll()`——当前各系统 initialize 均幂等，属架构级设计取舍；D-32：`MainActivity.kt` L280 预存 121 字符超长行）
 
+### 修复（2026-08 荣耀 X70 创建宗门键盘反复弹出收起根治）
+
+> 背景：实测荣耀 X70（MagicOS 9 / Android 15）在创建宗门输入宗门名称时键盘反复弹出收起。根因证据链（四环）：① `MainActivity/GameActivity.onWindowFocusChanged → hideSystemBars()` 无条件调用 `WindowInsetsControllerCompat.hide()`，构成"焦点变化→窗口操作"放大器；② 荣耀 MagicOS 键盘弹出/收起期间窗口焦点抖动（荣耀官方社区同症状报告 + 2025-11 荣耀智慧输入法大规模故障事件佐证）；③ Android 15 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗引发 insets 翻转（本项目 hideSystemBars 在 API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径行为不同）；④ 自动聚焦为单次 requestFocus 无确认无重试，键盘首次弹出失败后无恢复，与系统自动重弹叠加成振荡。四环合并 → "弹出→收起→再弹出"回路。此前三轮修复（小米 `076f3236`/OPPO、Vivo `274aa307`/内联覆盖层 `57352e02`）均只修对话框内部避让双重位移，未触及 Activity 层放大器，换 ROM 再爆。
+
+- **新增 `SystemBarFreezeScope`**（core/ui）— 输入对话框挂载期间冻结宿主窗口系统栏操作：AtomicInteger 嵌套计数 + CopyOnWriteArrayList 解冻监听器（归零时通知宿主恢复隐藏，监听器异常不影响解冻语义）
+- **新增 `ImeVisibilityTracker`**（app/core/util）— decorView insets 监听跟踪 `WindowInsetsCompat.Type.ime()` 可见性，**原样透传 insets**（不消费，保证 Compose WindowInsets 分发完整），仅可见性翻转时记日志（tag `ImeGuard`）
+- **新增 `SystemBarHidePolicy`**（app/core/util）— 双守卫 `shouldSkipHide()`（输入对话框冻结期间 或 键盘可见期间跳过隐藏）+ `skipReason()` 日志
+- **`MainActivity`/`GameActivity`** — `hideSystemBars()` 接入双守卫；`onCreate` 挂 `ImeVisibilityTracker.attach(window)` + `SystemBarFreezeScope.addOnUnfreezeListener`，`onDestroy` 注销（两个 Activity 入口全量覆盖，游戏内改名/兑换码/数量输入同模式一并根治）
+- **`InlineStandardPromptDialog`** 新增 `freezeSystemBars: Boolean = false` 参数 — 含输入框的对话框（创建宗门/改名/兑换码/出售数量）传 true 挂载即冻结；`UnifiedGameDialog` 同参数；`PlantingDialog` 直接 `DisposableEffect` 接入
+- **新增 `rememberImeAwareAutoFocusRequester`**（core/ui）— 自动聚焦 + IME 弹出确认 + 有限重试（800ms 超时 × 2 次上限，防失控），替换创建宗门/改名的裸单次 `LaunchedEffect { requestFocus() }`
+- **接线清单** — SectNameInputDialog / RenameDialog（宗门+弟子改名）/ SettingsTab 兑换码 / SellConfirmDialog / MerchantDialog（购买+出售确认）/ AutoManagementDialog / PatrolTowerDialog / PlantingDialog 全部冻结
+- **测试** — `SystemBarFreezeScopeTest` 8 用例（嵌套计数/归零回调仅一次/异常监听器/未冻结 no-op/移除监听器）、`ImeVisibilityTrackerTest` 6 用例（状态翻转/透传引用不消费/attach 幂等/换窗口）、`SystemBarHidePolicyTest` 5 用例（双守卫组合矩阵/解除恢复）、`StandardPromptDialogTest` +3（冻结挂载解冻/默认不冻结/解冻回调）
+- **规则文档** — `rules/dialog-soft-input-guard.md` 新增"第二根因（Activity 层窗口操作放大器）"与防御法则（含输入框必接冻结、Activity 双守卫必备、自动聚焦统一组件）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更；小米/OPPO/Vivo 稳定路径零影响（对话框期间系统栏本就隐藏，冻结无行为差异）；API<35 设备传统 flags 路径同受守卫；`ImeGuard` 日志提供荣耀实机验证闭环（焦点抖动仍在但 hide 被冻结、键盘翻转次数归零）
+- **实机验证清单（待测）** — ① 荣耀 X70 创建宗门输入（键盘稳定弹出不反复）；② 游戏内宗门/弟子改名；③ 兑换码/出售数量/自动管理阈值输入；④ 小米/OPPO/Vivo 回归（无行为变化）；⑤ logcat `ImeGuard` 确认跳过原因与 IME 可见性翻转日志
+
 ## [4.00.97] - 2026-08-13
 
 ### 引擎重构（2026-08-13 对标 Godot 架构借鉴重构——八大维度批次 0~5）

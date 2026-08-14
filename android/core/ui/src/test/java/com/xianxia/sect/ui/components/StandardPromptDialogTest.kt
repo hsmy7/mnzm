@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalView
@@ -27,6 +28,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,6 +50,12 @@ class StandardPromptDialogTest {
 
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+    @After
+    fun tearDown() {
+        // 冻结作用域为全局单例，测试间隔离，防跨用例污染
+        SystemBarFreezeScope.resetForTest()
+    }
 
     /** 实现 DialogWindowProvider 的伪 Dialog 视图（用于窗口上下文检测单测） */
     private class FakeDialogWindowView(context: Context, private val windowRef: Window) :
@@ -290,6 +298,84 @@ class StandardPromptDialogTest {
         // （57352e02 将 InlineStandardPromptDialog 改回内联覆盖层时漏适配
         //   SettingsTab.RedeemCodeDialog 的根因机制，v4.00.92 兑换码不弹窗）
         composeRule.onNodeWithText("兑换码").assertIsNotDisplayed()
+    }
+
+    // ── 系统栏冻结接线（2026-08 荣耀 X70 键盘频闪根治）──
+    // 含输入框的对话框挂载期间冻结宿主窗口系统栏操作，销毁后解冻。
+
+    @Test
+    fun `freezeSystemBars 为 true 时挂载进入冻结销毁退出冻结`() {
+        assertFalse("测试前应为未冻结状态", SystemBarFreezeScope.isFrozen)
+        val showDialog = mutableStateOf(true)
+        composeRule.setContent {
+            if (showDialog.value) {
+                InlineStandardPromptDialog(
+                    onDismissRequest = {},
+                    title = "创建宗门",
+                    confirmLabel = "创建",
+                    dismissLabel = "取消",
+                    freezeSystemBars = true
+                ) {
+                    Text("输入框内容")
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        assertTrue("含输入框对话框挂载期间应冻结", SystemBarFreezeScope.isFrozen)
+
+        composeRule.runOnUiThread { showDialog.value = false }
+        composeRule.waitForIdle()
+        assertFalse("对话框销毁后应解冻", SystemBarFreezeScope.isFrozen)
+    }
+
+    @Test
+    fun `freezeSystemBars 默认 false 时不冻结`() {
+        val showDialog = mutableStateOf(true)
+        composeRule.setContent {
+            if (showDialog.value) {
+                InlineStandardPromptDialog(
+                    onDismissRequest = {},
+                    title = "提示框",
+                    confirmLabel = "确定"
+                ) {
+                    Text("内容")
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        assertFalse("无输入框提示框不应冻结", SystemBarFreezeScope.isFrozen)
+        composeRule.runOnUiThread { showDialog.value = false }
+        composeRule.waitForIdle()
+        assertFalse("卸载后仍应未冻结", SystemBarFreezeScope.isFrozen)
+    }
+
+    @Test
+    fun `freezeSystemBars 为 true 时解冻触发监听器回调`() {
+        var unfreezeCount = 0
+        val listener: () -> Unit = { unfreezeCount++ }
+        SystemBarFreezeScope.addOnUnfreezeListener(listener)
+        val showDialog = mutableStateOf(true)
+        try {
+            composeRule.setContent {
+                if (showDialog.value) {
+                    InlineStandardPromptDialog(
+                        onDismissRequest = {},
+                        title = "创建宗门",
+                        confirmLabel = "创建",
+                        freezeSystemBars = true
+                    ) {
+                        Text("输入框内容")
+                    }
+                }
+            }
+            composeRule.waitForIdle()
+            composeRule.runOnUiThread { showDialog.value = false }
+            composeRule.waitForIdle()
+            assertEquals("解冻应通知监听器（宿主恢复系统栏隐藏）", 1, unfreezeCount)
+        } finally {
+            SystemBarFreezeScope.removeOnUnfreezeListener(listener)
+            SystemBarFreezeScope.resetForTest()
+        }
     }
 
     // ── UnifiedGameDialog 窗口级 overlay 槽位（2026-08-08 兑换码遮罩全屏根治）──

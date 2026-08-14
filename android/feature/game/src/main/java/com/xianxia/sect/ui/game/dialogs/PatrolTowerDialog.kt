@@ -232,7 +232,9 @@ private fun AttackRangeDialog(
         },
         title = "进攻范围",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        // 含数量输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        freezeSystemBars = true
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             Text("选择目标境界", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)

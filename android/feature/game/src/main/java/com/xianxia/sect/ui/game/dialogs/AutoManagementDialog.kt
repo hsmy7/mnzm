@@ -86,7 +86,9 @@ fun AutoManagementDialog(
         onDismissRequest = onDismiss,
         title = "自动管理",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        // 含阈值输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        freezeSystemBars = true
     ) {
         val scrollState = rememberScrollState()
         Column(

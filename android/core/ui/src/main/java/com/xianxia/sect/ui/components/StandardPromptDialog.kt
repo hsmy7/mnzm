@@ -105,6 +105,24 @@ fun DialogSoftInputGuard(
 }
 
 /**
+ * 输入对话框挂载期间的宿主窗口系统栏冻结 Effect（2026-08 荣耀 X70 键盘频闪根治）。
+ *
+ * [enabled] 为 true（含文本输入的对话框）时，挂载期间通过 [SystemBarFreezeScope]
+ * 冻结宿主 Activity 的系统栏隐藏操作，销毁时解冻并触发宿主恢复隐藏。
+ * 提取为独立 composable 供 [InlineStandardPromptDialog] 与 [UnifiedGameDialog] 复用，
+ * 避免在各容器函数内增加分支复杂度（detekt CyclomaticComplexMethod 阈值守卫）。
+ */
+@Composable
+internal fun SystemBarFreezeEffect(enabled: Boolean) {
+    if (enabled) {
+        DisposableEffect(Unit) {
+            SystemBarFreezeScope.enterFreeze()
+            onDispose { SystemBarFreezeScope.exitFreeze() }
+        }
+    }
+}
+
+/**
  * 判定给定 [View] 是否处于平台 Dialog 窗口（Compose [Dialog] 创建的独立 Window）内。
  *
  * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。用于决定键盘避让机制：
@@ -363,7 +381,18 @@ fun StandardPromptDialog(
  *   窗口已由 [DialogSoftInputGuard] 应用 ADJUST_PAN 单一避让，本组件自动禁用
  *   imePadding——pan + padding 双重位移是国产 ROM 键盘振荡频闪的历史根因。
  * 窗口上下文由 [isInsideDialogWindow] 自动检测，调用方无需关心。
+ *
+ * 系统栏冻结机制（2026-08 荣耀 X70 键盘频闪根治）：
+ * [freezeSystemBars] 为 true（含文本输入的对话框）时，挂载期间通过
+ * [SystemBarFreezeScope] 冻结宿主 Activity 的系统栏隐藏操作。Android 15
+ * 强制 edge-to-edge 下 IME 可见期间系统接管导航栏，应用 hide() 与其对抗 +
+ * 荣耀 MagicOS 键盘弹出/收起期间的窗口焦点抖动（onWindowFocusChanged 反复
+ * 回调触发 hide()）会形成"键盘弹出→收起→再弹出"振荡回路，冻结后切断放大器。
+ * 销毁时解冻并触发宿主恢复系统栏隐藏。无输入框的提示框传 false（默认），
+ * 保持原有行为。
  */
+// 平铺参数签名与 StandardPromptDialog 对齐，聚合数据类会破坏 20+ 调用点语义
+@Suppress("LongParameterList")
 @Composable
 fun InlineStandardPromptDialog(
     onDismissRequest: () -> Unit,
@@ -382,8 +411,13 @@ fun InlineStandardPromptDialog(
     @DrawableRes dialogBackgroundRes: Int = R.drawable.dialog_box,
     @DrawableRes buttonBackgroundRes: Int = R.drawable.ui_button,
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button,
+    freezeSystemBars: Boolean = false,
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
+    // 输入对话框挂载期间冻结宿主窗口系统栏操作，切断键盘弹出收起振荡回路的
+    // 放大器环节（荣耀 X70 根治，见 SystemBarFreezeScope KDoc）
+    SystemBarFreezeEffect(freezeSystemBars)
+
     // 在 composition 入口处读取屏幕尺寸并用 remember 缓存，之后不再变化
     val screenConfig = LocalConfiguration.current
     val dialogWidth = remember { (screenConfig.screenWidthDp * 0.5f).dp }

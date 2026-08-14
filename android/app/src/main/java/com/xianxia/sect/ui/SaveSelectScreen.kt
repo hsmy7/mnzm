@@ -12,14 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
@@ -30,6 +28,7 @@ import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
+import com.xianxia.sect.ui.components.rememberImeAwareAutoFocusRequester
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
@@ -330,7 +329,7 @@ private fun SaveSelectDialogs(
     }
 }
 
-/** 创建宗门名输入对话框（自动聚焦 + 键盘防频闪） */
+/** 创建宗门名输入对话框（自动聚焦+IME确认重试 + 系统栏冻结防键盘频闪） */
 @Composable
 private fun SectNameInputDialog(
     sectNameInput: String,
@@ -339,8 +338,8 @@ private fun SectNameInputDialog(
     onValueChange: (String) -> Unit,
     onConfirm: (String) -> Unit
 ) {
-    val focusRequester = remember { FocusRequester() }
-    val dialogView = LocalView.current  // 在 Composable 上下文中捕获 View 引用
+    // 自动聚焦 + 键盘弹出确认重试（荣耀X70根治：键盘首次弹出失败/被系统收起时有限重试）
+    val focusRequester = rememberImeAwareAutoFocusRequester()
     // 确认逻辑（含空名→青云宗兜底 + 校验）供确认按钮与键盘 Done 键共用，杜绝两处逻辑漂移
     val confirm: () -> Unit = {
         if (sectNameError == null) {
@@ -356,12 +355,9 @@ private fun SectNameInputDialog(
         dismissOnClickOutside = false,
         onDismiss = onDismiss,
         onConfirm = confirm,
+        // 含输入框：挂载期间冻结宿主窗口系统栏操作（键盘频闪根治，见 SystemBarFreezeScope）
+        freezeSystemBars = true,
         content = {
-            LaunchedEffect(Unit) {
-                // 等待布局完成后再请求焦点，避免在入场动画完成前弹出键盘
-                // 使用 view.post 替代固定 delay(100)，适配不同设备动画速度差异
-                dialogView.post { focusRequester.requestFocus() }
-            }
             Spacer(Modifier.weight(1f))
             OutlinedTextField(
                 value = sectNameInput,
