@@ -126,8 +126,6 @@ tasks.withType(Test).configureEach { dependsOn('generateSpriteAtlasDef') }
 // ============================================================
 def robolectricCategory = 'com.xianxia.sect.core.RobolectricTests'
 // AGP 的 testReleaseUnitTest 为延迟注册任务，配置期 tasks.named() 立即解析会
-// 报 not found——用惰性闭包，配置末尾（任务图固化输入）时任务已注册。
-// AGP 的 testReleaseUnitTest 为延迟注册任务，配置期 tasks.named() 立即解析会
 // 报 not found——用惰性闭包，输入固化时任务已注册。
 def originalTestClosure = { tasks.getByName('testReleaseUnitTest') }
 // Test 的 testClassesDirs/classpath 是抽象属性，新建任务时未初始化（null），
