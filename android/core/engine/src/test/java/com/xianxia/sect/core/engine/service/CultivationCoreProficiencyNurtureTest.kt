@@ -34,6 +34,7 @@ import org.robolectric.RobolectricTestRunner
  * - [CultivationCore.processEquipmentNurturePerPhase]：每旬装备孕养经验增长
  * - 边界条件：无功法/无装备弟子、死亡弟子、满熟练度
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class CultivationCoreProficiencyNurtureTest {
 

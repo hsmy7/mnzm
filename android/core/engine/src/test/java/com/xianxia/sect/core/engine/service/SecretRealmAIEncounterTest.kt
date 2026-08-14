@@ -39,6 +39,7 @@ import org.robolectric.RobolectricTestRunner
  * 秘境"遭遇 AI 宗门探索队伍"事件（AI_SECT_ENCOUNTER）单元测试：
  * 避让必成功、交战胜利品阶/件数、战败损失、全灭 WIPEOUT、对方全灭直通。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmAIEncounterTest {
 

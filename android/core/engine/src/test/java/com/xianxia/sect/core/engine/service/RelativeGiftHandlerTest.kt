@@ -36,6 +36,7 @@ import org.robolectric.RobolectricTestRunner
  * 使用 Robolectric 获得真实的 SparseArray 实现
  * （DiscipleTables 底层依赖 android.util.SparseArray）。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class RelativeGiftHandlerTest {
 

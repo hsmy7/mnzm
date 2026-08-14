@@ -23,6 +23,7 @@ import java.util.UUID
  * - 部分数据损坏时仅招募有效部分
  * - 完全损坏时全部跳过
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class GameEngineRecruitTest {
 

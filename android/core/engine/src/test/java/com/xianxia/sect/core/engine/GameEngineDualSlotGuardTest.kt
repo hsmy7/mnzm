@@ -63,6 +63,7 @@ import org.robolectric.RobolectricTestRunner
  * 非玩家任命入口，战斗流程本身约束弟子"在战斗"，不会与驻守长期共存。
  * 若未来出现"战驻双槽位"报告，需在此补充覆盖。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class GameEngineDualSlotGuardTest {
 

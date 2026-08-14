@@ -29,6 +29,7 @@ import org.robolectric.RobolectricTestRunner
  * - 堆叠条目 quantity 非法（<=0）拒绝物化（防篡改档白得物品）
  * - 袋空/无模板条目不阻塞死亡标记
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class InventorySystemDeathMaterializeTest {
 

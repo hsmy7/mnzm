@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
  * 回归：分配前从不清理旧槽位——勾选"显示所有弟子"后把在岗弟子任命为
  * 灵植/炼丹/锻造/传道/执法/青云/灵矿执事亲传，旧岗位槽位残留（双槽位 Bug）。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleFacadeAssignDirectDiscipleTest {
 

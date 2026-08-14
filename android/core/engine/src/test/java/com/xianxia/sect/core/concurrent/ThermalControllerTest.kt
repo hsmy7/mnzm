@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
  * - particlesDisabled / postProcessingDisabled 标志
  * - reset() 恢复 GREEN
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class ThermalControllerTest {
 

@@ -69,6 +69,7 @@ import org.robolectric.RobolectricTestRunner
  * 说明：AI-vs-AI 决策应用与玩家占领防御构建的深度断言依赖完整游戏状态构造，
  * 由 CaveExplorationProcessorTest.buildDefenseBattleEnemies + 全量集成回归兜底。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class AISectBattleProcessorTest {
 

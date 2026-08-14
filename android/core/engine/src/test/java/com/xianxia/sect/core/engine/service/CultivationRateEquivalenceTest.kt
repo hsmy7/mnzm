@@ -36,6 +36,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * 覆盖维度：境界/弟子类型/灵根数量/政策津贴/哀悼/父母/师徒/丹药临时加速/功法熟练度。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class CultivationRateEquivalenceTest {
 

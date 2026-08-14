@@ -22,6 +22,7 @@ import org.robolectric.RobolectricTestRunner
  * 该功能为旧存档首次查看弟子详情时生成加入宗门/拜师/结为道侣的合成日志，
  * 仅当尚无日志时写入。使用 delegate mock 模式（同 DiscipleServiceCrudTest）注入 GameStateStore。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleLifecycleEventsTest {
 

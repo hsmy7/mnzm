@@ -25,6 +25,7 @@ import java.util.UUID
  * - 数据损坏时跳过
  * - 生命周期事件在事务内写入
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleFacadeImplRecruitTest {
 

@@ -11,6 +11,7 @@ import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import org.junit.Assert.*
+import org.junit.Assume
 import org.junit.Before
 import org.junit.Test
 import java.security.MessageDigest
@@ -36,6 +37,16 @@ class StorageSystemBenchmark {
         compressThreshold = Int.MAX_VALUE,
         includeChecksum = false
     )
+
+    @Before
+    fun benchmarkGate() {
+        // 2026-08-14：真实吞吐 benchmark 默认跳过（节省全量测试时间）；
+        // 按需启用：./gradlew.bat testReleaseUnitTest -Pbenchmark.enabled=true --tests "*StorageSystemBenchmark*"
+        Assume.assumeTrue(
+            "benchmark 默认跳过（-Pbenchmark.enabled=true 启用）",
+            System.getProperty("benchmark.enabled") == "true"
+        )
+    }
 
     @Before
     fun setUp() {

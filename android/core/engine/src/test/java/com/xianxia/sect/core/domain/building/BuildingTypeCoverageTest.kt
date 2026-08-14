@@ -21,6 +21,7 @@ import org.robolectric.RobolectricTestRunner
  * 3. [BuildingFeatureRegistry] — 在启动注册中添加新建筑的 BuildingFeature（参考 BuildingFeatureBoot.kt）
  * 4. 本测试文件 — 将新 [BuildingType] 加入 coveredByRegistry 集合
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingTypeCoverageTest {
 

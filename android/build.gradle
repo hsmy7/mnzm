@@ -14,32 +14,5 @@ plugins {
     alias(libs.plugins.kover) apply false
 }
 
-// 统一所有子模块的 compileSdk/minSdk/targetSdk
-subprojects {
-    afterEvaluate {
-        if (project.hasProperty('android')) {
-            project.android {
-                compileSdk = 35
-                defaultConfig {
-                    minSdk = 24
-                    targetSdk = 35
-                }
-                compileOptions {
-                    sourceCompatibility = JavaVersion.VERSION_17
-                    targetCompatibility = JavaVersion.VERSION_17
-                    encoding = 'UTF-8'
-                }
-            }
-            project.tasks.withType(JavaCompile).configureEach {
-                options.encoding = 'UTF-8'
-                options.compilerArgs += ['-Xlint:-deprecation']
-            }
-            project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-                kotlinOptions {
-                    jvmTarget = '17'
-                    freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
-                }
-            }
-        }
-    }
-}
+// 2026-08-14：SDK/Java 编译配置已显式写入各模块 build.gradle（3.1，配置缓存前置）——
+// compileSdk 35 / minSdk 24 / targetSdk 35 / Java 17 / UTF-8 / jvmTarget 17 / Xjsr305=strict 逐模块声明

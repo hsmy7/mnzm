@@ -40,6 +40,7 @@ import org.robolectric.RobolectricTestRunner
  * 覆盖：选择方向后 30% 概率生成空地事件、原地休整恢复（濒死/半血/满血/死亡/幽灵成员）、
  * 继续前进成员不变、休整不进入战斗、非法 eventType 回退方向事件分支。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmRestAreaTest {
 

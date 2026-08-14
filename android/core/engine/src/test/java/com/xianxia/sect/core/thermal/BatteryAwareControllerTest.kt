@@ -21,6 +21,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [Build.VERSION_CODES.TIRAMISU])
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 class BatteryAwareControllerTest {
 
     private val context: Context = RuntimeEnvironment.getApplication()

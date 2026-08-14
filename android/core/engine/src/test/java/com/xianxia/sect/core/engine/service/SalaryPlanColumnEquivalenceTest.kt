@@ -32,6 +32,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 class SalaryPlanColumnEquivalenceTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()

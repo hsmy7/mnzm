@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit
  * - [GameEngineCore.setObservedRenderFps] 值防御与限频（需 Robolectric：
  *   SystemClock.elapsedRealtime 测试环境恒 0，靠 ShadowSystemClock 推进）
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class GameEngineCoreFpsPolicyTest {
 

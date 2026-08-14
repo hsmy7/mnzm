@@ -36,6 +36,7 @@ import org.robolectric.RobolectricTestRunner
  * 远古秘境 5 年自动关闭（processMonthlyExpiryCheck / closeSecretRealmByExpiry）单元测试：
  * 到期关闭背包转邮件灵石入钱包、未到期不触发、幂等、空背包无邮件、杜绝双发放。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmExpiryTest {
 

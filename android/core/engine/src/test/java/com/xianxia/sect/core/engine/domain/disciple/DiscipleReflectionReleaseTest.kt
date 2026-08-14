@@ -29,6 +29,7 @@ import org.robolectric.RobolectricTestRunner
  * 使用 delegate mock 模式（同 DiscipleServiceCrudTest）+ 真实 DiscipleService/
  * DiscipleStatusService，端到端验证释放后状态推导不被锁回。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleReflectionReleaseTest {
 

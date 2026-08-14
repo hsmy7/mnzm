@@ -65,6 +65,7 @@ import org.robolectric.RobolectricTestRunner
  * 组装出空名弟子被跳过，自动排班永不匹配候选（S3 测试失败根因）。
  * 参照 BuildingFacadeImplAssignProductionSlotTest 的 Robolectric 模式。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class ProductionProcessorTest {
 

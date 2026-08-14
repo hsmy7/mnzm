@@ -14,6 +14,10 @@ jobs:
       run:
         working-directory: android
 
+    # 2026-08-14：内存预算覆盖（16G runner）——GRADLE_OPTS 系统属性优先于 gradle.properties
+    env:
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1536m
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,33 +27,39 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # 2026-08-14：显式固定 Node——preBuild codegen 任务依赖 node，
+      # 之前靠 ubuntu-latest 预装（版本不受控，升级可能破坏 .mjs 脚本）
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 2026-08-14：setup-gradle v4 默认缓存 wrapper dists + dependencies（覆盖面比手写
+      # actions/cache 更全且 key 正确）；删除原手写 actions/cache@v4
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/caches
-          key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/libs.versions.toml') }}
-
-      # 2026-08-01 修复：--max-workers=1 关闭跨模块并行编译（Windows/CI 上跨模块
-      # Kotlin 增量编译互删 build 目录导致测试失败）；-Pkotlin.incremental=false
-      # 消除增量状态陈旧问题。本地开发仍保留并行+增量（gradle.properties）。
+      # 2026-08-14：恢复 daemon + 增量编译——前提：内存保守化（原 8G×2 双堆打穿 16G runner）
+      # + Kotlin 2.2.20 跨模块增量互删已在本地验证不复现（docs/build-perf/incremental-verification.md）。
+      # 全部步骤保留 --max-workers=1（测试必须串行，历史教训：共享静态状态跨类污染 98 失败）
       - name: Compile check
-        run: ./gradlew compileReleaseKotlin --no-daemon --max-workers=1 -Pkotlin.incremental=false
+        run: ./gradlew compileReleaseKotlin --max-workers=1 --build-cache
 
+      # 2026-08-14：-Pkover.enabled=true——本地默认关闭（消除插桩开销），仅 CI 启用
       - name: Run unit tests
-        run: ./gradlew testReleaseUnitTest --no-daemon --max-workers=1 -Pkotlin.incremental=false
+        run: ./gradlew testReleaseUnitTest --max-workers=1 --build-cache -Pkover.enabled=true
 
+      # 2026-08-14：detekt/validateChangelogJson 补 --build-cache（与其余步骤一致，跨 runner 复用）
       - name: Run Detekt
-        run: ./gradlew detekt --no-daemon --max-workers=1
+        run: ./gradlew detekt --max-workers=1 --build-cache
 
       - name: Validate changelog JSON
-        run: ./gradlew validateChangelogJson --no-daemon
+        run: ./gradlew validateChangelogJson --build-cache
 
       # 2026-08-01 修复：移除 `|| true`——测试失败必须使 CI 变红（Kover 已在全部模块启用）
+      # 2026-08-14：-Pkover.enabled=true——测试插桩必须与 koverHtmlReport 同开关，否则覆盖率为 0
       - name: Generate coverage report
-        run: ./gradlew koverHtmlReport --no-daemon --max-workers=1
+        run: ./gradlew koverHtmlReport --max-workers=1 -Pkover.enabled=true
 
       - name: Upload coverage report (if generated)
         uses: actions/upload-artifact@v4

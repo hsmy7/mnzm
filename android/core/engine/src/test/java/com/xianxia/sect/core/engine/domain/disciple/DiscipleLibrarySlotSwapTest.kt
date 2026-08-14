@@ -41,6 +41,7 @@ import org.robolectric.RobolectricTestRunner
  * DiscipleStatusService/DiscipleAssignmentGate + stubLaunchInScope，
  * 端到端验证换人后旧弟子状态正确回归。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleLibrarySlotSwapTest {
 

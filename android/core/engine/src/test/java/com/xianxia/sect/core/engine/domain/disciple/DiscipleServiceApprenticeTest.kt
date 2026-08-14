@@ -24,6 +24,7 @@ import org.robolectric.RobolectricTestRunner
  * 使用 Robolectric 获得真实的 SparseArray/SparseIntArray 实现，
  * 使用 FakeStore 替代真实的 GameStateStore.update{}。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleServiceApprenticeTest {
 

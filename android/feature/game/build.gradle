@@ -10,6 +10,13 @@ plugins {
     alias(libs.plugins.detekt)
 }
 
+// 2026-08-14：Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+kover {
+    if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
+        disable()
+    }
+}
+
 detekt {
     buildUponDefaultConfig = true
     allRules = false
@@ -21,7 +28,17 @@ detekt {
 android {
     namespace = 'com.xianxia.sect.feature.game'
 
+    // 2026-08-14：SDK 配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
+    compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        encoding = 'UTF-8'
+    }
+
     defaultConfig {
+        minSdk = 24
+        targetSdk = 35
         consumerProguardFiles "consumer-rules.pro"
     }
 
@@ -46,6 +63,9 @@ android {
 }
 
 tasks.withType(Test).configureEach {
+    // 2026-08-14：内存保守化（双 8G daemon 崩溃修复配套）。
+    // 实测：1536m 下 Robolectric 渲染测试 GC 频繁，feature/game 全量 28.8s→74.8s（+160%），
+    // 改回 2g 恢复正常（32GB 档位 6G+4G+2G=12G 峰值，安全）。8GB 机器需再降并接受测试变慢。
     maxHeapSize = "2g"
     // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
     maxParallelForks = 1
@@ -102,4 +122,16 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation libs.compose.ui.test
     testImplementation libs.compose.ui.test.junit4
+}
+
+// 2026-08-14：Java/Kotlin 编译配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:-deprecation']
+}
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+    }
 }

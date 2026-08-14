@@ -35,6 +35,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 
 
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmServiceTest {
 

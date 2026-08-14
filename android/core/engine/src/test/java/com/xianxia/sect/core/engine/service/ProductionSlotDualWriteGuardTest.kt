@@ -73,6 +73,7 @@ import org.robolectric.RobolectricTestRunner
  * 删除本注解会让占用类测试退化为假阳性（弟子根本不进候选，断言空通过
  * 而非防线拦截）。见 ElderSlotsStatusCoverageTest 同款环境要求。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class ProductionSlotDualWriteGuardTest {
 

@@ -43,6 +43,7 @@ import org.robolectric.RobolectricTestRunner
  * 回归：此前只清 Repository 其他生产槽，巡逻/长老/藏经阁等 GameData 槽位残留，
  * 且 GameData.productionSlots 镜像不同步——勾选"显示所有弟子"分配后双槽位。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingFacadeImplAssignProductionSlotTest {
 

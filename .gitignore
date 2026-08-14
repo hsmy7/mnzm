@@ -65,6 +65,8 @@ captures/
 *.jar
 *.war
 *.ear
+# Gradle wrapper jar 必须入库（CI 依赖，2026-08-14 修复：曾被 *.jar 通配忽略致 CI 无法运行）
+!android/gradle/wrapper/gradle-wrapper.jar
 
 *.log
 

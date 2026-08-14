@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
  * - 仓库数量不足：不铸造袋条目（唯一失败条件，袋容量无上限永不因袋满失败）
  * - 丹药赏赐：扣数量 + 袋条目
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleFacadeRewardTest {
 

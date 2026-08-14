@@ -70,6 +70,7 @@ import org.robolectric.RobolectricTestRunner
  * Repository 生产槽位删除、未知实例跳过、空列表幂等。
  */
 @Suppress("DEPRECATION") // 测试需访问 GameData.productionSlots 镜像
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingBatchRemovalTest {
 

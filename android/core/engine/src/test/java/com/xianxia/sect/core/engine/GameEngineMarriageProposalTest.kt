@@ -51,6 +51,7 @@ import org.robolectric.RobolectricTestRunner
  * 测试 [GameEngine.approveMarriageProposal] 和 [GameEngine.rejectMarriageProposal]
  * 的状态变更正确性。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class GameEngineMarriageProposalTest {
 

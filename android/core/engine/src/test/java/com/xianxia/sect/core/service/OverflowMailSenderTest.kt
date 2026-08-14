@@ -19,6 +19,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.after
+import org.mockito.Mockito.mockingDetails
+import org.mockito.Mockito.timeout
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
@@ -260,8 +263,8 @@ class OverflowMailSenderTest {
         // 落盘恢复：drain 补落盘成功 → 随后 drain 读到 DB 草稿（此处 mock 返回空，
         // 只验证补落盘发生——由 InsertOverflowDraft 返回值 1 驱动）
         whenever(mailRepo.insertOverflowDraftsBlocking(any())).thenReturn(1)
-        Thread.sleep(600)
-        verify(mailRepo, times(2)).insertOverflowDraftsBlocking(any())
+        // 异步补落盘完成后即返回（原 sleep 600ms 固定等待，改轮询验证防抖动）
+        verify(mailRepo, timeout(2_000).times(2)).insertOverflowDraftsBlocking(any())
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -278,10 +281,10 @@ class OverflowMailSenderTest {
         )
         whenever(mailRepo.getPersistedOverflowDraftsBlocking()).thenReturn(drafts)
         sender.drainPersistedDrafts()
-        Thread.sleep(600)
 
         // 3 组（slot=1/source=battle、slot=2/source=battle、slot=1/source=forge）→ 3 封邮件
-        verify(mailRepo, times(3)).insertWithEnforceLimitAndDeleteDrafts(
+        // timeout 轮询：异步 drain 完成即返回（原 sleep 600ms 固定等待）
+        verify(mailRepo, timeout(2_000).times(3)).insertWithEnforceLimitAndDeleteDrafts(
             any(), eq(1000), any(), any()
         )
         // 每组草稿 id 一并删除（原子事务）
@@ -303,14 +306,21 @@ class OverflowMailSenderTest {
         )
         whenever(mailRepo.getPersistedOverflowDraftsBlocking()).thenReturn(drafts)
 
+        // 两段式触发两次独立 drain 周期：scheduleDrain 单飞去重（drainScheduled 标志）——
+        // 复位窗口（insert 后 finally 复位）不可直接观察，用"轮询重试"代替固定 sleep：
+        // 未复位时调用被合并丢弃（仅布尔判断，零开销），复位后调用即启动新周期。
         sender.drainPersistedDrafts()
-        Thread.sleep(600)
-        sender.drainPersistedDrafts()
-        Thread.sleep(600)
+        verify(mailRepo, timeout(2_000)).insertWithEnforceLimitAndDeleteDrafts(
+            any(), any(), any(), any()
+        )
+        val replayDeadline = System.nanoTime() + REPLAY_WAIT_NANOS
+        while (overflowInsertCount() < 2 && System.nanoTime() < replayDeadline) {
+            sender.drainPersistedDrafts()
+        }
 
         // 两次 drain 各构建一封（mock 无状态，草稿仍在）——mail id 必须相同（幂等 REPLACE 不重复）
         val captor = argumentCaptor<MailEntity>()
-        verify(mailRepo, times(2)).insertWithEnforceLimitAndDeleteDrafts(
+        verify(mailRepo, timeout(2_000).times(2)).insertWithEnforceLimitAndDeleteDrafts(
             captor.capture(), any(), any(), any()
         )
         val ids = captor.allValues.map { it.id }
@@ -335,9 +345,9 @@ class OverflowMailSenderTest {
         whenever(mailRepo.insertWithEnforceLimitAndDeleteDrafts(any(), any(), any(), any()))
             .thenThrow(RuntimeException("DB 写入失败"))
         sender.drainPersistedDrafts()
-        Thread.sleep(600)
         // 失败不删行（无 delete 调用）；行保留下次重试
-        verify(mailRepo, never()).deleteOverflowDraftsBlocking(any())
+        // after：等待异步 drain 完成后断言（语义等价原 sleep 600ms，窗口更足）
+        verify(mailRepo, after(2_000).never()).deleteOverflowDraftsBlocking(any())
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -350,9 +360,9 @@ class OverflowMailSenderTest {
         val draft = PersistedDirectMailDraft("direct_1", 1, json.encodeToString(mail), 100L)
         whenever(mailRepo.getPersistedDirectMailDraftsBlocking()).thenReturn(listOf(draft))
         sender.drainPersistedDrafts()
-        Thread.sleep(600)
+        // timeout 轮询：异步 drain 完成即返回（原 sleep 600ms）
         val captor = argumentCaptor<MailEntity>()
-        verify(mailRepo).insertWithEnforceLimitAndDeleteDrafts(
+        verify(mailRepo, timeout(2_000)).insertWithEnforceLimitAndDeleteDrafts(
             captor.capture(), eq(1000), eq(emptyList<String>()), eq(listOf("direct_1"))
         )
         assertEquals("直发草稿原样还原", mail, captor.firstValue)
@@ -364,8 +374,19 @@ class OverflowMailSenderTest {
         val draft = PersistedDirectMailDraft("corrupt_1", 1, "{not-json", 100L)
         whenever(mailRepo.getPersistedDirectMailDraftsBlocking()).thenReturn(listOf(draft))
         sender.drainPersistedDrafts()
-        Thread.sleep(600)
+        // timeout 等 delete 发生（= 异步 drain 完成）后再断言无插入（原 sleep 600ms）
+        verify(mailRepo, timeout(2_000)).deleteDirectMailDraftsBlocking(listOf("corrupt_1"))
         verify(mailRepo, never()).insertWithEnforceLimitAndDeleteDrafts(any(), any(), any(), any())
-        verify(mailRepo).deleteDirectMailDraftsBlocking(listOf("corrupt_1"))
     }
+
+    /** 重放轮询上限：复位窗口最长等待（原 sleep 600ms ×2 的语义上限） */
+    private companion object {
+        const val REPLAY_WAIT_NANOS = 2_000_000_000L
+    }
+
+    /** insert 已发生调用数（Mockito 调用记录计数，供轮询"第二次 drain 周期已启动"） */
+    private fun overflowInsertCount(): Int =
+        mockingDetails(mailRepo).invocations.count {
+            it.method.name == "insertWithEnforceLimitAndDeleteDrafts" && !it.isIgnoredForVerification
+        }
 }

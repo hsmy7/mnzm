@@ -40,6 +40,7 @@ import org.robolectric.RobolectricTestRunner
  * 2~7 件灵品~玄品）、秘宝入背包、旧档结果子事件兼容、方向选择体力耗尽自动结束秘宝不丢、
  * 篡改档 staminaCost clamp、同种子同动作序列确定性。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmRuinsTest {
 

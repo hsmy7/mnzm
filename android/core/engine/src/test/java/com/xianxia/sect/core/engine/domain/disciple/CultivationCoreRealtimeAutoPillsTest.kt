@@ -52,6 +52,7 @@ import org.robolectric.RobolectricTestRunner
  * - 储物袋无丹药的弟子直接跳过，不 assemble
  * - 有丹药的弟子逐颗判断 canUsePill，符合条件的自动消费
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class CultivationCoreRealtimeAutoPillsTest {
 

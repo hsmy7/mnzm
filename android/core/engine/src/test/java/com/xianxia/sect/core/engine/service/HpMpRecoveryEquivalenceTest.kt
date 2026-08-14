@@ -27,6 +27,7 @@ import org.robolectric.RobolectricTestRunner
  * 本测试守卫列版 [HpMpRecoveryService.recoverHpMpSingleColumn] 与对象版
  * [recoverHpMpSingle] 恢复后的 currentHps/currentMps 完全相等（Int 精确相等）。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class HpMpRecoveryEquivalenceTest {
 

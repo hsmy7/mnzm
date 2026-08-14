@@ -34,6 +34,7 @@ import org.robolectric.annotation.Config
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33])
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 class ThermalMonitorTest {
 
     private lateinit var monitor: ThermalMonitor

@@ -35,6 +35,7 @@ import org.robolectric.RobolectricTestRunner
  * - 仓库守卫纯智力对比
  * - 端到端集成：全流程验证
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class LawEnforcementProcessorTest {
 

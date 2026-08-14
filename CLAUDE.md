@@ -54,14 +54,15 @@ cd android && ./gradlew.bat clean
 Tests live in `android/app/src/test/` and module-level `src/test/` dirs. They use JUnit 4, Mockito, Robolectric, and `kotlinx-coroutines-test`. Robolectric tests need `includeAndroidResources = true`.
 
 ```bash
-# Code coverage (Kover) — 与测试同参数，保持串行一致
-cd android && ./gradlew.bat koverHtmlReport --max-workers=1
+# Code coverage (Kover) — 2026-08-14 起按需启用：本地默认关闭（消除插桩开销），
+# 覆盖率统计必须传 -Pkover.enabled=true（插桩与报告同开关，否则覆盖率为 0）
+cd android && ./gradlew.bat koverHtmlReport --max-workers=1 -Pkover.enabled=true
 
 # Static analysis
 cd android && ./gradlew.bat detekt
 
 # Full CI check (compile + test + detekt + coverage + RNG audit) — 测试必须串行
-cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-workers=1 detekt koverHtmlReport && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
+cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-workers=1 -Pkover.enabled=true detekt koverHtmlReport -Pkover.enabled=true && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
 ```
 
 ## 架构文档

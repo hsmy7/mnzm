@@ -33,6 +33,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * 验证 6 个原子方法在 [GameStateStore.update] 单事务内的状态变更正确性。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class GameEngineAtomicAssignTest {
 

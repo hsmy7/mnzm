@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
  * 同 S1 链路（repo 先写、成功才清镜像 + gate 释放）；isWorking 早退保留（双端皆不动）。
  * 4.00.91 背景：镜像残留让状态推导仍 WORKING、自动重启按镜像判定继续生产。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingServiceRemoveDiscipleTest {
 

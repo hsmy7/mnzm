@@ -32,6 +32,7 @@ import org.robolectric.RobolectricTestRunner
  * 回归：此前种植数只受空地数约束、事务外 removeSeedSync 返回值被忽略
  * （种子不足也种满、种子 0 消耗免费种田）；修复后事务内限种 + 同事务扣种。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingFacadeImplPlantingTest {
 

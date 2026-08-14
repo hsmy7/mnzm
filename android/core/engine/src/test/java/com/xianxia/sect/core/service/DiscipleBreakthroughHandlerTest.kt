@@ -34,6 +34,7 @@ import org.robolectric.RobolectricTestRunner
 
 
 
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleBreakthroughHandlerTest {
 

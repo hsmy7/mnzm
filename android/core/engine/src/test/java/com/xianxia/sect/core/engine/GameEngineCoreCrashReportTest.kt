@@ -88,7 +88,11 @@ class GameEngineCoreCrashReportTest {
         core.startGameLoop()
 
         // 上报失败被循环 catch 内层 try-catch 吞掉 → 循环继续运行
-        Thread.sleep(800)
+        // 轮询等待：循环存活即通过（原 sleep 800ms 固定等待，改条件等待防抖动）
+        val deadline = System.nanoTime() + 2_000_000_000L
+        while (System.nanoTime() < deadline && !core.isGameLoopRunning) {
+            Thread.sleep(20)
+        }
         assertTrue("loop must survive reporter failure", core.isGameLoopRunning)
     }
 

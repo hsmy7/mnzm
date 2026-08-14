@@ -7,11 +7,17 @@ plugins {
     alias(libs.plugins.detekt)
 }
 
-def versionPropsFile = rootProject.file("../version.properties")
-def versionProps = new Properties()
-if (versionPropsFile.exists()) {
-    versionProps.load(new FileInputStream(versionPropsFile))
+// 2026-08-14：配置期文件读取惰性化（3.2，配置缓存前置）——providers.fileContents 声明式
+// 跟踪，改 version.properties 后配置缓存正确失效（普通 File IO 无法感知）。
+// 文件不存在时 asText 返回空文本 → 空 Properties，与原 if(exists) 语义一致。
+def loadProperties(String text) {
+    def p = new Properties()
+    p.load(new StringReader(text))
+    p
 }
+
+def versionProps = providers.fileContents(rootProject.layout.projectDirectory.file("../version.properties"))
+    .asText.map { loadProperties(it) }.get()
 
 detekt {
     buildUponDefaultConfig = true
@@ -24,7 +30,17 @@ detekt {
 android {
     namespace = 'com.xianxia.sect.core.domain'
 
+    // 2026-08-14：SDK 配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
+    compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        encoding = 'UTF-8'
+    }
+
     defaultConfig {
+        minSdk = 24
+        targetSdk = 35
         consumerProguardFiles "consumer-rules.pro"
 
         buildConfigField "String", "VERSION_NAME",
@@ -76,4 +92,16 @@ dependencies {
     testImplementation libs.coroutines.test
     testImplementation libs.konsist.test
     testImplementation libs.robolectric
+}
+
+// 2026-08-14：Java/Kotlin 编译配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:-deprecation']
+}
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+    }
 }

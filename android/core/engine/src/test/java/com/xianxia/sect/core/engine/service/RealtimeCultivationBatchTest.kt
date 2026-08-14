@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * 断言：① 批量版最终 realtimeCultivation 与逐弟子版逐 key 等价（行为不变）；
  * ② 批量版发射 1 次（vs 逐弟子版 D 次）——消费方只读最终值，无中间值依赖。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class RealtimeCultivationBatchTest {
 

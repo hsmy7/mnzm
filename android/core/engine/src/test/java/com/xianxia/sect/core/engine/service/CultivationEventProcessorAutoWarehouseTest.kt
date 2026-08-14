@@ -42,6 +42,7 @@ import org.robolectric.RobolectricTestRunner
  * 需要 Robolectric：DiscipleTables 组件表底层为 android.util.SparseArray，
  * 纯 JVM 环境中 put 为静默空操作（写入无效）。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class CultivationEventProcessorAutoWarehouseTest {
 

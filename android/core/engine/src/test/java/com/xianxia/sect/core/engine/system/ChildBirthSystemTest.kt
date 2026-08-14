@@ -27,6 +27,7 @@ import org.robolectric.RobolectricTestRunner
  * android.util.SparseArray——无 Robolectric 时 SparseArray 未 mock
  * （returnDefaultValues 静默失效），写入被丢弃导致业务断言假失败。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class ChildBirthSystemTest {
 

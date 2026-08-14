@@ -15,30 +15,46 @@ plugins {
     // id 'com.google.gms.google-services'
 }
 
-def keystorePropertiesFile = rootProject.file("keystore.properties")
-def keystoreProperties = new Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+// 2026-08-14：Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+kover {
+    if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
+        disable()
+    }
 }
 
-def apiPropertiesFile = rootProject.file("api.properties")
-def apiProperties = new Properties()
-if (apiPropertiesFile.exists()) {
-    apiProperties.load(new FileInputStream(apiPropertiesFile))
+// 2026-08-14：配置期文件读取惰性化（3.2，配置缓存前置）——providers.fileContents 声明式
+// 跟踪，改 api.properties/keystore.properties/version.properties 后配置缓存正确失效
+// （普通 File IO 配置缓存无法感知，改了不生效）。立即 .get() 求值，使用处零改动。
+// 文件不存在时 asText 返回空文本 → 空 Properties，与原 if(exists) 语义一致。
+def loadProperties(String text) {
+    def p = new Properties()
+    p.load(new StringReader(text))
+    p
 }
 
-def versionPropsFile = rootProject.file("../version.properties")
-def versionProps = new Properties()
-if (versionPropsFile.exists()) {
-    versionProps.load(new FileInputStream(versionPropsFile))
-}
+def keystoreProperties = providers.fileContents(rootProject.layout.projectDirectory.file("keystore.properties"))
+    .asText.map { loadProperties(it) }.get()
+def apiProperties = providers.fileContents(rootProject.layout.projectDirectory.file("api.properties"))
+    .asText.map { loadProperties(it) }.get()
+def versionProps = providers.fileContents(rootProject.layout.projectDirectory.file("../version.properties"))
+    .asText.map { loadProperties(it) }.get()
 
 android {
     namespace = 'com.xianxia.sect'
 
+    // 2026-08-14：SDK 配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
+    compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        encoding = 'UTF-8'
+    }
+
     ndkVersion = "27.0.12077973"  // NDK r27 (2025 stable, Vulkan 1.1+ 支持)
 
     defaultConfig {
+        minSdk = 24
+        targetSdk = 35
         applicationId = "com.xianxia.sect"
         versionCode = versionProps.getProperty('versionCode', '1').toInteger()
         versionName = versionProps.getProperty('versionName', '0.0.00')
@@ -147,8 +163,11 @@ android {
     composeCompiler {
         enableStrongSkippingMode = true
         stabilityConfigurationFile = rootProject.file("stability_config.conf")
-        reportsDestination = layout.buildDirectory.dir("compose_metrics")
-        metricsDestination = layout.buildDirectory.dir("compose_metrics")
+        // 2026-08-14：指标收集按需开启（-Pcompose.metrics），默认关闭省编译开销
+        if (project.hasProperty('compose.metrics')) {
+            reportsDestination = layout.buildDirectory.dir("compose_metrics")
+            metricsDestination = layout.buildDirectory.dir("compose_metrics")
+        }
     }
 
     // 纹理压缩格式分发 — AAB 自动为设备分配合适的纹理格式
@@ -363,14 +382,14 @@ tasks.register('archiveAndUploadMapping') {
 tasks.register('checkDelegateLaunchPattern') {
     group = 'verification'
     description = '检查 delegate 文件未通过 launchOnEngine 的 scope.launch 调用'
+    // 2026-08-14：配置缓存前置——配置期捕获路径与白名单（doLast 内禁止引用脚本对象）
+    def delegateDir = file("$rootDir/feature/game/src/main/java/com/xianxia/sect/ui/game/delegate")
+    def excludedFiles = ['GameLoopDelegate.kt']
     doLast {
-        def delegateDir = file("$rootDir/feature/game/src/main/java/com/xianxia/sect/ui/game/delegate")
         if (!delegateDir.exists()) {
             logger.warn("delegate 目录不存在，跳过检查: $delegateDir")
             return
         }
-        // 排除白名单文件：GameLoopDelegate 使用 scope.launch 做 UI 动画（不调 engine）
-        def excludedFiles = ['GameLoopDelegate.kt']
         def violations = []
         delegateDir.eachFileRecurse { file ->
             if (file.name.endsWith('.kt') && !excludedFiles.contains(file.name)) {
@@ -399,8 +418,9 @@ tasks.named('detekt').configure { finalizedBy('checkDelegateLaunchPattern') }
 tasks.register('validateChangelogJson') {
     group = 'verification'
     description = '校验 changelog_entries.json 顶层数组与 date/changes/version 字段'
+    // 2026-08-14：配置缓存前置——配置期捕获文件引用（doLast 内禁止脚本对象）
+    def jsonFile = file("$projectDir/src/main/assets/changelog_entries.json")
     doLast {
-        def jsonFile = file("$projectDir/src/main/assets/changelog_entries.json")
         if (!jsonFile.exists()) {
             throw new GradleException("changelog_entries.json 不存在: ${jsonFile}")
         }
@@ -439,8 +459,13 @@ tasks.register('generateFootprintHeader') {
     group = 'build'
     description = '从生成版 SpriteAtlasDef.kt 生成 NativeBridge.cpp 引用的 footprint_table.h'
     dependsOn ':core:engine:generateSpriteAtlasDef'
+    // 2026-08-14：inputs/outputs 声明（上游生成物未变则跳过 Groovy 解析）
+    inputs.file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
+    outputs.file("$projectDir/src/main/cpp/footprint_table.h")
+    // 2026-08-14：配置缓存前置——配置期捕获文件引用（doLast 内禁止脚本对象）
+    def srcFile = file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
+    def outFile = file('src/main/cpp/footprint_table.h')
     doLast {
-        def srcFile = file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
         def lines = srcFile.readLines()
         // 行级锚定：仅提取 FOOTPRINT_BY_NAME_INDEX 声明块内的 "N to N"，
         // 避免误匹配文件其他位置的 "N to N" 模式（注释/其他数组）
@@ -489,7 +514,7 @@ static const int FP_W[] = {${w}};
 static const int FP_H[] = {${h}};
 static const int FP_COUNT = ${pairs.size};
 """
-        def out = file('src/main/cpp/footprint_table.h')
+        def out = outFile
         out.parentFile.mkdirs()
         out.write(header)
         logger.lifecycle("generateFootprintHeader: ${out} (${pairs.size} entries)")
@@ -505,8 +530,15 @@ static const int FP_COUNT = ${pairs.size};
 tasks.register('generateResourceManifest') {
     group = 'build'
     description = '扫描双模块 drawable-nodpi 生成 atlas-manifest.json（MD5/UID）'
+    // 2026-08-14：声明 inputs/outputs 获得 Gradle up-to-date 判定（权威源未变则跳过 node 启动）
+    inputs.dir("${rootProject.projectDir}/feature/game/src/main/res/drawable-nodpi")
+    inputs.dir("${rootProject.projectDir}/app/src/main/res/drawable-nodpi")
+    inputs.file("${rootProject.projectDir}/scripts/resource-manifest.mjs")
+    outputs.file("$buildDir/generated/sprite/atlas-manifest.json")
+    // 2026-08-14：配置缓存前置——配置期捕获脚本目录（doLast 内禁止 rootProject）
+    def scriptDir = rootProject.projectDir
     doLast {
-        def proc = ['node', 'scripts/resource-manifest.mjs'].execute(null, rootProject.projectDir)
+        def proc = ['node', 'scripts/resource-manifest.mjs'].execute(null, scriptDir)
         proc.consumeProcessOutput(System.out, System.err)
         def exit = proc.waitFor()
         if (exit != 0) {
@@ -519,8 +551,18 @@ tasks.register('generateSpriteCode') {
     group = 'build'
     description = '从 LAYOUT + resource-registry.json + atlas-manifest.json 生成 SpriteRegistryData.kt / TextureAtlas.h'
     dependsOn 'generateResourceManifest'
+    // 2026-08-14：inputs/outputs 声明（mjs 内部内容 hash 为第二道防线）。
+    // .sprite-code.hash 必须一并声明（与 generateSpriteAtlasDef 同类死锁，2026-08-14 修复）。
+    inputs.file("${rootProject.projectDir}/scripts/build-atlas.mjs")
+    inputs.file("${rootProject.projectDir}/scripts/resource-registry.json")
+    inputs.file("$buildDir/generated/sprite/atlas-manifest.json")
+    outputs.file("$buildDir/generated/sprite/SpriteRegistryData.kt")
+    outputs.file("$buildDir/generated/sprite/TextureAtlas.h")
+    outputs.file("$buildDir/generated/sprite/.sprite-code.hash")
+    // 2026-08-14：配置缓存前置——配置期捕获脚本目录（doLast 内禁止 rootProject）
+    def scriptDir = rootProject.projectDir
     doLast {
-        def proc = ['node', 'scripts/build-atlas.mjs', '--codegen'].execute(null, rootProject.projectDir)
+        def proc = ['node', 'scripts/build-atlas.mjs', '--codegen'].execute(null, scriptDir)
         proc.consumeProcessOutput(System.out, System.err)
         def exit = proc.waitFor()
         if (exit != 0) {
@@ -567,21 +609,35 @@ tasks.register('generateAstcAtlas') {
     group = 'build'
     description = '从权威源生成 ASTC 压缩图集（KTX1 + manifest）'
     dependsOn 'generateResourceManifest'
+    // 2026-08-14：配置缓存前置——配置期捕获（doLast 内禁止脚本对象）
+    def astcencDir = file('scripts/tools/astcenc/bin')
+    def astcencCandidates = ['astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe']
+        .collect { file("${astcencDir}/${it}") }
+    def scriptDir = projectDir
     doLast {
-        def astcencDir = file('scripts/tools/astcenc/bin')
-        def hasAstcenc = astcencDir.exists() && [
-            'astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe'
-        ].any { file("${astcencDir}/${it}").exists() }
+        def hasAstcenc = astcencDir.exists() && astcencCandidates.any { it.exists() }
         if (!hasAstcenc) {
             logger.warn('generateAstcAtlas: astcenc 未找到（scripts/tools/astcenc/bin/），跳过生成——产物已入库兜底，运行时回退 RGBA 图集。')
             return
         }
-        def proc = ['node', 'scripts/build-atlas.mjs'].execute(null, projectDir)
+        def proc = ['node', 'scripts/build-atlas.mjs'].execute(null, scriptDir)
         proc.consumeProcessOutput(System.out, System.err)
         def exit = proc.waitFor()
         if (exit != 0) {
             throw new GradleException("generateAstcAtlas: build-atlas.mjs 退出码 ${exit}")
         }
         logger.lifecycle('generateAstcAtlas: 完成')
+    }
+}
+
+// 2026-08-14：Java/Kotlin 编译配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:-deprecation']
+}
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
     }
 }

@@ -35,6 +35,7 @@ import org.robolectric.RobolectricTestRunner
  * 注意：必须 Robolectric 运行——DiscipleTables 的 String 列基于
  * android.util.SparseArray，纯 JVM 下（returnDefaultValues=true）put 静默无效。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class GameEngineSpiritRootWashTest {
 

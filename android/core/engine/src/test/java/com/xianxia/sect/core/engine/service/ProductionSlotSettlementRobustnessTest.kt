@@ -56,6 +56,7 @@ import org.robolectric.RobolectricTestRunner
  * - T2：原守卫测试复制守卫表达式（生产代码改动测试仍绿）——改为直接调用
  *       [shouldResetSlotForCompletion] 真身 + 集成用例。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class ProductionSlotSettlementRobustnessTest {
 

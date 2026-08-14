@@ -38,6 +38,7 @@ import org.robolectric.RobolectricTestRunner
  * deriveDiscipleStatus 的 currentStatus 参数）。见 DiscipleReflectionReleaseTest
  * 同款环境要求。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class ElderSlotsStatusCoverageTest {
 

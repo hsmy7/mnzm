@@ -39,6 +39,7 @@ import org.robolectric.RobolectricTestRunner
  * - B4：锁内吞失败——产出入库失败（addPill/addEquipmentStack Failure）视为炼制失败，
  *       不结算晋升但计数照常（防装备/丹药静默丢失）
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingServiceDeathDiscipleTest {
 

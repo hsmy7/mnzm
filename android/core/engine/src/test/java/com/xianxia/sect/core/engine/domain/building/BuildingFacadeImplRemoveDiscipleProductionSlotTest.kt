@@ -43,6 +43,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * 4.00.91 背景：UI 读 repo 真源、状态推导读镜像，分叉入口只清一端 → "任命/卸任不生效"。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingFacadeImplRemoveDiscipleProductionSlotTest {
 

@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
  * - 仅 Success 才扣袋条目（C1 防复制）；仓库满（Failure）保留袋内物品待重试
  * - 堆叠类条目经模板重建，minRealm 用条目 stackedData 保真
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class InventoryFacadeConfiscateTest {
 

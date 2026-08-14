@@ -46,6 +46,7 @@ import org.robolectric.RobolectricTestRunner
  * 使用 Robolectric 以获得真实的 SparseArray/SparseIntArray 实现
  * （DiscipleTables 的底层存储依赖 Android 的 SparseArray）。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class CultivationCoreTest {
 

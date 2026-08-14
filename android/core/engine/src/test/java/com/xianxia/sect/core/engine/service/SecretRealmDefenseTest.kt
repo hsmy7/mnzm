@@ -43,6 +43,7 @@ import org.robolectric.RobolectricTestRunner
  * 覆盖：方向选择体力耗尽自动结束、方向事件防重复选择、旧档 BRIDGE 兼容、
  * 篡改档妖兽数量极值防 DoS、结束结算非法物品防护（方向事件功能对抗性审查修复）。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmDefenseTest {
 

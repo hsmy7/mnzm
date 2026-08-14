@@ -26,6 +26,7 @@ import org.robolectric.RobolectricTestRunner
  * 且叛逃不写消息栏事件。本测试使用 FakeAtomicStateStore（真实 update 语义），
  * 验证工作状态弟子参与判定、免疫状态不参与、以及叛逃/捕获事件写入。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class LawEnforcementDesertionScopeTest {
 

@@ -47,6 +47,7 @@ import org.robolectric.RobolectricTestRunner
  * - 配方无效（数据损坏）时不结算晋升（recipeTier 兜底 0）
  * - ForgeSystem 不再重复触发生产结算（双结算修复）
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingServiceLoadPathTest {
 

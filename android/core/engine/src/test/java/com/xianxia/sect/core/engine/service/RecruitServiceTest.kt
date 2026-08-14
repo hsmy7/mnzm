@@ -24,6 +24,7 @@ import java.util.UUID
  * 需要 Robolectric：DiscipleTables 的 ComponentTable 底层是 android.util.SparseArray，
  * 纯 JVM 环境（returnDefaultValues）下写入会静默丢失。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class RecruitServiceTest {
 

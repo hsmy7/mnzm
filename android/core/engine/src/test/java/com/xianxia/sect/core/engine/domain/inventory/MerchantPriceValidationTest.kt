@@ -28,6 +28,7 @@ import org.robolectric.RobolectricTestRunner
  * - sellToMerchant 负价/0 价收购拒绝（仓库物品保留——防"事务内先移除物品、后 wallet.add 静默拒绝"致物品丢失）
  * - 正价购买/收购回归正常
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class MerchantPriceValidationTest {
 

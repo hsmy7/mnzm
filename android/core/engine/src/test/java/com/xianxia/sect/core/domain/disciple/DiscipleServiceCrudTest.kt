@@ -23,6 +23,7 @@ import org.robolectric.RobolectricTestRunner
  *
  * 使用 delegate mock 模式（同 DiscipleServiceApprenticeTest）注入 GameStateStore。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class DiscipleServiceCrudTest {
 

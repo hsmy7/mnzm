@@ -76,7 +76,12 @@ class VsyncGateTest {
             assertTrue(gate.awaitTick(WAIT_MS))
         }
         waiter.start()
-        Thread.sleep(50)
+        // 轮询等待 waiter 进入 awaitTick 的限时条件等待（TIMED_WAITING），
+        // 确定性优于固定 sleep(50)（原 sleep 在慢 CI 上可能不足，快机浪费）
+        val deadline = System.nanoTime() + 2_000_000_000L
+        while (waiter.state != Thread.State.TIMED_WAITING && System.nanoTime() < deadline) {
+            Thread.sleep(5)
+        }
         source.emitTick()
         waiter.join(WAIT_MS * 2)
         assertFalse(waiter.isAlive)

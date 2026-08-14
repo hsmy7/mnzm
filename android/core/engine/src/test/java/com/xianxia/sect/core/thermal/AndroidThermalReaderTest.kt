@@ -23,6 +23,7 @@ import org.robolectric.annotation.Config
  * 注：PowerManager.getThermalHeadroom() 在 Robolectric 中不可用，
  * 测试验证接口逻辑和降级行为。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class AndroidThermalReaderTest {
 

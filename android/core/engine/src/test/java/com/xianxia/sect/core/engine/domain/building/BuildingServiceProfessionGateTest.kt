@@ -39,6 +39,7 @@ import org.robolectric.RobolectricTestRunner
  * 无职业/职业等级不足时返回 RecipeTierLocked（材料未扣、槽位不变），
  * 达标配方正常放行并计算职业化成功率。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class BuildingServiceProfessionGateTest {
 

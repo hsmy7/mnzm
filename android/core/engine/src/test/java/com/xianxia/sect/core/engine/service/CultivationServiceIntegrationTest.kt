@@ -34,6 +34,7 @@ import org.robolectric.RobolectricTestRunner
  * - checkpoint 不随每旬累积更新（只在速率变化点——政策/长老/丹药/突破——更新）
  * - 满修为/死亡/零速率等边界条件
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
 class CultivationServiceIntegrationTest {
 

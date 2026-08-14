@@ -13,8 +13,9 @@ import org.robolectric.RobolectricTestRunner
  * 验证 [DeviceCapabilityProfiler] 的硬件检测逻辑和线程池创建。
  * 注意：测试结果取决于运行环境的实际 CPU/内存配置。
  */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
-class DeviceCapabilityProfilerTest {
+class DeviceCapabilityProfilerTest { // 2026-08-14: 2.5 双任务拆分标记（注解顺序在前）
 
     private val profiler = DeviceCapabilityProfiler()
 
