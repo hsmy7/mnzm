@@ -212,7 +212,8 @@ private fun ActiveMissionCard(
                 progress = { animMissionState.value },
                 modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                 color = GameColors.Info,
-                trackColor = GameColors.SurfaceLightGray
+                trackColor = GameColors.SurfaceLightGray,
+                drawStopIndicator = {}
             )
 
             Row(
@@ -373,7 +374,8 @@ private fun MissionProgressAndRewardSections(
             progress = { animMissionState },
             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = GameColors.Success,
-            trackColor = GameColors.SurfaceLightGray
+            trackColor = GameColors.SurfaceLightGray,
+            drawStopIndicator = {}
         )
 
         Row(

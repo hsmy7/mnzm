@@ -306,7 +306,8 @@ private fun ProductionSlotProgressInfo(
             .height(4.dp)
             .clip(RoundedCornerShape(2.dp)),
         color = GameColors.Success,
-        trackColor = GameColors.Border
+        trackColor = GameColors.Border,
+        drawStopIndicator = {}
     )
     Spacer(modifier = Modifier.height(4.dp))
 }

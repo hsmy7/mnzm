@@ -94,6 +94,16 @@
 - **测试** — `BattleSystemTest` 新增 1 用例（`convertDiscipleToCombatant` 玩家实例语义完整传递：realm/realmLayer/武器名/技能/装备加成）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更；`scoutSect` 战斗结果因小层压制与体质词条生效而变化（探查战更符合实力），战报境界显示口径与主战斗统一；其余路径零影响
 
+### 调整（2026-08-15 炼丹/锻造职业晋升进度区新增数量显示 + 全进度条绿点移除）
+
+> 背景：用户需求——晋升进度条上方新增数量显示（已炼制符合晋升条件的数量/所需数量，白色字体）；数量达标且境界/属性不足时，该数量显示被红色未达标提示替换；全库进度条移除 M3 默认停止指示器绿点（用户确认 5 处全量移除）。
+
+- **UI** — `ProfessionUi.kt` `ProfessionProgressSection`（炼丹/锻造槽位共用）：进度条上方新增白色数量文本 `currentCount/requiredCount`（10sp 加粗，`Color.White`）；数量显示判定提取为私有辅助函数 `shouldShowPromotionCount`（`!(meetsCount && (!meetsRealm || !meetsSkill))`，同时控制主函数圈复杂度）实现"数量达标且境界/属性不足时红色提示替换数量显示"（红色提示判定沿用 `meetsCount` 门槛，两条可同时显示）；KDoc 同步
+- **绿点移除** — 5 处 `LinearProgressIndicator` 统一增加 `drawStopIndicator = {}` 移除 M3 默认停止指示器（以进度条同色绘制的条内圆点）：`ProfessionUi.kt`（晋升进度条）/ `ProductionComponents.kt`（炼丹/锻造槽位成功率进度条）/ `MissionHallDialog.kt`×2（任务进度条）/ `BloodRefiningPoolDialog.kt`（血炼进度条）；依赖 material3 1.4.0，`ProgressIndicatorKt.class` 扫描确认 `drawStopIndicator` 默认绘制逻辑存在
+- **方向核查** — 晋升进度条为 Material3 `LinearProgressIndicator(progress = { fraction })`，material3-android 1.4.0 AAR 字节码扫描确认无 `LayoutDirection` 依赖 → 固定从左往右填充（与设备语言方向无关），"从左往右增长"需求现状已满足，无需代码改动
+- **测试** — `ProfessionProgressSectionTest` 更新 6 组断言（12/200、50/200 数量显示；4 组达标场景数量显示被红色提示替换 `assertDoesNotExist`）+ 新增 1 组（数量达标且条件全满足显示 "200/200"）；数量显示颜色（`Color.White`）由代码显式指定——compose-ui 1.11.2 语义层（`SemanticsProperties`）不暴露文本颜色属性，无法自动化断言颜色，属框架限制（已在本文件 KDoc 记录）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 展示层变化；无渲染管线（Vulkan/Canvas）、无经济、无隐私合规影响；LTR 设备（中文环境）进度条渲染与现状一致
+
 ## [4.00.98] - 2026-08-14
 
 ### 优化（2026-08-14 平板省电专项：渲染分辨率缩放 + 刷新率联动 + 脏帧跳过 + 动态 ADPF + 省电模式监听）

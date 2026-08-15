@@ -19,10 +19,12 @@ import org.robolectric.annotation.Config
 /**
  * 槽位上方职业晋升进度区 [ProfessionProgressSection] 渲染测试：
  * - 无弟子/已满级不渲染进度条与红色提示
- * - 已任命弟子显示晋升进度条（进度条用 testTag 定位）
- * - 数量已达标但境界不足 → 红色提示"弟子境界需到XX"
- * - 数量已达标但属性不足 → 红色提示"弟子炼丹（炼器）属性需到XX"
- * - 数量未达标不显示红色提示
+ * - 已任命弟子显示晋升进度条（进度条用 testTag 定位）与白色数量显示（已炼制/所需）
+ * - 数量已达标但境界/属性不足 → 红色提示"弟子境界需到XX"/"弟子炼丹（炼器）属性需到XX"，数量显示被替换
+ * - 数量未达标不显示红色提示，仅显示数量与进度条
+ *
+ * 说明：数量显示颜色（Color.White）由代码显式指定；compose-ui 1.11.2 语义层（SemanticsProperties）
+ * 不暴露文本颜色属性，无法自动化断言颜色，属框架限制（详见 CHANGELOG 4.00.99 调整条目）。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -61,7 +63,7 @@ class ProfessionProgressSectionTest {
     }
 
     @Test
-    fun `已任命弟子显示晋升进度条`() {
+    fun `已任命弟子显示晋升进度条与数量显示`() {
         composeRule.setContent {
             ProfessionProgressSection(
                 disciple = disciple(
@@ -73,6 +75,7 @@ class ProfessionProgressSectionTest {
         }
         composeRule.waitForIdle()
         assertBarShown()
+        composeRule.onNodeWithText("12/200").assertIsDisplayed()
         assertNoRedHint()
     }
 
@@ -104,6 +107,8 @@ class ProfessionProgressSectionTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("弟子境界需到金丹").assertIsDisplayed()
         assertBarShown()
+        // 数量达标且境界不足：数量显示被红色提示替换
+        composeRule.onNodeWithText("200/200").assertDoesNotExist()
         composeRule.onAllNodes(hasText("弟子炼丹属性需到", substring = true)).assertCountEquals(0)
     }
 
@@ -122,6 +127,8 @@ class ProfessionProgressSectionTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("弟子炼丹属性需到55").assertIsDisplayed()
         assertBarShown()
+        // 数量达标且属性不足：数量显示被红色提示替换
+        composeRule.onNodeWithText("200/200").assertDoesNotExist()
         composeRule.onAllNodes(hasText("弟子境界需到", substring = true)).assertCountEquals(0)
     }
 
@@ -140,10 +147,12 @@ class ProfessionProgressSectionTest {
         composeRule.onNodeWithText("弟子境界需到金丹").assertIsDisplayed()
         composeRule.onNodeWithText("弟子炼丹属性需到55").assertIsDisplayed()
         assertBarShown()
+        // 数量达标且境界/属性均不足：数量显示被红色提示替换
+        composeRule.onNodeWithText("200/200").assertDoesNotExist()
     }
 
     @Test
-    fun `数量未达标不显示红色提示`() {
+    fun `数量未达标不显示红色提示但显示数量`() {
         composeRule.setContent {
             ProfessionProgressSection(
                 disciple = disciple(
@@ -155,6 +164,7 @@ class ProfessionProgressSectionTest {
         }
         composeRule.waitForIdle()
         assertBarShown()
+        composeRule.onNodeWithText("50/200").assertIsDisplayed()
         assertNoRedHint()
     }
 
@@ -173,6 +183,25 @@ class ProfessionProgressSectionTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("弟子炼器属性需到55").assertIsDisplayed()
         assertBarShown()
+        // 数量达标且属性不足：数量显示被红色提示替换
+        composeRule.onNodeWithText("200/200").assertDoesNotExist()
         composeRule.onAllNodes(hasText("弟子境界需到", substring = true)).assertCountEquals(0)
+    }
+
+    @Test
+    fun `数量达标且条件全满足时显示完整数量`() {
+        composeRule.setContent {
+            ProfessionProgressSection(
+                disciple = disciple(
+                    realm = 7,
+                    skills = SkillStats(alchemyLevel = 1, alchemyPromotionCount = 200, pillRefining = 55)
+                ),
+                isAlchemy = true
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("200/200").assertIsDisplayed()
+        assertBarShown()
+        assertNoRedHint()
     }
 }

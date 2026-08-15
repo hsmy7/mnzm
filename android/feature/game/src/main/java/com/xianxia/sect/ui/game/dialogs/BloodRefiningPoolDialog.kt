@@ -256,6 +256,7 @@ private fun BloodRefiningProgressSection(
                 modifier = Modifier.width(52.dp).height(4.dp),
                 color = GameColors.Success,
                 trackColor = Color(0x334CAF50),
+                drawStopIndicator = {}
             )
         }
     }

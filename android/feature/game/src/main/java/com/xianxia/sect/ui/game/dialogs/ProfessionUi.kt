@@ -43,6 +43,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.profession.ProfessionLevelInfo
 import com.xianxia.sect.core.profession.ProfessionRules
+import com.xianxia.sect.core.profession.PromotionProgressStatus
 import com.xianxia.sect.core.profession.professionLevelInfos
 import com.xianxia.sect.core.profession.promotionProgressStatus
 import com.xianxia.sect.core.ui.R
@@ -89,11 +90,13 @@ fun ProfessionLabel(level: Int?, isAlchemy: Boolean) {
 }
 
 /**
- * 槽位上方职业晋升进度区：晋升进度条 + 未达标红色提示（进度条位于职业等级文本上方）。
+ * 槽位上方职业晋升进度区：数量显示 + 晋升进度条 + 未达标红色提示（进度条位于职业等级文本上方）。
  *
  * 显示规则（判定与 `applyPromotionProgress` 晋升三重门槛一致：数量/境界/属性）：
  * - 未任命弟子（[disciple] 为 null）或已满级（丹圣/器圣）时不渲染任何内容；
- * - 进度条显示晋升数量进度（已炼制符合晋升条件的数量 / 所需数量，仅计当前解锁最高阶成功炼制）；
+ * - 进度条上方显示晋升数量文本（已炼制符合晋升条件的数量 / 所需数量，白色字体，
+ *   仅计当前解锁最高阶成功炼制）；数量已达标且境界或属性不足时，数量文本不渲染，
+ *   改为红色提示显示未达标的境界/属性条件；
  * - 数量已达标但境界未达标 → 红色提示"弟子境界需到XX（境界名）"；
  * - 数量已达标但炼丹/锻造属性未达标 → 红色提示"弟子炼丹（炼器）属性需到XX"。
  *
@@ -112,6 +115,16 @@ fun ProfessionProgressSection(
     val status = promotionProgressStatus(level, count, disciple.realm, skill) ?: return
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // 数量显示（白色）：已炼制符合晋升条件的数量 / 所需数量。
+        // 数量已达标且境界/属性不足时，不渲染数量显示，改为渲染红色提示
+        if (shouldShowPromotionCount(status)) {
+            Text(
+                text = "${status.currentCount}/${status.requiredCount}",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
         if (status.meetsCount && !status.meetsRealm) {
             Text(
                 text = "弟子境界需到${GameConfig.Realm.getName(status.requiredRealm)}",
@@ -140,11 +153,20 @@ fun ProfessionProgressSection(
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp)),
             color = GameColors.Success,
-            trackColor = GameColors.Border
+            trackColor = GameColors.Border,
+            drawStopIndicator = {}
         )
         Spacer(modifier = Modifier.height(4.dp))
     }
 }
+
+/**
+ * 数量显示是否渲染：数量已达标且境界/属性不足时，数量显示被红色提示替换（不渲染数量）。
+ *
+ * @param status 晋升进度展示状态（[promotionProgressStatus] 计算结果）
+ */
+private fun shouldShowPromotionCount(status: PromotionProgressStatus): Boolean =
+    !(status.meetsCount && (!status.meetsRealm || !status.meetsSkill))
 
 /**
  * 炼丹/锻造职业等级"详情"按钮 — 20dp 圆形按钮，点击弹出职业等级与晋升要求弹窗。
