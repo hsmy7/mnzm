@@ -18,8 +18,11 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSet
+import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
@@ -614,5 +617,59 @@ class BattleSystemTest {
         assertTrue(result.battle.isFinished)
         // 战斗过程无异常（含可能触发的支援技能分支）
         assertTrue(result.turnCount >= 0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 2026-XX scoutSect 收敛回归：玩家 Combatant 统一走 convertDiscipleToCombatant
+    // （原 buildScoutPlayerCombatants 重复实现已删除，本入口为唯一玩家实例语义入口）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `convertDiscipleToCombatant - 玩家弟子实例语义完整传递 realmLayer武器名技能装备`() {
+        // scoutSect 收敛回归：原 buildScoutPlayerCombatants 未传 realmLayer（默认 0，
+        // 小层境界压制判定失效）、未带武器名；统一走本入口后全部生效。
+        val disciple = Disciple(
+            id = "p1", name = "玩家弟子", realm = 3, realmLayer = 5, isAlive = true,
+            skills = SkillStats(loyalty = 50),
+            manualIds = listOf("inst-m-1"),
+            equipment = EquipmentSet(weaponId = "inst-w-1", armorId = "inst-a-1")
+        )
+        val weapon = EquipmentInstance(
+            id = "inst-w-1", name = "斩龙剑", slot = EquipmentSlot.WEAPON,
+            physicalAttack = 1000, minRealm = 3
+        )
+        val armor = EquipmentInstance(
+            id = "inst-a-1", name = "玄龟甲", slot = EquipmentSlot.ARMOR,
+            physicalDefense = 500, hp = 5000, minRealm = 3
+        )
+        val manual = ManualInstance(
+            id = "inst-m-1", name = "破军", rarity = 4, type = ManualType.ATTACK,
+            skillName = "破军", skillType = "attack", skillDamageType = "physical",
+            skillHits = 1, skillDamageMultiplier = 2.0, skillCooldown = 2, skillMpCost = 20,
+            minRealm = 3
+        )
+        val combatant = battleSystem.convertDiscipleToCombatant(
+            disciple,
+            equipmentMap = mapOf("inst-w-1" to weapon, "inst-a-1" to armor),
+            manualMap = mapOf("inst-m-1" to manual),
+            manualProficiencies = mapOf(
+                "p1" to mapOf(
+                    "inst-m-1" to ManualProficiencyData(
+                        manualId = "inst-m-1", proficiency = 0.0,
+                        maxProficiency = 100, masteryLevel = 1
+                    )
+                )
+            ),
+            side = CombatantSide.DEFENDER
+        )
+        assertEquals("境界应原样传递", 3, combatant.realm)
+        assertEquals(
+            "小层境界必须传递（原 buildScoutPlayerCombatants 丢失，压制判定失效）",
+            5, combatant.realmLayer
+        )
+        assertEquals("武器名应从实例 map 解析", "斩龙剑", combatant.weaponName)
+        assertTrue("功法技能必须保留", combatant.skills.isNotEmpty())
+        assertTrue("装备攻击加成必须生效", combatant.physicalAttack >= 1000)
+        assertTrue("装备血量加成必须生效", combatant.maxHp >= 5000)
     }
 }

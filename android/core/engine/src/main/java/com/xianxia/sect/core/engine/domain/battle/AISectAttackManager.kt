@@ -284,6 +284,11 @@ object AISectAttackManager {
 
     /**
      * Execute a sect battle given raw disciple lists (no AIBattleTeam needed).
+     *
+     * 注意：本入口的攻击者按 [convertToCombatant]（AI 模板 id 语义）构建。
+     * 仅可用于 AI 弟子（AI 持久化装备/功法模板 id）。
+     * 玩家主动进攻 AI 宗门时必须改用 [executeSectBattleWithCombatantAttackers]
+     * （玩家装备/功法字段为实例 id，模板表查询必然 miss，否则玩家裸装无技能参战）。
      */
     fun executeSectBattle(
         attackers: List<Disciple>,
@@ -292,10 +297,50 @@ object AISectAttackManager {
         allSectDisciples: List<Disciple> = defenderDisciples,
         bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): AIBattleResult {
-        val defenseTeam = createDefenseTeam(defenderDisciples)
         val combatAttackers = attackers.map {
             convertToCombatant(it, CombatantSide.ATTACKER, bloodRefinementMap[it.id])
         }
+        return executeSectBattleCore(
+            combatAttackers = combatAttackers,
+            attackerIds = attackers.map { it.id },
+            defenderSect = defenderSect,
+            defenderDisciples = defenderDisciples,
+            allSectDisciples = allSectDisciples
+        )
+    }
+
+    /**
+     * 玩家主动进攻 AI 宗门专用入口：攻击者已按玩家实例语义（真实装备/功法实例）构建为 Combatant。
+     *
+     * [convertToCombatant] 是 AI 模板 id 语义专用（AI 弟子持久化模板 id）；
+     * 玩家弟子的装备/功法字段是实例 id（UUID），经模板表查询必然 miss，
+     * 会导致玩家裸装、无功法技能参战（高境界打低境界也必败，2026-XX 回归根因）。
+     * 玩家侧 Combatant 必须由 [BattleSystem.convertDiscipleToCombatant]（实例表语义）构建后传入本入口。
+     */
+    fun executeSectBattleWithCombatantAttackers(
+        combatAttackers: List<Combatant>,
+        defenderSect: WorldSect,
+        defenderDisciples: List<Disciple>,
+        allSectDisciples: List<Disciple> = defenderDisciples
+    ): AIBattleResult {
+        return executeSectBattleCore(
+            combatAttackers = combatAttackers,
+            attackerIds = combatAttackers.map { it.id },
+            defenderSect = defenderSect,
+            defenderDisciples = defenderDisciples,
+            allSectDisciples = allSectDisciples
+        )
+    }
+
+    /** executeSectBattle / executeSectBattleWithCombatantAttackers 共享核心：战斗执行 + 结果组装 */
+    private fun executeSectBattleCore(
+        combatAttackers: List<Combatant>,
+        attackerIds: List<String>,
+        defenderSect: WorldSect,
+        defenderDisciples: List<Disciple>,
+        allSectDisciples: List<Disciple>
+    ): AIBattleResult {
+        val defenseTeam = createDefenseTeam(defenderDisciples)
         val combatDefenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
         val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
@@ -303,9 +348,8 @@ object AISectAttackManager {
         val survivorAttackerIds = result.attackers.map { it.id }.toSet()
         val survivorDefenderIds = result.defenders.map { it.id }.toSet()
 
-        val deadAttackerIds = attackers
-            .filter { it.id !in survivorAttackerIds }
-            .map { it.id }
+        val deadAttackerIds = attackerIds
+            .filter { it !in survivorAttackerIds }
 
         val deadDefenderIds = defenseTeam
             .filter { it.id !in survivorDefenderIds }
@@ -1338,7 +1382,7 @@ object AISectAttackManager {
         skill: CombatSkill
     ): Combatant {
         val linkPercent = skill.damageLinkPercent
-        if (linkPercent == null || linkPercent <= 0 || skill.buffDuration <= 0) return target
+        if (linkPercent <= 0 || skill.buffDuration <= 0) return target
         val cleaned = target.buffs.filter { it.type != BuffType.DAMAGE_LINK }
         return cleaned.let { buffs ->
             target.copy(

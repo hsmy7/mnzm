@@ -10,16 +10,12 @@ import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.BattleType
-import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
 import com.xianxia.sect.core.model.GarrisonSlot
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SectBattleRecord
@@ -31,13 +27,7 @@ import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.currentHp
-import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.spiritStones
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
@@ -119,9 +109,13 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         if (attackers.isEmpty()) return@withEngineContext
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val setup = buildSectAttackSetup(data, targetSect, sectId, playerSect)
-        val battleResult = AISectAttackManager.executeSectBattle(
-            attackers, targetSect, setup.defenderDisciples, setup.fullDefenderPool,
-            data.bloodRefinementPctTotals
+        // 玩家进攻方必须按实例语义构建 Combatant（与 scoutSect/PlayerDefenseProcessor 一致）：
+        // 玩家弟子的装备/功法字段是实例 id（UUID），若经 AISectAttackManager.convertToCombatant
+        // （AI 模板 id 语义，模板表 key 为 "windBoots" 等模板 id）查询必然 miss，
+        // 玩家将裸装、无功法技能参战——高境界打低境界也必败（2026-XX 回归根因）。
+        val combatAttackers = buildSectAttackCombatants(data, attackers)
+        val battleResult = AISectAttackManager.executeSectBattleWithCombatantAttackers(
+            combatAttackers, targetSect, setup.defenderDisciples, setup.fullDefenderPool
         )
         val deadPlayerIds = battleResult.deadAttackerIds.toSet()
         combatService.processBattleCasualties(deadMemberIds = deadPlayerIds, survivorHpMap = battleResult.survivorHpMap, survivorMpMap = battleResult.survivorMpMap, isOutsideSect = true)
@@ -185,6 +179,29 @@ private fun GameEngine.buildSectAttackSetup(
     val defenderPoolSectId = if (isAiOccupied) targetSect.occupierSectId else sectId
     val fullDefenderPool = data.aiSectDisciples[sectId] ?: emptyList()
     return SectAttackSetup(defenderDisciples, defenderPoolSectId, fullDefenderPool)
+}
+
+/**
+ * 玩家进攻方 Combatant 构建（attackSect 提取）：实例表语义，与 scoutSect/PlayerDefenseProcessor 一致。
+ *
+ * 玩家弟子的装备/功法字段是实例 id（UUID），必须从装备/功法实例快照（equipmentInstancesSnapshot /
+ * manualInstancesSnapshot）构建映射；禁止走 [AISectAttackManager.convertToCombatant]
+ * （AI 模板 id 语义，实例 id 查模板表必然 miss，玩家将裸装无技能参战——高境界打低境界也必败）。
+ */
+private fun GameEngine.buildSectAttackCombatants(
+    data: GameData,
+    attackers: List<Disciple>
+): List<Combatant> {
+    val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
+    val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
+    val allProficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
+    return attackers.map { d ->
+        battleSystem.convertDiscipleToCombatant(
+            d, equipmentMap, manualMap, allProficiencies,
+            CombatantSide.ATTACKER,
+            bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
+        )
+    }
 }
 
 /** AI 阵亡守军清理（attackSect 提取） */
@@ -783,7 +800,16 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
         val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
         val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
-        val playerCombatants = buildScoutPlayerCombatants(combatDisciples, equipmentMap, manualMap, allProficiencies)
+        // 玩家 Combatant 统一走 BattleSystem.convertDiscipleToCombatant（实例表语义，
+        // 与 attackSect/PlayerDefenseProcessor 同一入口）：修复原 buildScoutPlayerCombatants
+        // 未传 realmLayer（默认 0，小层境界压制判定失效）、未带体质/词条因子与武器名的缺陷
+        val playerCombatants = combatDisciples.map { d ->
+            battleSystem.convertDiscipleToCombatant(
+                d, equipmentMap, manualMap, allProficiencies,
+                CombatantSide.DEFENDER,
+                bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
+            )
+        }
         val aiCombatants = aiDefenders.map { d -> AISectAttackManager.convertToCombatant(d, CombatantSide.ATTACKER) }
         val battle = Battle(team = playerCombatants, beasts = aiCombatants, turn = 0, isFinished = false, winner = null, maxTurns = Int.MAX_VALUE)
         // 严苛训练政策：玩家弟子伤害+5%（参数透传）
@@ -803,57 +829,6 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
         if (victory) {
             applyScoutVictoryInfo(sectId, data, targetSect)
         }
-    }
-}
-
-/** 探查玩家 Combatant 构建（scoutSect 提取：装备/功法/熟练度/技能） */
-private fun GameEngine.buildScoutPlayerCombatants(
-    combatDisciples: List<Disciple>,
-    equipmentMap: Map<String, EquipmentInstance>,
-    manualMap: Map<String, ManualInstance>,
-    allProficiencies: Map<String, Map<String, ManualProficiencyData>>
-): List<Combatant> {
-    return combatDisciples.map { disciple ->
-        val discipleEquipment = buildDiscipleEquipmentMap(disciple, equipmentMap)
-        val discipleManuals = disciple.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
-        val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
-        val stats = disciple.getFinalStats(
-            discipleEquipment, discipleManuals, discipleProficiencies,
-            stateStore.gameData.value.bloodRefinementPctTotals[disciple.id]
-        )
-        val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
-        val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
-        val skills = buildDiscipleSkills(disciple, discipleManuals, discipleProficiencies)
-        Combatant(id = disciple.id, name = disciple.name, side = CombatantSide.DEFENDER, hp = effectiveHp, maxHp = stats.maxHp, mp = effectiveMp, maxMp = stats.maxMp, physicalAttack = stats.physicalAttack, magicAttack = stats.magicAttack, physicalDefense = stats.physicalDefense, magicDefense = stats.magicDefense, speed = stats.speed, critRate = stats.critRate, skills = skills, realm = disciple.realm, realmName = disciple.realmName, element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal", portraitRes = disciple.portraitRes)
-    }
-}
-
-/** 弟子已装备实例映射（buildScoutPlayerCombatants 提取） */
-private fun buildDiscipleEquipmentMap(
-    disciple: Disciple,
-    equipmentMap: Map<String, EquipmentInstance>
-): Map<String, EquipmentInstance> {
-    return buildMap {
-        disciple.equipment.weaponId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-        disciple.equipment.armorId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-        disciple.equipment.bootsId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-        disciple.equipment.accessoryId?.let { id -> equipmentMap[id]?.let { put(id, it) } }
-    }
-}
-
-/** 弟子技能构建（buildScoutPlayerCombatants 提取：熟练度乘区加成） */
-private fun buildDiscipleSkills(
-    disciple: Disciple,
-    discipleManuals: Map<String, ManualInstance>,
-    discipleProficiencies: Map<String, ManualProficiencyData>
-): List<CombatSkill> {
-    return disciple.manualIds.mapNotNull { manualId ->
-        val manual = discipleManuals[manualId] ?: return@mapNotNull null
-        val proficiencyData = discipleProficiencies[manualId]
-        val masteryLevel = proficiencyData?.masteryLevel ?: 0
-        val baseSkill = manual.skill ?: return@mapNotNull null
-        val multiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(baseSkill.damageMultiplier, masteryLevel)
-        baseSkill.copy(damageMultiplier = multiplier).toCombatSkill(manualName = manual.name)
     }
 }
 
@@ -961,44 +936,38 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
         when (typeIndex) {
             0 -> {
                 val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
-                if (manual != null) {
-                    val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addManualStack(manual) }
-                    when (result) {
-                        is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
-                        is DomainResult.Partial -> {
-                            DomainLog.w("GameEngine", "${manual.name} 溢出 ${result.overflow} 个")
-                            rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
-                        }
-                        is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${manual.name} 失败: ${result.error}")
+                val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addManualStack(manual) }
+                when (result) {
+                    is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
+                    is DomainResult.Partial -> {
+                        DomainLog.w("GameEngine", "${manual.name} 溢出 ${result.overflow} 个")
+                        rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
                     }
+                    is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${manual.name} 失败: ${result.error}")
                 }
             }
             1 -> {
                 val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
-                if (equip != null) {
-                    val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }
-                    when (result) {
-                        is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
-                        is DomainResult.Partial -> {
-                            DomainLog.w("GameEngine", "${equip.name} 溢出 ${result.overflow} 个")
-                            rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
-                        }
-                        is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${equip.name} 失败: ${result.error}")
+                val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }
+                when (result) {
+                    is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
+                    is DomainResult.Partial -> {
+                        DomainLog.w("GameEngine", "${equip.name} 溢出 ${result.overflow} 个")
+                        rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
                     }
+                    is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${equip.name} 失败: ${result.error}")
                 }
             }
             else -> {
                 val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
-                if (pill != null) {
-                    val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addPill(pill) }
-                    when (result) {
-                        is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
-                        is DomainResult.Partial -> {
-                            DomainLog.w("GameEngine", "${pill.name} 溢出 ${result.overflow} 个")
-                            rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
-                        }
-                        is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${pill.name} 失败: ${result.error}")
+                val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addPill(pill) }
+                when (result) {
+                    is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
+                    is DomainResult.Partial -> {
+                        DomainLog.w("GameEngine", "${pill.name} 溢出 ${result.overflow} 个")
+                        rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
                     }
+                    is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${pill.name} 失败: ${result.error}")
                 }
             }
         }

@@ -31,6 +31,23 @@
 - **测试** — 新增 `DiscipleUtilsTest` 2 用例（大境界优先 + 同境界小层降序；高境界低小层优先于低境界高小层入选防守队——修复前高境界弟子一个都不上场）；`ResolveBeastAttackFightTest` 复制逻辑同步为 `sortedByRealmForDefense`
 - **兼容性** — 无 Entity/Migration/存档/序列化变更；仅影响防守战自动选人顺序，AI 侧（createAttackTeam/createDefenseTeam 恒按 realm 升序）不受影响
 
+### 修复：玩家主动进攻 AI 宗门必败——玩家弟子被按 AI 模板 id 语义构建 Combatant，装备/功法全部丢失
+
+> 背景：用户反馈"玩家主动进攻 AI 宗门时一直失败，高境界弟子打 AI 宗门的低境界弟子也失败"。与上一轮"防守战选人"修复互补（防守侧已修），本次为**进攻侧**根因。因果链：`GameEngineBattleOps.attackSect` 把玩家弟子直接交给 `AISectAttackManager.executeSectBattle` → `convertToCombatant` 内部用 `AISectDiscipleManager.buildEquipmentMapForDisciple`/`buildManualDataForDisciple` 构建装备/功法——该实现按 **AI 模板 id 语义**查询（`EquipmentDatabase.getById`/`ManualDatabase.getById`，模板表 key 为 `"windBoots"`/`"manual_heal"` 类固定 id）；而玩家弟子的 `equipment.weaponId/armorId/...` 与 `manualIds` 存的是**实例 id**（`EquipmentInstance`/`ManualInstance` 的 UUID，见 `DiscipleManualManager`/`GameEngineCoordination` 装配路径）——实例 id 查模板表必然 miss → 玩家 Combatant 裸装、无功法技能（只剩普攻）、无熟练度加成，仅剩基础属性+血炼+丹药；防守方 AI 弟子（持久化模板 id）走同一函数却装备（境界上限品阶）功法齐全 → 玩家"高境界白板 vs AI 低境界满装满技能"必败。正确路径参照同库 `scoutSect`（`buildScoutPlayerCombatants`）与 `PlayerDefenseProcessor.buildDefenseTeam`（`battleSystem.convertDiscipleToCombatant`，实例表语义）——均工作正常，唯独 `attackSect` 用错。
+
+- **修复** — `AISectAttackManager` 新增 `executeSectBattleWithCombatantAttackers`（攻击者已为玩家实例语义 Combatant），原 `executeSectBattle`（AI vs AI / AI 攻玩家守军路径）抽取共享核心 `executeSectBattleCore`；`GameEngineBattleOps.attackSect` 改用 `battleSystem.convertDiscipleToCombatant`（实例表语义 + 血炼 + 熟练度，与防守路径完全一致）构建玩家进攻方后走新入口
+- **测试** — `AISectAttackManagerTest` 新增 2 用例：①行为守卫——玩家实例 id 弟子经 `convertToCombatant` 技能为空（锁定"AI 模板语义函数不得误用于玩家弟子"）；②回归——`BattleSystem.convertDiscipleToCombatant`（实例语义）构建的高境界满装玩家 Combatant 保留技能与装备加成，经 `executeSectBattleWithCombatantAttackers` 战胜低境界 AI 守军且玩家零阵亡
+- **兼容性** — 无 Entity/Migration/存档/序列化变更；仅玩家主动进攻 AI 宗门的战斗构建路径变化，AI vs AI、AI 攻玩家（含玩家占领宗门守军）、遭遇战、妖兽战等其余路径行为不变（逐一核验 `convertToCombatant`/`convertDiscipleToCombatant` 全部调用点）
+
+### 清理：scoutSect 玩家 Combatant 构建收敛到共享入口 + 编译警告清除（2026-XX 途中发现处置）
+
+> 上一轮修复后排查同类重复实现与存量编译警告（汇报为"途中发现可改进项"，本次全量处理）。因果链：① `GameEngineBattleOps.scoutSect` 的 `buildScoutPlayerCombatants`/`buildDiscipleEquipmentMap`/`buildDiscipleSkills` 三函数与 `BattleSystem.convertDiscipleToCombatant` 功能重复（玩家 Combatant 构建三份实现），且原实现**未传 `realmLayer`**（Combatant 默认 0 → `BattleCalculator` 小层境界压制/斩杀判定按初层 1 回退，探查战中玩家高小层弟子压制加成失效）、未带体质/词条独立乘算因子与武器名；② 存量编译警告：`GameEngineBattleOps` 战利品池三处 `if (manual/equip/pill != null)`（生成函数返回非空类型，恒 true 冗余检查）、`AISectAttackManager.applyLinkDebuff` 的 `linkPercent == null`（`CombatSkill.damageLinkPercent` 为非空 Double，恒 false）。
+
+- **收敛** — `scoutSect` 玩家 Combatant 改用 `battleSystem.convertDiscipleToCombatant`（实例表语义 + 血炼 + 熟练度 + 体质/词条 + `realmLayer` 真实值 + 武器名），删除三个重复私有函数及 10 个随之失效的 import；至此玩家 Combatant 构建仅剩 `BattleSystem.convertDiscipleToCombatant` 一个入口（进攻/探查/防守/遭遇战/玩家占领宗门守军全部走它）。行为改进：探查战小层境界压制正确生效、体质/词条战斗加成生效、战报境界名与主战斗口径一致（纯境界名）
+- **警告清除** — 删除 3 处恒真 null 检查与 1 处恒 false null 检查（`linkPercent == null`），语义不变
+- **测试** — `BattleSystemTest` 新增 1 用例（`convertDiscipleToCombatant` 玩家实例语义完整传递：realm/realmLayer/武器名/技能/装备加成）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更；`scoutSect` 战斗结果因小层压制与体质词条生效而变化（探查战更符合实力），战报境界显示口径与主战斗统一；其余路径零影响
+
 ## [4.00.98] - 2026-08-14
 
 ### 优化（2026-08-14 平板省电专项：渲染分辨率缩放 + 刷新率联动 + 脏帧跳过 + 动态 ADPF + 省电模式监听）
