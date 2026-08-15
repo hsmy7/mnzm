@@ -49,6 +49,9 @@ private const val EMPTY_RESULT_TEXT = "——"
 /** 空特质列表显示 */
 private const val NONE_TEXT = "无"
 
+/** 洗炼产物与弟子已有特质互斥的提示文案（2026-08-17 需求变更：不会刷回已有） */
+private const val NO_DUPLICATE_HINT_TEXT = "不会刷出弟子已有的特质"
+
 /** 按洗炼类型分发洗炼请求（提取自 TraitWashContent，控 Cyclomatic 复杂度；单槽语义） */
 private suspend fun GameViewModel.washByType(
     id: String,
@@ -208,6 +211,12 @@ private fun TraitWashContent(
         )
         Spacer(modifier = Modifier.weight(1f))
         CostHintRow(jadeInsufficient)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = NO_DUPLICATE_HINT_TEXT,
+            fontSize = 12.sp,
+            color = Color.Black
+        )
         Spacer(modifier = Modifier.height(8.dp))
         WashActionButtons(
             type = type,

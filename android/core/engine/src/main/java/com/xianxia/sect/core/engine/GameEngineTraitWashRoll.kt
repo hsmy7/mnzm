@@ -42,8 +42,9 @@ internal fun TraitWashType.hasRollCandidate(excludedTemplates: Set<String>): Boo
 }
 
 /**
- * 按洗炼类型单条抽取（品阶分布与生成一致；[excludedTemplates] 为保留槽位
- * template——新条目不得与保留槽位同 template，否则 confirm 校验拒绝）。
+ * 按洗炼类型单条抽取（品阶分布与生成一致；[excludedTemplates] 为弟子**已有**槽位
+ * template——洗炼产物不得与已有任何槽位同 template（含被洗炼的目标槽位自身，禁止
+ * "刷回原样"；历史刷到过但已不在身上的条目仍在候选池），否则 confirm 校验拒绝）。
  * 无候选返回 null（调用方应先用 [hasRollCandidate] 预检）。
  */
 internal fun TraitWashType.rollSingle(
@@ -70,8 +71,9 @@ private fun AffixData.toWashEntry() = TraitWashEntry(id, rarity, template)
 /**
  * 从 3 阶正向池抽取一个上品条目（保底替换源）。
  *
- * [usedTemplates] 为保留槽位已占用的 template，抽取时过滤避免 template 冲突。
- * 过滤后无候选（池空/全部被占用）返回 null——**不**回退全池：回退会选出与保留槽位
+ * [usedTemplates] 为弟子**已有**槽位已占用的 template，抽取时过滤避免 template 冲突
+ * （含目标槽位自身——保底同样不"刷回原样"）。
+ * 过滤后无候选（池空/全部被占用）返回 null——**不**回退全池：回退会选出与已有槽位
  * template 重复的条目，导致产物无法通过 confirm 校验（玩家白洗 1 玉符死胡同）；
  * 调用方（rollSingleTraitWash）对 null 放弃本次抽取，保底尽力而为、下次继续累计。
  */
@@ -151,8 +153,8 @@ internal fun TraitWashType.replaceSlot(disciple: Disciple, targetId: String, new
 /**
  * 单槽洗炼纯随机函数（品质保底 + 确定性）。
  *
- * 普通路径：按生成品阶分布单条抽取（排除保留槽位 template）；
- * 保底路径（[pityCount] 达到阈值）：直接从 3 阶正向池抽取（排除保留槽位 template）。
+ * 普通路径：按生成品阶分布单条抽取（排除弟子已有槽位 template，含目标槽位自身）；
+ * 保底路径（[pityCount] 达到阈值）：直接从 3 阶正向池抽取（排除集同上）。
  * 两者均受 [TraitWashType.pickTopRarity]/[TraitWashType.rollSingle] 返回 null 的兜底：
  * 池空/模板全占用 → newId 为 null，调用方在扣费前已用 [TraitWashType.hasRollCandidate] 预检，
  * 正常路径不可能出现；防御语义为"放弃本次产出"。
@@ -160,7 +162,7 @@ internal fun TraitWashType.replaceSlot(disciple: Disciple, targetId: String, new
  * 同种子 + 同 (type, excludedTemplates, pityCount) 结果完全确定。
  *
  * @param pityCount 当前保底计数（连续未出上品次数，UI 会话持有）
- * @param excludedTemplates 保留槽位 template 集合（新条目不得与之冲突）
+ * @param excludedTemplates 弟子已有槽位 template 集合（产物不得与之冲突，含目标槽位自身）
  */
 internal fun rollSingleTraitWash(
     rng: DeterministicRng,

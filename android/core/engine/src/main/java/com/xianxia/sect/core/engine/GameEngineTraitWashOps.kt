@@ -15,6 +15,10 @@ import kotlin.coroutines.cancellation.CancellationException
 // 单槽语义（2026-08-09 需求变更）：洗炼只针对详情界面里指定的那一个特质
 // （targetId），其余同类特质保留不动——一次只洗炼一个，不再整套重掷替换。
 // 纯随机抽取函数（候选池/品阶分布/保底计数）在 GameEngineTraitWashRoll.kt。
+//
+// 排除集语义（2026-08-17 需求变更）：洗炼产物不得等于弟子**已有**的任何特质
+// （含被洗炼的目标槽位自身——不再允许"刷回原样"白耗玉符）；历史上刷到过但
+// 已不在弟子身上的条目仍在候选池，可再次刷到。与新增（TraitAdd）同口径。
 
 /** 日志 TAG（与其他 GameEngine 扩展文件一致） */
 private const val LOG_TAG = "GameEngine"
@@ -38,6 +42,9 @@ sealed interface TraitWashConfirmResult {
 /**
  * 洗炼天赋/体质/词条的**单个目标槽位**：校验弟子存在且存活 → 预检候选池 → 事务内扣 1 玉符
  * → 按 [pityCount] 保底判定抽取目标槽位的新特质（其余同类特质保留不动，由 confirm 落盘）。
+ *
+ * 洗炼产物与弟子已有任何特质（含目标槽位自身）互斥——候选池排除全部已有槽位 template；
+ * 历史上刷到过但已不在身上的条目仍可再次刷到（2026-08-17 需求变更）。
  *
  * 玉符不足时提前返回且**不消耗随机序列**（随机序列确定性保持）。
  * 洗炼只返回产物不写弟子；"确认替换"由 [confirmTraitWash] 负责。
@@ -83,7 +90,7 @@ suspend fun GameEngine.washTraitSlot(
 }
 
 /**
- * 洗炼事务内逻辑（单 update 原子完成）：存在/存活/目标校验 → 保留槽位 template 排除集 →
+ * 洗炼事务内逻辑（单 update 原子完成）：存在/存活/目标校验 → 已有槽位 template 排除集 →
  * 扣费前候选预检 → 扣 1 玉符 → 按保底判定抽取。所有校验均在扣费前，失败不消耗玉符与随机序列。
  */
 private fun GameEngine.washSlotInner(
@@ -108,11 +115,13 @@ private fun GameEngine.washSlotInner(
         DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 目标特质已不存在 id=$id target=$targetId 当前=$currentIds")
         return@updateAndReturn TraitWashResult.Error("该特质已不存在")
     }
-    // 保留槽位 template 集合：新条目不得与保留槽位冲突（否则 confirm 校验拒绝）
+    // 已有槽位 template 排除集（含目标槽位自身）：洗炼产物不得等于弟子已有任何特质
+    // （2026-08-17 需求变更：禁止"刷回原样"；历史刷到过但已不在身上的条目仍在候选池）。
+    // 若仅排除保留槽位，产物可与目标槽位当前特质相同——确认替换校验虽放行（template 仍互异），
+    // 但玩家白耗 1 玉符原地踏步，违背需求语义。
     val excludedTemplates = buildSet {
-        for (keptId in currentIds) {
-            if (keptId == targetId) continue
-            type.resolveOne(keptId)?.let { add(it.template) }
+        for (currentId in currentIds) {
+            type.resolveOne(currentId)?.let { add(it.template) }
         }
     }
     // 扣费前预检候选池（无随机消耗）：池全被排除 → 不扣费直接拒绝
@@ -209,6 +218,9 @@ suspend fun GameEngine.confirmTraitWash(
 /**
  * 单槽替换合法性校验：目标 id 存在于当前列表、产物 id 可被 Database 解析、
  * 替换后整体 template 无重复（与生成语义一致——同一 template 的特质互斥）。
+ *
+ * 洗炼路径下产物 template 已被排除集保证不与任何已有槽位冲突（含目标槽位），
+ * 此处为 confirm 防外部篡改的兜底校验（本地信任模型：不校验产物来源）。
  */
 private fun isValidSlotWash(
     type: TraitWashType,

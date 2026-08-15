@@ -357,6 +357,69 @@ class GameEngineTraitWashTest {
         }
     }
 
+    // ── 洗炼：产物与弟子已有特质互斥（2026-08-17 需求变更）──
+    // 需求：可刷到"之前刷到过但已不在身上"的条目（候选池天然包含历史条目），
+    // 但不得刷到弟子**已有**的任何特质（含被洗炼的目标槽位自身——禁止"刷回原样"）。
+    // 洗炼是确定性抽取（固定种子），此处为不变量断言：一旦产物与已有冲突必失败。
+
+    @Test
+    fun `washTraitSlot - 洗炼产物不得与弟子已有任何特质相同（含目标槽位自身）`() = runBlocking {
+        seedStandardDisciple()
+        seedJade(5)
+
+        for (type in washTypes) {
+            repeat(20) { round ->
+                seedJade(1)
+                val targetId = type.idsOf(assembleDisciple()).first()
+                val success = isSuccess(engine.washTraitSlot("1", type, targetId, 0))
+
+                val currentIds = type.idsOf(assembleDisciple())
+                val currentTemplates = currentIds.mapNotNull { type.resolveOne(it)?.template }.toSet()
+                val newTemplate = type.resolve(listOf(success.newId)).firstOrNull()?.template
+                assertTrue(
+                    "洗炼产物不得与弟子已有特质同 template (${type.displayName}, round=$round): " +
+                        "new=${success.newId} 已有Templates=$currentTemplates",
+                    newTemplate != null && newTemplate !in currentTemplates
+                )
+                assertTrue(
+                    "洗炼产物 id 不得等于弟子已有任何槽位 id (${type.displayName}, round=$round)",
+                    success.newId !in currentIds
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `washTraitSlot - 保底路径洗炼产物也不得与弟子已有任何特质相同`() = runBlocking {
+        seedStandardDisciple()
+        seedJade(5)
+
+        for (type in washTypes) {
+            repeat(20) { round ->
+                seedJade(1)
+                val targetId = type.idsOf(assembleDisciple()).first()
+                val success = isSuccess(
+                    engine.washTraitSlot(
+                        "1", type, targetId, GameConfig.TraitWash.WASH_PITY_THRESHOLD
+                    )
+                )
+
+                val currentIds = type.idsOf(assembleDisciple())
+                val currentTemplates = currentIds.mapNotNull { type.resolveOne(it)?.template }.toSet()
+                val newTemplate = type.resolve(listOf(success.newId)).firstOrNull()?.template
+                assertTrue(
+                    "保底产物不得与弟子已有特质同 template (${type.displayName}, round=$round): " +
+                        "new=${success.newId} 已有Templates=$currentTemplates",
+                    newTemplate != null && newTemplate !in currentTemplates
+                )
+                assertEquals(
+                    "保底后计数应归零 (${type.displayName}, round=$round)",
+                    0, success.newPityCount
+                )
+            }
+        }
+    }
+
     // ── 确认替换 ──
 
     @Test
