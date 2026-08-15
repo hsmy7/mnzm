@@ -53,8 +53,9 @@ class StandardPromptDialogTest {
 
     @After
     fun tearDown() {
-        // 冻结作用域为全局单例，测试间隔离，防跨用例污染
+        // 冻结作用域与 IME 跟踪器均为全局单例，测试间隔离，防跨用例污染
         SystemBarFreezeScope.resetForTest()
+        ImeVisibilityTracker.resetForTest()
     }
 
     /** 实现 DialogWindowProvider 的伪 Dialog 视图（用于窗口上下文检测单测） */

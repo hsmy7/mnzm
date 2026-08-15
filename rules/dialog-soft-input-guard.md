@@ -20,6 +20,20 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 - Activity 侧 `hideSystemBars()` 必须接入双守卫 `SystemBarHidePolicy.shouldSkipHide()`（输入对话框冻结期间 或 `ImeVisibilityTracker.isImeVisible` 键盘可见期间 → 跳过），并注册 `SystemBarFreezeScope.addOnUnfreezeListener` 在解冻后恢复隐藏
 - `MainActivity` 与 `GameActivity` 两个入口都受此法则约束（游戏内改名/兑换码/数量输入同模式）
 
+## 第三根因（2026-08 荣耀 GT 系列根治新增）
+
+**API<35 传统 systemUiVisibility flags 路径 + Dialog 窗口键盘盲区**：荣耀 X70（Android 15/API 35）上 `hideSystemBars()` 走纯 `WindowInsetsControllerCompat` 路径且 IME 期间系统接管导航栏，应用 hide() 被忽略，冻结机制即根治；荣耀 GT 系列（荣耀 GT AMG-AN00 / 80 GT / 90 GT，Android 12-14/API 32-34 + MagicOS 7.x）上传统 `SYSTEM_UI_FLAG_*` 被 SystemUI 完整执行，且 `ImeVisibilityTracker` 旧实现只跟踪 Activity 窗口——键盘在平台 Dialog 窗口内弹出时 IME insets 只派发给**获得输入焦点的窗口**（Dialog 窗口），Activity 收不到，`isImeVisible` 恒 false，双守卫第二条件失效，残留三环放大器：
+
+1. **放大器 A（跟踪盲区）**：Dialog 窗口内的键盘无法被全局跟踪
+2. **放大器 B（Dialog 窗口自身 hide 对抗）**：`DialogSystemBarGuard` 挂载时对 Dialog 窗口应用 `HIDE_NAVIGATION` 等传统 flags（API<35 生效），键盘弹出期间与 IME 所需导航栏区域冲突 → insets 翻转；冻结机制只管宿主 Activity 的 hideSystemBars()，管不到 Dialog 窗口自身的系统栏标志
+3. **放大器 C（解冻恢复立即 hide）**：对话框关闭 → 解冻监听器立即 `hideSystemBars()` → 键盘收起动画期间 hide() + 传统 flags 真执行 → 与 IME 对抗 → 叠加 MagicOS 焦点抖动 → 振荡回路
+
+**第三根因防御法则：键盘可见期间一切窗口级系统栏隐藏必须暂停。**
+- `ImeVisibilityTracker`（core/ui）为**多窗口跟踪**：Activity 与各 Dialog 窗口各自独立跟踪（`attach(window, onFlip)` 幂等，同窗口重复 attach 仅追加回调），任一窗口键盘可见 → 全局 `isImeVisible` = true；`isImeVisibleFor(window)` 按窗口查询；`detach(window)` 窗口销毁前调用（复位状态防全局残留）
+- `DialogSystemBarGuard` 为 **IME 感知**：挂载时经 `ImeVisibilityTracker.attach` 跟踪本窗口键盘；键盘可见 → `controller.show(navigationBars)` + 清除 legacy `HIDE_NAVIGATION`（FULLSCREEN 与键盘无冲突保留）；键盘收起 → 恢复隐藏。API 35+ legacy 标志为 no-op，逻辑零副作用
+- **解冻恢复延迟**：`MainActivity`/`GameActivity` 的 `systemBarRestoreListener` 必须 `postDelayed(SYSTEM_BAR_RESTORE_DELAY_MS=350)` 后再次经 `SystemBarHidePolicy.shouldSkipHide()` 校验再 `hideSystemBars()`——等待键盘收起动画结束、IME 状态落定（两 Activity 常量一致；`onDestroy` 清理延迟回调）
+- `SystemBarHidePolicy`/`ImeVisibilityTracker` 均位于 core/ui（`com.xianxia.sect.ui.components`），新增窗口守卫一律通过它们，禁止自行操作 WindowInsetsController/legacy flags
+
 ## 双机制避让（2026-08-06 根治后规则）
 
 | 渲染上下文 | 唯一避让机制 | 实现 |
@@ -67,12 +81,14 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 - 平台 Dialog 窗口内叠加 `imePadding`（pan + padding 双重位移）→ 国产 ROM 键盘反复弹出/收起，界面闪屏，输入无法正常使用
 - 无任何避让的 Dialog + 输入框 → 键盘遮挡输入框或触发 adjustResize 振荡
 - 含输入框但未冻结系统栏操作（缺 `freezeSystemBars` / `SystemBarFreezeScope`）→ 荣耀 MagicOS 9 + Android 15 上"键盘弹出→收起→再弹出"振荡回路（hideSystemBars 放大器）
-- 复现条件：HyperOS / ColorOS / FuntouchOS / MagicOS + 含输入框对话框 + 输入框获得焦点
+- Dialog 窗口守卫非 IME 感知（`DialogSystemBarGuard` 无条件 hide）或 tracker 非多窗口 → 荣耀 GT 系列（API<35 传统 flags 路径）上 Dialog 窗口 HIDE_NAVIGATION 与 IME 对抗，键盘频闪复现（第三根因放大器 B）
+- 解冻恢复无延迟（立即 hideSystemBars）→ API<35 上键盘收起动画期间 hide() 真执行与 IME 对抗，叠加 MagicOS 焦点抖动形成振荡（第三根因放大器 C）
+- 复现条件：HyperOS / ColorOS / FuntouchOS / MagicOS（含 Android 12-14 的 MagicOS 7.x）+ 含输入框对话框 + 输入框获得焦点
 
 ## 注意点
 
 - `DialogSoftInputGuard` 支持两种窗口类型：平台 `DialogWindowProvider`（Compose `Dialog`）和 `Activity.window`（Box overlay 覆盖层），自动检测无需区分；如果找不到目标窗口（极少见边缘情况）会 `Log.w` 后返回，不影响功能
 - 保护的是**容器存在期间**的窗口 softInputMode，容器销毁后自动恢复，无副作用
-- 含输入框的对话框应使用 `InlineStandardPromptDialog` 而非平台 Dialog 容器（2026-08-06 根治决策：平台 Dialog 窗口与 IME 的交互在国产 ROM 上不可靠，历史上 OPPO/Vivo/HyperOS 三系均复现，见 `docs/adr/dialog-system-refactoring.md`）
-- **Activity 侧必备**（2026-08 荣耀 X70 根治）：`hideSystemBars()` 接入 `SystemBarHidePolicy.shouldSkipHide()` 双守卫 + `ImeVisibilityTracker.attach(window)` + `SystemBarFreezeScope.addOnUnfreezeListener`；`MainActivity`/`GameActivity` 两个入口都必须具备，缺一即遗留放大器
+- 含输入框的对话框应使用 `InlineStandardPromptDialog` 而非平台 Dialog 容器（2026-08-06 根治决策：平台 Dialog 窗口与 IME 的交互在国产 ROM 上不可靠，历史上 OPPO/Vivo/HyperOS 三系均复现，见 `docs/adr/dialog-system-refactoring.md`；自动管理/进攻范围/商人买卖数量因产品形态保留平台 Dialog + 输入框，依赖第三根因防御法则）
+- **Activity 侧必备**（2026-08 荣耀 X70 根治 + GT 系列升级）：`hideSystemBars()` 接入 `SystemBarHidePolicy.shouldSkipHide()` 双守卫 + `ImeVisibilityTracker.attach(window)`（多窗口）+ `SystemBarFreezeScope.addOnUnfreezeListener`（解冻恢复必须延迟 350ms + 二次守卫）；`MainActivity`/`GameActivity` 两个入口都必须具备，缺一即遗留放大器
 - 自动聚焦一律使用 `rememberImeAwareAutoFocusRequester()`（IME 弹出确认 + 有限重试），禁止裸 `LaunchedEffect { requestFocus() }` 单次聚焦（荣耀智慧输入法首次弹出失败场景无恢复）

@@ -1,3 +1,18 @@
+## [4.00.99] - 2026-08-15
+
+### 修复（2026-08 荣耀 GT 系列键盘反复弹出收起根治——API<35 传统 flags 路径 + Dialog 窗口键盘盲区）
+
+> 背景：荣耀 X70（Android 15）根治后真机实测仍有部分机型复现，机型集中在荣耀 GT 系列（荣耀 GT AMG-AN00 / 80 GT / 90 GT，Android 12-14 / API 32-34 + MagicOS 7.x）。根因证据链：X70 根治提交已自述"API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径不同"——GT 三款正是 MagicOS 7 + API<35 传统 flags 路径 + 平台 Dialog 窗口输入的组合，既往四轮修复从未覆盖。残留三环放大器：① `ImeVisibilityTracker` 单窗口盲区——键盘在平台 Dialog 窗口内弹出时 IME insets 只派发给**获得输入焦点**的窗口（Dialog 窗口），Activity 收不到，`isImeVisible` 恒 false，双守卫第二条件失效；② `DialogSystemBarGuard` 对 Dialog 窗口无条件应用 legacy `HIDE_NAVIGATION`（API<35 被 SystemUI 完整执行、API 35 为 no-op——这正是 X70 不复发而 GT 复发的原因），键盘弹出期间与 IME 所需导航栏区域冲突引发 insets 翻转，冻结机制只管宿主 Activity、管不到 Dialog 窗口自身标志；③ 解冻恢复立即 `hideSystemBars()`——键盘收起动画期间 hide() + 传统 flags 真执行，与 IME 对抗叠加 MagicOS 焦点抖动（荣耀 MagicOS 共性，X70 提交已记载）形成振荡回路。
+
+- **`ImeVisibilityTracker` 多窗口化并迁入 core/ui** — 单窗口弱引用 → 窗口状态表（弱引用 + 每窗口可见性 + 翻转回调）：`attach(window, onFlip)` 幂等（同窗口重复 attach 仅追加回调，不重装 insets 监听）；任一窗口键盘可见 → 全局 `isImeVisible` = true；`isImeVisibleFor(window)` 按窗口查询；`detach(window)` 窗口销毁前复位状态防全局残留。`SystemBarHidePolicy` 随迁 core/ui（与 `SystemBarFreezeScope` 同包）
+- **`DialogSystemBarGuard` 升级为 IME 感知** — 挂载时经 `ImeVisibilityTracker.attach` 跟踪本窗口键盘翻转：键盘可见 → `controller.show(navigationBars)` + 清除 legacy `HIDE_NAVIGATION`（FULLSCREEN 与键盘无冲突保留）；键盘收起 → 恢复隐藏。API 35+ legacy 为 no-op 零副作用；无输入框对话框无 IME 翻转行为不变。所有 Dialog 容器（StandardPromptDialog / UnifiedGameDialog / SmallScreenDialog / ProfessionUi raw Dialog）一处改造全局生效
+- **解冻恢复延迟 + 二次守卫** — `MainActivity`/`GameActivity` 的 `systemBarRestoreListener` 改为 `postDelayed(SYSTEM_BAR_RESTORE_DELAY_MS=350)` 后再次经 `SystemBarHidePolicy.shouldSkipHide()` 校验再 `hideSystemBars()`（等待键盘收起动画结束、IME 状态落定）；onDestroy 清理延迟回调
+- **测试** — `ImeVisibilityTrackerTest` 迁移重写 8 用例（多窗口独立状态/任一可见全局真/attach 幂等仅追加回调/翻转回调触发/detach 回落）、`SystemBarHidePolicyTest` 5 用例迁入 core/ui、新增 `DialogSystemBarGuardTest` 5 用例（挂载隐藏/键盘可见清 HIDE_NAVIGATION 留 FULLSCREEN/键盘收起恢复/无键盘不抖动/窗口销毁解除跟踪）
+- **规则文档** — `rules/dialog-soft-input-guard.md` 新增"第三根因（API<35 传统 flags 路径 + Dialog 窗口键盘盲区）"与防御法则（tracker 多窗口、Dialog 守卫 IME 感知、解冻延迟恢复）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更；X70（API 35）与小米/OPPO/Vivo 稳定路径零影响（legacy 标志在 API 35 为 no-op；无输入框对话框行为不变）；`ImeGuard` 日志提供真机验证闭环（"IME 可见性翻转"应覆盖 Dialog 窗口场景、"DialogSystemBarGuard: IME 可见，暂停窗口系统栏隐藏"、"hideSystemBars 跳过（IME 守卫）"）
+- **实机验证清单（待测）** — ① 荣耀 GT AMG-AN00 / 80 GT / 90 GT 三机型全部输入场景（创建宗门/改名/兑换码/自动管理阈值/进攻范围/商人买卖数量/仓库出售/灵田种植/存档命名）；② logcat `ImeGuard` 三日志验证放大器 A/B/C 全部切断；③ 荣耀 X70 回归（无行为变化）；④ 小米/OPPO/Vivo 回归
+- **残留风险（荣耀 GT 独显芯片）** — 三款 GT 均带独立显示芯片（独显增强/MEMC 插帧），荣耀社区有该特性导致花屏/卡顿的已知报告；代码层修复后若仍有偶发画面闪烁，指导用户关闭 MagicOS 游戏管家中"独显增强/插帧"开关（应用侧无法控制该硬件特性）
+
 ## [4.00.98] - 2026-08-14
 
 ### 优化（2026-08-14 平板省电专项：渲染分辨率缩放 + 刷新率联动 + 脏帧跳过 + 动态 ADPF + 省电模式监听）

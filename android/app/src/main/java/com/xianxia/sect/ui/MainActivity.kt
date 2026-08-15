@@ -33,10 +33,10 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
-import com.xianxia.sect.core.util.ImeVisibilityTracker
-import com.xianxia.sect.core.util.SystemBarHidePolicy
 import com.xianxia.sect.ui.components.DialogFocusGuard
+import com.xianxia.sect.ui.components.ImeVisibilityTracker
 import com.xianxia.sect.ui.components.SystemBarFreezeScope
+import com.xianxia.sect.ui.components.SystemBarHidePolicy
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
@@ -208,14 +208,29 @@ class MainActivity : ComponentActivity() {
         private const val TAP_SDK_READY_POLL_INTERVAL_MS = 100L
         /** 防沉迷验证超时兜底：SDK 静默失败（无任何回调）时提示用户，避免死卡登录界面 */
         private const val COMPLIANCE_TIMEOUT_MS = 30_000L
+        /**
+         * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
+         * 覆盖 Dialog 窗口销毁后键盘收起动画的剩余时长，等待 IME 状态落定
+         * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"（荣耀GT系列键盘频闪根治）。
+         */
+        private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
         const val EXTRA_SLOT = "slot"
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
         const val EXTRA_CLOUD_SAVE_LOAD = "cloud_save_load"
     }
 
-    /** 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治） */
-    private val systemBarRestoreListener: () -> Unit = { hideSystemBars() }
+    /**
+     * 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治）。
+     * 延迟执行：等待键盘收起动画结束（Dialog 窗口销毁后 IME 状态落定），
+     * 执行前再次经 SystemBarHidePolicy 双守卫校验（荣耀GT系列键盘频闪根治）。
+     * onDestroy 中 loadHandler.removeCallbacksAndMessages(null) 兜底清理。
+     */
+    private val systemBarRestoreListener: () -> Unit = {
+        loadHandler.postDelayed({
+            if (!SystemBarHidePolicy.shouldSkipHide()) hideSystemBars()
+        }, SYSTEM_BAR_RESTORE_DELAY_MS)
+    }
 
     /** 防沉迷验证超时兜底任务（验证成功回调后自动失效） */
     private var complianceTimeoutJob: Job? = null

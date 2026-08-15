@@ -11,6 +11,7 @@ import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.dp
+import org.junit.After
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +30,12 @@ class SmallScreenDialogTest {
 
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+    @After
+    fun tearDown() {
+        // IME 跟踪器为全局单例（Dialog 窗口经 DialogSystemBarGuard 接入跟踪），测试间隔离
+        ImeVisibilityTracker.resetForTest()
+    }
 
     @Test
     fun `overlay 槽位内内联覆盖层可见 - 修复结构守卫`() {

@@ -47,6 +47,9 @@ import androidx.core.view.WindowInsetsCompat
 import com.xianxia.sect.core.ui.R
 import androidx.core.view.WindowInsetsControllerCompat
 
+/** 键盘/系统栏守卫统一日志 TAG（与 ImeVisibilityTracker 一致，便于 logcat 真机验证） */
+private const val TAG = "ImeGuard"
+
 /**
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
  * 卸载时自动恢复。适用于 [Dialog] 内的平台 Dialog 窗口和 Activity 内的 Box overlay。
@@ -141,6 +144,12 @@ internal fun isInsideDialogWindow(view: View): Boolean =
  * Compose Dialog 创建独立平台 Window，不继承 Activity 的 systemUiVisibility 标志。
  * 此 composable 在 Dialog 挂载时对该 Window 应用隐藏标志，卸载时不需恢复（Window 销毁）。
  *
+ * IME 感知（2026-08 荣耀 GT 系列键盘频闪根治）：API < 35 上传统 SYSTEM_UI_FLAG_*
+ * 被 SystemUI 完整执行，Dialog 窗口的 HIDE_NAVIGATION 与键盘（IME）所需的导航栏
+ * 区域冲突会引发 insets 翻转（放大器 B）。本守卫经 [ImeVisibilityTracker] 跟踪
+ * 本窗口的键盘可见性：键盘可见期间暂停隐藏并恢复导航栏显示，键盘收起后恢复隐藏。
+ * API 35+ 上 legacy 标志为 no-op 且系统接管导航栏，本逻辑零副作用。
+ *
  * 双路径方案（对标 GameActivity.hideSystemBars()）：
  * 1. WindowInsetsControllerCompat（现代 API，API 30+ 推荐方式）
  * 2. 传统 SYSTEM_UI_FLAG_*（国产 OEM ROM 兼容性，API < 35）
@@ -156,33 +165,68 @@ fun DialogSystemBarGuard() {
         ?: return
 
     DisposableEffect(dialogWindow) {
-        // 路径 1: WindowInsetsController 方式（现代 API，API 30+ 推荐）
-        WindowInsetsControllerCompat(dialogWindow, dialogWindow.decorView)
-            .let { controller ->
-                controller.hide(
-                    WindowInsetsCompat.Type.statusBars() or
-                        WindowInsetsCompat.Type.navigationBars()
-                )
-                controller.systemBarsBehavior =
-                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
+        val controller = WindowInsetsControllerCompat(dialogWindow, dialogWindow.decorView)
+        val decor = dialogWindow.decorView
 
-        // 路径 2: 传统 SYSTEM_UI_FLAGS 方式（国产 OEM ROM 兼容，与 GameActivity.hideSystemBars 一致）
-        // 注：始终执行（不按 API level 过滤），因为国产 OEM ROM 即使在 API 35+ 上
-        // 仍可能对 WindowInsetsController 支持不完整，传统标志作为补充。在纯 AOSP 35+
-        // 上这些 flag 是 deprecated 但无害的 no-op。
-        @Suppress("DEPRECATION")
-        dialogWindow.decorView.systemUiVisibility =
-            dialogWindow.decorView.systemUiVisibility or
-            (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-             View.SYSTEM_UI_FLAG_FULLSCREEN or
-             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-             View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-             View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        // 当前是否处于"系统栏已隐藏"态（键盘可见期间切换为 show 态，键盘收起后恢复）
+        var hideApplied = true
+
+        fun applyHide() {
+            // 路径 1: WindowInsetsController 方式（现代 API，API 30+ 推荐）
+            controller.hide(
+                WindowInsetsCompat.Type.statusBars() or
+                    WindowInsetsCompat.Type.navigationBars()
+            )
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+            // 路径 2: 传统 SYSTEM_UI_FLAGS 方式（国产 OEM ROM 兼容，与 GameActivity.hideSystemBars 一致）
+            // 注：始终执行（不按 API level 过滤），因为国产 OEM ROM 即使在 API 35+ 上
+            // 仍可能对 WindowInsetsController 支持不完整，传统标志作为补充。在纯 AOSP 35+
+            // 上这些 flag 是 deprecated 但无害的 no-op。
+            @Suppress("DEPRECATION")
+            decor.systemUiVisibility =
+                decor.systemUiVisibility or
+                (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                 View.SYSTEM_UI_FLAG_FULLSCREEN or
+                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        }
+
+        fun applyShow() {
+            // 键盘可见期间恢复导航栏，切断 HIDE_NAVIGATION 与 IME 的对抗（放大器 B）。
+            // 仅涉及导航栏：键盘位于底部，状态栏无冲突，FULLSCREEN 标志保留不动。
+            controller.show(WindowInsetsCompat.Type.navigationBars())
+            @Suppress("DEPRECATION")
+            decor.systemUiVisibility =
+                decor.systemUiVisibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION.inv()
+        }
+
+        fun syncWithIme() {
+            val imeVisible = ImeVisibilityTracker.isImeVisibleFor(dialogWindow)
+            if (imeVisible && hideApplied) {
+                applyShow()
+                hideApplied = false
+                Log.d(TAG, "DialogSystemBarGuard: IME 可见，暂停窗口系统栏隐藏")
+            } else if (!imeVisible && !hideApplied) {
+                applyHide()
+                hideApplied = true
+                Log.d(TAG, "DialogSystemBarGuard: IME 隐藏，恢复窗口系统栏隐藏")
+            }
+        }
+
+        // 先接入本窗口的键盘跟踪再决定初始状态：挂载时键盘已可见（罕见竞态）
+        // → 初始即 show 态，避免"先 hide 再 show"的瞬时对抗窗口
+        ImeVisibilityTracker.attach(dialogWindow) { syncWithIme() }
+        syncWithIme()
+        if (hideApplied) applyHide()
 
         onDispose {
-            // Dialog Window 销毁时自动清理，无需手动恢复
+            // 解除跟踪并复位该窗口状态（窗口销毁后键盘随之收起，
+            // 供解冻恢复链路的 SystemBarHidePolicy 正确放行 hide）
+            ImeVisibilityTracker.detach(dialogWindow)
         }
     }
 }

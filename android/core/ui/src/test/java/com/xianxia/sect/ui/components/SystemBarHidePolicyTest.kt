@@ -1,6 +1,5 @@
-package com.xianxia.sect.core.util
+package com.xianxia.sect.ui.components
 
-import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -10,7 +9,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * SystemBarHidePolicy 双守卫策略测试（荣耀 X70 键盘频闪根治）：
+ * SystemBarHidePolicy 双守卫策略测试（荣耀 X70 键盘频闪根治，
+ * 2026-08 GT 系列根治随组件迁入 core/ui）：
  * 输入对话框冻结期间或键盘可见期间，hideSystemBars 必须跳过。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -19,11 +19,7 @@ class SystemBarHidePolicyTest {
 
     @After
     fun tearDown() {
-        // 冻结计数归零（exitFreeze 对未冻结状态是安全 no-op；resetForTest 为
-        // core/ui 模块 internal 不可跨模块访问，改用公开 API 清理）
-        while (SystemBarFreezeScope.isFrozen) {
-            SystemBarFreezeScope.exitFreeze()
-        }
+        SystemBarFreezeScope.resetForTest()
         ImeVisibilityTracker.resetForTest()
     }
 

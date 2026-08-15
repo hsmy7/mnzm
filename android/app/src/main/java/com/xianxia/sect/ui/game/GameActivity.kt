@@ -41,8 +41,6 @@ import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.util.GameForegroundService
-import com.xianxia.sect.core.util.ImeVisibilityTracker
-import com.xianxia.sect.core.util.SystemBarHidePolicy
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.ui.util.ActionModeSafeCallback
@@ -55,8 +53,10 @@ import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.ImeVisibilityTracker
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.SystemBarFreezeScope
+import com.xianxia.sect.ui.components.SystemBarHidePolicy
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -85,10 +85,27 @@ class GameActivity : ComponentActivity() {
     companion object {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
+        /**
+         * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
+         * 覆盖 Dialog 窗口销毁后键盘收起动画的剩余时长，等待 IME 状态落定
+         * 再恢复隐藏，切断"键盘动画期间 hide() 对抗"（荣耀GT系列键盘频闪根治）。
+         */
+        private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
     }
 
-    /** 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治） */
-    private val systemBarRestoreListener: () -> Unit = { hideSystemBars() }
+    /** 主线程 Handler（解冻恢复延迟任务用） */
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治）。
+     * 延迟执行：等待键盘收起动画结束（Dialog 窗口销毁后 IME 状态落定），
+     * 执行前再次经 SystemBarHidePolicy 双守卫校验（荣耀GT系列键盘频闪根治）。
+     */
+    private val systemBarRestoreListener: () -> Unit = {
+        mainHandler.postDelayed({
+            if (!SystemBarHidePolicy.shouldSkipHide()) hideSystemBars()
+        }, SYSTEM_BAR_RESTORE_DELAY_MS)
+    }
 
     private val viewModel: GameViewModel by viewModels()
     private val saveLoadViewModel: SaveLoadViewModel by viewModels()
@@ -785,6 +802,7 @@ class GameActivity : ComponentActivity() {
 
     override fun onDestroy() {
         SystemBarFreezeScope.removeOnUnfreezeListener(systemBarRestoreListener)
+        mainHandler.removeCallbacksAndMessages(null)
         actionModeTracker?.finishActiveActionMode()
         actionModeTracker = null
         super.onDestroy()
