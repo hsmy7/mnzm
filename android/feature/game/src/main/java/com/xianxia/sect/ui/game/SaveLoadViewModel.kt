@@ -18,6 +18,7 @@ import com.xianxia.sect.core.engine.resetAllDisciplesStatus
 import com.xianxia.sect.core.engine.resetLifecycleState
 import com.xianxia.sect.core.engine.restartGameSuspend
 import com.xianxia.sect.core.engine.sendExclusiveBonus
+import com.xianxia.sect.core.engine.sendStorageBagCompensation
 import com.xianxia.sect.core.engine.sendWhitelistBonus
 import com.xianxia.sect.core.engine.setPausedDirectOnEngine
 import com.xianxia.sect.core.engine.setSaveLoadFlags
@@ -526,6 +527,9 @@ class SaveLoadViewModel @Inject constructor(
             //（2026-09-04 截止，每档一次，非目标用户自动跳过）
             gameEngine.sendExclusiveBonus(slot)
 
+            // ★ 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
+            gameEngine.sendStorageBagCompensation(slot)
+
             val gd = gameEngine.gameData.value
             Log.i(TAG, "=== startNewGame SUCCESS === " +
                 "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
@@ -789,6 +793,9 @@ class SaveLoadViewModel @Inject constructor(
             // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
             //（2026-09-04 截止，每档一次，非目标用户自动跳过）
             gameEngine.sendExclusiveBonus(effectiveSlot)
+
+            // ★ 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
+            gameEngine.sendStorageBagCompensation(effectiveSlot)
 
             val gd = gameEngine.gameData.value
             Log.i(TAG, "=== loadGame SUCCESS === " +
@@ -1305,6 +1312,9 @@ class SaveLoadViewModel @Inject constructor(
 
             // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
             gameEngine.sendExclusiveBonus(currentSlot)
+
+            // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
+            gameEngine.sendStorageBagCompensation(currentSlot)
             return true
         } else {
             Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")
@@ -1878,6 +1888,9 @@ class SaveLoadViewModel @Inject constructor(
 
             // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
             gameEngine.sendExclusiveBonus(effectiveSlot)
+
+            // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
+            gameEngine.sendStorageBagCompensation(effectiveSlot)
 
             _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
             _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()

@@ -74,8 +74,10 @@ data class MarkAllReadResult(
 @GameService("MailService")
 @Singleton
 class MailService @Inject constructor(
-    private val mailRepo: MailRepository,
-    private val stateStore: GameStateStore,
+    // stateStore/mailRepo 为 internal：MailCompensationOps.kt 扩展（单用户定向补偿邮件）
+    // 需要读取存档领取记录与 Room 邮件存在性（三重防护），同一模块内可见即可
+    internal val mailRepo: MailRepository,
+    internal val stateStore: GameStateStore,
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
