@@ -29,6 +29,7 @@ import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordPlayerBattle
+import com.xianxia.sect.core.util.sortedByRealmForDefense
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -153,10 +154,12 @@ class PlayerDefenseProcessor @Inject constructor(
         val pids = data.patrolSlots
             .filter { it.discipleId.isNotEmpty() }
             .map { it.discipleId }.toSet()
+        // 防守选人按大境界优先（realm 升序）、同境界小层降序（2026-08-15 修复：
+        // 原 realmLayer 降序会把高境界弟子（突破后 layer=1）挤出 10 人防守队）
         val patrol = allAlive.filter { it.id in pids }
-            .sortedByDescending { it.realmLayer }
+            .sortedByRealmForDefense()
         val remaining = allAlive.filter { it.id !in pids }
-            .sortedByDescending { it.realmLayer }
+            .sortedByRealmForDefense()
         val selectedDefenders = (patrol + remaining)
             .take(AISectAttackManager.TEAM_SIZE)
 

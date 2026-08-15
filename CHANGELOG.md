@@ -22,6 +22,15 @@
 - **测试** — 新增 `PromotionProgressStatusTest`（core:domain 13 用例：满级 null / 各等级门槛数值 / 三门槛判定 / 数量超额仍达标 / level 0 首次晋升 / 负数防御）+ `ProfessionProgressSectionTest`（feature:game Robolectric 8 用例：无弟子与满级不渲染 / 进度条显隐（testTag）/ 境界红字 / 属性红字 / 双红字 / 未达标无红字 / 锻造炼器红字）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯展示层改动，无弟子/满级时该区域渲染内容与现状等价；无渲染管线（Vulkan/Canvas）、无经济、无隐私合规影响
 
+### 修复：宗门防守战/妖兽防守战选人排序缺陷——高境界弟子被低境界高小层弟子挤出防守队
+
+> 背景：用户反馈"自己的高境界弟子打不过 AI 宗门的低境界弟子（宗门战 10v10）"。因果链：`PlayerDefenseProcessor.selectAndPrepareDefenders` 与 `ExplorationService.resolveBeastFightInternal` 的防守选人排序使用 `sortedByDescending { it.realmLayer }`（小层 1~9），而 realm 数值越小境界越高（0=仙人…9=炼气）——高境界弟子突破大境界后 realmLayer 重置为 1，会被同池中"低境界但修炼已久 layer 高"的弟子挤出 10 人/8 人防守队；AI 进攻方恒按 realm 升序（最高境界 10 人）满血出战，玩家防守队却以低境界弟子残血迎战 → 战报呈现"高境界打不过低境界"。
+
+- **验证** — 临时测试证实战斗公式本身无问题（裸装金丹 2 回合灭筑基、化神 3 回合灭元婴、金丹 1 层 vs 筑基 9 层仍胜）；问题确凿在防守选人环节
+- **修复** — `DiscipleUtils.kt` 新增 `List<Disciple>.sortedByRealmForDefense()`（先 realm 升序 = 境界高优先，同境界 realmLayer 降序），`PlayerDefenseProcessor`（宗门防守 10 人）与 `ExplorationService`（妖兽防守 8 人）两处改用它；与 `SpiritMineViewModel`/`ProductionViewModel`/`PatrolTowerDialog` 既有正确排序口径对齐
+- **测试** — 新增 `DiscipleUtilsTest` 2 用例（大境界优先 + 同境界小层降序；高境界低小层优先于低境界高小层入选防守队——修复前高境界弟子一个都不上场）；`ResolveBeastAttackFightTest` 复制逻辑同步为 `sortedByRealmForDefense`
+- **兼容性** — 无 Entity/Migration/存档/序列化变更；仅影响防守战自动选人顺序，AI 侧（createAttackTeam/createDefenseTeam 恒按 realm 升序）不受影响
+
 ## [4.00.98] - 2026-08-14
 
 ### 优化（2026-08-14 平板省电专项：渲染分辨率缩放 + 刷新率联动 + 脏帧跳过 + 动态 ADPF + 省电模式监听）

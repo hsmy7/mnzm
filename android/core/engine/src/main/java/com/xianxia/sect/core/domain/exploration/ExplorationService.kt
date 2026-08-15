@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.util.ItemNames
+import com.xianxia.sect.core.util.sortedByRealmForDefense
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.domain.battle.EncounterAttacker
@@ -346,9 +347,11 @@ class ExplorationService @Inject constructor(
             .map { it.discipleId }
             .toSet()
         val patrolDefenders = allAvailable.filter { it.id in patrolDiscipleIds }
+        // 防守选人按大境界优先（realm 升序）、同境界小层降序（2026-08-15 修复：
+        // 原 realmLayer 降序会把高境界弟子（突破后 layer=1）挤出 8 人防守队）
         val remainingAlive = allAvailable.filter {
             it.id !in patrolDiscipleIds
-        }.sortedByDescending { it.realmLayer }
+        }.sortedByRealmForDefense()
         val defenders = (patrolDefenders + remainingAlive).take(8)
         val defenderIds = defenders.map { it.id }.toSet()
 

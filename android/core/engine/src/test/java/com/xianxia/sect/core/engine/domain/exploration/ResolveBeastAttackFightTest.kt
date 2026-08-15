@@ -26,6 +26,7 @@ import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.sortedByRealmForDefense
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -155,7 +156,7 @@ class ResolveBeastAttackFightTest {
         val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
         val remainingAlive = allAlive.filter {
             it.id !in patrolDiscipleIds && it.status !in excludeStatuses
-        }.sortedByDescending { it.realmLayer }
+        }.sortedByRealmForDefense()
         val defenders = (patrolDefenders + remainingAlive).take(8)
 
         assertEquals(3, defenders.size)
