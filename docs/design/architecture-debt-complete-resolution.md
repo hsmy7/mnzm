@@ -91,6 +91,13 @@ Kotlin 官方文档及社区讨论确认：`@PublishedApi internal` 在字节码
 
 ## 3. 技术方案
 
+> 归档勘误（2026-08 债务根治批次核实）：本节为方案**设计期草稿**，代码示例中的文件/
+> 类名与实际实现有偏差——实际落位见第 1 节状态表的"现状"列：写入守卫三表类同文件
+> `core/domain/.../core/state/ComponentTable.kt`（非 core/engine 多文件）；ADPF 封装类名为
+> `ThermalMonitor`（非 AndroidPerformanceHintService）；Baseline Profile 生成器在独立
+> `:baselineprofile` 模块（非 app/src/androidTest）；构建文件为 Groovy `build.gradle`
+> （非 build.gradle.kts）。本节保留原样供方案追溯，不作为现状依据。
+
 ### 3.1 写入守卫加固（项 A + B）
 
 #### 核心变更
@@ -440,6 +447,11 @@ grep -rn '!!' android/ --include='*.kt' | grep -v '/test/' | grep -v '/build/' |
 ---
 
 ## 4. 影响范围清单
+
+> 归档勘误（2026-08 债务根治批次核实）：本节为方案**设计期草稿**，所列路径与实际实现
+> 有偏差（如 `ComponentTableBindAllOnWrite.kt` 实际并入 `DiscipleTables.kt` 的
+> `bindAllOnWrite`；构建文件为 Groovy `build.gradle`）。实际变更落位见第 1 节状态表
+> "现状"列与 CHANGELOG「债务根治（2026-08）」条目，本节保留原样供方案追溯。
 
 > 2026-08 勘误:本节为方案制定时的规划路径,与实际落地路径存在偏差,实况如下:
 
