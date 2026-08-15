@@ -13,6 +13,15 @@
 - **实机验证清单（待测）** — ① 荣耀 GT AMG-AN00 / 80 GT / 90 GT 三机型全部输入场景（创建宗门/改名/兑换码/自动管理阈值/进攻范围/商人买卖数量/仓库出售/灵田种植/存档命名）；② logcat `ImeGuard` 三日志验证放大器 A/B/C 全部切断；③ 荣耀 X70 回归（无行为变化）；④ 小米/OPPO/Vivo 回归
 - **残留风险（荣耀 GT 独显芯片）** — 三款 GT 均带独立显示芯片（独显增强/MEMC 插帧），荣耀社区有该特性导致花屏/卡顿的已知报告；代码层修复后若仍有偶发画面闪烁，指导用户关闭 MagicOS 游戏管家中"独显增强/插帧"开关（应用侧无法控制该硬件特性）
 
+### 新增（2026-08-15 炼丹/锻造弟子槽位晋升进度条 + 未达标红色提示 + 标题左对齐）
+
+> 背景：用户需求"炼丹弟子标题移至最左侧；职业等级文本上方新增晋升进度条显示已炼制符合晋升条件的数量进度；数量达标但境界/属性未达标时进度条上方显示红色提示（如'弟子境界需到金丹''弟子炼丹属性需到55'）；锻造弟子同理"。
+
+- **domain 纯逻辑** — `ProfessionRules.kt` 新增 `PromotionProgressStatus` 数据类 + `promotionProgressStatus(level, promotionCount, realm, skill)` 纯函数：复用 `promotionSuccessRequirement / promotionRealmRequirement / promotionSkillRequirement` 门槛表，返回数量/境界/属性三重达标判定（与 `applyPromotionProgress` 判定一致）及所需数值；满级（level >= MAX_LEVEL）返回 null（UI 不渲染进度条）；负数钳制防御。无 UI 依赖、不带 isAlchemy 参数（属性名属 UI 层文案），iOS 直接复用
+- **UI** — `ProfessionUi.kt` 新增 `ProfessionProgressSection(disciple, isAlchemy)`：无弟子/满级渲染空；进度条（LinearProgressIndicator，80×4dp，`GameColors.Success`/`Border`，fraction 钳制 0..1，数量超额满格，`testTag` 供渲染测试定位）；`meetsCount && !meetsRealm` → 红字"弟子境界需到XX（境界名，`GameColors.Error`）"、`meetsCount && !meetsSkill` → 红字"弟子炼丹（炼器）属性需到XX"，两条可同时显示；`AlchemyDialog` / `ForgeDialog` 标题行改 `fillMaxWidth + Arrangement.spacedBy(4.dp, Alignment.Start)` 左对齐（标题与 ⓘ 详情按钮间距保持 4dp，与"炼丹槽/炼器槽 + 自动开关"行风格一致），标题与 `ProfessionLabel` 之间插入进度区
+- **测试** — 新增 `PromotionProgressStatusTest`（core:domain 13 用例：满级 null / 各等级门槛数值 / 三门槛判定 / 数量超额仍达标 / level 0 首次晋升 / 负数防御）+ `ProfessionProgressSectionTest`（feature:game Robolectric 8 用例：无弟子与满级不渲染 / 进度条显隐（testTag）/ 境界红字 / 属性红字 / 双红字 / 未达标无红字 / 锻造炼器红字）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯展示层改动，无弟子/满级时该区域渲染内容与现状等价；无渲染管线（Vulkan/Canvas）、无经济、无隐私合规影响
+
 ## [4.00.98] - 2026-08-14
 
 ### 优化（2026-08-14 平板省电专项：渲染分辨率缩放 + 刷新率联动 + 脏帧跳过 + 动态 ADPF + 省电模式监听）

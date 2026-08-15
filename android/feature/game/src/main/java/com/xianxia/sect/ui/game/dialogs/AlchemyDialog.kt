@@ -113,8 +113,9 @@ fun AlchemyDialog(
                 // Worker disciple section
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
                     ) {
                         Text(
                             text = "炼丹弟子",
@@ -125,6 +126,7 @@ fun AlchemyDialog(
                         ProfessionInfoButton(isAlchemy = true)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
+                    ProfessionProgressSection(disciple = workerDisciple, isAlchemy = true)
                     ProfessionLabel(level = workerDisciple?.alchemyLevel, isAlchemy = true)
                     Spacer(modifier = Modifier.height(2.dp))
                     DiscipleSlot(

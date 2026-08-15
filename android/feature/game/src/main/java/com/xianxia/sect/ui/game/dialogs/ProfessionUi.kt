@@ -8,15 +8,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,21 +32,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.profession.ProfessionLevelInfo
 import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.profession.professionLevelInfos
+import com.xianxia.sect.core.profession.promotionProgressStatus
 import com.xianxia.sect.core.ui.R
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.DialogFocusGuard
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.ui.theme.GameColors
+
+/** 晋升进度条测试标签（UI 渲染测试定位进度条显隐用） */
+internal const val PROFESSION_PROMOTION_BAR_TAG = "profession_promotion_bar"
 
 /**
  * 职业等级标签颜色（用户指定：0 白 / 1 绿 / 2 蓝 / 3 紫 / 4 橙 / 5 红）。
@@ -74,6 +85,64 @@ fun ProfessionLabel(level: Int?, isAlchemy: Boolean) {
             fontWeight = FontWeight.Bold,
             color = professionLabelColor(level)
         )
+    }
+}
+
+/**
+ * 槽位上方职业晋升进度区：晋升进度条 + 未达标红色提示（进度条位于职业等级文本上方）。
+ *
+ * 显示规则（判定与 `applyPromotionProgress` 晋升三重门槛一致：数量/境界/属性）：
+ * - 未任命弟子（[disciple] 为 null）或已满级（丹圣/器圣）时不渲染任何内容；
+ * - 进度条显示晋升数量进度（已炼制符合晋升条件的数量 / 所需数量，仅计当前解锁最高阶成功炼制）；
+ * - 数量已达标但境界未达标 → 红色提示"弟子境界需到XX（境界名）"；
+ * - 数量已达标但炼丹/锻造属性未达标 → 红色提示"弟子炼丹（炼器）属性需到XX"。
+ *
+ * @param disciple 槽位上的工作弟子（null = 未任命）
+ * @param isAlchemy true=炼丹职业（属性名"炼丹"），false=锻造（炼器）职业（属性名"炼器"）
+ */
+@Composable
+fun ProfessionProgressSection(
+    disciple: DiscipleAggregate?,
+    isAlchemy: Boolean
+) {
+    if (disciple == null) return
+    val level = if (isAlchemy) disciple.alchemyLevel else disciple.forgeLevel
+    val count = if (isAlchemy) disciple.alchemyPromotionCount else disciple.forgePromotionCount
+    val skill = if (isAlchemy) disciple.pillRefining else disciple.artifactRefining
+    val status = promotionProgressStatus(level, count, disciple.realm, skill) ?: return
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (status.meetsCount && !status.meetsRealm) {
+            Text(
+                text = "弟子境界需到${GameConfig.Realm.getName(status.requiredRealm)}",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = GameColors.Error
+            )
+        }
+        if (status.meetsCount && !status.meetsSkill) {
+            Text(
+                text = "弟子${if (isAlchemy) "炼丹" else "炼器"}属性需到${status.requiredSkill}",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = GameColors.Error
+            )
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        val fraction = if (status.requiredCount > 0) {
+            (status.currentCount.toFloat() / status.requiredCount).coerceIn(0f, 1f)
+        } else 0f
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier
+                .testTag(PROFESSION_PROMOTION_BAR_TAG)
+                .width(80.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp)),
+            color = GameColors.Success,
+            trackColor = GameColors.Border
+        )
+        Spacer(modifier = Modifier.height(4.dp))
     }
 }
 

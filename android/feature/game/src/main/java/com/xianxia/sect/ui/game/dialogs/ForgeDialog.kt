@@ -111,8 +111,9 @@ fun ForgeDialog(
                 // Worker disciple section
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
                     ) {
                         Text(
                             text = "锻造弟子",
@@ -123,6 +124,7 @@ fun ForgeDialog(
                         ProfessionInfoButton(isAlchemy = false)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
+                    ProfessionProgressSection(disciple = workerDisciple, isAlchemy = false)
                     ProfessionLabel(level = workerDisciple?.forgeLevel, isAlchemy = false)
                     Spacer(modifier = Modifier.height(2.dp))
                     DiscipleSlot(

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.profession
 
+import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.registry.PillRecipeDatabase
@@ -196,4 +197,64 @@ private fun buildPromotionRequirementText(level: Int, isAlchemy: Boolean): Strin
     val realmName = GameConfig.Realm.getName(ProfessionRules.promotionRealmRequirement(level))
     return "成功炼制 ${ProfessionRules.promotionSuccessRequirement(level)} 次（最高阶）；" +
         "境界不低于$realmName；$attrName 不低于 ${ProfessionRules.promotionSkillRequirement(level)}"
+}
+
+/**
+ * 槽位上方"晋升进度条 / 未达标红色提示"的展示数据（纯逻辑，无 UI 依赖）。
+ *
+ * @param level 当前职业等级（0=无职业 ~ 4；level 5 满级由调用方返回 null 处理）
+ * @param currentCount 已炼制符合晋升条件（当前解锁最高阶成功炼制）的数量
+ * @param requiredCount 晋升 level→level+1 所需数量
+ * @param meetsCount 数量是否已达晋升条件
+ * @param meetsRealm 境界是否满足晋升要求（realm 值 <= 门槛值即满足）
+ * @param meetsSkill 炼丹/锻造属性是否满足晋升要求
+ * @param requiredRealm 晋升所需境界值（值越小境界越高）
+ * @param requiredSkill 晋升所需炼丹/锻造属性值
+ */
+@Immutable
+data class PromotionProgressStatus(
+    val level: Int,
+    val currentCount: Int,
+    val requiredCount: Int,
+    val meetsCount: Boolean,
+    val meetsRealm: Boolean,
+    val meetsSkill: Boolean,
+    val requiredRealm: Int,
+    val requiredSkill: Int
+)
+
+/**
+ * 计算弟子职业晋升进度展示状态（纯函数，不修改任何状态）。
+ *
+ * 规则与 [Disciple.applyPromotionProgress] 的晋升判定一致：
+ * 数量（仅计当前解锁最高阶成功炼制）/ 境界（realm 值 <= 门槛）/ 炼丹（锻造）属性三重门槛。
+ *
+ * @param level 当前职业等级（0=无职业 ~ 5=丹圣/器圣）
+ * @param promotionCount 已炼制符合晋升条件的数量（alchemyPromotionCount / forgePromotionCount）
+ * @param realm 弟子境界值（值越小境界越高）
+ * @param skill 弟子炼丹（pillRefining）或锻造（artifactRefining）属性值
+ * @return 展示状态；已满级（level >= [ProfessionRules.MAX_LEVEL]）返回 null，UI 不渲染进度条
+ */
+fun promotionProgressStatus(
+    level: Int,
+    promotionCount: Int,
+    realm: Int,
+    skill: Int
+): PromotionProgressStatus? {
+    val clampedLevel = level.coerceIn(0, ProfessionRules.MAX_LEVEL)
+    if (clampedLevel >= ProfessionRules.MAX_LEVEL) return null
+    val requiredCount = ProfessionRules.promotionSuccessRequirement(clampedLevel)
+    val requiredRealm = ProfessionRules.promotionRealmRequirement(clampedLevel)
+    val requiredSkill = ProfessionRules.promotionSkillRequirement(clampedLevel)
+    val safeCount = promotionCount.coerceAtLeast(0)
+    return PromotionProgressStatus(
+        level = clampedLevel,
+        currentCount = safeCount,
+        requiredCount = requiredCount,
+        meetsCount = safeCount >= requiredCount,
+        meetsRealm = realm <= requiredRealm,
+        meetsSkill = skill >= requiredSkill,
+        requiredRealm = requiredRealm,
+        requiredSkill = requiredSkill
+    )
 }
