@@ -19,8 +19,7 @@
 - [关键源码目录](#key-source-directories)
 - [架构文档索引](#architecture-docs)
 - [存档验证规则引擎](#存档验证规则引擎-savevalidator-rule-engine)
-- [待完成项登记（已清空归档）](#待完成项登记)
-- [实施记录（2026-08 债务根治批次）](#实施记录2026-08-债务根治批次d-26d-49-全量闭环--平台缺口--245-条超长函数队列)
+- [待完成项登记（R 系列余量）](#待完成项登记)
 
 ---
 
@@ -441,43 +440,33 @@ SaveValidator.validate(SaveData)
 
 ## 待完成项登记
 
-> 2026-08-09 归档：2026-08-02~2026-08-09 登记的全部待办项（T/P/D 系列）已于当日处置完毕，登记表清空。
-> 2026-08-10 复启：测试 mock 模式根治批次（commit `1e563548`）途中发现 2 项待办（D-26 / D-27），登记见下。
-> 处置惯例：已完成项的实施要点记入对应批次"实施记录"段落 + CHANGELOG；决策不修项记录决策理由；待真机验证项（非待办）归入"待真机验证指引"。
-> 历史归档：D-01~D-25 处置记录见 CHANGELOG 4.00.86~4.00.93 与下方各"实施记录"段落。
+> 2026-08-15 债务根治批次后重开：D 系列历史待办（D-01~D-49）已全量处置完毕，
+> 处置要点与"不纳入"决策理由归档至 CHANGELOG.md（4.00.86~4.00.93 及「债务根治（2026-08）」条目），
+> 本文件不再保留历史实施记录（2026-08-15 清理）。
+> 交付盘点发现的清单外存量问题登记为 R 系列。
+> 处置惯例：完成后记入 CHANGELOG；决策不修项记录理由；条件式未来工作归入下方"偿还触发条件档案"。
 
-### 途中发现待办 D 系列登记表（2026-08-10 复启）
+### 余量待办 R 系列登记表（2026-08-15 根治批次交付盘点）
 
-| # | 来源 | 待办内容 | 决策 | 状态 |
+| # | 来源 | 待办内容 | 严重度 | 治理方向 |
 |---|---|---|---|---|
-| D-26 | 测试 mock 批次（commit `1e563548`） | `GameStateRepository`（app 模块 **final 具体类**）被 `GameStateStoreImpl` 相关测试裸 `mock(GameStateRepository::class.java)` 注入——与本次根治的 `ProductionSlotRepository` 同款风险：final 类 mock 拦截依赖类加载时机，顺序敏感 flaky（显式 stub 也救不了，stub 注册后的第一次调用可能真实执行方法体）。**治理方向**：改用真实实例（参考 engine 测试 `TestMockSupport.testProductionSlotRepository()` 工厂模式）或 `mockSmart` + doReturn 风格 | ✅ 已处理 | 已闭环：app 测试共享工厂 `testGameStateRepository()`（mockSmart+智能空值）替换 23 处裸 mock（19 个测试类）；修正登记偏差（GameStateRepository 实位于 core:data） |
-| D-27 | 测试 mock 批次（commit `1e563548`） | 测试规范固化：新 Service 测试若需 `ProductionSlotRepository` 必须走共享工厂 `com.xianxia.sect.core.engine.testProductionSlotRepository()`（真实实例 + mockSmart 端口 + `loadSlots` 预填充），禁止自行 `ProductionSlotRepository(dao = mock(), ...)` 内联构造；返回 sealed 类型（`DomainResult` / `DeductResult`）的 stub 统一 doReturn 风格（ByteBuddy 无法代理 sealed）。可作为 `rules/testing.md` 或代码审查清单条目固化 | ✅ 已处理 | 已闭环：新建 `rules/testing.md`（final 类禁裸 mock / mockSmart 统一入口 / sealed stub doReturn 风格 / 共享工厂清单），同步加入 CLAUDE.md 审查清单 |
-| D-28 | Godot 对标重构（commit `e8c7bb97`） | **网络层 Gson 遗留清理**：项目其余处统一用 kotlinx.serialization，仅网络层遗留 Gson（knowledge-base iOS 基线表已标注"遗留"）——两套序列化并存易错；统一为 kotlinx.serialization（Retrofit converter 替换）；详见 platform-abilities.md G7 | ✅ 已处理 | 已闭环：生产网络层 Gson 早已清零（仅 3 个迁移测试 JsonParser 保留 gson testImplementation）；retrofit/converter-gson 死依赖声明移除（kotlinx.serialization 为唯一序列化栈） |
-| D-29 | Godot 对标重构（commit `e8c7bb97`） | **DataStore/MMKV 双存储并存合并**：两套本地 K-V 并存；MMKV 已跨平台、DataStore Android 独占——偏好设置逐步迁入 MMKV，移除 DataStore 依赖（iOS 迁移前置项之一）；详见 platform-abilities.md G8 | ✅ 已处理 | 已闭环：新建 `KeyValueStore` 接口 + `GamePreferences`（MMKV 实现，含一次性 SP 迁移纯函数）+ Hilt 绑定；DataStore 依赖声明移除；8 处普通偏好迁入（AdServiceImpl/FirstEventTracker/LeaderboardManager/TapCloudSaveManager/GameActivity×2/StorageConfig/SaveLimitsConfig）；豁免清单见 GamePreferences KDoc（SessionManager 加密/SecureKeyManager 密钥/CrashHandler 崩溃恢复/TapDB 时长追踪 SDK 接口） |
-| D-30 | 广告 SDK 重复初始化修复批次（2026-08-15） | **`GameConfig.initialize` / `BuildingConfigService.initialize` 无幂等守卫**：每次游戏内读档/重开（boot）经 `ResourcePreloader.preloadGameResources` 重复执行——`GameConfig.initialize` 覆盖赋值（幂等但无守卫）、`BuildingConfigService.initialize` 每次重读 assets JSON（`config/buildings.json` 重复 I/O）。低危性能开销，非状态损坏。**治理方向**：进程级幂等守卫（参照本次 `SdkInitGuard` 模式），配置加载仅首次真正执行 | ✅ 已处理 | 已闭环：`GameConfig.initialize` 进程级幂等守卫 + `BuildingConfigService.initialize` 实例级守卫；`GameConfigIdempotenceTest` + `BuildingConfigServiceIdempotenceTest` |
-| D-31 | 广告 SDK 重复初始化修复批次（2026-08-15） | **`GameEngineCore`（@Singleton）初始化状态被 `GameForegroundService` 生命周期驱动**：`onDestroy → shutdown()` 重置 `isInitialized=false` 并 `systemManager.releaseAll()`，每次退出重进游戏完整重跑 `systemManager.initializeAll()`（全部 GameSystem 重新 initialize/release 循环）；服务 START_STICKY 被系统重建时同样触发。当前各 GameSystem.initialize 均幂等（仅日志/无副作用），非 bug，但属架构级设计取舍。**治理方向**：引擎初始化状态改由进程级持有（Application 统一管理生命周期），Service 仅控制循环启停（start/stop/pause/resume），切断"每次进出游戏重复初始化引擎全部系统"的链路 | ✅ 已处理 | 已闭环：`GameForegroundService.onDestroy` 仅 `stopGameLoop()`（不再 releaseAll/重置 isInitialized）；引擎初始化状态进程级持有，Service 仅循环启停；`shutdown()` 保留为完整拆除路径（A2 触发场景）；`GameEngineCoreInitializeOnceTest` 守卫 |
-| D-32 | 广告 SDK 重复初始化修复批次（2026-08-15） | **`MainActivity.kt` L280 预存超长行**：`Log.e(TAG, "StorageFacade initialization failed after $maxRetries attempts, proceeding with empty cache")` 长度 121 超规范 120 上限 1 字符（detekt baseline 内容忍）。**治理方向**：日志字符串拆分换行 | ✅ 已处理 | 已闭环：MainActivity 121 字符日志行拆分（≤120） |
-| D-33 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **编译恒真死条件 ×2**（compileReleaseKotlin warning "Condition is always 'true'"）：`SectTradeDialog.kt:86`、`SpiritMineDialog.kt:91`——与 D-23（已修复 `if (viewModel != null)` 恒 true）同类先例。**治理方向**：删除死条件分支，保留真实语义 | ✅ 已处理 | 已闭环（2026-08 复核：两处现均为真实可空判断，恒真死条件已随代码演化消失） |
-| D-34 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **lint `ConfigurationScreenWidthHeight` 全库 7 处**：`screenWidthDp`/`screenHeightDp` 应改用 `LocalWindowInfo.current.containerSize`（Android 15 edge-to-edge 下两者 insets 行为差异且取整精度不同）。位置：core/ui `StandardPromptDialog.kt` 4 处（255/256/467/468 行，2026-08 GT 系列根治批次已按漂移后行号更新）+ feature/game `DetailManualSection.kt:73`、`DiscipleChatDialog.kt:385`、`SectDiplomacyDialog.kt:547`。**治理方向**：尺寸计算迁移 WindowInfo，注意 InlineStandardPromptDialog 的 remember 缓存语义同步保留 | ✅ 已处理 | 已闭环：8 处 `screenWidthDp/screenHeightDp` → `LocalWindowInfo.current.containerSize`（StandardPromptDialog ×4 + 漏登 SmallScreenDialog ×2 + DetailManualSection + DiscipleChatDialog + SectDiplomacyDialog），remember 缓存语义保留 |
-| D-35 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **lint `ComposableNaming` 路由文件约 32 处**：`DialogFeatureRoutes.kt`/`DialogFunctionalBuildingRoutes.kt`/`DialogMainTabRoutes.kt`/`DialogProductionRoutes.kt`/`DialogSystemRoutes.kt` 的 route 函数以大写开头命名（被误判为工厂/类语义）。**治理方向**：统一改小驼峰 route 命名（纯重命名，无行为变化），或按项目先例集中 Suppress 并在审查清单注明 | ✅ 已处理 | 已闭环：DialogSystemRoutes 残留 2 处大写 route（JadeSymbolDialogRoute/JadeSymbolAdDialogRoute）改小驼峰（其余 30 处此前已改） |
-| D-36 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **lint `UseKtx` 全库约 22 处**：`Bitmap.createBitmap` 等平台 API 改用 KTX 扩展。位置：core/ui `AtlasPacker.kt:83`、app `AdServiceImpl.kt:125` + feature/game 约 20 处（`DetailBasicInfoSection`/`DiscipleComponents`/`HerbGardenDialog`/`LawEnforcementHallDialog`×2/`LeaderboardManager`/`LibraryDialog`/`PeakScreenComponents`×2/`ProductionComponents`/`SectAtlasAssembler`/`SettingsTab`/`SoftwareCanvasBackend`×2/`SpiritMineDialog`×2/`SpiritRootWashDialog`/`TapCloudSaveManager`×4/`WarehouseDialog`/`WorldMapSectDetailDialog`）。Productivity 级纯风格。**治理方向**：批量机械替换 | ✅ 已处理 | 已闭环：17 处 `Bitmap.createBitmap` → KTX `createBitmap`（feature/game 补 core-ktx 依赖）；1 处 IntArray 重载无 KTX 等价物，加 `@Suppress("UseKtx")` 豁免注释（AtlasPacker） |
-| D-37 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **lint `AutoboxingStateCreation` 13 处**：`mutableStateOf(装箱类型)` 应改 `mutableIntStateOf` 等 primitive 专用 API（`DiscipleChatDialog.kt:220`/`HeavenlyTrialBattleDialog`×2/`HeavenlyTrialCombatScreen`×2/`HeavenlyTrialDiscipleDialog`/`HeavenlyTrialViewModel`×3/`MissionHallDialog`/`PatrolTowerDialog`/`ResidenceDialog`/`SectDiplomacyDialog`）。轻微重组开销。**治理方向**：逐个确认语义后替换 | ✅ 已处理 | 已闭环：14 处 `mutableStateOf(装箱数字)` → `mutableIntStateOf/mutableLongStateOf`（9 文件） |
-| D-38 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **lint `ModifierParameter` 4 处**：Composable 可选参数中 `modifier: Modifier = Modifier` 未置首位——core/ui `GridRow.kt:34` + feature/game `GameActionButtons.kt:123`、`HeavenlyTrialComponents.kt:49`、`SectDiplomacyDialog.kt:352`。**治理方向**：参数重排（调用点全部具名参数即可零影响） | ✅ 已处理 | 已闭环：4 处 modifier 参数置首位（GridRow/FloatingActionButton/CombatUnitCell/RightPanel），调用点全具名零影响 |
-| D-39 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **lint 零散杂项 8 处**（各类 ≤2 处）：`LocalContextResourcesRead` ×2（`MainGameScreen.kt:427`/`MapBackground.kt:27`）、`MutableCollectionMutableState`（`HeavenlyTrialCombatScreen.kt:71`）、`DiscouragedApi`（`ResourcePreloader.kt:187`）、`IconDuplicates`（`ui_tooltip.webp` 与 `dialog_box.webp` 重复）、`ViewConstructor`（`NativeSurfaceView.kt:49`）、`ClickableViewAccessibility`（`NativeSurfaceView.kt:910`）。**治理方向**：逐条评估，个别（ViewConstructor 原生视图构造）可豁免登记理由 | ✅ 已处理 | 已闭环：LocalContextResourcesRead ×2 改 LocalResources；MutableCollectionMutableState 改不可变 Set（advanceTurn 签名同步放宽）；DiscouragedApi 改 PortraitPool.getResourceId；IconDuplicates 删冗余 ui_tooltip.webp（registry 别名保留）；ViewConstructor/ClickableViewAccessibility 按原生视图必须豁免并登记理由（NativeSurfaceView 注释） |
-| D-40 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **依赖与 SDK 侧 warning**：app `GradleDependency` ×9（`libs.versions.toml` 18/26/50/51/53/55/57/58/59 行依赖版本更新提示——例行维护）+ `Aligned16KB` ×3（Bugly `libBugly.so`、Dirichlet Ad SDK `libdirichlet.so` 未 16KB 对齐，Android 15+ 内存页对齐要求，需等 SDK 方发布新版本）。**治理方向**：依赖升级随版本发布批次例行处理；第三方 so 记录跟进 SDK 更新日志 | ⚠️ 部分处理 | 依赖升级 6 项（mmkv 2.4.1/mockk 1.14.11/test-ext-junit 1.3.0/test-runner 1.7.0/test-core 1.7.0/uiautomator 2.4.0）；保守保留 3 项（glide 5.0 大版本待 SDK 方验证/robolectric 4.13 决策卡死/benchmark-macro rc 不稳定）；Aligned16KB ×3 等 SDK 方发布 → 转偿还触发档案 |
-| D-41 | 荣耀 X70 键盘频闪根治批次（commit `45203035`） | **测试编译 warning 批量**：`createAndroidComposeRule` deprecated ×4 文件（core/ui `StandardPromptDialogTest`/`SmallScreenDialogTest` + feature/game `TalentDetailDialogWashTest`/`MerchantDialogJadeFlowTest`——应迁 `androidx.compose.ui.test.junit4.v2`，但 v2 用 StandardTestDispatcher，依赖立即执行的既有用例需逐个核验时序）；`ExperimentalCoroutinesApi` opt-in 与 `Unchecked cast` 批量（`GameViewModelMovingBuildingBusTest`/`GameViewModelTest`/`SaveLoadViewModelLoadTest`/`BuildingDelegateOverlapTest`）。**治理方向**：Compose 测试规则迁移专项（防时序语义变化引入 flaky）+ opt-in 标注收敛 | ✅ 已处理 | 已闭环：14 个测试文件 `createAndroidComposeRule` → `junit4.v2`（模块测试全绿验证，无时序回归） |
-| D-42 | 广告 SDK 初始化时机修复批次（2026-08-15） | **游戏内防沉迷合规回调不生效**：`MainComplianceCallback` 绑定 MainActivity 实例，登录用户经 `launchGame` 进入 GameActivity 后 MainActivity 已 `finish()`，`runOnUiThreadIfAlive` 的 `isFinishing/isDestroyed` 检查直接丢弃后续全部合规回调（时长限制 CODE_DURATION_LIMIT / 时间限制 CODE_PERIOD_RESTRICT / 年龄限制等）——游戏内防沉迷限制无法弹出提示。改动前即存在，本次初始化时机调整后仍保持。**治理方向**：合规回调宿主从 MainActivity 迁移为进程级持有（转发到当前前台 Activity），或 GameActivity 独立注册合规回调并展示限制对话框 | ✅ 已处理 | 已闭环：进程级 `ComplianceCallbackHost`（WindowPort 接口 + 登录/游戏双窗口弱引用转发）+ MainActivity/GameActivity 窗口端口适配 + 共享 `ComplianceLimitDialogs`（生命周期门控 + DialogSystemBarGuard）+ `ComplianceCallbackHostTest` 10 用例 |
-| D-43 | 广告 SDK 初始化时机修复批次（2026-08-15） | **CLAUDE.md 测试命令与项目配置不一致**：`./gradlew.bat test --tests "..." --max-workers=1` 在当前 Gradle 8.14.5 配置下报 `Unknown command-line option '--tests'`（`:app:test` 为 AGP 聚合任务非标准 Test 任务）；且未模块限定时 `--tests` 过滤会波及 core:data 等模块触发 "No tests found" 失败。实测可用：`./gradlew.bat :app:testReleaseUnitTest --tests "..." --max-workers=1`。**治理方向**：CLAUDE.md 命令更新为模块限定写法 | ✅ 已处理 | 已闭环：CLAUDE.md 测试命令改模块限定写法（`:app:testReleaseUnitTest --tests ...`），含 Version Release 段 |
-| D-46 | TapDB 接入批次（2026-08-15） | **`TapDBServerReporter`（服务端 REST 上报库）按 YAGNI 不建**：游戏无自建后端、无 IAP、online 人数需真后端聚合（TapDB 每服务器每 5 分钟仅接受一次数据，客户端直报会覆盖为 1）、`#ad_show`/`charge` 客户端上报避免重复统计——四项服务端能力当前均无合法生产消费者。接口契约（端点/请求体）已登记 `docs/knowledge-base.md#服务端接入契约`。**偿还触发**：接入自建后端 / 新增 IAP 需服务端对账 / 需精确 eCPM 对账时，按契约实现（要点：OkHttp POST、注入式 HttpClient 便于测试、runCatching 静默降级、`device_id` 取 `TapTapEvent.getDeviceId()`、`user_id` 与 `setUser` 一致） | ✅ 已处理 | 已闭环（契约已登记 `docs/knowledge-base.md#服务端接入契约`，偿还触发转档案） |
-| D-47 | TapDB 接入批次（2026-08-15） | **广告 eCPM 估算值本地常量配置**（`AdRevenueConfig.estimatedEcpmFen`，默认 0）：Dirichlet(TapADN) SDK 无客户端 eCPM 回调，运营需从 ADN「数据报表」手动更新；RemoteConfig 未绑定（`CoreModule.kt` HttpRemoteConfigProvider 注释状态）前改配置需发版。**偿还触发**：RemoteConfig 绑定后迁移为 `analytics.ad_ecpm_*` 键（本地默认值兜底，rules/commercialization.md 规范） | 🔄 转档案 | 偿还触发未到（RemoteConfig 未绑定）：迁移要点已登记偿还触发条件档案，见下方"偿还触发条件档案" |
-| D-48 | TapDB 接入批次（2026-08-15） | **OAID 手动模式未接 msa SDK**：官方推荐手动 OAID（`disableAutoLogDeviceLogin=true` + `TapTapEvent.setOAID` + `logDeviceLoginEvent`），但移动安全联盟 OAID SDK 需证书 + supplierconfig.json 外部资产；当前 Dirichlet 直连聚合（非第三方聚合）不强制 OAID。**偿还触发**：广告填充率不达标 / 经第三方聚合（TopOn/GroMore）接入 TapADN（官方要求回传 OAID）时引入 msa OAID SDK，并新增 `TapDBManager.setOaid` 手动上报 API | 🔄 转档案 | 偿还触发未到（广告填充率正常/未接第三方聚合）：msa OAID SDK 引入要点已登记偿还触发条件档案 |
-| D-49 | TapDB 接入批次（2026-08-15） | **TapDB 账号/设备属性与静态通用属性 API（`TapTapEvent.userUpdate`/`deviceUpdate`/`addCommon`）按 YAGNI 未实现**：当前无生产消费场景（等级/宗门名沿用 `TapDB.addCommon`；无跨事件通用属性需求；`registerStaticProperties`/`setDeviceProperty`/`setUserProperty` 历史上零调用）。**偿还触发**：需要账号维度属性分析（将 `setLevel`/`setServer` 迁移至 `userUpdate`）或注册跨事件通用属性时，按官方客户端接入文档实现 | 🔄 转档案 | 偿还触发未到（无账号维度分析需求）：userUpdate/deviceUpdate/addCommon 实现要点已登记偿还触发条件档案 |
+| R-01 | 根治批次交付盘点 | **detekt baseline 存量约 3058 条违规未登记**（app 254 / data 464 / domain 511 / engine 1167 / ui 23 / game 639）：TooGenericExceptionCaught / ReturnCount / CyclomaticComplexMethod / ThrowsCount / UnusedParameter 等历史存量，不在架构文档原登记范围，baseline"只缩不增"下仍真实存在 | 🟡 中 | 专项批次逐条真修或评估销账；新违规必须直接修复 |
+| R-02 | 根治批次交付盘点 | **core/engine 存在 33 处 `import android.*`**（android.util.Log / android.os.Build / android.content.Context / PerformanceHintManager / SystemClock 等，分布于 thermal/perf/config/registry/save 等领域），与"零 Android 依赖"声明不符（本批次仅清零 audio 包） | 🟡 中 | 平台能力接口化专项（参照 G1/G3 已建模式：core 层接口 + app 层实现） |
+| R-03 | 根治批次交付盘点 | **163 处 @Suppress 拆分妥协**：LongMethod 为真拆根除，但拆分搬移引出的 LongParameterList / CyclomaticComplexMethod / ReturnCount / UnusedParameter 等 163 处采用 @Suppress 压制（语义保真已验证） | 🟢 低 | 长期项：参数聚合数据类/策略模式等真拆，逐步消除 Suppress |
+| R-04 | 根治批次交付盘点 | **lintRelease 存量 10 条警告 + 3 条基线过滤**（app/lint-baseline.xml） | 🟢 低 | 逐条销账或补豁免理由，目标零警告 |
+| R-05 | 根治批次交付盘点 | **proguard 宽规则"按序试删"未实际执行**：kotlinx.serialization / coroutines / lifecycle / room 整包 keep 保留（assembleRelease 已通过，但未逐条试删验证可否进一步收窄） | 🟡 中 | 按 T-PRO 顺序在下次 R8 发布验证时实际执行试删（每次删一条 + 完整 R8 + 存档读写回归） |
+| R-06 | 根治批次交付盘点 | **测试代码数百处 `!!` 断言风格**（生产代码已清零，测试保留） | 🟢 低 | 项目决策：纳入规范统一清理或正式豁免测试断言 |
+| R-07 | 根治批次交付盘点 | **CI 全绿未经真实 push 验证**：GitHub Actions 仅在 push 后实跑，本地验证门不等同 CI 结果 | 🟢 低 | 下次 push 后观察首次实跑；失败即修 |
+| R-08 | 根治批次交付盘点 | **Kotlin 2.2 注解目标警告（KT-73255）**：`@ApplicationContext` 等限定符注解在构造参数上，全库同模式（AndroidAudioPlayer/BuglyCrashReporter 编译时已现警告） | 🟢 低 | 项目级决策：`-Xannotation-default-target=param-property` 或逐处 `@param:` 迁移 |
+| R-09 | 2026-08-08 批次"途中发现" | **`withOverflowMailSuppressed` 8 个调用点语义审计**：D-01 新机制下语义变为纯"凭据类不转邮件"，是否保留待审计 | 🟡 中 | 逐调用点核对语义与 CLAUDE.md 13.3 溢出语义分类 |
+| R-10 | docs/build-perf/test-split.md 已知限制 | **app / feature:game 测试拆分门控未实施**（Robolectric 占比 41% / 39% 未过门控） | 🟢 低 | 按 test-split.md 门控执行模块拆分 |
+| R-11 | docs/build-perf 遗留调查项 | **build-perf 文档两处机制未完全解释**：baseline 139.8s 失真机制、Kover 掩盖 Collector 问题机制 | 🟢 低 | 补调查并更新对应 build-perf 文档 |
 
 ### 偿还触发条件档案（2026-08 根治批次建立）
 
 > 本档案收纳"决策不修/客观受限"项的偿还触发条件与实施要点——**不是待办**：
-> 触发条件未满足前不产生任何工作；条件满足时按要点实施。待办表已清空，
-> 本档案是唯一留存的"条件式未来工作"清单。
+> 触发条件未满足前不产生任何工作；条件满足时按要点实施。上方 R 系列为活跃待办表，
+> 本档案是"条件式未来工作"的独立清单（触发前不占工作队列）。
 
 | # | 项 | 偿还触发条件 | 实施要点 |
 |---|----|-------------|---------|
@@ -500,75 +489,4 @@ SaveValidator.validate(SaveData)
 | P-18 | 排行榜 rank 0/1 起始语义 | `TapTapLeaderboardApi.kt`：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 | P-19 | 一月卡顿根治性能量化（代码已提交 commit `7dae538b`） | 真机装 4.00.93 包跨过至少 1 个游戏年，抓 logcat：`CultivationEventMonthlyOps.kt` 各处理器 `op[...] took Nms` 耗时 + `GameEngineCore.kt` "Tick over budget" 是否出现。判定：1 月 tick 收敛至单帧级（目标 <100ms）；AI 修炼日志仅出现在 3/6/9/12 月。**目前仅算法复杂度论证，无实测数据** |
 
-> ~~途中发现待办 D 系列登记表（D-01~D-25）已于 2026-08-09 全部处置完毕并归档清空：已完成/已关闭项的实施要点见下方"实施记录"段落与 CHANGELOG 4.00.86~4.00.93；决策不修项（D-04 / D-10 / D-18~D-20 / D-25）的决策理由见各批次实施记录"不纳入"说明。~~
-
-## 实施记录（2026-08 债务根治批次：D-26~D-49 全量闭环 + 平台缺口 + 245 条超长函数队列）
-
-> ✅ 2026-08 完成：docs/architecture.md 待办 D 系列表清空（每项已完成/转档案）、
-> docs/platform-abilities.md G 系列全闭环、docs/code-quality-task-queue.md 队列拆分、
-> 偿还触发条件档案建立。验证：compileReleaseKotlin + 串行全量 testReleaseUnitTest +
-> detekt（baseline 只缩不增）+ lintRelease + assembleRelease 验证门。
-> 详细技术说明见 CHANGELOG.md「债务根治（2026-08 架构文档债务全量根治批次）」。
-
-| 项 | 实施要点 |
-|---|---------|
-| D-42（玩家可见） | 进程级 `ComplianceCallbackHost`（WindowPort 接口 + 双窗口弱引用转发）+ 共享 `ComplianceLimitDialogs`；游戏内防沉迷提示恢复；10 用例 |
-| D-31（架构级） | `GameForegroundService.onDestroy` 仅 `stopGameLoop()`；引擎初始化状态进程级持有；shutdown 保留为完整拆除路径 |
-| D-29 / G8（iOS 前置） | `KeyValueStore` 接口 + `GamePreferences`（MMKV + SP 一次性迁移纯函数）+ 8 处偏好迁移 + 豁免清单；DataStore 依赖移除 |
-| D-28 / G7 | retrofit/converter-gson 死依赖声明移除（生产 Gson 早已清零） |
-| G1 / A1（iOS 前置） | `AudioPlayerFacade`（core/engine）+ `AndroidAudioPlayer`（app 层）；core/engine audio 包 `import android.*` 清零 |
-| G3 | `CrashReporter` 接口（core/domain）+ `BuglyCrashReporter`（app 层）+ 绑定模块；直引/反射收敛 |
-| G2 | 销账（SurfaceProvider 已抽象，commit `e8c7bb97`） |
-| G4/G5/G6 | 评估 ADR 三份（SQLDelight/DI/CMP，含迁移启动判据） |
-| D-30 | `GameConfig.initialize` 进程级 + `BuildingConfigService.initialize` 实例级幂等守卫（+5 用例） |
-| D-26/D-27 | 测试共享工厂 `testGameStateRepository()` 替换 23 处裸 mock；新建 `rules/testing.md` |
-| D-41 | 14 个测试文件 `createAndroidComposeRule` → junit4.v2 |
-| D-32~D-39 | lint 批量根治（超长行/LocalWindowInfo×8/路由×2/KTX×17/primitive×14/modifier×4/杂项×8） |
-| D-43 | CLAUDE.md 测试命令模块限定写法 |
-| D-40 | 依赖升级 6 项；Aligned16KB ×3 与 glide 大版本转档案 |
-| D-47/D-48/D-49 | YAGNI 决策维持，转偿还触发条件档案 |
-| K 项 | 销账（RNG 快照/回滚已实施） |
-| F 项 | proguard 删除 2 条宽 keep 规则 + 其余补保留原因注释 |
-| J 项 | GameOverlayHost 4 处 `!!` 清理 |
-| 构建挂账 | footprint 迁移 build/generated；convention plugin 收编 7 模块；kover 开关补齐；CI 补 lintRelease；jetifier 文档闭环 |
-| P3 队列 | 245 条 LongMethod 全量拆分（19 并行工作组提取重构 + 主线程编译修复 + baseline 逐条摘除） |
-| fps 方案 | fps-optimization-plan.md 转实施状态盘点（P1.1/P1.3/P2.1/P2.3/P2.4/P3.1/P3.2/P3.5 已实施销账，其余决策归档） |
-
-**不纳入**：P-16/P-18/P-19（待真机验证指引保留）、Aligned16KB ×3（等 SDK 方，转档案 T-D40A）。
-
-## 实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）——已完成
-
-> ✅ 全部 10 项已于 2026-08-08 完成并提交（commit `3570cb97`，267 文件 +14628/-3033）。验证：串行全量测试 `./gradlew.bat test --max-workers=1` BUILD SUCCESSFUL、全模块 detekt 通过、compileReleaseKotlin 通过。详细技术说明见 CHANGELOG.md「架构债务清理（2026-08-08）」。
-
-| 项 | 用户决策 | 实施要点 |
-|---|---------|---------|
-| D-03 | **彻底重构**（容量无上限） | 袋条目 payload 持有数据（Equipment/Stacked），写入永不因袋满失败；物化迁移兼容老存档 + 悬空条目删除；DATABASE_VERSION 不变 |
-| D-01 | **彻底根治** | 草稿入队即持久化（新表 overflow_mail_drafts/direct_mail_drafts）+ 事务世代号（提交恰一次落盘、回滚丢弃）；崩溃恢复经 startGameLoop drain；DATABASE_VERSION 42→43 |
-| D-07 | 状态机互斥 | LoopPhase CAS（RUNNING/RESTARTING/STOPPING/STOPPED），孤儿循环/双速根治 |
-| D-15 | ABC 三块拆分 | AISectOccupationResolver（占领结算）+ PlayerDefenseProcessor（玩家防守），原类保留编排 |
-| D-08+D-09 | 接线 + internal 接缝 | startGameLoop 接线 start/stop（换线程重建）；hintManager 改 internal 接缝 + Robolectric 补分支用例 |
-| D-05+D-16 | 删除 | interactWithSect / generateSectTradeItems 死代码链清理 |
-| D-17 | 真修 + baseline | 9 条预存违规清零（拆函数/抽共用守卫/baseline 签名更新） |
-| D-06 | 自有包显式化 + Compose 白名单 | detekt.yml 21 条 excludeImports + 自有包约 260 处显式化 + 工具 `android/scripts/expand-wildcard-imports.mjs` |
-
-**不纳入**：D-04（产品已确认固定挑战）、D-10（HWUI 看门狗长期项）、D-18/D-19/D-20（已决策不修）、P-16/P-18/P-19（待真机验证）。
-
-### 途中发现（登记在案）
-
-- `withOverflowMailSuppressed` 8 个调用点在 D-01 新机制下语义变为纯"凭据类不转邮件"，是否保留列入后续审计
-- D-03 途中修复预存复制 bug：`DiscipleLifecycleProcessor.returnEquipmentToWarehouse` Failure(Full) 时邮件已发但实例保留（已随 D-03 处理）
-
-## 实施记录（2026-08-09：D-21 / D-22 / D-23 三项 + D-24 关闭）——已完成
-
-> ✅ 三项已于 2026-08-09 完成（商人交易防御批次）。验证：`MerchantPriceValidationTest` 6 条全绿 + 串行全量 `testReleaseUnitTest` + `koverHtmlReport` + compileReleaseKotlin + lintRelease（D-24 关闭）。
-
-| 项 | 实施要点 |
-|---|---------|
-| D-21 | 入口校验 `price <= 0` 拒绝购买 + DomainLog.w；**举一反三同类缺口**：sellToMerchant 收购路径防物品丢失（先移除后入账、wallet.add 静默拒绝），入口校验拒绝。实测修正登记描述（负价购买实为静默失败而非灵石反增，wallet.deduct 兜底）。AutoBuyService/上架核查安全 |
-| D-22 | 最小修复（用户决策）：刷新按钮清空 selectedItem + buyQuantity（对齐切 Tab/切筛选先例）；引擎侧商品不存在分支补兜底日志。未做接口签名改造 |
-| D-23 | 删除 `if (viewModel != null)` 恒 true 死条件 |
-| D-24 | CI 精确变体 `testReleaseUnitTest` + `koverHtmlReport` + lint 全绿（补 4.00.93 一月卡顿批次未跑尾巴） |
-
-**不纳入**：P-16/P-18/P-19（待真机验证，指引保留于上方"待真机验证指引"小节）、D-25（对抗性审查接受不修）、D-04/D-10/D-18/D-19/D-20（已决策）、维持现状决策项（W4/拉条移植/P6/P-11 附带）。
-
-> **2026-08-09 归档**：待完成项登记章节全部条目（T/P/D 系列）已处置完毕并清空，维持现状决策表 / 途中发现待办 D 系列表 / 待真机验证表均已清理，仅保留待真机验证指引（P-16/P-18/P-19）。历史记录见 CHANGELOG 4.00.86~4.00.93 与上方各实施记录段落。
+> 历史实施记录（D-01~D-25、2026-08-08 / 2026-08-09 批次、2026-08 债务根治批次）已于 2026-08-15 随本文件清理移除——完整实施要点、验证结果与"不纳入"决策理由见 CHANGELOG.md 4.00.86~4.00.93 及「债务根治（2026-08 架构文档债务全量根治批次）」条目与 git 历史。
