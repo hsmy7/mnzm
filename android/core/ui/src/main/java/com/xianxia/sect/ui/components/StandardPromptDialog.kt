@@ -34,8 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -255,9 +257,11 @@ fun StandardPromptDialog(
 ) {
     // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
     //（Android 15 edge-to-edge 下两者 insets 行为差异且取整精度不同）
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
     val windowSize = LocalWindowInfo.current.containerSize
-    val dialogWidth = (windowSize.width / 2).dp
-    val dialogHeight = (windowSize.height * 0.55f).dp
+    val density = LocalDensity.current
+    val dialogWidth = with(density) { (windowSize.width / 2).toDp() }
+    val dialogHeight = with(density) { (windowSize.height * 0.55f).toDp() }
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -364,9 +368,11 @@ fun InlineStandardPromptDialog(
 
     // 在 composition 入口处读取窗口尺寸并用 remember 缓存，之后不再变化
     // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
     val windowSize = LocalWindowInfo.current.containerSize
-    val dialogWidth = remember { (windowSize.width / 2).dp }
-    val dialogHeight = remember { (windowSize.height * 0.55f).dp }
+    val density = LocalDensity.current
+    val dialogWidth = remember { with(density) { (windowSize.width / 2).toDp() } }
+    val dialogHeight = remember { with(density) { (windowSize.height * 0.55f).toDp() } }
 
     if (dismissOnBackPress) {
         BackHandler { onDismissRequest() }
@@ -479,6 +485,7 @@ private fun PromptDialogFrame(
         modifier = Modifier
             .width(dialogWidth)
             .height(dialogHeight)
+            .testTag("prompt_frame") // 尺寸回归守卫测试锚点（D-34 px/dp 换算）
             .clip(RoundedCornerShape(12.dp))
             .clickableWithSound(
                 interactionSource = remember { MutableInteractionSource() },

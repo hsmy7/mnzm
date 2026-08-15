@@ -15,14 +15,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogWindowProvider
 import org.junit.Assert.assertEquals
@@ -85,6 +89,28 @@ class StandardPromptDialogTest {
     }
 
     // ── Compose 渲染形态 ───────────────────────────────────
+
+    // D-34 回归守卫：containerSize 为像素单位，必须经 LocalDensity 换算为 dp。
+    // xhdpi（density=2）下 360×800dp 窗口 = 720×1600px：
+    // 修复前 (720/2).dp=360dp=全屏宽、(1600×0.55).dp=880dp>屏高 800dp → 断言失败；
+    // 修复后 720px→360dp→/2=180dp（屏宽一半）、1600px→800dp→×0.55=440dp（屏高 55%）。
+    @Test
+    @Config(qualifiers = "w360dp-h800dp-xhdpi")
+    fun `提示框尺寸为屏宽一半屏高55% - containerSize像素转dp守卫`() {
+        composeRule.setContent {
+            InlineStandardPromptDialog(
+                onDismissRequest = {},
+                title = "测试标题",
+                confirmLabel = "确定"
+            ) {
+                Text("对话框内容")
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("prompt_frame")
+            .assertWidthIsEqualTo(180.dp)
+            .assertHeightIsEqualTo(440.dp)
+    }
 
     @Test
     fun `内联渲染不创建平台 Dialog 窗口 - rootView 即 Activity decorView`() {

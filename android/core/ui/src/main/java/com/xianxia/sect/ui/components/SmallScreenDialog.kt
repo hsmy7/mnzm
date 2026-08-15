@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -52,9 +53,11 @@ fun SmallScreenDialog(
     content: @Composable ColumnScope.() -> Unit
 ) {
     // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp/screenHeightDp
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
     val windowSize = LocalWindowInfo.current.containerSize
-    val dialogWidth = (windowSize.width / 2).dp
-    val dialogHeight = (windowSize.height * 0.55f).dp
+    val density = LocalDensity.current
+    val dialogWidth = with(density) { (windowSize.width / 2).toDp() }
+    val dialogHeight = with(density) { (windowSize.height * 0.55f).toDp() }
 
     Dialog(
         onDismissRequest = if (dismissOnClickOutside) onDismissRequest else {{}},

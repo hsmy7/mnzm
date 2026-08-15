@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -733,7 +734,10 @@ private fun DialogueBubble(
     else R.drawable.dialogue_bubble_right
 
     // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
-    val bubbleMaxWidth = (LocalWindowInfo.current.containerSize.width * 0.65f).dp
+    // containerSize 单位是像素，需经 LocalDensity 换算为 dp（D-34 回归修复：勿直接 .dp 使用像素值）
+    val bubbleMaxWidth = with(LocalDensity.current) {
+        (LocalWindowInfo.current.containerSize.width * 0.65f).toDp()
+    }
 
     Box(
         modifier = modifier

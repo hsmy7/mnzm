@@ -104,6 +104,14 @@
 - **测试** — `ProfessionProgressSectionTest` 更新 6 组断言（12/200、50/200 数量显示；4 组达标场景数量显示被红色提示替换 `assertDoesNotExist`）+ 新增 1 组（数量达标且条件全满足显示 "200/200"）；数量显示颜色（`Color.White`）由代码显式指定——compose-ui 1.11.2 语义层（`SemanticsProperties`）不暴露文本颜色属性，无法自动化断言颜色，属框架限制（已在本文件 KDoc 记录）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 展示层变化；无渲染管线（Vulkan/Canvas）、无经济、无隐私合规影响；LTR 设备（中文环境）进度条渲染与现状一致
 
+### 修复：提示框/小屏对话框全屏显示回归——D-34 容器尺寸迁移漏做像素→dp 换算
+
+> 背景：用户反馈"提示框对话框变成了全屏"。因果链：commit `d461a4a0`（2026-08-15 D-34 债务根治批次）为规避 Android 15 edge-to-edge 下 `Configuration.screenWidthDp/screenHeightDp` 的 insets/取整差异，将尺寸来源迁移为 `LocalWindowInfo.current.containerSize`——但 `containerSize` 单位是**像素**（px），迁移时未同步做密度换算，表达式仍直接 `.dp` 使用像素值，尺寸被放大 density 倍（如 3 倍），对话框宽/高超过屏幕 → 视觉全屏甚至溢出。`UnifiedGameDialog` 走 `fillMaxWidth(0.83f)` 比例式修饰符不受影响，故仅提示框/小屏类受影响，与症状吻合。
+
+- **修复（6 处同类）** — 全部经 `LocalDensity.current` 换算 px→dp：`StandardPromptDialog` 与 `InlineStandardPromptDialog`（提示框宽=屏宽一半、高=屏高 55%）、`SmallScreenDialog`（同尺寸）、`SectDiplomacyDialog` 与 `DiscipleChatDialog` 对话气泡（`bubbleMaxWidth = containerSize.width × 0.65f`）、`DetailManualSection` 功法槽位列数（`containerSize.width / density / 100`，恢复每 100dp 一列的旧语义）
+- **测试** — `StandardPromptDialogTest` 新增尺寸回归守卫用例（`@Config(w360dp-h800dp-xhdpi)`，断言提示框宽 180dp=屏宽一半、高 440dp=屏高 55%；修复前宽 360dp=全屏宽、高 880dp>屏高直接失败）+ `prompt_frame` testTag 锚点
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 布局修复；无渲染管线（Vulkan/Canvas）、无经济、无隐私合规影响；iOS 无平台能力变更
+
 ## [4.00.98] - 2026-08-14
 
 ### 优化（2026-08-14 平板省电专项：渲染分辨率缩放 + 刷新率联动 + 脏帧跳过 + 动态 ADPF + 省电模式监听）
