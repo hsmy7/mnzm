@@ -132,16 +132,21 @@ class GameForegroundService : Service() {
     }
 
     override fun onDestroy() {
-        // 调用 shutdown() 而非 stopGameLoop()，确保完整释放：
-        // - systemManager.releaseAll() 释放所有系统
-        // - isInitialized = false 允许下次启动重新初始化
-        // - engineScope / engineJob 重建，防止跨 session 状态污染
-        // （stopGameLoop 仅取消 gameLoopJob，不会重置上述状态）
-        gameEngineCore.shutdown()
+        // 仅停止游戏循环，不调用 shutdown()（docs/architecture.md 待办 D-31 根治）：
+        // - shutdown() 会 systemManager.releaseAll() + isInitialized=false，导致每次
+        //   退出/重进游戏（含 START_STICKY 系统重建）完整重跑全部 GameSystem 的
+        //   initialize/release 循环——引擎初始化状态改由进程级持有（@Singleton 存活
+        //   期间仅初始化一次），Service 只负责循环启停（start/stop/pause/resume）
+        // - stopGameLoop 已覆盖：循环 job 取消 + 热控监控停 + 看门狗停 + isPaused=true
+        // - engineScope/engineJob 无需重建：stop→start 在同一存活 scope 上 launch 新循环
+        //   （旧循环 job 已取消，scope 干净可用）
+        // - shutdown() 保留为完整拆除路径（未来"登出回主菜单释放资源"等进程级场景，
+        //   见 docs/audio-thread-audit.md A2 偿还触发）
+        gameEngineCore.stopGameLoop()
         wakeLockManager.release()
         // 取消 AlarmManager 精确闹钟
         AlarmWatchdogReceiver.cancelAlarm(this)
-        Log.d(TAG, "onDestroy: engine shutdown, wakeLock released, alarm cancelled")
+        Log.d(TAG, "onDestroy: game loop stopped, wakeLock released, alarm cancelled")
         super.onDestroy()
     }
 

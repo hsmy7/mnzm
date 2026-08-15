@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
@@ -23,8 +24,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.engine.MerchantRefreshResult
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.ui.components.GameButton
@@ -54,59 +61,83 @@ private val merchantQuantitySizes = QuantitySelectorSizes(
     buttonFontSize = 14.sp,
 )
 
+/** 云游商人对话框状态（MerchantDialog 拆分） */
+private class MerchantDialogState {
+    var selectedItem by mutableStateOf<MerchantItem?>(null)
+    var buyQuantity by mutableIntStateOf(1)
+    var showDetailDialog by mutableStateOf(false)
+    var showListingDialog by mutableStateOf(false)
+    var showAutoBuyDialog by mutableStateOf(false)
+    var selectedFilter by mutableStateOf(MerchantFilter.ALL)
+    var merchantMode by mutableStateOf(MerchantMode.BUY)
+    var showSellConfirmDialog by mutableStateOf(false)
+    var selectedAcquisitionItem by mutableStateOf<MerchantItem?>(null)
+    var showJadeDialog by mutableStateOf(false)
+    var showNoChancesDialog by mutableStateOf(false)
+
+    /** 清空购买面板选中（刷新/切换筛选/购买完成后复用） */
+    fun clearBuySelection() {
+        selectedItem = null
+        buyQuantity = 1
+    }
+
+    /** 清空购买 + 收购两侧选中（切换 Tab 时复用） */
+    fun clearAllSelection() {
+        selectedItem = null
+        selectedAcquisitionItem = null
+        buyQuantity = 1
+    }
+
+    /** 商品点击切换选中（同商品再次点击取消选中） */
+    fun toggleBuyItem(item: MerchantItem) {
+        if (selectedItem?.id == item.id) {
+            clearBuySelection()
+        } else {
+            selectedItem = item
+            buyQuantity = 1
+        }
+    }
+}
+
+/** 商人购买面板参数打包（MerchantDialog 拆分，参数 >8 规避 LongParameterList） */
+private data class MerchantBuyPanelParams(
+    val merchantItems: List<MerchantItem>,
+    val filteredItems: List<MerchantItem>,
+    val selectedFilter: MerchantFilter,
+    val selectedItem: MerchantItem?,
+    val buyQuantity: Int,
+    val spiritStones: Long,
+    val watchedKeys: Set<String>
+)
+
+/** 商人收购面板参数打包（MerchantDialog 拆分，参数 >8 规避 LongParameterList） */
+private data class MerchantAcquisitionPanelParams(
+    val acquisitionItems: List<MerchantItem>,
+    val watchedKeys: Set<String>
+)
+
 @Composable
 fun MerchantDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
+    val state = remember { MerchantDialogState() }
     val merchantItems = gameData?.travelingMerchantItems ?: emptyList()
-    var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
-    var buyQuantity by remember { mutableIntStateOf(1) }
-    var showDetailDialog by remember { mutableStateOf(false) }
-    var showListingDialog by remember { mutableStateOf(false) }
-    var showAutoBuyDialog by remember { mutableStateOf(false) }
-    var selectedFilter by remember { mutableStateOf(MerchantFilter.ALL) }
-    var merchantMode by remember { mutableStateOf(MerchantMode.BUY) }
-    var showSellConfirmDialog by remember { mutableStateOf(false) }
-    var selectedAcquisitionItem by remember { mutableStateOf<MerchantItem?>(null) }
-    var showJadeDialog by remember { mutableStateOf(false) }
-    var showNoChancesDialog by remember { mutableStateOf(false) }
-
+    val acquisitionItems = gameData?.merchantAcquisitionItems ?: emptyList()
     val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
     val pills by viewModel.pills.collectAsStateWithLifecycle()
     val materials by viewModel.materials.collectAsStateWithLifecycle()
     val herbs by viewModel.herbs.collectAsStateWithLifecycle()
     val seeds by viewModel.seeds.collectAsStateWithLifecycle()
-
-    val acquisitionItems = gameData?.merchantAcquisitionItems ?: emptyList()
-
     val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
-
-    fun getWarehouseQuantity(item: MerchantItem): Int = when (item.type.lowercase()) {
-        "equipment" -> equipment.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
-        "manual" -> manuals.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
-        "pill" -> pills.filter { it.name == item.name && it.rarity == item.rarity && it.grade.displayName == (item.grade ?: "") }.sumOf { it.quantity }
-        "material" -> materials.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
-        "herb" -> herbs.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
-        "seed" -> seeds.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
-        else -> 0
+    val warehouseQuantityOf = { item: MerchantItem ->
+        merchantWarehouseQuantity(item, equipment, manuals, pills, materials, herbs, seeds)
     }
-
-    val filteredItems = remember(merchantItems, selectedFilter, watchedKeys) {
-        val items = if (selectedFilter == MerchantFilter.ALL) merchantItems
-        else merchantItems.filter { it.type == selectedFilter.typeValue }
-        // id 去重兜底：损坏存档可能出现重复/空 id 商品，
-        // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
-        items.distinctBy { it.id }.sortedByWatchedThenRarity(
-            watchedKeys,
-            keyOf = { watchKeyOf(it) },
-            rarityOf = { it.rarity },
-            nameOf = { it.name }
-        )
+    val filteredItems = remember(merchantItems, state.selectedFilter, watchedKeys) {
+        sortMerchantItems(merchantItems, state.selectedFilter, watchedKeys)
     }
-
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "云游商人",
@@ -115,225 +146,433 @@ fun MerchantDialog(
         scrollableContent = false,
         // 含购买数量常驻输入框：冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
         freezeSystemBars = true,
-        // 玉符购买弹窗（InlineStandardPromptDialog 覆盖层）渲染在窗口级 overlay 槽位：
-        // content 列内渲染会作为第二个 fillMaxSize 兄弟子项被挤压为 0 高度而不可见
-        // （57352e02 兑换码事故同源回归机制，见 StandardPromptDialogTest 0 高度用例）
+        // 玉符购买弹窗渲染在窗口级 overlay 槽位（content 列内渲染会被挤压为 0 高度，
+        // 57352e02 兑换码事故同源回归机制，见 StandardPromptDialogTest 0 高度用例）
         overlay = {
-            if (showJadeDialog) {
-                JadePurchaseFlow(
-                    title = "获取刷新次数",
-                    description = "消耗1玉符获取3次刷新次数",
-                    jadeSymbols = gameData?.jadeSymbols ?: 0,
-                    insufficientText = "玉符不足，无法获取刷新次数",
-                    purchase = {
-                        when (viewModel.purchaseMerchantRefresh()) {
-                            is MerchantRefreshResult.Success -> JadePurchaseOutcome.Success
-                            is MerchantRefreshResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
-                            is MerchantRefreshResult.LimitReached -> JadePurchaseOutcome.Success
-                            is MerchantRefreshResult.Error -> JadePurchaseOutcome.Failed("获取失败，请重试")
-                        }
-                    },
-                    onDismiss = { showJadeDialog = false }
-                )
-            }
+            MerchantJadeOverlay(
+                show = state.showJadeDialog,
+                jadeSymbols = gameData?.jadeSymbols ?: 0,
+                onPurchase = { merchantRefreshPurchaseOutcome(viewModel.purchaseMerchantRefresh()) },
+                onDismiss = { state.showJadeDialog = false }
+            )
         },
         headerActions = {
-            val data = gameData
-            val low = GameUtils.formatNumber(data?.spiritStones ?: 0)
-            val mid = GameUtils.formatNumber(data?.midGradeSpiritStones ?: 0)
-            val high = GameUtils.formatNumber(data?.highGradeSpiritStones ?: 0)
-            Text("下品:$low 中品:$mid 上品:$high", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = Color.Black, modifier = Modifier.padding(end = 8.dp))
-            GameButton(text = "上架", onClick = { showListingDialog = true })
-            GameButton(text = "自动购买", onClick = { showAutoBuyDialog = true })
-            Spacer(Modifier.width(4.dp))
-            val refreshChances = data?.merchantRefreshChances ?: 0
-            GameButton(
-                text = "刷新",
-                onClick = {
-                    if (refreshChances > 0) {
-                        viewModel.refreshTravelingMerchantManual()
-                        // D-22:刷新后商品可能被替换/变价,清空失效选中(对齐切 Tab/切筛选先例)
-                        selectedItem = null; buyQuantity = 1
-                    } else {
-                        showNoChancesDialog = true
-                    }
-                }
-            )
-            Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = Color.White, modifier = Modifier.padding(start = 4.dp))
-            SpriteImage(
-                name = "ui_add_button",
-                contentDescription = "获取刷新次数",
-                modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape)
-                    .clickable { showJadeDialog = true },
-                contentScale = ContentScale.FillBounds
+            MerchantHeaderActions(
+                gameData = gameData, viewModel = viewModel,
+                onOpenListing = { state.showListingDialog = true },
+                onOpenAutoBuy = { state.showAutoBuyDialog = true },
+                onRefreshSuccess = { state.clearBuySelection() },
+                onNoChances = { state.showNoChancesDialog = true },
+                onOpenJade = { state.showJadeDialog = true }
             )
         }
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            // 购买/收购 标签切换
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                MerchantMode.entries.forEach { mode ->
-                    val isActive = merchantMode == mode
-                    Column(horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f).clickable {
-                            merchantMode = mode; selectedItem = null; selectedAcquisitionItem = null; buyQuantity = 1
-                        }) {
-                        Text(mode.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            color = if (isActive) Color.Black else Color.Gray)
-                        Box(Modifier.fillMaxWidth().height(2.dp).background(if (isActive) GameColors.GoldDark else Color.Gray))
+        MerchantModeContent(
+            state = state, viewModel = viewModel, gameData = gameData,
+            merchantItems = merchantItems, filteredItems = filteredItems,
+            acquisitionItems = acquisitionItems, watchedKeys = watchedKeys,
+            warehouseQuantityOf = warehouseQuantityOf
+        )
+    }
+    MerchantSubDialogs(
+        state = state, viewModel = viewModel,
+        gameData = gameData, warehouseQuantityOf = warehouseQuantityOf
+    )
+}
+
+/** 商人商品排序（MerchantDialog 拆分）：筛选 + id 去重 + 已关注优先 */
+private fun sortMerchantItems(
+    merchantItems: List<MerchantItem>,
+    selectedFilter: MerchantFilter,
+    watchedKeys: Set<String>
+): List<MerchantItem> {
+    val items = if (selectedFilter == MerchantFilter.ALL) merchantItems
+    else merchantItems.filter { it.type == selectedFilter.typeValue }
+    // id 去重兜底：损坏存档可能出现重复/空 id 商品，
+    // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
+    return items.distinctBy { it.id }.sortedByWatchedThenRarity(
+        watchedKeys,
+        keyOf = { watchKeyOf(it) },
+        rarityOf = { it.rarity },
+        nameOf = { it.name }
+    )
+}
+
+/** 商人商品仓库持有量（MerchantDialog 拆分）：按类型统计同名同稀有度数量 */
+// 拆分搬移:分支结构与原函数一致
+@Suppress("CyclomaticComplexMethod")
+private fun merchantWarehouseQuantity(
+    item: MerchantItem,
+    equipment: List<EquipmentStack>,
+    manuals: List<ManualStack>,
+    pills: List<Pill>,
+    materials: List<Material>,
+    herbs: List<Herb>,
+    seeds: List<Seed>
+): Int = when (item.type.lowercase()) {
+    "equipment" -> equipment.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+    "manual" -> manuals.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+    "pill" -> pills.filter { it.name == item.name && it.rarity == item.rarity && it.grade.displayName == (item.grade ?: "") }.sumOf { it.quantity }
+    "material" -> materials.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+    "herb" -> herbs.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+    "seed" -> seeds.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
+    else -> 0
+}
+
+/** 刷新次数购买结果转换（MerchantDialog 拆分） */
+private fun merchantRefreshPurchaseOutcome(result: MerchantRefreshResult): JadePurchaseOutcome = when (result) {
+    is MerchantRefreshResult.Success -> JadePurchaseOutcome.Success
+    is MerchantRefreshResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
+    is MerchantRefreshResult.LimitReached -> JadePurchaseOutcome.Success
+    is MerchantRefreshResult.Error -> JadePurchaseOutcome.Failed("获取失败，请重试")
+}
+
+/** 玉符购买弹窗覆盖层（MerchantDialog 拆分）：窗口级 overlay 槽位渲染 */
+@Composable
+private fun MerchantJadeOverlay(
+    show: Boolean,
+    jadeSymbols: Int,
+    onPurchase: suspend () -> JadePurchaseOutcome,
+    onDismiss: () -> Unit
+) {
+    if (show) {
+        JadePurchaseFlow(
+            title = "获取刷新次数",
+            description = "消耗1玉符获取3次刷新次数",
+            jadeSymbols = jadeSymbols,
+            insufficientText = "玉符不足，无法获取刷新次数",
+            purchase = onPurchase,
+            onDismiss = onDismiss
+        )
+    }
+}
+
+/** 商人标题栏动作（MerchantDialog 拆分）：灵石栏 + 上架/自动购买/刷新/玉符入口 */
+@Composable
+private fun MerchantHeaderActions(
+    gameData: GameData?,
+    viewModel: GameViewModel,
+    onOpenListing: () -> Unit,
+    onOpenAutoBuy: () -> Unit,
+    onRefreshSuccess: () -> Unit,
+    onNoChances: () -> Unit,
+    onOpenJade: () -> Unit
+) {
+    val low = GameUtils.formatNumber(gameData?.spiritStones ?: 0)
+    val mid = GameUtils.formatNumber(gameData?.midGradeSpiritStones ?: 0)
+    val high = GameUtils.formatNumber(gameData?.highGradeSpiritStones ?: 0)
+    Text("下品:$low 中品:$mid 上品:$high", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        color = Color.Black, modifier = Modifier.padding(end = 8.dp))
+    GameButton(text = "上架", onClick = onOpenListing)
+    GameButton(text = "自动购买", onClick = onOpenAutoBuy)
+    Spacer(Modifier.width(4.dp))
+    val refreshChances = gameData?.merchantRefreshChances ?: 0
+    GameButton(
+        text = "刷新",
+        onClick = {
+            if (refreshChances > 0) {
+                viewModel.refreshTravelingMerchantManual()
+                // D-22:刷新后商品可能被替换/变价,清空失效选中(对齐切 Tab/切筛选先例)
+                onRefreshSuccess()
+            } else {
+                onNoChances()
+            }
+        }
+    )
+    Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        color = Color.White, modifier = Modifier.padding(start = 4.dp))
+    SpriteImage(
+        name = "ui_add_button",
+        contentDescription = "获取刷新次数",
+        modifier = Modifier
+            .size(18.dp)
+            .clip(CircleShape)
+            .clickable { onOpenJade() },
+        contentScale = ContentScale.FillBounds
+    )
+}
+
+/** 购买/收购模式主体（MerchantDialog 拆分）：标签切换 + 模式分支 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun MerchantModeContent(
+    state: MerchantDialogState,
+    viewModel: GameViewModel,
+    gameData: GameData?,
+    merchantItems: List<MerchantItem>,
+    filteredItems: List<MerchantItem>,
+    acquisitionItems: List<MerchantItem>,
+    watchedKeys: Set<String>,
+    warehouseQuantityOf: (MerchantItem) -> Int
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        // 购买/收购 标签切换
+        MerchantModeTabs(
+            merchantMode = state.merchantMode,
+            onModeSelect = { mode ->
+                state.merchantMode = mode
+                state.clearAllSelection()
+            }
+        )
+
+        when (state.merchantMode) {
+            MerchantMode.BUY -> MerchantBuyMode(
+                params = MerchantBuyPanelParams(
+                    merchantItems = merchantItems,
+                    filteredItems = filteredItems,
+                    selectedFilter = state.selectedFilter,
+                    selectedItem = state.selectedItem,
+                    buyQuantity = state.buyQuantity,
+                    spiritStones = gameData?.spiritStones ?: 0,
+                    watchedKeys = watchedKeys
+                ),
+                onFilterSelect = { filter -> state.selectedFilter = filter; state.clearBuySelection() },
+                onItemClick = { item -> state.toggleBuyItem(item) },
+                onItemLongPress = { item ->
+                    state.selectedItem = item
+                    state.showDetailDialog = true
+                },
+                onQuantityChange = { qty ->
+                    state.selectedItem?.let { state.buyQuantity = qty.coerceAtLeast(QUANTITY_MIN) }
+                },
+                onConfirm = {
+                    state.selectedItem?.let {
+                        viewModel.buyFromMerchant(it.id, state.buyQuantity)
+                        state.clearBuySelection()
                     }
+                },
+                onCancel = { state.clearBuySelection() }
+            )
+
+            MerchantMode.ACQUISITION -> MerchantAcquisitionMode(
+                params = MerchantAcquisitionPanelParams(
+                    acquisitionItems = acquisitionItems,
+                    watchedKeys = watchedKeys
+                ),
+                warehouseQuantityOf = warehouseQuantityOf,
+                onSellClick = { item ->
+                    state.selectedAcquisitionItem = item
+                    state.showSellConfirmDialog = true
+                },
+                onItemLongPress = { item ->
+                    state.selectedItem = item
+                    state.showDetailDialog = true
+                }
+            )
+        }
+    }
+}
+
+/** 购买/收购标签切换行（MerchantDialog 拆分） */
+@Composable
+private fun MerchantModeTabs(
+    merchantMode: MerchantMode,
+    onModeSelect: (MerchantMode) -> Unit
+) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        MerchantMode.entries.forEach { mode ->
+            val isActive = merchantMode == mode
+            Column(horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f).clickable { onModeSelect(mode) }) {
+                Text(mode.displayName, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = if (isActive) Color.Black else Color.Gray)
+                Box(Modifier.fillMaxWidth().height(2.dp).background(if (isActive) GameColors.GoldDark else Color.Gray))
+            }
+        }
+    }
+}
+
+/** 商人购买模式内容（MerchantDialog 拆分）：空态 + 筛选行 + 商品网格 + 购买面板 */
+@Composable
+private fun ColumnScope.MerchantBuyMode(
+    params: MerchantBuyPanelParams,
+    onFilterSelect: (MerchantFilter) -> Unit,
+    onItemClick: (MerchantItem) -> Unit,
+    onItemLongPress: (MerchantItem) -> Unit,
+    onQuantityChange: (Int) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    if (params.merchantItems.isEmpty()) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("商人正在旅途中...\n请稍后再来", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)
+        }
+    } else {
+        Column(Modifier.weight(1f)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MerchantFilter.entries.forEach { filter ->
+                    ListingFilterButton(text = filter.displayName, selected = params.selectedFilter == filter,
+                        onClick = { onFilterSelect(filter) })
                 }
             }
-
-            when (merchantMode) {
-                MerchantMode.BUY -> {
-                    if (merchantItems.isEmpty()) {
-                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text("商人正在旅途中...\n请稍后再来", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)
-                        }
-                    } else {
-                        Column(Modifier.weight(1f)) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                MerchantFilter.entries.forEach { filter ->
-                                    ListingFilterButton(text = filter.displayName, selected = selectedFilter == filter,
-                                        onClick = { selectedFilter = filter; selectedItem = null; buyQuantity = 1 })
-                                }
-                            }
-                            if (filteredItems.isEmpty()) {
-                                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                    Text("该分类暂无物品", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)
-                                }
-                            } else {
-                                LazyVerticalGrid(columns = GridCells.Adaptive(60.dp),
-                                    modifier = Modifier.weight(1f).padding(8.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    items(filteredItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
-                                        UnifiedItemCard(data = ItemCardData(id = item.id, name = item.name, rarity = item.rarity,
-                                            quantity = item.quantity, additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
-                                            grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
-                                            isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
-                                            isSelected = selectedItem?.id == item.id,
-                                            isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
-                                            onClick = {
-                                                // 0 库存商品不可选购（对齐收购页门卫，防损坏存档 0 库存商品进入购买面板）
-                                                if (item.quantity > 0) {
-                                                    if (selectedItem?.id == item.id) {
-                                                        selectedItem = null
-                                                        buyQuantity = 1
-                                                    } else {
-                                                        selectedItem = item
-                                                        buyQuantity = 1
-                                                    }
-                                                }
-                                            },
-                                            onLongPress = { selectedItem = item; showDetailDialog = true })
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    PurchasePanel(item = selectedItem, quantity = buyQuantity, maxQuantity = selectedItem?.quantity ?: 1,
-                        spiritStones = gameData?.spiritStones ?: 0,
-                        onQuantityChange = { qty ->
-                            selectedItem?.let { buyQuantity = qty.coerceAtLeast(QUANTITY_MIN) }
-                        },
-                        onConfirm = { selectedItem?.let { viewModel.buyFromMerchant(it.id, buyQuantity); selectedItem = null; buyQuantity = 1 } },
-                        onCancel = { selectedItem = null; buyQuantity = 1 })
+            if (params.filteredItems.isEmpty()) {
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("该分类暂无物品", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)
                 }
-
-                MerchantMode.ACQUISITION -> {
-                    val sortedAcquisitionItems = remember(acquisitionItems, watchedKeys) {
-                        // id 去重兜底：防 LazyColumn key="" 重复崩溃（Bugly #5079/#3091）
-                        acquisitionItems.distinctBy { it.id }.sortedByWatchedThenRarity(
-                            watchedKeys,
-                            keyOf = { watchKeyOf(it) },
-                            rarityOf = { it.rarity },
-                            nameOf = { it.name }
-                        )
-                    }
-                    if (sortedAcquisitionItems.isEmpty()) {
-                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text("商人暂无收购需求\n请明年再来", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)
-                        }
-                    } else {
-                        Column(Modifier.weight(1f)) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("物品", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1.3f))
-                                Text("收购数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                                Text("收购价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                                Text("出售", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                            }
-                            HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
-                            LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                items(sortedAcquisitionItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
-                                    val warehouseQty = getWarehouseQuantity(item)
-                                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Box(Modifier.weight(1.3f)) {
-                                            UnifiedItemCard(data = ItemCardData(id = item.id, name = item.name, rarity = item.rarity,
-                                                quantity = item.quantity, additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
-                                                grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
-                                                isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
-                                                isSelected = false,
-                                                isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
-                                                onClick = { if (item.quantity > 0 && warehouseQty > 0) { selectedAcquisitionItem = item; showSellConfirmDialog = true } },
-                                                onLongPress = { selectedItem = item; showDetailDialog = true })
-                                        }
-                                        Text(GameUtils.formatNumber(item.quantity), fontSize = 11.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                                        Text(GameUtils.formatNumber(item.price), fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                            when {
-                                                item.quantity == 0 -> Text("不再收购", color = Color.Red, fontSize = 10.sp)
-                                                warehouseQty == 0 -> GameButton(text = "出售", onClick = {}, enabled = false)
-                                                else -> GameButton(text = "出售", onClick = { selectedAcquisitionItem = item; showSellConfirmDialog = true })
-                                            }
-                                        }
-                                    }
+            } else {
+                LazyVerticalGrid(columns = GridCells.Adaptive(60.dp),
+                    modifier = Modifier.weight(1f).padding(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(params.filteredItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
+                        UnifiedItemCard(data = ItemCardData(id = item.id, name = item.name, rarity = item.rarity,
+                            quantity = item.quantity, additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
+                            grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
+                            isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
+                            isSelected = params.selectedItem?.id == item.id,
+                            isFollowed = watchKeyOf(item)?.let { it in params.watchedKeys } ?: false,
+                            onClick = {
+                                // 0 库存商品不可选购（对齐收购页门卫，防损坏存档 0 库存商品进入购买面板）
+                                if (item.quantity > 0) {
+                                    onItemClick(item)
                                 }
-                            }
-                        }
+                            },
+                            onLongPress = { onItemLongPress(item) })
                     }
                 }
             }
         }
     }
+    PurchasePanel(
+        item = params.selectedItem, quantity = params.buyQuantity,
+        maxQuantity = params.selectedItem?.quantity ?: 1,
+        spiritStones = params.spiritStones,
+        onQuantityChange = onQuantityChange,
+        onConfirm = onConfirm,
+        onCancel = onCancel
+    )
+}
 
-    if (showDetailDialog) {
-        selectedItem?.let { item ->
+/** 商人收购模式内容（MerchantDialog 拆分）：空态 + 列表头 + 收购列表 */
+@Composable
+private fun ColumnScope.MerchantAcquisitionMode(
+    params: MerchantAcquisitionPanelParams,
+    warehouseQuantityOf: (MerchantItem) -> Int,
+    onSellClick: (MerchantItem) -> Unit,
+    onItemLongPress: (MerchantItem) -> Unit
+) {
+    val sortedAcquisitionItems = remember(params.acquisitionItems, params.watchedKeys) {
+        // id 去重兜底：防 LazyColumn key="" 重复崩溃（Bugly #5079/#3091）
+        params.acquisitionItems.distinctBy { it.id }.sortedByWatchedThenRarity(
+            params.watchedKeys,
+            keyOf = { watchKeyOf(it) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
+    }
+    if (sortedAcquisitionItems.isEmpty()) {
+        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text("商人暂无收购需求\n请明年再来", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)
+        }
+    } else {
+        Column(Modifier.weight(1f)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("物品", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1.3f))
+                Text("收购数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("收购价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("出售", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            }
+            HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
+            LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(sortedAcquisitionItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
+                    AcquisitionItemRow(
+                        item = item,
+                        warehouseQty = warehouseQuantityOf(item),
+                        watchedKeys = params.watchedKeys,
+                        onSellClick = onSellClick,
+                        onItemLongPress = onItemLongPress
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 收购列表单项（MerchantDialog 拆分）：物品卡 + 收购数量/价格 + 出售按钮 */
+@Composable
+private fun AcquisitionItemRow(
+    item: MerchantItem,
+    warehouseQty: Int,
+    watchedKeys: Set<String>,
+    onSellClick: (MerchantItem) -> Unit,
+    onItemLongPress: (MerchantItem) -> Unit
+) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1.3f)) {
+            UnifiedItemCard(data = ItemCardData(id = item.id, name = item.name, rarity = item.rarity,
+                quantity = item.quantity, additionalInfo = "${GameUtils.formatNumber(item.price)}灵石",
+                grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
+                isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
+                isSelected = false,
+                isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
+                onClick = { if (item.quantity > 0 && warehouseQty > 0) { onSellClick(item) } },
+                onLongPress = { onItemLongPress(item) })
+        }
+        Text(GameUtils.formatNumber(item.quantity), fontSize = 11.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        Text(GameUtils.formatNumber(item.price), fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            when {
+                item.quantity == 0 -> Text("不再收购", color = Color.Red, fontSize = 10.sp)
+                warehouseQty == 0 -> GameButton(text = "出售", onClick = {}, enabled = false)
+                else -> GameButton(text = "出售", onClick = { onSellClick(item) })
+            }
+        }
+    }
+}
+
+/** 商人次级弹窗（MerchantDialog 拆分）：详情/上架管理/出售确认/自动购买/无刷新次数 */
+@Composable
+private fun MerchantSubDialogs(
+    state: MerchantDialogState,
+    viewModel: GameViewModel,
+    gameData: GameData?,
+    warehouseQuantityOf: (MerchantItem) -> Int
+) {
+    if (state.showDetailDialog) {
+        state.selectedItem?.let { item ->
             com.xianxia.sect.ui.game.components.ItemDetailDialog(
                 item = item,
-                onDismiss = { showDetailDialog = false },
+                onDismiss = { state.showDetailDialog = false },
                 viewModel = viewModel
             )
         }
     }
-    if (showListingDialog) {
-        ListingManagementDialog(gameData = gameData, viewModel = viewModel, onDismiss = { showListingDialog = false })
+    if (state.showListingDialog) {
+        ListingManagementDialog(
+            gameData = gameData, viewModel = viewModel,
+            onDismiss = { state.showListingDialog = false }
+        )
     }
-    if (showSellConfirmDialog) {
-        selectedAcquisitionItem?.let { item ->
-            val warehouseQty = getWarehouseQuantity(item)
-            AcquisitionSellConfirmDialog(item = item, warehouseQuantity = warehouseQty,
-                onConfirm = { quantity -> viewModel.sellToMerchant(item.id, quantity); showSellConfirmDialog = false; selectedAcquisitionItem = null },
-                onDismiss = { showSellConfirmDialog = false; selectedAcquisitionItem = null })
+    if (state.showSellConfirmDialog) {
+        state.selectedAcquisitionItem?.let { item ->
+            val warehouseQty = warehouseQuantityOf(item)
+            AcquisitionSellConfirmDialog(
+                item = item, warehouseQuantity = warehouseQty,
+                onConfirm = { quantity ->
+                    viewModel.sellToMerchant(item.id, quantity)
+                    state.showSellConfirmDialog = false
+                    state.selectedAcquisitionItem = null
+                },
+                onDismiss = {
+                    state.showSellConfirmDialog = false
+                    state.selectedAcquisitionItem = null
+                }
+            )
         }
     }
-    if (showAutoBuyDialog) {
-        AutoBuyDialog(gameData = gameData, viewModel = viewModel, onDismiss = { showAutoBuyDialog = false })
+    if (state.showAutoBuyDialog) {
+        AutoBuyDialog(gameData = gameData, viewModel = viewModel, onDismiss = { state.showAutoBuyDialog = false })
     }
 
-    if (showNoChancesDialog) {
+    if (state.showNoChancesDialog) {
         StandardPromptDialog(
-            onDismissRequest = { showNoChancesDialog = false },
+            onDismissRequest = { state.showNoChancesDialog = false },
             title = "无刷新次数",
             text = "已无刷新次数，消耗1玉符可获取3次刷新次数",
             confirmLabel = "知道了",
-            onConfirm = { showNoChancesDialog = false }
+            onConfirm = { state.showNoChancesDialog = false }
         )
     }
 }

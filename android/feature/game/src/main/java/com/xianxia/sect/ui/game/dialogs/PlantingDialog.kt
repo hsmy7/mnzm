@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
@@ -60,6 +62,34 @@ private data class FieldGroup(
     val plantEntries: List<SpiritFieldPlant>
 )
 
+/** 种植对话框状态（PlantingDialog 拆分） */
+private class PlantingDialogState {
+    var selectedSeedId by mutableStateOf<String?>(null)
+    var seedPage by mutableIntStateOf(1)
+    var plantQuantity by mutableIntStateOf(1)
+    var qtyInput by mutableStateOf("1")
+    var removeDialogGroup by mutableStateOf<FieldGroup?>(null)
+    var removeQuantity by mutableIntStateOf(1)
+    var removeQtyInput by mutableStateOf("1")
+    var showSeedDetail by mutableStateOf(false)
+    var detailSeed by mutableStateOf<Seed?>(null)
+    var dynPageSize by mutableIntStateOf(12)
+}
+
+/** 种植对话框派生数据（PlantingDialog 拆分） */
+private data class PlantingDerivedData(
+    val watchedKeys: Set<String>,
+    val activeSeeds: List<Seed>,
+    val spiritFields: List<GridBuildingData>,
+    val selectedSeed: Seed?,
+    val fieldGroups: List<FieldGroup>,
+    val unplantedCount: Int,
+    val maxPlantable: Int,
+    val totalPages: Int,
+    val currentPage: Int,
+    val pagedSeeds: List<Seed>
+)
+
 /**
  * 灵田种植面板 — 全屏对话框。
  *
@@ -91,19 +121,78 @@ fun PlantingDialog(
     }
 
     // ── 本地状态 ───────────────────────────────────────────
-    var selectedSeedId by remember { mutableStateOf<String?>(null) }
-    var seedPage by remember { mutableIntStateOf(1) }
-    var plantQuantity by remember { mutableIntStateOf(1) }
+    val state = remember { PlantingDialogState() }
     var isEditingQty by remember { mutableStateOf(false) }
-    var qtyInput by remember { mutableStateOf("1") }
-    var removeDialogGroup by remember { mutableStateOf<FieldGroup?>(null) }
-    var removeQuantity by remember { mutableIntStateOf(1) }
     var isEditingRemoveQty by remember { mutableStateOf(false) }
-    var removeQtyInput by remember { mutableStateOf("1") }
-    var showSeedDetail by remember { mutableStateOf(false) }
-    var detailSeed by remember { mutableStateOf<Seed?>(null) }
 
     // ── 派生数据 ───────────────────────────────────────────
+    val derived = rememberPlantingDerivedData(
+        seeds = seeds, gameData = gameData, activeSectId = activeSectId, viewModel = viewModel, state = state
+    )
+
+    // ── 主体布局 ───────────────────────────────────────────
+    BackHandler(onBack = onDismiss)
+    Surface(modifier = Modifier.fillMaxSize(), color = GameColors.PageBackground) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // 背景
+            Image(
+                painter = painterResource(id = R.drawable.bg_horizontal), contentDescription = null,
+                modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop
+            )
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 标题栏：种植标题 + 关闭按钮
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = "种植", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(modifier = Modifier.weight(1f))
+                    CloseButton(onClick = onDismiss)
+                }
+
+                // 主区域：左（60%）| 分割线 | 右（40%）
+                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    SeedGridPanel(state = state, derived = derived)
+                    Box(
+                        modifier = Modifier.width(1.dp).fillMaxHeight().background(GameColors.ButtonDisabled)
+                    )
+                    PlantingFieldPanel(
+                        state = state, derived = derived, seeds = seeds,
+                        viewModel = viewModel, activeSectId = activeSectId
+                    )
+                }
+            }
+        }
+    }
+
+    // P-2：种子详情弹窗提取（行为逐行一致）
+    SeedDetailDialog(
+        show = state.showSeedDetail, seed = state.detailSeed,
+        onDismiss = { state.showSeedDetail = false; state.detailSeed = null },
+        viewModel = viewModel
+    )
+
+    // P-2：铲除确认弹窗提取（行为逐行一致）
+    RemoveConfirmationDialog(
+        group = state.removeDialogGroup,
+        removeQuantity = state.removeQuantity, removeQtyInput = state.removeQtyInput,
+        onQuantityChange = { qty -> state.removeQuantity = qty; state.removeQtyInput = qty.toString() },
+        onConfirm = { state.removeDialogGroup = null; state.removeQuantity = 1; state.removeQtyInput = "1" },
+        onDismiss = { state.removeDialogGroup = null },
+        onRemove = { ids -> viewModel.planting.removePlantsFromSpiritFields(ids) }
+    )
+}
+
+/** 种植对话框派生数据计算（PlantingDialog 拆分） */
+@Composable
+private fun rememberPlantingDerivedData(
+    seeds: List<Seed>,
+    gameData: GameData,
+    activeSectId: String,
+    viewModel: GameViewModel,
+    state: PlantingDialogState
+): PlantingDerivedData {
     // 可用种子：已关注优先 → 稀有度降 → 名称升
     val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
     val activeSeeds = remember(seeds, watchedKeys) {
@@ -121,58 +210,13 @@ fun PlantingDialog(
     }
 
     // 当前选中的种子对象
-    val selectedSeed = remember(selectedSeedId, activeSeeds) {
-        activeSeeds.find { it.id == selectedSeedId }
+    val selectedSeed = remember(state.selectedSeedId, activeSeeds) {
+        activeSeeds.find { it.id == state.selectedSeedId }
     }
 
     // 按种植状态分组：未种植 → 同种种子分组
     val fieldGroups = remember(spiritFields, gameData.spiritFieldPlants, activeSeeds) {
-        val plantsByBuilding = gameData.spiritFieldPlants.associateBy { it.buildingInstanceId }
-        val seedMap = activeSeeds.associateBy { it.id }
-
-        val unplanted = spiritFields.filter { field ->
-            val plant = plantsByBuilding[field.instanceId]
-            plant == null || plant.seedId.isEmpty()
-        }
-        val planted = spiritFields.filterNot { field ->
-            val plant = plantsByBuilding[field.instanceId]
-            plant == null || plant.seedId.isEmpty()
-        }
-        val plantedBySeedId = planted.groupBy { field ->
-            plantsByBuilding.getValue(field.instanceId).seedId
-        }
-
-        buildList {
-            // 未种植分组排在最前
-            if (unplanted.isNotEmpty()) {
-                add(
-                    FieldGroup(
-                        seedId = "",
-                        seedName = "未种植",
-                        seedRarity = 0,
-                        fields = unplanted,
-                        plantEntries = emptyList()
-                    )
-                )
-            }
-            // 已种植，按 seedId 分组
-            for ((sid, fds) in plantedBySeedId) {
-                val entry = plantsByBuilding[fds.first().instanceId] ?: continue
-                val rarity = seedMap[sid]?.rarity
-                    ?: seeds.find { it.id == sid }?.rarity
-                    ?: HerbDatabase.getSeedById(sid)?.rarity
-                    ?: 1
-                add(
-                    FieldGroup(
-                        seedId = sid,
-                        seedName = entry.seedName,
-                        seedRarity = rarity,
-                        fields = fds,
-                        plantEntries = fds.mapNotNull { plantsByBuilding[it.instanceId] }
-                    )
-                )
-            }
-        }
+        plantingFieldGroups(spiritFields, gameData.spiritFieldPlants, activeSeeds, seeds)
     }
 
     val unplantedCount = fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields?.size ?: 0
@@ -181,458 +225,519 @@ fun PlantingDialog(
     val maxPlantable = minOf(unplantedCount, selectedSeed?.quantity ?: 0)
 
     // ── 分页（动态计算每页数量） ─────────────────────────────
-    var dynPageSize by remember { mutableIntStateOf(12) }
-    val totalPages = maxOf(1, ceil(activeSeeds.size.toDouble() / dynPageSize.coerceAtLeast(1)).toInt())
-    val currentPage = seedPage.coerceIn(1, totalPages)
-    val pagedSeeds = remember(currentPage, activeSeeds, dynPageSize) {
-        activeSeeds.drop((currentPage - 1) * dynPageSize).take(dynPageSize)
+    val totalPages = maxOf(1, ceil(activeSeeds.size.toDouble() / state.dynPageSize.coerceAtLeast(1)).toInt())
+    val currentPage = state.seedPage.coerceIn(1, totalPages)
+    val pagedSeeds = remember(currentPage, activeSeeds, state.dynPageSize) {
+        activeSeeds.drop((currentPage - 1) * state.dynPageSize).take(state.dynPageSize)
+    }
+    return PlantingDerivedData(
+        watchedKeys = watchedKeys,
+        activeSeeds = activeSeeds,
+        spiritFields = spiritFields,
+        selectedSeed = selectedSeed,
+        fieldGroups = fieldGroups,
+        unplantedCount = unplantedCount,
+        maxPlantable = maxPlantable,
+        totalPages = totalPages,
+        currentPage = currentPage,
+        pagedSeeds = pagedSeeds
+    )
+}
+
+/** 灵田按种植状态分组（PlantingDialog 拆分） */
+private fun plantingFieldGroups(
+    spiritFields: List<GridBuildingData>,
+    spiritFieldPlants: List<SpiritFieldPlant>,
+    activeSeeds: List<Seed>,
+    seeds: List<Seed>
+): List<FieldGroup> {
+    val plantsByBuilding = spiritFieldPlants.associateBy { it.buildingInstanceId }
+    val seedMap = activeSeeds.associateBy { it.id }
+
+    val unplanted = spiritFields.filter { field ->
+        val plant = plantsByBuilding[field.instanceId]
+        plant == null || plant.seedId.isEmpty()
+    }
+    val planted = spiritFields.filterNot { field ->
+        val plant = plantsByBuilding[field.instanceId]
+        plant == null || plant.seedId.isEmpty()
+    }
+    val plantedBySeedId = planted.groupBy { field ->
+        plantsByBuilding.getValue(field.instanceId).seedId
     }
 
-    // ── 主体布局 ───────────────────────────────────────────
-    BackHandler(onBack = onDismiss)
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = GameColors.PageBackground
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // 背景
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-
-            Column(modifier = Modifier.fillMaxSize()) {
-                // 标题栏：种植标题 + 关闭按钮
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "种植",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                    CloseButton(onClick = onDismiss)
-                }
-
-                // 主区域：左（60%）| 分割线 | 右（40%）
-                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-
-                // ═════════════════ 左侧：种子网格 ════════════
-                Column(
-                    modifier = Modifier
-                        .weight(0.6f)
-                        .fillMaxHeight()
-                        .padding(start = 12.dp, top = 4.dp, end = 8.dp)
-                ) {
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    if (activeSeeds.isEmpty()) {
-                        // 空状态
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("仓库中没有种子", fontSize = 12.sp, color = Color.Black)
-                        }
-                    } else {
-                        // 种子网格 — 用 BoxWithConstraints 动态计算每页行列数
-                        BoxWithConstraints(
-                            modifier = Modifier.weight(1f).fillMaxWidth()
-                        ) {
-                            val itemW = 60.dp
-                            val gap = 6.dp
-                            val cols = maxOf(1, ((maxWidth - gap) / (itemW + gap)).toInt())
-                            val rows = maxOf(2, ((maxHeight - gap) / (itemW + 20.dp + gap)).toInt())
-                            val calcSize = cols * rows
-                            if (calcSize != dynPageSize && calcSize > 0) {
-                                LaunchedEffect(Unit) { dynPageSize = calcSize }
-                            }
-                            LazyVerticalGrid(
-                            columns = GridCells.Adaptive(60.dp),
-                            modifier = Modifier
-                                .fillMaxSize(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            contentPadding = PaddingValues(2.dp)
-                        ) {
-                            items(pagedSeeds, key = { it.id }, contentType = { "seed" }) { seed ->
-                                UnifiedItemCard(
-                                    data = ItemCardData(
-                                        id = seed.id,
-                                        name = seed.name,
-                                        description = seed.description,
-                                        rarity = seed.rarity,
-                                        quantity = seed.quantity,
-                                        isSeed = true
-                                    ),
-                                    isSelected = seed.id == selectedSeedId,
-                                    isFollowed = seed.watchKey() in watchedKeys,
-                                    onClick = {
-                                        selectedSeedId =
-                                            if (selectedSeedId == seed.id) null else seed.id
-                                        plantQuantity = 1
-                                        qtyInput = "1"
-                                    },
-                                    onLongPress = {
-                                        detailSeed = seed
-                                        showSeedDetail = true
-                                    }
-                                )
-                            }
-                        }
-                        } // BoxWithConstraints
-
-                        // 分页
-                        Spacer(modifier = Modifier.height(4.dp))
-                        PlantingPagination(
-                            currentPage = currentPage,
-                            totalPages = totalPages,
-                            onFirstPage = {
-                                if (currentPage > 1) {
-                                    seedPage = 1
-                                }
-                            },
-                            onPreviousPage = {
-                                if (currentPage > 1) {
-                                    seedPage = currentPage - 1
-                                }
-                            },
-                            onNextPage = {
-                                if (currentPage < totalPages) {
-                                    seedPage = currentPage + 1
-                                }
-                            },
-                            onLastPage = {
-                                if (currentPage < totalPages) {
-                                    seedPage = totalPages
-                                }
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                // ═════════════════ 竖直分割线 ════════════════
-                Box(
-                    modifier = Modifier
-                        .width(1.dp)
-                        .fillMaxHeight()
-                        .background(GameColors.ButtonDisabled)
+    return buildList {
+        // 未种植分组排在最前
+        if (unplanted.isNotEmpty()) {
+            add(
+                FieldGroup(
+                    seedId = "",
+                    seedName = "未种植",
+                    seedRarity = 0,
+                    fields = unplanted,
+                    plantEntries = emptyList()
                 )
+            )
+        }
+        // 已种植，按 seedId 分组
+        for ((sid, fds) in plantedBySeedId) {
+            val entry = plantsByBuilding[fds.first().instanceId] ?: continue
+            val rarity = seedMap[sid]?.rarity
+                ?: seeds.find { it.id == sid }?.rarity
+                ?: HerbDatabase.getSeedById(sid)?.rarity
+                ?: 1
+            add(
+                FieldGroup(
+                    seedId = sid,
+                    seedName = entry.seedName,
+                    seedRarity = rarity,
+                    fields = fds,
+                    plantEntries = fds.mapNotNull { plantsByBuilding[it.instanceId] }
+                )
+            )
+        }
+    }
+}
 
-                // ═════════════════ 右侧：种子卡片列表 ════════════
-                Column(
-                    modifier = Modifier
-                        .weight(0.4f)
-                        .fillMaxHeight()
-                ) {
-                    // 灵田统计行固定第一行
-                    val totalFields = fieldGroups.sumOf { it.fields.size }
-                    val plantedFields = fieldGroups.filter { it.seedId.isNotEmpty() }.sumOf { it.fields.size }
-                    val unplantedFields = fieldGroups.find { it.seedId.isEmpty() }?.fields?.size ?: 0
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            listOf("灵田", "总数", "已种植", "未种植").forEach { label ->
-                                Text(label, fontSize = 10.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                            }
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            listOf("灵田", "$totalFields", "$plantedFields", "$unplantedFields").forEach { value ->
-                                Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
-                        Spacer(modifier = Modifier.height(6.dp))
+/** 左侧种子网格面板（PlantingDialog 拆分） */
+@Composable
+private fun RowScope.SeedGridPanel(
+    state: PlantingDialogState,
+    derived: PlantingDerivedData
+) {
+    Column(
+        modifier = Modifier
+            .weight(0.6f)
+            .fillMaxHeight()
+            .padding(start = 12.dp, top = 4.dp, end = 8.dp)
+    ) {
+        Spacer(modifier = Modifier.height(4.dp))
+
+        if (derived.activeSeeds.isEmpty()) {
+            // 空状态
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("仓库中没有种子", fontSize = 12.sp, color = Color.Black)
+            }
+        } else {
+            // 种子网格 — 用 BoxWithConstraints 动态计算每页行列数
+            PlantingSeedGrid(state = state, derived = derived)
+
+            // 分页
+            Spacer(modifier = Modifier.height(4.dp))
+            PlantingPagination(
+                currentPage = derived.currentPage,
+                totalPages = derived.totalPages,
+                onFirstPage = { if (derived.currentPage > 1) state.seedPage = 1 },
+                onPreviousPage = { if (derived.currentPage > 1) state.seedPage = derived.currentPage - 1 },
+                onNextPage = { if (derived.currentPage < derived.totalPages) state.seedPage = derived.currentPage + 1 },
+                onLastPage = { if (derived.currentPage < derived.totalPages) state.seedPage = derived.totalPages }
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+/** 种子翻页网格（PlantingDialog 拆分）：BoxWithConstraints 动态分页 + 种子卡片 */
+@Composable
+private fun ColumnScope.PlantingSeedGrid(
+    state: PlantingDialogState,
+    derived: PlantingDerivedData
+) {
+    BoxWithConstraints(
+        modifier = Modifier.weight(1f).fillMaxWidth()
+    ) {
+        val itemW = 60.dp
+        val gap = 6.dp
+        val cols = maxOf(1, ((maxWidth - gap) / (itemW + gap)).toInt())
+        val rows = maxOf(2, ((maxHeight - gap) / (itemW + 20.dp + gap)).toInt())
+        val calcSize = cols * rows
+        if (calcSize != state.dynPageSize && calcSize > 0) {
+            LaunchedEffect(Unit) { state.dynPageSize = calcSize }
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(60.dp),
+            modifier = Modifier
+                .fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            contentPadding = PaddingValues(2.dp)
+        ) {
+            items(derived.pagedSeeds, key = { it.id }, contentType = { "seed" }) { seed ->
+                UnifiedItemCard(
+                    data = ItemCardData(
+                        id = seed.id,
+                        name = seed.name,
+                        description = seed.description,
+                        rarity = seed.rarity,
+                        quantity = seed.quantity,
+                        isSeed = true
+                    ),
+                    isSelected = seed.id == state.selectedSeedId,
+                    isFollowed = seed.watchKey() in derived.watchedKeys,
+                    onClick = {
+                        state.selectedSeedId =
+                            if (state.selectedSeedId == seed.id) null else seed.id
+                        state.plantQuantity = 1
+                        state.qtyInput = "1"
+                    },
+                    onLongPress = {
+                        state.detailSeed = seed
+                        state.showSeedDetail = true
                     }
+                )
+            }
+        }
+    }
+}
 
-                    // 已种植种子卡片列表（可滚动）
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+/** 右侧灵田面板（PlantingDialog 拆分）：统计 + 已种植列表 + 底部操作栏 */
+@Composable
+private fun RowScope.PlantingFieldPanel(
+    state: PlantingDialogState,
+    derived: PlantingDerivedData,
+    seeds: List<Seed>,
+    viewModel: GameViewModel,
+    activeSectId: String
+) {
+    Column(
+        modifier = Modifier
+            .weight(0.4f)
+            .fillMaxHeight()
+    ) {
+        // 灵田统计行固定第一行
+        val totalFields = derived.fieldGroups.sumOf { it.fields.size }
+        val plantedFields = derived.fieldGroups.filter { it.seedId.isNotEmpty() }.sumOf { it.fields.size }
+        val unplantedFields = derived.fieldGroups.find { it.seedId.isEmpty() }?.fields?.size ?: 0
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("灵田", "总数", "已种植", "未种植").forEach { label ->
+                    Text(label, fontSize = 10.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("灵田", "$totalFields", "$plantedFields", "$unplantedFields").forEach { value ->
+                    Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+
+        PlantedGroupsList(
+            state = state,
+            derived = derived,
+            seeds = seeds
+        )
+
+        // 底部操作栏：数量选择 + 种植按钮（灵田非空时显示）
+        if (derived.spiritFields.isNotEmpty()) {
+            HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
+            PlantingQuantityControl(
+                state = state,
+                derived = derived,
+                viewModel = viewModel,
+                activeSectId = activeSectId
+            )
+        }
+    }
+}
+
+/** 已种植种子卡片列表（PlantingDialog 拆分） */
+@Composable
+private fun ColumnScope.PlantedGroupsList(
+    state: PlantingDialogState,
+    derived: PlantingDerivedData,
+    seeds: List<Seed>
+) {
+    // 已种植种子卡片列表（可滚动）
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        val plantedGroups = derived.fieldGroups.filter { g -> g.seedId.isNotEmpty() }
+        if (plantedGroups.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("暂无种植", fontSize = 12.sp, color = Color.Black)
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                plantedGroups.forEach { group ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(72.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        val plantedGroups = fieldGroups.filter { g -> g.seedId.isNotEmpty() }
-                        if (plantedGroups.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("暂无种植", fontSize = 12.sp, color = Color.Black)
-                            }
-                        } else {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState()),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                plantedGroups.forEach { group ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().height(72.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceEvenly
-                                    ) {
-                                        val plantedSeed = activeSeeds.find { it.id == group.seedId }
-                                            ?: seeds.find { it.id == group.seedId }
-                                        if (plantedSeed != null) {
-                                            UnifiedItemCard(
-                                                data = ItemCardData(
-                                                    id = plantedSeed.id,
-                                                    name = plantedSeed.name,
-                                                    description = plantedSeed.description,
-                                                    rarity = plantedSeed.rarity,
-                                                    quantity = plantedSeed.quantity,
-                                                    isSeed = true
-                                                ),
-                                                isSelected = false,
-                                                isFollowed = plantedSeed.watchKey() in watchedKeys,
-                                                onClick = { selectedSeedId = plantedSeed.id },
-                                                onLongPress = {
-                                                    detailSeed = plantedSeed
-                                                    showSeedDetail = true
-                                                }
-                                            )
-                                        } else {
-                                            val fbSeed = HerbDatabase.getSeedByName(group.seedName)
-                                            if (fbSeed != null) {
-                                                UnifiedItemCard(
-                                                    data = ItemCardData(
-                                                        id = fbSeed.id,
-                                                        name = fbSeed.name,
-                                                        rarity = fbSeed.rarity,
-                                                        quantity = 0,
-                                                        isSeed = true
-                                                    ),
-                                                    isSelected = false,
-                                                    isFollowed = watchKey("seed", fbSeed.name) in watchedKeys,
-                                                    onClick = {},
-                                                    onLongPress = {
-                                                        detailSeed = Seed(
-                                                            id = fbSeed.id,
-                                                            name = fbSeed.name,
-                                                            rarity = fbSeed.rarity,
-                                                            description = fbSeed.description,
-                                                            growTime = fbSeed.growTime,
-                                                            yield = fbSeed.yield,
-                                                            quantity = 0
-                                                        )
-                                                        showSeedDetail = true
-                                                    }
-                                                )
-                                            } else {
-                                                val fallbackName = group.seedName.ifEmpty { "未知种子" }
-                                                Box(
-                                                    modifier = Modifier.size(60.dp)
-                                                        .clip(RoundedCornerShape(4.dp))
-                                                        .background(GameColors.SurfaceLightGray)
-                                                        .border(1.dp, GameColors.ButtonDisabled, RoundedCornerShape(4.dp))
-                                                        .combinedClickable(
-                                                            onClick = {},
-                                                            onLongClick = {
-                                                                detailSeed = Seed(
-                                                                    id = group.seedId,
-                                                                    name = fallbackName,
-                                                                    rarity = group.seedRarity,
-                                                                    description = "",
-                                                                    growTime = 0,
-                                                                    yield = 0,
-                                                                    quantity = 0
-                                                                )
-                                                                showSeedDetail = true
-                                                            },
-                                                            indication = null,
-                                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                                                        ),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    Text(fallbackName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
-                                                }
-                                            }
-                                        }
-                                        Text(
-                                            text = "${group.fields.size}",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
-                                        GameButton(
-                                            text = "铲除",
-                                            onClick = {
-                                                removeQuantity = 1
-                                                removeQtyInput = "1"
-                                                removeDialogGroup = group
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // 底部操作栏：数量选择 + 种植按钮
-                    if (spiritFields.isNotEmpty()) {
-                        HorizontalDivider(
-                            thickness = 1.dp,
-                            color = GameColors.ButtonDisabled
+                        PlantedGroupSeedCard(
+                            group = group,
+                            activeSeeds = derived.activeSeeds,
+                            seeds = seeds,
+                            watchedKeys = derived.watchedKeys,
+                            state = state
                         )
-                        val minInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                        val decInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                        val incInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                        val maxInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "最小",
-                                fontSize = 12.sp,
-                                color = Color.Black,
-                                modifier = Modifier.clickableWithSound(interactionSource = minInteraction, indication = null) {
-                                    plantQuantity = 1
-                                    qtyInput = "1"
-                                }
-                            )
-                            Text(
-                                text = "-1",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                modifier = Modifier
-                                    .alpha(if (plantQuantity > 1) 1f else 0.3f)
-                                    .clickableWithSound(
-                                        interactionSource = decInteraction,
-                                        indication = null,
-                                        enabled = plantQuantity > 1
-                                    ) {
-                                        plantQuantity--
-                                        qtyInput = plantQuantity.toString()
-                                    }
-                            )
-                            // 数量显示 — 始终可见的输入框
-                            val displayText = qtyInput.ifEmpty { plantQuantity.toString() }
-                            BasicTextField(
-                                value = displayText,
-                                onValueChange = { newValue ->
-                                    val filtered = newValue.filter { it.isDigit() }
-                                    val num = filtered.toIntOrNull()
-                                    qtyInput = if (num != null) {
-                                        num.coerceIn(1, maxPlantable.coerceAtLeast(1)).toString()
-                                    } else {
-                                        filtered
-                                    }
-                                    if (num != null) plantQuantity = num.coerceIn(1, maxPlantable.coerceAtLeast(1))
-                                },
-                                modifier = Modifier.width(40.dp)
-                                    .background(Color.White, RoundedCornerShape(4.dp))
-                                    .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                                singleLine = true,
-                                textStyle = TextStyle(
-                                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                                    color = Color.Black, textAlign = TextAlign.Center
-                                ),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                            )
-                            Text(
-                                text = "+1",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                modifier = Modifier
-                                    .alpha(if (plantQuantity < maxPlantable) 1f else 0.3f)
-                                    .clickableWithSound(
-                                        interactionSource = incInteraction,
-                                        indication = null,
-                                        enabled = plantQuantity < maxPlantable
-                                    ) {
-                                        plantQuantity++
-                                        qtyInput = plantQuantity.toString()
-                                    }
-                            )
-                            Text(
-                                text = "最大",
-                                fontSize = 12.sp,
-                                color = Color.Black,
-                                modifier = Modifier.clickableWithSound(interactionSource = maxInteraction, indication = null) {
-                                    plantQuantity = maxPlantable.coerceAtLeast(1)
-                                    qtyInput = plantQuantity.toString()
-                                }
-                            )
-                            GameButton(
-                                text = "种植",
-                                enabled = selectedSeed != null && unplantedCount > 0,
-                                onClick = {
-                                    val toPlant = plantQuantity.coerceAtMost(maxPlantable)
-                                    val unplantedFields =
-                                        fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields
-                                            ?: emptyList()
-                                    // 批量收集instanceId，一次性种植
-                                    val ids = unplantedFields.take(toPlant).map { it.instanceId }
-                                    if (ids.isNotEmpty() && selectedSeed != null) {
-                                        viewModel.planting.plantOnSpiritFields(ids, selectedSeed.id, activeSectId)
-                                    }
-                                    selectedSeedId = null
-                                    plantQuantity = 1
-                                    qtyInput = "1"
-                                }
-                            )
-                        }
+                        Text(
+                            text = "${group.fields.size}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        GameButton(
+                            text = "铲除",
+                            onClick = {
+                                state.removeQuantity = 1
+                                state.removeQtyInput = "1"
+                                state.removeDialogGroup = group
+                            }
+                        )
                     }
                 }
             }
         }
     }
+}
 
-    // P-2：种子详情弹窗提取（行为逐行一致）
-    SeedDetailDialog(
-        show = showSeedDetail,
-        seed = detailSeed,
-        onDismiss = {
-            showSeedDetail = false
-            detailSeed = null
-        },
-        viewModel = viewModel
-    )
-
-    // P-2：铲除确认弹窗提取（行为逐行一致）
-    RemoveConfirmationDialog(
-        group = removeDialogGroup,
-        removeQuantity = removeQuantity,
-        removeQtyInput = removeQtyInput,
-        onQuantityChange = { qty ->
-            removeQuantity = qty
-            removeQtyInput = qty.toString()
-        },
-        onConfirm = {
-            removeDialogGroup = null
-            removeQuantity = 1
-            removeQtyInput = "1"
-        },
-        onDismiss = { removeDialogGroup = null },
-        onRemove = { ids -> viewModel.planting.removePlantsFromSpiritFields(ids) }
-    )
+/** 已种植分组种子卡片（PlantingDialog 拆分）：仓库种子 → 图鉴种子 → 未知兜底 */
+@Composable
+private fun PlantedGroupSeedCard(
+    group: FieldGroup,
+    activeSeeds: List<Seed>,
+    seeds: List<Seed>,
+    watchedKeys: Set<String>,
+    state: PlantingDialogState
+) {
+    val plantedSeed = activeSeeds.find { it.id == group.seedId }
+        ?: seeds.find { it.id == group.seedId }
+    if (plantedSeed != null) {
+        UnifiedItemCard(
+            data = ItemCardData(
+                id = plantedSeed.id,
+                name = plantedSeed.name,
+                description = plantedSeed.description,
+                rarity = plantedSeed.rarity,
+                quantity = plantedSeed.quantity,
+                isSeed = true
+            ),
+            isSelected = false,
+            isFollowed = plantedSeed.watchKey() in watchedKeys,
+            onClick = { state.selectedSeedId = plantedSeed.id },
+            onLongPress = {
+                state.detailSeed = plantedSeed
+                state.showSeedDetail = true
+            }
+        )
+    } else {
+        val fbSeed = HerbDatabase.getSeedByName(group.seedName)
+        if (fbSeed != null) {
+            UnifiedItemCard(
+                data = ItemCardData(
+                    id = fbSeed.id,
+                    name = fbSeed.name,
+                    rarity = fbSeed.rarity,
+                    quantity = 0,
+                    isSeed = true
+                ),
+                isSelected = false,
+                isFollowed = watchKey("seed", fbSeed.name) in watchedKeys,
+                onClick = {},
+                onLongPress = {
+                    state.detailSeed = Seed(
+                        id = fbSeed.id,
+                        name = fbSeed.name,
+                        rarity = fbSeed.rarity,
+                        description = fbSeed.description,
+                        growTime = fbSeed.growTime,
+                        yield = fbSeed.yield,
+                        quantity = 0
+                    )
+                    state.showSeedDetail = true
+                }
+            )
+        } else {
+            UnknownSeedFallbackBox(group = group, state = state)
+        }
     }
+}
+
+/** 未知种子兜底卡片（PlantingDialog 拆分） */
+@Composable
+private fun UnknownSeedFallbackBox(
+    group: FieldGroup,
+    state: PlantingDialogState
+) {
+    val fallbackName = group.seedName.ifEmpty { "未知种子" }
+    Box(
+        modifier = Modifier.size(60.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(GameColors.SurfaceLightGray)
+            .border(1.dp, GameColors.ButtonDisabled, RoundedCornerShape(4.dp))
+            .combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    state.detailSeed = Seed(
+                        id = group.seedId,
+                        name = fallbackName,
+                        rarity = group.seedRarity,
+                        description = "",
+                        growTime = 0,
+                        yield = 0,
+                        quantity = 0
+                    )
+                    state.showSeedDetail = true
+                },
+                indication = null,
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(fallbackName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
+    }
+}
+
+/** 种植数量控制行 + 种植按钮（PlantingDialog 拆分） */
+// 拆分残余:函数体略超 60 行(原函数拆分后聚合)
+@Suppress("LongMethod")
+@Composable
+private fun PlantingQuantityControl(
+    state: PlantingDialogState,
+    derived: PlantingDerivedData,
+    viewModel: GameViewModel,
+    activeSectId: String
+) {
+    fun performPlanting() {
+        val toPlant = state.plantQuantity.coerceAtMost(derived.maxPlantable)
+        val unplantedFields =
+            derived.fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields
+                ?: emptyList()
+        // 批量收集instanceId，一次性种植
+        val ids = unplantedFields.take(toPlant).map { it.instanceId }
+        if (ids.isNotEmpty() && derived.selectedSeed != null) {
+            viewModel.planting.plantOnSpiritFields(ids, derived.selectedSeed.id, activeSectId)
+        }
+        state.selectedSeedId = null
+        state.plantQuantity = 1
+        state.qtyInput = "1"
+    }
+
+    val minInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val decInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val incInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val maxInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PlantingStepText(
+            text = "最小", fontSize = 12.sp, enabled = true, interactionSource = minInteraction, onClick = {
+                state.plantQuantity = 1
+                state.qtyInput = "1"
+            }
+        )
+        PlantingStepText(
+            text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, enabled = state.plantQuantity > 1,
+            interactionSource = decInteraction, onClick = {
+                state.plantQuantity--
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
+        // 数量显示 — 始终可见的输入框
+        val displayText = state.qtyInput.ifEmpty { state.plantQuantity.toString() }
+        BasicTextField(
+            value = displayText,
+            onValueChange = { newValue ->
+                val filtered = newValue.filter { it.isDigit() }
+                val num = filtered.toIntOrNull()
+                state.qtyInput = if (num != null) {
+                    num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1)).toString()
+                } else {
+                    filtered
+                }
+                if (num != null) state.plantQuantity = num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1))
+            },
+            modifier = Modifier.width(40.dp)
+                .background(Color.White, RoundedCornerShape(4.dp))
+                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = Color.Black, textAlign = TextAlign.Center
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+        PlantingStepText(
+            text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            enabled = state.plantQuantity < derived.maxPlantable,
+            interactionSource = incInteraction, onClick = {
+                state.plantQuantity++
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
+        PlantingStepText(
+            text = "最大", fontSize = 12.sp, enabled = true, interactionSource = maxInteraction, onClick = {
+                state.plantQuantity = derived.maxPlantable.coerceAtLeast(1)
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
+        GameButton(
+            text = "种植",
+            enabled = derived.selectedSeed != null && derived.unplantedCount > 0,
+            onClick = { performPlanting() }
+        )
+    }
+}
+
+/** 种植数量步进文本按钮（PlantingDialog 拆分） */
+@Composable
+private fun PlantingStepText(
+    text: String,
+    fontSize: TextUnit,
+    fontWeight: FontWeight = FontWeight.Normal,
+    enabled: Boolean,
+    interactionSource: MutableInteractionSource,
+    onClick: () -> Unit
+) {
+    Text(
+        text = text,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = Color.Black,
+        modifier = Modifier
+            .alpha(if (enabled) 1f else 0.3f)
+            .clickableWithSound(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled
+            ) {
+                onClick()
+            }
+    )
 }
 
 /** P-2：种子详情弹窗（从 PlantingDialog 提取）。 */
@@ -745,13 +850,9 @@ private fun PlantingPagination(
     ) {
         // << 首页
         Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(
-                    if (currentPage > 1) Color(0xFF3498DB) else GameColors.DividerGray
-                )
-                .clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(
+                if (currentPage > 1) Color(0xFF3498DB) else GameColors.DividerGray
+            ).clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
             contentAlignment = Alignment.Center
         ) {
             Text("<<", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -761,13 +862,9 @@ private fun PlantingPagination(
 
         // < 上一页
         Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(
-                    if (currentPage > 1) Color(0xFF3498DB) else GameColors.DividerGray
-                )
-                .clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(
+                if (currentPage > 1) Color(0xFF3498DB) else GameColors.DividerGray
+            ).clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
             contentAlignment = Alignment.Center
         ) {
             Text("<", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -787,13 +884,9 @@ private fun PlantingPagination(
 
         // > 下一页
         Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(
-                    if (currentPage < totalPages) Color(0xFF3498DB) else GameColors.DividerGray
-                )
-                .clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(
+                if (currentPage < totalPages) Color(0xFF3498DB) else GameColors.DividerGray
+            ).clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(">", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -803,13 +896,9 @@ private fun PlantingPagination(
 
         // >> 末页
         Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(
-                    if (currentPage < totalPages) Color(0xFF3498DB) else GameColors.DividerGray
-                )
-                .clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
+            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(
+                if (currentPage < totalPages) Color(0xFF3498DB) else GameColors.DividerGray
+            ).clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(">>", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)

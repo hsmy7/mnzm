@@ -50,59 +50,13 @@ fun RecruitDialog(
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                if (recruitList.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "暂无可招募弟子\n招募每3年刷新一次，请耐心等待",
-                            fontSize = 12.sp,
-                            color = GameColors.TextSecondary
-                        )
-                    }
-                } else {
-                    val sortedRecruitList = remember(recruitList) {
-                        recruitList.sortedBy { it.spiritRoot.types.count { it.isNotBlank() } }
-                    }
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        items(sortedRecruitList, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                            PortraitDiscipleCard(
-                                disciple = disciple,
-                                isSelected = false,
-                                showStatus = false,
-                                actions = {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        GameButton(
-                                            text = "拒绝",
-                                            onClick = { showRejectConfirm = disciple.id },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        GameButton(
-                                            text = "同意",
-                                            onClick = { viewModel.recruitDisciple(disciple) },
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                    }
-                                },
-                                onClick = {}
-                            )
-                        }
-                    }
-                }
-            }
+            RecruitListContent(
+                recruitList = recruitList,
+                onReject = { disciple -> showRejectConfirm = disciple.id },
+                onAccept = { disciple -> viewModel.recruitDisciple(disciple) }
+            )
         }
+    }
     if (showRecruitManagementDialog) {
         RecruitManagementDialog(
             gameData = gameData,
@@ -126,6 +80,66 @@ fun RecruitDialog(
             dismissLabel = "取消",
             onDismiss = { showRejectConfirm = null }
         )
+    }
+}
+
+/** 招募列表内容（RecruitDialog 拆分）：空态或弟子网格 */
+@Composable
+private fun RecruitListContent(
+    recruitList: List<DiscipleAggregate>,
+    onReject: (DiscipleAggregate) -> Unit,
+    onAccept: (DiscipleAggregate) -> Unit
+) {
+    if (recruitList.isEmpty()) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "暂无可招募弟子\n招募每3年刷新一次，请耐心等待",
+                fontSize = 12.sp,
+                color = GameColors.TextSecondary
+            )
+        }
+    } else {
+        val sortedRecruitList = remember(recruitList) {
+            recruitList.sortedBy { it.spiritRoot.types.count { it.isNotBlank() } }
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            items(sortedRecruitList, key = { it.id }, contentType = { "disciple" }) { disciple ->
+                PortraitDiscipleCard(
+                    disciple = disciple,
+                    isSelected = false,
+                    showStatus = false,
+                    actions = {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            GameButton(
+                                text = "拒绝",
+                                onClick = { onReject(disciple) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            GameButton(
+                                text = "同意",
+                                onClick = { onAccept(disciple) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    },
+                    onClick = {}
+                )
+            }
+        }
     }
 }
 
@@ -168,33 +182,14 @@ private fun RecruitManagementDialog(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(5),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
-                    val baseColor = GameColors.getSpiritRootCountColor(count)
-                    val rootColor = if (count == 5) Color.Black else baseColor
-                    AutoRecruitFilterRow(
-                        label = name,
-                        labelColor = rootColor,
-                        checked = count in recruitFilter,
-                        onToggle = {
-                            val newFilter = if (count in recruitFilter) {
-                                recruitFilter - count
-                            } else {
-                                recruitFilter + count
-                            }
-                            recruitFilter = newFilter
-                            viewModel.setAutoRecruitFilter(newFilter)
-                        }
-                    )
+            RootCountFilterGrid(
+                filter = recruitFilter,
+                onToggle = { count ->
+                    val newFilter = if (count in recruitFilter) recruitFilter - count else recruitFilter + count
+                    recruitFilter = newFilter
+                    viewModel.setAutoRecruitFilter(newFilter)
                 }
-            }
+            )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp),
                 color = GameColors.Border, thickness = 1.dp)
@@ -208,33 +203,14 @@ private fun RecruitManagementDialog(
             )
             Spacer(modifier = Modifier.height(8.dp))
 
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(5),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
-                    val baseColor = GameColors.getSpiritRootCountColor(count)
-                    val rootColor = if (count == 5) Color.Black else baseColor
-                    AutoRecruitFilterRow(
-                        label = name,
-                        labelColor = rootColor,
-                        checked = count in rejectFilter,
-                        onToggle = {
-                            val newFilter = if (count in rejectFilter) {
-                                rejectFilter - count
-                            } else {
-                                rejectFilter + count
-                            }
-                            rejectFilter = newFilter
-                            viewModel.setAutoRejectFilter(newFilter)
-                        }
-                    )
+            RootCountFilterGrid(
+                filter = rejectFilter,
+                onToggle = { count ->
+                    val newFilter = if (count in rejectFilter) rejectFilter - count else rejectFilter + count
+                    rejectFilter = newFilter
+                    viewModel.setAutoRejectFilter(newFilter)
                 }
-            }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -245,6 +221,33 @@ private fun RecruitManagementDialog(
             ) {
                 GameButton(text = "关闭", onClick = onDismiss)
             }
+        }
+    }
+}
+
+/** 灵根数筛选网格（RecruitManagementDialog 拆分） */
+@Composable
+private fun RootCountFilterGrid(
+    filter: Set<Int>,
+    onToggle: (Int) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(5),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
+            val baseColor = GameColors.getSpiritRootCountColor(count)
+            val rootColor = if (count == 5) Color.Black else baseColor
+            AutoRecruitFilterRow(
+                label = name,
+                labelColor = rootColor,
+                checked = count in filter,
+                onToggle = { onToggle(count) }
+            )
         }
     }
 }

@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game.dialogs.heavenlytrial
 
 import com.xianxia.sect.core.SkillType
@@ -215,13 +216,16 @@ internal fun applyBuffToTarget(
 
 /**
  * 推进回合，根据存活情况返回下一状态。
+ *
+ * `isDefending` 以只读 [Set] 传递（本函数从不原地修改，原样回传；
+ * D-39 MutableCollectionMutableState 根治后 UI 侧持有不可变集合）。
  */
 internal fun advanceTurn(
     alivePlayers: List<Combatant>,
     aliveEnemies: List<Combatant>,
     currentIdx: Int,
-    isDefending: MutableSet<String>,
-    onResult: (Int, BattlePhase, MutableSet<String>) -> Unit
+    isDefending: Set<String>,
+    onResult: (Int, BattlePhase, Set<String>) -> Unit
 ) {
     if (aliveEnemies.all { it.isDead }) {
         onResult(currentIdx, BattlePhase.WON, isDefending); return
@@ -294,103 +298,217 @@ internal fun resolveAIAction(
 ): Pair<List<Combatant>, List<Combatant>> {
     var updatedPlayers = players
     var updatedEnemies = enemies
-    val myTeam = if (actorIsPlayer) updatedPlayers else updatedEnemies
-    val enemyTeam = if (actorIsPlayer) updatedEnemies else updatedPlayers
     val skill = ai.skill
-    val target = ai.target
 
-    when (ai.actionType) {
-        BattleAI.AIActionType.NONE -> {}
-        BattleAI.AIActionType.SKILL_ATTACK_AOE -> {
-            if (skill != null) {
-                val newEnemyTeam = enemyTeam.map { e ->
-                    if (!e.isDead) {
-                        val r = BattleCalculator.calculateCombatantDamage(
-                            actor, e, skill, rng = rng, enableInstantKill = true
-                        )
-                        if (r.isInstantKill) e.copy(hp = 0)
-                        else e.copy(hp = (e.hp - r.damage).coerceAtLeast(0))
-                    } else e
-                }
-                if (actorIsPlayer) updatedEnemies = newEnemyTeam else updatedPlayers = newEnemyTeam
-            }
-        }
-        BattleAI.AIActionType.SKILL_ATTACK_SINGLE -> {
-            if (skill != null && target != null) {
-                val r = BattleCalculator.calculateCombatantDamage(
-                    actor, target, skill, rng = rng, enableInstantKill = true
-                )
-                val applyDmg: (Combatant) -> Combatant = {
-                    if (it.id == target.id) {
-                        if (r.isInstantKill) it.copy(hp = 0)
-                        else it.copy(hp = (it.hp - r.damage).coerceAtLeast(0))
-                    } else it
-                }
-                if (actorIsPlayer) updatedEnemies = updatedEnemies.map(applyDmg)
-                else updatedPlayers = updatedPlayers.map(applyDmg)
-            }
-        }
-        BattleAI.AIActionType.NORMAL_ATTACK -> {
-            if (target != null) {
-                val r = BattleCalculator.calculateCombatantDamage(
-                    actor, target, null, rng = rng, enableInstantKill = true
-                )
-                val applyDmg: (Combatant) -> Combatant = {
-                    if (it.id == target.id) {
-                        if (r.isInstantKill) it.copy(hp = 0)
-                        else it.copy(hp = (it.hp - r.damage).coerceAtLeast(0))
-                    } else it
-                }
-                if (actorIsPlayer) updatedEnemies = updatedEnemies.map(applyDmg)
-                else updatedPlayers = updatedPlayers.map(applyDmg)
-            }
-        }
-        BattleAI.AIActionType.SKILL_HEAL_SELF, BattleAI.AIActionType.SKILL_BUFF_SELF -> {
-            if (skill != null) {
-                val buffed = applyBuffToTarget(actor, skill, actor.realm, actor.realmLayer)
-                if (actorIsPlayer) updatedPlayers = updatedPlayers.map { if (it.id == actor.id) buffed else it }
-                else updatedEnemies = updatedEnemies.map { if (it.id == actor.id) buffed else it }
-            }
-        }
-        BattleAI.AIActionType.SKILL_HEAL_ALLY, BattleAI.AIActionType.SKILL_BUFF_ALLY -> {
-            if (skill != null && target != null) {
-                val buffed = applyBuffToTarget(target, skill, actor.realm, actor.realmLayer)
-                if (actorIsPlayer) updatedPlayers = updatedPlayers.map { if (it.id == target.id) buffed else it }
-                else updatedEnemies = updatedEnemies.map { if (it.id == target.id) buffed else it }
-            }
-        }
-        BattleAI.AIActionType.SKILL_HEAL_TEAM, BattleAI.AIActionType.SKILL_BUFF_TEAM -> {
-            if (skill != null) {
-                val applyBuffs: (Combatant) -> Combatant = {
-                    if (!it.isDead) applyBuffToTarget(it, skill, actor.realm, actor.realmLayer) else it
-                }
-                if (actorIsPlayer) updatedPlayers = updatedPlayers.map(applyBuffs)
-                else updatedEnemies = updatedEnemies.map(applyBuffs)
-            }
-        }
-    }
+    // 动作分支结算
+    val (playersAfterAction, enemiesAfterAction) = applyAIAction(
+        actor = actor,
+        ai = ai,
+        actorIsPlayer = actorIsPlayer,
+        players = updatedPlayers,
+        enemies = updatedEnemies,
+        rng = rng
+    )
+    updatedPlayers = playersAfterAction
+    updatedEnemies = enemiesAfterAction
 
     // 技能消耗：扣除 MP + 设置冷却
     if (skill != null &&
         ai.actionType != BattleAI.AIActionType.NONE &&
         ai.actionType != BattleAI.AIActionType.NORMAL_ATTACK
     ) {
-        val myTeamList = if (actorIsPlayer) updatedPlayers else updatedEnemies
-        val actorIdx = myTeamList.indexOfFirst { it.id == actor.id }
-        if (actorIdx >= 0) {
-            val drained = myTeamList[actorIdx].copy(
-                mp = (myTeamList[actorIdx].mp - skill.mpCost).coerceAtLeast(0),
-                skills = myTeamList[actorIdx].skills.map { s ->
-                    if (s.name == skill.name) s.copy(currentCooldown = s.cooldown) else s
-                }
-            )
-            if (actorIsPlayer) {
-                updatedPlayers = updatedPlayers.toMutableList().apply { set(actorIdx, drained) }
-            } else {
-                updatedEnemies = updatedEnemies.toMutableList().apply { set(actorIdx, drained) }
-            }
-        }
+        val (playersAfterCost, enemiesAfterCost) = deductSkillCost(
+            actor = actor,
+            skill = skill,
+            actorIsPlayer = actorIsPlayer,
+            players = updatedPlayers,
+            enemies = updatedEnemies
+        )
+        updatedPlayers = playersAfterCost
+        updatedEnemies = enemiesAfterCost
     }
 
     return updatedPlayers to updatedEnemies
+}
+
+/** AI 动作分支结算（resolveAIAction 拆分）：按 actionType 分派到对应结算函数 */
+private fun applyAIAction(
+    actor: Combatant,
+    ai: BattleAI.AIAction,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>,
+    rng: DeterministicRng
+): Pair<List<Combatant>, List<Combatant>> {
+    val skill = ai.skill
+    val target = ai.target
+    return when (ai.actionType) {
+        BattleAI.AIActionType.NONE -> players to enemies
+        BattleAI.AIActionType.SKILL_ATTACK_AOE -> resolveAoeSkillAttack(
+            actor = actor, skill = skill, actorIsPlayer = actorIsPlayer,
+            players = players, enemies = enemies, rng = rng
+        )
+        BattleAI.AIActionType.SKILL_ATTACK_SINGLE -> {
+            if (skill != null && target != null) {
+                resolveTargetedSkillAttack(
+                    actor = actor, skill = skill, target = target,
+                    actorIsPlayer = actorIsPlayer,
+                    players = players, enemies = enemies, rng = rng
+                )
+            } else {
+                players to enemies
+            }
+        }
+        BattleAI.AIActionType.NORMAL_ATTACK -> {
+            if (target != null) {
+                resolveTargetedSkillAttack(
+                    actor = actor, skill = null, target = target,
+                    actorIsPlayer = actorIsPlayer,
+                    players = players, enemies = enemies, rng = rng
+                )
+            } else {
+                players to enemies
+            }
+        }
+        BattleAI.AIActionType.SKILL_HEAL_SELF, BattleAI.AIActionType.SKILL_BUFF_SELF -> resolveSelfBuff(
+            actor = actor, skill = skill, actorIsPlayer = actorIsPlayer,
+            players = players, enemies = enemies
+        )
+        BattleAI.AIActionType.SKILL_HEAL_ALLY, BattleAI.AIActionType.SKILL_BUFF_ALLY -> resolveAllyBuff(
+            actor = actor, skill = skill, target = target,
+            actorIsPlayer = actorIsPlayer, players = players,
+            enemies = enemies
+        )
+        BattleAI.AIActionType.SKILL_HEAL_TEAM, BattleAI.AIActionType.SKILL_BUFF_TEAM -> resolveTeamBuff(
+            actor = actor, skill = skill, actorIsPlayer = actorIsPlayer,
+            players = players, enemies = enemies
+        )
+    }
+}
+
+/** AOE 技能攻击结算（resolveAIAction 拆分）：对全体敌方目标同时结算 */
+private fun resolveAoeSkillAttack(
+    actor: Combatant,
+    skill: CombatSkill?,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>,
+    rng: DeterministicRng
+): Pair<List<Combatant>, List<Combatant>> {
+    if (skill == null) return players to enemies
+    val foeTeam = if (actorIsPlayer) enemies else players
+    val newFoeTeam = foeTeam.map { e ->
+        if (!e.isDead) {
+            val r = BattleCalculator.calculateCombatantDamage(
+                actor, e, skill, rng = rng, enableInstantKill = true
+            )
+            if (r.isInstantKill) e.copy(hp = 0)
+            else e.copy(hp = (e.hp - r.damage).coerceAtLeast(0))
+        } else e
+    }
+    return if (actorIsPlayer) players to newFoeTeam else newFoeTeam to enemies
+}
+
+/** 单体技能/普攻结算（resolveAIAction 拆分）：skill 为 null 时视为普攻 */
+private fun resolveTargetedSkillAttack(
+    actor: Combatant,
+    skill: CombatSkill?,
+    target: Combatant,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>,
+    rng: DeterministicRng
+): Pair<List<Combatant>, List<Combatant>> {
+    val r = BattleCalculator.calculateCombatantDamage(
+        actor, target, skill, rng = rng, enableInstantKill = true
+    )
+    val applyDmg: (Combatant) -> Combatant = {
+        if (it.id == target.id) {
+            if (r.isInstantKill) it.copy(hp = 0)
+            else it.copy(hp = (it.hp - r.damage).coerceAtLeast(0))
+        } else it
+    }
+    val foeTeam = if (actorIsPlayer) enemies else players
+    val newFoeTeam = foeTeam.map(applyDmg)
+    return if (actorIsPlayer) players to newFoeTeam else newFoeTeam to enemies
+}
+
+/** 自身 Buff/治疗结算（resolveAIAction 拆分） */
+private fun resolveSelfBuff(
+    actor: Combatant,
+    skill: CombatSkill?,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>
+): Pair<List<Combatant>, List<Combatant>> {
+    if (skill == null) return players to enemies
+    val buffed = applyBuffToTarget(actor, skill, actor.realm, actor.realmLayer)
+    return if (actorIsPlayer) {
+        players.map { if (it.id == actor.id) buffed else it } to enemies
+    } else {
+        players to enemies.map { if (it.id == actor.id) buffed else it }
+    }
+}
+
+/** 单体队友 Buff/治疗结算（resolveAIAction 拆分） */
+private fun resolveAllyBuff(
+    actor: Combatant,
+    skill: CombatSkill?,
+    target: Combatant?,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>
+): Pair<List<Combatant>, List<Combatant>> {
+    if (skill == null || target == null) return players to enemies
+    val buffed = applyBuffToTarget(target, skill, actor.realm, actor.realmLayer)
+    return if (actorIsPlayer) {
+        players.map { if (it.id == target.id) buffed else it } to enemies
+    } else {
+        players to enemies.map { if (it.id == target.id) buffed else it }
+    }
+}
+
+/** 全队 Buff/治疗结算（resolveAIAction 拆分） */
+private fun resolveTeamBuff(
+    actor: Combatant,
+    skill: CombatSkill?,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>
+): Pair<List<Combatant>, List<Combatant>> {
+    if (skill == null) return players to enemies
+    val applyBuffs: (Combatant) -> Combatant = {
+        if (!it.isDead) applyBuffToTarget(it, skill, actor.realm, actor.realmLayer) else it
+    }
+    return if (actorIsPlayer) {
+        players.map(applyBuffs) to enemies
+    } else {
+        players to enemies.map(applyBuffs)
+    }
+}
+
+/** 技能消耗结算（resolveAIAction 拆分）：扣除 MP + 设置冷却 */
+private fun deductSkillCost(
+    actor: Combatant,
+    skill: CombatSkill,
+    actorIsPlayer: Boolean,
+    players: List<Combatant>,
+    enemies: List<Combatant>
+): Pair<List<Combatant>, List<Combatant>> {
+    val myTeamList = if (actorIsPlayer) players else enemies
+    val actorIdx = myTeamList.indexOfFirst { it.id == actor.id }
+    if (actorIdx >= 0) {
+        val drained = myTeamList[actorIdx].copy(
+            mp = (myTeamList[actorIdx].mp - skill.mpCost).coerceAtLeast(0),
+            skills = myTeamList[actorIdx].skills.map { s ->
+                if (s.name == skill.name) s.copy(currentCooldown = s.cooldown) else s
+            }
+        )
+        return if (actorIsPlayer) {
+            players.toMutableList().apply { set(actorIdx, drained) } to enemies
+        } else {
+            players to enemies.toMutableList().apply { set(actorIdx, drained) }
+        }
+    }
+    return players to enemies
 }

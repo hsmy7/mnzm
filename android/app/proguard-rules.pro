@@ -55,11 +55,9 @@
 -keep class com.taptap.sdk.servicemanager.annotation.** { *; }
 -keep class com.taptap.sdk.startup.annotation.** { *; }
 
-# Keep all data models (kotlinx.serialization 编译器生成序列化器 + @Keep 注解覆盖)
--keep class com.xianxia.sect.core.model.** { *; }
--keep class com.xianxia.sect.data.model.** { *; }
-
 # Hilt
+# dagger.hilt.**/javax.inject.** 整包保留：Hilt 编译期生成组件/工厂，运行时经反射与注解解析
+# 完成注入，官方建议 keep（Hilt 文档）；删除后 Hilt 注入会失败，必须保留
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
 -keep class * extends dagger.hilt.android.internal.managers.ComponentSupplier { *; }
@@ -72,6 +70,7 @@
 }
 
 # Kotlin
+# kotlin.Metadata 保留：Kotlin 反射（kotlin-reflect）与序列化读取类元数据需要，官方规则
 -keep class kotlin.Metadata { *; }
 -dontwarn kotlin.**
 -keepclassmembers class **$WhenMappings {
@@ -82,6 +81,8 @@
 }
 
 # kotlinx.serialization - CRITICAL for ManualDatabase JSON fallback and all save/load serialization
+# 注：2026-08-15 项 F 收窄——com.xianxia.sect.core.model/data.model 全成员保留已删除，
+# 序列化访问由下方 com.xianxia.sect.** 针对性规则（$$serializer/Companion/serializer()/@Serializable 字段）完整覆盖。
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** {
@@ -90,7 +91,11 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+# 整包保留：库自带 consumer rules 理论上可删，但 ManualDatabase JSON fallback 全链路依赖序列化器，
+# 删除后未经 R8 验证，保守保留（待最终 assembleRelease 验证）
 -keep class kotlinx.serialization.** { *; }
+# 全局 Companion 必须保留：kotlinx.serialization 经伴生对象反射获取序列化器实例，
+# 需覆盖所有 @Serializable 类（含第三方库类），不能仅限 com.xianxia.sect.**（kotlinx.serialization 官方要求）
 -keepclassmembers class * {
     *** Companion;
 }
@@ -109,6 +114,8 @@
 }
 
 # Coroutines
+# 整包保留：库自带 consumer rules 理论上可删，但全局保留覆盖协程反射/恢复路径（挂起点类、Dispatchers 内部），
+# 删除后未经 R8 验证，保守保留（待最终 assembleRelease 验证）
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 -keep class kotlinx.coroutines.** { *; }
@@ -159,14 +166,9 @@
 -keep class okhttp3.Request$Builder { *; }
 -keep interface okhttp3.Interceptor { *; }
 
-# Retrofit
--dontwarn retrofit2.**
--keep class retrofit2.** { *; }
--keepclasseswithmembers class * {
-    @retrofit2.http.* <methods>;
-}
-
 # AndroidX Security Crypto
+# 整包保留：EncryptedSharedPreferences/EncryptedFile 经反射访问实现类（master key 派生链），
+# 官方 consumer rules 已含，删除后未经 R8 验证，保守保留（待最终 assembleRelease 验证）
 -keep class androidx.security.crypto.** { *; }
 -dontwarn androidx.security.crypto.**
 
@@ -175,7 +177,11 @@
 -keep @interface androidx.compose.runtime.Composable
 -keep @interface androidx.compose.runtime.Stable
 -keep @interface androidx.compose.runtime.Immutable
+# lifecycle 整包保留：ViewModel/Flow 反射恢复路径（SavedStateHandle 等），官方 consumer rules 已含，
+# 删除后未经 R8 验证，保守保留（待最终 assembleRelease 验证）
 -keep class androidx.lifecycle.** { *; }
+# room 整包保留：生成 DAO 实现反射调用，官方 consumer rules 已含，删除后未经 R8 验证，
+# 保守保留（待最终 assembleRelease 验证）；上方 112-124 行另有 Room 注解级精确规则
 -keep class androidx.room.** { *; }
 -dontwarn androidx.**
 
@@ -240,6 +246,8 @@
 # Compose runtime stability annotations
 -keep @interface androidx.compose.runtime.Stable
 -keep @interface androidx.compose.runtime.Immutable
+# 注解类全保留：HarmonyOS AOT（方舟编译器）依赖 @Stable/@Immutable 注解做稳定性推断，
+# 全保留保证 AOT 编译产物稳定（HarmonyOS AOT 兼容）；删除后需在 HarmonyOS 真机验证，保守保留
 -keepclasseswithmembers @androidx.compose.runtime.Stable class * { *; }
 -keepclasseswithmembers @androidx.compose.runtime.Immutable class * { *; }
 
@@ -263,6 +271,9 @@
 -keep class com.getkeepsafe.relinker.** { *; }
 
 # Bugly - 崩溃收集 SDK
+# Bugly 整包保留：崩溃上报 SDK 经反射/动态注册收集崩溃信息，官方文档要求 keep，必须保留
 -dontwarn com.tencent.bugly.**
 -keep public class com.tencent.bugly.**{*;}
+# android.support 兼容保留：部分广告 SDK（如 Baidu mobads）运行时引用旧 support 库类，
+# 删除后 SDK 初始化可能崩溃，保守保留（待最终 assembleRelease 验证）
 -keep class android.support.**{*;}

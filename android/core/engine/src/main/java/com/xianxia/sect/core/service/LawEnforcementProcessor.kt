@@ -259,72 +259,106 @@ class LawEnforcementProcessor @Inject constructor(
     private fun executeFullTheftCheck(id: Int, tables: DiscipleTables, currentMonth: Int, currentData: GameData) {
         val disciple = tables.assemble(id) ?: return
         val stats = DiscipleStatCalculator.getBaseStats(disciple)
-        val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
         val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val captureRate = calculateCaptureRate()
         val warehouses = currentData.placedBuildings.filter { it.displayName == "仓库" }
         val garrisons = currentData.warehouseGarrisons
 
         // Step 1: 偷盗概率判定
-        val theftProb = ((moralThreshold - stats.morality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-        val effectiveTheftProb = if (currentData.sectPolicies.curfew) {
-            theftProb * (1.0 - GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION)
-        } else theftProb
-        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= effectiveTheftProb) return
+        if (!shouldAttemptTheft(morality = stats.morality, currentData = currentData)) return
 
         // Step 2: 执法堂判定 — 直接以抓捕率判定
         if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
-            stateStore.update {
-                val cid = disciple.id.toIntOrNull() ?: return@update
-                if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
-                    discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
-                    discipleTables.statusData[cid] = (discipleTables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
-                        "reflectionStartYear" to currentData.gameYear.toString(),
-                        "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
-                    )
-                }
-                addEventRecord(this, "SECT", "theft_caught", "${disciple.name}偷盗被捕", disciple.id, disciple.name)
-            }
+            handleLawEnforcementCapture(disciple = disciple, currentData = currentData)
             return
         }
 
         // Step 3: 仓库驻守判定 — 纯智力比拼
-        if (warehouses.isNotEmpty()) {
-            val wh = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
-            val garrison = garrisons.find { it.buildingInstanceId == wh.instanceId && it.isActive }
-            if (garrison != null) {
-                val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId }
-                if (guardDisciple != null) {
-                    val guardIntel = DiscipleStatCalculator.getBaseStats(guardDisciple).intelligence
-                    if (stats.intelligence <= guardIntel) {
-                        stateStore.update {
-                            val cid = disciple.id.toIntOrNull() ?: return@update
-                            if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
-                                discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
-                                discipleTables.statusData[cid] = (discipleTables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
-                                    "reflectionStartYear" to currentData.gameYear.toString(),
-                                    "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
-                                )
-                            }
-                            addEventRecord(this, "SECT", "theft_caught",
-                                "${disciple.name}偷盗被捕", disciple.id, disciple.name)
-                        }
-                        return
-                    }
-                }
-            }
+        if (handleWarehouseGarrisonCheck(
+                disciple = disciple,
+                thiefIntel = stats.intelligence,
+                warehouses = warehouses,
+                garrisons = garrisons,
+                currentData = currentData
+            )
+        ) {
+            return
         }
 
         // Step 3: 偷窃成功 → 执行（灵石 + 物品）
         executeSuccessfulTheft(disciple, id, tables, currentData, warehouses, garrisons)
 
         // Step 4: 偷盗后叛逃判定（仅看忠诚）
-        val desertionProb = ((loyalThreshold - stats.loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb) {
+        if (shouldDesertAfterTheft(loyalty = stats.loyalty)) {
             processTheftDesertionCleanup(setOf(id), tables, loyalThreshold)
         }
+    }
+
+    /** 偷盗概率判定（executeFullTheftCheck 拆分）：道德差 × 每点概率，宵禁减免；true=尝试偷盗 */
+    private fun shouldAttemptTheft(morality: Int, currentData: GameData): Boolean {
+        val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
+        val theftProb = ((moralThreshold - morality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+        val effectiveTheftProb = if (currentData.sectPolicies.curfew) {
+            theftProb * (1.0 - GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION)
+        } else theftProb
+        return rngManager.getRng(RngPartition.SYSTEM).nextDouble() < effectiveTheftProb
+    }
+
+    /** 执法堂抓捕处理（executeFullTheftCheck 拆分）：面壁思过 + 事件记录 */
+    private fun handleLawEnforcementCapture(disciple: Disciple, currentData: GameData) {
+        stateStore.update {
+            val cid = disciple.id.toIntOrNull() ?: return@update
+            if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
+                discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
+                discipleTables.statusData[cid] = (discipleTables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
+                    "reflectionStartYear" to currentData.gameYear.toString(),
+                    "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
+                )
+            }
+            addEventRecord(this, "SECT", "theft_caught", "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+        }
+    }
+
+    /** 仓库守卫判定（executeFullTheftCheck 拆分）：守卫智力 ≥ 小偷智力 → 抓捕；true=已被捕 */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private fun handleWarehouseGarrisonCheck(
+        disciple: Disciple,
+        thiefIntel: Int,
+        warehouses: List<GridBuildingData>,
+        garrisons: List<WarehouseGarrisonSlot>,
+        currentData: GameData
+    ): Boolean {
+        if (warehouses.isEmpty()) return false
+        val wh = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
+        val garrison = garrisons.find { it.buildingInstanceId == wh.instanceId && it.isActive }
+        if (garrison == null) return false
+        val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId }
+        if (guardDisciple == null) return false
+        val guardIntel = DiscipleStatCalculator.getBaseStats(guardDisciple).intelligence
+        if (thiefIntel > guardIntel) return false
+        stateStore.update {
+            val cid = disciple.id.toIntOrNull() ?: return@update
+            if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
+                discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
+                discipleTables.statusData[cid] = (discipleTables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
+                    "reflectionStartYear" to currentData.gameYear.toString(),
+                    "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
+                )
+            }
+            addEventRecord(this, "SECT", "theft_caught",
+                "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+        }
+        return true
+    }
+
+    /** 偷盗后叛逃判定（executeFullTheftCheck 拆分）：仅看忠诚，低于阈值按概率叛逃 */
+    private fun shouldDesertAfterTheft(loyalty: Int): Boolean {
+        val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val desertionProb = ((loyalThreshold - loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+        return rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb
     }
 
     /**

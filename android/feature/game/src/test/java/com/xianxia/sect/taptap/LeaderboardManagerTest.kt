@@ -1,14 +1,12 @@
 package com.xianxia.sect.taptap
 
 import android.content.Context
-import android.content.SharedPreferences
+import com.xianxia.sect.data.prefs.KeyValueStore
 import com.xianxia.sect.taptap.TapTapLeaderboardApi.LeaderboardApiException
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
-import io.mockk.runs
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,54 +21,53 @@ import org.robolectric.RobolectricTestRunner
  * LeaderboardManager 测试：节流上报与榜单拉取编排。
  *
  * Robolectric 提供真实 android.util.Log 实现（普通 JVM 测试中 Log 抛
- * "not mocked"）；存储依赖 mockk 的 SharedPreferences（内存行为由 stub 模拟），
- * SDK 依赖经 LeaderboardCloudApi 接口 fake，无需真实 TapTap 环境。
+ * "not mocked"）；存储依赖内存 Fake [KeyValueStore]（D-29 接口抽象，
+ * MMKV native 库在 Robolectric 沙箱不可用），SDK 依赖经
+ * LeaderboardCloudApi 接口 fake，无需真实 TapTap 环境。
  */
 @RunWith(RobolectricTestRunner::class)
 class LeaderboardManagerTest {
 
+    /** 内存 Fake——put/get 联动（类型化存取，与 KeyValueStore 契约一致） */
+    private class FakeKeyValueStore : KeyValueStore {
+        private val values = mutableMapOf<String, Any?>()
+        override fun contains(key: String): Boolean = values.containsKey(key)
+        override fun getBoolean(key: String, default: Boolean): Boolean =
+            values[key] as? Boolean ?: default
+        override fun getString(key: String, default: String?): String? =
+            values[key] as? String ?: default
+        override fun getInt(key: String, default: Int): Int = values[key] as? Int ?: default
+        override fun getLong(key: String, default: Long): Long =
+            values[key] as? Long ?: default
+        override fun getFloat(key: String, default: Float): Float =
+            values[key] as? Float ?: default
+        override fun putBoolean(key: String, value: Boolean) { values[key] = value }
+        override fun putString(key: String, value: String) { values[key] = value }
+        override fun putInt(key: String, value: Int) { values[key] = value }
+        override fun putLong(key: String, value: Long) { values[key] = value }
+        override fun putFloat(key: String, value: Float) { values[key] = value }
+        override fun remove(key: String) { values.remove(key) }
+        override fun clearAll() { values.clear() }
+        override fun migrateFromSharedPreferences(spName: String) = Unit
+
+        fun readRaw(key: String): Any? = values[key]
+        fun writeRaw(key: String, value: Any?) { values[key] = value }
+    }
+
     private lateinit var context: Context
-    private lateinit var prefs: SharedPreferences
-    private lateinit var editor: SharedPreferences.Editor
+    private lateinit var store: FakeKeyValueStore
     private lateinit var cloudApi: LeaderboardCloudApi
     private lateinit var loginBridge: TapTapLoginBridge
     private lateinit var manager: LeaderboardManager
 
-    /** 内存 prefs 存储（mockk relaxed 无法实现 put/get 联动，手写 HashMap 后备） */
-    private val store = mutableMapOf<String, Any?>()
-
     @Before
     fun setUp() {
-        store.clear()
+        store = FakeKeyValueStore()
         context = mockk(relaxed = true)
-        prefs = mockk(relaxed = true)
-        editor = mockk(relaxed = true)
         cloudApi = mockk(relaxed = true)
         loginBridge = mockk(relaxed = true)
 
-        every { context.getSharedPreferences(any(), any()) } returns prefs
-        every { prefs.contains(any()) } answers { store.containsKey(args[0]) }
-        every { prefs.getString(any(), any()) } answers {
-            val key = args[0] as String
-            store[key] as? String ?: args[1] as? String
-        }
-        every { prefs.getLong(any(), any()) } answers {
-            val key = args[0] as String
-            (store[key] as? Long) ?: args[1] as Long
-        }
-        every { prefs.edit() } returns editor
-        every { editor.putString(any(), any()) } answers {
-            store[args[0] as String] = args[1] as String
-            editor
-        }
-        every { editor.putLong(any(), any()) } answers {
-            store[args[0] as String] = args[1] as Long
-            editor
-        }
-        every { editor.apply() } just runs
-        every { editor.commit() } returns true
-
-        manager = LeaderboardManager(context, cloudApi, loginBridge)
+        manager = LeaderboardManager(cloudApi, loginBridge, store)
     }
 
     // ── uploadIfNeeded：登录态 ──
@@ -97,8 +94,8 @@ class LeaderboardManagerTest {
 
         assertTrue(result)
         coVerify(exactly = 1) { cloudApi.submitStatistic(100) }
-        assertEquals(100L, store["last_uploaded_power"])
-        assertTrue((store["last_upload_date"] as? String)?.length == 10)
+        assertEquals(100L, store.readRaw("last_uploaded_power"))
+        assertTrue((store.readRaw("last_upload_date") as? String)?.length == 10)
     }
 
     @Test
@@ -123,7 +120,7 @@ class LeaderboardManagerTest {
 
         assertTrue(result)
         coVerify(exactly = 2) { cloudApi.submitStatistic(any()) }
-        assertEquals(200L, store["last_uploaded_power"])
+        assertEquals(200L, store.readRaw("last_uploaded_power"))
     }
 
     @Test
@@ -135,7 +132,7 @@ class LeaderboardManagerTest {
         val yesterday = LeaderboardUploadPolicy.formatDate(
             System.currentTimeMillis() - 24L * 60 * 60 * 1000
         )
-        store["last_upload_date"] = yesterday
+        store.writeRaw("last_upload_date", yesterday)
 
         val result = manager.uploadIfNeeded(100)
 
@@ -151,7 +148,7 @@ class LeaderboardManagerTest {
         val result = manager.uploadIfNeeded(100)
 
         assertFalse(result)
-        assertNull(store["last_upload_date"])
+        assertNull(store.readRaw("last_upload_date"))
     }
 
     // ── fetchLeaderboard：登录态与错误映射 ──

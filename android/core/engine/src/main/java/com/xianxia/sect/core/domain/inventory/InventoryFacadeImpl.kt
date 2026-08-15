@@ -31,6 +31,7 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -43,6 +44,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 
 import com.xianxia.sect.core.engine.system.computeSlotCount
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.StackableItem
@@ -128,63 +130,85 @@ class InventoryFacadeImpl @Inject constructor(
                         DomainLog.w(TAG, "没收物品失败：数量非法（quantity=${currentItem.quantity}）${currentItem.name}")
                         return@withTrackingSource
                     }
-                    // null = 模板不存在（堆叠类条目无法重建，丢弃处理）
-                    val result: DomainResult<*>? = when {
-                        // 实例条目（卸装/忘功法入袋）：持完整实例，保真物化回仓库堆叠——
-                        // 不走模板重建（equipment_instance/manual_instance 不在重建分支，
-                        // 且模板重建丢实例数据）；仓库满（Failure）保留袋内实例待重试
-                        eqInstance != null -> inventorySystem.returnEquipmentToStack(eqInstance)
-                        mnInstance != null -> inventorySystem.returnManualToStack(mnInstance)
-                        // 堆叠类条目：经 BagItemReconstructor 按数据库模板重建
-                        // 完整堆叠（minRealm 用条目 stackedData 保真）
-                        else -> {
-                            val reconstructed = BagItemReconstructor.reconstruct(currentItem)
-                            if (reconstructed == null) {
-                                null
-                            } else {
-                                when (reconstructed) {
-                                    is ReconstructedBagStack.Equipment ->
-                                        inventorySystem.addEquipmentStack(reconstructed.stack.copy(quantity = 1))
-                                    is ReconstructedBagStack.Manual ->
-                                        inventorySystem.addManualStack(reconstructed.stack.copy(quantity = 1))
-                                    is ReconstructedBagStack.Pill ->
-                                        inventorySystem.addPill(reconstructed.stack.copy(quantity = 1))
-                                    is ReconstructedBagStack.Herb ->
-                                        inventorySystem.addHerb(reconstructed.stack.copy(quantity = 1))
-                                    is ReconstructedBagStack.Seed ->
-                                        inventorySystem.addSeed(reconstructed.stack.copy(quantity = 1))
-                                    is ReconstructedBagStack.Material ->
-                                        inventorySystem.addMaterial(reconstructed.stack.copy(quantity = 1))
-                                }
-                            }
-                        }
-                    }
-                    when (result) {
-                        // 模板不存在：仅引用无法重建，物品丢弃（袋条目保留，玩家可再次尝试）
-                        null -> DomainLog.w(TAG, "没收物品失败：找不到 ${currentItem.name} 的模板")
-                        // 仓库已入仓，从弟子储物袋移除（实例整条删除，堆叠减 1）
-                        is DomainResult.Success -> {
-                            val updatedItems = if (eqInstance != null || mnInstance != null) {
-                                // 实例条目：整条移除（实例不可分，防 quantity>1 实例重复没收复制）
-                                disciple.equipment.storageBagItems.filterNot { it.itemId == currentItem.itemId }
-                            } else {
-                                // 堆叠条目：每次没收 1 个，袋内剩余数量保留
-                                StorageBagUtils.decreaseItemQuantity(
-                                    disciple.equipment.storageBagItems, currentItem.itemId, 1
-                                )
-                            }
-                            discipleTables.update(disciple.copy(
-                                equipment = disciple.equipment.copy(storageBagItems = updatedItems)
-                            ))
-                        }
-                        // 溢出：保留袋内物品，玩家清理后重试补齐（已入仓部分合并不重复）
-                        is DomainResult.Partial ->
-                            DomainLog.w(TAG, "没收物品溢出：${currentItem.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                        // 仓库满：保留袋内物品待重试（C1 防复制）
-                        is DomainResult.Failure -> {}
+                    val result = materializeConfiscatedItem(currentItem = currentItem)
+                    applyConfiscationResult(
+                        disciple = disciple,
+                        currentItem = currentItem,
+                        hasInstance = eqInstance != null || mnInstance != null,
+                        result = result
+                    )
+                }
+            }
+        }
+    }
+
+    /** 没收物物化（confiscateStorageBagItem 拆分）：实例条目保真回仓 / 堆叠条目按模板重建 */
+    private fun MutableGameState.materializeConfiscatedItem(currentItem: StorageBagItem): DomainResult<*>? {
+        val eqInstance = currentItem.equipmentInstance
+        val mnInstance = currentItem.manualInstance
+        // null = 模板不存在（堆叠类条目无法重建，丢弃处理）
+        return when {
+            // 实例条目（卸装/忘功法入袋）：持完整实例，保真物化回仓库堆叠——
+            // 不走模板重建（equipment_instance/manual_instance 不在重建分支，
+            // 且模板重建丢实例数据）；仓库满（Failure）保留袋内实例待重试
+            eqInstance != null -> inventorySystem.returnEquipmentToStack(eqInstance)
+            mnInstance != null -> inventorySystem.returnManualToStack(mnInstance)
+            // 堆叠类条目：经 BagItemReconstructor 按数据库模板重建
+            // 完整堆叠（minRealm 用条目 stackedData 保真）
+            else -> {
+                val reconstructed = BagItemReconstructor.reconstruct(currentItem)
+                if (reconstructed == null) {
+                    null
+                } else {
+                    when (reconstructed) {
+                        is ReconstructedBagStack.Equipment ->
+                            inventorySystem.addEquipmentStack(reconstructed.stack.copy(quantity = 1))
+                        is ReconstructedBagStack.Manual ->
+                            inventorySystem.addManualStack(reconstructed.stack.copy(quantity = 1))
+                        is ReconstructedBagStack.Pill ->
+                            inventorySystem.addPill(reconstructed.stack.copy(quantity = 1))
+                        is ReconstructedBagStack.Herb ->
+                            inventorySystem.addHerb(reconstructed.stack.copy(quantity = 1))
+                        is ReconstructedBagStack.Seed ->
+                            inventorySystem.addSeed(reconstructed.stack.copy(quantity = 1))
+                        is ReconstructedBagStack.Material ->
+                            inventorySystem.addMaterial(reconstructed.stack.copy(quantity = 1))
                     }
                 }
             }
+        }
+    }
+
+    /** 没收结果落地（confiscateStorageBagItem 拆分）：成功移除袋条目，溢出/失败保留待重试 */
+    private fun MutableGameState.applyConfiscationResult(
+        disciple: Disciple,
+        currentItem: StorageBagItem,
+        hasInstance: Boolean,
+        result: DomainResult<*>?
+    ) {
+        when (result) {
+            // 模板不存在：仅引用无法重建，物品丢弃（袋条目保留，玩家可再次尝试）
+            null -> DomainLog.w(TAG, "没收物品失败：找不到 ${currentItem.name} 的模板")
+            // 仓库已入仓，从弟子储物袋移除（实例整条删除，堆叠减 1）
+            is DomainResult.Success -> {
+                val updatedItems = if (hasInstance) {
+                    // 实例条目：整条移除（实例不可分，防 quantity>1 实例重复没收复制）
+                    disciple.equipment.storageBagItems.filterNot { it.itemId == currentItem.itemId }
+                } else {
+                    // 堆叠条目：每次没收 1 个，袋内剩余数量保留
+                    StorageBagUtils.decreaseItemQuantity(
+                        disciple.equipment.storageBagItems, currentItem.itemId, 1
+                    )
+                }
+                discipleTables.update(disciple.copy(
+                    equipment = disciple.equipment.copy(storageBagItems = updatedItems)
+                ))
+            }
+            // 溢出：保留袋内物品，玩家清理后重试补齐（已入仓部分合并不重复）
+            is DomainResult.Partial ->
+                DomainLog.w(TAG, "没收物品溢出：${currentItem.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
+            // 仓库满：保留袋内物品待重试（C1 防复制）
+            is DomainResult.Failure -> {}
         }
     }
 
@@ -370,105 +394,14 @@ class InventoryFacadeImpl @Inject constructor(
             if (gameData.spiritStones < cost || quantity > merchantItem.quantity) return@update
 
             // 容量检查（在事务内基于最新状态做只读预测）
-            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    val eq = MerchantItemConverter.toEquipment(merchantItem)
-                    if (!inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)) return@update
-                }
-                "manual" -> {
-                    val m = MerchantItemConverter.toManual(merchantItem)
-                    if (!inventorySystem.canAddManual(m.name, m.rarity, m.type)) return@update
-                }
-                "pill" -> {
-                    val p = MerchantItemConverter.toPill(merchantItem)
-                    if (!inventorySystem.canAddPill(p.name, p.rarity, p.category, p.grade)) return@update
-                }
-                "material" -> {
-                    val m = MerchantItemConverter.toMaterial(merchantItem)
-                    if (!inventorySystem.canAddMaterial(m.name, m.rarity, m.category)) return@update
-                }
-                "herb" -> {
-                    val h = MerchantItemConverter.toHerb(merchantItem)
-                    if (!inventorySystem.canAddHerb(h.name, h.rarity, h.category)) return@update
-                }
-                "seed" -> {
-                    val s = MerchantItemConverter.toSeed(merchantItem)
-                    if (!inventorySystem.canAddSeed(s.name, s.rarity, s.growTime)) return@update
-                }
-                "spiritstone" -> { /* 灵石不占用仓库槽位 */ }
-            }
+            if (!canAddMerchantItem(merchantItem = merchantItem)) return@update
 
             // ★ 先加物品后扣灵石——统一委托 addXxx（重入事务同一缓冲）；
             // 语义升级：Partial（溢出转邮件）视为成功，灵石照扣，玩家实得全部物品
-            var addOk = true
-            inventorySystem.withTrackingSource("merchant") {
-                when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-                    "equipment" -> {
-                        val result = inventorySystem.addEquipmentStack(
-                            MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
-                        )
-                        if (result is DomainResult.Failure) {
-                            DomainLog.w(TAG, "购买装备失败：${merchantItem.name}")
-                            addOk = false
-                        }
-                    }
-                    "manual" -> {
-                        val result = inventorySystem.addManualStack(
-                            MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
-                        )
-                        if (result is DomainResult.Failure) {
-                            DomainLog.w(TAG, "购买功法失败：${merchantItem.name}")
-                            addOk = false
-                        }
-                    }
-                    "pill" -> {
-                        val result = inventorySystem.addPill(
-                            MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
-                        )
-                        if (result is DomainResult.Failure) {
-                            DomainLog.w(TAG, "购买丹药失败：${merchantItem.name}")
-                            addOk = false
-                        }
-                    }
-                    "material" -> {
-                        val result = inventorySystem.addMaterial(
-                            MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
-                        )
-                        if (result is DomainResult.Failure) {
-                            DomainLog.w(TAG, "购买材料失败：${merchantItem.name}")
-                            addOk = false
-                        }
-                    }
-                    "herb" -> {
-                        val result = inventorySystem.addHerb(
-                            MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
-                        )
-                        if (result is DomainResult.Failure) {
-                            DomainLog.w(TAG, "购买草药失败：${merchantItem.name}")
-                            addOk = false
-                        }
-                    }
-                    "seed" -> {
-                        val result = inventorySystem.addSeed(
-                            MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
-                        )
-                        if (result is DomainResult.Failure) {
-                            DomainLog.w(TAG, "购买种子失败：${merchantItem.name}")
-                            addOk = false
-                        }
-                    }
-                    "spiritstone" -> {
-                        when (merchantItem.name) {
-                            "中品灵石" -> gameData = gameData.copy(
-                                midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
-                            )
-                            "上品灵石" -> gameData = gameData.copy(
-                                highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
-                            )
-                        }
-                    }
-                }
-            }
+            val addOk = addMerchantItemToInventory(
+                merchantItem = merchantItem,
+                quantity = quantity
+            )
             // 物品添加完全失败（零合并且仓库满，溢出已转邮件）→ 不扣灵石，不更新商家库存
             if (!addOk) return@update
 
@@ -477,13 +410,7 @@ class InventoryFacadeImpl @Inject constructor(
             if (deductResult !is DeductResult.Success) return@update
 
             // 减少商家库存
-            gameData = gameData.copy(
-                travelingMerchantItems = gameData.travelingMerchantItems.map { item ->
-                    if (item.id == itemId) {
-                        if (quantity >= item.quantity) null else item.copy(quantity = item.quantity - quantity)
-                    } else item
-                }.filterNotNull()
-            )
+            reduceMerchantStock(itemId = itemId, quantity = quantity)
             // 年度报告由 addXxx 按 "merchant" 来源自动累加（删除原手写统计防双计）
             itemName = merchantItem.name
             itemType = merchantItem.type
@@ -501,6 +428,153 @@ class InventoryFacadeImpl @Inject constructor(
                 )
             ))
         }
+    }
+
+    /** 商人商品容量检查（buyMerchantItem 拆分）：基于最新状态做只读预测，灵石/未知类型不占槽位 */
+    private fun MutableGameState.canAddMerchantItem(merchantItem: MerchantItem): Boolean =
+        when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
+            "equipment" -> {
+                val eq = MerchantItemConverter.toEquipment(merchantItem)
+                inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)
+            }
+            "manual" -> {
+                val m = MerchantItemConverter.toManual(merchantItem)
+                inventorySystem.canAddManual(m.name, m.rarity, m.type)
+            }
+            "pill" -> {
+                val p = MerchantItemConverter.toPill(merchantItem)
+                inventorySystem.canAddPill(p.name, p.rarity, p.category, p.grade)
+            }
+            "material" -> {
+                val m = MerchantItemConverter.toMaterial(merchantItem)
+                inventorySystem.canAddMaterial(m.name, m.rarity, m.category)
+            }
+            "herb" -> {
+                val h = MerchantItemConverter.toHerb(merchantItem)
+                inventorySystem.canAddHerb(h.name, h.rarity, h.category)
+            }
+            "seed" -> {
+                val s = MerchantItemConverter.toSeed(merchantItem)
+                inventorySystem.canAddSeed(s.name, s.rarity, s.growTime)
+            }
+            "spiritstone" -> true // 灵石不占用仓库槽位
+            else -> true
+        }
+
+    /** 商人商品入库（buyMerchantItem 拆分）：统一委托 addXxx，返回是否全部添加成功 */
+    private fun MutableGameState.addMerchantItemToInventory(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val addOk = inventorySystem.withTrackingSource("merchant") {
+            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> addMerchantEquipment(merchantItem = merchantItem, quantity = quantity)
+                "manual" -> addMerchantManual(merchantItem = merchantItem, quantity = quantity)
+                "pill" -> addMerchantPill(merchantItem = merchantItem, quantity = quantity)
+                "material" -> addMerchantMaterial(merchantItem = merchantItem, quantity = quantity)
+                "herb" -> addMerchantHerb(merchantItem = merchantItem, quantity = quantity)
+                "seed" -> addMerchantSeed(merchantItem = merchantItem, quantity = quantity)
+                "spiritstone" -> {
+                    grantMerchantSpiritStones(merchantItem = merchantItem, quantity = quantity)
+                    true
+                }
+                // 未知类型：原实现不做任何处理（addOk 保持 true，照常扣灵石）
+                else -> true
+            }
+        }
+        return addOk
+    }
+
+    /** 商人装备入库（addMerchantItemToInventory 拆分） */
+    private fun MutableGameState.addMerchantEquipment(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val result = inventorySystem.addEquipmentStack(
+            MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
+        )
+        if (result is DomainResult.Failure) {
+            DomainLog.w(TAG, "购买装备失败：${merchantItem.name}")
+            return false
+        }
+        return true
+    }
+
+    /** 商人功法入库（addMerchantItemToInventory 拆分） */
+    private fun MutableGameState.addMerchantManual(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val result = inventorySystem.addManualStack(
+            MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
+        )
+        if (result is DomainResult.Failure) {
+            DomainLog.w(TAG, "购买功法失败：${merchantItem.name}")
+            return false
+        }
+        return true
+    }
+
+    /** 商人丹药入库（addMerchantItemToInventory 拆分） */
+    private fun MutableGameState.addMerchantPill(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val result = inventorySystem.addPill(
+            MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
+        )
+        if (result is DomainResult.Failure) {
+            DomainLog.w(TAG, "购买丹药失败：${merchantItem.name}")
+            return false
+        }
+        return true
+    }
+
+    /** 商人材料入库（addMerchantItemToInventory 拆分） */
+    private fun MutableGameState.addMerchantMaterial(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val result = inventorySystem.addMaterial(
+            MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
+        )
+        if (result is DomainResult.Failure) {
+            DomainLog.w(TAG, "购买材料失败：${merchantItem.name}")
+            return false
+        }
+        return true
+    }
+
+    /** 商人草药入库（addMerchantItemToInventory 拆分） */
+    private fun MutableGameState.addMerchantHerb(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val result = inventorySystem.addHerb(
+            MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
+        )
+        if (result is DomainResult.Failure) {
+            DomainLog.w(TAG, "购买草药失败：${merchantItem.name}")
+            return false
+        }
+        return true
+    }
+
+    /** 商人种子入库（addMerchantItemToInventory 拆分） */
+    private fun MutableGameState.addMerchantSeed(merchantItem: MerchantItem, quantity: Int): Boolean {
+        val result = inventorySystem.addSeed(
+            MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
+        )
+        if (result is DomainResult.Failure) {
+            DomainLog.w(TAG, "购买种子失败：${merchantItem.name}")
+            return false
+        }
+        return true
+    }
+
+    /** 商人灵石商品入账（addMerchantItemToInventory 拆分）：中品/上品灵石直加余额 */
+    private fun MutableGameState.grantMerchantSpiritStones(merchantItem: MerchantItem, quantity: Int) {
+        when (merchantItem.name) {
+            "中品灵石" -> gameData = gameData.copy(
+                midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
+            )
+            "上品灵石" -> gameData = gameData.copy(
+                highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
+            )
+        }
+    }
+
+    /** 商家库存扣减（buyMerchantItem 拆分） */
+    private fun MutableGameState.reduceMerchantStock(itemId: String, quantity: Int) {
+        gameData = gameData.copy(
+            travelingMerchantItems = gameData.travelingMerchantItems.map { item ->
+                if (item.id == itemId) {
+                    if (quantity >= item.quantity) null else item.copy(quantity = item.quantity - quantity)
+                } else item
+            }.filterNotNull()
+        )
     }
 
     override suspend fun sellToMerchant(acquisitionItemId: String, quantity: Int) {
@@ -683,103 +757,17 @@ stateStore.update {
         val rarity = stateStore.storageBags.value.find { it.id == bagId }?.rarity
             ?: return Pair(emptyList(), emptyList())
 
-        val count = 5 + rng.nextInt(16)
-        val rewards = mutableListOf<BattleRewardItem>()
-
         // 生成奖励（不变更状态，仅生成物品实例）
-        val pendingEquipment = mutableListOf<EquipmentStack>()
-        val pendingManuals = mutableListOf<ManualStack>()
-        val pendingPills = mutableListOf<Pill>()
-        val pendingHerbs = mutableListOf<Herb>()
-        val pendingSeeds = mutableListOf<Seed>()
-        val pendingMaterials = mutableListOf<Material>()
-        var pendingSpiritStones = 0L
-
-        repeat(count) {
-            val type = rng.nextInt(7)
-            when (type) {
-                0 -> {
-                    val stack = EquipmentDatabase.generateRandom(rarity, rarity)
-                    pendingEquipment.add(stack)
-                    rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "equipment"))
-                }
-                1 -> {
-                    if (ManualDatabase.isInitialized) {
-                        val templates = ManualDatabase.getByRarity(rarity)
-                        if (templates.isNotEmpty()) {
-                            val stack = ManualDatabase.createFromTemplate(templates.random())
-                            pendingManuals.add(stack)
-                            rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "manual"))
-                        }
-                    }
-                }
-                2 -> {
-                    val pill = ItemDatabase.generateRandomPill(rarity, rarity)
-                    pendingPills.add(pill)
-                    rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
-                }
-                3 -> {
-                    val templates = HerbDatabase.getHerbsByTier(rarity)
-                    if (templates.isNotEmpty()) {
-                        val h = templates.random()
-                        val herb = Herb(id = UUID.randomUUID().toString(), name = h.name, rarity = h.rarity, description = h.description, category = h.category, quantity = 1)
-                        pendingHerbs.add(herb)
-                        rewards.add(BattleRewardItem(itemId = herb.id, name = herb.name, quantity = 1, rarity = herb.rarity, type = "herb"))
-                    }
-                }
-                4 -> {
-                    val templates = HerbDatabase.getAllSeeds().filter { it.rarity == rarity }
-                    if (templates.isNotEmpty()) {
-                        val s = templates.random()
-                        val seed = Seed(id = UUID.randomUUID().toString(), name = s.name, rarity = s.rarity, description = s.description, growTime = s.growTime, yield = s.yield, quantity = 1)
-                        pendingSeeds.add(seed)
-                        rewards.add(BattleRewardItem(itemId = seed.id, name = seed.name, quantity = 1, rarity = seed.rarity, type = "seed"))
-                    }
-                }
-                5 -> {
-                    val mat = ItemDatabase.generateRandomMaterial(rarity, rarity)
-                    pendingMaterials.add(mat)
-                    rewards.add(BattleRewardItem(itemId = mat.id, name = mat.name, quantity = 1, rarity = mat.rarity, type = "material"))
-                }
-                6 -> {
-                    val amount = StorageBag.SPIRIT_STONE_AMOUNTS.getOrElse(rarity - 1) { 500L }
-                    pendingSpiritStones += amount
-                    val existing = rewards.find { it.type == "spiritStones" }
-                    if (existing != null) {
-                        rewards[rewards.indexOf(existing)] = existing.copy(quantity = existing.quantity + amount.toInt())
-                    } else {
-                        rewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = amount.toInt(), rarity = 1, type = "spiritStones"))
-                    }
-                }
-            }
-        }
+        val batch = generateStorageBagRewards(rng = rng, rarity = rarity)
 
         // 单事务原子写入：消耗储物袋 + 发放所有奖励
         // （手动-消耗类路径：统一委托 addXxx，仓库满时溢出自动转邮件，物品不丢失）
         stateStore.update {
-            // 消耗袋子
-            val bag = storageBags.get(bagId) ?: return@update
-            if (bag.quantity <= 1) storageBags.remove(bagId)
-            else storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
-
-            // 全部物品统一委托 addXxx（重入事务操作同一缓冲；年度统计由 addXxx 按
-            // "storage_bag" 来源自动累加，键格式与原手写一致，删除手写 annual 防双计）
-            inventorySystem.withTrackingSource("storage_bag") {
-                for (stack in pendingEquipment) inventorySystem.addEquipmentStack(stack)
-                for (stack in pendingManuals) inventorySystem.addManualStack(stack)
-                for (pill in pendingPills) inventorySystem.addPill(pill)
-                for (herb in pendingHerbs) inventorySystem.addHerb(herb)
-                for (seed in pendingSeeds) inventorySystem.addSeed(seed)
-                for (mat in pendingMaterials) inventorySystem.addMaterial(mat)
-            }
-            // 灵石
-            if (pendingSpiritStones > 0) {
-                spiritStoneWallet.add(this, pendingSpiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.StorageBag)
-            }
+            consumeStorageBagAndGrant(bagId = bagId, batch = batch)
         }
 
         // 储物袋开启是手动操作，展示奖励卡片
-        val cards = rewards.map { reward ->
+        val cards = batch.rewards.map { reward ->
             RewardCardItem(
                 itemName = reward.name,
                 itemType = reward.type,
@@ -787,6 +775,126 @@ stateStore.update {
                 quantity = reward.quantity
             )
         }
-        return Pair(rewards.toList(), cards)
+        return Pair(batch.rewards, cards)
+    }
+
+    /** 储物袋奖励批次（openStorageBag 拆分）：生成期暂存物品，事务内统一入仓 */
+    private class StorageBagRewardBatch {
+        val rewards = mutableListOf<BattleRewardItem>()
+        val equipment = mutableListOf<EquipmentStack>()
+        val manuals = mutableListOf<ManualStack>()
+        val pills = mutableListOf<Pill>()
+        val herbs = mutableListOf<Herb>()
+        val seeds = mutableListOf<Seed>()
+        val materials = mutableListOf<Material>()
+        var spiritStones = 0L
+    }
+
+    /** 储物袋奖励生成（openStorageBag 拆分）：不变更状态，仅生成物品实例 */
+    private fun generateStorageBagRewards(rng: DeterministicRng, rarity: Int): StorageBagRewardBatch {
+        val batch = StorageBagRewardBatch()
+        val count = 5 + rng.nextInt(16)
+        repeat(count) {
+            when (rng.nextInt(7)) {
+                0 -> batch.generateEquipmentReward(rarity = rarity)
+                1 -> batch.generateManualReward(rarity = rarity)
+                2 -> batch.generatePillReward(rarity = rarity)
+                3 -> batch.generateHerbReward(rarity = rarity)
+                4 -> batch.generateSeedReward(rarity = rarity)
+                5 -> batch.generateMaterialReward(rarity = rarity)
+                6 -> batch.generateSpiritStoneReward(rarity = rarity)
+            }
+        }
+        return batch
+    }
+
+    /** 装备条目（openStorageBag 拆分） */
+    private fun StorageBagRewardBatch.generateEquipmentReward(rarity: Int) {
+        val stack = EquipmentDatabase.generateRandom(rarity, rarity)
+        equipment.add(stack)
+        rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "equipment"))
+    }
+
+    /** 功法条目（openStorageBag 拆分） */
+    private fun StorageBagRewardBatch.generateManualReward(rarity: Int) {
+        if (ManualDatabase.isInitialized) {
+            val templates = ManualDatabase.getByRarity(rarity)
+            if (templates.isNotEmpty()) {
+                val stack = ManualDatabase.createFromTemplate(templates.random())
+                manuals.add(stack)
+                rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "manual"))
+            }
+        }
+    }
+
+    /** 丹药条目（openStorageBag 拆分） */
+    private fun StorageBagRewardBatch.generatePillReward(rarity: Int) {
+        val pill = ItemDatabase.generateRandomPill(rarity, rarity)
+        pills.add(pill)
+        rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
+    }
+
+    /** 草药条目（openStorageBag 拆分） */
+    private fun StorageBagRewardBatch.generateHerbReward(rarity: Int) {
+        val templates = HerbDatabase.getHerbsByTier(rarity)
+        if (templates.isNotEmpty()) {
+            val h = templates.random()
+            val herb = Herb(id = UUID.randomUUID().toString(), name = h.name, rarity = h.rarity, description = h.description, category = h.category, quantity = 1)
+            herbs.add(herb)
+            rewards.add(BattleRewardItem(itemId = herb.id, name = herb.name, quantity = 1, rarity = herb.rarity, type = "herb"))
+        }
+    }
+
+    /** 种子条目（openStorageBag 拆分） */
+    private fun StorageBagRewardBatch.generateSeedReward(rarity: Int) {
+        val templates = HerbDatabase.getAllSeeds().filter { it.rarity == rarity }
+        if (templates.isNotEmpty()) {
+            val s = templates.random()
+            val seed = Seed(id = UUID.randomUUID().toString(), name = s.name, rarity = s.rarity, description = s.description, growTime = s.growTime, yield = s.yield, quantity = 1)
+            seeds.add(seed)
+            rewards.add(BattleRewardItem(itemId = seed.id, name = seed.name, quantity = 1, rarity = seed.rarity, type = "seed"))
+        }
+    }
+
+    /** 材料条目（openStorageBag 拆分） */
+    private fun StorageBagRewardBatch.generateMaterialReward(rarity: Int) {
+        val mat = ItemDatabase.generateRandomMaterial(rarity, rarity)
+        materials.add(mat)
+        rewards.add(BattleRewardItem(itemId = mat.id, name = mat.name, quantity = 1, rarity = mat.rarity, type = "material"))
+    }
+
+    /** 灵石条目（openStorageBag 拆分）：合并进 spiritStones 奖励卡片 */
+    private fun StorageBagRewardBatch.generateSpiritStoneReward(rarity: Int) {
+        val amount = StorageBag.SPIRIT_STONE_AMOUNTS.getOrElse(rarity - 1) { 500L }
+        spiritStones += amount
+        val existing = rewards.find { it.type == "spiritStones" }
+        if (existing != null) {
+            rewards[rewards.indexOf(existing)] = existing.copy(quantity = existing.quantity + amount.toInt())
+        } else {
+            rewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = amount.toInt(), rarity = 1, type = "spiritStones"))
+        }
+    }
+
+    /** 储物袋消耗与奖励入仓（openStorageBag 拆分）：单事务原子写入 */
+    private fun MutableGameState.consumeStorageBagAndGrant(bagId: String, batch: StorageBagRewardBatch) {
+        // 消耗袋子
+        val bag = storageBags.get(bagId) ?: return
+        if (bag.quantity <= 1) storageBags.remove(bagId)
+        else storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
+
+        // 全部物品统一委托 addXxx（重入事务操作同一缓冲；年度统计由 addXxx 按
+        // "storage_bag" 来源自动累加，键格式与原手写一致，删除手写 annual 防双计）
+        inventorySystem.withTrackingSource("storage_bag") {
+            for (stack in batch.equipment) inventorySystem.addEquipmentStack(stack)
+            for (stack in batch.manuals) inventorySystem.addManualStack(stack)
+            for (pill in batch.pills) inventorySystem.addPill(pill)
+            for (herb in batch.herbs) inventorySystem.addHerb(herb)
+            for (seed in batch.seeds) inventorySystem.addSeed(seed)
+            for (mat in batch.materials) inventorySystem.addMaterial(mat)
+        }
+        // 灵石
+        if (batch.spiritStones > 0) {
+            spiritStoneWallet.add(this, batch.spiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.StorageBag)
+        }
     }
 }

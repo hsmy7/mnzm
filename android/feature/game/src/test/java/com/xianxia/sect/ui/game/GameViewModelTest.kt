@@ -35,7 +35,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.core.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
@@ -108,7 +108,7 @@ class GameViewModelTest {
     private val dialogManager: com.xianxia.sect.core.domain.dialog.DialogManager = mockk(relaxed = true)
     private val adService: AdService = mockk(relaxed = true)
     private val audioConfig: AudioConfig = mockk(relaxed = true)
-    private val audioEngine: AudioEngine = mockk(relaxed = true)
+    private val audioEngine: AudioPlayerFacade = mockk(relaxed = true)
     private val sessionManager: SessionManager = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()

@@ -271,15 +271,7 @@ object RedeemCodeManager {
             // ══════════════════════
             // 第1层：基础冷却检查
             // ══════════════════════
-            val elapsedSeconds = (currentTime - lastRedeemTime) / 1000
-            if (elapsedSeconds < RATE_LIMIT_SECONDS) {
-                val remainingSeconds = RATE_LIMIT_SECONDS - elapsedSeconds.toInt()
-                DomainLog.w(TAG, "基础冷却限制: 还需等待 $remainingSeconds 秒")
-                return@withLock RedeemResult(
-                    success = false,
-                    message = "操作过于频繁，请${remainingSeconds}秒后再试"
-                )
-            }
+            checkBasicCooldown(currentTime = currentTime)?.let { return@withLock it }
 
             // 获取或初始化该设备的尝试历史
             val attemptHistory = deviceAttemptHistory.getOrPut(playerId) { mutableListOf() }
@@ -291,62 +283,119 @@ object RedeemCodeManager {
             // ══════════════════════
             // 第2层：分钟级频率检查
             // ══════════════════════
-            val minuteAgo = currentTime - ONE_MINUTE_MS
-            val recentMinuteAttempts = attemptHistory.count { it > minuteAgo }
-            if (recentMinuteAttempts >= MAX_ATTEMPTS_PER_MINUTE) {
-                val oldestInWindow = attemptHistory.filter { it > minuteAgo }.minOrNull()
-                val resetSeconds = if (oldestInWindow != null) {
-                    ((oldestInWindow + ONE_MINUTE_MS - currentTime) / 1000).coerceAtLeast(1)
-                } else {
-                    60L
-                }
-                DomainLog.w(TAG, "分钟级频率限制: $playerId 已尝试 $recentMinuteAttempts 次/分钟")
-                return@withLock RedeemResult(
-                    success = false,
-                    message = "操作过于频繁，请在${resetSeconds}秒后重试（每分钟最多${MAX_ATTEMPTS_PER_MINUTE}次）"
-                )
-            }
+            checkMinuteRateLimit(
+                playerId = playerId,
+                attemptHistory = attemptHistory,
+                currentTime = currentTime
+            )?.let { return@withLock it }
 
             // ══════════════════════
             // 第3层：小时级频率检查
             // ══════════════════════
-            val hourAgo = currentTime - ONE_HOUR_MS
-            val recentHourAttempts = attemptHistory.count { it > hourAgo }
-            if (recentHourAttempts >= MAX_ATTEMPTS_PER_HOUR) {
-                val oldestInWindow = attemptHistory.filter { it > hourAgo }.minOrNull()
-                val resetMinutes = if (oldestInWindow != null) {
-                    ((oldestInWindow + ONE_HOUR_MS - currentTime) / 60_000).coerceAtLeast(1)
-                } else {
-                    60L
-                }
-                DomainLog.w(TAG, "小时级频率限制: $playerId 已尝试 $recentHourAttempts 次/小时")
-                return@withLock RedeemResult(
-                    success = false,
-                    message = "今日兑换次数已达上限，请在${resetMinutes}分钟后重试（每小时最多${MAX_ATTEMPTS_PER_HOUR}次）"
-                )
-            }
+            checkHourRateLimit(
+                playerId = playerId,
+                attemptHistory = attemptHistory,
+                currentTime = currentTime
+            )?.let { return@withLock it }
 
             // ══════════════════════
             // 第4层：每日频率检查
             // ══════════════════════
-            val dayAgo = currentTime - ONE_DAY_MS
-            val todayAttempts = attemptHistory.count { it > dayAgo }
-            if (todayAttempts >= MAX_ATTEMPTS_PER_DAY) {
-                val midnightTomorrow = ((currentTime / ONE_DAY_MS) + 1) * ONE_DAY_MS
-                val resetHours = ((midnightTomorrow - currentTime) / 3_600_000).coerceAtLeast(1)
-                DomainLog.w(TAG, "每日频率限制: $playerId 已尝试 $todayAttempts 次/天")
-                return@withLock RedeemResult(
-                    success = false,
-                    message = "今日兑换次数已用尽，请在${resetHours}小时后重试（每日最多${MAX_ATTEMPTS_PER_DAY}次）"
-                )
-            }
+            checkDayRateLimit(
+                playerId = playerId,
+                attemptHistory = attemptHistory,
+                currentTime = currentTime
+            )?.let { return@withLock it }
 
             // 所有检查通过，记录本次尝试
+            val todayAttempts = attemptHistory.count { it > currentTime - ONE_DAY_MS }
             attemptHistory.add(currentTime)
             DomainLog.d(TAG, "频率检查通过: $playerId, 今日第 ${todayAttempts + 1} 次")
 
             null
         }
+    }
+
+    /** 第1层：基础冷却检查（checkRateLimit 拆分）——两次兑换间最小间隔（3秒） */
+    private fun checkBasicCooldown(currentTime: Long): RedeemResult? {
+        val elapsedSeconds = (currentTime - lastRedeemTime) / 1000
+        if (elapsedSeconds < RATE_LIMIT_SECONDS) {
+            val remainingSeconds = RATE_LIMIT_SECONDS - elapsedSeconds.toInt()
+            DomainLog.w(TAG, "基础冷却限制: 还需等待 $remainingSeconds 秒")
+            return RedeemResult(
+                success = false,
+                message = "操作过于频繁，请${remainingSeconds}秒后再试"
+            )
+        }
+        return null
+    }
+
+    /** 第2层：分钟级频率检查（checkRateLimit 拆分）——每分钟最多 [MAX_ATTEMPTS_PER_MINUTE] 次 */
+    private fun checkMinuteRateLimit(
+        playerId: String,
+        attemptHistory: MutableList<Long>,
+        currentTime: Long
+    ): RedeemResult? {
+        val minuteAgo = currentTime - ONE_MINUTE_MS
+        val recentMinuteAttempts = attemptHistory.count { it > minuteAgo }
+        if (recentMinuteAttempts >= MAX_ATTEMPTS_PER_MINUTE) {
+            val oldestInWindow = attemptHistory.filter { it > minuteAgo }.minOrNull()
+            val resetSeconds = if (oldestInWindow != null) {
+                ((oldestInWindow + ONE_MINUTE_MS - currentTime) / 1000).coerceAtLeast(1)
+            } else {
+                60L
+            }
+            DomainLog.w(TAG, "分钟级频率限制: $playerId 已尝试 $recentMinuteAttempts 次/分钟")
+            return RedeemResult(
+                success = false,
+                message = "操作过于频繁，请在${resetSeconds}秒后重试（每分钟最多${MAX_ATTEMPTS_PER_MINUTE}次）"
+            )
+        }
+        return null
+    }
+
+    /** 第3层：小时级频率检查（checkRateLimit 拆分）——每小时最多 [MAX_ATTEMPTS_PER_HOUR] 次 */
+    private fun checkHourRateLimit(
+        playerId: String,
+        attemptHistory: MutableList<Long>,
+        currentTime: Long
+    ): RedeemResult? {
+        val hourAgo = currentTime - ONE_HOUR_MS
+        val recentHourAttempts = attemptHistory.count { it > hourAgo }
+        if (recentHourAttempts >= MAX_ATTEMPTS_PER_HOUR) {
+            val oldestInWindow = attemptHistory.filter { it > hourAgo }.minOrNull()
+            val resetMinutes = if (oldestInWindow != null) {
+                ((oldestInWindow + ONE_HOUR_MS - currentTime) / 60_000).coerceAtLeast(1)
+            } else {
+                60L
+            }
+            DomainLog.w(TAG, "小时级频率限制: $playerId 已尝试 $recentHourAttempts 次/小时")
+            return RedeemResult(
+                success = false,
+                message = "今日兑换次数已达上限，请在${resetMinutes}分钟后重试（每小时最多${MAX_ATTEMPTS_PER_HOUR}次）"
+            )
+        }
+        return null
+    }
+
+    /** 第4层：每日频率检查（checkRateLimit 拆分）——每天最多 [MAX_ATTEMPTS_PER_DAY] 次 */
+    private fun checkDayRateLimit(
+        playerId: String,
+        attemptHistory: MutableList<Long>,
+        currentTime: Long
+    ): RedeemResult? {
+        val dayAgo = currentTime - ONE_DAY_MS
+        val todayAttempts = attemptHistory.count { it > dayAgo }
+        if (todayAttempts >= MAX_ATTEMPTS_PER_DAY) {
+            val midnightTomorrow = ((currentTime / ONE_DAY_MS) + 1) * ONE_DAY_MS
+            val resetHours = ((midnightTomorrow - currentTime) / 3_600_000).coerceAtLeast(1)
+            DomainLog.w(TAG, "每日频率限制: $playerId 已尝试 $todayAttempts 次/天")
+            return RedeemResult(
+                success = false,
+                message = "今日兑换次数已用尽，请在${resetHours}小时后重试（每日最多${MAX_ATTEMPTS_PER_DAY}次）"
+            )
+        }
+        return null
     }
     
     suspend fun validateCodeWithServerAuth(
@@ -491,121 +540,41 @@ object RedeemCodeManager {
         val disciples = mutableListOf<Disciple>()
 
         when (redeemCode.rewardType) {
-            RedeemRewardType.SPIRIT_STONES -> {
-                rewards.add(
-                    RewardSelectedItem(
-                        id = "spiritStones",
-                        type = "spiritStones",
-                        name = ItemNames.SPIRIT_STONE,
-                        rarity = 1,
-                        quantity = redeemCode.quantity
-                    )
-                )
-                DomainLog.d(TAG, "Generated spirit stones reward: ${redeemCode.quantity}")
-            }
+            RedeemRewardType.SPIRIT_STONES -> addSpiritStonesReward(
+                quantity = redeemCode.quantity,
+                rewards = rewards
+            )
             // P-2 拆分：6 种物品类奖励统一为生成器循环（RNG 调用序与原逐分支完全一致）
             RedeemRewardType.EQUIPMENT,
             RedeemRewardType.MANUAL,
             RedeemRewardType.PILL,
             RedeemRewardType.MATERIAL,
             RedeemRewardType.HERB,
-            RedeemRewardType.SEED -> {
-                // S13 修复（对抗性审查，预存在）：quantity 负数时 repeat 零次迭代 →
-                // 零奖励但兑换码照常消耗（静默吞码）；coerceAtLeast(1) 兜底
-                repeat(redeemCode.quantity.coerceAtLeast(1)) {
-                    val (id, name, rarity) = generateSingleItemReward(
-                        redeemCode.rewardType, redeemCode.rarity, random
-                    )
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = id,
-                            type = redeemCode.rewardType.name.lowercase(),
-                            name = name,
-                            rarity = rarity,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(
-                    TAG,
-                    "Generated ${redeemCode.quantity} ${redeemCode.rewardType.name.lowercase()}(s) " +
-                        "with rarity ${redeemCode.rarity}"
-                )
-            }
-            RedeemRewardType.DISCIPLE -> {
-                val count = redeemCode.quantity.coerceAtLeast(1)
-                val usedNames = existingNames.toMutableSet()
-                repeat(count) {
-                    val d = generateDisciple(redeemCode.discipleConfig, usedNames, random = random)
-                    disciples.add(d)
-                    usedNames.add(d.name)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = d.id,
-                            type = "disciple",
-                            name = d.name,
-                            rarity = 1,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated $count disciple(s) with config: ${redeemCode.discipleConfig}")
-            }
-            RedeemRewardType.STARTER_PACK -> {
-                rewards.add(
-                    RewardSelectedItem(
-                        id = "spiritStones",
-                        type = "spiritStones",
-                        name = ItemNames.SPIRIT_STONE,
-                        rarity = 1,
-                        quantity = 10000000
-                    )
-                )
-                DomainLog.d(TAG, "Generated spirit stones reward: 10000000")
-                val starterUsedNames = existingNames.toMutableSet()
-                repeat(5) {
-                    val singleRootDisciple = generateDisciple(
-                        DiscipleRewardConfig(
-                            spiritRootCount = 1,
-                            loyalty = 80
-                        ),
-                        starterUsedNames,
-                        random = random
-                    )
-                    disciples.add(singleRootDisciple)
-                    starterUsedNames.add(singleRootDisciple.name)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = singleRootDisciple.id,
-                            type = "disciple",
-                            name = singleRootDisciple.name,
-                            rarity = 1,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated 5 single spirit root disciples")
-            }
-            RedeemRewardType.MANUAL_PACK -> {
-                val rarities = listOf(1, 2, 3, 4)
-                rarities.forEach { targetRarity ->
-                    val templates = ManualDatabase.getByRarity(targetRarity)
-                    repeat(30) {
-                        val template = templates[random.nextInt(templates.size)]
-                        val manual = ManualDatabase.createFromTemplate(template)
-                        rewards.add(
-                            RewardSelectedItem(
-                                id = manual.id,
-                                type = "manual",
-                                name = manual.name,
-                                rarity = manual.rarity,
-                                quantity = 1
-                            )
-                        )
-                    }
-                }
-                DomainLog.d(TAG, "Generated manual pack: 30 manuals for each rarity 1-4")
-            }
+            RedeemRewardType.SEED -> addItemRewards(
+                type = redeemCode.rewardType,
+                rarity = redeemCode.rarity,
+                quantity = redeemCode.quantity,
+                random = random,
+                rewards = rewards
+            )
+            RedeemRewardType.DISCIPLE -> addDiscipleRewards(
+                config = redeemCode.discipleConfig,
+                quantity = redeemCode.quantity,
+                existingNames = existingNames,
+                random = random,
+                disciples = disciples,
+                rewards = rewards
+            )
+            RedeemRewardType.STARTER_PACK -> addStarterPackRewards(
+                existingNames = existingNames,
+                random = random,
+                disciples = disciples,
+                rewards = rewards
+            )
+            RedeemRewardType.MANUAL_PACK -> addManualPackRewards(
+                random = random,
+                rewards = rewards
+            )
         }
 
         DomainLog.i(TAG, "Redeem successful for code: ${redeemCode.code}, rewards: ${rewards.size}")
@@ -621,6 +590,146 @@ object RedeemCodeManager {
             disciple = disciples.firstOrNull(),
             disciples = disciples
         )
+    }
+
+    /** 灵石奖励生成（generateReward 拆分）：SPIRIT_STONES 分支 */
+    private fun addSpiritStonesReward(
+        quantity: Int,
+        rewards: MutableList<RewardSelectedItem>
+    ) {
+        rewards.add(
+            RewardSelectedItem(
+                id = "spiritStones",
+                type = "spiritStones",
+                name = ItemNames.SPIRIT_STONE,
+                rarity = 1,
+                quantity = quantity
+            )
+        )
+        DomainLog.d(TAG, "Generated spirit stones reward: $quantity")
+    }
+
+    /** 物品类奖励生成（generateReward 拆分）：EQUIPMENT/MANUAL/PILL/MATERIAL/HERB/SEED 分支 */
+    private fun addItemRewards(
+        type: RedeemRewardType,
+        rarity: Int,
+        quantity: Int,
+        random: kotlin.random.Random,
+        rewards: MutableList<RewardSelectedItem>
+    ) {
+        // S13 修复（对抗性审查，预存在）：quantity 负数时 repeat 零次迭代 →
+        // 零奖励但兑换码照常消耗（静默吞码）；coerceAtLeast(1) 兜底
+        repeat(quantity.coerceAtLeast(1)) {
+            val (id, name, rarity) = generateSingleItemReward(type, rarity, random)
+            rewards.add(
+                RewardSelectedItem(
+                    id = id,
+                    type = type.name.lowercase(),
+                    name = name,
+                    rarity = rarity,
+                    quantity = 1
+                )
+            )
+        }
+        DomainLog.d(
+            TAG,
+            "Generated $quantity ${type.name.lowercase()}(s) with rarity $rarity"
+        )
+    }
+
+    /** 弟子奖励生成（generateReward 拆分）：DISCIPLE 分支 */
+    private fun addDiscipleRewards(
+        config: DiscipleRewardConfig?,
+        quantity: Int,
+        existingNames: Set<String>,
+        random: kotlin.random.Random,
+        disciples: MutableList<Disciple>,
+        rewards: MutableList<RewardSelectedItem>
+    ) {
+        val count = quantity.coerceAtLeast(1)
+        val usedNames = existingNames.toMutableSet()
+        repeat(count) {
+            val d = generateDisciple(config, usedNames, random = random)
+            disciples.add(d)
+            usedNames.add(d.name)
+            rewards.add(
+                RewardSelectedItem(
+                    id = d.id,
+                    type = "disciple",
+                    name = d.name,
+                    rarity = 1,
+                    quantity = 1
+                )
+            )
+        }
+        DomainLog.d(TAG, "Generated $count disciple(s) with config: $config")
+    }
+
+    /** 新手包奖励生成（generateReward 拆分）：STARTER_PACK 分支 */
+    private fun addStarterPackRewards(
+        existingNames: Set<String>,
+        random: kotlin.random.Random,
+        disciples: MutableList<Disciple>,
+        rewards: MutableList<RewardSelectedItem>
+    ) {
+        rewards.add(
+            RewardSelectedItem(
+                id = "spiritStones",
+                type = "spiritStones",
+                name = ItemNames.SPIRIT_STONE,
+                rarity = 1,
+                quantity = 10000000
+            )
+        )
+        DomainLog.d(TAG, "Generated spirit stones reward: 10000000")
+        val starterUsedNames = existingNames.toMutableSet()
+        repeat(5) {
+            val singleRootDisciple = generateDisciple(
+                DiscipleRewardConfig(
+                    spiritRootCount = 1,
+                    loyalty = 80
+                ),
+                starterUsedNames,
+                random = random
+            )
+            disciples.add(singleRootDisciple)
+            starterUsedNames.add(singleRootDisciple.name)
+            rewards.add(
+                RewardSelectedItem(
+                    id = singleRootDisciple.id,
+                    type = "disciple",
+                    name = singleRootDisciple.name,
+                    rarity = 1,
+                    quantity = 1
+                )
+            )
+        }
+        DomainLog.d(TAG, "Generated 5 single spirit root disciples")
+    }
+
+    /** 功法包奖励生成（generateReward 拆分）：MANUAL_PACK 分支 */
+    private fun addManualPackRewards(
+        random: kotlin.random.Random,
+        rewards: MutableList<RewardSelectedItem>
+    ) {
+        val rarities = listOf(1, 2, 3, 4)
+        rarities.forEach { targetRarity ->
+            val templates = ManualDatabase.getByRarity(targetRarity)
+            repeat(30) {
+                val template = templates[random.nextInt(templates.size)]
+                val manual = ManualDatabase.createFromTemplate(template)
+                rewards.add(
+                    RewardSelectedItem(
+                        id = manual.id,
+                        type = "manual",
+                        name = manual.name,
+                        rarity = manual.rarity,
+                        quantity = 1
+                    )
+                )
+            }
+        }
+        DomainLog.d(TAG, "Generated manual pack: 30 manuals for each rarity 1-4")
     }
 
     private fun generateRandomEquipment(rarity: Int, random: kotlin.random.Random = kotlin.random.Random): EquipmentStack {
@@ -683,75 +792,107 @@ object RedeemCodeManager {
         val physiqueIds = PhysiqueDatabase.generateForDisciple(random).map { it.id }
         val affixIds = AffixDatabase.generateForDisciple(random).map { it.id }
 
-        val talents = TalentDatabase.getTalentsByIds(talentIds)
+        // 属性方差（7 次 random 调用，顺序与原一致：hp/mp/pa/ma/pd/md/spd）
+        val variance = VarianceBundle(
+            hpVariance = generateVariance(random),
+            mpVariance = generateVariance(random),
+            physicalAttackVariance = generateVariance(random),
+            magicAttackVariance = generateVariance(random),
+            physicalDefenseVariance = generateVariance(random),
+            magicDefenseVariance = generateVariance(random),
+            speedVariance = generateVariance(random)
+        )
+
+        return buildRedeemDisciple(
+            cfg = cfg,
+            context = DiscipleBuildContext(
+                nameResult = nameResult,
+                spiritRootType = spiritRootType,
+                age = age,
+                lifespan = lifespan,
+                gender = gender,
+                idBundle = DiscipleIdBundle(
+                    talentIds = talentIds,
+                    physiqueIds = physiqueIds,
+                    affixIds = affixIds
+                ),
+                variance = variance
+            ),
+            random = random
+        )
+    }
+
+    /** 属性方差束（generateDisciple 拆分）：7 次 random 调用结果，顺序与原一致 */
+    private data class VarianceBundle(
+        val hpVariance: Int,
+        val mpVariance: Int,
+        val physicalAttackVariance: Int,
+        val magicAttackVariance: Int,
+        val physicalDefenseVariance: Int,
+        val magicDefenseVariance: Int,
+        val speedVariance: Int
+    )
+
+    /** 弟子 ID 束（generateDisciple 拆分）：天赋/体质/词条 ID 列表 */
+    private data class DiscipleIdBundle(
+        val talentIds: List<String>,
+        val physiqueIds: List<String>,
+        val affixIds: List<String>
+    )
+
+    /** 弟子构建上下文（generateDisciple 拆分）：解析结果统一打包，避免超长参数列表 */
+    private data class DiscipleBuildContext(
+        val nameResult: NameService.NameResult,
+        val spiritRootType: String,
+        val age: Int,
+        val lifespan: Int,
+        val gender: String,
+        val idBundle: DiscipleIdBundle,
+        val variance: VarianceBundle
+    )
+
+    /** 弟子主体构建（generateDisciple 拆分）：构造 + 基础属性结算 */
+    private fun buildRedeemDisciple(
+        cfg: DiscipleRewardConfig,
+        context: DiscipleBuildContext,
+        random: kotlin.random.Random
+    ): Disciple {
+        val talents = TalentDatabase.getTalentsByIds(context.idBundle.talentIds)
         // 2026-08-10 修复：兑换路径并入词条寿命加成（此前只算天赋——
         // 带"延年"词条兑换弟子 lifespan 低于特质加成水平，同出生/突破口径对齐）
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 } +
-            (AffixDatabase.calculateAffixEffects(affixIds)["lifespan"] ?: 0.0)
-        // 属性方差（7 次 random 调用，顺序与原一致：hp/mp/pa/ma/pd/md/spd）
-        val hpVariance = generateVariance(random)
-        val mpVariance = generateVariance(random)
-        val physicalAttackVariance = generateVariance(random)
-        val magicAttackVariance = generateVariance(random)
-        val physicalDefenseVariance = generateVariance(random)
-        val magicDefenseVariance = generateVariance(random)
-        val speedVariance = generateVariance(random)
+            (AffixDatabase.calculateAffixEffects(context.idBundle.affixIds)["lifespan"] ?: 0.0)
 
         return Disciple(
-            name = nameResult.fullName,
-            surname = nameResult.surname,
+            name = context.nameResult.fullName,
+            surname = context.nameResult.surname,
             realm = cfg.realm,
             realmLayer = cfg.realmLayer,
-            spiritRootType = spiritRootType,
-            age = age,
-            lifespan = (lifespan * (1.0 + lifespanBonus)).toInt(),
-            gender = gender,
-            portraitRes = PortraitPool.getRandomPortrait(gender) { random.nextInt(it) },
+            spiritRootType = context.spiritRootType,
+            age = context.age,
+            lifespan = (context.lifespan * (1.0 + lifespanBonus)).toInt(),
+            gender = context.gender,
+            portraitRes = PortraitPool.getRandomPortrait(context.gender) { random.nextInt(it) },
             discipleType = "outer",
-            talentIds = talentIds,
-            physiqueIds = physiqueIds,
-            affixIds = affixIds,
+            talentIds = context.idBundle.talentIds,
+            physiqueIds = context.idBundle.physiqueIds,
+            affixIds = context.idBundle.affixIds,
             combat = CombatAttributes(
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance
+                hpVariance = context.variance.hpVariance,
+                mpVariance = context.variance.mpVariance,
+                physicalAttackVariance = context.variance.physicalAttackVariance,
+                magicAttackVariance = context.variance.magicAttackVariance,
+                physicalDefenseVariance = context.variance.physicalDefenseVariance,
+                magicDefenseVariance = context.variance.magicDefenseVariance,
+                speedVariance = context.variance.speedVariance
             ),
-            skills = SkillStats(
-                intelligence = cfg.intelligence ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
-                    1 -> 80 + random.nextInt(21)
-                    2 -> 60 + random.nextInt(21)
-                    3 -> 40 + random.nextInt(21)
-                    4 -> 20 + random.nextInt(21)
-                    else -> 1 + random.nextInt(20)
-                },
-                charm = cfg.charm ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                loyalty = cfg.loyalty ?: 1 + random.nextInt(GameConfig.Disciple.MAX_LOYALTY),
-                artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                pillRefining = cfg.pillRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                mining = cfg.mining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                teaching = cfg.teaching ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                morality = cfg.morality ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
-                // 资质：按灵根阶梯生成（固定属性，配置不覆盖，最小改动；避开哨兵 50 防自愈误判）
-                aptitude = avoidSentinel50(
-                    when (spiritRootType.split(",").size) {
-                        1 -> 80 + random.nextInt(21)
-                        2 -> 60 + random.nextInt(21)
-                        3 -> 40 + random.nextInt(21)
-                        4 -> 20 + random.nextInt(21)
-                        else -> 1 + random.nextInt(20)
-                    }
-                )
-            )
+            skills = buildRedeemSkills(cfg = cfg, spiritRootType = context.spiritRootType, random = random)
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
+                context.variance.hpVariance, context.variance.mpVariance,
+                context.variance.physicalAttackVariance, context.variance.magicAttackVariance,
+                context.variance.physicalDefenseVariance, context.variance.magicDefenseVariance,
+                context.variance.speedVariance
             )
             combat.baseHp = baseStats.baseHp
             combat.baseMp = baseStats.baseMp
@@ -761,6 +902,49 @@ object RedeemCodeManager {
             combat.baseMagicDefense = baseStats.baseMagicDefense
             combat.baseSpeed = baseStats.baseSpeed
         }
+    }
+
+    /** 弟子技能属性生成（generateDisciple 拆分）：SkillStats 构建，RNG 调用序与原一致 */
+    private fun buildRedeemSkills(
+        cfg: DiscipleRewardConfig,
+        spiritRootType: String,
+        random: kotlin.random.Random
+    ): SkillStats {
+        val spiritRootCount = spiritRootType.split(",").size
+        return SkillStats(
+            intelligence = cfg.intelligence ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            comprehension = cfg.comprehension ?: rollBySpiritRootCount(
+                spiritRootCount = spiritRootCount,
+                random = random
+            ),
+            charm = cfg.charm ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            loyalty = cfg.loyalty ?: 1 + random.nextInt(GameConfig.Disciple.MAX_LOYALTY),
+            artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            pillRefining = cfg.pillRefining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            mining = cfg.mining ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            teaching = cfg.teaching ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            morality = cfg.morality ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
+            // 资质：按灵根阶梯生成（固定属性，配置不覆盖，最小改动；避开哨兵 50 防自愈误判）
+            aptitude = avoidSentinel50(
+                rollBySpiritRootCount(
+                    spiritRootCount = spiritRootCount,
+                    random = random
+                )
+            )
+        )
+    }
+
+    /** 灵根阶梯属性掷点（buildRedeemSkills 拆分）：单灵根 80+ 起逐级降 20，RNG 调用序与原一致 */
+    private fun rollBySpiritRootCount(
+        spiritRootCount: Int,
+        random: kotlin.random.Random
+    ): Int = when (spiritRootCount) {
+        1 -> 80 + random.nextInt(21)
+        2 -> 60 + random.nextInt(21)
+        3 -> 40 + random.nextInt(21)
+        4 -> 20 + random.nextInt(21)
+        else -> 1 + random.nextInt(20)
     }
 
     /** P-2：灵根类型解析（配置指定/数量随机/默认生成，RNG 调用序与原一致）。 */

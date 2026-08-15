@@ -444,12 +444,44 @@ object VulkanPolicy {
     @Suppress("ReturnCount")
     fun getRenderStrategy(context: Context): RenderStrategy {
         // 1. 崩溃自愈安全模式
+        safeModeStrategy()?.let { return it }
+
+        // 1b. TapTap 云游戏环境检测
+        cloudGamingStrategy(context)?.let { return it }
+
+        // 2. Vulkan 崩溃专用标记（一次 SIGSEGV 即降级，无需累计到阈值）
+        vulkanCrashStrategy()?.let { return it }
+
+        // 3. 模拟器检测
+        emulatorStrategy()?.let { return it }
+
+        // 4. 持久化 Vulkan 初始化失败标记（前次运行软失败）
+        persistentVulkanFailureStrategy()?.let { return it }
+
+        // 5. Phase 1 写前标记残留 → 前次 prewarm 被 SIGSEGV 杀死
+        prewarmKilledStrategy()?.let { return it }
+
+        // 6. Phase 2 写前标记残留 → 前次 initSurface/createSwapchain 被 SIGSEGV 杀死
+        surfaceInitKilledStrategy()?.let { return it }
+
+        // 7. API < 31 保守策略（对标 Flutter API < 29 回退 + Unity Device Filtering）
+        oldApiStrategy()?.let { return it }
+
+        // 8. 设备分级检测
+        return tierStrategy(context)
+    }
+
+    /** 崩溃自愈安全模式检查（getRenderStrategy 拆分）：安全模式 → 软件渲染 */
+    private fun safeModeStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.isSafeMode()) {
             Log.w(TAG, "Safe mode → SOFTWARE_ONLY render strategy")
             return RenderStrategy.SOFTWARE_ONLY
         }
+        return null
+    }
 
-        // 1b. TapTap 云游戏环境检测
+    /** TapTap 云游戏环境检查（getRenderStrategy 拆分） */
+    private fun cloudGamingStrategy(context: Context): RenderStrategy? {
         // TapTap TapSandbox 在 Vulkan 调用链上增加 Hook 层，
         // vkCreateShaderModule 已知有 SIGSEGV 缺陷。
         // 参考 Flutter Impeller 模拟器禁用策略（PR #162454），
@@ -458,14 +490,21 @@ object VulkanPolicy {
             Log.w(TAG, "TapTap cloud gaming → SOFTWARE_ONLY")
             return RenderStrategy.SOFTWARE_ONLY
         }
+        return null
+    }
 
-        // 2. Vulkan 崩溃专用标记（一次 SIGSEGV 即降级，无需累计到阈值）
+    /** Vulkan 崩溃专用标记检查（getRenderStrategy 拆分） */
+    private fun vulkanCrashStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.isVulkanCrashDetected()) {
             Log.w(TAG, "Vulkan crash detected → SOFTWARE_ONLY render strategy")
             return RenderStrategy.SOFTWARE_ONLY
         }
+        return null
+    }
 
-        // 3. 模拟器检测
+    /** 模拟器策略（getRenderStrategy 拆分）：崩溃记录/API<31 非白名单降级，GPU 透传保留硬件加速 */
+    @Suppress("ReturnCount")
+    private fun emulatorStrategy(): RenderStrategy? {
         // 行业调研确认：模拟器 Vulkan 翻译层（Gfxstream/Virtio-gpu）走宿主机物理 GPU，
         // 非纯 CPU 渲染。蓝叠/MuMu/雷电均支持 Vulkan 原生命令透传（零拷贝渲染）。
         // 不应直接跳过硬件加速——仅在先前崩溃/初始化失败后才降级。
@@ -488,28 +527,40 @@ object VulkanPolicy {
             Log.d(TAG, "Emulator → VULKAN_PREFERRED (GPU passthrough available)")
             return RenderStrategy.VULKAN_PREFERRED
         }
+        return null
+    }
 
-        // 4. 持久化 Vulkan 初始化失败标记（前次运行软失败）
+    /** 持久化 Vulkan 初始化失败标记检查（getRenderStrategy 拆分）：前次运行软失败 */
+    private fun persistentVulkanFailureStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.hasVulkanInitFailure()) {
             Log.w(TAG, "Persistent Vulkan failure → SOFTWARE_ONLY render strategy")
             return RenderStrategy.SOFTWARE_ONLY
         }
+        return null
+    }
 
-        // 5. Phase 1 写前标记残留 → 前次 prewarm 被 SIGSEGV 杀死
+    /** Phase 1 写前标记残留检查（getRenderStrategy 拆分）：前次 prewarm 被 SIGSEGV 杀死 */
+    private fun prewarmKilledStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.wasPrewarmKilled()) {
             Log.w(TAG, "Previous prewarm was killed (SIGSEGV) → SOFTWARE_ONLY")
             CrashRecoveryEngine.recordVulkanInitFailure()
             return RenderStrategy.SOFTWARE_ONLY
         }
+        return null
+    }
 
-        // 6. Phase 2 写前标记残留 → 前次 initSurface/createSwapchain 被 SIGSEGV 杀死
+    /** Phase 2 写前标记残留检查（getRenderStrategy 拆分）：前次 initSurface/createSwapchain 被 SIGSEGV 杀死 */
+    private fun surfaceInitKilledStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.wasSurfaceInitKilled()) {
             Log.w(TAG, "Previous surface init was killed (SIGSEGV) → SOFTWARE_ONLY")
             CrashRecoveryEngine.recordVulkanInitFailure()
             return RenderStrategy.SOFTWARE_ONLY
         }
+        return null
+    }
 
-        // ── API < 31 保守策略（对标 Flutter API < 29 回退 + Unity Device Filtering） ──
+    /** API < 31 保守策略（getRenderStrategy 拆分）：对标 Flutter API < 29 回退 + Unity Device Filtering */
+    private fun oldApiStrategy(): RenderStrategy? {
         // 行业数据：Android 8-11 上 Mali/Adreno 6xx/PowerVR 等 GPU 的 Vulkan 驱动
         // 在非 Google 设备上存在广泛兼容性问题。Unity 6+ 对 Mali-G52/Mali T8xx 等
         // GPU 自动降级到 OpenGL ES。原神仅白名单设备启用 Vulkan。
@@ -526,21 +577,22 @@ object VulkanPolicy {
                 return RenderStrategy.SOFTWARE_ONLY
             }
         }
+        return null
+    }
 
-        // 7. 设备分级检测
-        return when (detectTier(context)) {
-            DeviceTier.PROBLEMATIC -> {
-                Log.w(TAG, "PROBLEMATIC device → SOFTWARE_ONLY render strategy")
-                RenderStrategy.SOFTWARE_ONLY
-            }
-            DeviceTier.WARNING -> {
-                Log.w(TAG, "WARNING device → VULKAN_PREFERRED (with fallback)")
-                RenderStrategy.VULKAN_PREFERRED
-            }
-            DeviceTier.SAFE -> {
-                Log.d(TAG, "SAFE device → VULKAN_PREFERRED")
-                RenderStrategy.VULKAN_PREFERRED
-            }
+    /** 设备分级 → 渲染策略（getRenderStrategy 拆分） */
+    private fun tierStrategy(context: Context): RenderStrategy = when (detectTier(context)) {
+        DeviceTier.PROBLEMATIC -> {
+            Log.w(TAG, "PROBLEMATIC device → SOFTWARE_ONLY render strategy")
+            RenderStrategy.SOFTWARE_ONLY
+        }
+        DeviceTier.WARNING -> {
+            Log.w(TAG, "WARNING device → VULKAN_PREFERRED (with fallback)")
+            RenderStrategy.VULKAN_PREFERRED
+        }
+        DeviceTier.SAFE -> {
+            Log.d(TAG, "SAFE device → VULKAN_PREFERRED")
+            RenderStrategy.VULKAN_PREFERRED
         }
     }
 

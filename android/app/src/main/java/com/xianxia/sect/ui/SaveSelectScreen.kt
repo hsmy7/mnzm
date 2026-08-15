@@ -52,7 +52,7 @@ private fun SaveSlot.resolveStyle(): SlotStyle {
 }
 
 @Composable
-@Suppress("LongParameterList", "LongMethod") // 屏幕级入口：状态+回调+对话框编排样板，拆分后仍超阈值
+@Suppress("LongParameterList") // 屏幕级入口：状态+回调+对话框编排样板
 fun SaveSelectScreen(
     mode: SaveSelectMode,
     saveSlots: List<SaveSlot>,
@@ -71,6 +71,12 @@ fun SaveSelectScreen(
     var showCloudSaveInfo by remember { mutableStateOf(false) }
     val locale = LocalLocale.current.platformLocale
     val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
+    // 宗门名输入弹窗共用入口：槽位点击与覆盖确认两处触发（SaveSelectScreen 拆分）
+    val startSectNameDialog: (Int) -> Unit = { slotId ->
+        showSectNameDialog = slotId
+        sectNameInput = ""
+        sectNameError = null
+    }
 
     GameBackground {
         SaveSelectContent(
@@ -80,29 +86,16 @@ fun SaveSelectScreen(
             cloudSaveInfo = cloudSaveInfo,
             onBack = onBack,
             onSlotClick = { slot ->
-                when {
-                    slot.slot == 0 -> {
-                        if (mode == SaveSelectMode.LOAD_SAVE &&
-                            cloudSaveInfo?.hasSaveData == true
-                        ) {
-                            onCloudSaveLoad()
-                        } else {
-                            showCloudSaveInfo = true
-                        }
-                    }
-                    mode == SaveSelectMode.NEW_GAME && slot.isEmpty -> {
-                        showSectNameDialog = slot.slot
-                        sectNameInput = ""
-                        sectNameError = null
-                    }
-                    mode == SaveSelectMode.NEW_GAME -> showOverwriteConfirm = slot.slot
-                    slot.isEmpty -> {
-                        showSectNameDialog = slot.slot
-                        sectNameInput = ""
-                        sectNameError = null
-                    }
-                    else -> onLoadSlot(slot.slot)
-                }
+                dispatchSlotClick(
+                    slot = slot,
+                    mode = mode,
+                    cloudSaveInfo = cloudSaveInfo,
+                    onCloudSaveLoad = onCloudSaveLoad,
+                    onShowCloudInfo = { showCloudSaveInfo = true },
+                    onStartNewGameDialog = startSectNameDialog,
+                    onShowOverwriteConfirm = { showOverwriteConfirm = it },
+                    onLoadSlot = onLoadSlot
+                )
             },
             onDeleteClick = { showDeleteConfirm = it }
         )
@@ -116,31 +109,47 @@ fun SaveSelectScreen(
         sectNameInput = sectNameInput,
         sectNameError = sectNameError,
         onOverwriteConfirm = { showOverwriteConfirm = null },
-        onOverwriteCreate = { slot ->
-            showOverwriteConfirm = null
-            showSectNameDialog = slot
-            sectNameInput = ""
-            sectNameError = null
-        },
+        onOverwriteCreate = { slot -> showOverwriteConfirm = null; startSectNameDialog(slot) },
         onDeleteDismiss = { showDeleteConfirm = null },
-        onDeleteConfirm = { slot ->
-            showDeleteConfirm = null
-            onDeleteSlot(slot)
-        },
+        onDeleteConfirm = { slot -> showDeleteConfirm = null; onDeleteSlot(slot) },
         onCloudInfoDismiss = { showCloudSaveInfo = false },
         onSectNameDismiss = { showSectNameDialog = null },
-        onSectNameChange = { newValue ->
-            if (newValue.length <= 6) {
-                sectNameInput = newValue
-                sectNameError = newValue.takeIf { it.isNotBlank() }
-                    ?.let { InputValidator.validateSectName(it) }
-            }
-        },
-        onSectNameConfirm = { name ->
-            showSectNameDialog?.let { onNewGame(it, name) }
-            showSectNameDialog = null
-        }
+        onSectNameChange = { newValue -> if (newValue.length <= 6) {
+            sectNameInput = newValue
+            sectNameError = newValue.takeIf { it.isNotBlank() }?.let { InputValidator.validateSectName(it) }
+        } },
+        onSectNameConfirm = { name -> showSectNameDialog?.let { onNewGame(it, name) }; showSectNameDialog = null }
     )
+}
+
+/** 存档槽位点击分发（SaveSelectScreen 拆分）：云存档入口/新游戏/覆盖确认/空槽创建/读取 五分支 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+private fun dispatchSlotClick(
+    slot: SaveSlot,
+    mode: SaveSelectMode,
+    cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo?,
+    onCloudSaveLoad: () -> Unit,
+    onShowCloudInfo: () -> Unit,
+    onStartNewGameDialog: (Int) -> Unit,
+    onShowOverwriteConfirm: (Int) -> Unit,
+    onLoadSlot: (Int) -> Unit
+) {
+    when {
+        slot.slot == 0 -> {
+            if (mode == SaveSelectMode.LOAD_SAVE &&
+                cloudSaveInfo?.hasSaveData == true
+            ) {
+                onCloudSaveLoad()
+            } else {
+                onShowCloudInfo()
+            }
+        }
+        mode == SaveSelectMode.NEW_GAME && slot.isEmpty -> onStartNewGameDialog(slot.slot)
+        mode == SaveSelectMode.NEW_GAME -> onShowOverwriteConfirm(slot.slot)
+        slot.isEmpty -> onStartNewGameDialog(slot.slot)
+        else -> onLoadSlot(slot.slot)
+    }
 }
 
 /** 主内容区：标题行 + 槽位滚动列表 */

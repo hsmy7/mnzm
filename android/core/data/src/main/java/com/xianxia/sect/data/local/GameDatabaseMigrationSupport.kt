@@ -133,21 +133,57 @@ private const val TAG = "GameDatabase"
             db.execSQL(GAME_DATA_CREATE_SQL)
 
             // 先读取旧表实际存在的列名集合
-            val oldCursor = db.query("PRAGMA table_info($oldTable)")
-            val oldColumnNames = mutableSetOf<String>()
-            oldCursor.use {
+            val oldColumnNames = readColumnNames(db = db, table = oldTable)
+
+            // 从新表读取所有列定义，逐列决定 SELECT 源（见 buildSelectParts）
+            val selectParts = buildSelectParts(
+                db = db,
+                oldTable = oldTable,
+                oldColumnNames = oldColumnNames
+            )
+
+            val selectSql = selectParts.joinToString(", ")
+            // selectParts 为空意味着新表列全部在旧表中不存在——这不可能发生
+            // （至少有 id/slot_id 等基础列是始终存在的）。
+            // 若触发此断言，说明 GAME_DATA_CREATE_SQL 或迁移逻辑有严重问题。
+            check(selectParts.isNotEmpty()) {
+                "rebuildGameData: no columns matched between new and old table for suffix '$oldSuffix'"
+            }
+            db.execSQL("INSERT INTO `game_data` SELECT $selectSql FROM `$oldTable`")
+            db.execSQL("DROP TABLE IF EXISTS `$oldTable`")
+
+            // 重建 5 个索引
+            rebuildGameDataIndices(db)
+        }
+
+        /** 读取指定表的全部列名集合（rebuildGameData 拆分） */
+        private fun readColumnNames(db: SupportSQLiteDatabase, table: String): Set<String> {
+            val cursor = db.query("PRAGMA table_info($table)")
+            val names = mutableSetOf<String>()
+            cursor.use {
                 while (it.moveToNext()) {
-                    oldColumnNames.add(it.getString(it.getColumnIndexOrThrow("name")))
+                    names.add(it.getString(it.getColumnIndexOrThrow("name")))
                 }
             }
+            return names
+        }
 
-            // 从新表读取所有列定义，逐列决定 SELECT 源：
-            // - 旧表已有的列 → IFNULL(旧表列, 默认值)（兜底旧数据中的 NULL）
-            // - 仅新表有的列 → 直接使用 DEFAULT 值或按类型兜底
-            // 避免 GAME_DATA_CREATE_SQL 包含后续新增列时，
-            // SELECT 引用旧表不存在的列导致 SQLITE_ERROR。
-            val newCursor = db.query("PRAGMA table_info(game_data)")
+        /**
+         * 构建 INSERT SELECT 的列表达式列表（rebuildGameData 拆分）：
+         * - 旧表已有的列 → IFNULL(旧表列, 默认值)（兜底旧数据中的 NULL）
+         * - 仅新表有的列 → 直接使用 SQLite DEFAULT 值或按类型兜底
+         * 避免 GAME_DATA_CREATE_SQL 包含后续新增列时，SELECT 引用旧表不存在的列
+         * 导致 SQLITE_ERROR。
+         */
+        // 拆分搬移:嵌套/条件结构与原函数一致
+        @Suppress("NestedBlockDepth")
+        private fun buildSelectParts(
+            db: SupportSQLiteDatabase,
+            oldTable: String,
+            oldColumnNames: Set<String>
+        ): List<String> {
             val selectParts = mutableListOf<String>()
+            val newCursor = db.query("PRAGMA table_info(game_data)")
             newCursor.use {
                 while (it.moveToNext()) {
                     val name = it.getString(it.getColumnIndexOrThrow("name"))
@@ -163,13 +199,7 @@ private const val TAG = "GameDatabase"
                             val fallback = if (defaultVal != null) {
                                 defaultVal
                             } else {
-                                // 无 SQLite 默认值，按类型提供安全兜底
-                                when (type.uppercase(Locale.ROOT)) {
-                                    "INTEGER" -> "0"
-                                    "REAL" -> "0.0"
-                                    "TEXT" -> "''"
-                                    else -> "0"
-                                }
+                                columnTypeFallback(type = type)
                             }
                             selectParts.add("IFNULL($oldTable.$quotedName, $fallback) AS $quotedName")
                         } else {
@@ -180,30 +210,21 @@ private const val TAG = "GameDatabase"
                         val literal = if (defaultVal != null) {
                             defaultVal
                         } else {
-                            when (type.uppercase(Locale.ROOT)) {
-                                "INTEGER" -> "0"
-                                "REAL" -> "0.0"
-                                "TEXT" -> "''"
-                                else -> "0"
-                            }
+                            columnTypeFallback(type = type)
                         }
                         selectParts.add("$literal AS $quotedName")
                     }
                 }
             }
+            return selectParts
+        }
 
-            val selectSql = selectParts.joinToString(", ")
-            // selectParts 为空意味着新表列全部在旧表中不存在——这不可能发生
-            // （至少有 id/slot_id 等基础列是始终存在的）。
-            // 若触发此断言，说明 GAME_DATA_CREATE_SQL 或迁移逻辑有严重问题。
-            check(selectParts.isNotEmpty()) {
-                "rebuildGameData: no columns matched between new and old table for suffix '$oldSuffix'"
-            }
-            db.execSQL("INSERT INTO `game_data` SELECT $selectSql FROM `$oldTable`")
-            db.execSQL("DROP TABLE IF EXISTS `$oldTable`")
-
-            // 重建 5 个索引
-            rebuildGameDataIndices(db)
+        /** 无 SQLite 默认值时的按类型安全兜底（rebuildGameData 拆分） */
+        private fun columnTypeFallback(type: String): String = when (type.uppercase(Locale.ROOT)) {
+            "INTEGER" -> "0"
+            "REAL" -> "0.0"
+            "TEXT" -> "''"
+            else -> "0"
         }
 
         /** 重建 game_data 表的 5 个索引（create-copy-drop-rename 后必须重建） */

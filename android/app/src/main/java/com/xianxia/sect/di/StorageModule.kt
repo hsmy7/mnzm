@@ -37,9 +37,9 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideStorageConfig(
-        @ApplicationContext context: Context
+        keyValueStore: com.xianxia.sect.data.prefs.KeyValueStore
     ): StorageConfig {
-        return StorageConfig(context)
+        return StorageConfig(keyValueStore)
     }
 
     @Provides
@@ -87,9 +87,9 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideSaveLimitsConfig(
-        @ApplicationContext context: Context
+        keyValueStore: com.xianxia.sect.data.prefs.KeyValueStore
     ): SaveLimitsConfig {
-        return SaveLimitsConfig(context)
+        return SaveLimitsConfig(keyValueStore)
     }
 
     @Suppress("LongParameterList")

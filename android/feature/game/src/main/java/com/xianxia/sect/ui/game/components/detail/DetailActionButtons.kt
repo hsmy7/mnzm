@@ -324,66 +324,97 @@ fun RelationsDialog(
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Spacer(modifier = Modifier.height(12.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = DialogDefaults.CommonMaxHeight)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (parent1 != null || parent2 != null) {
-                    RelationCategory("父母") {
-                        parent1?.let { RelationItem("父亲", it) }
-                        parent2?.let { RelationItem("母亲", it) }
-                    }
-                }
+            RelationsContent(
+                data = RelationsData(
+                    parent1 = parent1,
+                    parent2 = parent2,
+                    partner = partner,
+                    children = children,
+                    siblings = siblings,
+                    master = master,
+                    apprentices = apprentices
+                )
+            )
+        }
+    }
+}
 
-                if (partner != null) {
-                    RelationCategory("道侣") {
-                        RelationItem("道侣", partner)
-                    }
-                }
+/** 关系数据打包（RelationsDialog 拆分，参数 >6 规避 LongParameterList） */
+private data class RelationsData(
+    val parent1: DiscipleAggregate?,
+    val parent2: DiscipleAggregate?,
+    val partner: DiscipleAggregate?,
+    val children: List<DiscipleAggregate>,
+    val siblings: List<DiscipleAggregate>,
+    val master: DiscipleAggregate?,
+    val apprentices: List<DiscipleAggregate>
+)
 
-                if (children.isNotEmpty()) {
-                    RelationCategory("子嗣") {
-                        children.forEach { child ->
-                            val relation = if (child.gender == "male") "子" else "女"
-                            RelationItem(relation, child)
-                        }
-                    }
-                }
+/** 关系列表内容（RelationsDialog 拆分）：各亲属类别 + 无关系空态 */
+// 拆分搬移:分支结构与原函数一致
+@Suppress("CyclomaticComplexMethod")
+@Composable
+private fun RelationsContent(data: RelationsData) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = DialogDefaults.CommonMaxHeight)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        if (data.parent1 != null || data.parent2 != null) {
+            RelationCategory("父母") {
+                data.parent1?.let { RelationItem("父亲", it) }
+                data.parent2?.let { RelationItem("母亲", it) }
+            }
+        }
 
-                if (siblings.isNotEmpty()) {
-                    RelationCategory("兄弟姐妹") {
-                        siblings.forEach { sibling ->
-                            val relation = if (sibling.gender == "male") "兄弟" else "姐妹"
-                            RelationItem(relation, sibling)
-                        }
-                    }
-                }
+        if (data.partner != null) {
+            RelationCategory("道侣") {
+                RelationItem("道侣", data.partner)
+            }
+        }
 
-                if (master != null) {
-                    RelationCategory("师父") {
-                        RelationItem("师父", master)
-                    }
-                }
-
-                if (apprentices.isNotEmpty()) {
-                    RelationCategory("徒弟") {
-                        apprentices.forEach { apprentice ->
-                            RelationItem("徒弟", apprentice)
-                        }
-                    }
-                }
-
-                if (parent1 == null && parent2 == null && partner == null && children.isEmpty() && siblings.isEmpty() && master == null && apprentices.isEmpty()) {
-                    Text(
-                        text = "无关系",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
+        if (data.children.isNotEmpty()) {
+            RelationCategory("子嗣") {
+                data.children.forEach { child ->
+                    val relation = if (child.gender == "male") "子" else "女"
+                    RelationItem(relation, child)
                 }
             }
+        }
+
+        if (data.siblings.isNotEmpty()) {
+            RelationCategory("兄弟姐妹") {
+                data.siblings.forEach { sibling ->
+                    val relation = if (sibling.gender == "male") "兄弟" else "姐妹"
+                    RelationItem(relation, sibling)
+                }
+            }
+        }
+
+        if (data.master != null) {
+            RelationCategory("师父") {
+                RelationItem("师父", data.master)
+            }
+        }
+
+        if (data.apprentices.isNotEmpty()) {
+            RelationCategory("徒弟") {
+                data.apprentices.forEach { apprentice ->
+                    RelationItem("徒弟", apprentice)
+                }
+            }
+        }
+
+        val hasNoRelations = data.parent1 == null && data.parent2 == null && data.partner == null &&
+            data.children.isEmpty() && data.siblings.isEmpty() && data.master == null && data.apprentices.isEmpty()
+        if (hasNoRelations) {
+            Text(
+                text = "无关系",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
         }
     }
 }

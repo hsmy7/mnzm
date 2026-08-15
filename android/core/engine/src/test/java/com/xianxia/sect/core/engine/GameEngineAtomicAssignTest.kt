@@ -53,6 +53,46 @@ class GameEngineAtomicAssignTest {
         gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
         store = FakeAtomicStateStore()
 
+        // 创建测试弟子与槽位（在事务内初始化 DiscipleTables，tables 实例被 store 持久化）
+        createTestData()
+
+        // 使用 mock() 创建 GameEngine（D1 后 8 构造参数），仅 stateStore + assignmentGate 为真实实现
+        discipleFacade = mock()
+        val mockBattleFacade = mock<BattleFacade>()
+        org.mockito.kotlin.whenever(mockBattleFacade.assignmentGate).thenReturn(gate)
+
+        // D1：构造时 highFrequencyData/productionSlots 经 Facade 访问器求值——stub 链防 NPE
+        val mockProductionFacade = mock<ProductionFacade>()
+        org.mockito.kotlin.whenever(mockProductionFacade.productionSlots)
+            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
+        val mockCultivationFacade = mock<CultivationFacade>()
+        org.mockito.kotlin.whenever(mockCultivationFacade.cultivationService).thenReturn(mock())
+        org.mockito.kotlin.whenever(mockCultivationFacade.discipleService).thenReturn(mock())
+        org.mockito.kotlin.whenever(mockCultivationFacade.discipleFacade).thenReturn(discipleFacade)
+        org.mockito.kotlin.whenever(mockCultivationFacade.productionFacade).thenReturn(mockProductionFacade)
+        val mockPC = mock<ProductionCoordinator>()
+        org.mockito.kotlin.whenever(mockPC.repository).thenReturn(mock())
+        org.mockito.kotlin.whenever(mockCultivationFacade.productionCoordinator).thenReturn(mockPC)
+        val mockInventoryFacade = mock<InventoryFacade>()
+        org.mockito.kotlin.whenever(mockInventoryFacade.inventorySystem).thenReturn(mock())
+        val mockEconomyFacade = mock<EconomyFacade>()
+        org.mockito.kotlin.whenever(mockEconomyFacade.inventoryFacade).thenReturn(mockInventoryFacade)
+        org.mockito.kotlin.whenever(mockEconomyFacade.mailService).thenReturn(mock())
+
+        engine = GameEngine(
+            gameEngineCore = mock(),
+            engineContextDispatcher = FakeEngineContextDispatcher(),
+            stateStore = store,
+            gameRngManager = mock(),
+            explorationFacade = mock(),
+            cultivationFacade = mockCultivationFacade,
+            economyFacade = mockEconomyFacade,
+            battleFacade = mockBattleFacade
+        )
+    }
+
+    /** 测试弟子与槽位初始化（setUp 拆分）：两个事务分别创建 DiscipleTables 与槽位数据 */
+    private fun createTestData() {
         // 创建测试弟子（在事务内初始化 DiscipleTables，tables 实例被 store 持久化）
         store.update {
             discipleTables.writeAllowed = true
@@ -91,40 +131,6 @@ class GameEngineAtomicAssignTest {
                 )
             )
         }
-
-        // 使用 mock() 创建 GameEngine（D1 后 8 构造参数），仅 stateStore + assignmentGate 为真实实现
-        discipleFacade = mock()
-        val mockBattleFacade = mock<BattleFacade>()
-        org.mockito.kotlin.whenever(mockBattleFacade.assignmentGate).thenReturn(gate)
-
-        // D1：构造时 highFrequencyData/productionSlots 经 Facade 访问器求值——stub 链防 NPE
-        val mockProductionFacade = mock<ProductionFacade>()
-        org.mockito.kotlin.whenever(mockProductionFacade.productionSlots)
-            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        val mockCultivationFacade = mock<CultivationFacade>()
-        org.mockito.kotlin.whenever(mockCultivationFacade.cultivationService).thenReturn(mock())
-        org.mockito.kotlin.whenever(mockCultivationFacade.discipleService).thenReturn(mock())
-        org.mockito.kotlin.whenever(mockCultivationFacade.discipleFacade).thenReturn(discipleFacade)
-        org.mockito.kotlin.whenever(mockCultivationFacade.productionFacade).thenReturn(mockProductionFacade)
-        val mockPC = mock<ProductionCoordinator>()
-        org.mockito.kotlin.whenever(mockPC.repository).thenReturn(mock())
-        org.mockito.kotlin.whenever(mockCultivationFacade.productionCoordinator).thenReturn(mockPC)
-        val mockInventoryFacade = mock<InventoryFacade>()
-        org.mockito.kotlin.whenever(mockInventoryFacade.inventorySystem).thenReturn(mock())
-        val mockEconomyFacade = mock<EconomyFacade>()
-        org.mockito.kotlin.whenever(mockEconomyFacade.inventoryFacade).thenReturn(mockInventoryFacade)
-        org.mockito.kotlin.whenever(mockEconomyFacade.mailService).thenReturn(mock())
-
-        engine = GameEngine(
-            gameEngineCore = mock(),
-            engineContextDispatcher = FakeEngineContextDispatcher(),
-            stateStore = store,
-            gameRngManager = mock(),
-            explorationFacade = mock(),
-            cultivationFacade = mockCultivationFacade,
-            economyFacade = mockEconomyFacade,
-            battleFacade = mockBattleFacade
-        )
     }
 
     // ── 住所分配 ──

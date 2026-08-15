@@ -46,39 +46,84 @@ fun LibraryDialog(
         title = "藏经阁",
         onDismiss = onDismiss
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "入驻弟子功法熟练度增长速度提高50%",
-                fontSize = 10.sp,
-                color = GameColors.Success
-            )
-            
-            slots.chunked(3).forEach { rowSlots ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-                ) {
-                    rowSlots.forEach { slot ->
-                        val disciple = slot.discipleId?.let { id -> discipleMap[id] }
-                        LibrarySlotItem(
-                            slot = slot,
-                            disciple = disciple,
-                            onAssign = { showDiscipleSelection = slot.index },
-                            onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(slot.index) },
-                            onSwap = { showDiscipleSelection = slot.index },
-                            onSlotClick = { disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }
-                        )
-                    }
+        LibrarySlotsGrid(
+            slots = slots,
+            discipleMap = discipleMap,
+            onAssign = { showDiscipleSelection = it },
+            onRemove = { productionViewModel.removeDiscipleFromLibrarySlot(it) },
+            onSwap = { showDiscipleSelection = it },
+            onSlotClick = { disciple ->
+                viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, disciples))
+            }
+        )
+    }
+
+    LibraryDiscipleSelector(
+        slotIndex = showDiscipleSelection,
+        slots = slots,
+        gameData = gameData,
+        disciples = disciples,
+        viewModel = viewModel,
+        productionViewModel = productionViewModel,
+        onDismiss = { showDiscipleSelection = null }
+    )
+
+}
+
+/** 藏经阁槽位网格（LibraryDialog 拆分）：描述文案 + 3 列槽位行 */
+@Composable
+private fun LibrarySlotsGrid(
+    slots: List<LibrarySlot>,
+    discipleMap: Map<String, DiscipleAggregate>,
+    onAssign: (Int) -> Unit,
+    onRemove: (Int) -> Unit,
+    onSwap: (Int) -> Unit,
+    onSlotClick: (DiscipleAggregate) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "入驻弟子功法熟练度增长速度提高50%",
+            fontSize = 10.sp,
+            color = GameColors.Success
+        )
+
+        slots.chunked(3).forEach { rowSlots ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+            ) {
+                rowSlots.forEach { slot ->
+                    val disciple = slot.discipleId?.let { id -> discipleMap[id] }
+                    LibrarySlotItem(
+                        slot = slot,
+                        disciple = disciple,
+                        onAssign = { onAssign(slot.index) },
+                        onRemove = { onRemove(slot.index) },
+                        onSwap = { onSwap(slot.index) },
+                        onSlotClick = { disciple?.let { onSlotClick(it) } }
+                    )
                 }
             }
         }
     }
+}
 
-    showDiscipleSelection?.let { slotIndex ->
-        val currentDiscipleId = slots.getOrNull(slotIndex)?.discipleId
+/** 入驻弟子选择对话框（LibraryDialog 拆分）：境界筛选 + 槽位分配确认 */
+@Composable
+private fun LibraryDiscipleSelector(
+    slotIndex: Int?,
+    slots: List<LibrarySlot>,
+    gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
+    onDismiss: () -> Unit
+) {
+    slotIndex?.let { selectedIndex ->
+        val currentDiscipleId = slots.getOrNull(selectedIndex)?.discipleId
         val showAllEnabled = gameData?.showAllAvailableDisciples == true
         val battleAndExplorationIds = remember(gameData) {
             val battleIds = gameData?.battleTeams.orEmpty()
@@ -99,19 +144,18 @@ fun LibraryDialog(
             showAllEnabled = showAllEnabled,
             viewModel = viewModel,
             battleAndExplorationIds = battleAndExplorationIds,
-            onDismiss = { showDiscipleSelection = null },
+            onDismiss = onDismiss,
             onConfirm = { selected ->
                 selected.firstOrNull()?.let { disciple ->
                     if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
                         viewModel.releaseDiscipleForReassignment(disciple.id)
                     }
-                    productionViewModel.assignDiscipleToLibrarySlot(slotIndex, disciple.id, disciple.name)
-                    showDiscipleSelection = null
+                    productionViewModel.assignDiscipleToLibrarySlot(selectedIndex, disciple.id, disciple.name)
+                    onDismiss()
                 }
             }
         )
     }
-
 }
 
 @Composable

@@ -46,6 +46,9 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * 渲染线程模型不变：仍共用同一 RenderThread、VsyncGate、RenderCommandBus。
  */
+// D-39 豁免：原生 SurfaceView 构造（ViewConstructor lint）——游戏渲染 surface 必须
+// 直接持有 Android SurfaceView（Vulkan swapchain 载体），无 Compose 等价物
+@Suppress("ViewConstructor")
 class NativeSurfaceView(
     context: Context,
     private val config: NativeRenderConfig
@@ -907,6 +910,10 @@ class NativeSurfaceView(
     // 触摸事件 → 转换为 TouchData → 喂入跨平台手势引擎
     // ============================================================
 
+    // D-39 豁免：ClickableViewAccessibility lint——本视图是原生游戏画布，必须直接
+    // 拦截触摸流转换为跨平台 TouchData（Compose pointerInput 无法与 Vulkan 帧循环解耦）
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount", "ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val engine = touchEngine ?: return false
 

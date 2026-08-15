@@ -3,7 +3,7 @@ package com.xianxia.sect.ui.theme
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.RippleConfiguration
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Rule

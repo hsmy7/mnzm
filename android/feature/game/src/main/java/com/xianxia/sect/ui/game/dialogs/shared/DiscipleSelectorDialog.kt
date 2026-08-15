@@ -53,25 +53,22 @@ fun DiscipleSelectorDialog(
 
     val filterState = rememberDiscipleFilterState(config.defaultSortAttribute)
 
-    val statusFiltered = remember(disciples, showAllEnabled, battleAndExplorationIds, config.additionalCheck, config.currentId, config.alwaysIncludeCurrentId) {
-        val base = disciples.filterByDiscipleStatus(
-            showAllEnabled, battleAndExplorationIds,
-            additionalCheck = config.additionalCheck ?: { true }
+    val statusFiltered = remember(
+        disciples, showAllEnabled, battleAndExplorationIds,
+        config.additionalCheck, config.currentId, config.alwaysIncludeCurrentId
+    ) {
+        config.statusFilteredDisciples(
+            disciples = disciples, showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds
         )
-        val needCurrentInclusion = config.alwaysIncludeCurrentId && config.currentId != null
-        val currentIsAlive = config.currentId?.let { id -> disciples.any { it.id == id && it.isAlive } } == true
-        if (needCurrentInclusion && currentIsAlive) {
-            val current = disciples.filter { it.id == config.currentId && it.isAlive }
-            (base + current).distinctBy { it.id }
-        } else {
-            base
-        }
     }
 
     val realmCounts = remember(statusFiltered) { filterState.realmCounts(statusFiltered) }
     val spiritRootCounts = remember(statusFiltered) { filterState.spiritRootCounts(statusFiltered) }
 
-    val filtered = remember(statusFiltered, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort) {
+    val filtered = remember(
+        statusFiltered, filterState.realmFilter, filterState.spiritRootFilter, filterState.attributeSort
+    ) {
         statusFiltered.let { filterState.filtered(it) }
     }
 
@@ -82,58 +79,113 @@ fun DiscipleSelectorDialog(
         scrollableContent = false,
         scrimEnabled = scrimEnabled,
         headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = filterState.spiritRootFilter,
-                selectedAttributeSort = filterState.attributeSort,
-                selectedRealmFilter = filterState.realmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
+            DiscipleSelectorFilterHeader(
+                filterState = filterState,
                 realmCounts = realmCounts,
-                spiritRootExpanded = filterState.spiritRootExpanded,
-                attributeExpanded = filterState.attributeExpanded,
-                realmExpanded = filterState.realmExpanded,
                 spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { filterState.spiritRootFilter += it },
-                onSpiritRootFilterRemoved = { filterState.spiritRootFilter -= it },
-                onAttributeSortSelected = { filterState.attributeSort = it },
-                onRealmFilterSelected = { filterState.realmFilter += it },
-                onRealmFilterRemoved = { filterState.realmFilter -= it },
-                onSpiritRootExpandToggle = { filterState.spiritRootExpanded = !filterState.spiritRootExpanded },
-                onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
-                onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded },
-                // viewModel 为空时切换无意义（setShowAllAvailableDisciples 需 GameViewModel），隐藏复选框
-                showAllCheckboxVisible = viewModel != null,
-                showAllEnabled = showAllEnabled,
-                onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
+                viewModel = viewModel,
+                showAllEnabled = showAllEnabled
             )
         }
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (filtered.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = config.emptyMessage, fontSize = 14.sp, color = Color.Black)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(filtered, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                        PortraitDiscipleCard(
-                            disciple = disciple,
-                            isCurrent = disciple.id == config.currentId,
-                            isSelected = false,
-                            extraAttributes = config.extraAttributesProvider?.invoke(disciple) ?: emptyList(),
-                            onClick = {
-                                onConfirm(listOf(disciple))
-                                onDismiss()
-                            }
-                        )
-                    }
+        DiscipleSelectorContent(
+            filtered = filtered,
+            emptyMessage = config.emptyMessage,
+            currentId = config.currentId,
+            extraAttributesProvider = config.extraAttributesProvider,
+            onDiscipleClick = { disciple ->
+                onConfirm(listOf(disciple))
+                onDismiss()
+            }
+        )
+    }
+}
+
+/** 状态过滤弟子列表（DiscipleSelectorDialog 拆分）：状态过滤 + 当前弟子强制包含 */
+private fun DiscipleSelectorConfig.statusFilteredDisciples(
+    disciples: List<DiscipleAggregate>,
+    showAllEnabled: Boolean,
+    battleAndExplorationIds: Set<String>
+): List<DiscipleAggregate> {
+    val base = disciples.filterByDiscipleStatus(
+        showAllEnabled, battleAndExplorationIds,
+        additionalCheck = additionalCheck ?: { true }
+    )
+    val needCurrentInclusion = alwaysIncludeCurrentId && currentId != null
+    val currentIsAlive = currentId?.let { id -> disciples.any { it.id == id && it.isAlive } } == true
+    if (needCurrentInclusion && currentIsAlive) {
+        val current = disciples.filter { it.id == currentId && it.isAlive }
+        return (base + current).distinctBy { it.id }
+    }
+    return base
+}
+
+/** 过滤条（DiscipleSelectorDialog 拆分）：灵根/属性/境界过滤 + 显示全部勾选 */
+@Composable
+private fun DiscipleSelectorFilterHeader(
+    filterState: DiscipleFilterState,
+    realmCounts: Map<Int, Int>,
+    spiritRootCounts: Map<Int, Int>,
+    viewModel: GameViewModel?,
+    showAllEnabled: Boolean
+) {
+    SpiritRootAttributeFilterBar(
+        selectedSpiritRootFilter = filterState.spiritRootFilter,
+        selectedAttributeSort = filterState.attributeSort,
+        selectedRealmFilter = filterState.realmFilter,
+        realmFilterOptions = REALM_FILTER_OPTIONS,
+        realmCounts = realmCounts,
+        spiritRootExpanded = filterState.spiritRootExpanded,
+        attributeExpanded = filterState.attributeExpanded,
+        realmExpanded = filterState.realmExpanded,
+        spiritRootCounts = spiritRootCounts,
+        onSpiritRootFilterSelected = { filterState.spiritRootFilter += it },
+        onSpiritRootFilterRemoved = { filterState.spiritRootFilter -= it },
+        onAttributeSortSelected = { filterState.attributeSort = it },
+        onRealmFilterSelected = { filterState.realmFilter += it },
+        onRealmFilterRemoved = { filterState.realmFilter -= it },
+        onSpiritRootExpandToggle = { filterState.spiritRootExpanded = !filterState.spiritRootExpanded },
+        onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
+        onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded },
+        // viewModel 为空时切换无意义（setShowAllAvailableDisciples 需 GameViewModel），隐藏复选框
+        showAllCheckboxVisible = viewModel != null,
+        showAllEnabled = showAllEnabled,
+        onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
+    )
+}
+
+/** 弟子选择内容区（DiscipleSelectorDialog 拆分）：空态提示或两列弟子卡片网格 */
+@Composable
+private fun DiscipleSelectorContent(
+    filtered: List<DiscipleAggregate>,
+    emptyMessage: String,
+    currentId: String?,
+    extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)?,
+    onDiscipleClick: (DiscipleAggregate) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (filtered.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = emptyMessage, fontSize = 14.sp, color = Color.Black)
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(filtered, key = { it.id }, contentType = { "disciple" }) { disciple ->
+                    PortraitDiscipleCard(
+                        disciple = disciple,
+                        isCurrent = disciple.id == currentId,
+                        isSelected = false,
+                        extraAttributes = extraAttributesProvider?.invoke(disciple) ?: emptyList(),
+                        onClick = { onDiscipleClick(disciple) }
+                    )
                 }
             }
         }

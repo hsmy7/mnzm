@@ -44,7 +44,6 @@ fun HeavenlyTrialBattleDialog(
     onDismiss: () -> Unit
 ) {
     val config = remember(levelIndex) { HeavenlyTrialConfig.getLevel(levelIndex) }
-
     // C1 对抗性审查修复：remember 包裹——预览敌人生成（固定种子，不消费全局 RNG）
     // 只执行一次，重组不重复生成（属性稳定 + 零性能浪费）
     val phase1Enemies = remember(levelIndex) {
@@ -53,186 +52,242 @@ fun HeavenlyTrialBattleDialog(
     val phase2Enemies = remember(levelIndex) {
         viewModel.trialService.getEnemiesForPhase(levelIndex, 1)
     }
-
-    var selectedPhaseIndex by remember { mutableStateOf(0) }
-    var selectedEnemyIndex by remember { mutableStateOf(0) }
+    var selectedPhaseIndex by remember { mutableIntStateOf(0) }
+    var selectedEnemyIndex by remember { mutableIntStateOf(0) }
     val currentEnemies = if (selectedPhaseIndex == 0) phase1Enemies else phase2Enemies
     val selectedEnemy = currentEnemies.getOrNull(selectedEnemyIndex)
-
     val screen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val showDiscipleSelect = screen is HeavenlyTrialViewModel.Screen.DiscipleSelect
     val trialState by viewModel.trialState.collectAsStateWithLifecycle()
 
     androidx.compose.material3.Surface(modifier = Modifier.fillMaxSize(), color = GameColors.PageBackground) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Image(
-                painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_challenge_bg") ?: 0),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-
+            TrialBackgroundImage()
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
-                // 标题栏
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        config?.label ?: "天道试炼",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(Modifier.weight(1f))
-                    CloseButton(onClick = onDismiss)
-                }
-
+                TrialTitleBar(label = config?.label ?: "天道试炼", onDismiss = onDismiss)
                 Row(modifier = Modifier.weight(1f)) {
                     // === 关卡列 (1) ===
-                    Column(
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .border(
-                                        2.dp,
-                                        if (selectedPhaseIndex == 0) GameColors.Gold else GameColors.Border,
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { selectedPhaseIndex = 0; selectedEnemyIndex = 0 },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_phase1") ?: 0),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                            }
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = if (trialState.isPhase1Cleared(levelIndex)) "已通关" else "未通关",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (trialState.isPhase1Cleared(levelIndex)) GameColors.Success else Color.Red
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .border(
-                                        2.dp,
-                                        if (selectedPhaseIndex == 1) GameColors.Gold else GameColors.Border,
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable { selectedPhaseIndex = 1; selectedEnemyIndex = 0 },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_phase2") ?: 0),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                            }
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = if (trialState.isPhase2Cleared(levelIndex)) "已通关" else "未通关",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (trialState.isPhase2Cleared(levelIndex)) GameColors.Success else Color.Red
-                            )
-                        }
-                    }
-
+                    PhaseSelectionColumn(
+                        selectedPhaseIndex = selectedPhaseIndex,
+                        onPhaseSelect = { idx -> selectedPhaseIndex = idx; selectedEnemyIndex = 0 },
+                        phase1Cleared = trialState.isPhase1Cleared(levelIndex),
+                        phase2Cleared = trialState.isPhase2Cleared(levelIndex)
+                    )
                     // 竖线1
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(GameColors.Divider)
-                    )
-
+                    TrialDivider()
                     // === 挑战对象列 (2) ===
-                    Column(
-                        modifier = Modifier.weight(2f).fillMaxHeight()
-                    ) {
-                        currentEnemies.forEachIndexed { idx, enemy ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { selectedEnemyIndex = idx }
-                                    .background(
-                                        if (idx == selectedEnemyIndex) Color(0x33FFD700)
-                                        else Color.Transparent,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    enemy.name,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                            }
-                        }
-                    }
-
-                    // 竖线2
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .fillMaxHeight()
-                            .background(GameColors.Divider)
+                    EnemySelectionList(
+                        enemies = currentEnemies,
+                        selectedEnemyIndex = selectedEnemyIndex,
+                        onEnemySelect = { selectedEnemyIndex = it }
                     )
-
+                    // 竖线2
+                    TrialDivider()
                     // === 信息+挑战区 (7) ===
-                    Column(modifier = Modifier.weight(7f).fillMaxHeight()) {
-                        // 信息区 — 占9份
-                        Column(modifier = Modifier.weight(9f)) {
-                            if (selectedEnemy != null) {
-                                EnemyInfoDetail(selectedEnemy, gameViewModel)
-                            }
-                        }
-                        // 横线
-                        Box(
-                            Modifier
-                                .height(1.dp)
-                                .fillMaxWidth()
-                                .background(GameColors.Divider)
-                        )
-                        // 挑战区 — 占1份
-                        Box(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            GameButton("挑战", onClick = {
-                                viewModel.startDiscipleSelect(selectedPhaseIndex)
-                            })
-                        }
-                    }
+                    EnemyInfoChallengeColumn(
+                        selectedEnemy = selectedEnemy,
+                        gameViewModel = gameViewModel,
+                        onChallenge = { viewModel.startDiscipleSelect(selectedPhaseIndex) }
+                    )
                 }
             }
+            TrialDiscipleSelectOverlay(
+                show = showDiscipleSelect,
+                viewModel = viewModel,
+                gameViewModel = gameViewModel
+            )
+        }
+    }
+}
 
-            // 选择出战弟子 — 半屏覆盖在挑战界面上
-            if (showDiscipleSelect) {
-                HeavenlyTrialDiscipleDialog(
-                    viewModel = viewModel,
-                    gameViewModel = gameViewModel,
-                    onDismiss = { viewModel.dismissDiscipleSelect() }
+/** 出战弟子选择覆盖层（HeavenlyTrialBattleDialog 拆分）：半屏覆盖在挑战界面上 */
+@Composable
+private fun TrialDiscipleSelectOverlay(
+    show: Boolean,
+    viewModel: HeavenlyTrialViewModel,
+    gameViewModel: GameViewModel
+) {
+    // 选择出战弟子 — 半屏覆盖在挑战界面上
+    if (show) {
+        HeavenlyTrialDiscipleDialog(
+            viewModel = viewModel,
+            gameViewModel = gameViewModel,
+            onDismiss = { viewModel.dismissDiscipleSelect() }
+        )
+    }
+}
+
+/** 背景图（HeavenlyTrialBattleDialog 拆分） */
+@Composable
+private fun BoxScope.TrialBackgroundImage() {
+    Image(
+        painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_challenge_bg") ?: 0),
+        contentDescription = null,
+        modifier = Modifier.matchParentSize(),
+        contentScale = ContentScale.Crop
+    )
+}
+
+/** 标题栏（HeavenlyTrialBattleDialog 拆分） */
+@Composable
+private fun TrialTitleBar(label: String, onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(Modifier.weight(1f))
+        CloseButton(onClick = onDismiss)
+    }
+}
+
+/** 关卡选择列（HeavenlyTrialBattleDialog 拆分）：阶段一/二图标 + 通关状态 */
+@Composable
+private fun RowScope.PhaseSelectionColumn(
+    selectedPhaseIndex: Int,
+    onPhaseSelect: (Int) -> Unit,
+    phase1Cleared: Boolean,
+    phase2Cleared: Boolean
+) {
+    Column(
+        modifier = Modifier.weight(1f).fillMaxHeight(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        TrialPhaseIcon(
+            spriteRes = SpriteResRegistry.resolve("heavenly_trial_phase1") ?: 0,
+            isSelected = selectedPhaseIndex == 0,
+            isCleared = phase1Cleared,
+            onSelect = { onPhaseSelect(0) }
+        )
+        Spacer(Modifier.height(8.dp))
+        TrialPhaseIcon(
+            spriteRes = SpriteResRegistry.resolve("heavenly_trial_phase2") ?: 0,
+            isSelected = selectedPhaseIndex == 1,
+            isCleared = phase2Cleared,
+            onSelect = { onPhaseSelect(1) }
+        )
+    }
+}
+
+/** 单阶段图标（HeavenlyTrialBattleDialog 拆分）：选中边框 + 通关标记 */
+@Composable
+private fun TrialPhaseIcon(
+    spriteRes: Int,
+    isSelected: Boolean,
+    isCleared: Boolean,
+    onSelect: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .border(
+                    2.dp,
+                    if (isSelected) GameColors.Gold else GameColors.Border,
+                    RoundedCornerShape(8.dp)
+                )
+                .clickable(onClick = onSelect),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = spriteRes),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = if (isCleared) "已通关" else "未通关",
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (isCleared) GameColors.Success else Color.Red
+        )
+    }
+}
+
+/** 竖线分隔（HeavenlyTrialBattleDialog 拆分） */
+@Composable
+private fun TrialDivider() {
+    Box(
+        modifier = Modifier
+            .width(1.dp)
+            .fillMaxHeight()
+            .background(GameColors.Divider)
+    )
+}
+
+/** 挑战对象列（HeavenlyTrialBattleDialog 拆分）：敌方名单 */
+@Composable
+private fun RowScope.EnemySelectionList(
+    enemies: List<Combatant>,
+    selectedEnemyIndex: Int,
+    onEnemySelect: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.weight(2f).fillMaxHeight()
+    ) {
+        enemies.forEachIndexed { idx, enemy ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onEnemySelect(idx) }
+                    .background(
+                        if (idx == selectedEnemyIndex) Color(0x33FFD700)
+                        else Color.Transparent,
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    enemy.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
             }
+        }
+    }
+}
+
+/** 信息+挑战区（HeavenlyTrialBattleDialog 拆分）：敌方详情 + 挑战按钮 */
+@Composable
+private fun RowScope.EnemyInfoChallengeColumn(
+    selectedEnemy: Combatant?,
+    gameViewModel: GameViewModel?,
+    onChallenge: () -> Unit
+) {
+    Column(modifier = Modifier.weight(7f).fillMaxHeight()) {
+        // 信息区 — 占9份
+        Column(modifier = Modifier.weight(9f)) {
+            if (selectedEnemy != null) {
+                EnemyInfoDetail(
+                    enemy = selectedEnemy,
+                    gameViewModel = gameViewModel
+                )
+            }
+        }
+        // 横线
+        Box(
+            Modifier
+                .height(1.dp)
+                .fillMaxWidth()
+                .background(GameColors.Divider)
+        )
+        // 挑战区 — 占1份
+        Box(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            GameButton("挑战", onClick = onChallenge)
         }
     }
 }
@@ -249,118 +304,24 @@ private fun EnemyInfoDetail(
 
     Column(modifier = Modifier.padding(8.dp).verticalScroll(rememberScrollState())) {
         // 基本信息
-        Text(enemy.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-        Spacer(Modifier.height(2.dp))
-        Text("${enemy.realmName}${enemy.realmLayer}层  HP:${enemy.hp}/${enemy.maxHp}  MP:${enemy.mp}/${enemy.maxMp}", fontSize = 10.sp, color = Color.Black)
-        Text("物攻${enemy.physicalAttack} 法攻${enemy.magicAttack} 物防${enemy.physicalDefense} 法防${enemy.magicDefense} 速度${enemy.speed}", fontSize = 10.sp, color = Color.Black)
+        EnemyBasicInfo(enemy = enemy)
 
         if (enemy.isBeast) {
-            Spacer(Modifier.height(6.dp))
-            Text("妖兽技能", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Spacer(Modifier.height(4.dp))
-            enemy.skills.forEach { skill ->
-                Column(modifier = Modifier.padding(vertical = 2.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(skill.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                        if (skill.isAoe) {
-                            Text(" [全体]", fontSize = 9.sp, color = Color(0xFFE65100))
-                        }
-                    }
-                    if (skill.damageMultiplier > 0) {
-                        val dmgType = if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"
-                        Text("${dmgType}伤害 ×${(skill.damageMultiplier * 100).toInt()}%  ${skill.hits}连击  冷却${skill.cooldown}回合  消耗${skill.mpCost}灵力", fontSize = 9.sp, color = Color.Black)
-                    }
-                    skill.buffs.forEach { buff ->
-                        val buffName = buff.first.displayName
-                        Text("$buffName +${(buff.second * 100).toInt()}% 持续${buff.third}回合", fontSize = 9.sp, color = Color.Black)
-                    }
-                    if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
-                        val bt = skill.buffType
-                        if (bt != null) {
-                            Text("${bt.displayName} +${(skill.buffValue * 100).toInt()}% 持续${skill.buffDuration}回合", fontSize = 9.sp, color = Color.Black)
-                        }
-                    }
-                    if (skill.healPercent > 0) {
-                        val healType = if (skill.healType == com.xianxia.sect.core.HealType.HP) "生命" else "灵力"
-                        Text("恢复${(skill.healPercent * 100).toInt()}%$healType", fontSize = 9.sp, color = Color.Black)
-                    }
-                    if (skill.skillDescription.isNotEmpty()) {
-                        Text(skill.skillDescription, fontSize = 9.sp, color = Color(0xFF666666))
-                    }
-                }
-            }
+            EnemyBeastSkills(enemy = enemy)
         } else {
-            // 装备槽位 — 4列，卡片自带名称无需底部文字
-            Spacer(Modifier.height(6.dp))
-            Text("装备", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                listOf(enemy.weaponName, enemy.armorName,
-                    enemy.bootsName, enemy.accessoryName).forEach { name ->
-                    val recipe = name?.let { n -> ForgeRecipeDatabase.getAllRecipes().find { it.name == n } }
-                    val template = name?.let { n -> EquipmentDatabase.getTemplateByName(n) }
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (recipe != null) {
-                            UnifiedItemCard(
-                                data = ItemCardData(name = recipe.name, rarity = recipe.rarity),
-                                showQuantity = false,
-                                isFollowed = template?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
-                                    ?: false,
-                                onLongPress = if (template != null) {
-                                    { detailTarget = template }
-                                } else null
-                            )
-                        }
-                    }
-                }
-            }
+            // 装备槽位
+            EnemyEquipmentSection(
+                enemy = enemy,
+                watchedKeys = watchedKeys,
+                onLongPress = { detailTarget = it }
+            )
 
-            // 功法槽位 — 4列网格，不足4个用占位符补齐
-            Spacer(Modifier.height(6.dp))
-            Text("功法", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Spacer(Modifier.height(4.dp))
-            val manualSkills = enemy.skills.map { skill ->
-                val manualName = skill.manualName.ifEmpty { skill.name }
-                val manual = ManualDatabase.allManuals.values.find { it.name == manualName }
-                val rarity = manual?.rarity ?: 1
-                Triple(manualName, rarity, manual)
-            }
-            val paddedSkills = if (manualSkills.size % 4 == 0) manualSkills
-                else manualSkills + List(4 - manualSkills.size % 4) { Triple("", 1, null as ManualDatabase.ManualTemplate?) }
-            val rows = paddedSkills.chunked(4)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                rows.forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        row.forEach { (name, rarity, manual) ->
-                            Box(
-                                modifier = Modifier.weight(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (name.isNotEmpty()) {
-                                    UnifiedItemCard(
-                                        data = ItemCardData(name = name, rarity = rarity, isManual = true),
-                                        showQuantity = false,
-                                        isFollowed = manual?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
-                                            ?: false,
-                                        onLongPress = if (manual != null) {
-                                            { detailTarget = manual }
-                                        } else null
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // 功法槽位
+            EnemyManualSection(
+                enemy = enemy,
+                watchedKeys = watchedKeys,
+                onLongPress = { detailTarget = it }
+            )
         }
     }
 
@@ -374,3 +335,138 @@ private fun EnemyInfoDetail(
     }
 }
 
+/** 基本信息（EnemyInfoDetail 拆分）：名称 + 境界/血量 + 属性 */
+@Composable
+private fun EnemyBasicInfo(enemy: Combatant) {
+    Text(enemy.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+    Spacer(Modifier.height(2.dp))
+    Text("${enemy.realmName}${enemy.realmLayer}层  HP:${enemy.hp}/${enemy.maxHp}  MP:${enemy.mp}/${enemy.maxMp}", fontSize = 10.sp, color = Color.Black)
+    Text("物攻${enemy.physicalAttack} 法攻${enemy.magicAttack} 物防${enemy.physicalDefense} 法防${enemy.magicDefense} 速度${enemy.speed}", fontSize = 10.sp, color = Color.Black)
+}
+
+/** 妖兽技能区（EnemyInfoDetail 拆分） */
+@Composable
+private fun EnemyBeastSkills(enemy: Combatant) {
+    Spacer(Modifier.height(6.dp))
+    Text("妖兽技能", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+    Spacer(Modifier.height(4.dp))
+    enemy.skills.forEach { skill ->
+        Column(modifier = Modifier.padding(vertical = 2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(skill.name, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                if (skill.isAoe) {
+                    Text(" [全体]", fontSize = 9.sp, color = Color(0xFFE65100))
+                }
+            }
+            if (skill.damageMultiplier > 0) {
+                val dmgType = if (skill.damageType == com.xianxia.sect.core.DamageType.PHYSICAL) "物理" else "法术"
+                Text("${dmgType}伤害 ×${(skill.damageMultiplier * 100).toInt()}%  ${skill.hits}连击  冷却${skill.cooldown}回合  消耗${skill.mpCost}灵力", fontSize = 9.sp, color = Color.Black)
+            }
+            skill.buffs.forEach { buff ->
+                val buffName = buff.first.displayName
+                Text("$buffName +${(buff.second * 100).toInt()}% 持续${buff.third}回合", fontSize = 9.sp, color = Color.Black)
+            }
+            if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
+                val bt = skill.buffType
+                if (bt != null) {
+                    Text("${bt.displayName} +${(skill.buffValue * 100).toInt()}% 持续${skill.buffDuration}回合", fontSize = 9.sp, color = Color.Black)
+                }
+            }
+            if (skill.healPercent > 0) {
+                val healType = if (skill.healType == com.xianxia.sect.core.HealType.HP) "生命" else "灵力"
+                Text("恢复${(skill.healPercent * 100).toInt()}%$healType", fontSize = 9.sp, color = Color.Black)
+            }
+            if (skill.skillDescription.isNotEmpty()) {
+                Text(skill.skillDescription, fontSize = 9.sp, color = Color(0xFF666666))
+            }
+        }
+    }
+}
+
+/** 装备槽位区（EnemyInfoDetail 拆分）：4 列装备卡片 */
+@Composable
+private fun EnemyEquipmentSection(
+    enemy: Combatant,
+    watchedKeys: Set<String>,
+    onLongPress: (Any) -> Unit
+) {
+    // 装备槽位 — 4列，卡片自带名称无需底部文字
+    Spacer(Modifier.height(6.dp))
+    Text("装备", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+    Spacer(Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        listOf(enemy.weaponName, enemy.armorName,
+            enemy.bootsName, enemy.accessoryName).forEach { name ->
+            val recipe = name?.let { n -> ForgeRecipeDatabase.getAllRecipes().find { it.name == n } }
+            val template = name?.let { n -> EquipmentDatabase.getTemplateByName(n) }
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                if (recipe != null) {
+                    UnifiedItemCard(
+                        data = ItemCardData(name = recipe.name, rarity = recipe.rarity),
+                        showQuantity = false,
+                        isFollowed = template?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
+                            ?: false,
+                        onLongPress = if (template != null) {
+                            { onLongPress(template) }
+                        } else null
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 功法槽位区（EnemyInfoDetail 拆分）：4 列网格，不足 4 个用占位符补齐 */
+@Composable
+private fun EnemyManualSection(
+    enemy: Combatant,
+    watchedKeys: Set<String>,
+    onLongPress: (Any) -> Unit
+) {
+    // 功法槽位 — 4列网格，不足4个用占位符补齐
+    Spacer(Modifier.height(6.dp))
+    Text("功法", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+    Spacer(Modifier.height(4.dp))
+    val manualSkills = enemy.skills.map { skill ->
+        val manualName = skill.manualName.ifEmpty { skill.name }
+        val manual = ManualDatabase.allManuals.values.find { it.name == manualName }
+        val rarity = manual?.rarity ?: 1
+        Triple(manualName, rarity, manual)
+    }
+    val paddedSkills = if (manualSkills.size % 4 == 0) manualSkills
+        else manualSkills + List(4 - manualSkills.size % 4) { Triple("", 1, null as ManualDatabase.ManualTemplate?) }
+    val rows = paddedSkills.chunked(4)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                row.forEach { (name, rarity, manual) ->
+                    Box(
+                        modifier = Modifier.weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (name.isNotEmpty()) {
+                            UnifiedItemCard(
+                                data = ItemCardData(name = name, rarity = rarity, isManual = true),
+                                showQuantity = false,
+                                isFollowed = manual?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
+                                    ?: false,
+                                onLongPress = if (manual != null) {
+                                    { onLongPress(manual) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

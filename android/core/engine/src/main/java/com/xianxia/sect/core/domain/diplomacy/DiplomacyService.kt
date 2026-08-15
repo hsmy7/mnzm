@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.domain.FavorDomain
@@ -104,21 +105,49 @@ class DiplomacyService @Inject constructor(
         if (existingAlliance) return false
 
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return false
-        val playerSectId = playerSect.id
 
+        // 使用共享引擎计算结盟概率（战力差/占领丢失/胜负/好感度/AI 个性）
+        val successChance = computeAllianceSuccessChance(
+            data = data,
+            sect = sect,
+            playerSectId = playerSect.id
+        ) ?: return false
+
+        val success = rng.nextDouble() < successChance
+
+        if (success) {
+            stateStore.update {
+                applyAllianceCreation(sectId = sectId, sect = sect)
+            }
+        }
+
+        return success
+    }
+
+    /**
+     * 计算结盟成功概率（requestAllianceSimple 拆分）：
+     * 四因素加权模型（战力差 20% / 占领丢失 15% / 胜负 25% / 好感度 40%）+ AI 个性修正。
+     *
+     * @return null 表示 AI 宗门战力非法（调用方按失败处理）
+     */
+    private fun computeAllianceSuccessChance(
+        data: GameData,
+        sect: WorldSect,
+        playerSectId: String
+    ): Double? {
         // 计算双方战力（统一永久基础属性公式，无装备/功法估算项）
         val playerPower = calculatePlayerTotalPower()
-        val aiSectDisciples = data.aiSectDisciples[sectId] ?: emptyList()
+        val aiSectDisciples = data.aiSectDisciples[sect.id] ?: emptyList()
         val aiPower = SectCombatPowerCalculator.calculateSectPower(aiSectDisciples)
-        if (aiPower <= 0) return false
+        if (aiPower <= 0) return null
         val powerRatio = playerPower.toDouble() / aiPower.toDouble()
 
         // 好感度（转为等级）
-        val favor = FavorDomain.findFavor(data.sectRelations, playerSectId, sectId)
+        val favor = FavorDomain.findFavor(data.sectRelations, playerSectId, sect.id)
         val favorLevel = SectRelationLevel.fromFavor(favor)
 
         // AI 个性
-        val personality = data.aiSectPersonalities[sectId] ?: AISectPersonality.BALANCED
+        val personality = data.aiSectPersonalities[sect.id] ?: AISectPersonality.BALANCED
 
         // 战斗记录（近3年）
         val recentRecords = data.sectBattleRecords.filter {
@@ -129,8 +158,7 @@ class DiplomacyService @Inject constructor(
         val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
         val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
 
-        // 使用共享引擎计算结盟概率
-        val successChance = IntelligentSectDecisionEngine.calculateChance(
+        return IntelligentSectDecisionEngine.calculateChance(
             profile = IntelligentSectDecisionEngine.ALLIANCE_PROFILE,
             powerRatio = powerRatio,
             conquestCount = conquestCount,
@@ -140,45 +168,40 @@ class DiplomacyService @Inject constructor(
             favorLevel = favorLevel,
             personality = personality
         )
+    }
 
-        val success = rng.nextDouble() < successChance
+    /** 结盟成功事务内写入（requestAllianceSimple 拆分）：相识标记 + 盟约创建 + 双方宗门关联 */
+    private fun MutableGameState.applyAllianceCreation(sectId: String, sect: WorldSect) {
+        // 确保双方已相识
+        gameData = gameData.copy(
+            sectRelations = FavorDomain.setAcquainted(
+                relations = gameData.sectRelations,
+                sectId1 = "player",
+                sectId2 = sectId,
+                year = gameData.gameYear
+            )
+        )
 
-        if (success) {
-            stateStore.update {
-                // 确保双方已相识
-                gameData = gameData.copy(
-                    sectRelations = FavorDomain.setAcquainted(
-                        relations = gameData.sectRelations,
-                        sectId1 = "player",
-                        sectId2 = sectId,
-                        year = gameData.gameYear
-                    )
-                )
-
-                val alliance = Alliance(
-                    id = UUID.randomUUID().toString(),
-                    sectIds = listOf("player", sectId),
-                    startYear = gameData.gameYear,
-                    initiatorId = "player"
-                )
-                gameData = gameData.copy(
-                    alliances = gameData.alliances + alliance,
-                    worldMapSects = gameData.worldMapSects.map { s ->
-                        when {
-                            s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
-                            s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
-                            else -> s
-                        }
-                    }
-                )
-                recordGameEvent(
-                    GameEventCategory.WORLD, GameEventType.ALLIANCE,
-                    "与${sect.name}结为同盟"
-                )
+        val alliance = Alliance(
+            id = UUID.randomUUID().toString(),
+            sectIds = listOf("player", sectId),
+            startYear = gameData.gameYear,
+            initiatorId = "player"
+        )
+        gameData = gameData.copy(
+            alliances = gameData.alliances + alliance,
+            worldMapSects = gameData.worldMapSects.map { s ->
+                when {
+                    s.id == sectId -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
+                    s.isPlayerSect -> s.copy(allianceId = alliance.id, allianceStartYear = gameData.gameYear)
+                    else -> s
+                }
             }
-        }
-
-        return success
+        )
+        recordGameEvent(
+            GameEventCategory.WORLD, GameEventType.ALLIANCE,
+            "与${sect.name}结为同盟"
+        )
     }
 
     /** 计算玩家宗门总战力（与 AI 同一公式：永久基础属性，无装备/功法） */
@@ -251,162 +274,17 @@ class DiplomacyService @Inject constructor(
             val type = types[rngLocal.nextInt(types.size)]
             val rarity = selectRarityByMerchantProbabilities(rngLocal, year)
 
-            fun calcStock(t: String, r: Int): Int {
-                val isConsumable = t in listOf("herb", "seed", "material")
-                return if (isConsumable) {
-                    when (r) {
-                        6 -> 3 + rngLocal.nextInt(5)
-                        5 -> 3 + rngLocal.nextInt(5)
-                        4 -> 5 + rngLocal.nextInt(6)
-                        3 -> 5 + rngLocal.nextInt(8)
-                        2 -> 5 + rngLocal.nextInt(11)
-                        else -> 7 + rngLocal.nextInt(9)
-                    }
-                } else {
-                    when (r) {
-                        6 -> 1 + rngLocal.nextInt(3)
-                        5 -> 1 + rngLocal.nextInt(3)
-                        4 -> 1 + rngLocal.nextInt(5)
-                        3 -> 1 + rngLocal.nextInt(5)
-                        2 -> 1 + rngLocal.nextInt(5)
-                        else -> 1 + rngLocal.nextInt(5)
-                    }
-                }
-            }
-
             val item = when (type) {
-                "equipment" -> {
-                    // 传入 rngLocal：装备名选择与类型/品阶同源，保证同 (sectId, year) 完全可复现
-                    val equipment = EquipmentDatabase.generateRandom(rarity, rarity, rngLocal.asKotlinRandom())
-                    val template = EquipmentDatabase.getTemplateByName(equipment.name)
-                    val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = equipment.name,
-                        type = "equipment",
-                        itemId = equipment.id,
-                        rarity = equipment.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity),
-                        obtainedYear = year,
-                        obtainedMonth = 1
-                    )
-                }
-                "manual" -> {
-                    // 同 equipment：传入 rngLocal 保证确定性复现。
-                    // 初始化守卫：数据库未初始化时跳过（避免年度单事务内抛异常被吞导致全量刷新丢失）
-                    if (!ManualDatabase.isInitialized) continue
-                    val manual = ManualDatabase.generateRandom(rarity, rarity, null, rngLocal.asKotlinRandom())
-                    val template = ManualDatabase.getByName(manual.name)
-                    val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = manual.name,
-                        type = "manual",
-                        itemId = manual.id,
-                        rarity = manual.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity),
-                        obtainedYear = year,
-                        obtainedMonth = 1
-                    )
-                }
-                "pill" -> {
-                    val pillTemplates = ItemDatabase.getPillsByRarity(rarity)
-                    if (pillTemplates.isEmpty()) continue
-                    val template = pillTemplates[rngLocal.nextInt(pillTemplates.size)]
-                    val pill = ItemDatabase.createPillFromTemplate(template)
-                    val basePrice = template.price.toLong()
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = pill.name,
-                        type = "pill",
-                        itemId = pill.id,
-                        rarity = pill.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity),
-                        obtainedYear = year,
-                        obtainedMonth = 1,
-                        grade = pill.grade.displayName
-                    )
-                }
-                "material" -> {
-                    val materials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
-                    if (materials.isEmpty()) continue
-                    val material = materials[rngLocal.nextInt(materials.size)]
-                    val basePrice = material.price.toLong()
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = material.name,
-                        type = "material",
-                        itemId = material.id,
-                        rarity = material.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity),
-                        obtainedYear = year,
-                        obtainedMonth = 1
-                    )
-                }
-                "herb" -> {
-                    val herbs = HerbDatabase.getByRarity(rarity)
-                    if (herbs.isEmpty()) continue
-                    val herb = herbs[rngLocal.nextInt(herbs.size)]
-                    val basePrice = herb.price.toLong()
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = herb.name,
-                        type = "herb",
-                        itemId = herb.id,
-                        rarity = herb.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity),
-                        obtainedYear = year,
-                        obtainedMonth = 1
-                    )
-                }
-                "seed" -> {
-                    val seeds = HerbDatabase.getSeedsByRarity(rarity)
-                    if (seeds.isEmpty()) continue
-                    val seed = seeds[rngLocal.nextInt(seeds.size)]
-                    val basePrice = seed.price.toLong()
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = seed.name,
-                        type = "seed",
-                        itemId = seed.id,
-                        rarity = seed.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity),
-                        obtainedYear = year,
-                        obtainedMonth = 1
-                    )
-                }
-                "spiritStone" -> {
-                    // 灵石受年份品阶上限约束：映射品阶（上品=4/中品=3）超过当年可出上限时跳过
-                    val spiritStoneRarity = if (rarity >= 4) 4 else 3
-                    if (spiritStoneRarity > RarityTimeProgression.maxRarityForYear(year)) continue
-                    val isHigh = rarity >= 4
-                    val name = if (isHigh) "上品灵石" else "中品灵石"
-                    val itemRarity = if (isHigh) 4 else 3
-                    val basePrice = if (isHigh) {
-                        SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO
-                    } else {
-                        SpiritStoneExchange.RATIO
-                    }
-                    MerchantItem(
-                        id = UUID.randomUUID().toString(),
-                        name = name,
-                        type = "spiritStone",
-                        itemId = UUID.randomUUID().toString(),
-                        rarity = itemRarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
-                        quantity = calcStock(type, rarity).coerceAtMost(3),
-                        obtainedYear = year,
-                        obtainedMonth = 1
-                    )
-                }
-                else -> continue
+                "equipment" -> generateEquipmentItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                "manual" -> generateManualItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                "pill" -> generatePillItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                "material" -> generateMaterialItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                "herb" -> generateHerbItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                "seed" -> generateSeedItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                "spiritStone" -> generateSpiritStoneItem(rngLocal = rngLocal, rarity = rarity, year = year)
+                else -> null
             }
+            if (item == null) continue
 
             if (!generatedNames.contains(item.name)) {
                 generatedNames.add(item.name)
@@ -416,6 +294,202 @@ class DiplomacyService @Inject constructor(
 
         items.sortByDescending { it.rarity }
         return items
+    }
+
+    /** 装备类商品生成（generateSectTradeItems 拆分） */
+    private fun generateEquipmentItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem {
+        // 传入 rngLocal：装备名选择与类型/品阶同源，保证同 (sectId, year) 完全可复现
+        val equipment = EquipmentDatabase.generateRandom(rarity, rarity, rngLocal.asKotlinRandom())
+        val template = EquipmentDatabase.getTemplateByName(equipment.name)
+        val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = equipment.name,
+            type = "equipment",
+            itemId = equipment.id,
+            rarity = equipment.rarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "equipment", r = rarity),
+            obtainedYear = year,
+            obtainedMonth = 1
+        )
+    }
+
+    /** 功法类商品生成（generateSectTradeItems 拆分） */
+    private fun generateManualItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem? {
+        // 同 equipment：传入 rngLocal 保证确定性复现。
+        // 初始化守卫：数据库未初始化时跳过（避免年度单事务内抛异常被吞导致全量刷新丢失）
+        if (!ManualDatabase.isInitialized) return null
+        val manual = ManualDatabase.generateRandom(rarity, rarity, null, rngLocal.asKotlinRandom())
+        val template = ManualDatabase.getByName(manual.name)
+        val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = manual.name,
+            type = "manual",
+            itemId = manual.id,
+            rarity = manual.rarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "manual", r = rarity),
+            obtainedYear = year,
+            obtainedMonth = 1
+        )
+    }
+
+    /** 丹药类商品生成（generateSectTradeItems 拆分） */
+    private fun generatePillItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem? {
+        val pillTemplates = ItemDatabase.getPillsByRarity(rarity)
+        if (pillTemplates.isEmpty()) return null
+        val template = pillTemplates[rngLocal.nextInt(pillTemplates.size)]
+        val pill = ItemDatabase.createPillFromTemplate(template)
+        val basePrice = template.price.toLong()
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = pill.name,
+            type = "pill",
+            itemId = pill.id,
+            rarity = pill.rarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "pill", r = rarity),
+            obtainedYear = year,
+            obtainedMonth = 1,
+            grade = pill.grade.displayName
+        )
+    }
+
+    /** 材料类商品生成（generateSectTradeItems 拆分） */
+    private fun generateMaterialItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem? {
+        val materials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
+        if (materials.isEmpty()) return null
+        val material = materials[rngLocal.nextInt(materials.size)]
+        val basePrice = material.price.toLong()
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = material.name,
+            type = "material",
+            itemId = material.id,
+            rarity = material.rarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "material", r = rarity),
+            obtainedYear = year,
+            obtainedMonth = 1
+        )
+    }
+
+    /** 草药类商品生成（generateSectTradeItems 拆分） */
+    private fun generateHerbItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem? {
+        val herbs = HerbDatabase.getByRarity(rarity)
+        if (herbs.isEmpty()) return null
+        val herb = herbs[rngLocal.nextInt(herbs.size)]
+        val basePrice = herb.price.toLong()
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = herb.name,
+            type = "herb",
+            itemId = herb.id,
+            rarity = herb.rarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "herb", r = rarity),
+            obtainedYear = year,
+            obtainedMonth = 1
+        )
+    }
+
+    /** 种子类商品生成（generateSectTradeItems 拆分） */
+    private fun generateSeedItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem? {
+        val seeds = HerbDatabase.getSeedsByRarity(rarity)
+        if (seeds.isEmpty()) return null
+        val seed = seeds[rngLocal.nextInt(seeds.size)]
+        val basePrice = seed.price.toLong()
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = seed.name,
+            type = "seed",
+            itemId = seed.id,
+            rarity = seed.rarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "seed", r = rarity),
+            obtainedYear = year,
+            obtainedMonth = 1
+        )
+    }
+
+    /** 灵石类商品生成（generateSectTradeItems 拆分） */
+    private fun generateSpiritStoneItem(
+        rngLocal: DeterministicRng,
+        rarity: Int,
+        year: Int
+    ): MerchantItem? {
+        // 灵石受年份品阶上限约束：映射品阶（上品=4/中品=3）超过当年可出上限时跳过
+        val spiritStoneRarity = if (rarity >= 4) 4 else 3
+        if (spiritStoneRarity > RarityTimeProgression.maxRarityForYear(year)) return null
+        val isHigh = rarity >= 4
+        val name = if (isHigh) "上品灵石" else "中品灵石"
+        val itemRarity = if (isHigh) 4 else 3
+        val basePrice = if (isHigh) {
+            SpiritStoneExchange.RATIO * SpiritStoneExchange.RATIO
+        } else {
+            SpiritStoneExchange.RATIO
+        }
+        return MerchantItem(
+            id = UUID.randomUUID().toString(),
+            name = name,
+            type = "spiritStone",
+            itemId = UUID.randomUUID().toString(),
+            rarity = itemRarity,
+            price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
+            quantity = calcMerchantStock(rngLocal = rngLocal, t = "spiritStone", r = rarity).coerceAtMost(3),
+            obtainedYear = year,
+            obtainedMonth = 1
+        )
+    }
+
+    /** 商品库存量抽样（generateSectTradeItems 拆分）：消耗品（草药/种子/材料）与耐用品两档库存曲线 */
+    private fun calcMerchantStock(rngLocal: DeterministicRng, t: String, r: Int): Int {
+        val isConsumable = t in listOf("herb", "seed", "material")
+        return if (isConsumable) {
+            when (r) {
+                6 -> 3 + rngLocal.nextInt(5)
+                5 -> 3 + rngLocal.nextInt(5)
+                4 -> 5 + rngLocal.nextInt(6)
+                3 -> 5 + rngLocal.nextInt(8)
+                2 -> 5 + rngLocal.nextInt(11)
+                else -> 7 + rngLocal.nextInt(9)
+            }
+        } else {
+            when (r) {
+                6 -> 1 + rngLocal.nextInt(3)
+                5 -> 1 + rngLocal.nextInt(3)
+                4 -> 1 + rngLocal.nextInt(5)
+                3 -> 1 + rngLocal.nextInt(5)
+                2 -> 1 + rngLocal.nextInt(5)
+                else -> 1 + rngLocal.nextInt(5)
+            }
+        }
     }
 
     suspend fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> {
@@ -508,34 +582,7 @@ class DiplomacyService @Inject constructor(
             return null
         }
 
-        val capacityOk = when (item.type.lowercase()) {
-            "equipment" -> inventorySystem.canAddItems(actualQuantity)
-            "manual" -> {
-                val t = ManualDatabase.getByName(item.name)
-                inventorySystem.canAddManual(item.name, item.rarity, t?.type ?: ManualType.SUPPORT)
-            }
-            "pill" -> {
-                val t = PillRecipeDatabase.getRecipeByName(item.name)
-                val grade = item.grade?.let { gn -> PillGrade.entries.find { it.displayName == gn } } ?: PillGrade.MEDIUM
-                inventorySystem.canAddPill(item.name, item.rarity, t?.category ?: PillCategory.FUNCTIONAL, grade)
-            }
-            "material" -> {
-                val t = BeastMaterialDatabase.getMaterialByName(item.name)
-                val cat = t?.category?.let { try { MaterialCategory.valueOf(it) } catch (e: IllegalArgumentException) { MaterialCategory.BEAST_HIDE } } ?: MaterialCategory.BEAST_HIDE
-                inventorySystem.canAddMaterial(item.name, item.rarity, cat)
-            }
-            "herb" -> {
-                val t = HerbDatabase.getHerbByName(item.name)
-                inventorySystem.canAddHerb(item.name, item.rarity, t?.category ?: "spirit")
-            }
-            "seed" -> {
-                val t = HerbDatabase.getSeedByName(item.name)
-                inventorySystem.canAddSeed(item.name, item.rarity, t?.growTime ?: 12)
-            }
-            "spiritstone" -> true
-            else -> false
-        }
-        if (!capacityOk) {
+        if (!checkTradeCapacity(item = item, actualQuantity = actualQuantity)) {
             return null
         }
 
@@ -554,6 +601,43 @@ class DiplomacyService @Inject constructor(
         }
 
         return SectTradeValidation(sect, item, actualQuantity, totalPrice, updatedSectDetails)
+    }
+
+    /** 交易物品仓库容量预检（validateSectTrade 拆分）：按物品类型委托 [InventorySystem.canAddXxx] */
+    // 拆分搬移:分支结构与原函数一致
+    @Suppress("CyclomaticComplexMethod")
+    private fun checkTradeCapacity(item: MerchantItem, actualQuantity: Int): Boolean = when (item.type.lowercase()) {
+        "equipment" -> inventorySystem.canAddItems(actualQuantity)
+        "manual" -> {
+            val t = ManualDatabase.getByName(item.name)
+            inventorySystem.canAddManual(item.name, item.rarity, t?.type ?: ManualType.SUPPORT)
+        }
+        "pill" -> {
+            val t = PillRecipeDatabase.getRecipeByName(item.name)
+            val grade = item.grade?.let { gn -> PillGrade.entries.find { it.displayName == gn } } ?: PillGrade.MEDIUM
+            inventorySystem.canAddPill(item.name, item.rarity, t?.category ?: PillCategory.FUNCTIONAL, grade)
+        }
+        "material" -> {
+            val t = BeastMaterialDatabase.getMaterialByName(item.name)
+            val cat = t?.category?.let { catName ->
+                try {
+                    MaterialCategory.valueOf(catName)
+                } catch (e: IllegalArgumentException) {
+                    MaterialCategory.BEAST_HIDE
+                }
+            } ?: MaterialCategory.BEAST_HIDE
+            inventorySystem.canAddMaterial(item.name, item.rarity, cat)
+        }
+        "herb" -> {
+            val t = HerbDatabase.getHerbByName(item.name)
+            inventorySystem.canAddHerb(item.name, item.rarity, t?.category ?: "spirit")
+        }
+        "seed" -> {
+            val t = HerbDatabase.getSeedByName(item.name)
+            inventorySystem.canAddSeed(item.name, item.rarity, t?.growTime ?: 12)
+        }
+        "spiritstone" -> true
+        else -> false
     }
 
 suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {

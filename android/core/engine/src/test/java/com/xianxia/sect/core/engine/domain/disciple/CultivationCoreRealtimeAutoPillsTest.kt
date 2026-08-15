@@ -325,28 +325,7 @@ private object PillsRealtime {
             if (tables.isAlive[id] != 1) continue
 
             // 指纹检测：排除突破丹 + 已服用过的一次性丹药
-            val items = tables.storageBagItems.getOrNull(id) ?: continue
-            val usedPermanentKeys =
-                tables.usedPermanentPillKeys.getOrNull(id).orEmpty()
-            val usedExtendLifeTypes =
-                tables.usedExtendLifePillTypes.getOrNull(id).orEmpty()
-            val hasPills = items.any { item ->
-                if (item.itemType != "pill") return@any false
-                val effect = item.effect ?: return@any false
-                when (DisciplePillManager.classify(effect)) {
-                    PillRule.BREAKTHROUGH -> return@any false
-                    PillRule.PERMANENT_BASE_ATTR -> {
-                        val keys = DisciplePillManager.buildUsedKeys(
-                            effect, effect.tier
-                        )
-                        keys.none { it in usedPermanentKeys }
-                    }
-                    PillRule.PERMANENT_LIFE ->
-                        effect.pillType !in usedExtendLifeTypes
-                    else -> true
-                }
-            }
-            if (!hasPills) continue
+            if (!hasAutoUsablePills(tables = tables, id = id)) continue
 
             val disciple = tables.assemble(id)
             val result = pillManager.processAutoUsePills(
@@ -354,41 +333,80 @@ private object PillsRealtime {
             )
             if (result.disciple == disciple) continue
 
-            val d = result.disciple
-            tables.storageBagItems[id] = d.equipment.storageBagItems
-            tables.cultivations[id] = d.cultivation
-            tables.manualMasteries[id] = d.manualMasteries
-            tables.cultivationSpeedBonuses[id] = d.cultivationSpeedBonus
-            tables.cultivationSpeedDurations[id] = d.cultivationSpeedDuration
-            tables.lifespans[id] = d.lifespan
-            tables.intelligences[id] = d.skills.intelligence
-            tables.charms[id] = d.skills.charm
-            tables.loyalties[id] = d.skills.loyalty
-            tables.comprehensions[id] = d.skills.comprehension
-            tables.artifactRefinings[id] = d.skills.artifactRefining
-            tables.pillRefinings[id] = d.skills.pillRefining
-            tables.spiritPlantings[id] = d.skills.spiritPlanting
-            tables.teachings[id] = d.skills.teaching
-            tables.moralities[id] = d.skills.morality
-            tables.minings[id] = d.skills.mining
-            tables.pillPhysicalAttackBonuses[id] = d.pillEffects.pillPhysicalAttackBonus
-            tables.pillMagicAttackBonuses[id] = d.pillEffects.pillMagicAttackBonus
-            tables.pillPhysicalDefenseBonuses[id] = d.pillEffects.pillPhysicalDefenseBonus
-            tables.pillMagicDefenseBonuses[id] = d.pillEffects.pillMagicDefenseBonus
-            tables.pillHpBonuses[id] = d.pillEffects.pillHpBonus
-            tables.pillMpBonuses[id] = d.pillEffects.pillMpBonus
-            tables.pillSpeedBonuses[id] = d.pillEffects.pillSpeedBonus
-            tables.pillCritRateBonuses[id] = d.pillEffects.pillCritRateBonus
-            tables.pillCritEffectBonuses[id] = d.pillEffects.pillCritEffectBonus
-            tables.pillCultivationSpeedBonuses[id] = d.pillEffects.pillCultivationSpeedBonus
-            tables.pillSkillExpSpeedBonuses[id] = d.pillEffects.pillSkillExpSpeedBonus
-            tables.pillNurtureSpeedBonuses[id] = d.pillEffects.pillNurtureSpeedBonus
-            tables.pillEffectDurations[id] = d.pillEffects.pillEffectDuration
-            tables.activePillTypes[id] = d.pillEffects.activePillTypes
-            tables.usedPermanentPillKeys[id] = d.usage.usedPermanentPillKeys
-            tables.usedExtendLifePillTypes[id] = d.usage.usedExtendLifePillTypes
-            tables.currentHps[id] = d.combat.currentHp
-            tables.currentMps[id] = d.combat.currentMp
+            // 丹药效果写回弟子表
+            writeBackPillEffects(
+                tables = tables,
+                id = id,
+                result = result
+            )
         }
+    }
+
+    /** 指纹检测（process 拆分）：排除突破丹 + 已服用过的一次性丹药 */
+    private fun hasAutoUsablePills(tables: DiscipleTables, id: Int): Boolean {
+        val items = tables.storageBagItems.getOrNull(id) ?: return false
+        val usedPermanentKeys =
+            tables.usedPermanentPillKeys.getOrNull(id).orEmpty()
+        val usedExtendLifeTypes =
+            tables.usedExtendLifePillTypes.getOrNull(id).orEmpty()
+        return items.any { item ->
+            if (item.itemType != "pill") return@any false
+            val effect = item.effect ?: return@any false
+            when (DisciplePillManager.classify(effect)) {
+                PillRule.BREAKTHROUGH -> return@any false
+                PillRule.PERMANENT_BASE_ATTR -> {
+                    val keys = DisciplePillManager.buildUsedKeys(
+                        effect, effect.tier
+                    )
+                    keys.none { it in usedPermanentKeys }
+                }
+                PillRule.PERMANENT_LIFE ->
+                    effect.pillType !in usedExtendLifeTypes
+                else -> true
+            }
+        }
+    }
+
+    /** 丹药效果写回（process 拆分）：弟子表全字段回写 */
+    private fun writeBackPillEffects(
+        tables: DiscipleTables,
+        id: Int,
+        result: DisciplePillManager.PillUseResult
+    ) {
+        val d = result.disciple
+        tables.storageBagItems[id] = d.equipment.storageBagItems
+        tables.cultivations[id] = d.cultivation
+        tables.manualMasteries[id] = d.manualMasteries
+        tables.cultivationSpeedBonuses[id] = d.cultivationSpeedBonus
+        tables.cultivationSpeedDurations[id] = d.cultivationSpeedDuration
+        tables.lifespans[id] = d.lifespan
+        tables.intelligences[id] = d.skills.intelligence
+        tables.charms[id] = d.skills.charm
+        tables.loyalties[id] = d.skills.loyalty
+        tables.comprehensions[id] = d.skills.comprehension
+        tables.artifactRefinings[id] = d.skills.artifactRefining
+        tables.pillRefinings[id] = d.skills.pillRefining
+        tables.spiritPlantings[id] = d.skills.spiritPlanting
+        tables.teachings[id] = d.skills.teaching
+        tables.moralities[id] = d.skills.morality
+        tables.minings[id] = d.skills.mining
+        tables.pillPhysicalAttackBonuses[id] = d.pillEffects.pillPhysicalAttackBonus
+        tables.pillMagicAttackBonuses[id] = d.pillEffects.pillMagicAttackBonus
+        tables.pillPhysicalDefenseBonuses[id] = d.pillEffects.pillPhysicalDefenseBonus
+        tables.pillMagicDefenseBonuses[id] = d.pillEffects.pillMagicDefenseBonus
+        tables.pillHpBonuses[id] = d.pillEffects.pillHpBonus
+        tables.pillMpBonuses[id] = d.pillEffects.pillMpBonus
+        tables.pillSpeedBonuses[id] = d.pillEffects.pillSpeedBonus
+        tables.pillCritRateBonuses[id] = d.pillEffects.pillCritRateBonus
+        tables.pillCritEffectBonuses[id] = d.pillEffects.pillCritEffectBonus
+        tables.pillCultivationSpeedBonuses[id] = d.pillEffects.pillCultivationSpeedBonus
+        tables.pillSkillExpSpeedBonuses[id] = d.pillEffects.pillSkillExpSpeedBonus
+        tables.pillNurtureSpeedBonuses[id] = d.pillEffects.pillNurtureSpeedBonus
+        tables.pillEffectDurations[id] = d.pillEffects.pillEffectDuration
+        tables.activePillTypes[id] = d.pillEffects.activePillTypes
+        tables.usedPermanentPillKeys[id] = d.usage.usedPermanentPillKeys
+        tables.usedExtendLifePillTypes[id] = d.usage.usedExtendLifePillTypes
+        tables.currentHps[id] = d.combat.currentHp
+        tables.currentMps[id] = d.combat.currentMp
     }
 }

@@ -236,96 +236,114 @@ data class DiscipleAggregate(
             cultivationSpeedDuration = cultivationSpeedDuration,
             discipleType = discipleType,
             soulPower = soulPower,
-            combat = CombatAttributes(
-                baseHp = baseHp,
-                baseMp = baseMp,
-                basePhysicalAttack = basePhysicalAttack,
-                baseMagicAttack = baseMagicAttack,
-                basePhysicalDefense = basePhysicalDefense,
-                baseMagicDefense = baseMagicDefense,
-                baseSpeed = baseSpeed,
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance,
-                totalCultivation = totalCultivation,
-                breakthroughCount = breakthroughCount,
-                breakthroughFailCount = breakthroughFailCount,
-                currentHp = currentHp,
-                currentMp = currentMp
-            ),
-            pillEffects = PillEffects(
-                pillPhysicalAttackBonus = pillPhysicalAttackBonus,
-                pillMagicAttackBonus = pillMagicAttackBonus,
-                pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
-                pillMagicDefenseBonus = pillMagicDefenseBonus,
-                pillHpBonus = pillHpBonus,
-                pillMpBonus = pillMpBonus,
-                pillSpeedBonus = pillSpeedBonus,
-                pillCritRateBonus = pillCritRateBonus,
-                pillCritEffectBonus = pillCritEffectBonus,
-                pillCultivationSpeedBonus = pillCultivationSpeedBonus,
-                pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
-                pillNurtureSpeedBonus = pillNurtureSpeedBonus,
-                pillEffectDuration = pillEffectDuration,
-                activePillCategory = activePillCategory,
-                activePillTypes = activePillTypes
-            ),
-            usage = UsageTracking(
-                usedFunctionalPillTypes = usedFunctionalPillTypes,
-                usedExtendLifePillIds = usedExtendLifePillIds,
-                usedPermanentPillKeys = usedPermanentPillKeys,
-                usedExtendLifePillTypes = usedExtendLifePillTypes,
-                recruitedMonth = recruitedMonth,
-                hasReviveEffect = hasReviveEffect,
-                hasClearAllEffect = hasClearAllEffect
-            ),
-            equipment = EquipmentSet(
-                weaponId = weaponId,
-                armorId = armorId,
-                bootsId = bootsId,
-                accessoryId = accessoryId,
-                weaponNurture = weaponNurture,
-                armorNurture = armorNurture,
-                bootsNurture = bootsNurture,
-                accessoryNurture = accessoryNurture,
-                storageBagItems = storageBagItems,
-                storageBagSpiritStones = storageBagSpiritStones,
-                spiritStones = spiritStones
-            ),
-            social = SocialData(
-                partnerId = partnerId,
-                partnerSectId = partnerSectId,
-                parentId1 = parentId1,
-                parentId2 = parentId2,
-                lastChildYear = lastChildYear,
-                griefEndYear = griefEndYear,
-                masterId = masterId
-            ),
-            skills = SkillStats(
-                intelligence = intelligence,
-                charm = charm,
-                loyalty = loyalty,
-                comprehension = comprehension,
-                artifactRefining = artifactRefining,
-                pillRefining = pillRefining,
-                spiritPlanting = spiritPlanting,
-                mining = mining,
-                teaching = teaching,
-                morality = morality,
-                aptitude = aptitude,
-                salaryPaidCount = salaryPaidCount,
-                salaryMissedCount = salaryMissedCount,
-                alchemyLevel = alchemyLevel,
-                alchemyPromotionCount = alchemyPromotionCount,
-                forgeLevel = forgeLevel,
-                forgePromotionCount = forgePromotionCount
-            )
+            combat = toCombatAttributes(),
+            pillEffects = toPillEffects(),
+            usage = toUsageTracking(),
+            equipment = toEquipmentSet(),
+            social = toSocialData(),
+            skills = toSkillStats()
         )
     }
+
+    /** 战斗属性构建（toDisciple 拆分） */
+    private fun toCombatAttributes(): CombatAttributes = CombatAttributes(
+        baseHp = baseHp,
+        baseMp = baseMp,
+        basePhysicalAttack = basePhysicalAttack,
+        baseMagicAttack = baseMagicAttack,
+        basePhysicalDefense = basePhysicalDefense,
+        baseMagicDefense = baseMagicDefense,
+        baseSpeed = baseSpeed,
+        hpVariance = hpVariance,
+        mpVariance = mpVariance,
+        physicalAttackVariance = physicalAttackVariance,
+        magicAttackVariance = magicAttackVariance,
+        physicalDefenseVariance = physicalDefenseVariance,
+        magicDefenseVariance = magicDefenseVariance,
+        speedVariance = speedVariance,
+        totalCultivation = totalCultivation,
+        breakthroughCount = breakthroughCount,
+        breakthroughFailCount = breakthroughFailCount,
+        currentHp = currentHp,
+        currentMp = currentMp
+    )
+
+    /** 丹药效果构建（toDisciple 拆分） */
+    private fun toPillEffects(): PillEffects = PillEffects(
+        pillPhysicalAttackBonus = pillPhysicalAttackBonus,
+        pillMagicAttackBonus = pillMagicAttackBonus,
+        pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
+        pillMagicDefenseBonus = pillMagicDefenseBonus,
+        pillHpBonus = pillHpBonus,
+        pillMpBonus = pillMpBonus,
+        pillSpeedBonus = pillSpeedBonus,
+        pillCritRateBonus = pillCritRateBonus,
+        pillCritEffectBonus = pillCritEffectBonus,
+        pillCultivationSpeedBonus = pillCultivationSpeedBonus,
+        pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
+        pillNurtureSpeedBonus = pillNurtureSpeedBonus,
+        pillEffectDuration = pillEffectDuration,
+        activePillCategory = activePillCategory,
+        activePillTypes = activePillTypes
+    )
+
+    /** 使用追踪构建（toDisciple 拆分） */
+    private fun toUsageTracking(): UsageTracking = UsageTracking(
+        usedFunctionalPillTypes = usedFunctionalPillTypes,
+        usedExtendLifePillIds = usedExtendLifePillIds,
+        usedPermanentPillKeys = usedPermanentPillKeys,
+        usedExtendLifePillTypes = usedExtendLifePillTypes,
+        recruitedMonth = recruitedMonth,
+        hasReviveEffect = hasReviveEffect,
+        hasClearAllEffect = hasClearAllEffect
+    )
+
+    /** 装备构建（toDisciple 拆分） */
+    private fun toEquipmentSet(): EquipmentSet = EquipmentSet(
+        weaponId = weaponId,
+        armorId = armorId,
+        bootsId = bootsId,
+        accessoryId = accessoryId,
+        weaponNurture = weaponNurture,
+        armorNurture = armorNurture,
+        bootsNurture = bootsNurture,
+        accessoryNurture = accessoryNurture,
+        storageBagItems = storageBagItems,
+        storageBagSpiritStones = storageBagSpiritStones,
+        spiritStones = spiritStones
+    )
+
+    /** 社交数据构建（toDisciple 拆分） */
+    private fun toSocialData(): SocialData = SocialData(
+        partnerId = partnerId,
+        partnerSectId = partnerSectId,
+        parentId1 = parentId1,
+        parentId2 = parentId2,
+        lastChildYear = lastChildYear,
+        griefEndYear = griefEndYear,
+        masterId = masterId
+    )
+
+    /** 技能属性构建（toDisciple 拆分） */
+    private fun toSkillStats(): SkillStats = SkillStats(
+        intelligence = intelligence,
+        charm = charm,
+        loyalty = loyalty,
+        comprehension = comprehension,
+        artifactRefining = artifactRefining,
+        pillRefining = pillRefining,
+        spiritPlanting = spiritPlanting,
+        mining = mining,
+        teaching = teaching,
+        morality = morality,
+        aptitude = aptitude,
+        salaryPaidCount = salaryPaidCount,
+        salaryMissedCount = salaryMissedCount,
+        alchemyLevel = alchemyLevel,
+        alchemyPromotionCount = alchemyPromotionCount,
+        forgeLevel = forgeLevel,
+        forgePromotionCount = forgePromotionCount
+    )
 
     // Migration: toDisciple() removal pending Phase3
     fun toCompactDisciple(): Disciple {

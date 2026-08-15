@@ -244,64 +244,6 @@
     <ID>LargeClass:InventorySystem.kt$InventorySystem : GameSystemItemAdder</ID>
     <ID>LargeClass:ProductionProcessor.kt$ProductionProcessor</ID>
     <ID>LargeClass:ProductionProcessorTest.kt$ProductionProcessorTest</ID>
-    <ID>LongMethod:AISectTeamComposer.kt$internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards</ID>
-    <ID>LongMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
-    <ID>LongMethod:BattleSystem.kt$BattleSystem$private fun createBeast( beastRealm: Int, index: Int, beastType: String? = null, preGenStats: BeastPreGenStats? = null ): Combatant</ID>
-    <ID>LongMethod:BuildingConfigService.kt$BuildingConfigService$private fun createDefaultConfig(): BuildingsConfig</ID>
-    <ID>LongMethod:BuildingFeatureTestRegistration.kt$fun BuildingFeatureRegistry.registerTestFeatures()</ID>
-    <ID>LongMethod:CaveExplorationProcessor.kt$CaveExplorationProcessor$private fun grantPillReward( reward: CaveRewardItem, battleRewardItems: MutableList&lt;BattleRewardItem&gt; )</ID>
-    <ID>LongMethod:CaveExplorationSystem.kt$CaveExplorationSystem$fun createGuardianBattle( playerDisciples: List&lt;Disciple&gt;, playerEquipmentMap: Map&lt;String, EquipmentInstance&gt;, playerManualMap: Map&lt;String, ManualInstance&gt;, playerManualProficiencies: Map&lt;String, Map&lt;String, ManualProficiencyData&gt;&gt;, cave: CultivatorCave, bloodRefinementMap: Map&lt;String, BloodRefinementPctTotal&gt; = emptyMap() ): Battle</ID>
-    <ID>LongMethod:CaveExplorationSystem.kt$CaveExplorationSystem$private fun createGuardian(realm: Int, index: Int, isBoss: Boolean = false): Combatant</ID>
-    <ID>LongMethod:CombatService.kt$CombatService$suspend fun processBattleCasualties( deadMemberIds: Set&lt;String&gt;, survivorHpMap: Map&lt;String, Int&gt;, survivorMpMap: Map&lt;String, Int&gt; = emptyMap(), isOutsideSect: Boolean = true )</ID>
-    <ID>LongMethod:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$fun process( state: MutableGameState, pillManager: DisciplePillManager, year: Int, month: Int, phase: Int )</ID>
-    <ID>LongMethod:CultivationRateCalculator.kt$CultivationRateCalculator$fun calculateCultivationPerPhaseById( id: Int, data: GameData, tables: DiscipleTables, residenceByDiscipleId: Map&lt;Int, ResidenceSlot&gt; = emptyMap(), buildingByInstanceId: Map&lt;String, GridBuildingData&gt; = emptyMap() ): Double</ID>
-    <ID>LongMethod:CultivationRateEquivalenceTest.kt$CultivationRateEquivalenceTest$private fun fixtures(): List&lt;Fixture&gt;</ID>
-    <ID>LongMethod:CustomVelocityTracker.kt$CustomVelocityTracker$private fun leastSquaresVelocity(data: List&lt;Sample&gt;, n: Int): Velocity2D</ID>
-    <ID>LongMethod:DiplomacyService.kt$DiplomacyService$fun generateSectTradeItems(year: Int, sectId: String? = null): List&lt;MerchantItem&gt;</ID>
-    <ID>LongMethod:DiplomacyService.kt$DiplomacyService$private fun validateSectTrade(data: GameData, sectId: String, itemId: String, quantity: Int): SectTradeValidation?</ID>
-    <ID>LongMethod:DiplomacyService.kt$DiplomacyService$suspend fun requestAllianceSimple(sectId: String): Boolean</ID>
-    <ID>LongMethod:DiscipleEquipmentService.kt$DiscipleEquipmentService$fun equipEquipment(discipleId: String, equipmentId: String): DomainResult&lt;Unit&gt;</ID>
-    <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$override fun assignDirectDisciple( elderSlotType: String, slotIndex: Int, discipleId: String, discipleName: String, discipleRealm: String, discipleSpiritRootColor: String )</ID>
-    <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun MutableGameState.applyPillEffectsToDisciple(id: Int, pill: Pill)</ID>
-    <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardEquipment(discipleId: String, item: RewardSelectedItem)</ID>
-    <ID>LongMethod:DiscipleFactory.kt$DiscipleFactory$fun create(seed: DiscipleSeed): Disciple</ID>
-    <ID>LongMethod:DiscipleServiceCrudTest.kt$DiscipleServiceCrudTest$@Before fun setUp()</ID>
-    <ID>LongMethod:DiscipleSlotManager.kt$DiscipleSlotManager$suspend fun resetAllDisciplesStatus()</ID>
-    <ID>LongMethod:DiscipleStatusService.kt$DiscipleStatusService$private fun MutableGameState.clearSlotsForReset(): Set&lt;String&gt;</ID>
-    <ID>LongMethod:ElderManagementUseCase.kt$ElderManagementUseCase$suspend fun assignElder(slotType: ElderSlotType, discipleId: String): ElderResult</ID>
-    <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignPatrolAtomic( discipleId: String, globalIndex: Int ): DomainResult&lt;Unit&gt;</ID>
-    <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignToResidenceAtomic( buildingInstanceId: String, slotIndex: Int, discipleId: String ): DomainResult&lt;Unit&gt;</ID>
-    <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.autoAssignPatrolAtomic( assignments: List&lt;Pair&lt;Int, String&gt;&gt; ): DomainResult&lt;Unit&gt;</ID>
-    <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.swapPatrolAtomic( fromGlobalIndex: Int, toGlobalIndex: Int ): DomainResult&lt;Unit&gt;</ID>
-    <ID>LongMethod:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$@Before fun setUp()</ID>
-    <ID>LongMethod:GameEngineBattleOps.kt$private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List&lt;BattleRewardItem&gt;</ID>
-    <ID>LongMethod:GameEngineCoordination.kt$private suspend fun GameEngine.applyMissionResult( result: MissionSystem.MissionResult, activeMission: ActiveMission, year: Int, month: Int, aliveDisciples: List&lt;Disciple&gt; )</ID>
-    <ID>LongMethod:GameEngineCoordination.kt$suspend fun GameEngine.loadData( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt; = emptyList(), herbs: List&lt;Herb&gt; = emptyList(), seeds: List&lt;Seed&gt; = emptyList(), battleLogs: List&lt;BattleLog&gt; = emptyList(), alliances: List&lt;Alliance&gt; = emptyList(), productionSlots: List&lt;ProductionSlot&gt; = emptyList(), storageBags: List&lt;StorageBag&gt; = emptyList() )</ID>
-    <ID>LongMethod:GameEngineSectLevelOps.kt$suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult</ID>
-    <ID>LongMethod:GiftService.kt$GiftService$suspend fun giftSpiritStones( sectId: String, tier: Int, bypassYearLimit: Boolean = false ): GiftResult</ID>
-    <ID>LongMethod:HeavenlyTrialService.kt$HeavenlyTrialService$fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant</ID>
-    <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun buyMerchantItem(itemId: String, quantity: Int)</ID>
-    <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)</ID>
-    <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun openStorageBag(bagId: String): Pair&lt;List&lt;BattleRewardItem&gt;, List&lt;RewardCardItem&gt;&gt;</ID>
-    <ID>LongMethod:LawEnforcementProcessor.kt$LawEnforcementProcessor$private fun executeFullTheftCheck(id: Int, tables: DiscipleTables, currentMonth: Int, currentData: GameData)</ID>
-    <ID>LongMethod:MailService.kt$MailService$suspend fun claimAttachment(mailId: String, slotId: Int): ClaimResult</ID>
-    <ID>LongMethod:ManualDatabase.kt$ManualDatabase$private fun validateWithProto(manuals: Map&lt;String, ManualTemplate&gt;): ValidationResult</ID>
-    <ID>LongMethod:ManualDatabaseTest.kt$ManualDatabaseTest$private fun buildTestManuals(): Map&lt;String, ManualTemplate&gt;</ID>
-    <ID>LongMethod:MissionSystem.kt$MissionSystem$private fun createRewardConfig(template: MissionTemplate): MissionRewardConfig</ID>
-    <ID>LongMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startAlchemyAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, herbs: List&lt;Herb&gt;, buildingId: String = "alchemy", successRate: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
-    <ID>LongMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startForgingAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, materials: List&lt;Material&gt;, buildingId: String = "forge", successRate: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
-    <ID>LongMethod:ProductionProcessor.kt$ProductionProcessor$private fun computeResidenceAssignments( state: MutableGameState, data: GameData, policies: SectPolicies, occupiedResidentIds: Set&lt;String&gt; ): Map&lt;String, Pair&lt;String, String&gt;&gt;</ID>
-    <ID>LongMethod:ProductionProcessorAutoAlchemyTest.kt$ProductionProcessorAutoAlchemyTest$@Test fun `findBestCraftableRecipe - sorts by tier descending then rarity descending`()</ID>
-    <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProduction( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
-    <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProductionByBuildingId( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
-    <ID>LongMethod:RecruitService.kt$RecruitService.Companion$fun processAutoRecruit(state: MutableGameState): Int</ID>
-    <ID>LongMethod:RedeemCodeManager.kt$RedeemCodeManager$fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set&lt;String&gt; = emptySet(), random: kotlin.random.Random = kotlin.random.Random): Disciple</ID>
-    <ID>LongMethod:RedeemCodeManager.kt$RedeemCodeManager$fun generateReward( redeemCode: RedeemCode, playerId: String = "default", deviceId: String = "unknown", existingNames: Set&lt;String&gt; = emptySet(), random: kotlin.random.Random = kotlin.random.Random ): RedeemResult</ID>
-    <ID>LongMethod:RedeemCodeManager.kt$RedeemCodeManager$suspend fun checkRateLimit(playerId: String = "default"): RedeemResult?</ID>
-    <ID>LongMethod:RedeemCodeService.kt$RedeemCodeService$private suspend fun localRedeem( code: String, usedCodes: List&lt;String&gt;, currentYear: Int, currentMonth: Int ): RedeemResult</ID>
-    <ID>LongMethod:SectMapTouchEngine.kt$SectMapTouchEngine$private fun handleDown(data: TouchData)</ID>
-    <ID>LongMethod:ThermalController.kt$ThermalController$private fun evaluateLevel(temp: Float, recentFps: Float): DegradationLevel</ID>
-    <ID>LongMethod:VassalService.kt$VassalService$suspend fun requestVassalContract(sectId: String): Boolean</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, result: BattleCalculator.DamageResult, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, result: BattleCalculator.DamageResult, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>

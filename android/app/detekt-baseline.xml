@@ -17,20 +17,6 @@
     <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", info.usedPercent * 100)</ID>
     <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", snapshot.usedPercent * 100)</ID>
     <ID>LargeClass:GameStateStoreImpl.kt$GameStateStoreImpl : GameStateStore</ID>
-    <ID>LongMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
-    <ID>LongMethod:GameMonitorManager.kt$GameMonitorManager$private fun registerDefaultMetrics()</ID>
-    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override fun update(block: MutableGameState.() -&gt; Unit)</ID>
-    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun loadFromSnapshot( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, battleLogs: List&lt;BattleLog&gt;, isPaused: Boolean, isLoading: Boolean, isSaving: Boolean )</ID>
-    <ID>LongMethod:MainActivity.kt$@Composable fun MainScreen( sessionManager: SessionManager, complianceDialogState: MutableState&lt;MainActivity.ComplianceDialogState?&gt;, tapTapReady: Boolean = false, onLoginSuccess: () -&gt; Unit, onPrivacyAgreed: () -&gt; Unit = {} )</ID>
-    <ID>LongMethod:MainActivity.kt$MainActivity$internal fun showSaveSelectScreen()</ID>
-    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun FullPrivacyPolicyScreen( onBack: () -&gt; Unit )</ID>
-    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun PrivacyConsentScreen( onAgree: () -&gt; Unit, onDisagree: () -&gt; Unit )</ID>
-    <ID>LongMethod:PrivacyConsentScreen.kt$@Composable private fun PrivacySummaryContent( onPrivacyLinkClick: () -&gt; Unit = {}, onTapTapSdkLinkClick: () -&gt; Unit = {}, onMmkvLinkClick: () -&gt; Unit = {}, onDirichletAdSdkLinkClick: () -&gt; Unit = {}, onPangleSdkLinkClick: () -&gt; Unit = {}, onGdtSdkLinkClick: () -&gt; Unit = {}, onIqiyiSdkLinkClick: () -&gt; Unit = {}, onBaiduSdkLinkClick: () -&gt; Unit = {} )</ID>
-    <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSelectScreen( saveSlots: List&lt;SaveSlot&gt;, onLoadSlot: (Int) -&gt; Unit, onNewGame: (Int, String) -&gt; Unit, onDeleteSlot: (Int) -&gt; Unit, onLogout: () -&gt; Unit )</ID>
-    <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSlotCard( slot: SaveSlot, dateFormat: SimpleDateFormat, onLoad: () -&gt; Unit, onNewGame: () -&gt; Unit, onDelete: () -&gt; Unit )</ID>
-    <ID>LongMethod:UiError.kt$UiError.Companion$fun fromAppError(error: AppError): UiError</ID>
-    <ID>LongMethod:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") fun getRenderStrategy(context: Context): RenderStrategy</ID>
-    <ID>LongMethod:XianxiaApplication.kt$XianxiaApplication$override fun onCreate()</ID>
     <ID>LongParameterList:BattleCalculatorTest.kt$BattleCalculatorTest$( physicalAttack: Int = 100, magicAttack: Int = 80, physicalDefense: Int = 50, magicDefense: Int = 40, speed: Int = 50, critRate: Double = 0.1, realm: Int = 5, element: String = "metal" )</ID>
     <ID>LongParameterList:DiscipleUtilsTest.kt$DiscipleUtilsTest$( id: String = "d1", realm: Int = 9, realmLayer: Int = 1, isFollowed: Boolean = false, comprehension: Int = 50, intelligence: Int = 50, charm: Int = 50, loyalty: Int = 50, artifactRefining: Int = 50, pillRefining: Int = 50, spiritPlanting: Int = 50, mining: Int = 50, teaching: Int = 50, morality: Int = 50 )</ID>
     <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, item: T, merge: Boolean = true, matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, getName: (T) -&gt; String, getRarity: (T) -&gt; Int, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T )</ID>

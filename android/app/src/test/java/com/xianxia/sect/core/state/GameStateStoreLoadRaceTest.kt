@@ -2,13 +2,11 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -31,7 +29,7 @@ class GameStateStoreLoadRaceTest {
         Disciple(id = id.toString(), name = name, realm = 5, realmLayer = 1)
 
     private fun store(): GameStateStoreImpl {
-        val s = GameStateStoreImpl(ApplicationScopeProvider(), mock(GameStateRepository::class.java))
+        val s = GameStateStoreImpl(ApplicationScopeProvider(), testGameStateRepository())
         // 测试模式：允许主线程调用 update（Robolectric 单元测试专用）
         s.unsafeAllowMainThreadUpdateForTest = true
         return s

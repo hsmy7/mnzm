@@ -118,32 +118,12 @@ class DiscipleFactory @Inject constructor() {
         val r = seed.nextInt
 
         // 1. 六维方差（正态分布，越接近0概率越高）
-        val hpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
-        val mpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
-        val physicalAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
-        val magicAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
-        val physicalDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
-        val magicDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
-        val speedVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val variances = rollVariances(r = r)
 
         // 2. 灵根数量 → 悟性（与资质同阶梯；资质为固定属性，创建后不再变化）
         val spiritRootCount = seed.spiritRootType.split(",").size
-        val comprehension = when (spiritRootCount) {
-            1 -> r(COMPREHENSION_1_ROOT_MIN, COMPREHENSION_1_ROOT_MAX)
-            2 -> r(COMPREHENSION_2_ROOT_MIN, COMPREHENSION_2_ROOT_MAX)
-            3 -> r(COMPREHENSION_3_ROOT_MIN, COMPREHENSION_3_ROOT_MAX)
-            4 -> r(COMPREHENSION_4_ROOT_MIN, COMPREHENSION_4_ROOT_MAX)
-            else -> r(COMPREHENSION_5_ROOT_MIN, COMPREHENSION_5_ROOT_MAX)
-        }
-        val aptitude = avoidSentinel50(
-            when (spiritRootCount) {
-                1 -> r(APTITUDE_1_ROOT_MIN, APTITUDE_1_ROOT_MAX)
-                2 -> r(APTITUDE_2_ROOT_MIN, APTITUDE_2_ROOT_MAX)
-                3 -> r(APTITUDE_3_ROOT_MIN, APTITUDE_3_ROOT_MAX)
-                4 -> r(APTITUDE_4_ROOT_MIN, APTITUDE_4_ROOT_MAX)
-                else -> r(APTITUDE_5_ROOT_MIN, APTITUDE_5_ROOT_MAX)
-            }
-        )
+        val comprehension = rollComprehension(r = r, spiritRootCount = spiritRootCount)
+        val aptitude = avoidSentinel50(rollAptitude(r = r, spiritRootCount = spiritRootCount))
 
         // 3. 天赋 / 体质 / 词条（三分类，各 0-5 个；走 seed.random 分区 PRNG，保证读档可复现）
         val talentIds = TalentDatabase.generateTalentsForDisciple(seed.random)
@@ -171,57 +151,112 @@ class DiscipleFactory @Inject constructor() {
             physiqueIds = physiqueIds,
             affixIds = affixIds,
             combat = CombatAttributes(
-                hpVariance = hpVariance,
-                mpVariance = mpVariance,
-                physicalAttackVariance = physicalAttackVariance,
-                magicAttackVariance = magicAttackVariance,
-                physicalDefenseVariance = physicalDefenseVariance,
-                magicDefenseVariance = magicDefenseVariance,
-                speedVariance = speedVariance
+                hpVariance = variances.hpVariance,
+                mpVariance = variances.mpVariance,
+                physicalAttackVariance = variances.physicalAttackVariance,
+                magicAttackVariance = variances.magicAttackVariance,
+                physicalDefenseVariance = variances.physicalDefenseVariance,
+                magicDefenseVariance = variances.magicDefenseVariance,
+                speedVariance = variances.speedVariance
             ),
             social = seed.social,
-            skills = SkillStats(
-                intelligence = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                charm = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                loyalty = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.MAX_LOYALTY),
-                comprehension = comprehension,
-                morality = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                artifactRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                pillRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                spiritPlanting = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                mining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                teaching = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
-                aptitude = aptitude
-            )
+            skills = rollSkills(r = r, comprehension = comprehension, aptitude = aptitude)
         ).apply {
             // 4. 基础属性
-            val baseStats = Disciple.calculateBaseStatsWithVariance(
-                hpVariance, mpVariance,
-                physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance,
-                speedVariance
-            )
-            combat.baseHp = baseStats.baseHp
-            combat.baseMp = baseStats.baseMp
-            combat.basePhysicalAttack = baseStats.basePhysicalAttack
-            combat.baseMagicAttack = baseStats.baseMagicAttack
-            combat.basePhysicalDefense = baseStats.basePhysicalDefense
-            combat.baseMagicDefense = baseStats.baseMagicDefense
-            combat.baseSpeed = baseStats.baseSpeed
-
+            applyBaseStats(variances = variances)
             // 5. 寿命（含天赋旧加成 + 词条加成，旧天赋 LIFESPAN 已迁移至 AffixDatabase）
-            val talentEffects =
-                TalentDatabase.calculateTalentEffects(talentIds)
-            val affixEffects =
-                AffixDatabase.calculateAffixEffects(affixIds)
-            val lifespanBonus =
-                (talentEffects["lifespan"] ?: 0.0) + (affixEffects["lifespan"] ?: 0.0)
-            val baseLifespan = GameConfig.Realm.get(realm).maxAge
-            lifespan =
-                (baseLifespan * (1.0 + lifespanBonus)).toInt()
-                    .coerceAtLeast(1)
+            lifespan = computeLifespan(talentIds = talentIds, affixIds = affixIds, realm = realm)
         }
 
         return disciple
     }
+}
+
+/** 六维方差值（create 拆分） */
+private data class DiscipleVariances(
+    val hpVariance: Int,
+    val mpVariance: Int,
+    val physicalAttackVariance: Int,
+    val magicAttackVariance: Int,
+    val physicalDefenseVariance: Int,
+    val magicDefenseVariance: Int,
+    val speedVariance: Int
+)
+
+/** 六维方差随机（create 拆分）：正态分布，越接近0概率越高 */
+private fun rollVariances(r: (Int, Int) -> Int): DiscipleVariances = DiscipleVariances(
+    hpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    mpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    physicalAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    magicAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    physicalDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    magicDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50),
+    speedVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+)
+
+/** 灵根数量 → 悟性（create 拆分）：1根80~100 … 5根1~20 */
+private fun rollComprehension(r: (Int, Int) -> Int, spiritRootCount: Int): Int = when (spiritRootCount) {
+    1 -> r(COMPREHENSION_1_ROOT_MIN, COMPREHENSION_1_ROOT_MAX)
+    2 -> r(COMPREHENSION_2_ROOT_MIN, COMPREHENSION_2_ROOT_MAX)
+    3 -> r(COMPREHENSION_3_ROOT_MIN, COMPREHENSION_3_ROOT_MAX)
+    4 -> r(COMPREHENSION_4_ROOT_MIN, COMPREHENSION_4_ROOT_MAX)
+    else -> r(COMPREHENSION_5_ROOT_MIN, COMPREHENSION_5_ROOT_MAX)
+}
+
+/** 灵根数量 → 资质（create 拆分）：1根80~100 … 5根1~20 */
+private fun rollAptitude(r: (Int, Int) -> Int, spiritRootCount: Int): Int = when (spiritRootCount) {
+    1 -> r(APTITUDE_1_ROOT_MIN, APTITUDE_1_ROOT_MAX)
+    2 -> r(APTITUDE_2_ROOT_MIN, APTITUDE_2_ROOT_MAX)
+    3 -> r(APTITUDE_3_ROOT_MIN, APTITUDE_3_ROOT_MAX)
+    4 -> r(APTITUDE_4_ROOT_MIN, APTITUDE_4_ROOT_MAX)
+    else -> r(APTITUDE_5_ROOT_MIN, APTITUDE_5_ROOT_MAX)
+}
+
+/** 六维技能（create 拆分）：正态分布 + 悟性/资质 */
+private fun rollSkills(
+    r: (Int, Int) -> Int,
+    comprehension: Int,
+    aptitude: Int
+): SkillStats = SkillStats(
+    intelligence = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    charm = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    loyalty = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.MAX_LOYALTY),
+    comprehension = comprehension,
+    morality = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    artifactRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    pillRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    spiritPlanting = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    mining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    teaching = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, GameConfig.Disciple.SKILL_MAX),
+    aptitude = aptitude
+)
+
+/** 基础属性落库（create 拆分） */
+private fun Disciple.applyBaseStats(variances: DiscipleVariances) {
+    val baseStats = Disciple.calculateBaseStatsWithVariance(
+        variances.hpVariance, variances.mpVariance,
+        variances.physicalAttackVariance, variances.magicAttackVariance,
+        variances.physicalDefenseVariance, variances.magicDefenseVariance,
+        variances.speedVariance
+    )
+    combat.baseHp = baseStats.baseHp
+    combat.baseMp = baseStats.baseMp
+    combat.basePhysicalAttack = baseStats.basePhysicalAttack
+    combat.baseMagicAttack = baseStats.baseMagicAttack
+    combat.basePhysicalDefense = baseStats.basePhysicalDefense
+    combat.baseMagicDefense = baseStats.baseMagicDefense
+    combat.baseSpeed = baseStats.baseSpeed
+}
+
+/** 寿命计算（create 拆分）：天赋旧加成 + 词条加成 */
+private fun computeLifespan(talentIds: List<String>, affixIds: List<String>, realm: Int): Int {
+    val talentEffects =
+        TalentDatabase.calculateTalentEffects(talentIds)
+    val affixEffects =
+        AffixDatabase.calculateAffixEffects(affixIds)
+    val lifespanBonus =
+        (talentEffects["lifespan"] ?: 0.0) + (affixEffects["lifespan"] ?: 0.0)
+    val baseLifespan = GameConfig.Realm.get(realm).maxAge
+    return (baseLifespan * (1.0 + lifespanBonus)).toInt()
+        .coerceAtLeast(1)
 }

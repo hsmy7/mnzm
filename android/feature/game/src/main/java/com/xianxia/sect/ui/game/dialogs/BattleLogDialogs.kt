@@ -26,6 +26,8 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
@@ -89,166 +91,204 @@ internal fun BattleLogDetailDialog(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-                HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
+            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
 
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "第${log.year}年${log.month}月",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(resultColor)
-                                    .padding(horizontal = 12.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = resultText,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                item { BattleDetailHeader(log = log, resultColor = resultColor, resultText = resultText) }
 
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "战斗回合: ${log.turns}",
-                            fontSize = 11.sp,
-                            color = Color.Black
-                        )
+                itemsIndexed(log.teamMembers.chunked(4), key = { index, _ -> "team_$index" }) { _, rowMembers ->
+                    BattleMemberRow(members = rowMembers)
+                }
 
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "我方弟子",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
+                item { BattleEnemyHeader(log = log) }
 
-                    itemsIndexed(log.teamMembers.chunked(4), key = { index, _ -> "team_$index" }) { index, rowMembers ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                        ) {
-                            rowMembers.forEach { member ->
-                                BattleParticipantSlot(
-                                    name = member.name,
-                                    realmName = member.realmName,
-                                    hp = member.hp,
-                                    maxHp = member.maxHp,
-                                    isAlive = member.isAlive,
-                                    portraitRes = member.portraitRes
-                                )
-                            }
-                            repeat(4 - rowMembers.size) {
-                                Spacer(modifier = Modifier.width(52.dp).height(84.dp))
-                            }
-                        }
-                    }
+                itemsIndexed(log.enemies.chunked(4), key = { index, _ -> "enemy_$index" }) { _, rowEnemies ->
+                    BattleEnemyRow(enemies = rowEnemies)
+                }
 
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = when (log.type) {
-                                BattleType.PVE -> "敌方妖兽"
-                                BattleType.SECT_WAR, BattleType.SCOUT -> "敌方宗门弟子"
-                                BattleType.CAVE_EXPLORATION -> "敌方守护兽"
-                                else -> "敌方"
-                            },
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
+                // 战利品/被掠夺物品（敌方槽位区域下方）
+                if (log.drops.isNotEmpty()) {
+                    item { BattleDropsSection(log = log) }
+                }
 
-                    itemsIndexed(log.enemies.chunked(4), key = { index, _ -> "enemy_$index" }) { index, rowEnemies ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                        ) {
-                            rowEnemies.forEach { enemy ->
-                                val portraitRes = enemy.portraitRes.ifEmpty {
-                                    val beastResId = resolveBeastImageRes(enemy.name)
-                                    if (beastResId != null) "beast_$beastResId" else ""
-                                }
-                                BattleParticipantSlot(
-                                    name = enemy.name,
-                                    realmName = enemy.realmName,
-                                    hp = enemy.hp,
-                                    maxHp = enemy.maxHp,
-                                    isAlive = enemy.isAlive,
-                                    portraitRes = portraitRes
-                                )
-                            }
-                            repeat(4 - rowEnemies.size) {
-                                Spacer(modifier = Modifier.width(52.dp).height(84.dp))
-                            }
-                        }
-                    }
+                if (log.rounds.isNotEmpty()) {
+                    item { BattleRoundsHeader() }
 
-                    // 战利品/被掠夺物品（敌方槽位区域下方）
-                    if (log.drops.isNotEmpty()) {
-                        item {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (log.result == BattleResult.LOSE) "被掠夺物品" else "战利品",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            log.drops.forEach { drop ->
-                                Text(
-                                    text = "· $drop",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFF555555)
-                                )
-                            }
-                        }
-                    }
-
-                    if (log.rounds.isNotEmpty()) {
-                        item {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "战斗过程",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-
-                        itemsIndexed(log.rounds, key = { index, round -> "round_${round.roundNumber}_$index" }) { _, round ->
-                            BattleRoundItem(round = round)
-                        }
+                    itemsIndexed(log.rounds, key = { index, round -> "round_${round.roundNumber}_$index" }) { _, round ->
+                        BattleRoundItem(round = round)
                     }
                 }
             }
+        }
     }
+}
+
+/** 战斗结果徽标（BattleLogDetailDialog/BattleLogListItem 共用拆分） */
+@Composable
+private fun BattleResultBadge(resultColor: Color, resultText: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(resultColor)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = resultText,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+/** 战斗详情头部（BattleLogDetailDialog 拆分）：日期 + 结果徽标 + 回合数 + 我方弟子标题 */
+@Composable
+private fun BattleDetailHeader(
+    log: BattleLog,
+    resultColor: Color,
+    resultText: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "第${log.year}年${log.month}月",
+            fontSize = 12.sp,
+            color = Color.Black
+        )
+        BattleResultBadge(resultColor = resultColor, resultText = resultText)
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = "战斗回合: ${log.turns}",
+        fontSize = 11.sp,
+        color = Color.Black
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+    Text(
+        text = "我方弟子",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+}
+
+/** 我方弟子一行（BattleLogDetailDialog 拆分）：4 槽位 + 空位占位 */
+@Composable
+private fun BattleMemberRow(members: List<BattleLogMember>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+    ) {
+        members.forEach { member ->
+            BattleParticipantSlot(
+                name = member.name,
+                realmName = member.realmName,
+                hp = member.hp,
+                maxHp = member.maxHp,
+                isAlive = member.isAlive,
+                portraitRes = member.portraitRes
+            )
+        }
+        repeat(4 - members.size) {
+            Spacer(modifier = Modifier.width(52.dp).height(84.dp))
+        }
+    }
+}
+
+/** 敌方阵营标题（BattleLogDetailDialog 拆分） */
+@Composable
+private fun BattleEnemyHeader(log: BattleLog) {
+    Spacer(modifier = Modifier.height(16.dp))
+    Text(
+        text = when (log.type) {
+            BattleType.PVE -> "敌方妖兽"
+            BattleType.SECT_WAR, BattleType.SCOUT -> "敌方宗门弟子"
+            BattleType.CAVE_EXPLORATION -> "敌方守护兽"
+            else -> "敌方"
+        },
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+}
+
+/** 敌方一行（BattleLogDetailDialog 拆分）：含妖兽精灵图兜底解析 */
+@Composable
+private fun BattleEnemyRow(enemies: List<BattleLogEnemy>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+    ) {
+        enemies.forEach { enemy ->
+            val portraitRes = enemy.portraitRes.ifEmpty {
+                val beastResId = resolveBeastImageRes(enemy.name)
+                if (beastResId != null) "beast_$beastResId" else ""
+            }
+            BattleParticipantSlot(
+                name = enemy.name,
+                realmName = enemy.realmName,
+                hp = enemy.hp,
+                maxHp = enemy.maxHp,
+                isAlive = enemy.isAlive,
+                portraitRes = portraitRes
+            )
+        }
+        repeat(4 - enemies.size) {
+            Spacer(modifier = Modifier.width(52.dp).height(84.dp))
+        }
+    }
+}
+
+/** 战利品/被掠夺物品区（BattleLogDetailDialog 拆分） */
+@Composable
+private fun BattleDropsSection(log: BattleLog) {
+    Spacer(modifier = Modifier.height(12.dp))
+    HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = if (log.result == BattleResult.LOSE) "被掠夺物品" else "战利品",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(6.dp))
+    log.drops.forEach { drop ->
+        Text(
+            text = "· $drop",
+            fontSize = 11.sp,
+            color = Color(0xFF555555)
+        )
+    }
+}
+
+/** 战斗过程标题（BattleLogDetailDialog 拆分） */
+@Composable
+private fun BattleRoundsHeader() {
+    Spacer(modifier = Modifier.height(16.dp))
+    HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        text = "战斗过程",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -340,50 +380,18 @@ internal fun BattleLogListDialog(
     ) {
         Column(Modifier.fillMaxSize()) {
             // 标签栏（同 MerchantDialog 模式）
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                BattleLogTab.entries.forEach { tab ->
-                    val isActive = selectedTab == tab
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f).clickableWithSound { selectedTab = tab }
-                    ) {
-                        Text(tab.label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                            color = if (isActive) Color.Black else Color.Gray)
-                        Box(Modifier.fillMaxWidth().height(2.dp)
-                            .background(if (isActive) GameColors.GoldDark else Color.Gray))
-                    }
-                }
-            }
+            BattleLogTabBar(selectedTab = selectedTab, onTabSelected = { selectedTab = it })
 
             HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
 
             // 内容区必须用 weight(1f) 约束高度，否则内部 LazyColumn 会收到无穷高度报错
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (selectedTab) {
-                    BattleLogTab.LOGS -> {
-                        if (recentLogs.isEmpty()) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text("暂无战斗记录", fontSize = 14.sp, color = Color.Black)
-                            }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize().padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(recentLogs, key = { it.id }, contentType = { "battle_log" }) { log ->
-                                    BattleLogListItem(log = log, onClick = { selectedBattleLog = log })
-                                }
-                            }
-                        }
-                    }
-                    BattleLogTab.REPORT -> {
-                        YearlyReportList(
-                            reports = yearlyReports,
-                            onDetail = { selectedReport = it }
-                        )
-                    }
-                }
-            }
+            BattleLogTabContent(
+                selectedTab = selectedTab,
+                recentLogs = recentLogs,
+                yearlyReports = yearlyReports,
+                onLogClick = { selectedBattleLog = it },
+                onReportClick = { selectedReport = it }
+            )
         }
     }
 
@@ -399,6 +407,65 @@ internal fun BattleLogListDialog(
             report = report,
             onDismiss = { selectedReport = null }
         )
+    }
+}
+
+/** 日志对话框标签栏（BattleLogListDialog 拆分） */
+@Composable
+private fun BattleLogTabBar(
+    selectedTab: BattleLogTab,
+    onTabSelected: (BattleLogTab) -> Unit
+) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        BattleLogTab.entries.forEach { tab ->
+            val isActive = selectedTab == tab
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f).clickableWithSound { onTabSelected(tab) }
+            ) {
+                Text(tab.label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = if (isActive) Color.Black else Color.Gray)
+                Box(Modifier.fillMaxWidth().height(2.dp)
+                    .background(if (isActive) GameColors.GoldDark else Color.Gray))
+            }
+        }
+    }
+}
+
+/** 标签页内容区（BattleLogListDialog 拆分） */
+@Composable
+private fun ColumnScope.BattleLogTabContent(
+    selectedTab: BattleLogTab,
+    recentLogs: List<BattleLog>,
+    yearlyReports: List<YearlyReport>,
+    onLogClick: (BattleLog) -> Unit,
+    onReportClick: (YearlyReport) -> Unit
+) {
+    Box(Modifier.weight(1f).fillMaxWidth()) {
+        when (selectedTab) {
+            BattleLogTab.LOGS -> {
+                if (recentLogs.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("暂无战斗记录", fontSize = 14.sp, color = Color.Black)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(recentLogs, key = { it.id }, contentType = { "battle_log" }) { log ->
+                            BattleLogListItem(log = log, onClick = { onLogClick(log) })
+                        }
+                    }
+                }
+            }
+            BattleLogTab.REPORT -> {
+                YearlyReportList(
+                    reports = yearlyReports,
+                    onDetail = onReportClick
+                )
+            }
+        }
     }
 }
 
@@ -460,19 +527,7 @@ internal fun BattleLogListItem(
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(resultColor)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = resultText,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
+            BattleResultBadge(resultColor = resultColor, resultText = resultText)
         }
     }
 }
@@ -577,110 +632,155 @@ private fun YearlyReportDetailDialog(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
 
             // ── Row 1: 汇总 ──
-            SectionTitle("【汇总】")
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                SummaryCard("灵石总收入", "+${report.totalIncome}", GameColors.Success)
-                SummaryCard("灵石总支出", "-${report.totalExpenditure}", GameColors.Error)
-                SummaryCard("总锻造装备", "${report.forgeCompleted}")
-                SummaryCard("总炼制丹药", "${report.alchemyCompleted}")
-                SummaryCard("总收获草药", "${report.herbsHarvested}")
-                SummaryCard("新增弟子", "+${report.newDisciples}", GameColors.Success)
-                SummaryCard("死亡弟子", "-${report.deceasedDisciples}", GameColors.Error)
-                SummaryCard("脱离弟子", "-${report.desertedDisciples}", GameColors.Error)
-            }
+            ReportSummarySection(report = report)
 
             ReportDivider()
 
             // ── Row 2: 灵石收入来源 ──
-            SectionTitle("【灵石收入来源】")
-            // 过滤 0 值条目（读档/历史存档可能残留 0 值键），空判以过滤后集合为准
-            val mergedIncome = remember(report) {
-                mergeSellEntries(report.incomeBySource).filterValues { it > 0 }
-            }
-            if (mergedIncome.isEmpty()) {
-                EmptyDataText("无")
-            } else {
-                mergedIncome.entries.sortedByDescending { it.value }.forEach { (key, value) ->
-                    DataText("  ${sourceDisplayName(key)}: +$value")
-                }
-            }
+            ReportIncomeSection(report = report)
 
             ReportDivider()
 
             // ── Row 3: 灵石支出来源 ──
-            SectionTitle("【灵石支出来源】")
-            val filteredExpenditure = remember(report) {
-                report.expenditureByReason.filterValues { it > 0 }
-            }
-            if (filteredExpenditure.isEmpty()) {
-                EmptyDataText("无")
-            } else {
-                filteredExpenditure.entries.sortedByDescending { it.value }.forEach { (key, value) ->
-                    DataText("  ${reasonDisplayName(key)}: -$value")
-                }
-            }
+            ReportExpenditureSection(report = report)
 
             ReportDivider()
 
             // ── Row 4: 装备来源（品阶 + 途径） ──
-            SectionTitle("【装备来源】")
-            val equipItems = remember(report) { report.equipmentBySource.entries.filter { it.value > 0 } }
-            if (equipItems.isEmpty()) { EmptyDataText("无") }
-            else {
-                // 按品阶汇总
-                val byGrade = equipItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }
-                DataText(byGrade.entries.sortedByDescending { it.key.toIntOrNull() ?: 0 }.joinToString("  ") { (g, c) -> "${g}阶 ×$c" })
-                // 按途径汇总
-                val bySrc = equipItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }
-                DataText(bySrc.entries.sortedByDescending { it.value }.joinToString("  ") { (s, c) -> "${equipSourceName(s)} ×$c" })
-            }
+            ReportEquipmentSection(report = report)
 
             ReportDivider()
 
             // ── Row 5: 丹药来源（品阶 + 途径） ──
-            SectionTitle("【丹药来源】")
-            val pillItems = remember(report) { report.pillBySource.entries.filter { it.value > 0 } }
-            if (pillItems.isEmpty()) { EmptyDataText("无") }
-            else {
-                // 按品阶汇总
-                val byGrade = pillItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }
-                DataText(byGrade.entries.sortedByDescending { it.value }.joinToString("  ") { (g, c) ->
-                    val name = when (g) { "HIGH" -> "上品"; "MEDIUM" -> "中品"; else -> "下品" }
-                    "$name ×$c"
-                })
-                // 按途径汇总
-                val bySrc = pillItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }
-                DataText(bySrc.entries.sortedByDescending { it.value }.joinToString("  ") { (s, c) -> "${pillSourceName(s)} ×$c" })
-            }
+            ReportPillSection(report = report)
 
             ReportDivider()
 
             // ── Row 6: 草药来源（途径） ──
-            SectionTitle("【草药来源】")
-            val herbItems = remember(report) { report.herbBySource.entries.filter { it.value > 0 } }
-            if (herbItems.isEmpty()) { EmptyDataText("无") }
-            else {
-                DataText(herbItems.sortedByDescending { it.value }.joinToString("  ") { (key, count) ->
-                    "${herbSourceName(key)} ×$count"
-                })
-            }
+            ReportHerbSection(report = report)
 
             ReportDivider()
 
             // ── Row 7: 弟子变动（新增/死亡/脱离合并一行） ──
-            SectionTitle("【弟子变动】")
-            DataText("  新增弟子: ${report.newDisciples} 人")
-            DataText("  死亡弟子: ${report.deceasedDisciples} 人")
-            DataText("  脱离弟子: ${report.desertedDisciples} 人")
+            ReportDiscipleChangesSection(report = report)
         }
     }
 }
 
 // ── 年报详情子组件 ──
+
+/** 年报汇总区（YearlyReportDetailDialog 拆分）：8 项指标 FlowRow */
+@Composable
+private fun ReportSummarySection(report: YearlyReport) {
+    SectionTitle("【汇总】")
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        SummaryCard("灵石总收入", "+${report.totalIncome}", GameColors.Success)
+        SummaryCard("灵石总支出", "-${report.totalExpenditure}", GameColors.Error)
+        SummaryCard("总锻造装备", "${report.forgeCompleted}")
+        SummaryCard("总炼制丹药", "${report.alchemyCompleted}")
+        SummaryCard("总收获草药", "${report.herbsHarvested}")
+        SummaryCard("新增弟子", "+${report.newDisciples}", GameColors.Success)
+        SummaryCard("死亡弟子", "-${report.deceasedDisciples}", GameColors.Error)
+        SummaryCard("脱离弟子", "-${report.desertedDisciples}", GameColors.Error)
+    }
+}
+
+/** 灵石收入来源区（YearlyReportDetailDialog 拆分） */
+@Composable
+private fun ReportIncomeSection(report: YearlyReport) {
+    SectionTitle("【灵石收入来源】")
+    // 过滤 0 值条目（读档/历史存档可能残留 0 值键），空判以过滤后集合为准
+    val mergedIncome = remember(report) {
+        mergeSellEntries(report.incomeBySource).filterValues { it > 0 }
+    }
+    if (mergedIncome.isEmpty()) {
+        EmptyDataText("无")
+    } else {
+        mergedIncome.entries.sortedByDescending { it.value }.forEach { (key, value) ->
+            DataText("  ${sourceDisplayName(key)}: +$value")
+        }
+    }
+}
+
+/** 灵石支出来源区（YearlyReportDetailDialog 拆分） */
+@Composable
+private fun ReportExpenditureSection(report: YearlyReport) {
+    SectionTitle("【灵石支出来源】")
+    val filteredExpenditure = remember(report) {
+        report.expenditureByReason.filterValues { it > 0 }
+    }
+    if (filteredExpenditure.isEmpty()) {
+        EmptyDataText("无")
+    } else {
+        filteredExpenditure.entries.sortedByDescending { it.value }.forEach { (key, value) ->
+            DataText("  ${reasonDisplayName(key)}: -$value")
+        }
+    }
+}
+
+/** 装备来源区（品阶 + 途径）（YearlyReportDetailDialog 拆分） */
+@Composable
+private fun ReportEquipmentSection(report: YearlyReport) {
+    SectionTitle("【装备来源】")
+    val equipItems = remember(report) { report.equipmentBySource.entries.filter { it.value > 0 } }
+    if (equipItems.isEmpty()) {
+        EmptyDataText("无")
+    } else {
+        // 按品阶汇总
+        val byGrade = equipItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }
+        DataText(byGrade.entries.sortedByDescending { it.key.toIntOrNull() ?: 0 }.joinToString("  ") { (g, c) -> "${g}阶 ×$c" })
+        // 按途径汇总
+        val bySrc = equipItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }
+        DataText(bySrc.entries.sortedByDescending { it.value }.joinToString("  ") { (s, c) -> "${equipSourceName(s)} ×$c" })
+    }
+}
+
+/** 丹药来源区（品阶 + 途径）（YearlyReportDetailDialog 拆分） */
+@Composable
+private fun ReportPillSection(report: YearlyReport) {
+    SectionTitle("【丹药来源】")
+    val pillItems = remember(report) { report.pillBySource.entries.filter { it.value > 0 } }
+    if (pillItems.isEmpty()) {
+        EmptyDataText("无")
+    } else {
+        // 按品阶汇总
+        val byGrade = pillItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }
+        DataText(byGrade.entries.sortedByDescending { it.value }.joinToString("  ") { (g, c) ->
+            val name = when (g) { "HIGH" -> "上品"; "MEDIUM" -> "中品"; else -> "下品" }
+            "$name ×$c"
+        })
+        // 按途径汇总
+        val bySrc = pillItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }
+        DataText(bySrc.entries.sortedByDescending { it.value }.joinToString("  ") { (s, c) -> "${pillSourceName(s)} ×$c" })
+    }
+}
+
+/** 草药来源区（途径）（YearlyReportDetailDialog 拆分） */
+@Composable
+private fun ReportHerbSection(report: YearlyReport) {
+    SectionTitle("【草药来源】")
+    val herbItems = remember(report) { report.herbBySource.entries.filter { it.value > 0 } }
+    if (herbItems.isEmpty()) {
+        EmptyDataText("无")
+    } else {
+        DataText(herbItems.sortedByDescending { it.value }.joinToString("  ") { (key, count) ->
+            "${herbSourceName(key)} ×$count"
+        })
+    }
+}
+
+/** 弟子变动区（新增/死亡/脱离）（YearlyReportDetailDialog 拆分） */
+@Composable
+private fun ReportDiscipleChangesSection(report: YearlyReport) {
+    SectionTitle("【弟子变动】")
+    DataText("  新增弟子: ${report.newDisciples} 人")
+    DataText("  死亡弟子: ${report.deceasedDisciples} 人")
+    DataText("  脱离弟子: ${report.desertedDisciples} 人")
+}
 
 @Composable
 private fun SectionTitle(text: String) {

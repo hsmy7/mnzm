@@ -2,14 +2,12 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.mockito.Mockito.doThrow
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -32,7 +30,7 @@ class StateRevertRegressionTest {
     @Test
     fun `loadFromSnapshot 失败后旧状态全部恢复`() = runBlocking {
         // 注入失败：markAllDirty 抛异常 → loadFromSnapshot 走回滚路径
-        val repo = Mockito.mock(GameStateRepository::class.java)
+        val repo = testGameStateRepository()
         doThrow(RuntimeException("模拟存储失败")).`when`(repo).markAllDirty()
         val store = GameStateStoreImpl(ApplicationScopeProvider(), repo)
         store.unsafeAllowMainThreadUpdateForTest = true
@@ -83,7 +81,7 @@ class StateRevertRegressionTest {
     fun `旧档事件 sequenceId 加载后回填`() = runBlocking {
         // P-9 守卫：旧档（v4.0.83 前）事件 sequenceId 全 0 → 加载后按列表序回填 1..N
         val store = GameStateStoreImpl(
-            ApplicationScopeProvider(), Mockito.mock(GameStateRepository::class.java)
+            ApplicationScopeProvider(), testGameStateRepository()
         )
         store.unsafeAllowMainThreadUpdateForTest = true
         store.loadFromSnapshot(
@@ -122,7 +120,7 @@ class StateRevertRegressionTest {
     fun `事件 sequenceId 全非 0 时零成本不动`() = runBlocking {
         // T1 补充守卫：无 0 序号时不做任何重编号（返回原引用）
         val store = GameStateStoreImpl(
-            ApplicationScopeProvider(), Mockito.mock(GameStateRepository::class.java)
+            ApplicationScopeProvider(), testGameStateRepository()
         )
         store.unsafeAllowMainThreadUpdateForTest = true
         val records = listOf(
@@ -153,7 +151,7 @@ class StateRevertRegressionTest {
     @Test
     fun `正常加载后快照与代际一致`() = runBlocking {
         val store = GameStateStoreImpl(
-            ApplicationScopeProvider(), Mockito.mock(GameStateRepository::class.java)
+            ApplicationScopeProvider(), testGameStateRepository()
         )
         store.unsafeAllowMainThreadUpdateForTest = true
         store.update {

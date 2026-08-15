@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -45,7 +46,7 @@ class SoftwareCanvasBackendTest {
     fun setup() {
         backend = SoftwareCanvasBackend(testRenderConfig())
         // 迷你图集（128x128，不含实际精灵，只验证坐标和帧缓冲区尺寸）
-        atlas = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        atlas = createBitmap(128, 128, Bitmap.Config.ARGB_8888)
     }
 
     // ============================================================
@@ -610,7 +611,7 @@ class SoftwareCanvasBackendTest {
         // (64,0,128,64)=白 255。白源 alpha 0.5 覆盖灰底后 RGB = 255×0.5 + 100×0.5
         // ≈ 178——介于纯源与纯底之间，半透明混合的可观测证据。
         // （单一灰区域不可行：源与底同色，混合后仍为 100，无法区分）
-        val dualAtlas = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        val dualAtlas = createBitmap(128, 128, Bitmap.Config.ARGB_8888)
         val atlasCanvas = Canvas(dualAtlas)
         atlasCanvas.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
         atlasCanvas.drawRect(64f, 0f, 128f, 64f, Paint().apply { color = Color.WHITE })

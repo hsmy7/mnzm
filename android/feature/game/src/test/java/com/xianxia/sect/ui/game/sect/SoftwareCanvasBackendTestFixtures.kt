@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -53,7 +54,7 @@ internal fun createBuildingDataArray(
 
 /** 迷你图集：左上角 (0,0)-(64,64) 填充白色，作为预览/地面源 */
 internal fun createWhiteTileAtlas(): Bitmap {
-    val bmp = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+    val bmp = createBitmap(128, 128, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     val p = Paint().apply { color = Color.WHITE }
     c.drawRect(0f, 0f, 64f, 64f, p)
@@ -100,7 +101,7 @@ internal fun createDecorTileData(cols: Int, rows: Int): IntArray {
  * 建筑精灵不绘制的盲区——阴影污染回归测试必须让精灵真实上屏。
  */
 internal fun createSpriteAtlas(): Bitmap {
-    val bmp = Bitmap.createBitmap(1024, 1024, Bitmap.Config.ARGB_8888)
+    val bmp = createBitmap(1024, 1024, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
     c.drawRect(256f, 128f, 384f, 256f, Paint().apply { color = Color.WHITE })
@@ -113,7 +114,7 @@ internal fun createSpriteAtlas(): Bitmap {
  * 灵田建筑精灵源 (256,128) 在 64 高图集范围外 → 建筑不可见，不影响断言。
  */
 internal fun createCropAtlas(): Bitmap {
-    val bmp = Bitmap.createBitmap(1024, 64, Bitmap.Config.ARGB_8888)
+    val bmp = createBitmap(1024, 64, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
     c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
     c.drawRect(832f, 0f, 896f, 64f, Paint().apply { color = Color.WHITE })

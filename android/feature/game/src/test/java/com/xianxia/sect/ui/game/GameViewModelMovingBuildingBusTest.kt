@@ -2,7 +2,7 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.currentActiveSectId
@@ -71,7 +71,7 @@ class GameViewModelMovingBuildingBusTest {
     private val dialogManager: com.xianxia.sect.core.domain.dialog.DialogManager = mockk(relaxed = true)
     private val adService: com.xianxia.sect.core.engine.service.AdService = mockk(relaxed = true)
     private val audioConfig: AudioConfig = mockk(relaxed = true)
-    private val audioEngine: AudioEngine = mockk(relaxed = true)
+    private val audioEngine: AudioPlayerFacade = mockk(relaxed = true)
     private val sessionManager: SessionManager = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()

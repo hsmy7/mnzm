@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 
 /**
@@ -41,107 +42,238 @@ fun SectMapEdgeOverlay(
     val edgeColor = Color(0xFF3D2B1F)
 
     Canvas(modifier = modifier.fillMaxSize()) {
-        val scale = cameraState.scale
-        val camX = cameraState.cameraX
-        val camY = cameraState.cameraY
+        drawSectMapEdgeGradients(
+            cameraState = cameraState,
+            worldPixelWidth = worldPixelWidth,
+            worldPixelHeight = worldPixelHeight,
+            edgeColor = edgeColor
+        )
+    }
+}
 
-        // 世界边界在屏幕空间的位置
-        val leftEdge = -camX * scale
-        val topEdge = -camY * scale
-        val rightEdge = (worldPixelWidth - camX) * scale
-        val bottomEdge = (worldPixelHeight - camY) * scale
+/** 世界边缘渐变绘制状态（SectMapEdgeOverlay 拆分） */
+private data class SectMapEdgeDrawState(
+    val leftEdge: Float,
+    val topEdge: Float,
+    val rightEdge: Float,
+    val bottomEdge: Float,
+    val showLeft: Boolean,
+    val showTop: Boolean,
+    val showRight: Boolean,
+    val showBottom: Boolean,
+    val maxGradientPx: Float
+)
 
-        val vpW = size.width
-        val vpH = size.height
+/** 世界边缘渐变绘制（SectMapEdgeOverlay 拆分）：计算屏幕空间边界并分派四方向绘制 */
+private fun DrawScope.drawSectMapEdgeGradients(
+    cameraState: SectCameraState,
+    worldPixelWidth: Int,
+    worldPixelHeight: Int,
+    edgeColor: Color
+) {
+    val scale = cameraState.scale
+    val camX = cameraState.cameraX
+    val camY = cameraState.cameraY
 
-        // 如果世界边界超出视口四个方向，无需绘制（正常状态）
-        val showLeft = leftEdge > 0f
-        val showTop = topEdge > 0f
-        val showRight = rightEdge < vpW
-        val showBottom = bottomEdge < vpH
-        if (!showLeft && !showTop && !showRight && !showBottom) return@Canvas
+    // 世界边界在屏幕空间的位置
+    val leftEdge = -camX * scale
+    val topEdge = -camY * scale
+    val rightEdge = (worldPixelWidth - camX) * scale
+    val bottomEdge = (worldPixelHeight - camY) * scale
 
-        // 最大渐变宽度（像素），限制为视口短边的 12%
-        val maxGradientPx = minOf(vpW, vpH) * 0.12f
+    val vpW = size.width
+    val vpH = size.height
 
-        // 左边缘渐变
-        if (showLeft) {
-            val gradW = minOf(leftEdge, maxGradientPx)
+    // 如果世界边界超出视口四个方向，无需绘制（正常状态）
+    val showLeft = leftEdge > 0f
+    val showTop = topEdge > 0f
+    val showRight = rightEdge < vpW
+    val showBottom = bottomEdge < vpH
+    if (!showLeft && !showTop && !showRight && !showBottom) return
+
+    // 最大渐变宽度（像素），限制为视口短边的 12%
+    val maxGradientPx = minOf(vpW, vpH) * 0.12f
+
+    drawSectMapEdges(
+        state = SectMapEdgeDrawState(
+            leftEdge = leftEdge,
+            topEdge = topEdge,
+            rightEdge = rightEdge,
+            bottomEdge = bottomEdge,
+            showLeft = showLeft,
+            showTop = showTop,
+            showRight = showRight,
+            showBottom = showBottom,
+            maxGradientPx = maxGradientPx
+        ),
+        edgeColor = edgeColor
+    )
+}
+
+/** 四方向边缘 + 角落渐变（SectMapEdgeOverlay 拆分） */
+private fun DrawScope.drawSectMapEdges(
+    state: SectMapEdgeDrawState,
+    edgeColor: Color
+) {
+    val vpW = size.width
+    val vpH = size.height
+    if (state.showLeft) {
+        drawSectMapEdgeLeft(
+            leftEdge = state.leftEdge,
+            viewportHeight = vpH,
+            maxGradientPx = state.maxGradientPx,
+            edgeColor = edgeColor
+        )
+    }
+    if (state.showRight) {
+        drawSectMapEdgeRight(
+            rightEdge = state.rightEdge,
+            viewportWidth = vpW,
+            viewportHeight = vpH,
+            maxGradientPx = state.maxGradientPx,
+            edgeColor = edgeColor
+        )
+    }
+    if (state.showTop) {
+        drawSectMapEdgeTop(
+            topEdge = state.topEdge,
+            viewportWidth = vpW,
+            maxGradientPx = state.maxGradientPx,
+            edgeColor = edgeColor
+        )
+    }
+    if (state.showBottom) {
+        drawSectMapEdgeBottom(
+            bottomEdge = state.bottomEdge,
+            viewportWidth = vpW,
+            viewportHeight = vpH,
+            maxGradientPx = state.maxGradientPx,
+            edgeColor = edgeColor
+        )
+    }
+    // 角落叠加（左+上、右+上、左+下、右+下）——在角落处从两个方向叠加渐变，避免角落显得突兀
+    drawSectMapEdgeCorners(
+        showLeft = state.showLeft,
+        showTop = state.showTop,
+        showRight = state.showRight,
+        showBottom = state.showBottom,
+        viewportWidth = vpW,
+        viewportHeight = vpH,
+        maxGradientPx = state.maxGradientPx,
+        edgeColor = edgeColor
+    )
+}
+
+/** 左边缘渐变（SectMapEdgeOverlay 拆分） */
+private fun DrawScope.drawSectMapEdgeLeft(
+    leftEdge: Float,
+    viewportHeight: Float,
+    maxGradientPx: Float,
+    edgeColor: Color
+) {
+    val gradW = minOf(leftEdge, maxGradientPx)
+    drawRect(
+        brush = Brush.horizontalGradient(
+            colors = listOf(edgeColor, Color.Transparent),
+            startX = 0f,
+            endX = gradW
+        ),
+        topLeft = Offset.Zero,
+        size = Size(gradW, viewportHeight)
+    )
+}
+
+/** 右边缘渐变（SectMapEdgeOverlay 拆分） */
+private fun DrawScope.drawSectMapEdgeRight(
+    rightEdge: Float,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    maxGradientPx: Float,
+    edgeColor: Color
+) {
+    val gradW = minOf(viewportWidth - rightEdge, maxGradientPx)
+    val startX = viewportWidth - gradW
+    drawRect(
+        brush = Brush.horizontalGradient(
+            colors = listOf(Color.Transparent, edgeColor),
+            startX = startX,
+            endX = viewportWidth
+        ),
+        topLeft = Offset(startX, 0f),
+        size = Size(gradW, viewportHeight)
+    )
+}
+
+/** 上边缘渐变（SectMapEdgeOverlay 拆分） */
+private fun DrawScope.drawSectMapEdgeTop(
+    topEdge: Float,
+    viewportWidth: Float,
+    maxGradientPx: Float,
+    edgeColor: Color
+) {
+    val gradH = minOf(topEdge, maxGradientPx)
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(edgeColor, Color.Transparent),
+            startY = 0f,
+            endY = gradH
+        ),
+        topLeft = Offset.Zero,
+        size = Size(viewportWidth, gradH)
+    )
+}
+
+/** 下边缘渐变（SectMapEdgeOverlay 拆分） */
+private fun DrawScope.drawSectMapEdgeBottom(
+    bottomEdge: Float,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    maxGradientPx: Float,
+    edgeColor: Color
+) {
+    val gradH = minOf(viewportHeight - bottomEdge, maxGradientPx)
+    val startY = viewportHeight - gradH
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color.Transparent, edgeColor),
+            startY = startY,
+            endY = viewportHeight
+        ),
+        topLeft = Offset(0f, startY),
+        size = Size(viewportWidth, gradH)
+    )
+}
+
+/** 角落渐变叠加（SectMapEdgeOverlay 拆分）：双方向叠加避免角落突兀 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+private fun DrawScope.drawSectMapEdgeCorners(
+    showLeft: Boolean,
+    showTop: Boolean,
+    showRight: Boolean,
+    showBottom: Boolean,
+    viewportWidth: Float,
+    viewportHeight: Float,
+    maxGradientPx: Float,
+    edgeColor: Color
+) {
+    for ((cx, cy) in listOf(
+        Pair(showLeft, showTop) to Offset(0f, 0f),
+        Pair(showRight, showTop) to Offset(viewportWidth - maxGradientPx, 0f),
+        Pair(showLeft, showBottom) to Offset(0f, viewportHeight - maxGradientPx),
+        Pair(showRight, showBottom) to Offset(viewportWidth - maxGradientPx, viewportHeight - maxGradientPx)
+    )) {
+        if (cx.first && cx.second) {
+            val cornerSize = maxGradientPx * 0.5f
             drawRect(
-                brush = Brush.horizontalGradient(
+                brush = Brush.radialGradient(
                     colors = listOf(edgeColor, Color.Transparent),
-                    startX = 0f,
-                    endX = gradW
+                    center = cy,
+                    radius = cornerSize
                 ),
-                topLeft = Offset.Zero,
-                size = Size(gradW, vpH)
+                topLeft = cy,
+                size = Size(cornerSize, cornerSize)
             )
-        }
-
-        // 右边缘渐变
-        if (showRight) {
-            val gradW = minOf(vpW - rightEdge, maxGradientPx)
-            val startX = vpW - gradW
-            drawRect(
-                brush = Brush.horizontalGradient(
-                    colors = listOf(Color.Transparent, edgeColor),
-                    startX = startX,
-                    endX = vpW
-                ),
-                topLeft = Offset(startX, 0f),
-                size = Size(gradW, vpH)
-            )
-        }
-
-        // 上边缘渐变
-        if (showTop) {
-            val gradH = minOf(topEdge, maxGradientPx)
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(edgeColor, Color.Transparent),
-                    startY = 0f,
-                    endY = gradH
-                ),
-                topLeft = Offset.Zero,
-                size = Size(vpW, gradH)
-            )
-        }
-
-        // 下边缘渐变
-        if (showBottom) {
-            val gradH = minOf(vpH - bottomEdge, maxGradientPx)
-            val startY = vpH - gradH
-            drawRect(
-                brush = Brush.verticalGradient(
-                    colors = listOf(Color.Transparent, edgeColor),
-                    startY = startY,
-                    endY = vpH
-                ),
-                topLeft = Offset(0f, startY),
-                size = Size(vpW, gradH)
-            )
-        }
-
-        // 角落叠加（左+上、右+上、左+下、右+下）
-        // 在角落处从两个方向叠加渐变，避免角落显得突兀
-        for ((cx, cy) in listOf(
-            Pair(showLeft, showTop) to Offset(0f, 0f),
-            Pair(showRight, showTop) to Offset(vpW - maxGradientPx, 0f),
-            Pair(showLeft, showBottom) to Offset(0f, vpH - maxGradientPx),
-            Pair(showRight, showBottom) to Offset(vpW - maxGradientPx, vpH - maxGradientPx)
-        )) {
-            if (cx.first && cx.second) {
-                val cornerSize = maxGradientPx * 0.5f
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(edgeColor, Color.Transparent),
-                        center = cy,
-                        radius = cornerSize
-                    ),
-                    topLeft = cy,
-                    size = Size(cornerSize, cornerSize)
-                )
-            }
         }
     }
 }

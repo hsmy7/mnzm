@@ -91,14 +91,31 @@ object GameConfig {
      * 此后 [Production]、[Warehouse]、[Battle.RealmGap]、[LawEnforcementConfig] 中的
      * 对应字段将返回 GameConfigData 中的值而非编译期常量。
      * 不调用此方法时，仍使用原有的 [const val] 默认值，保证向后兼容。
+     *
+     * **幂等守卫（docs/architecture.md 待办 D-30）**：进程级仅首次真正执行。
+     * 每次游戏内读档/重开（boot）经 `ResourcePreloader.preloadGameResources` 重复调用时
+     * 直接跳过（配置内容在进程生命周期内不变），避免重复覆盖赋值与日志噪音。
      */
     fun initialize(config: GameConfigData) {
+        if (_configData != null) {
+            DomainLog.d("GameConfig", "Runtime config already initialized (v${_configData?.version}), skip")
+            return
+        }
         _configData = config
         DomainLog.i("GameConfig", "Runtime config initialized: v${config.version}")
     }
 
     /** 获取当前运行时配置（可能为 null，此时使用编译期默认值） */
     private fun config(): GameConfigData? = _configData
+
+    /**
+     * 测试专用接缝：清空运行时配置，恢复编译期默认值。
+     * 生产代码禁止调用——`GameConfig` 是进程级单例，单元测试需隔离全局状态
+     * （避免幂等守卫测试污染后续测试类的运行时配置读取）。
+     */
+    fun resetForTest() {
+        _configData = null
+    }
 
     object Game {
         const val NAME = "模拟宗门"

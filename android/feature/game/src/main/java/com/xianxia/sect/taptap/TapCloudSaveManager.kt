@@ -34,7 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Singleton
 class TapCloudSaveManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val serializationModule: SerializationModule
+    private val serializationModule: SerializationModule,
+    private val keyValueStore: com.xianxia.sect.data.prefs.KeyValueStore
 ) {
     companion object {
         private const val TAG = "TapCloudSaveManager"
@@ -94,27 +95,36 @@ class TapCloudSaveManager @Inject constructor(
  */
 class CloudSaveOperationTimeoutException(message: String) : Exception(message)
 
-    /** 持久化缓存：云端存档的 UUID，用于更新而非创建 */
-    private val prefs by lazy {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    /** 旧 SharedPreferences 一次性迁移守卫（D-29：偏好统一迁入 MMKV，幂等） */
+    @Volatile
+    private var migrated = false
+
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated) return
+            keyValueStore.migrateFromSharedPreferences(PREFS_NAME)
+            migrated = true
+        }
     }
 
     /** 云存档操作并发锁，防止上传/下载同时进行 */
     private val cloudOpLock = AtomicBoolean(false)
 
     private fun getCachedArchiveUuid(): String? {
-        val uuid = prefs.getString(KEY_ARCHIVE_UUID, null)
+        ensureMigrated()
+        val uuid = keyValueStore.getString(KEY_ARCHIVE_UUID, null)
         if (uuid != null) DomainLog.d(TAG, "Using cached archive UUID: $uuid")
         return uuid
     }
 
     private fun saveCachedArchiveUuid(uuid: String) {
-        prefs.edit().putString(KEY_ARCHIVE_UUID, uuid).apply()
+        keyValueStore.putString(KEY_ARCHIVE_UUID, uuid)
         DomainLog.d(TAG, "Cached archive UUID: $uuid")
     }
 
     private fun clearCachedArchiveUuid() {
-        prefs.edit().remove(KEY_ARCHIVE_UUID).apply()
+        keyValueStore.remove(KEY_ARCHIVE_UUID)
         DomainLog.d(TAG, "Cleared cached archive UUID")
     }
 
@@ -362,7 +372,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 put("spiritStones", info.spiritStones)
                 put("appVersion", info.appVersion)
             }
-            prefs.edit().putString(KEY_CLOUD_SAVE_INFO, json.toString()).apply()
+            ensureMigrated()
+            keyValueStore.putString(KEY_CLOUD_SAVE_INFO, json.toString())
         } catch (e: Exception) {
             DomainLog.w(TAG, "Failed to save cloud save info to local cache", e)
         }
@@ -371,7 +382,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     /** 从本地 SharedPreferences 读取缓存的 CloudSaveInfo */
     private fun loadCloudSaveInfoFromLocal(): CloudSaveInfo? {
         return try {
-            val jsonStr = prefs.getString(KEY_CLOUD_SAVE_INFO, null) ?: return null
+            ensureMigrated()
+            val jsonStr = keyValueStore.getString(KEY_CLOUD_SAVE_INFO, null) ?: return null
             val json = JSONObject(jsonStr)
             if (!json.optBoolean("hasSaveData", false)) return null
             CloudSaveInfo(
@@ -513,7 +525,8 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
      * 清除缓存的 UUID 后完成一次性任务。
      */
     suspend fun oneTimeCleanup() {
-        if (prefs.getBoolean(KEY_CLEANUP_DONE, false)) return
+        ensureMigrated()
+        if (keyValueStore.getBoolean(KEY_CLEANUP_DONE, false)) return
 
         val api = CloudSaveApiReflector.resolve() ?: return
         try {
@@ -527,7 +540,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 )
             }
             clearCachedArchiveUuid()
-            prefs.edit().putBoolean(KEY_CLEANUP_DONE, true).apply()
+            keyValueStore.putBoolean(KEY_CLEANUP_DONE, true)
             DomainLog.i(TAG, "oneTimeCleanup: done")
         } catch (e: Exception) {
             DomainLog.w(TAG, "oneTimeCleanup: failed, will retry next time", e)

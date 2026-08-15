@@ -355,120 +355,183 @@ suspend fun GameEngine.loadData(
         // 重置招募惰性状态（纯运行时，不持久化）
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
-        val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
-        // 防御（Bugly #13014）：损坏存档可能携带 null 生产槽位元素——
-        // 在 fixAlchemyForgeSlotCount（内部访问 buildingType）与
-        // gameData.productionSlots 直读（ProductionProcessor/StorageEngine）之前净化
-        @Suppress("SENSELESS_COMPARISON")
-        val safeGameData = if (migratedGameData.productionSlots.any { it == null }) {
-            val cleaned = migratedGameData.productionSlots.filterNotNull()
-            DomainLog.w(
-                "GameEngine",
-                "loadData: 净化 ${migratedGameData.productionSlots.size - cleaned.size} 个 null 生产槽位"
-            )
-            migratedGameData.copy(productionSlots = cleaned)
-        } else {
-            migratedGameData
-        }
-        // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
-        val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
-        if (cleanedDisciples.size != migratedDisciples.size) {
-            val count = migratedDisciples.size - cleanedDisciples.size
-            DomainLog.w("GameEngine", "loadData: 过滤了 $count 个幽灵弟子（name为空）")
-        }
-        // 防御性 id 归一化：空 id 重分配 UUID、重复 id 去重保留首个
-        // （防旧存档 LazyGrid key="" 重复崩溃，Bugly #5079/#3091）
-        val idSafeDisciples = normalizeDiscipleIds(cleanedDisciples)
-        stateStore.loadFromSnapshot(
-            gameData = safeGameData, disciples = idSafeDisciples,
+        // 迁移 + null 槽净化 + 幽灵过滤 + id 归一化 + 快照装载
+        prepareLoadedGameData(
+            gameData = gameData, disciples = disciples,
             equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
             manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
             materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
             battleLogs = battleLogs
         )
         // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
-        stateStore.update {
-            val tables = discipleTables
-            for (id in tables.ids) {
-                val oldFunctionalTypes = tables.usedFunctionalPillTypes.getOrNull(id) ?: emptyList()
-                val currentPermanentKeys = tables.usedPermanentPillKeys.getOrNull(id) ?: emptySet()
-                if (currentPermanentKeys.isEmpty() && oldFunctionalTypes.isNotEmpty()) {
-                    tables.usedPermanentPillKeys[id] = oldFunctionalTypes.flatMap { pillType ->
-                        (1..6).map { tier -> "$tier#$pillType" }
-                    }.toSet()
-                }
-                val oldExtendLifeIds = tables.usedExtendLifePillIds.getOrNull(id) ?: emptyList()
-                val currentExtendLifeTypes = tables.usedExtendLifePillTypes.getOrNull(id) ?: emptySet()
-                if (currentExtendLifeTypes.isEmpty() && oldExtendLifeIds.isNotEmpty()) {
-                    tables.usedExtendLifePillTypes[id] = oldExtendLifeIds.toSet()
-                }
-                val oldActiveCategory = tables.activePillCategories.getOrNull(id) ?: ""
-                val currentActiveTypes = tables.activePillTypes.getOrNull(id) ?: emptySet()
-                if (currentActiveTypes.isEmpty() && oldActiveCategory.isNotEmpty()) {
-                    tables.activePillTypes[id] = setOf(oldActiveCategory)
-                }
-            }
-        }
+        migratePillTrackingFieldsAfterLoad()
         // 读档自愈（第二道防线）：cache 命中路径绕过 SaveValidator，此处兜底
         // 净化 recruitList 的损坏/重复/已入宗门残留条目（幽灵弟子根治）
-        stateStore.update {
-            val removed = com.xianxia.sect.core.engine.service.RecruitService
-                .sanitizeRecruitList(this)
-            if (removed > 0) {
-                DomainLog.w("GameEngine", "loadData: 净化 recruitList $removed 条异常条目")
-            }
-        }
+        sanitizeRecruitListAfterLoad()
         val restoredRecruitCount = stateStore.gameDataSnapshot.recruitList.size
         DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=$restoredRecruitCount unrecruited disciples")
-        val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
-        val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
-        // 防御（Bugly #13014）：loadData 参数列表可能携带 null（旧调用方/损坏存档），
-        // 净化后再交给 fixAlchemyForgeSlotCount（内部访问 buildingType）
-        val safeProductionSlots = productionSlots.filterNotNull()
-        val fixedProductionSlots = fixAlchemyForgeSlotCount(safeProductionSlots, alchemyCount, forgeCount)
-        if (fixedProductionSlots.isNotEmpty()) {
-            productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
-        } else {
-            productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
-        }
+        restoreProductionSlotsForLoad(gameData, productionSlots)
         checkAndCollectCompletedSlots()
         // 双存储对齐（读档自愈）：以 Repository 为真源（restoreSlots 刚写入），
         // 写回镜像 gameData.productionSlots，消除历史分叉存档——镜像残留/缺失会导致
         // 状态推导与 UI 展示不一致（弟子自动脱离槽位/被自动任命其他槽位根因）
-        stateStore.update {
-            val repoSlots = productionCoordinator.repository.getSlots()
-            if (repoSlots.isNotEmpty()) {
-                this.gameData = this.gameData.copy(productionSlots = repoSlots)
-            }
-        }
+        alignProductionSlotsWithRepository()
         val currentData = stateStore.gameDataSnapshot
         // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
         // 同时设置 lastGrantYear 防止下一年度事件双倍发放
-        if (currentData.merchantRefreshChances == 0 && currentData.merchantLastRefreshChanceGrantYear == 0) {
-            stateStore.update {
-                this.gameData = this.gameData.copy(
-                    merchantRefreshChances = 1,
-                    merchantLastRefreshChanceGrantYear = currentData.gameYear
-                )
-            }
-            DomainLog.w("GameEngine", "loadData: merchantRefreshChances was 0, initialized to 1, lastGrantYear=${currentData.gameYear}")
-        }
+        initMerchantRefreshChances(currentData)
         discipleService.syncAllDiscipleStatuses()
-
         // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
         // 修复 P1-1：检测到 0 且游戏已有进度时，初始化为当前月份
-        stateStore.update {
-            val data = this.gameData
-            if (data.spiritMineLastSettledMonth == 0) {
-                val currentMonth = data.gameYear * 12 + data.gameMonth
-                if (currentMonth > 1) {
-                    this.gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
-                    DomainLog.w("GameEngine", "loadData: spiritMineLastSettledMonth was 0, initialized to $currentMonth")
-                }
+        initSpiritMineLastSettledMonth()
+        try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
+    }
+}
+
+/**
+ * 读档数据准备与快照装载（loadData 拆分）：迁移 + null 生产槽净化 + 幽灵过滤 + id 归一化。
+ * @Suppress 原因：装载参数聚合（12 参数，与 loadData 签名一致，纯透传无逻辑）
+ */
+@Suppress("LongParameterList")
+private suspend fun GameEngine.prepareLoadedGameData(
+    gameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
+    equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,
+    manualInstances: List<ManualInstance>, pills: List<Pill>, materials: List<Material>,
+    herbs: List<Herb>, seeds: List<Seed>, storageBags: List<StorageBag>,
+    battleLogs: List<BattleLog>
+) {
+    val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
+    // 防御（Bugly #13014）：损坏存档可能携带 null 生产槽位元素——
+    // 在 fixAlchemyForgeSlotCount（内部访问 buildingType）与
+    // gameData.productionSlots 直读（ProductionProcessor/StorageEngine）之前净化
+    @Suppress("SENSELESS_COMPARISON")
+    val safeGameData = if (migratedGameData.productionSlots.any { it == null }) {
+        val cleaned = migratedGameData.productionSlots.filterNotNull()
+        DomainLog.w(
+            "GameEngine",
+            "loadData: 净化 ${migratedGameData.productionSlots.size - cleaned.size} 个 null 生产槽位"
+        )
+        migratedGameData.copy(productionSlots = cleaned)
+    } else {
+        migratedGameData
+    }
+    // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
+    val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
+    if (cleanedDisciples.size != migratedDisciples.size) {
+        val count = migratedDisciples.size - cleanedDisciples.size
+        DomainLog.w("GameEngine", "loadData: 过滤了 $count 个幽灵弟子（name为空）")
+    }
+    // 防御性 id 归一化：空 id 重分配 UUID、重复 id 去重保留首个
+    // （防旧存档 LazyGrid key="" 重复崩溃，Bugly #5079/#3091）
+    val idSafeDisciples = normalizeDiscipleIds(cleanedDisciples)
+    stateStore.loadFromSnapshot(
+        gameData = safeGameData, disciples = idSafeDisciples,
+        equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
+        manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
+        materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
+        battleLogs = battleLogs
+    )
+}
+
+/** 丹药追踪字段迁移（loadData 拆分）：旧 functionalTypes/ExtendLifeIds/ActiveCategory 字段回填新表 */
+private suspend fun GameEngine.migratePillTrackingFieldsAfterLoad() {
+    // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
+    stateStore.update {
+        val tables = discipleTables
+        for (id in tables.ids) {
+            val oldFunctionalTypes = tables.usedFunctionalPillTypes.getOrNull(id) ?: emptyList()
+            val currentPermanentKeys = tables.usedPermanentPillKeys.getOrNull(id) ?: emptySet()
+            if (currentPermanentKeys.isEmpty() && oldFunctionalTypes.isNotEmpty()) {
+                tables.usedPermanentPillKeys[id] = oldFunctionalTypes.flatMap { pillType ->
+                    (1..6).map { tier -> "$tier#$pillType" }
+                }.toSet()
+            }
+            val oldExtendLifeIds = tables.usedExtendLifePillIds.getOrNull(id) ?: emptyList()
+            val currentExtendLifeTypes = tables.usedExtendLifePillTypes.getOrNull(id) ?: emptySet()
+            if (currentExtendLifeTypes.isEmpty() && oldExtendLifeIds.isNotEmpty()) {
+                tables.usedExtendLifePillTypes[id] = oldExtendLifeIds.toSet()
+            }
+            val oldActiveCategory = tables.activePillCategories.getOrNull(id) ?: ""
+            val currentActiveTypes = tables.activePillTypes.getOrNull(id) ?: emptySet()
+            if (currentActiveTypes.isEmpty() && oldActiveCategory.isNotEmpty()) {
+                tables.activePillTypes[id] = setOf(oldActiveCategory)
             }
         }
+    }
+}
 
-        try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
+/** 读档 recruitList 自愈（loadData 拆分）：净化损坏/重复/已入宗门残留条目 */
+private suspend fun GameEngine.sanitizeRecruitListAfterLoad() {
+    // 读档自愈（第二道防线）：cache 命中路径绕过 SaveValidator，此处兜底
+    // 净化 recruitList 的损坏/重复/已入宗门残留条目（幽灵弟子根治）
+    stateStore.update {
+        val removed = com.xianxia.sect.core.engine.service.RecruitService
+            .sanitizeRecruitList(this)
+        if (removed > 0) {
+            DomainLog.w("GameEngine", "loadData: 净化 recruitList $removed 条异常条目")
+        }
+    }
+}
+
+/** 读档生产槽恢复（loadData 拆分）：按建筑数量修正槽位并回填 Repository */
+private suspend fun GameEngine.restoreProductionSlotsForLoad(
+    gameData: GameData,
+    productionSlots: List<ProductionSlot>
+) {
+    val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
+    val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
+    // 防御（Bugly #13014）：loadData 参数列表可能携带 null（旧调用方/损坏存档），
+    // 净化后再交给 fixAlchemyForgeSlotCount（内部访问 buildingType）
+    val safeProductionSlots = productionSlots.filterNotNull()
+    val fixedProductionSlots = fixAlchemyForgeSlotCount(safeProductionSlots, alchemyCount, forgeCount)
+    if (fixedProductionSlots.isNotEmpty()) {
+        productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
+    } else {
+        productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
+    }
+}
+
+/** 读档双存储对齐（loadData 拆分）：以 Repository 为真源写回镜像 productionSlots */
+private suspend fun GameEngine.alignProductionSlotsWithRepository() {
+    // 双存储对齐（读档自愈）：以 Repository 为真源（restoreSlots 刚写入），
+    // 写回镜像 gameData.productionSlots，消除历史分叉存档——镜像残留/缺失会导致
+    // 状态推导与 UI 展示不一致（弟子自动脱离槽位/被自动任命其他槽位根因）
+    stateStore.update {
+        val repoSlots = productionCoordinator.repository.getSlots()
+        if (repoSlots.isNotEmpty()) {
+            this.gameData = this.gameData.copy(productionSlots = repoSlots)
+        }
+    }
+}
+
+/** 读档 merchantRefreshChances 兼容（loadData 拆分）：0 值初始化为 1 并设置 lastGrantYear */
+private suspend fun GameEngine.initMerchantRefreshChances(currentData: GameData) {
+    // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
+    // 同时设置 lastGrantYear 防止下一年度事件双倍发放
+    if (currentData.merchantRefreshChances == 0 && currentData.merchantLastRefreshChanceGrantYear == 0) {
+        stateStore.update {
+            this.gameData = this.gameData.copy(
+                merchantRefreshChances = 1,
+                merchantLastRefreshChanceGrantYear = currentData.gameYear
+            )
+        }
+        DomainLog.w("GameEngine", "loadData: merchantRefreshChances was 0, initialized to 1, lastGrantYear=${currentData.gameYear}")
+    }
+}
+
+/** 读档 spiritMineLastSettledMonth 兼容（loadData 拆分）：0 值且已有进度时初始化为当前月份 */
+private suspend fun GameEngine.initSpiritMineLastSettledMonth() {
+    // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
+    // 修复 P1-1：检测到 0 且游戏已有进度时，初始化为当前月份
+    stateStore.update {
+        val data = this.gameData
+        if (data.spiritMineLastSettledMonth == 0) {
+            val currentMonth = data.gameYear * 12 + data.gameMonth
+            if (currentMonth > 1) {
+                this.gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
+                DomainLog.w("GameEngine", "loadData: spiritMineLastSettledMonth was 0, initialized to $currentMonth")
+            }
+        }
     }
 }
 
@@ -1106,6 +1169,24 @@ private suspend fun GameEngine.applyMissionResult(
     incrementGuideCounter(GuideCounterKeys.MISSIONS_COMPLETED)
     if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
     // 统一 quest 来源（对抗性审查 LOW-11 修复：材料/功法溢出邮件来源不再显示"未知"）
+    grantMissionInventoryRewards(result)
+
+    // 有战斗则写入战斗日志
+    if (result.combatTriggered && result.battleResult != null) {
+        writeMissionBattleLog(
+            result = result,
+            activeMission = activeMission,
+            year = year,
+            month = month
+        )
+    }
+}
+
+/** 任务奖励入库存放（applyMissionResult 拆分）：材料/丹药/装备/功法统一 quest 来源 */
+// 拆分搬移:分支结构与原函数一致
+@Suppress("CyclomaticComplexMethod")
+private fun GameEngine.grantMissionInventoryRewards(result: MissionSystem.MissionResult) {
+    // 统一 quest 来源（对抗性审查 LOW-11 修复：材料/功法溢出邮件来源不再显示"未知"）
     inventorySystem.withTrackingSource("quest") {
         result.materials.forEach { material ->
             when (val r = inventorySystem.addMaterial(material)) {
@@ -1136,62 +1217,67 @@ private suspend fun GameEngine.applyMissionResult(
             }
         }
     }
+}
 
-    // 有战斗则写入战斗日志
-    if (result.combatTriggered && result.battleResult != null) {
-        val bsr = result.battleResult
-        val logData = bsr.log
-        val teamMembers = logData.teamMembers.map { m ->
-            BattleLogMember(
-                id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
-                hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
-                isAlive = m.isAlive, portraitRes = m.portraitRes
-            )
-        }
-        val enemies = logData.enemies.map { e ->
-            BattleLogEnemy(
-                id = e.id, name = "敌人", realm = e.realm, realmName = e.realmName,
-                hp = e.hp, maxHp = e.maxHp, isAlive = e.isAlive, portraitRes = e.portraitRes
-            )
-        }
-        val rounds = logData.rounds.map { r ->
-            BattleLogRound(
-                roundNumber = r.roundNumber,
-                actions = r.actions.map { a ->
-                    BattleLogAction(
-                        type = a.type, attacker = a.attacker, attackerType = a.attackerType,
-                        target = a.target, damage = a.damage, damageType = a.damageType,
-                        isCrit = a.isCrit, isKill = a.isKill, message = a.message,
-                        skillName = a.skillName
-                    )
-                }
-            )
-        }
-        val drops = mutableListOf<String>()
-        if (result.spiritStones > 0) drops.add("灵石 ×${result.spiritStones}")
-        result.materials.forEach { drops.add("${it.name} ×${it.quantity}") }
-        result.pills.forEach { drops.add("${it.name} ×${it.quantity}") }
-        result.equipmentStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
-        result.manualStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
-
-        gameEngineCore.launchInScope {
-            stateStore.update {
-                recordPlayerBattle(
-                    year = year,
-                    month = month,
-                    type = BattleType.PVE,
-                    attackerName = "玩家队伍",
-                    defenderName = activeMission.missionName,
-                    result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
-                    teamMembers = teamMembers,
-                    enemies = enemies,
-                    rounds = rounds,
-                    turns = bsr.turnCount,
-                    details = "执行任务「${activeMission.missionName}」，" +
-                        if (result.victory) "战斗胜利" else "战斗失利",
-                    drops = drops
+/** 任务战斗日志写入（applyMissionResult 拆分）：战报成员/敌人/回合/drops + recordPlayerBattle */
+private fun GameEngine.writeMissionBattleLog(
+    result: MissionSystem.MissionResult,
+    activeMission: ActiveMission,
+    year: Int,
+    month: Int
+) {
+    val bsr = result.battleResult ?: return
+    val logData = bsr.log
+    val teamMembers = logData.teamMembers.map { m ->
+        BattleLogMember(
+            id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
+            hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
+            isAlive = m.isAlive, portraitRes = m.portraitRes
+        )
+    }
+    val enemies = logData.enemies.map { e ->
+        BattleLogEnemy(
+            id = e.id, name = "敌人", realm = e.realm, realmName = e.realmName,
+            hp = e.hp, maxHp = e.maxHp, isAlive = e.isAlive, portraitRes = e.portraitRes
+        )
+    }
+    val rounds = logData.rounds.map { r ->
+        BattleLogRound(
+            roundNumber = r.roundNumber,
+            actions = r.actions.map { a ->
+                BattleLogAction(
+                    type = a.type, attacker = a.attacker, attackerType = a.attackerType,
+                    target = a.target, damage = a.damage, damageType = a.damageType,
+                    isCrit = a.isCrit, isKill = a.isKill, message = a.message,
+                    skillName = a.skillName
                 )
             }
+        )
+    }
+    val drops = mutableListOf<String>()
+    if (result.spiritStones > 0) drops.add("灵石 ×${result.spiritStones}")
+    result.materials.forEach { drops.add("${it.name} ×${it.quantity}") }
+    result.pills.forEach { drops.add("${it.name} ×${it.quantity}") }
+    result.equipmentStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+    result.manualStacks.forEach { drops.add("${it.name} ×${it.quantity}") }
+
+    gameEngineCore.launchInScope {
+        stateStore.update {
+            recordPlayerBattle(
+                year = year,
+                month = month,
+                type = BattleType.PVE,
+                attackerName = "玩家队伍",
+                defenderName = activeMission.missionName,
+                result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
+                teamMembers = teamMembers,
+                enemies = enemies,
+                rounds = rounds,
+                turns = bsr.turnCount,
+                details = "执行任务「${activeMission.missionName}」，" +
+                    if (result.victory) "战斗胜利" else "战斗失利",
+                drops = drops
+            )
         }
     }
 }

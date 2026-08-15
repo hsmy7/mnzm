@@ -39,10 +39,12 @@ cd android && ./gradlew.bat assembleRelease
 cd android && ./gradlew.bat assembleDebug
 
 # Run all unit tests (Robolectric + JUnit) — 必须串行（--max-workers=1），并行会因共享静态状态跨类污染出错
-cd android && ./gradlew.bat test --max-workers=1
+cd android && ./gradlew.bat testReleaseUnitTest --max-workers=1
 
-# Run a single test class — 同样串行
-cd android && ./gradlew.bat test --tests "com.xianxia.sect.core.engine.BattleSystemTest" --max-workers=1
+# Run a single test class — 同样串行，必须模块限定写法（裸 `test --tests` 在 Gradle 8.14.5 + AGP 聚合任务下报
+# Unknown command-line option '--tests'，且未模块限定时 --tests 过滤波及 core:data 等模块触发 No tests found——
+# 见 docs/architecture.md 待办 D-43）
+cd android && ./gradlew.bat :app:testReleaseUnitTest --tests "com.xianxia.sect.core.engine.BattleSystemTest" --max-workers=1
 
 # Lint
 cd android && ./gradlew.bat lintRelease
@@ -77,6 +79,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 - **BootPhase/RunState 双层生命周期** — 启动单向推进、运行时可循环回退
 - **扩展性架构预留** — RemoteConfig 未绑定状态与激活前置、商业化接入点、离线收益引擎接入点、社交隔离层、iOS 迁移预留（KMP/Compose Multiplatform/Room→SQLDelight/Vulkan→Metal 评估）
 - **关键源码目录** — Core/Data/UI/UseCase 模块路径
+- **待完成项登记与偿还触发档案** — 待办 D 系列已清空（2026-08 债务根治批次）；条件式未来工作（TapDB 服务端/RemoteConfig/OAID/音频 release/16KB 对齐等）见"偿还触发条件档案"章节，触发条件满足时按要点实施
 
 ## 知识库
 
@@ -634,6 +637,6 @@ When releasing, update `version.properties` (project root, single source of trut
 - `versionCode` — increment by 1
 - `versionName` — format `X.XX.XX` (one-digit major + two-digit minor + two-digit build, zero-padded). E.g., `4.00.86` → `4.00.87`, `4.00.99` → `4.01.00`, `4.99.99` → `5.00.00`. Never `4.0.86` (missing zero-pad in minor segment).
 
-Tests must run serially: `./gradlew.bat test --max-workers=1` (parallel runs fail due to shared static state across classes).
+Tests must run serially: `./gradlew.bat testReleaseUnitTest --max-workers=1` (parallel runs fail due to shared static state across classes).
 
 See `rules/version-release.md` for the full release checklist.

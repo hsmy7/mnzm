@@ -58,8 +58,8 @@
 - **DI**: Hilt 2.56 (`@HiltAndroidApp`, `@HiltViewModel`, `@AndroidEntryPoint`)
 - **Database**: Room 2.7.0 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
 - **Serialization**: Kotlinx Serialization (JSON + Protobuf + CBOR)
-- **Storage**: MMKV 2.4.0 (fast K-V), DataStore (preferences), LZ4/Zstd (compression)
-- **Network**: Retrofit 2.11.0 + OkHttp with Gson
+- **Storage**: MMKV 2.4.1 统一偏好（`KeyValueStore`/`GamePreferences`，D-29 根治；DataStore 已移除），LZ4/Zstd (compression)
+- **Network**: OkHttp + kotlinx.serialization（D-28 根治：Retrofit/Gson 死依赖已移除）
 - **Auth**: TapTap SDK (login, compliance, analytics)
 - **Build**: AGP 8.10.0, Gradle with Aliyun mirrors for China（版本以 `android/gradle/libs.versions.toml` 为准）
 
@@ -78,6 +78,10 @@
 - **`CultivationRateCalculator`** — 修炼速率计算器（乘区法）。v4.0.82+ 新增列直读入口 `calculateCultivationPerPhaseById`（每旬热点用），`calculatePreachingBonusesColumn` 含 teachingFlat 天赋加成（对齐 `getBaseStats().teaching` 语义）
 - **`GameStateStoreImpl`** — v4.0.82+：`discipleAggregates` + `sectCombatPower` 合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器）；锁外弟子组装走 `assembleDispatcher` 单线程（防并发交错丢弟子）；`lastAssembledMutationVersion` 已删除
 - **`GameLoopDelegate`** — 主线程健康检查（检测游戏循环卡死自动重启）。v4.0.82+ 加静态开关 `healthCheckEnabled`（测试环境禁用——mock 环境下每秒访问 relaxed mock 属性触发反射类加载风暴卡死）
+- **`ComplianceCallbackHost`** — 防沉迷合规回调进程级宿主（D-42 根治，app/taptap）：WindowPort 接口 + 登录/游戏双窗口弱引用转发，限制类回调优先游戏窗口
+- **`GamePreferences` / `KeyValueStore`** — 统一偏好存储（D-29 根治，core/data/prefs）：MMKV 实现 + 一次性 SP 迁移纯函数；豁免清单见 GamePreferences KDoc
+- **`AudioPlayerFacade` / `AndroidAudioPlayer`** — 音频端口（G1 根治）：core/engine 接口 + app 层 SoundPool/MediaPlayer 实现
+- **`CrashReporter` / `BuglyCrashReporter`** — 崩溃上报端口（G3 根治）：core/domain 接口 + app 层 Bugly 实现
 - **`DiscipleAssignmentGate`** — 弟子分配门卫（v4.0.58），统一管理 11 个槽位系统的分配/释放/查询/读档重建
 
 ---
@@ -650,7 +654,7 @@ fun watchAdForNewFeature() {
 
 ### 服务端接入契约（TapDB REST，2026-08-15 登记）
 
-> 当前游戏**无自建后端**，服务端通道按 YAGNI 不建 HTTP 客户端（见 docs/architecture.md 待办 D-46）。
+> 当前游戏**无自建后端**，服务端通道按 YAGNI 不建 HTTP 客户端（偿还触发条件见 docs/architecture.md 偿还触发条件档案 T-D46）。
 > 未来接入后端/IAP 时按本契约实现 `TapDBServerReporter`（接口要点：OkHttp POST、注入式 HttpClient 便于测试、`runCatching` 静默降级）。
 
 - **上报事件**：`POST https://e.tapdb.net/v2/event`，Content-Type: application/json
@@ -724,15 +728,17 @@ fun watchAdForNewFeature() {
 | 技术栈 | 现状 | iOS 可移植性 |
 |--------|------|-------------|
 | `:core:domain` | 零 Android 依赖（javax.inject + coroutines + kotlinx.serialization + room-common 注解） | ✅ 可移植（KMP 友好） |
-| `:core:engine` | 纯 Kotlin + C++ 渲染（JNI） | ⚠️ C++ 部分可移植（Android 用 Vulkan，iOS 用软件渲染或 Metal）；JNI 需替换 |
-| Compose UI（feature:game/app） | Jetpack Compose（Android 独占） | ⚠️ 需 Compose Multiplatform 或重写 |
-| Room（core:data） | Room 2.7.0 | ⚠️ iOS 需 SQLDelight/原生 SQLite（迁移风险点） |
-| Hilt DI | Hilt 2.56 | ⚠️ iOS 需 Koin/手写 DI |
+| `:core:engine` | 纯 Kotlin + C++ 渲染（JNI）；音频已接口化（`AudioPlayerFacade`，G1 根治） | ⚠️ C++ 部分可移植（Android 用 Vulkan，iOS 用软件渲染或 Metal）；JNI 需替换 |
+| Compose UI（feature:game/app） | Jetpack Compose（Android 独占） | ⚠️ 需 Compose Multiplatform 或重写（评估见 docs/adr/compose-multiplatform-evaluation.md） |
+| Room（core:data） | Room 2.7.0 | ⚠️ iOS 需 SQLDelight/原生 SQLite（评估见 docs/adr/sqlite-sqldelight-evaluation.md） |
+| Hilt DI | Hilt 2.56 | ⚠️ iOS 需 Koin/手写 DI（评估见 docs/adr/di-abstraction-evaluation.md） |
 | 渲染 | Vulkan（C++）+ `SoftwareCanvasBackend` 软件渲染双路径 | ✅ 软件渲染路径可跨平台；Vulkan 为 Android 独占（iOS 用 Metal 或软件渲染） |
 | 序列化 | ProtoBuf + kotlinx.serialization + CBOR | ✅ 跨平台一致 |
-| 存储 | MMKV（跨平台）+ DataStore（Android 独占）+ LZ4/Zstd | ⚠️ DataStore 需替换（MMKV 可用） |
-| 网络 | Retrofit + OkHttp + Gson（**注意：项目其余处用 kotlinx.serialization，此处为遗留**） | ⚠️ iOS 需 Ktor 或保持接口抽象 |
-| 平台 SDK | TapTap（登录/云存档/广告）、Bugly | ⚠️ iOS 需平台 SDK 对等实现（TapTap 有 iOS SDK） |
+| 存储 | MMKV 统一偏好（`KeyValueStore`/`GamePreferences`，G8 根治：DataStore 依赖已移除；豁免清单见 GamePreferences KDoc） | ✅ MMKV 跨平台 |
+| 网络 | OkHttp（kotlinx.serialization 为唯一序列化栈，G7 根治：Gson 生产使用已清零） | ⚠️ iOS 需 Ktor 或保持接口抽象 |
+| 崩溃上报 | `CrashReporter` 接口（core/domain）+ app 层 Bugly 实现（G3 根治） | ✅ 接口可复用（iOS 对等实现替换） |
+| 音频 | `AudioPlayerFacade` 接口 + app 层 `AndroidAudioPlayer`（G1 根治） | ✅ 接口可复用（iOS 映射 AVAudioEngine/AVAudioPlayer） |
+| 平台 SDK | TapTap（登录/云存档/广告） | ⚠️ iOS 需平台 SDK 对等实现（TapTap 有 iOS SDK） |
 | API 守卫 | `Build.VERSION.SDK_INT` / `Build.SOC_*` 守卫模式 | ✅ 模式本身正确（Android 专用，iOS 无需） |
 
 **规则：** 新增平台能力（时间/存储/网络/加密/通知/支付/广告/分享）一律接口抽象 + 平台实现（参照 `RemoteConfigProvider` / `AdService` 既有模式），禁止在 core 层直接使用 Android 独占 API。

@@ -30,14 +30,10 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
-import com.xianxia.sect.ui.components.DialogFocusGuard
 import com.xianxia.sect.ui.components.ImeVisibilityTracker
 import com.xianxia.sect.ui.components.SystemBarFreezeScope
 import com.xianxia.sect.ui.components.SystemBarHidePolicy
-import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,7 +61,7 @@ import com.xianxia.sect.ui.model.SaveSelectMode
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.core.audio.AudioPreloader
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import dagger.hilt.android.AndroidEntryPoint
@@ -97,54 +93,6 @@ internal fun safeRunAfterSdkInit(
         onInitFailed(e)
     }
     block()
-}
-
-/** 具名 ComplianceCallback 实现（避免匿名内部类触发 KSP getSimpleName NPE） */
-private class MainComplianceCallback(private val activity: MainActivity) : ComplianceManager.ComplianceCallback {
-    /** 回调经 SDK 线程到达，销毁窗口期执行会导致 Dialog.show BadToken（Bugly #3098） */
-    private fun runOnUiThreadIfAlive(block: () -> Unit) {
-        activity.runOnUiThread {
-            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
-            block()
-        }
-    }
-    override fun onLoginSuccess() {
-        runOnUiThreadIfAlive {
-            activity.sessionManager.markComplianceVerified()
-            activity.showModeSelectionScreen()
-        }
-    }
-    override fun onExited() = activity.handleUserExit()
-    override fun onSwitchAccount() = activity.handleUserExit()
-    override fun onPeriodRestrict() {
-        runOnUiThreadIfAlive {
-            activity.sessionManager.complianceVerified = false
-            activity.complianceDialogState.value = MainActivity.ComplianceDialogState.Restrict(
-                "时间限制", "根据防沉迷规定，未成年人仅可在周五、周六、周日及法定节假日的20:00-21:00进行游戏。"
-            )
-        }
-    }
-    override fun onDurationLimit() {
-        runOnUiThreadIfAlive {
-            activity.sessionManager.complianceVerified = false
-            activity.complianceDialogState.value = MainActivity.ComplianceDialogState.Restrict(
-                "时长限制", "您今日的游戏时长已用尽，请合理安排游戏时间。"
-            )
-        }
-    }
-    override fun onAgeLimit() {
-        runOnUiThreadIfAlive {
-            activity.sessionManager.complianceVerified = false
-            activity.complianceDialogState.value = MainActivity.ComplianceDialogState.AgeLimit
-        }
-    }
-    override fun onNetworkError() {
-        runOnUiThreadIfAlive {
-            Toast.makeText(activity, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show()
-            activity.showMainScreen()
-        }
-    }
-    override fun onRealNameStop() = activity.handleUserExit()
 }
 
 /** 具名 Runnable 实现（避免匿名内部类触发 KSP getSimpleName NPE） */
@@ -181,7 +129,7 @@ class MainActivity : ComponentActivity() {
     lateinit var audioConfig: AudioConfig
 
     @Inject
-    lateinit var audioEngine: AudioEngine
+    lateinit var audioEngine: AudioPlayerFacade
 
     @Inject
     lateinit var audioPreloader: AudioPreloader
@@ -191,6 +139,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var adServiceImpl: com.xianxia.sect.taptap.AdServiceImpl
+
+    @Inject
+    lateinit var complianceCallbackHost: com.xianxia.sect.taptap.ComplianceCallbackHost
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
@@ -234,10 +185,17 @@ class MainActivity : ComponentActivity() {
 
     /** 防沉迷验证超时兜底任务（验证成功回调后自动失效） */
     private var complianceTimeoutJob: Job? = null
-    
-    public sealed class ComplianceDialogState {
-        data class Restrict(val title: String, val message: String) : ComplianceDialogState()
-        object AgeLimit : ComplianceDialogState()
+
+    /** D-42：合规回调窗口端口（登录窗口适配器，宿主按接口转发） */
+    private val complianceWindowPort = object : com.xianxia.sect.taptap.ComplianceCallbackHost.WindowPort {
+        override fun postToUi(block: () -> Unit) = this@MainActivity.runOnUiThread(block)
+        override fun isAlive(): Boolean = !isFinishing && !isDestroyed
+        override fun onLoginSuccess() = this@MainActivity.onComplianceLoginSuccess()
+        override fun onExited() = this@MainActivity.onComplianceExited()
+        override fun onNetworkError() = this@MainActivity.onComplianceNetworkError()
+        override fun onRestrict(title: String, message: String) =
+            this@MainActivity.showComplianceRestrict(title, message)
+        override fun onAgeLimit() = this@MainActivity.showComplianceAgeLimit()
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -342,7 +300,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (!initialized) {
-                Log.e(TAG, "StorageFacade initialization failed after $maxRetries attempts, proceeding with empty cache")
+                // D-32：原 121 字符超长日志拆行（≤120）
+                Log.e(
+                    TAG,
+                    "StorageFacade initialization failed after $maxRetries attempts, " +
+                        "proceeding with empty cache"
+                )
             }
             withContext(Dispatchers.Main) {
                 isLoadComplete = true
@@ -661,7 +624,10 @@ class MainActivity : ComponentActivity() {
      */
     internal fun ensureSdkServicesInitialized() {
         runCatching {
-            ComplianceManager.registerCallback(MainComplianceCallback(this@MainActivity))
+            // D-42：合规回调注册改走进程级宿主（ComplianceCallbackHost.callback）——
+            // 回调不再绑定 MainActivity 实例，登录后 MainActivity finish 不影响
+            // 游戏内时长/时间/年龄限制提示（转发到当前前台窗口）
+            ComplianceManager.registerCallback(complianceCallbackHost.callback)
         }.onFailure {
             Log.e(TAG, "合规回调注册异常（不影响后续流程）", it)
         }
@@ -742,6 +708,34 @@ class MainActivity : ComponentActivity() {
             showMainScreen()
         }
     }
+
+    // ── 合规回调处理（D-42 进程级宿主转发入口） ──
+    // 回调注册已由 ComplianceCallbackHost 进程级持有，本组方法仅承担 UI 响应。
+
+    /** 合规验证成功（登录窗口回调）：标记已验证 + 进入模式选择 */
+    internal fun onComplianceLoginSuccess() {
+        sessionManager.markComplianceVerified()
+        showModeSelectionScreen()
+    }
+
+    /** SDK 要求退出（退出/切换账号/实名停止统一入口，登录窗口回调） */
+    internal fun onComplianceExited() = handleUserExit()
+
+    /** 合规网络异常（登录窗口回调）：提示 + 回主界面 */
+    internal fun onComplianceNetworkError() {
+        Toast.makeText(this, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show()
+        showMainScreen()
+    }
+
+    /** 时间/时长限制弹窗（限制类回调，主界面窗口） */
+    internal fun showComplianceRestrict(title: String, message: String) {
+        complianceDialogState.value = ComplianceDialogState.Restrict(title, message)
+    }
+
+    /** 适龄限制弹窗（限制类回调，主界面窗口） */
+    internal fun showComplianceAgeLimit() {
+        complianceDialogState.value = ComplianceDialogState.AgeLimit
+    }
     
     internal fun startComplianceCheck(unionId: String) {
         Log.d(TAG, "开始合规认证检查，unionId: $unionId")
@@ -805,9 +799,11 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // 回到前台立即恢复文本选择能力（onPause 提前置位后的配套复位）
         actionModeTracker?.resetForResume()
+        // D-42：注册登录窗口（合规回调宿主转发目标；onStop 清除）
+        complianceCallbackHost.registerLoginWindow(complianceWindowPort)
         hideSystemBars()
         requestNotificationPermissionIfNeeded()
-        if (audioConfig.musicEnabled && ::audioEngine.isInitialized) {
+        if (audioConfig.musicEnabled && ::audioEngine.isInitialized && audioEngine.isReady) {
             audioEngine.resumeBGM()
         }
     }
@@ -876,6 +872,9 @@ class MainActivity : ComponentActivity() {
         // 与 GameActivity 对齐：进入后台前结束文本选择 ActionMode，
         // 缩小窗口 token 失效期间的崩溃窗口（Bugly #3026）
         actionModeTracker?.finishActiveActionMode()
+        // D-42：清除登录窗口注册（新 Activity onResume 先于旧 Activity onStop，
+        // 窗口切换期间宿主转发无缝衔接）
+        complianceCallbackHost.clearLoginWindow(complianceWindowPort)
         super.onStop()
     }
 
@@ -908,7 +907,7 @@ class MainActivity : ComponentActivity() {
 @Suppress("LongParameterList") // 屏幕级入口函数：登录/合规/音频等跨模块参数分组会破坏调用语义
 fun MainScreen(
     sessionManager: SessionManager,
-    complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
+    complianceDialogState: MutableState<ComplianceDialogState?>,
     tapTapReady: Boolean = false,
     onLoginSuccess: () -> Unit,
     onPrivacyAgreed: () -> Unit = {},
@@ -1057,13 +1056,6 @@ private fun LoginColumnContent(
     }
 }
 
-/** 当前组合是否允许渲染 Dialog（Activity 生命周期 ≥ STARTED）。 */
-@Composable
-private fun dialogRenderableInComposition(): Boolean {
-    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    return lifecycleState.canRenderDialogs()
-}
-
 /**
  * 合规限制弹窗"退出游戏/切换账号"：清会话 + 完整登出（清 TapTap SDK 登录态 /
  * 停时长统计 / 解绑合规回调，对齐 [MainActivity.handleUserExit]）+ 重建主界面。
@@ -1076,12 +1068,12 @@ private fun performComplianceLogout(sessionManager: SessionManager, context: Con
     (context as? MainActivity)?.recreate()
 }
 
-/** 隐私政策展示 + 合规限制对话框（适龄限制/账号封禁提示） */
+/** 隐私政策展示 + 合规限制对话框（D-42：对话框本体已收敛到共享组件 ComplianceLimitDialogs） */
 @Composable
 private fun MainComplianceDialogs(
     showInAppPrivacy: Boolean,
     onBackFromPrivacy: () -> Unit,
-    complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
+    complianceDialogState: MutableState<ComplianceDialogState?>,
     sessionManager: SessionManager,
     context: Context
 ) {
@@ -1090,54 +1082,11 @@ private fun MainComplianceDialogs(
         return
     }
 
-    // 生命周期门控：销毁窗口期渲染 AlertDialog 抛 BadToken（Bugly #3098）
-    if (!dialogRenderableInComposition()) return
-
-    complianceDialogState.value?.let { state ->
-        when (state) {
-            is MainActivity.ComplianceDialogState.Restrict -> {
-                AlertDialog(
-                    onDismissRequest = { },
-                    title = { Text(state.title) },
-                    text = { DialogFocusGuard(); Text(state.message) },
-                    confirmButton = {
-                        GameButton(
-                            text = "退出游戏",
-                            onClick = {
-                                complianceDialogState.value = null
-                                performComplianceLogout(sessionManager, context)
-                            }
-                        )
-                    },
-                    dismissButton = {
-                        GameButton(
-                            text = "切换账号",
-                            onClick = {
-                                complianceDialogState.value = null
-                                performComplianceLogout(sessionManager, context)
-                            }
-                        )
-                    }
-                )
-            }
-            is MainActivity.ComplianceDialogState.AgeLimit -> {
-                AlertDialog(
-                    onDismissRequest = { },
-                    title = { Text("适龄限制") },
-                    text = { DialogFocusGuard(); Text("根据游戏适龄提示，您当前年龄不符合本游戏的游玩要求。") },
-                    confirmButton = {
-                        GameButton(
-                            text = "退出游戏",
-                            onClick = {
-                                complianceDialogState.value = null
-                                (context as? MainActivity)?.finish()
-                            }
-                        )
-                    }
-                )
-            }
-        }
-    }
+    ComplianceLimitDialogs(
+        complianceDialogState = complianceDialogState,
+        onLogout = { performComplianceLogout(sessionManager, context) },
+        onAgeFinish = { (context as? MainActivity)?.finish() }
+    )
 }
 
 /** TapTap 登录按钮：隐私校验 + SDK 登录 + 会话保存 + 合规检查触发 */

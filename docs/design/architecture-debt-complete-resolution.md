@@ -21,21 +21,23 @@
 
 ### 1.1 需求要点
 
-`docs/architecture-debt.md` 及关联文档中记录了一批待完成项，经分析归档后筛选出以下需要根治的债务：
+> 注（2026-08 归档勘误）：来源文档 `docs/architecture-debt.md` 与 `docs/architecture-debt-write-guard.md` 已删除（历史归档），本表保留原文出处标注。
+
+历史归档的债务清单（`docs/architecture-debt.md` 及关联文档）经分析归档后筛选出以下债务（A~K 现已全部闭环，见各表格"现状"列）：
 
 | # | 项 | 来源 | 严重度 | 现状 |
 |---|----|------|--------|------|
-| A | `ComponentTable.store` 底层存储通过 `@PublishedApi internal val store` 在字节码层暴露 | `architecture-debt-write-guard.md` | 🔴 高 | `copyTo()` 绕过 `requireWrite` 守卫 |
-| B | `requireWrite`/`onWrite` 为 `@JvmField var` 字节码可被覆写 | `architecture-debt-write-guard.md` | 🔴 高 | Java 字节码可置 null 解除守卫 |
-| C | `Baseline Profile` 手写111条规则未经验证 | `architecture-debt.md` 远期优化 | 🟡 中 | Release 前需优化 |
-| D | ADPF Performance Hint API 未集成 | `fps-optimization-plan.md` P2.3 | 🟡 中 | Release 前可选集成 |
-| E | 纹理分级压缩未实施 | `fps-optimization-plan.md` P2.4 | 🟡 中 | Release 前选做 |
-| F | R8 Full Mode 配置审计 | `fps-optimization-plan.md` P3.2 | 🟡 中 | Release 前选做 |
-| G | `processMonthlyEvents` 仍有2个分散事务 | `architecture-debt.md` 远期优化 | 🟢 低 | 后续优化 |
-| H | HP/MP 恢复全量遍历未改用单弟子 API | `architecture-debt.md` 远期优化 | 🟢 低 | 后续优化 |
-| I | `discipleAggregates` 全量投影可优化为增量 | `architecture-debt.md` 远期优化 | 🟢 低 | 需要时做 |
-| J | `!!` 操作符全库清理 | `architecture-debt.md` 远期优化 | 🟢 低 | 持续规范改进 |
-| K | `DeterministicRng` 非事务性：分区 RNG 在 `stateStore.update` 事务缓冲内即时前进，状态回滚时 RNG 不回滚（结算中途异常 → 同输入不同输出，读档重放确定性被打破） | 对抗性审查 2026-08-03（远古秘境结束选项，B-M1） | 🟡 中 | **待完成**：需 RNG 快照/回滚机制（见第 3 阶段 3.5） |
+| A | `ComponentTable.store` 底层存储通过 `@PublishedApi internal val store` 在字节码层暴露 | `architecture-debt-write-guard.md` | 🔴 高 | ✅ **已实施**：`putTo()` 守卫方法 + `requireWrite`/`onWrite` private；三表实位于 `core/domain/.../core/state/ComponentTable.kt`（同文件） |
+| B | `requireWrite`/`onWrite` 为 `@JvmField var` 字节码可被覆写 | `architecture-debt-write-guard.md` | 🔴 高 | ✅ **已实施**：`setWriteGuard`/`setMutationCallback`/`setIdWriteCallback` setter 替代直接字段赋值（`DiscipleTables.bindAllOnWrite` L1515-1549） |
+| C | `Baseline Profile` 手写111条规则未经验证 | `architecture-debt.md` 远期优化 | 🟡 中 | ✅ **已实施**：独立 `:baselineprofile` 生成器模块 + ProfileInstaller + `baseline.prof`（110 行） |
+| D | ADPF Performance Hint API 未集成 | `fps-optimization-plan.md` P2.3 | 🟡 中 | ✅ **已实施**：`ThermalMonitor`（core/engine/perf）+ `GameEngineCore` 每帧 `reportActualWorkDuration` |
+| E | 纹理分级压缩未实施 | `fps-optimization-plan.md` P2.4 | 🟡 中 | ✅ **已实施**：`bundle.texture.enableSplit=true` + ASTC 图集任务（WP7） |
+| F | R8 Full Mode 配置审计 | `fps-optimization-plan.md` P3.2 | 🟡 中 | ✅ **已实施**：FullMode/optimize 已启用；proguard 宽 keep 收窄完成（2026-08 根治批次：删除 `core.model.**`/`data.model.**` 两条宽规则，其余宽规则逐条补保留原因注释） |
+| G | `processMonthlyEvents` 仍有2个分散事务 | `architecture-debt.md` 远期优化 | 🟢 低 | ✅ **已实施**：月变已合并单事务（`GameEngineCore.processMonthYearChange`）；年变 T1/T2 分帧为 L3a 有意设计 |
+| H | HP/MP 恢复全量遍历未改用单弟子 API | `architecture-debt.md` 远期优化 | 🟢 低 | ✅ **已实施**：`recoverHpMpForAllDisciples` 已删除，逐弟子 `recoverHpMpSingle(Column)` 生效 |
+| I | `discipleAggregates` 全量投影可优化为增量 | `architecture-debt.md` 远期优化 | 🟢 低 | ✅ **已实施**：assemble 写回点 + 双指针增量归并（`GameStateStoreImpl` L515-608），优于方案草案 |
+| J | `!!` 操作符全库清理 | `architecture-debt.md` 远期优化 | 🟢 低 | ✅ **已清零**：生产代码 `!!` 操作符清零（2026-08 根治批次：GameOverlayHost 云存档覆盖弹窗 4 处 → `?.let` 安全访问；剩余匹配均为注释与测试断言） |
+| K | `DeterministicRng` 非事务性：分区 RNG 在 `stateStore.update` 事务缓冲内即时前进，状态回滚时 RNG 不回滚（结算中途异常 → 同输入不同输出，读档重放确定性被打破） | 对抗性审查 2026-08-03（远古秘境结束选项，B-M1） | 🟡 中 | ✅ **已实施**：`DeterministicRng.snapshot()/restore()` + `GameRngManager.exportStates()/restoreStates()` + `RngSnapshotPort` 接口 + `GameStateStoreImpl.executeBlockWithRngGuard`（事务前快照、异常/OOM 回滚）+ 存档 `GameData.rngStates` 导出；守卫测试 `TransactionRngRollbackTest` |
 
 ### 1.2 已排除项
 
@@ -439,24 +441,24 @@ grep -rn '!!' android/ --include='*.kt' | grep -v '/test/' | grep -v '/build/' |
 
 ## 4. 影响范围清单
 
-| 文件路径 | 变更类型 | 变更说明 | 分类 |
+> 2026-08 勘误:本节为方案制定时的规划路径,与实际落地路径存在偏差,实况如下:
+
+| 文件路径(实际) | 变更类型 | 变更说明 | 分类 |
 |---------|---------|---------|------|
-| `core/engine/.../component/ComponentTable.kt` | 修改 | `requireWrite`/`onWrite` 改为 `private` + setter；新增 `putTo()` 守卫方法 | 🔴 A+B |
-| `core/engine/.../component/IntComponentTable.kt` | 修改 | 同上 | 🔴 A+B |
-| `core/engine/.../component/DoubleComponentTable.kt` | 修改 | 同上 | 🔴 A+B |
-| `core/engine/.../component/CopyableTableRef.kt` | 修改 | `copyTo` 实现改为调用 `putTo()` | 🔴 A |
-| `core/engine/.../component/ComponentTableBindAllOnWrite.kt` | 修改 | `setWriteGuard`/`setMutationCallback` 替代直接字段赋值 | 🔴 B |
-| `core/engine/.../component/ComponentTableRef.kt` | 修改 | 接口调整（如需） | 🔴 A |
-| `app/build.gradle.kts` | 修改 | ProfileInstaller 依赖 + ADPF 依赖 | 🟡 C+D |
-| `core/engine/.../perf/AndroidPerformanceHintService.kt` | **新增** | ADPF Performance Hint API 封装 | 🟡 D |
+| `core/domain/.../core/state/ComponentTable.kt`(三表同文件) | 修改 | `requireWrite`/`onWrite` private + `setWriteGuard`/`setMutationCallback`/`setIdWriteCallback` setter + `putTo()` 守卫方法 | 🔴 A+B |
+| `core/domain/.../core/state/CopyableTableRef.kt`(Int/Double/Ref/Mutable 四 Ref) | 修改 | `copyTo` 实现改为调用 `putTo()` | 🔴 A |
+| `core/domain/.../DiscipleTables.kt`(bindAllOnWrite L1515-1549) | 修改 | `setWriteGuard`/`setMutationCallback` 替代直接字段赋值 | 🔴 B |
+| `app/build.gradle`(Groovy) | 修改 | ProfileInstaller + `baselineProfile project(':baselineprofile')` | 🟡 C |
+| `android/baselineprofile/`(独立生成器模块) | **新增** | Baseline Profile 自动生成 | 🟡 C |
+| `app/src/main/baseline-prof/baseline.prof` | 替换 | 自动生成的 profile(110 行) | 🟡 C |
+| `core/engine/.../perf/ThermalMonitor.kt` | **新增** | ADPF Performance Hint API 封装 | 🟡 D |
 | `core/engine/.../GameEngineCore.kt` | 修改 | 集成 ADPF 帧时间回传 + 月事务合并 | 🟡 D + 🟢 G |
-| `app/src/androidTest/.../BaselineProfileGenerator.kt` | **新增** | Baseline Profile 自动生成测试 | 🟡 C |
-| `app/src/main/baseline-prof/baseline.prof` | 替换 | 自动生成的 profile | 🟡 C |
-| `app/proguard-rules.pro` | 审计 | 检查过宽 keep 规则 | 🟡 F |
-| `core/engine/.../cultivation/CultivationEventProcessor.kt` | 修改 | `processCompletedMissionsLazy` 从快照读 | 🟢 G |
-| `core/engine/.../cultivation/CultivationCore.kt` | 修改 | `recoverHpMpForAllDisciples` → `recoverHpMpSingle` | 🟢 H |
-| `core/state/GameStateStoreImpl.kt` | 修改 | `discipleAggregates` 增量投影 | 🟢 I |
-| 全库 *.kt | 清理 | `!!` → `?.` / `?:` / `checkNotNull()` | 🟢 J |
+| `app/build.gradle` L173-178 | 修改 | `bundle.texture.enableSplit=true` | 🟡 E |
+| `app/proguard-rules.pro` | 审计 | 宽 keep 规则收窄(2026-08 根治批次) | 🟡 F |
+| `core/engine/.../cultivation/CultivationEventMonthlyOps.kt` | 修改 | 月变单事务 + 年变 T1/T2 分帧 | 🟢 G |
+| `core/engine/.../cultivation/CultivationCore.kt` | 修改 | `recoverHpMpForAllDisciples` 删除 → 逐弟子 `recoverHpMpSingle(Column)` | 🟢 H |
+| `app/.../core/state/GameStateStoreImpl.kt` | 修改 | `discipleAggregates` 增量归并(L515-608) | 🟢 I |
+| `feature/game/.../GameOverlayHost.kt` L323-324 | 清理 | 残留 4 处 `!!`(2026-08 根治批次) | 🟢 J |
 
 ---
 

@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,7 +28,7 @@ fun HeavenlyTrialDiscipleDialog(
 
     val selectedDisciples = remember { mutableStateListOf<DiscipleAggregate?>(null, null, null) }
     var showDisciplePicker by remember { mutableStateOf(false) }
-    var pickerSlotIndex by remember { mutableStateOf(0) }
+    var pickerSlotIndex by remember { mutableIntStateOf(0) }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -36,34 +37,17 @@ fun HeavenlyTrialDiscipleDialog(
         scrollableContent = false
     ) {
         // 3个弟子槽位
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            for (slotIdx in 0 until 3) {
-                val disciple = selectedDisciples[slotIdx]
-                DiscipleSlot(
-                    disciple = disciple,
-                    showActions = true,
-                    onSlotClick = {
-                        if (disciple != null) {
-                            gameViewModel.showDiscipleDetail(
-                                DiscipleDetailRequest(disciple, aliveDisciples)
-                            )
-                        }
-                    },
-                    onEmptySlotClick = {
-                        pickerSlotIndex = slotIdx
-                        showDisciplePicker = true
-                    },
-                    onDismiss = { selectedDisciples[slotIdx] = null },
-                    onSwap = {
-                        pickerSlotIndex = slotIdx
-                        showDisciplePicker = true
-                    }
-                )
+        HeavenlyTrialDiscipleSlots(
+            selectedDisciples = selectedDisciples,
+            aliveDisciples = aliveDisciples,
+            onShowDetail = { disciple ->
+                gameViewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, aliveDisciples))
+            },
+            onOpenPicker = { slotIdx ->
+                pickerSlotIndex = slotIdx
+                showDisciplePicker = true
             }
-        }
+        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -83,45 +67,95 @@ fun HeavenlyTrialDiscipleDialog(
 
     // 选择弟子子界面（带境界筛选）
     if (showDisciplePicker) {
-        val currentSlotDiscipleId = selectedDisciples[pickerSlotIndex]?.id
-        val alreadySelectedIds = selectedDisciples
-            .filterIndexed { idx, d -> idx != pickerSlotIndex && d != null }
-            .mapNotNull { it?.id }
-            .toSet()
-        val collectedGameData by gameViewModel.gameData.collectAsState()
-        val showAllEnabled = collectedGameData.showAllAvailableDisciples
-        val battleAndExplorationIds = remember(collectedGameData) {
-            val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }
-                .filter { it.isNotEmpty() }.toSet()
-            val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }
-                .filter { it.isNotEmpty() }.toSet()
-            battleIds + explorationIds
-        }
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(
-                title = "选择弟子",
-                emptyMessage = "暂无空闲弟子",
-                currentId = currentSlotDiscipleId,
-                additionalCheck = { d ->
-                    d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
-                },
-                alwaysIncludeCurrentId = true
-            ),
-            disciples = aliveDisciples,
-            showAllEnabled = showAllEnabled,
-            viewModel = gameViewModel,
-            battleAndExplorationIds = battleAndExplorationIds,
-            onDismiss = { showDisciplePicker = false },
-            onConfirm = { selected ->
-                selected.firstOrNull()?.let { disciple ->
-                    if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                        gameViewModel.releaseDiscipleForReassignment(disciple.id)
-                    }
-                    selectedDisciples[pickerSlotIndex] = disciple
-                    showDisciplePicker = false
-                }
-            }
+        HeavenlyTrialDisciplePicker(
+            pickerSlotIndex = pickerSlotIndex,
+            selectedDisciples = selectedDisciples,
+            aliveDisciples = aliveDisciples,
+            gameViewModel = gameViewModel,
+            onDismiss = { showDisciplePicker = false }
         )
     }
+}
+
+/** 3 个出战弟子槽位（HeavenlyTrialDiscipleDialog 拆分） */
+// 拆分搬移:参数保留原签名语义
+@Suppress("UnusedParameter")
+@Composable
+private fun HeavenlyTrialDiscipleSlots(
+    selectedDisciples: SnapshotStateList<DiscipleAggregate?>,
+    aliveDisciples: List<DiscipleAggregate>,
+    onShowDetail: (DiscipleAggregate) -> Unit,
+    onOpenPicker: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        for (slotIdx in 0 until 3) {
+            val disciple = selectedDisciples[slotIdx]
+            DiscipleSlot(
+                disciple = disciple,
+                showActions = true,
+                onSlotClick = {
+                    if (disciple != null) {
+                        onShowDetail(disciple)
+                    }
+                },
+                onEmptySlotClick = { onOpenPicker(slotIdx) },
+                onDismiss = { selectedDisciples[slotIdx] = null },
+                onSwap = { onOpenPicker(slotIdx) }
+            )
+        }
+    }
+}
+
+/** 出战弟子选择子界面（HeavenlyTrialDiscipleDialog 拆分）：境界筛选 + 已选去重 */
+@Composable
+private fun HeavenlyTrialDisciplePicker(
+    pickerSlotIndex: Int,
+    selectedDisciples: SnapshotStateList<DiscipleAggregate?>,
+    aliveDisciples: List<DiscipleAggregate>,
+    gameViewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    val currentSlotDiscipleId = selectedDisciples[pickerSlotIndex]?.id
+    val alreadySelectedIds = selectedDisciples
+        .filterIndexed { idx, d -> idx != pickerSlotIndex && d != null }
+        .mapNotNull { it?.id }
+        .toSet()
+    val collectedGameData by gameViewModel.gameData.collectAsState()
+    val showAllEnabled = collectedGameData.showAllAvailableDisciples
+    val battleAndExplorationIds = remember(collectedGameData) {
+        val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }
+            .filter { it.isNotEmpty() }.toSet()
+        val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }
+            .filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+    DiscipleSelectorDialog(
+        config = DiscipleSelectorConfig(
+            title = "选择弟子",
+            emptyMessage = "暂无空闲弟子",
+            currentId = currentSlotDiscipleId,
+            additionalCheck = { d ->
+                d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
+            },
+            alwaysIncludeCurrentId = true
+        ),
+        disciples = aliveDisciples,
+        showAllEnabled = showAllEnabled,
+        viewModel = gameViewModel,
+        battleAndExplorationIds = battleAndExplorationIds,
+        onDismiss = onDismiss,
+        onConfirm = { selected ->
+            selected.firstOrNull()?.let { disciple ->
+                if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                    gameViewModel.releaseDiscipleForReassignment(disciple.id)
+                }
+                selectedDisciples[pickerSlotIndex] = disciple
+                onDismiss()
+            }
+        }
+    )
 }
 

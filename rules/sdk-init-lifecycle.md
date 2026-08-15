@@ -61,5 +61,5 @@ internal fun safeRunAfterSdkInit(
 
 ## 相关文档
 
-- `docs/architecture.md` 待完成项登记表：D-42（游戏内防沉迷合规回调不生效，合规回调宿主绑定 MainActivity，进游戏后 MainActivity 销毁回调被丢弃——治理方向：宿主进程级化）
+- `docs/architecture.md`：D-42 已于 2026-08 债务根治批次闭环——进程级 `ComplianceCallbackHost`（WindowPort 接口 + 登录/游戏双窗口弱引用转发），游戏内时长/时间/年龄限制提示恢复正常展示；`ComplianceCallbackHostTest` 10 用例守卫
 - `CHANGELOG.md` 2026-08-15：「广告 SDK 重复初始化」「广告 SDK 初始化时机」「退出游戏再登录卡死」「SDK 服务初始化与登录流程解耦」四个修复小节（完整证据链）

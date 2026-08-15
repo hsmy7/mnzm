@@ -25,7 +25,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.activity.enableEdgeToEdge
-import androidx.core.content.edit
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
@@ -51,6 +50,8 @@ import com.xianxia.sect.data.crypto.SecureKeyManager
 import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.ui.ComplianceDialogState
+import com.xianxia.sect.ui.ComplianceLimitDialogs
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ImeVisibilityTracker
@@ -61,7 +62,7 @@ import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.ui.components.LocalPlayClickSound
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -148,7 +149,28 @@ class GameActivity : ComponentActivity() {
     lateinit var audioConfig: AudioConfig
 
     @Inject
-    lateinit var audioEngine: AudioEngine
+    lateinit var audioEngine: AudioPlayerFacade
+
+    @Inject
+    lateinit var complianceCallbackHost: com.xianxia.sect.taptap.ComplianceCallbackHost
+
+    @Inject
+    lateinit var gamePreferences: com.xianxia.sect.data.prefs.GamePreferences
+
+    /** 防沉迷合规限制对话框状态（D-42：游戏内限制提示，与 MainActivity 共享类型） */
+    private val complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
+
+    /** D-42：合规回调窗口端口（游戏窗口适配器，宿主按接口转发） */
+    private val complianceWindowPort = object : com.xianxia.sect.taptap.ComplianceCallbackHost.WindowPort {
+        override fun postToUi(block: () -> Unit) = this@GameActivity.runOnUiThread(block)
+        override fun isAlive(): Boolean = !isFinishing && !isDestroyed
+        override fun onLoginSuccess() = Unit
+        override fun onExited() = Unit
+        override fun onNetworkError() = Unit
+        override fun onRestrict(title: String, message: String) =
+            this@GameActivity.showComplianceRestrict(title, message)
+        override fun onAgeLimit() = this@GameActivity.showComplianceAgeLimit()
+    }
 
     // ── GameForegroundService 绑定 ──
     // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
@@ -462,12 +484,46 @@ class GameActivity : ComponentActivity() {
                             )
                         }
                     }
+
+                    // D-42：防沉迷合规限制对话框（游戏内时长/时间/年龄限制提示）——
+                    // 共享组件自带生命周期门控 + DialogSystemBarGuard（游戏内系统栏
+                    // 已隐藏，Dialog Window 需独立守卫）
+                    ComplianceLimitDialogs(
+                        complianceDialogState = complianceDialogState,
+                        onLogout = { performComplianceLogout() },
+                        onAgeFinish = { navigateBackToMainMenu() }
+                    )
                 }
             }
             }
         }
 
     /** P-2：渲染安全模式检测——super.onCreate() 前切换主题使 hardwareAccelerated 生效。 */
+
+    // ── 合规限制展示（D-42 进程级宿主转发入口） ──
+
+    /** 时间/时长限制弹窗（游戏内窗口） */
+    internal fun showComplianceRestrict(title: String, message: String) {
+        complianceDialogState.value = ComplianceDialogState.Restrict(title, message)
+    }
+
+    /** 适龄限制弹窗（游戏内窗口） */
+    internal fun showComplianceAgeLimit() {
+        complianceDialogState.value = ComplianceDialogState.AgeLimit
+    }
+
+    /**
+     * 合规限制弹窗"退出游戏/切换账号"：清会话 + 完整登出（清 TapTap SDK 登录态 /
+     * 停时长统计 / 解绑合规回调，对齐 MainActivity.performComplianceLogout）+ 回主界面。
+     */
+    private fun performComplianceLogout() {
+        sessionManager.clearSession()
+        com.xianxia.sect.taptap.TapTapAuthManager.logout()
+        com.xianxia.sect.taptap.TapDBManager.stopGameDurationTracking()
+        com.xianxia.sect.taptap.ComplianceManager.unregisterCallback()
+        navigateBackToMainMenu()
+    }
+
     /**
      * T13（2026-08-05）：boot 失败弹窗"返回主菜单"——复用 onLogout 的
      * MainActivity 重建模式（不清 session，仅清 Activity 栈）。
@@ -628,6 +684,9 @@ class GameActivity : ComponentActivity() {
         // 在 super.onStop() 前结束活跃的文本选择 ActionMode，防止窗口 token 失效后
         // FloatingActionMode 尝试弹出 PopupWindow 导致 BadTokenException
         actionModeTracker?.finishActiveActionMode()
+        // D-42：清除游戏窗口注册（新 Activity onResume 先于旧 Activity onStop，
+        // 窗口切换期间宿主转发无缝衔接）
+        complianceCallbackHost.clearGameWindow(complianceWindowPort)
         super.onStop()
         // pauseForBackground 已移到 onPause（保证调用），此处不再重复
         // onPause+onStop 序列中 pauseForBackground 幂等
@@ -638,6 +697,8 @@ class GameActivity : ComponentActivity() {
         super.onResume()
         // 回到前台立即恢复文本选择能力（onPause 提前置位后的配套复位）
         actionModeTracker?.resetForResume()
+        // D-42：注册游戏窗口（合规回调宿主转发目标；onStop 清除）
+        complianceCallbackHost.registerGameWindow(complianceWindowPort)
         hideSystemBars()
         frameMetricsMonitor.startMonitoring(window)
         if (audioConfig.musicEnabled) {
@@ -935,11 +996,11 @@ class GameActivity : ComponentActivity() {
         val helper = com.xianxia.sect.core.util.BatteryOptimizationHelper
         if (!helper.shouldShowGuide(this)) return
 
-        // 使用 SharedPreferences 记录是否已提示过，避免每次 resume 都弹
-        val prefs = getSharedPreferences("battery_guide", MODE_PRIVATE)
-        if (prefs.getBoolean("oem_guide_shown", false)) return
+        // D-29：统一偏好迁入 MMKV（键名不变，旧 SharedPreferences 一次性迁移）
+        gamePreferences.migrateFromSharedPreferences("battery_guide")
+        if (gamePreferences.getBoolean("oem_guide_shown", false)) return
 
-        prefs.edit { putBoolean("oem_guide_shown", true) }
+        gamePreferences.putBoolean("oem_guide_shown", true)
 
         val guideText = helper.getGuideText(this)
         if (guideText.isEmpty()) return
@@ -974,11 +1035,11 @@ class GameActivity : ComponentActivity() {
         val alarmManager = getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         if (alarmManager.canScheduleExactAlarms()) return
 
-        // 使用独立 SharedPreferences 记录是否已询问过精确闹钟权限
-        val prefs = getSharedPreferences("exact_alarm_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("exact_alarm_prompted", false)) return
+        // D-29：统一偏好迁入 MMKV（键名不变，旧 SharedPreferences 一次性迁移）
+        gamePreferences.migrateFromSharedPreferences("exact_alarm_prefs")
+        if (gamePreferences.getBoolean("exact_alarm_prompted", false)) return
 
-        prefs.edit { putBoolean("exact_alarm_prompted", true) }
+        gamePreferences.putBoolean("exact_alarm_prompted", true)
 
         try {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)

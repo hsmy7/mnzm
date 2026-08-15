@@ -395,35 +395,11 @@ class RedeemCodeService @Inject constructor(
 
         var allSucceeded = true
         stateStore.update {
-            // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
-            // 玩家清理仓库后可重新兑换，奖励不丢失
-            allSucceeded = inventorySystem.withOverflowMailSuppressed {
-            inventorySystem.withTrackingSource("redeem") {
-                result.rewards.filter { it.type != "spiritStones" }.all { reward ->
-                    applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, redeemCodeData.rarity, mailRng)
-                }
-            }
-            }
-
-            if (!allSucceeded) return@update
-
-            // 物品全部成功后才发放灵石与弟子（对抗性审查 C3 修复：
-            // 失败时灵石/弟子不入账，避免"已入账 + 凭据保留"重试时双发）
-            result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
-                spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
-            }
-            result.disciples.forEach { disciple ->
-                val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-                disciple.usage.recruitedMonth = currentMonthValue
-                discipleTables.allocateAndInsert(disciple)
-            }
-
-            gameData = gameData.copy(
-                usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
-                    .distinct()
-                    .takeLast(GameData.MAX_REDEEM_CODES),
-                // 年报新增弟子计数（2026-08-11 修复：本地兑换码赠弟子漏计）
-                annualNewDisciples = gameData.annualNewDisciples + result.disciples.size
+            allSucceeded = applyLocalRedeemState(
+                result = result,
+                code = code,
+                defaultRarity = redeemCodeData.rarity,
+                mailRng = mailRng
             )
         }
 
@@ -450,6 +426,50 @@ class RedeemCodeService @Inject constructor(
             rewards = result.rewards,
             disciples = result.disciples
         )
+    }
+
+    /**
+     * 本地兑换奖励落地（localRedeem 拆分）：物品发放 + 灵石/弟子 + 标记已用，单事务原子写入。
+     *
+     * @return true=全部成功；false=任一物品发放失败/溢出（兑换码不标记已用，可清理后重试）
+     */
+    private fun MutableGameState.applyLocalRedeemState(
+        result: RedeemResult,
+        code: String,
+        defaultRarity: Int,
+        mailRng: kotlin.random.Random
+    ): Boolean {
+        // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
+        // 玩家清理仓库后可重新兑换，奖励不丢失
+        val allSucceeded = inventorySystem.withOverflowMailSuppressed {
+            inventorySystem.withTrackingSource("redeem") {
+                result.rewards.filter { it.type != "spiritStones" }.all { reward ->
+                    applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, defaultRarity, mailRng)
+                }
+            }
+        }
+
+        if (!allSucceeded) return false
+
+        // 物品全部成功后才发放灵石与弟子（对抗性审查 C3 修复：
+        // 失败时灵石/弟子不入账，避免"已入账 + 凭据保留"重试时双发）
+        result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
+            spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+        }
+        result.disciples.forEach { disciple ->
+            val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+            disciple.usage.recruitedMonth = currentMonthValue
+            discipleTables.allocateAndInsert(disciple)
+        }
+
+        gameData = gameData.copy(
+            usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
+                .distinct()
+                .takeLast(GameData.MAX_REDEEM_CODES),
+            // 年报新增弟子计数（2026-08-11 修复：本地兑换码赠弟子漏计）
+            annualNewDisciples = gameData.annualNewDisciples + result.disciples.size
+        )
+        return true
     }
 
     private fun enqueueRewardCardsFromApiRewards(rewards: List<RedeemApiReward>) {

@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import android.graphics.Color
 import com.xianxia.sect.core.render.RenderFlags
 import org.junit.Assert.assertEquals
@@ -30,7 +31,7 @@ class SoftwareCanvasBackendLodFadeTest {
     fun setup() {
         backend = SoftwareCanvasBackend(testRenderConfig())
         // 迷你图集（128x128，不含实际精灵，只验证坐标和帧缓冲区尺寸）
-        atlas = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        atlas = createBitmap(128, 128, Bitmap.Config.ARGB_8888)
     }
 
     // ============================================================

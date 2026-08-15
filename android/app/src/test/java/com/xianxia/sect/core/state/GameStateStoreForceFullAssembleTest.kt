@@ -29,7 +29,7 @@ class GameStateStoreForceFullAssembleTest {
     private fun store(): GameStateStoreImpl {
         val s = GameStateStoreImpl(
             com.xianxia.sect.di.ApplicationScopeProvider(),
-            org.mockito.Mockito.mock(com.xianxia.sect.data.GameStateRepository::class.java)
+            testGameStateRepository()
         )
         s.unsafeAllowMainThreadUpdateForTest = true
         return s

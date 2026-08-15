@@ -954,6 +954,15 @@ class GameEngineCore @Inject constructor(
         }
     }
 
+    /**
+     * 完整拆除引擎（docs/architecture.md 待办 D-31）：停循环 + `releaseAll` +
+     * 重建 engineScope + 重置 isInitialized。
+     *
+     * **调用语义（2026-08 根治后）**：`GameForegroundService.onDestroy` 不再调用本方法
+     * （改为仅 `stopGameLoop()`——初始化状态进程级持有，进出游戏不重跑 initializeAll）。
+     * 本方法保留为进程级完整拆除路径，供未来"登出回主菜单释放资源"等场景使用
+     * （见 docs/audio-thread-audit.md A2 偿还触发）。
+     */
     fun shutdown() {
         // D-07 状态机：RUNNING/RESTARTING/STOPPING → STOPPED 单赢家；已 STOPPED
         // 幂等返回。抢占 emergency 的重启意图——emergency 启动前 phase 检查 abort

@@ -28,82 +28,94 @@ object SectLevelRewardConfig {
      * 获取指定等级的奖励卡片列表（用于 UI 展示）。
      */
     fun getRewardCards(level: Int): List<RewardCardItem> = when (level) {
-        SectLevel.SMALL -> listOf(
-            RewardCardItem(
-                itemName = "随机凡品兽血",
-                itemType = "beastMaterial",
-                rarity = 1,
-                quantity = 20
-            ),
-            RewardCardItem(
-                itemName = "灵石",
-                itemType = "spiritStones",
-                rarity = 1,
-                quantity = 100_000
-            )
-        )
-        SectLevel.MEDIUM -> listOf(
-            RewardCardItem(
-                itemName = "随机凡品兽血",
-                itemType = "beastMaterial",
-                rarity = 1,
-                quantity = 50
-            ),
-            RewardCardItem(
-                itemName = "凡品储物袋",
-                itemType = "storageBag",
-                rarity = 1,
-                quantity = 5
-            ),
-            RewardCardItem(
-                itemName = "灵石",
-                itemType = "spiritStones",
-                rarity = 1,
-                quantity = 200_000
-            )
-        )
-        SectLevel.LARGE -> listOf(
-            RewardCardItem(
-                itemName = "随机凡品兽血",
-                itemType = "beastMaterial",
-                rarity = 1,
-                quantity = 50
-            ),
-            RewardCardItem(
-                itemName = "灵品储物袋",
-                itemType = "storageBag",
-                rarity = 2,
-                quantity = 5
-            ),
-            RewardCardItem(
-                itemName = "灵石",
-                itemType = "spiritStones",
-                rarity = 1,
-                quantity = 500_000
-            )
-        )
-        SectLevel.TOP -> listOf(
-            RewardCardItem(
-                itemName = "随机宝品兽血",
-                itemType = "beastMaterial",
-                rarity = 3,
-                quantity = 50
-            ),
-            RewardCardItem(
-                itemName = "宝品储物袋",
-                itemType = "storageBag",
-                rarity = 3,
-                quantity = 5
-            ),
-            RewardCardItem(
-                itemName = "灵石",
-                itemType = "spiritStones",
-                rarity = 1,
-                quantity = 1_000_000
-            )
-        )
+        SectLevel.SMALL -> smallLevelRewardCards()
+        SectLevel.MEDIUM -> mediumLevelRewardCards()
+        SectLevel.LARGE -> largeLevelRewardCards()
+        SectLevel.TOP -> topLevelRewardCards()
         else -> emptyList()
     }
+
+    /** 小型宗门每周奖励卡片（getRewardCards 拆分） */
+    private fun smallLevelRewardCards(): List<RewardCardItem> = listOf(
+        RewardCardItem(
+            itemName = "随机凡品兽血",
+            itemType = "beastMaterial",
+            rarity = 1,
+            quantity = 20
+        ),
+        RewardCardItem(
+            itemName = "灵石",
+            itemType = "spiritStones",
+            rarity = 1,
+            quantity = 100_000
+        )
+    )
+
+    /** 中型宗门每周奖励卡片（getRewardCards 拆分） */
+    private fun mediumLevelRewardCards(): List<RewardCardItem> = listOf(
+        RewardCardItem(
+            itemName = "随机凡品兽血",
+            itemType = "beastMaterial",
+            rarity = 1,
+            quantity = 50
+        ),
+        RewardCardItem(
+            itemName = "凡品储物袋",
+            itemType = "storageBag",
+            rarity = 1,
+            quantity = 5
+        ),
+        RewardCardItem(
+            itemName = "灵石",
+            itemType = "spiritStones",
+            rarity = 1,
+            quantity = 200_000
+        )
+    )
+
+    /** 大型宗门每周奖励卡片（getRewardCards 拆分） */
+    private fun largeLevelRewardCards(): List<RewardCardItem> = listOf(
+        RewardCardItem(
+            itemName = "随机凡品兽血",
+            itemType = "beastMaterial",
+            rarity = 1,
+            quantity = 50
+        ),
+        RewardCardItem(
+            itemName = "灵品储物袋",
+            itemType = "storageBag",
+            rarity = 2,
+            quantity = 5
+        ),
+        RewardCardItem(
+            itemName = "灵石",
+            itemType = "spiritStones",
+            rarity = 1,
+            quantity = 500_000
+        )
+    )
+
+    /** 顶级宗门每周奖励卡片（getRewardCards 拆分） */
+    private fun topLevelRewardCards(): List<RewardCardItem> = listOf(
+        RewardCardItem(
+            itemName = "随机宝品兽血",
+            itemType = "beastMaterial",
+            rarity = 3,
+            quantity = 50
+        ),
+        RewardCardItem(
+            itemName = "宝品储物袋",
+            itemType = "storageBag",
+            rarity = 3,
+            quantity = 5
+        ),
+        RewardCardItem(
+            itemName = "灵石",
+            itemType = "spiritStones",
+            rarity = 1,
+            quantity = 1_000_000
+        )
+    )
 
     // ==================== 升级条件定义 ====================
 

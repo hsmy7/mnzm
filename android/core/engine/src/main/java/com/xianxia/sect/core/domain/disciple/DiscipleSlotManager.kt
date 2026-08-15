@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Provider
@@ -84,76 +85,94 @@ class DiscipleSlotManager @Inject constructor(
      */
     suspend fun resetAllDisciplesStatus() {
         val protectedIds = stateStore.updateAndReturn {
-            val ids = mutableSetOf<String>()
-            for (id in discipleTables.ids) {
-                val status = discipleTables.statuses[id]
-                if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
-                    ids.add(id.toString())
-                }
-            }
-
-            val clearedSpiritMineSlots = gameData.spiritMineSlots.map {
-                if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
-                    it.copy(discipleId = "", discipleName = "") else it
-            }
-
-            val clearedLibrarySlots = gameData.librarySlots.map {
-                if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
-                    it.copy(discipleId = "", discipleName = "") else it
-            }
-
-            val clearedElderSlots = clearAllDisciplesFromElderSlots(gameData.elderSlots, ids)
-
-            val clearedGarrisonSects = gameData.worldMapSects.map { sect ->
-                if (sect.isPlayerSect) {
-                    sect.copy(
-                        garrisonSlots = sect.garrisonSlots.map { slot ->
-                            if (slot.discipleId.isNotEmpty() && slot.discipleId !in ids)
-                                GarrisonSlot(index = slot.index)
-                            else slot
-                        }
-                    )
-                } else sect
-            }
-
-            val clearedCaveTeams = gameData.caveExplorationTeams.map { team ->
-                if (team.memberIds.any { it !in ids }) {
-                    team.copy(
-                        memberIds = emptyList(),
-                        memberNames = emptyList(),
-                        status = CaveExplorationStatus.COMPLETED
-                    )
-                } else team
-            }
-
-            val clearedActiveMissions = gameData.activeMissions.filter { mission ->
-                mission.discipleIds.all { it in ids }
-            }
-
-            gameData = gameData.copy(
-                spiritMineSlots = clearedSpiritMineSlots,
-                librarySlots = clearedLibrarySlots,
-                elderSlots = clearedElderSlots,
-                worldMapSects = clearedGarrisonSects,
-                caveExplorationTeams = clearedCaveTeams,
-                activeMissions = clearedActiveMissions
-            )
-
-            for (id in discipleTables.ids) {
-                val isAlive = discipleTables.isAlive[id] == 1
-                val status = discipleTables.statuses[id]
-                if (!isAlive) continue
-                if (status == DiscipleStatus.REFLECTING) continue
-                if (status == DiscipleStatus.REFINING) continue
-                if (status == DiscipleStatus.IDLE) continue
-                discipleTables.statusData[id] = emptyMap()
-            }
-
+            val ids = collectProtectedIds()
+            clearAllSlotsForReset(ids = ids)
+            resetStatusDataForUnprotected()
             ids
         }
 
         discipleStatusServiceProvider.get().syncAllDiscipleStatuses()
 
+        clearProductionSlotsForReset(protectedIds = protectedIds)
+    }
+
+    /** 收集需保护的弟子 id（resetAllDisciplesStatus 拆分）：反省/炼器中不重置 */
+    private fun MutableGameState.collectProtectedIds(): Set<String> {
+        val ids = mutableSetOf<String>()
+        for (id in discipleTables.ids) {
+            val status = discipleTables.statuses[id]
+            if (status == DiscipleStatus.REFLECTING || status == DiscipleStatus.REFINING) {
+                ids.add(id.toString())
+            }
+        }
+        return ids
+    }
+
+    /** 清理各槽位（resetAllDisciplesStatus 拆分）：灵田/藏书/长老/驻地/探险队/任务 */
+    private fun MutableGameState.clearAllSlotsForReset(ids: Set<String>) {
+        val clearedSpiritMineSlots = gameData.spiritMineSlots.map {
+            if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
+                it.copy(discipleId = "", discipleName = "") else it
+        }
+
+        val clearedLibrarySlots = gameData.librarySlots.map {
+            if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
+                it.copy(discipleId = "", discipleName = "") else it
+        }
+
+        val clearedElderSlots = clearAllDisciplesFromElderSlots(gameData.elderSlots, ids)
+
+        val clearedGarrisonSects = gameData.worldMapSects.map { sect ->
+            if (sect.isPlayerSect) {
+                sect.copy(
+                    garrisonSlots = sect.garrisonSlots.map { slot ->
+                        if (slot.discipleId.isNotEmpty() && slot.discipleId !in ids)
+                            GarrisonSlot(index = slot.index)
+                        else slot
+                    }
+                )
+            } else sect
+        }
+
+        val clearedCaveTeams = gameData.caveExplorationTeams.map { team ->
+            if (team.memberIds.any { it !in ids }) {
+                team.copy(
+                    memberIds = emptyList(),
+                    memberNames = emptyList(),
+                    status = CaveExplorationStatus.COMPLETED
+                )
+            } else team
+        }
+
+        val clearedActiveMissions = gameData.activeMissions.filter { mission ->
+            mission.discipleIds.all { it in ids }
+        }
+
+        gameData = gameData.copy(
+            spiritMineSlots = clearedSpiritMineSlots,
+            librarySlots = clearedLibrarySlots,
+            elderSlots = clearedElderSlots,
+            worldMapSects = clearedGarrisonSects,
+            caveExplorationTeams = clearedCaveTeams,
+            activeMissions = clearedActiveMissions
+        )
+    }
+
+    /** 清空非保护弟子的 statusData（resetAllDisciplesStatus 拆分）：状态重置由 syncAllDiscipleStatuses 兜底 */
+    private fun MutableGameState.resetStatusDataForUnprotected() {
+        for (id in discipleTables.ids) {
+            val isAlive = discipleTables.isAlive[id] == 1
+            val status = discipleTables.statuses[id]
+            if (!isAlive) continue
+            if (status == DiscipleStatus.REFLECTING) continue
+            if (status == DiscipleStatus.REFINING) continue
+            if (status == DiscipleStatus.IDLE) continue
+            discipleTables.statusData[id] = emptyMap()
+        }
+    }
+
+    /** 清空生产仓库槽位（resetAllDisciplesStatus 拆分）：非保护弟子且非工作中 */
+    private suspend fun clearProductionSlotsForReset(protectedIds: Set<String>) {
         val allSlots = productionSlotRepository.getSlots()
         for (slot in allSlots) {
             if (slot.assignedDiscipleId != null && slot.assignedDiscipleId !in protectedIds && !slot.isWorking) {

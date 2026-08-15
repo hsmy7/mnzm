@@ -1,4 +1,7 @@
+@file:Suppress("LargeClass") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.core.engine.domain.disciple
+
+import com.xianxia.sect.core.model.PillEffect
 
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
@@ -14,6 +17,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.LibrarySlot
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.model.Pill
@@ -291,74 +295,105 @@ class DiscipleFacadeImpl @Inject constructor(
             val canEquip = GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
             if (canEquip) {
                 val slot = stack.slot
-                val oldEquipId = when (slot) {
-                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
-                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
-                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
-                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
-                    else -> ""
-                }
+                val oldEquipId = equippedItemIdOf(id = id, slot = slot)
                 if (oldEquipId.isNotEmpty()) {
-                    val oldInstance = equipmentInstances.get(oldEquipId)
-                    if (oldInstance != null) {
-                        val updatedDisciple = discipleTables.assemble(id)
-                        // D-03：卸下的装备实例直接铸造入袋（容量无上限，永不失败），
-                        // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径）
-                        discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                            updatedDisciple.equipment.storageBagItems,
-                            StorageBagItem(
-                                itemId = oldEquipId, itemType = ITEM_TYPE_EQUIPMENT_INSTANCE,
-                                name = oldInstance.name, rarity = oldInstance.rarity, quantity = 1,
-                                obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
-                                equipmentInstance = oldInstance
-                            )
-                        )
-                        discipleTables.storageBagSpiritStones[id] = updatedDisciple.equipment.storageBagSpiritStones
-                        discipleTables.discipleSpiritStones[id] = updatedDisciple.equipment.spiritStones
-                        // 实例入袋后从实例表删除，防止双持有
-                        equipmentInstances = equipmentInstances.filter { it.id != oldEquipId }
-                    }
-                    when (slot) {
-                        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
-                        EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = ""
-                        EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = ""
-                        EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = ""
-                        else -> {}
-                    }
+                    // D-03：卸下的装备实例直接铸造入袋（容量无上限，永不失败），
+                    // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径）
+                    depositOldEquipmentToBag(id = id, oldEquipId = oldEquipId)
+                    clearEquipmentSlot(id = id, slot = slot)
                 }
-                if (stack.quantity > 1) {
-                    equipmentStacks.update(item.id) { it.copy(quantity = it.quantity - 1) }
-                } else {
-                    equipmentStacks.remove(item.id)
-                }
+                consumeEquipmentStack(itemId = item.id, stack = stack)
                 val instanceId = java.util.UUID.randomUUID().toString()
                 equipmentInstances.add(stack.toInstance(id = instanceId, ownerId = discipleId, isEquipped = true))
-                when (slot) {
-                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = instanceId
-                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = instanceId
-                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = instanceId
-                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = instanceId
-                    else -> {}
-                }
+                setEquipmentSlot(id = id, slot = slot, instanceId = instanceId)
             } else {
-                if (stack.quantity > 1) {
-                    equipmentStacks.update(item.id) { it.copy(quantity = it.quantity - 1) }
-                } else {
-                    equipmentStacks.remove(item.id)
-                }
+                consumeEquipmentStack(itemId = item.id, stack = stack)
                 // D-03：赏赐装备铸造袋条目（容量无上限，永不失败）——扣仓库数量后
                 // 袋条目自带 stackedData（minRealm/slot 供取回重建），不再经仓库中转
-                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                    discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_EQUIPMENT_STACK,
-                        name = stack.name, rarity = stack.rarity, quantity = 1,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
-                        forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
-                        forgetPhase = gameData.gamePhase,
-                        stackedData = BagStackedData(minRealm = stack.minRealm, slot = stack.slot.name))
-                )
+                grantEquipmentToBag(discipleId = discipleId, item = item, stack = stack, id = id)
             }
         }
+    }
+
+    /** 当前装备 ID 读取（rewardEquipment 拆分） */
+    private fun MutableGameState.equippedItemIdOf(id: Int, slot: EquipmentSlot): String = when (slot) {
+        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
+        EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
+        EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
+        EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
+        else -> ""
+    }
+
+    /** 旧装备卸装入袋（rewardEquipment 拆分）：实例直接铸造入袋并防双持有 */
+    private fun MutableGameState.depositOldEquipmentToBag(id: Int, oldEquipId: String) {
+        val oldInstance = equipmentInstances.get(oldEquipId)
+        if (oldInstance != null) {
+            val updatedDisciple = discipleTables.assemble(id)
+            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                updatedDisciple.equipment.storageBagItems,
+                StorageBagItem(
+                    itemId = oldEquipId, itemType = ITEM_TYPE_EQUIPMENT_INSTANCE,
+                    name = oldInstance.name, rarity = oldInstance.rarity, quantity = 1,
+                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                    equipmentInstance = oldInstance
+                )
+            )
+            discipleTables.storageBagSpiritStones[id] = updatedDisciple.equipment.storageBagSpiritStones
+            discipleTables.discipleSpiritStones[id] = updatedDisciple.equipment.spiritStones
+            // 实例入袋后从实例表删除，防止双持有
+            equipmentInstances = equipmentInstances.filter { it.id != oldEquipId }
+        }
+    }
+
+    /** 装备槽位清空（rewardEquipment 拆分） */
+    private fun MutableGameState.clearEquipmentSlot(id: Int, slot: EquipmentSlot) {
+        when (slot) {
+            EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
+            EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = ""
+            EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = ""
+            EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = ""
+            else -> {}
+        }
+    }
+
+    /** 装备槽位写入（rewardEquipment 拆分） */
+    private fun MutableGameState.setEquipmentSlot(id: Int, slot: EquipmentSlot, instanceId: String) {
+        when (slot) {
+            EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = instanceId
+            EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = instanceId
+            EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = instanceId
+            EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = instanceId
+            else -> {}
+        }
+    }
+
+    /** 仓库装备堆叠消耗（rewardEquipment 拆分） */
+    private fun MutableGameState.consumeEquipmentStack(itemId: String, stack: EquipmentStack) {
+        if (stack.quantity > 1) {
+            equipmentStacks.update(itemId) { it.copy(quantity = it.quantity - 1) }
+        } else {
+            equipmentStacks.remove(itemId)
+        }
+    }
+
+    /** 赏赐装备铸造袋条目（rewardEquipment 拆分）：扣仓库数量后袋条目自带 stackedData */
+    // 拆分搬移:参数保留原签名语义
+    @Suppress("UnusedParameter")
+    private fun MutableGameState.grantEquipmentToBag(
+        discipleId: String,
+        item: RewardSelectedItem,
+        stack: EquipmentStack,
+        id: Int
+    ) {
+        discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+            discipleTables.storageBagItems[id],
+            StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_EQUIPMENT_STACK,
+                name = stack.name, rarity = stack.rarity, quantity = 1,
+                obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
+                forgetPhase = gameData.gamePhase,
+                stackedData = BagStackedData(minRealm = stack.minRealm, slot = stack.slot.name))
+        )
     }
 
     private fun rewardManual(discipleId: String, item: RewardSelectedItem) {
@@ -405,62 +440,26 @@ class DiscipleFacadeImpl @Inject constructor(
         val effect = pill.effects
 
         if (effect.cultivationAdd > 0) {
-            discipleTables.cultivations[id] = discipleTables.cultivations[id] + effect.cultivationAdd
+            applyCultivationAddEffect(id = id, effect = effect)
         }
 
         if (effect.skillExpAdd > 0) {
-            discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) ->
-                (v + effect.skillExpAdd).coerceAtMost(10000)
-            }
+            applySkillExpEffect(id = id, effect = effect)
         }
 
         if (effect.cultivationSpeedPercent > 0) {
-            discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-            // 以旬为单位，不再 *30
-            discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration
-                else discipleTables.cultivationSpeedDurations[id]
-            // 2026-08-01 修复：速率变化点必须同步 checkpoint——
-            // 缺失会导致 getEffectiveCultivation 投影用旧速率推导（checkpoint 死代码埋雷）
-            discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
+            applyCultivationSpeedEffect(id = id, effect = effect)
         }
 
         if (effect.extendLife > 0) {
-            discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
-            val usedExtendLife = discipleTables.usedExtendLifePillTypes[id]
-            if (pill.pillType !in usedExtendLife) {
-                discipleTables.usedExtendLifePillTypes[id] = usedExtendLife + pill.pillType
-            }
+            applyExtendLifeEffect(id = id, effect = effect, pill = pill)
         }
 
         if (DisciplePillManager.hasAnyBaseAttrAdd(
                 pillManager.pillToItemEffect(pill)
             )
         ) {
-            discipleTables.intelligences[id] = discipleTables.intelligences[id].boundedAdd(effect.intelligenceAdd)
-            discipleTables.charms[id] = discipleTables.charms[id].boundedAdd(effect.charmAdd)
-            discipleTables.loyalties[id] =
-                discipleTables.loyalties[id].boundedAdd(effect.loyaltyAdd, GameConfig.Disciple.MAX_LOYALTY)
-            discipleTables.comprehensions[id] = discipleTables.comprehensions[id].boundedAdd(effect.comprehensionAdd)
-            discipleTables.artifactRefinings[id] =
-                discipleTables.artifactRefinings[id].boundedAdd(effect.artifactRefiningAdd)
-            discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id].boundedAdd(effect.pillRefiningAdd)
-            discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id].boundedAdd(effect.spiritPlantingAdd)
-            discipleTables.teachings[id] = discipleTables.teachings[id].boundedAdd(effect.teachingAdd)
-            discipleTables.moralities[id] = discipleTables.moralities[id].boundedAdd(effect.moralityAdd)
-            // 道德降低后即时触发偷盗判定（事务内版本，避免重入写覆盖）
-            val newMoral = discipleTables.moralities[id]
-            if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
-                lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
-            }
-            discipleTables.minings[id] =
-                (discipleTables.minings[id] + effect.miningAdd)
-                    .coerceIn(0, GameConfig.Disciple.SKILL_MAX)
-
-            // 记录永久属性丹使用
-            val itemEffect = pillManager.pillToItemEffect(pill)
-            val keys = DisciplePillManager.buildUsedKeys(itemEffect, pill.rarity)
-            val usedKeys = discipleTables.usedPermanentPillKeys[id]
-            discipleTables.usedPermanentPillKeys[id] = usedKeys + keys
+            applyBaseAttrEffects(id = id, effect = effect, pill = pill)
         }
 
         val itemEffect = pillManager.pillToItemEffect(pill)
@@ -470,58 +469,134 @@ class DiscipleFacadeImpl @Inject constructor(
             effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
             effect.nurtureSpeedPercent > 0
         ) {
-            discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
-            discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
-            discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
-            discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
-            discipleTables.pillHpBonuses[id] = effect.hpAdd
-            discipleTables.pillMpBonuses[id] = effect.mpAdd
-            discipleTables.pillSpeedBonuses[id] = effect.speedAdd
-            discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
-            discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
-            discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-            discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
-            discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
-            // 以旬为单位，不再 *30
-            val currentDuration = discipleTables.pillEffectDurations[id]
-            discipleTables.pillEffectDurations[id] = if (effect.duration > 0)
-                maxOf(currentDuration, effect.duration)
-            else currentDuration
-
-            // 持续/临时效果记录 pillType
-            if (rule == PillRule.SUSTAINED_SPEED || rule == PillRule.TEMPORARY_BATTLE) {
-                val activeTypes = discipleTables.activePillTypes[id]
-                if (pill.pillType.isNotEmpty()) {
-                    discipleTables.activePillTypes[id] = activeTypes + pill.pillType
-                }
-            }
+            applyBattleAttrEffects(id = id, effect = effect, pill = pill, rule = rule)
         }
 
         if (effect.healMaxHpPercent > 0) {
-            val rawHp = discipleTables.currentHps[id]
-            val maxHp = discipleTables.baseHps[id]
-            val currentHp = if (rawHp < 0) maxHp else rawHp
-            val healAmount = (maxHp * effect.healMaxHpPercent).toInt().coerceAtLeast(1)
-            discipleTables.currentHps[id] = (currentHp + healAmount).coerceAtMost(maxHp)
+            applyHealEffect(id = id, effect = effect)
         }
 
         if (effect.clearAll) {
-            discipleTables.pillPhysicalAttackBonuses[id] = 0
-            discipleTables.pillMagicAttackBonuses[id] = 0
-            discipleTables.pillPhysicalDefenseBonuses[id] = 0
-            discipleTables.pillMagicDefenseBonuses[id] = 0
-            discipleTables.pillHpBonuses[id] = 0
-            discipleTables.pillMpBonuses[id] = 0
-            discipleTables.pillSpeedBonuses[id] = 0
-            discipleTables.pillEffectDurations[id] = 0
-            discipleTables.pillCritRateBonuses[id] = 0.0
-            discipleTables.pillCritEffectBonuses[id] = 0.0
-            discipleTables.pillCultivationSpeedBonuses[id] = 0.0
-            discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
-            discipleTables.pillNurtureSpeedBonuses[id] = 0.0
-            discipleTables.activePillCategories[id] = ""
-            discipleTables.activePillTypes[id] = emptySet()
+            applyClearAllEffect(id = id)
         }
+    }
+
+    /** 修炼值丹药效果（applyPillEffectsToDisciple 拆分） */
+    private fun MutableGameState.applyCultivationAddEffect(id: Int, effect: PillEffect) {
+        discipleTables.cultivations[id] = discipleTables.cultivations[id] + effect.cultivationAdd
+    }
+
+    /** 功法经验丹药效果（applyPillEffectsToDisciple 拆分） */
+    private fun MutableGameState.applySkillExpEffect(id: Int, effect: PillEffect) {
+        discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) ->
+            (v + effect.skillExpAdd).coerceAtMost(10000)
+        }
+    }
+
+    /** 修炼速度丹药效果（applyPillEffectsToDisciple 拆分）：速率变化点同步 checkpoint */
+    private fun MutableGameState.applyCultivationSpeedEffect(id: Int, effect: PillEffect) {
+        discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
+        // 以旬为单位，不再 *30
+        discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration
+            else discipleTables.cultivationSpeedDurations[id]
+        // 2026-08-01 修复：速率变化点必须同步 checkpoint——
+        // 缺失会导致 getEffectiveCultivation 投影用旧速率推导（checkpoint 死代码埋雷）
+        discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
+    }
+
+    /** 延寿丹药效果（applyPillEffectsToDisciple 拆分） */
+    private fun MutableGameState.applyExtendLifeEffect(id: Int, effect: PillEffect, pill: Pill) {
+        discipleTables.lifespans[id] = discipleTables.lifespans[id] + effect.extendLife
+        val usedExtendLife = discipleTables.usedExtendLifePillTypes[id]
+        if (pill.pillType !in usedExtendLife) {
+            discipleTables.usedExtendLifePillTypes[id] = usedExtendLife + pill.pillType
+        }
+    }
+
+    /** 永久基础属性丹效果（applyPillEffectsToDisciple 拆分）：技能属性 + 道德触发偷盗判定 + 记录使用 */
+    private fun MutableGameState.applyBaseAttrEffects(id: Int, effect: PillEffect, pill: Pill) {
+        discipleTables.intelligences[id] = discipleTables.intelligences[id].boundedAdd(effect.intelligenceAdd)
+        discipleTables.charms[id] = discipleTables.charms[id].boundedAdd(effect.charmAdd)
+        discipleTables.loyalties[id] =
+            discipleTables.loyalties[id].boundedAdd(effect.loyaltyAdd, GameConfig.Disciple.MAX_LOYALTY)
+        discipleTables.comprehensions[id] = discipleTables.comprehensions[id].boundedAdd(effect.comprehensionAdd)
+        discipleTables.artifactRefinings[id] =
+            discipleTables.artifactRefinings[id].boundedAdd(effect.artifactRefiningAdd)
+        discipleTables.pillRefinings[id] = discipleTables.pillRefinings[id].boundedAdd(effect.pillRefiningAdd)
+        discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id].boundedAdd(effect.spiritPlantingAdd)
+        discipleTables.teachings[id] = discipleTables.teachings[id].boundedAdd(effect.teachingAdd)
+        discipleTables.moralities[id] = discipleTables.moralities[id].boundedAdd(effect.moralityAdd)
+        // 道德降低后即时触发偷盗判定（事务内版本，避免重入写覆盖）
+        val newMoral = discipleTables.moralities[id]
+        if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
+            lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
+        }
+        discipleTables.minings[id] =
+            (discipleTables.minings[id] + effect.miningAdd)
+                .coerceIn(0, GameConfig.Disciple.SKILL_MAX)
+
+        // 记录永久属性丹使用
+        val itemEffect = pillManager.pillToItemEffect(pill)
+        val keys = DisciplePillManager.buildUsedKeys(itemEffect, pill.rarity)
+        val usedKeys = discipleTables.usedPermanentPillKeys[id]
+        discipleTables.usedPermanentPillKeys[id] = usedKeys + keys
+    }
+
+    /** 持续/临时战斗属性丹效果（applyPillEffectsToDisciple 拆分）：面板加成 + 持续时间 */
+    private fun MutableGameState.applyBattleAttrEffects(id: Int, effect: PillEffect, pill: Pill, rule: PillRule) {
+        discipleTables.pillPhysicalAttackBonuses[id] = effect.physicalAttackAdd
+        discipleTables.pillMagicAttackBonuses[id] = effect.magicAttackAdd
+        discipleTables.pillPhysicalDefenseBonuses[id] = effect.physicalDefenseAdd
+        discipleTables.pillMagicDefenseBonuses[id] = effect.magicDefenseAdd
+        discipleTables.pillHpBonuses[id] = effect.hpAdd
+        discipleTables.pillMpBonuses[id] = effect.mpAdd
+        discipleTables.pillSpeedBonuses[id] = effect.speedAdd
+        discipleTables.pillCritRateBonuses[id] = effect.critRateAdd
+        discipleTables.pillCritEffectBonuses[id] = effect.critEffectAdd
+        discipleTables.pillCultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
+        discipleTables.pillSkillExpSpeedBonuses[id] = effect.skillExpSpeedPercent
+        discipleTables.pillNurtureSpeedBonuses[id] = effect.nurtureSpeedPercent
+        // 以旬为单位，不再 *30
+        val currentDuration = discipleTables.pillEffectDurations[id]
+        discipleTables.pillEffectDurations[id] = if (effect.duration > 0)
+            maxOf(currentDuration, effect.duration)
+        else currentDuration
+
+        // 持续/临时效果记录 pillType
+        if (rule == PillRule.SUSTAINED_SPEED || rule == PillRule.TEMPORARY_BATTLE) {
+            val activeTypes = discipleTables.activePillTypes[id]
+            if (pill.pillType.isNotEmpty()) {
+                discipleTables.activePillTypes[id] = activeTypes + pill.pillType
+            }
+        }
+    }
+
+    /** 百分比回血丹药效果（applyPillEffectsToDisciple 拆分） */
+    private fun MutableGameState.applyHealEffect(id: Int, effect: PillEffect) {
+        val rawHp = discipleTables.currentHps[id]
+        val maxHp = discipleTables.baseHps[id]
+        val currentHp = if (rawHp < 0) maxHp else rawHp
+        val healAmount = (maxHp * effect.healMaxHpPercent).toInt().coerceAtLeast(1)
+        discipleTables.currentHps[id] = (currentHp + healAmount).coerceAtMost(maxHp)
+    }
+
+    /** 清除丹药效果（applyPillEffectsToDisciple 拆分） */
+    private fun MutableGameState.applyClearAllEffect(id: Int) {
+        discipleTables.pillPhysicalAttackBonuses[id] = 0
+        discipleTables.pillMagicAttackBonuses[id] = 0
+        discipleTables.pillPhysicalDefenseBonuses[id] = 0
+        discipleTables.pillMagicDefenseBonuses[id] = 0
+        discipleTables.pillHpBonuses[id] = 0
+        discipleTables.pillMpBonuses[id] = 0
+        discipleTables.pillSpeedBonuses[id] = 0
+        discipleTables.pillEffectDurations[id] = 0
+        discipleTables.pillCritRateBonuses[id] = 0.0
+        discipleTables.pillCritEffectBonuses[id] = 0.0
+        discipleTables.pillCultivationSpeedBonuses[id] = 0.0
+        discipleTables.pillSkillExpSpeedBonuses[id] = 0.0
+        discipleTables.pillNurtureSpeedBonuses[id] = 0.0
+        discipleTables.activePillCategories[id] = ""
+        discipleTables.activePillTypes[id] = emptySet()
     }
 
     private fun rewardPill(discipleId: String, item: RewardSelectedItem, quantity: Int) {
@@ -635,77 +710,26 @@ class DiscipleFacadeImpl @Inject constructor(
                 }
                 // 覆写前捕获目标槽旧 occupant（槽位扩容前的原始列表）
                 val slots = gameData.elderSlots
-                oldOccupantId = when (elderSlotType) {
-                    SLOT_TYPE_HERB_GARDEN ->
-                        slots.herbGardenDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    SLOT_TYPE_ALCHEMY ->
-                        slots.alchemyDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    SLOT_TYPE_FORGE ->
-                        slots.forgeDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    SLOT_TYPE_PREACHING ->
-                        slots.preachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    SLOT_TYPE_LAW_ENFORCEMENT ->
-                        slots.lawEnforcementDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    SLOT_TYPE_QINGYUN ->
-                        slots.qingyunPreachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    SLOT_TYPE_SPIRIT_MINE_DEACON ->
-                        slots.spiritMineDeaconDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
-                    else -> ""
-                }
-                val newSlot = DirectDiscipleSlot(
-                    index = slotIndex,
-                    discipleId = discipleId,
-                    discipleName = discipleName,
-                    discipleRealm = discipleRealm,
-                    discipleSpiritRootColor = discipleSpiritRootColor,
-                    sectId = gameData.activeSectId
+                oldOccupantId = getElderSlotOccupant(
+                    slots = slots,
+                    elderSlotType = elderSlotType,
+                    slotIndex = slotIndex
                 )
-                val updatedSlots = when (elderSlotType) {
-                    SLOT_TYPE_HERB_GARDEN -> {
-                        val list = slots.herbGardenDisciples.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(herbGardenDisciples = list)
-                    }
-                    SLOT_TYPE_ALCHEMY -> {
-                        val list = slots.alchemyDisciples.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(alchemyDisciples = list)
-                    }
-                    SLOT_TYPE_FORGE -> {
-                        val list = slots.forgeDisciples.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(forgeDisciples = list)
-                    }
-                    SLOT_TYPE_PREACHING -> {
-                        val list = slots.preachingMasters.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(preachingMasters = list)
-                    }
-                    SLOT_TYPE_LAW_ENFORCEMENT -> {
-                        val list = slots.lawEnforcementDisciples.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(lawEnforcementDisciples = list)
-                    }
-                    SLOT_TYPE_QINGYUN -> {
-                        val list = slots.qingyunPreachingMasters.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(qingyunPreachingMasters = list)
-                    }
-                    SLOT_TYPE_SPIRIT_MINE_DEACON -> {
-                        val list = slots.spiritMineDeaconDisciples.toMutableList()
-                        while (list.size <= slotIndex) list.add(DirectDiscipleSlot())
-                        list[slotIndex] = newSlot
-                        slots.copy(spiritMineDeaconDisciples = list)
-                    }
-                    else -> slots
-                }
-                gameData = gameData.copy(elderSlots = updatedSlots)
+                gameData = gameData.copy(
+                    elderSlots = replaceElderSlot(
+                        slots = slots,
+                        elderSlotType = elderSlotType,
+                        slotIndex = slotIndex,
+                        newSlot = DirectDiscipleSlot(
+                            index = slotIndex,
+                            discipleId = discipleId,
+                            discipleName = discipleName,
+                            discipleRealm = discipleRealm,
+                            discipleSpiritRootColor = discipleSpiritRootColor,
+                            sectId = gameData.activeSectId
+                        )
+                    )
+                )
             }
             val slotRef = SlotRef(
                 category = SlotCategory.ELDER_POSITION,
@@ -724,6 +748,83 @@ class DiscipleFacadeImpl @Inject constructor(
             // 必须同步清 Room 生产槽 Repository，否则残留占用经月度自动重启复活（双槽分叉根因）
             productionCoordinator.clearDiscipleInRepository(gameEngineCore.scopeForStateIn(), discipleId)
         }
+    }
+
+    /** 目标亲传槽旧 occupant 读取（assignDirectDisciple 拆分）：槽位扩容前的原始列表 */
+    private fun getElderSlotOccupant(
+        slots: ElderSlots,
+        elderSlotType: String,
+        slotIndex: Int
+    ): String = when (elderSlotType) {
+        SLOT_TYPE_HERB_GARDEN ->
+            slots.herbGardenDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+        SLOT_TYPE_ALCHEMY ->
+            slots.alchemyDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+        SLOT_TYPE_FORGE ->
+            slots.forgeDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+        SLOT_TYPE_PREACHING ->
+            slots.preachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
+        SLOT_TYPE_LAW_ENFORCEMENT ->
+            slots.lawEnforcementDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+        SLOT_TYPE_QINGYUN ->
+            slots.qingyunPreachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
+        SLOT_TYPE_SPIRIT_MINE_DEACON ->
+            slots.spiritMineDeaconDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+        else -> ""
+    }
+
+    /** 亲传槽位写入（assignDirectDisciple 拆分）：扩容到 slotIndex 后覆写目标槽 */
+    private fun replaceElderSlot(
+        slots: ElderSlots,
+        elderSlotType: String,
+        slotIndex: Int,
+        newSlot: DirectDiscipleSlot
+    ): ElderSlots = when (elderSlotType) {
+        SLOT_TYPE_HERB_GARDEN -> {
+            val list = growElderSlotList(list = slots.herbGardenDisciples.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(herbGardenDisciples = list)
+        }
+        SLOT_TYPE_ALCHEMY -> {
+            val list = growElderSlotList(list = slots.alchemyDisciples.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(alchemyDisciples = list)
+        }
+        SLOT_TYPE_FORGE -> {
+            val list = growElderSlotList(list = slots.forgeDisciples.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(forgeDisciples = list)
+        }
+        SLOT_TYPE_PREACHING -> {
+            val list = growElderSlotList(list = slots.preachingMasters.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(preachingMasters = list)
+        }
+        SLOT_TYPE_LAW_ENFORCEMENT -> {
+            val list = growElderSlotList(list = slots.lawEnforcementDisciples.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(lawEnforcementDisciples = list)
+        }
+        SLOT_TYPE_QINGYUN -> {
+            val list = growElderSlotList(list = slots.qingyunPreachingMasters.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(qingyunPreachingMasters = list)
+        }
+        SLOT_TYPE_SPIRIT_MINE_DEACON -> {
+            val list = growElderSlotList(list = slots.spiritMineDeaconDisciples.toMutableList(), index = slotIndex)
+            list[slotIndex] = newSlot
+            slots.copy(spiritMineDeaconDisciples = list)
+        }
+        else -> slots
+    }
+
+    /** 亲传槽列表扩容（replaceElderSlot 拆分）：用空槽补齐至 index 位置 */
+    private fun growElderSlotList(
+        list: MutableList<DirectDiscipleSlot>,
+        index: Int
+    ): MutableList<DirectDiscipleSlot> {
+        while (list.size <= index) list.add(DirectDiscipleSlot())
+        return list
     }
 
     override fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) {

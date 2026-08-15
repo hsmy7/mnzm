@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.components
 
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import android.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -80,7 +81,7 @@ class AtlasPacker {
 
         if (entries.isEmpty()) return null
 
-        val atlasBmp = Bitmap.createBitmap(
+        val atlasBmp = createBitmap(
             atlasSize, atlasSize, Bitmap.Config.ARGB_8888
         )
         val canvas = Canvas(atlasBmp)
@@ -150,6 +151,9 @@ class AtlasPacker {
     private fun ImageBitmap.toAndroidBitmapCompat(): Bitmap {
         val pixels = IntArray(this.width * this.height)
         this.readPixels(pixels, 0, 0, this.width, this.height)
+        // D-36 豁免：KTX createBitmap 无 IntArray 重载（仅 width/height/config 形态），
+        // 像素数组→Bitmap 必须走静态工厂
+        @Suppress("UseKtx")
         return Bitmap.createBitmap(
             pixels, this.width, this.height, Bitmap.Config.ARGB_8888
         )

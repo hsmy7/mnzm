@@ -58,10 +58,10 @@ internal fun DisciplesTab(
             .distinctBy { it.id }
     }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
         SpiritRootAttributeFilterBar(
             selectedSpiritRootFilter = selectedSpiritRootFilter,
             selectedAttributeSort = selectedAttributeSort,
@@ -82,40 +82,54 @@ internal fun DisciplesTab(
             onRealmExpandToggle = { realmExpanded = !realmExpanded }
         )
 
-        if (filteredDisciples.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "暂无弟子",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
+        DiscipleGrid(
+            filteredDisciples = filteredDisciples,
+            onDiscipleClick = { disciple ->
+                viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, filteredDisciples))
             }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)
-                    .padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                items(
-                    items = filteredDisciples,
-                    key = { it.id },
-                    contentType = { "disciple" }
-                ) { disciple ->
-                    DiscipleCard(
-                        disciple = disciple,
-                        onClick = { viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, filteredDisciples)) }
-                    )
-                }
+        )
+    }
+}
+
+/** 弟子网格（DisciplesTab 拆分）：空态提示或三列弟子卡片网格 */
+@Composable
+private fun ColumnScope.DiscipleGrid(
+    filteredDisciples: List<DiscipleAggregate>,
+    onDiscipleClick: (DiscipleAggregate) -> Unit
+) {
+    if (filteredDisciples.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "暂无弟子",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        }
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            items(
+                items = filteredDisciples,
+                key = { it.id },
+                contentType = { "disciple" }
+            ) { disciple ->
+                DiscipleCard(
+                    disciple = disciple,
+                    onClick = { onDiscipleClick(disciple) }
+                )
             }
         }
     }

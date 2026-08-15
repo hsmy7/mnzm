@@ -62,131 +62,179 @@ internal fun SectInfoCard(
             modifier = Modifier
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val sectIconResId = sectIconRes(sectLevel)
-                if (sectIconResId != null) {
-                    Box(modifier = Modifier.size(28.dp)) {
-                        Image(
-                            painter = painterResource(id = sectIconResId),
-                            contentDescription = "宗门等级",
-                            modifier = Modifier
-                                .matchParentSize()
-                                .clickable { onSectIconClick() }
-                        )
-                        // 奖励可领取红点
-                        if (showRewardBadge) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 2.dp, y = (-4).dp)
-                                    .size(7.dp)
-                                    .background(Color.Red, CircleShape)
-                            )
-                        }
-                    }
-                }
-                Text(
-                    text = sectName,
-                    modifier = Modifier.clickable { onSectNameClick() },
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+            SectInfoHeaderRow(
+                sectName = sectName,
+                sectLevel = sectLevel,
+                showRewardBadge = showRewardBadge,
+                combatPower = combatPower,
+                onSectIconClick = onSectIconClick,
+                onSectNameClick = onSectNameClick
+            )
+            SectInfoStatsRow(
+                gameYear = gameYear,
+                gameMonth = gameMonth,
+                gamePhase = gamePhase,
+                discipleCount = discipleCount,
+                lowStones = lowStones,
+                midStones = midStones,
+                highStones = highStones
+            )
+        }
+    }
+}
+
+/** 顶部行（SectInfoCard 拆分）：宗门图标 + 宗门名 + 战力显示 */
+@Composable
+private fun SectInfoHeaderRow(
+    sectName: String,
+    sectLevel: Int,
+    showRewardBadge: Boolean,
+    combatPower: Long,
+    onSectIconClick: () -> Unit,
+    onSectNameClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val sectIconResId = sectIconRes(sectLevel)
+        if (sectIconResId != null) {
+            Box(modifier = Modifier.size(28.dp)) {
+                Image(
+                    painter = painterResource(id = sectIconResId),
+                    contentDescription = "宗门等级",
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable { onSectIconClick() }
                 )
-                Box(modifier = Modifier.size(width = 150.dp, height = 38.dp)) {
-                    val powerResId = SpriteResRegistry
-                        .resolve("combat_power_bg")
-                    if (powerResId != null) {
-                        Image(
-                            painter = painterResource(id = powerResId),
-                            contentDescription = "战斗力",
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                    }
-                    // 右侧78%居中，字号自适应（最大12sp）
-                    BoxWithConstraints(
+                // 奖励可领取红点
+                if (showRewardBadge) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.78f)
-                            .fillMaxHeight()
-                            .align(Alignment.CenterEnd)
-                    ) {
-                        val text = "$combatPower"
-                        val textMeasurer = rememberTextMeasurer()
-                        val density = LocalDensity.current
-                        val fontSize = remember(text, maxWidth, density) {
-                            val measured = textMeasurer.measure(
-                                text = AnnotatedString(text),
-                                style = TextStyle(
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Normal
-                                ),
-                                constraints = Constraints(
-                                    maxWidth = Int.MAX_VALUE
-                                )
-                            )
-                            val textWidthPx = measured.size.width.toFloat()
-                            val availablePx = with(density) {
-                                maxWidth.toPx()
-                            }
-                            val fits = textWidthPx <= availablePx
-                            if (fits || availablePx <= 0f) {
-                                12.sp
-                            } else {
-                                12.sp * (availablePx / textWidthPx)
-                            }
-                        }
-                        Text(
-                            text = text,
-                            fontSize = fontSize,
-                            fontWeight = FontWeight.Normal,
-                            color = Color.Red,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .offset(y = 4.dp)
-                        )
-                    }
+                            .align(Alignment.TopEnd)
+                            .offset(x = 2.dp, y = (-4).dp)
+                            .size(7.dp)
+                            .background(Color.Red, CircleShape)
+                    )
                 }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                val phaseName = com.xianxia.sect.core.model.GamePhase.fromValue(gamePhase).displayName
-                Text(
-                    text = "${gameYear}年${gameMonth}月$phaseName",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "弟子 $discipleCount",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-                val lowText = GameUtils.formatNumber(lowStones)
-                val midText = GameUtils.formatNumber(midStones)
-                val highText = GameUtils.formatNumber(highStones)
-                SpriteImage(
-                    name = "spirit_stone_low",
-                    contentDescription = "下品灵石",
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(text = lowText, fontSize = 12.sp, color = Color.Black)
-                SpriteImage(
-                    name = "spirit_stone_mid",
-                    contentDescription = "中品灵石",
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(text = midText, fontSize = 12.sp, color = Color.Black)
-                SpriteImage(
-                    name = "spirit_stone_high",
-                    contentDescription = "上品灵石",
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(text = highText, fontSize = 12.sp, color = Color.Black)
             }
         }
+        Text(
+            text = sectName,
+            modifier = Modifier.clickable { onSectNameClick() },
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        CombatPowerDisplay(combatPower = combatPower)
+    }
+}
+
+/** 战力显示（SectInfoCard 拆分）：战斗力图 + 右侧 78% 居中自适应字号数字 */
+@Composable
+private fun CombatPowerDisplay(combatPower: Long) {
+    Box(modifier = Modifier.size(width = 150.dp, height = 38.dp)) {
+        val powerResId = SpriteResRegistry
+            .resolve("combat_power_bg")
+        if (powerResId != null) {
+            Image(
+                painter = painterResource(id = powerResId),
+                contentDescription = "战斗力",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        }
+        // 右侧78%居中，字号自适应（最大12sp）
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth(0.78f)
+                .fillMaxHeight()
+                .align(Alignment.CenterEnd)
+        ) {
+            val text = "$combatPower"
+            val textMeasurer = rememberTextMeasurer()
+            val density = LocalDensity.current
+            val fontSize = remember(text, maxWidth, density) {
+                val measured = textMeasurer.measure(
+                    text = AnnotatedString(text),
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal
+                    ),
+                    constraints = Constraints(
+                        maxWidth = Int.MAX_VALUE
+                    )
+                )
+                val textWidthPx = measured.size.width.toFloat()
+                val availablePx = with(density) {
+                    maxWidth.toPx()
+                }
+                val fits = textWidthPx <= availablePx
+                if (fits || availablePx <= 0f) {
+                    12.sp
+                } else {
+                    12.sp * (availablePx / textWidthPx)
+                }
+            }
+            Text(
+                text = text,
+                fontSize = fontSize,
+                fontWeight = FontWeight.Normal,
+                color = Color.Red,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = 4.dp)
+            )
+        }
+    }
+}
+
+/** 信息行（SectInfoCard 拆分）：年月阶段 + 弟子数 + 三档灵石 */
+@Composable
+private fun SectInfoStatsRow(
+    gameYear: Int,
+    gameMonth: Int,
+    gamePhase: Int,
+    discipleCount: Int,
+    lowStones: Long,
+    midStones: Long,
+    highStones: Long
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        val phaseName = com.xianxia.sect.core.model.GamePhase.fromValue(gamePhase).displayName
+        Text(
+            text = "${gameYear}年${gameMonth}月$phaseName",
+            fontSize = 12.sp,
+            color = Color.Black
+        )
+        Text(
+            text = "弟子 $discipleCount",
+            fontSize = 12.sp,
+            color = Color.Black
+        )
+        val lowText = GameUtils.formatNumber(lowStones)
+        val midText = GameUtils.formatNumber(midStones)
+        val highText = GameUtils.formatNumber(highStones)
+        SpriteImage(
+            name = "spirit_stone_low",
+            contentDescription = "下品灵石",
+            modifier = Modifier.size(12.dp)
+        )
+        Text(text = lowText, fontSize = 12.sp, color = Color.Black)
+        SpriteImage(
+            name = "spirit_stone_mid",
+            contentDescription = "中品灵石",
+            modifier = Modifier.size(12.dp)
+        )
+        Text(text = midText, fontSize = 12.sp, color = Color.Black)
+        SpriteImage(
+            name = "spirit_stone_high",
+            contentDescription = "上品灵石",
+            modifier = Modifier.size(12.dp)
+        )
+        Text(text = highText, fontSize = 12.sp, color = Color.Black)
     }
 }

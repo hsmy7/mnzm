@@ -69,30 +69,39 @@ class CustomVelocityTracker(
 
         if (n < 3) {
             // 线性最小二乘（一次拟合）：position = B0 + B1*t，速度 = B1
-            var sumT = 0.0; var sumTT = 0.0
-            var sumX = 0.0; var sumTX = 0.0
-            var sumY = 0.0; var sumTY = 0.0
-
-            for (s in data) {
-                val t = (s.time - t0) / 1_000_000_000.0
-                sumT += t; sumTT += t * t
-                sumX += s.x.toDouble(); sumTX += t * s.x.toDouble()
-                sumY += s.y.toDouble(); sumTY += t * s.y.toDouble()
-            }
-
-            val denom = n * sumTT - sumT * sumT
-            if (kotlin.math.abs(denom) < 1e-12) return Velocity2D(0f, 0f)
-
-            return Velocity2D(
-                x = ((n * sumTX - sumT * sumX) / denom).toFloat(),
-                y = ((n * sumTY - sumT * sumY) / denom).toFloat()
-            )
+            return linearLeastSquaresVelocity(data = data, n = n, t0 = t0)
         }
 
         // 二次最小二乘拟合：position = B0 + B1*t + B2*t²
         // t0 = 最新采样点 → 最新点处 t=0，速度 = B1（一阶导数）
         // 参考 Android AOSP VelocityTracker LSQ2 策略
+        return quadraticLeastSquaresVelocity(data = data, n = n, t0 = t0)
+    }
 
+    /** 线性最小二乘（leastSquaresVelocity 拆分）：一次拟合，速度 = B1 */
+    private fun linearLeastSquaresVelocity(data: List<Sample>, n: Int, t0: Long): Velocity2D {
+        var sumT = 0.0; var sumTT = 0.0
+        var sumX = 0.0; var sumTX = 0.0
+        var sumY = 0.0; var sumTY = 0.0
+
+        for (s in data) {
+            val t = (s.time - t0) / 1_000_000_000.0
+            sumT += t; sumTT += t * t
+            sumX += s.x.toDouble(); sumTX += t * s.x.toDouble()
+            sumY += s.y.toDouble(); sumTY += t * s.y.toDouble()
+        }
+
+        val denom = n * sumTT - sumT * sumT
+        if (abs(denom) < 1e-12) return Velocity2D(0f, 0f)
+
+        return Velocity2D(
+            x = ((n * sumTX - sumT * sumX) / denom).toFloat(),
+            y = ((n * sumTY - sumT * sumY) / denom).toFloat()
+        )
+    }
+
+    /** 二次最小二乘（leastSquaresVelocity 拆分）：累加正规方程系数 + 高斯消元，速度 = B1 */
+    private fun quadraticLeastSquaresVelocity(data: List<Sample>, n: Int, t0: Long): Velocity2D {
         var sumT = 0.0; var sumT2 = 0.0; var sumT3 = 0.0; var sumT4 = 0.0
         var sumX = 0.0; var sumTX = 0.0; var sumT2X = 0.0
         var sumY = 0.0; var sumTY = 0.0; var sumT2Y = 0.0
@@ -123,16 +132,31 @@ class CustomVelocityTracker(
         val bx = doubleArrayOf(sumX, sumTX, sumT2X)
         val by = doubleArrayOf(sumY, sumTY, sumT2Y)
 
-        // 高斯消元（3x3 列主元）
+        // 高斯消元（3x3 列主元）求解，奇异（主元 < 1e-12）返回零速度
+        val coeffs = solveLinearSystem(m = m, bx = bx, by = by)
+            ?: return Velocity2D(0f, 0f)
+
+        return Velocity2D(
+            x = coeffs.first[1].toFloat(),
+            y = coeffs.second[1].toFloat()
+        )
+    }
+
+    /** 3x3 列主元高斯消元（leastSquaresVelocity 拆分）：返回 (x, y) 系数，奇异返回 null */
+    private fun solveLinearSystem(
+        m: Array<DoubleArray>,
+        bx: DoubleArray,
+        by: DoubleArray
+    ): Pair<DoubleArray, DoubleArray>? {
         for (col in 0..1) {
             // 选主元
             var maxRow = col
             for (row in col..2) {
-                if (kotlin.math.abs(m[row][col]) > kotlin.math.abs(m[maxRow][col])) {
+                if (abs(m[row][col]) > abs(m[maxRow][col])) {
                     maxRow = row
                 }
             }
-            if (kotlin.math.abs(m[maxRow][col]) < 1e-12) return Velocity2D(0f, 0f)
+            if (abs(m[maxRow][col]) < 1e-12) return null
             // 交换行
             val tmpM = m[col]; m[col] = m[maxRow]; m[maxRow] = tmpM
             val tmpX = bx[col]; bx[col] = bx[maxRow]; bx[maxRow] = tmpX
@@ -159,10 +183,7 @@ class CustomVelocityTracker(
             coeffY[row] /= m[row][row]
         }
 
-        return Velocity2D(
-            x = coeffX[1].toFloat(),
-            y = coeffY[1].toFloat()
-        )
+        return Pair(coeffX, coeffY)
     }
 
     /** 清除所有历史 */

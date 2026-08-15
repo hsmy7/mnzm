@@ -21,10 +21,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -50,9 +51,10 @@ fun SmallScreenDialog(
     overlay: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val config = LocalConfiguration.current
-    val dialogWidth = (config.screenWidthDp * 0.5f).dp
-    val dialogHeight = (config.screenHeightDp * 0.55f).dp
+    // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp/screenHeightDp
+    val windowSize = LocalWindowInfo.current.containerSize
+    val dialogWidth = (windowSize.width / 2).dp
+    val dialogHeight = (windowSize.height * 0.55f).dp
 
     Dialog(
         onDismissRequest = if (dismissOnClickOutside) onDismissRequest else {{}},
@@ -71,57 +73,83 @@ fun SmallScreenDialog(
         // 在窗口 token 失效后弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
         DialogFocusGuard()
 
-        Box(
+        SmallScreenDialogFrame(
+            title = title,
+            titleColor = titleColor,
+            dialogWidth = dialogWidth,
+            dialogHeight = dialogHeight,
+            onDismissRequest = onDismissRequest,
+            footer = footer,
+            overlay = overlay,
+            content = content
+        )
+    }
+}
+
+/** 小屏对话框内容框（SmallScreenDialog 拆分）：背景图 + 标题行 + 滚动内容区 + 底部 footer + 覆盖层槽位 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun SmallScreenDialogFrame(
+    title: String,
+    titleColor: Color,
+    dialogWidth: Dp,
+    dialogHeight: Dp,
+    onDismissRequest: () -> Unit,
+    footer: @Composable ColumnScope.() -> Unit,
+    overlay: (@Composable (() -> Unit))?,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(dialogWidth)
+            .height(dialogHeight)
+            .clip(RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
+        Column(
             modifier = Modifier
-                .width(dialogWidth)
-                .height(dialogHeight)
-                .clip(RoundedCornerShape(12.dp)),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
+            // Header: title + close button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = titleColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+                CloseButton(onClick = onDismissRequest)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Scrollable content area
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
             ) {
-                // Header: title + close button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = titleColor,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f)
-                    )
-                    CloseButton(onClick = onDismissRequest)
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Scrollable content area
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    content()
-                }
-                // Footer area — outside scroll, pinned at bottom
-                footer()
+                content()
             }
-            // 窗口级覆盖层槽位：Column 之后渲染（BoxScope 内 z 序最高），
-            // 内联覆盖层 fillMaxSize 覆盖整个窗口框
-            overlay?.invoke()
+            // Footer area — outside scroll, pinned at bottom
+            footer()
         }
+        // 窗口级覆盖层槽位：Column 之后渲染（BoxScope 内 z 序最高），
+        // 内联覆盖层 fillMaxSize 覆盖整个窗口框
+        overlay?.invoke()
     }
 }

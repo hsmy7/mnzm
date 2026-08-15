@@ -17,6 +17,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleFilterState
 import com.xianxia.sect.ui.game.dialogs.shared.rememberDiscipleFilterState
 
 /**
@@ -62,52 +63,82 @@ fun MasterApprenticeSelectDialog(
         mode = DialogMode.Half,
         scrollableContent = false,
         headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = filterState.spiritRootFilter,
-                selectedAttributeSort = filterState.attributeSort,
-                selectedRealmFilter = filterState.realmFilter,
+            MasterApprenticeFilterBar(
+                filterState = filterState,
                 realmFilterOptions = realmFilterOptions,
                 realmCounts = realmCounts,
-                spiritRootExpanded = filterState.spiritRootExpanded,
-                attributeExpanded = filterState.attributeExpanded,
-                realmExpanded = filterState.realmExpanded,
-                spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { filterState.spiritRootFilter += it },
-                onSpiritRootFilterRemoved = { filterState.spiritRootFilter -= it },
-                onAttributeSortSelected = { filterState.attributeSort = it },
-                onRealmFilterSelected = { filterState.realmFilter += it },
-                onRealmFilterRemoved = { filterState.realmFilter -= it },
-                onSpiritRootExpandToggle = { filterState.spiritRootExpanded = !filterState.spiritRootExpanded },
-                onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
-                onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded }
+                spiritRootCounts = spiritRootCounts
             )
         }
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            if (filtered.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "没有可拜师的弟子", fontSize = 14.sp, color = Color.Black)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(filtered, key = { it.id }, contentType = { "disciple" }) { master ->
-                        PortraitDiscipleCard(
-                            disciple = master,
-                            isSelected = false,
-                            onClick = {
-                                onMasterSelected(master)
-                                onDismiss()
-                            }
-                        )
-                    }
+        MasterApprenticeGrid(
+            filtered = filtered,
+            onMasterSelected = onMasterSelected,
+            onDismiss = onDismiss
+        )
+    }
+}
+
+/** 师父候选筛选栏（MasterApprenticeSelectDialog 拆分） */
+@Composable
+private fun MasterApprenticeFilterBar(
+    filterState: DiscipleFilterState,
+    realmFilterOptions: List<Pair<Int, String>>,
+    realmCounts: Map<Int, Int>,
+    spiritRootCounts: Map<Int, Int>
+) {
+    SpiritRootAttributeFilterBar(
+        selectedSpiritRootFilter = filterState.spiritRootFilter,
+        selectedAttributeSort = filterState.attributeSort,
+        selectedRealmFilter = filterState.realmFilter,
+        realmFilterOptions = realmFilterOptions,
+        realmCounts = realmCounts,
+        spiritRootExpanded = filterState.spiritRootExpanded,
+        attributeExpanded = filterState.attributeExpanded,
+        realmExpanded = filterState.realmExpanded,
+        spiritRootCounts = spiritRootCounts,
+        onSpiritRootFilterSelected = { filterState.spiritRootFilter += it },
+        onSpiritRootFilterRemoved = { filterState.spiritRootFilter -= it },
+        onAttributeSortSelected = { filterState.attributeSort = it },
+        onRealmFilterSelected = { filterState.realmFilter += it },
+        onRealmFilterRemoved = { filterState.realmFilter -= it },
+        onSpiritRootExpandToggle = { filterState.spiritRootExpanded = !filterState.spiritRootExpanded },
+        onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
+        onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded }
+    )
+}
+
+/** 师父候选网格（MasterApprenticeSelectDialog 拆分）：空态提示 + 弟子卡片网格 */
+@Composable
+private fun MasterApprenticeGrid(
+    filtered: List<DiscipleAggregate>,
+    onMasterSelected: (DiscipleAggregate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (filtered.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "没有可拜师的弟子", fontSize = 14.sp, color = Color.Black)
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(filtered, key = { it.id }, contentType = { "disciple" }) { master ->
+                    PortraitDiscipleCard(
+                        disciple = master,
+                        isSelected = false,
+                        onClick = {
+                            onMasterSelected(master)
+                            onDismiss()
+                        }
+                    )
                 }
             }
         }

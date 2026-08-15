@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -47,125 +48,176 @@ fun ResidenceDialog(
     val discipleMap = disciples.associateBy { it.id }
 
     var showDiscipleSelector by remember { mutableStateOf(false) }
-    var selectedSlotIndex by remember { mutableStateOf(0) }
+    var selectedSlotIndex by remember { mutableIntStateOf(0) }
     var isSwapping by remember { mutableStateOf(false) }
 
-    // Main dialog
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "弟子住所",
         mode = DialogMode.Half,
         scrollableContent = true
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Bonus text
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                val bonusParts = bonusText.split("+")
-                if (bonusParts.size == 2) {
-                    Text(
-                        text = bonusParts[0],
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "+${bonusParts[1]}",
-                        fontSize = 12.sp,
-                        color = GameColors.Success,
-                        fontWeight = FontWeight.Bold
-                    )
+        ResidenceDialogContent(
+            slots = slots,
+            discipleMap = discipleMap,
+            bonusText = bonusText,
+            onEmptySlotClick = { selectedSlotIndex = it; isSwapping = false; showDiscipleSelector = true },
+            onMoveOut = { index ->
+                scope.launch {
+                    viewModel.removeFromResidence(buildingInstanceId, index)
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Disciple slots
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
-            ) {
-                slots.forEach { slot ->
-                    val disciple = slot.discipleId.let { id ->
-                        if (id.isNotEmpty()) discipleMap[id] else null
-                    }
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        DiscipleSlot(
-                            disciple = disciple,
-                            onEmptySlotClick = {
-                                selectedSlotIndex = slot.slotIndex
-                                isSwapping = false
-                                showDiscipleSelector = true
-                            }
-                        )
-                        if (disciple != null) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text(
-                                    text = "搬离",
-                                    fontSize = 9.sp,
-                                    color = Color(0xFFE53935),
-                                    modifier = Modifier.clickable {
-                                        scope.launch {
-                                            viewModel.removeFromResidence(buildingInstanceId, slot.slotIndex)
-                                        }
-                                    }
-                                )
-                                Text(
-                                    text = "更换",
-                                    fontSize = 9.sp,
-                                    color = Color.Black,
-                                    modifier = Modifier.clickable {
-                                        selectedSlotIndex = slot.slotIndex
-                                        isSwapping = true
-                                        showDiscipleSelector = true
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-        }
-    }
-
-    // Disciple selector
-    if (showDiscipleSelector) {
-        val showAllEnabled = gameData.showAllAvailableDisciples
-        val battleAndExplorationIds = remember {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
-            battleIds + explorationIds
-        }
-        val occupiedIds = gameData.residenceSlots.mapNotNull { it.discipleId.ifEmpty { null } }.toSet()
-        val eligibleDisciples = disciples.filter { it.isAlive && it.id !in occupiedIds }
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(
-                title = if (isSwapping) "更换弟子" else "选择入住弟子",
-                emptyMessage = "没有可分配的弟子"
-            ),
-            disciples = eligibleDisciples,
-            onDismiss = { showDiscipleSelector = false; isSwapping = false },
-            onConfirm = { selected ->
-                if (selected.isNotEmpty()) {
-                    scope.launch {
-                        viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
-                    }
-                }
-                showDiscipleSelector = false
-                isSwapping = false
             },
-            viewModel = viewModel,
-            showAllEnabled = showAllEnabled,
-            battleAndExplorationIds = battleAndExplorationIds
+            onSwap = { selectedSlotIndex = it; isSwapping = true; showDiscipleSelector = true }
         )
     }
+    if (showDiscipleSelector) {
+        ResidenceDiscipleSelector(
+            buildingInstanceId = buildingInstanceId,
+            gameData = gameData,
+            disciples = disciples,
+            viewModel = viewModel,
+            selectedSlotIndex = selectedSlotIndex,
+            isSwapping = isSwapping,
+            onDismiss = { showDiscipleSelector = false; isSwapping = false }
+        )
+    }
+}
+
+/** 弟子住所主内容区（ResidenceDialog 拆分）：加成文案 + 槽位行 */
+@Composable
+private fun ResidenceDialogContent(
+    slots: List<ResidenceSlot>,
+    discipleMap: Map<String, DiscipleAggregate>,
+    bonusText: String,
+    onEmptySlotClick: (Int) -> Unit,
+    onMoveOut: (Int) -> Unit,
+    onSwap: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Bonus text
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            val bonusParts = bonusText.split("+")
+            if (bonusParts.size == 2) {
+                Text(
+                    text = bonusParts[0],
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = "+${bonusParts[1]}",
+                    fontSize = 12.sp,
+                    color = GameColors.Success,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Disciple slots
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
+        ) {
+            slots.forEach { slot ->
+                val disciple = slot.discipleId.let { id ->
+                    if (id.isNotEmpty()) discipleMap[id] else null
+                }
+                ResidenceSlotColumn(
+                    slot = slot,
+                    disciple = disciple,
+                    onEmptySlotClick = { onEmptySlotClick(slot.slotIndex) },
+                    onMoveOut = { onMoveOut(slot.slotIndex) },
+                    onSwap = { onSwap(slot.slotIndex) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+/** 单个住所槽位（ResidenceDialog 拆分）：弟子槽 + 搬离/更换操作 */
+// 拆分搬移:参数保留原签名语义
+@Suppress("UnusedParameter")
+@Composable
+private fun ResidenceSlotColumn(
+    slot: ResidenceSlot,
+    disciple: DiscipleAggregate?,
+    onEmptySlotClick: () -> Unit,
+    onMoveOut: () -> Unit,
+    onSwap: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        DiscipleSlot(
+            disciple = disciple,
+            onEmptySlotClick = onEmptySlotClick
+        )
+        if (disciple != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "搬离",
+                    fontSize = 9.sp,
+                    color = Color(0xFFE53935),
+                    modifier = Modifier.clickable { onMoveOut() }
+                )
+                Text(
+                    text = "更换",
+                    fontSize = 9.sp,
+                    color = Color.Black,
+                    modifier = Modifier.clickable { onSwap() }
+                )
+            }
+        }
+    }
+}
+
+/** 入住/更换弟子选择弹窗（ResidenceDialog 拆分） */
+@Composable
+private fun ResidenceDiscipleSelector(
+    buildingInstanceId: String,
+    gameData: GameData,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel,
+    selectedSlotIndex: Int,
+    isSwapping: Boolean,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val showAllEnabled = gameData.showAllAvailableDisciples
+    val battleAndExplorationIds = remember {
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+    val occupiedIds = gameData.residenceSlots.mapNotNull { it.discipleId.ifEmpty { null } }.toSet()
+    val eligibleDisciples = disciples.filter { it.isAlive && it.id !in occupiedIds }
+    DiscipleSelectorDialog(
+        config = DiscipleSelectorConfig(
+            title = if (isSwapping) "更换弟子" else "选择入住弟子",
+            emptyMessage = "没有可分配的弟子"
+        ),
+        disciples = eligibleDisciples,
+        onDismiss = onDismiss,
+        onConfirm = { selected ->
+            if (selected.isNotEmpty()) {
+                scope.launch {
+                    viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
+                }
+            }
+            onDismiss()
+        },
+        viewModel = viewModel,
+        showAllEnabled = showAllEnabled,
+        battleAndExplorationIds = battleAndExplorationIds
+    )
 }

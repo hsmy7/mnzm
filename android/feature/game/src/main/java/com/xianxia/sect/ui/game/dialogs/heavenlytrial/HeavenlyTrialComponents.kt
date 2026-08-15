@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs.heavenlytrial
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
@@ -41,12 +42,12 @@ import androidx.compose.ui.zIndex
 @Composable
 internal fun CombatUnitCell(
     combatant: Combatant?,
+    modifier: Modifier = Modifier,
     isCurrent: Boolean = false,
     isAllySelected: Boolean = false,
     isEnemySelected: Boolean = false,
     isShaking: Boolean = false,
     flightAnim: FlightAnimState = FlightAnimState(),
-    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val bgColor = when {
@@ -56,6 +57,33 @@ internal fun CombatUnitCell(
         else -> Color.Transparent
     }
 
+    val shakeOffset = rememberShakeOffset(isShaking = isShaking)
+    val flightProgress = rememberFlightProgress(flightAnim = flightAnim)
+
+    val transX = flightAnim.deltaX * flightProgress.value
+    val transY = flightAnim.deltaY * flightProgress.value
+
+    Box(
+        modifier = modifier
+            .zIndex(if (flightAnim.isActive) 10f else 0f)
+            .background(bgColor)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        if (combatant != null && !combatant.isDead) {
+            CombatUnitCellContent(
+                combatant = combatant,
+                shakeOffset = shakeOffset,
+                transX = transX,
+                transY = transY
+            )
+        }
+    }
+}
+
+/** 受击抖动偏移（CombatUnitCell 拆分）：isShaking 触发 6 段往返抖动 */
+@Composable
+private fun rememberShakeOffset(isShaking: Boolean): Animatable<Float, AnimationVector1D> {
     val shakeOffset = remember { Animatable(0f) }
     LaunchedEffect(isShaking) {
         if (isShaking) {
@@ -67,7 +95,12 @@ internal fun CombatUnitCell(
             shakeOffset.animateTo(0f, tween(40))
         }
     }
+    return shakeOffset
+}
 
+/** 飞行动画进度（CombatUnitCell 拆分）：按相位推进 0→1→0 */
+@Composable
+private fun rememberFlightProgress(flightAnim: FlightAnimState): Animatable<Float, AnimationVector1D> {
     val flightProgress = remember { Animatable(0f) }
     LaunchedEffect(flightAnim.phase, flightAnim.isActive) {
         if (flightAnim.isActive) {
@@ -87,55 +120,52 @@ internal fun CombatUnitCell(
             flightProgress.snapTo(0f)
         }
     }
+    return flightProgress
+}
 
-    val transX = flightAnim.deltaX * flightProgress.value
-    val transY = flightAnim.deltaY * flightProgress.value
-
-    Box(
-        modifier = modifier
-            .zIndex(if (flightAnim.isActive) 10f else 0f)
-            .background(bgColor)
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        if (combatant != null && !combatant.isDead) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.graphicsLayer {
-                    translationX = shakeOffset.value + transX
-                    translationY = transY
-                }
-            ) {
-                if (combatant.hasControlEffect) {
-                    Text("晕眩", fontSize = 9.sp, color = Color.Red)
-                } else {
-                    Text("${combatant.hp}/${combatant.maxHp}", fontSize = 9.sp, color = Color.White)
-                }
-                Spacer(Modifier.height(2.dp))
-
-                val hpPercent = (combatant.hp.toFloat() / combatant.maxHp).coerceIn(0f, 1f)
-                val barColor = when {
-                    hpPercent > 0.5f -> GameColors.Success
-                    hpPercent > 0.25f -> Color(0xFFFFEB3B)
-                    else -> GameColors.Error
-                }
-                Box(
-                    modifier = Modifier
-                        .width(44.dp).height(5.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.DarkGray)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(fraction = hpPercent)
-                            .background(barColor, RoundedCornerShape(2.dp))
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                CombatantPortrait(combatant = combatant, size = 44)
-            }
+/** 战斗单位血量/头像内容（CombatUnitCell 拆分）：状态文本 + 血条 + 肖像 */
+@Composable
+private fun CombatUnitCellContent(
+    combatant: Combatant,
+    shakeOffset: Animatable<Float, AnimationVector1D>,
+    transX: Float,
+    transY: Float
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.graphicsLayer {
+            translationX = shakeOffset.value + transX
+            translationY = transY
         }
+    ) {
+        if (combatant.hasControlEffect) {
+            Text("晕眩", fontSize = 9.sp, color = Color.Red)
+        } else {
+            Text("${combatant.hp}/${combatant.maxHp}", fontSize = 9.sp, color = Color.White)
+        }
+        Spacer(Modifier.height(2.dp))
+
+        val hpPercent = (combatant.hp.toFloat() / combatant.maxHp).coerceIn(0f, 1f)
+        val barColor = when {
+            hpPercent > 0.5f -> GameColors.Success
+            hpPercent > 0.25f -> Color(0xFFFFEB3B)
+            else -> GameColors.Error
+        }
+        Box(
+            modifier = Modifier
+                .width(44.dp).height(5.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Color.DarkGray)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(fraction = hpPercent)
+                    .background(barColor, RoundedCornerShape(2.dp))
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        CombatantPortrait(combatant = combatant, size = 44)
     }
 }
 

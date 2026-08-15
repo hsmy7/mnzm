@@ -29,9 +29,9 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun <T> GridRow(
     items: List<T>,
+    modifier: Modifier = Modifier,
     columns: Int = 4,
     maxColumnWidth: Dp = Dp.Unspecified,
-    modifier: Modifier = Modifier,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp),
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
     itemContent: @Composable RowScope.(T) -> Unit

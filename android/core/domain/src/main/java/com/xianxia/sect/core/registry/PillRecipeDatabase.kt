@@ -76,6 +76,13 @@ object PillRecipeDatabase {
 
     private fun generateCultivationRecipes(): List<PillRecipe> {
         val recipes = mutableListOf<PillRecipe>()
+        addCultivationStandardRecipes(recipes = recipes)
+        addCultivationBreakthroughRecipes(recipes = recipes)
+        return recipes
+    }
+
+    /** 常规修炼配方（generateCultivationRecipes 拆分）：六系修炼/加值丹配方 */
+    private fun addCultivationStandardRecipes(recipes: MutableList<PillRecipe>) {
         val pillTypes = listOf("cultivationSpeed", "skillExpSpeed", "nurtureSpeed", "cultivationAdd", "skillExpAdd", "nurtureAdd")
         val herbPatterns = listOf(
             listOf(0, 3), listOf(1, 6), listOf(2, 4), listOf(0, 7), listOf(5, 8), listOf(3, 7)
@@ -112,7 +119,10 @@ object PillRecipeDatabase {
                 }
             }
         }
+    }
 
+    /** 突破配方（generateCultivationRecipes 拆分）：聚气/筑基/凝金等突破成功率丹配方 */
+    private fun addCultivationBreakthroughRecipes(recipes: MutableList<PillRecipe>) {
         val breakthroughData = listOf(
             Pair(1, listOf(Pair(9, "聚气丹"))),
             Pair(2, listOf(Pair(8, "筑基丹"), Pair(7, "凝金丹"), Pair(6, "结婴丹"))),
@@ -157,175 +167,206 @@ object PillRecipeDatabase {
                 }
             }
         }
-
-        return recipes
     }
 
     private fun generateBattleRecipes(): List<PillRecipe> {
         val recipes = mutableListOf<PillRecipe>()
-        val singleTypes = listOf("physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "hp", "mp", "speed")
-        val dualTypes = listOf("physicalAttackDefense", "magicAttackDefense", "attackMixed", "defenseMixed", "hpMp", "attackSpeed", "magicSpeed")
-        val critTypes = listOf("critRate", "critEffect")
-
         for (tier in 1..6) {
-            val duration = TIER_DURATION.getValue(tier)
-            val successRate = TIER_SUCCESS_RATE.getValue(tier)
-            val rarity = tier
-            val herbs = TIER_HERB_IDS.getValue(tier)
+            addBattleSingleRecipes(recipes = recipes, tier = tier)
+            addBattleDualRecipes(recipes = recipes, tier = tier)
+            addBattleCritRecipes(recipes = recipes, tier = tier)
+        }
+        return recipes
+    }
 
-            for ((idx, pillType) in singleTypes.withIndex()) {
-                val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 4) % herbs.size] to 2)
-                for (grade in PillGrade.entries) {
-                    val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
-                    recipes.add(PillRecipe(
-                        id = template.id,
-                        name = template.name,
-                        tier = tier,
-                        rarity = rarity,
-                        category = PillCategory.BATTLE,
-                        grade = grade,
-                        pillType = pillType,
-                        description = template.description,
-                        materials = materials,
-                        duration = duration,
-                        successRate = successRate,
-                        physicalAttackAdd = template.physicalAttackAdd,
-                        magicAttackAdd = template.magicAttackAdd,
-                        physicalDefenseAdd = template.physicalDefenseAdd,
-                        magicDefenseAdd = template.magicDefenseAdd,
-                        hpAdd = template.hpAdd,
-                        mpAdd = template.mpAdd,
-                        speedAdd = template.speedAdd
-                    ))
-                }
-            }
+    /** 单属性战斗配方（generateBattleRecipes 拆分） */
+    private fun addBattleSingleRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
+        val duration = TIER_DURATION.getValue(tier)
+        val successRate = TIER_SUCCESS_RATE.getValue(tier)
+        val rarity = tier
+        val herbs = TIER_HERB_IDS.getValue(tier)
+        val singleTypes = listOf("physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "hp", "mp", "speed")
 
-            for ((idx, pillType) in dualTypes.withIndex()) {
-                val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 3) % herbs.size] to 2)
-                for (grade in PillGrade.entries) {
-                    val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
-                    recipes.add(PillRecipe(
-                        id = template.id,
-                        name = template.name,
-                        tier = tier,
-                        rarity = rarity,
-                        category = PillCategory.BATTLE,
-                        grade = grade,
-                        pillType = pillType,
-                        description = template.description,
-                        materials = materials,
-                        duration = duration,
-                        successRate = successRate,
-                        physicalAttackAdd = template.physicalAttackAdd,
-                        magicAttackAdd = template.magicAttackAdd,
-                        physicalDefenseAdd = template.physicalDefenseAdd,
-                        magicDefenseAdd = template.magicDefenseAdd,
-                        hpAdd = template.hpAdd,
-                        mpAdd = template.mpAdd,
-                        speedAdd = template.speedAdd
-                    ))
-                }
-            }
-
-            for (pillType in critTypes) {
-                val materials = mapOf(herbs[0] to 2, herbs[5] to 2)
-                for (grade in PillGrade.entries) {
-                    val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
-                    recipes.add(PillRecipe(
-                        id = template.id,
-                        name = template.name,
-                        tier = tier,
-                        rarity = rarity,
-                        category = PillCategory.BATTLE,
-                        grade = grade,
-                        pillType = pillType,
-                        description = template.description,
-                        materials = materials,
-                        duration = duration,
-                        successRate = successRate,
-                        critRateAdd = template.critRateAdd,
-                        critEffectAdd = template.critEffectAdd
-                    ))
-                }
+        for ((idx, pillType) in singleTypes.withIndex()) {
+            val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 4) % herbs.size] to 2)
+            for (grade in PillGrade.entries) {
+                val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
+                recipes.add(PillRecipe(
+                    id = template.id,
+                    name = template.name,
+                    tier = tier,
+                    rarity = rarity,
+                    category = PillCategory.BATTLE,
+                    grade = grade,
+                    pillType = pillType,
+                    description = template.description,
+                    materials = materials,
+                    duration = duration,
+                    successRate = successRate,
+                    physicalAttackAdd = template.physicalAttackAdd,
+                    magicAttackAdd = template.magicAttackAdd,
+                    physicalDefenseAdd = template.physicalDefenseAdd,
+                    magicDefenseAdd = template.magicDefenseAdd,
+                    hpAdd = template.hpAdd,
+                    mpAdd = template.mpAdd,
+                    speedAdd = template.speedAdd
+                ))
             }
         }
+    }
 
-        return recipes
+    /** 双属性战斗配方（generateBattleRecipes 拆分） */
+    private fun addBattleDualRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
+        val duration = TIER_DURATION.getValue(tier)
+        val successRate = TIER_SUCCESS_RATE.getValue(tier)
+        val rarity = tier
+        val herbs = TIER_HERB_IDS.getValue(tier)
+        val dualTypes = listOf("physicalAttackDefense", "magicAttackDefense", "attackMixed", "defenseMixed", "hpMp", "attackSpeed", "magicSpeed")
+
+        for ((idx, pillType) in dualTypes.withIndex()) {
+            val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 3) % herbs.size] to 2)
+            for (grade in PillGrade.entries) {
+                val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
+                recipes.add(PillRecipe(
+                    id = template.id,
+                    name = template.name,
+                    tier = tier,
+                    rarity = rarity,
+                    category = PillCategory.BATTLE,
+                    grade = grade,
+                    pillType = pillType,
+                    description = template.description,
+                    materials = materials,
+                    duration = duration,
+                    successRate = successRate,
+                    physicalAttackAdd = template.physicalAttackAdd,
+                    magicAttackAdd = template.magicAttackAdd,
+                    physicalDefenseAdd = template.physicalDefenseAdd,
+                    magicDefenseAdd = template.magicDefenseAdd,
+                    hpAdd = template.hpAdd,
+                    mpAdd = template.mpAdd,
+                    speedAdd = template.speedAdd
+                ))
+            }
+        }
+    }
+
+    /** 暴击类战斗配方（generateBattleRecipes 拆分） */
+    private fun addBattleCritRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
+        val duration = TIER_DURATION.getValue(tier)
+        val successRate = TIER_SUCCESS_RATE.getValue(tier)
+        val rarity = tier
+        val herbs = TIER_HERB_IDS.getValue(tier)
+        val critTypes = listOf("critRate", "critEffect")
+
+        for (pillType in critTypes) {
+            val materials = mapOf(herbs[0] to 2, herbs[5] to 2)
+            for (grade in PillGrade.entries) {
+                val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
+                recipes.add(PillRecipe(
+                    id = template.id,
+                    name = template.name,
+                    tier = tier,
+                    rarity = rarity,
+                    category = PillCategory.BATTLE,
+                    grade = grade,
+                    pillType = pillType,
+                    description = template.description,
+                    materials = materials,
+                    duration = duration,
+                    successRate = successRate,
+                    critRateAdd = template.critRateAdd,
+                    critEffectAdd = template.critEffectAdd
+                ))
+            }
+        }
     }
 
     private fun generateFunctionalRecipes(): List<PillRecipe> {
         val recipes = mutableListOf<PillRecipe>()
-        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining", "pillRefining", "spiritPlanting", "teaching", "morality", "mining")
-        val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining", "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
-
         for (tier in 1..6) {
-            val duration = TIER_DURATION.getValue(tier)
-            val successRate = TIER_SUCCESS_RATE.getValue(tier)
-            val rarity = tier
-            val herbs = TIER_HERB_IDS.getValue(tier)
+            addFunctionalSingleRecipes(recipes = recipes, tier = tier)
+            addFunctionalDualRecipes(recipes = recipes, tier = tier)
+        }
+        return recipes
+    }
 
-            for ((idx, pillType) in singleTypes.withIndex()) {
-                val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 6) % herbs.size] to 2)
-                for (grade in PillGrade.entries) {
-                    val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
-                    recipes.add(PillRecipe(
-                        id = template.id,
-                        name = template.name,
-                        tier = tier,
-                        rarity = rarity,
-                        category = PillCategory.FUNCTIONAL,
-                        grade = grade,
-                        pillType = pillType,
-                        description = template.description,
-                        materials = materials,
-                        duration = duration,
-                        successRate = successRate,
-                        extendLife = template.extendLife,
-                        intelligenceAdd = template.intelligenceAdd,
-                        charmAdd = template.charmAdd,
-                        loyaltyAdd = template.loyaltyAdd,
-                        comprehensionAdd = template.comprehensionAdd,
-                        artifactRefiningAdd = template.artifactRefiningAdd,
-                        pillRefiningAdd = template.pillRefiningAdd,
-                        spiritPlantingAdd = template.spiritPlantingAdd,
-                        teachingAdd = template.teachingAdd,
-                        moralityAdd = template.moralityAdd,
-                        miningAdd = template.miningAdd
-                    ))
-                }
-            }
+    /** 单基础属性功能配方（generateFunctionalRecipes 拆分） */
+    private fun addFunctionalSingleRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
+        val duration = TIER_DURATION.getValue(tier)
+        val successRate = TIER_SUCCESS_RATE.getValue(tier)
+        val rarity = tier
+        val herbs = TIER_HERB_IDS.getValue(tier)
+        val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining", "pillRefining", "spiritPlanting", "teaching", "morality", "mining")
 
-            for ((idx, pillType) in dualTypes.withIndex()) {
-                val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 2) % herbs.size] to 2)
-                for (grade in PillGrade.entries) {
-                    val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
-                    recipes.add(PillRecipe(
-                        id = template.id,
-                        name = template.name,
-                        tier = tier,
-                        rarity = rarity,
-                        category = PillCategory.FUNCTIONAL,
-                        grade = grade,
-                        pillType = pillType,
-                        description = template.description,
-                        materials = materials,
-                        duration = duration,
-                        successRate = successRate,
-                        intelligenceAdd = template.intelligenceAdd,
-                        charmAdd = template.charmAdd,
-                        loyaltyAdd = template.loyaltyAdd,
-                        comprehensionAdd = template.comprehensionAdd,
-                        artifactRefiningAdd = template.artifactRefiningAdd,
-                        pillRefiningAdd = template.pillRefiningAdd,
-                        spiritPlantingAdd = template.spiritPlantingAdd,
-                        teachingAdd = template.teachingAdd,
-                        moralityAdd = template.moralityAdd
-                    ))
-                }
+        for ((idx, pillType) in singleTypes.withIndex()) {
+            val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 6) % herbs.size] to 2)
+            for (grade in PillGrade.entries) {
+                val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
+                recipes.add(PillRecipe(
+                    id = template.id,
+                    name = template.name,
+                    tier = tier,
+                    rarity = rarity,
+                    category = PillCategory.FUNCTIONAL,
+                    grade = grade,
+                    pillType = pillType,
+                    description = template.description,
+                    materials = materials,
+                    duration = duration,
+                    successRate = successRate,
+                    extendLife = template.extendLife,
+                    intelligenceAdd = template.intelligenceAdd,
+                    charmAdd = template.charmAdd,
+                    loyaltyAdd = template.loyaltyAdd,
+                    comprehensionAdd = template.comprehensionAdd,
+                    artifactRefiningAdd = template.artifactRefiningAdd,
+                    pillRefiningAdd = template.pillRefiningAdd,
+                    spiritPlantingAdd = template.spiritPlantingAdd,
+                    teachingAdd = template.teachingAdd,
+                    moralityAdd = template.moralityAdd,
+                    miningAdd = template.miningAdd
+                ))
             }
         }
+    }
 
-        return recipes
+    /** 双基础属性功能配方（generateFunctionalRecipes 拆分） */
+    private fun addFunctionalDualRecipes(recipes: MutableList<PillRecipe>, tier: Int) {
+        val duration = TIER_DURATION.getValue(tier)
+        val successRate = TIER_SUCCESS_RATE.getValue(tier)
+        val rarity = tier
+        val herbs = TIER_HERB_IDS.getValue(tier)
+        val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining", "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")
+
+        for ((idx, pillType) in dualTypes.withIndex()) {
+            val materials = mapOf(herbs[idx % herbs.size] to 2, herbs[(idx + 2) % herbs.size] to 2)
+            for (grade in PillGrade.entries) {
+                val template = ItemDatabase.getPillById("${pillType}_${tier}_${grade.name.lowercase()}") ?: continue
+                recipes.add(PillRecipe(
+                    id = template.id,
+                    name = template.name,
+                    tier = tier,
+                    rarity = rarity,
+                    category = PillCategory.FUNCTIONAL,
+                    grade = grade,
+                    pillType = pillType,
+                    description = template.description,
+                    materials = materials,
+                    duration = duration,
+                    successRate = successRate,
+                    intelligenceAdd = template.intelligenceAdd,
+                    charmAdd = template.charmAdd,
+                    loyaltyAdd = template.loyaltyAdd,
+                    comprehensionAdd = template.comprehensionAdd,
+                    artifactRefiningAdd = template.artifactRefiningAdd,
+                    pillRefiningAdd = template.pillRefiningAdd,
+                    spiritPlantingAdd = template.spiritPlantingAdd,
+                    teachingAdd = template.teachingAdd,
+                    moralityAdd = template.moralityAdd
+                ))
+            }
+        }
     }
 
     private val _allRecipes: List<PillRecipe> by lazy {

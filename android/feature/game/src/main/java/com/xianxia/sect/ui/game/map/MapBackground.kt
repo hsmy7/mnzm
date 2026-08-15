@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.IntSize
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.game.map.world.WorldCameraState
@@ -21,10 +21,11 @@ fun MapBackground(
     cameraState: WorldCameraState,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
+    // D-39：LocalResources 替代 context.resources（配置变化时正确更新）
+    val resources = LocalResources.current
     val mapBitmap = remember {
         BitmapFactory.decodeResource(
-            context.resources,
+            resources,
             R.drawable.map_zhongzhou,
             BitmapFactory.Options().apply {
                 inPreferredConfig = Bitmap.Config.RGB_565

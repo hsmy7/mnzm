@@ -833,11 +833,26 @@ class StorageSystemBenchmark {
     @Test
     fun `generate comprehensive storage system assessment report`() {
         println("\n")
+        printReportHeader()
+        printArchitectureOverview()
+        printDesignThresholds()
+        printKeyMetricResults()
+        printPersistenceAssessment()
+        printIntegrityAssessment()
+        printImprovementSuggestions()
+        println("\n╚══════════════════════════════════════════════════════════════════════╝")
+    }
+
+    /** 报告头部横幅（报告拆分） */
+    private fun printReportHeader() {
         println("╔══════════════════════════════════════════════════════════════════════╗")
         println("║       存储系统全面性能与可靠性评估报告                              ║")
         println("║       Storage System Performance & Reliability Assessment           ║")
         println("╠══════════════════════════════════════════════════════════════════════╣")
+    }
 
+    /** 系统架构概览（报告拆分） */
+    private fun printArchitectureOverview() {
         println("\n【一、系统架构概览】")
         println("  主存储引擎: Room (SQLite v13) + WAL模式")
         println("  序列化方案: Protobuf (kotlinx.serialization) + LZ4/ZSTD压缩")
@@ -846,7 +861,10 @@ class StorageSystemBenchmark {
         println("  应用级WAL: FunctionalWAL (二进制格式, SHA-256 per-entry)")
         println("  缓存层: ConcurrentHashMap内存缓存 + SWR策略(TTL=1h)")
         println("  备份机制: 自动备份(5份) + 手动备份(10份) + 关键备份(20份)")
+    }
 
+    /** 设计规格阈值（报告拆分） */
+    private fun printDesignThresholds() {
         println("\n【二、设计规格阈值】")
         println("  存档操作慢阈值: >500ms (SaveLoadCoordinator.SLOW_SAVE_THRESHOLD_MS)")
         println("  读档操作慢阈值: >2000ms (SaveLoadCoordinator.SLOW_LOAD_THRESHOLD_MS)")
@@ -858,7 +876,10 @@ class StorageSystemBenchmark {
         println("  最大弟子数: 5000 (DataLimits.DEFAULT.maxDiscipleCount)")
         println("  WAL最大文件: 10MB (StorageConstants.MAX_WAL_SIZE_BYTES)")
         println("  DB批量批次: 200条 (StorageEngine.MAX_BATCH_SIZE)")
+    }
 
+    /** 关键指标检测结果（报告拆分）：TINY/SMALL/MEDIUM 三档实测序列化/读档/压缩/校验和指标 */
+    private fun printKeyMetricResults() {
         println("\n【三、关键指标检测结果】")
 
         val context = defaultContext
@@ -866,43 +887,16 @@ class StorageSystemBenchmark {
         for (scale in listOf(DataScale.TINY, DataScale.SMALL, DataScale.MEDIUM)) {
             val data = generateTestData(scale)
             val iter = if (scale == DataScale.MEDIUM) 20 else 30
+            val metrics = measureScaleMetrics(data = data, context = context, iter = iter)
 
-            val serTimes = LongArray(iter)
-            val deTimes = LongArray(iter)
-            val compRatios = DoubleArray(iter)
-            val checksumTimes = LongArray(iter)
-            val digest = MessageDigest.getInstance("SHA-256")
-
-            var totalSerializedSize = 0
-            var totalCompressedSize = 0
-
-            repeat(iter) { i ->
-                val t0 = System.nanoTime()
-                val result = serializationEngine.serialize(data, context, BenchmarkSaveData.serializer())
-                val t1 = System.nanoTime()
-                val deResult = serializationEngine.deserialize(result.data, context, BenchmarkSaveData.serializer())
-                val t2 = System.nanoTime()
-
-                serTimes[i] = TimeUnit.NANOSECONDS.toMillis(t1 - t0)
-                deTimes[i] = TimeUnit.NANOSECONDS.toMillis(t2 - t1)
-                compRatios[i] = if (result.compressedSize > 0) result.originalSize.toDouble() / result.compressedSize else 0.0
-                totalSerializedSize += result.originalSize
-                totalCompressedSize += result.compressedSize
-
-                val ct0 = System.nanoTime()
-                digest.digest(result.data)
-                checksumTimes[i] = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ct0)
-                digest.reset()
-            }
-
-            val avgSer = serTimes.average()
-            val avgDe = deTimes.average()
-            val avgRatio = compRatios.average()
-            val avgCheck = checksumTimes.average()
-            val avgOrigSize = totalSerializedSize / iter
-            val avgCompSize = totalCompressedSize / iter
-            val serP95 = serTimes.sorted()[serTimes.size * 95 / 100]
-            val deP95 = deTimes.sorted()[deTimes.size * 95 / 100]
+            val avgSer = metrics.serTimes.average()
+            val avgDe = metrics.deTimes.average()
+            val avgRatio = metrics.compRatios.average()
+            val avgCheck = metrics.checksumTimes.average()
+            val avgOrigSize = metrics.totalSerializedSize / iter
+            val avgCompSize = metrics.totalCompressedSize / iter
+            val serP95 = metrics.serTimes.sorted()[metrics.serTimes.size * 95 / 100]
+            val deP95 = metrics.deTimes.sorted()[metrics.deTimes.size * 95 / 100]
 
             println("\n  ── ${scale.label} (原型数据约${avgOrigSize / 1024}KB) ──")
             println("    [存档性能]")
@@ -916,7 +910,64 @@ class StorageSystemBenchmark {
             println("    [完整性]")
             println("      SHA-256校验平均耗时: ${"%.3f".format(avgCheck)}ms")
         }
+    }
 
+    /** 单规模指标实测（报告【三】拆分）：序列化/读档/压缩比/校验和耗时 */
+    private fun measureScaleMetrics(
+        data: BenchmarkSaveData,
+        context: SerializationContext,
+        iter: Int
+    ): ScaleMetricsResult {
+        val serTimes = LongArray(iter)
+        val deTimes = LongArray(iter)
+        val compRatios = DoubleArray(iter)
+        val checksumTimes = LongArray(iter)
+        val digest = MessageDigest.getInstance("SHA-256")
+
+        var totalSerializedSize = 0
+        var totalCompressedSize = 0
+
+        repeat(iter) { i ->
+            val t0 = System.nanoTime()
+            val result = serializationEngine.serialize(data, context, BenchmarkSaveData.serializer())
+            val t1 = System.nanoTime()
+            val deResult = serializationEngine.deserialize(result.data, context, BenchmarkSaveData.serializer())
+            val t2 = System.nanoTime()
+
+            serTimes[i] = TimeUnit.NANOSECONDS.toMillis(t1 - t0)
+            deTimes[i] = TimeUnit.NANOSECONDS.toMillis(t2 - t1)
+            compRatios[i] = if (result.compressedSize > 0) result.originalSize.toDouble() / result.compressedSize else 0.0
+            totalSerializedSize += result.originalSize
+            totalCompressedSize += result.compressedSize
+
+            val ct0 = System.nanoTime()
+            digest.digest(result.data)
+            checksumTimes[i] = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - ct0)
+            digest.reset()
+        }
+
+        return ScaleMetricsResult(
+            serTimes = serTimes,
+            deTimes = deTimes,
+            compRatios = compRatios,
+            checksumTimes = checksumTimes,
+            totalSerializedSize = totalSerializedSize,
+            totalCompressedSize = totalCompressedSize
+        )
+    }
+
+    /** 【三】单规模测量结果聚合（报告拆分） */
+    private data class ScaleMetricsResult(
+        val serTimes: LongArray,
+        val deTimes: LongArray,
+        val compRatios: DoubleArray,
+        val checksumTimes: LongArray,
+        val totalSerializedSize: Int,
+        val totalCompressedSize: Int
+    )
+
+    /** 数据持久化机制评估（报告拆分） */
+    private fun printPersistenceAssessment() {
         println("\n【四、数据持久化机制评估】")
         println("  1. SQLite WAL模式: PRAGMA synchronous=NORMAL")
         println("     → 平衡了持久性与性能，NORMAL模式下每次提交fsync一次")
@@ -933,7 +984,10 @@ class StorageSystemBenchmark {
         println("     → 自动备份(最多5份) + SHA-256快速校验(前8字节)")
         println("     → 5级恢复降级: WAL快照 → 本地备份 → 自动存档 → 紧急存档 → 默认数据")
         println("     → 评级: ★★★★★ (多层冗余保障)")
+    }
 
+    /** 数据完整性验证评估（报告拆分） */
+    private fun printIntegrityAssessment() {
         println("\n【五、数据完整性验证评估】")
         println("  1. 序列化层: SHA-256嵌入头部(32字节)，反序列化时逐字节比较")
         println("     → 检测范围: 序列化后的完整原始数据")
@@ -948,7 +1002,10 @@ class StorageSystemBenchmark {
         println("  6. ChangeTracker: 实体快照含SHA-256，变更时校验")
         println("  7. 备份/归档层: SHA-256完整校验")
         println("  总体评级: ★★★★★ (七层完整性防护)")
+    }
 
+    /** 改进建议（报告拆分） */
+    private fun printImprovementSuggestions() {
         println("\n【六、改进建议】")
         println("  1. [性能] 考虑对MEDIUM及以上规模数据启用ZSTD压缩以减小磁盘占用")
         println("     (当前默认LZ4速度优先，但压缩率较低; ZSTD level=3可提供2-3x更好压缩率)")
@@ -960,7 +1017,5 @@ class StorageSystemBenchmark {
         println("     (对所有槽位执行validateIntegrity，频率: 每日一次)")
         println("  5. [可观测性] 建议为StorageFacade.getStorageStats()补充缓存命中率统计")
         println("     (当前cacheHitRate硬编码返回0f，未实际统计)")
-
-        println("\n╚══════════════════════════════════════════════════════════════════════╝")
     }
 }

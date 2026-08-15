@@ -92,14 +92,7 @@ class RecruitService @Inject constructor(
             // 先过滤损坏条目，再三级去重（与净化逻辑一致：损坏先于去重，
             // 防损坏条目与正常条目同人签名时去重丢弃正常者；损坏条目
             // 随列表重建被移除，不再永久残留）
-            val distinctRecruits = RecruitIntegrity.dedupeRecruits(
-                state.gameData.recruitList.filter(RecruitIntegrity::isValidRecruit)
-            ).also { deduped ->
-                val dupCount = state.gameData.recruitList.size - deduped.size
-                if (dupCount > 0) {
-                    DomainLog.w(TAG, "processAutoRecruit: $dupCount corrupted/duplicate recruit entries removed")
-                }
-            }
+            val distinctRecruits = dedupeValidRecruits(state = state)
             val (autoRecruits, keepManual) = distinctRecruits
                 .partition { disciple ->
                     disciple.spiritRootType.split(",")
@@ -126,6 +119,47 @@ class RecruitService @Inject constructor(
             val toRecruit = autoRecruits.take(remaining)
             val overflowKeep = autoRecruits.drop(remaining)
 
+            recruited = recruitAutoDisciples(
+                state = state,
+                toRecruit = toRecruit,
+                currentMonthIndex = currentMonthIndex,
+                corruptedIds = corruptedIds
+            )
+
+            val newRecruitCount = settleAutoRecruit(
+                state = state,
+                autoRecruits = autoRecruits,
+                keepManual = keepManual,
+                overflowKeep = overflowKeep,
+                corruptedIds = corruptedIds,
+                recruited = recruited
+            )
+
+            DomainLog.i(TAG,
+                "processAutoRecruit: auto-recruited $recruited disciples (monthly $newRecruitCount/${GameConfig.RECRUIT_MONTHLY_LIMIT}), " +
+                "${keepManual.size} left for manual review")
+            return recruited
+        }
+
+        /** 过滤损坏条目 + 三级去重（processAutoRecruit 拆分） */
+        private fun dedupeValidRecruits(state: MutableGameState): List<Disciple> =
+            RecruitIntegrity.dedupeRecruits(
+                state.gameData.recruitList.filter(RecruitIntegrity::isValidRecruit)
+            ).also { deduped ->
+                val dupCount = state.gameData.recruitList.size - deduped.size
+                if (dupCount > 0) {
+                    DomainLog.w(TAG, "processAutoRecruit: $dupCount corrupted/duplicate recruit entries removed")
+                }
+            }
+
+        /** 招募配额内弟子入库（processAutoRecruit 拆分）：分配 id + 俘虏装备/功法落库 */
+        private fun recruitAutoDisciples(
+            state: MutableGameState,
+            toRecruit: List<Disciple>,
+            currentMonthIndex: Int,
+            corruptedIds: MutableSet<String>
+        ): Int {
+            var recruited = 0
             for (disciple in toRecruit) {
                 if (!RecruitIntegrity.isValidRecruit(disciple)) {
                     DomainLog.w(TAG, "processAutoRecruit: skipping corrupted disciple ${disciple.id}")
@@ -142,6 +176,18 @@ class RecruitService @Inject constructor(
                     recruited++
                 }
             }
+            return recruited
+        }
+
+        /** 招募结算（processAutoRecruit 拆分）：损坏回写 + 状态更新 + 惰性标记，返回本月累计招募数 */
+        private fun settleAutoRecruit(
+            state: MutableGameState,
+            autoRecruits: List<Disciple>,
+            keepManual: List<Disciple>,
+            overflowKeep: List<Disciple>,
+            corruptedIds: Set<String>,
+            recruited: Int
+        ): Int {
             // 将损坏的 autoRecruits 追加回 keepManual，避免静默删除
             val corruptedKeep = autoRecruits.filter { it.id in corruptedIds }
             val newRecruitCount = state.gameData.recruitCountThisMonth + recruited
@@ -156,11 +202,7 @@ class RecruitService @Inject constructor(
             if (recruited == 0) {
                 RecruitLazyState.autoRecruitIdle = true
             }
-
-            DomainLog.i(TAG,
-                "processAutoRecruit: auto-recruited $recruited disciples (monthly $newRecruitCount/${GameConfig.RECRUIT_MONTHLY_LIMIT}), " +
-                "${keepManual.size} left for manual review")
-            return recruited
+            return newRecruitCount
         }
 
         /**

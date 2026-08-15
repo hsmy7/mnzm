@@ -26,7 +26,7 @@ import com.xianxia.sect.data.facade.StorageFacade
 
 import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
-import com.tencent.bugly.crashreport.CrashReport
+import com.xianxia.sect.core.platform.CrashReporter
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
@@ -58,6 +58,9 @@ class XianxiaApplication : Application() {
 
     @Inject
     lateinit var storageFacade: StorageFacade
+
+    @Inject
+    lateinit var crashReporter: CrashReporter
 
     private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
 
@@ -341,16 +344,17 @@ class XianxiaApplication : Application() {
                 }
             }
 
-            // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
+            // 腾讯 Bugly 崩溃收集（G3 根治：经 CrashReporter 端口调用，接口实现永不抛出；
+            // 自研 CrashHandler 保留作为兜底）
             try {
-                CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
-                CrashReport.setAppVersion(this, BuildConfig.VERSION_NAME)
-                CrashReport.setUserId("unknown")
-                CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
-                CrashReport.putUserData(this, "model", android.os.Build.MODEL)
+                crashReporter.initialize()
+                crashReporter.setAppVersion(BuildConfig.VERSION_NAME)
+                crashReporter.setUserId("unknown")
+                crashReporter.putUserData("manufacturer", android.os.Build.MANUFACTURER)
+                crashReporter.putUserData("model", android.os.Build.MODEL)
                 Log.i(TAG, "Bugly crash report initialized")
             } catch (e: Exception) {
-                Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)
+                Log.w(TAG, "Crash reporter initialization failed, self-built CrashHandler will be fallback", e)
             }
         }
     }

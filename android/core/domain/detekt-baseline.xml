@@ -22,18 +22,6 @@
     <ID>LargeClass:DiscipleTables.kt$DiscipleTables</ID>
     <ID>LargeClass:GameConfigTest.kt$GameConfigTest</ID>
     <ID>LargeClass:ItemsTest.kt$ItemsTest</ID>
-    <ID>LongMethod:DiscipleAggregate.kt$DiscipleAggregate$fun toDisciple(): Disciple</ID>
-    <ID>LongMethod:DiscipleSerializer.kt$DiscipleSerializer$override fun deserialize(decoder: Decoder): Disciple</ID>
-    <ID>LongMethod:DiscipleSerializer.kt$DiscipleSerializer$override fun serialize(encoder: Encoder, value: Disciple)</ID>
-    <ID>LongMethod:DiscipleTables.kt$DiscipleTables$fun assembleAllPatched( prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;, dirtyColumnIndices: Set&lt;Int&gt; ): List&lt;Disciple&gt;</ID>
-    <ID>LongMethod:DiscipleTables.kt$DiscipleTables$private fun writeAllFields(disciple: Disciple)</ID>
-    <ID>LongMethod:ItemDatabase.kt$ItemDatabase$private fun generateBattlePills(): List&lt;PillTemplate&gt;</ID>
-    <ID>LongMethod:ItemDatabase.kt$ItemDatabase$private fun generateCultivationPills(): List&lt;PillTemplate&gt;</ID>
-    <ID>LongMethod:ItemDatabase.kt$ItemDatabase$private fun generateFunctionalPills(): List&lt;PillTemplate&gt;</ID>
-    <ID>LongMethod:PillRecipeDatabase.kt$PillRecipeDatabase$private fun generateBattleRecipes(): List&lt;PillRecipe&gt;</ID>
-    <ID>LongMethod:PillRecipeDatabase.kt$PillRecipeDatabase$private fun generateCultivationRecipes(): List&lt;PillRecipe&gt;</ID>
-    <ID>LongMethod:PillRecipeDatabase.kt$PillRecipeDatabase$private fun generateFunctionalRecipes(): List&lt;PillRecipe&gt;</ID>
-    <ID>LongMethod:SectLevelRewardConfig.kt$SectLevelRewardConfig$fun getRewardCards(level: Int): List&lt;RewardCardItem&gt;</ID>
     <ID>LongParameterList:Disciple.kt$Disciple$(manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0)</ID>
     <ID>LongParameterList:DiscipleAggregate.kt$DiscipleAggregate$(manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0)</ID>
     <ID>LongParameterList:DiscipleStatsProvider.kt$DiscipleStatsProvider$( aggregate: DiscipleAggregate, manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0 )</ID>

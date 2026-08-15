@@ -51,63 +51,87 @@ fun DaoCompanionManagementDialog(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Row 1: "禁止结婚" + 5 root count checkboxes
-            Text(
-                text = "禁止结婚",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+            DaoCompanionBannedRow(
+                bannedRootCounts = bannedRootCounts,
+                onRootToggle = { count ->
+                    val newRootCounts = if (count in bannedRootCounts) {
+                        bannedRootCounts - count
+                    } else {
+                        bannedRootCounts + count
+                    }
+                    bannedRootCounts = newRootCounts
+                    viewModel.setDaoCompanionBannedRootCounts(newRootCounts)
+                }
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SPIRIT_ROOT_FILTER_OPTIONS.forEachIndexed { index, (count, label) ->
-                    RootCountCheckboxRow(
-                        label = label,
-                        checked = count in bannedRootCounts,
-                        onToggle = {
-                            val newRootCounts = if (count in bannedRootCounts) {
-                                bannedRootCounts - count
-                            } else {
-                                bannedRootCounts + count
-                            }
-                            bannedRootCounts = newRootCounts
-                            viewModel.setDaoCompanionBannedRootCounts(newRootCounts)
-                        }
-                    )
-                    if (index < SPIRIT_ROOT_FILTER_OPTIONS.size - 1) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                    }
-                }
-            }
-
             // Row 2: "结婚需同意" + checkbox
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Start
-            ) {
-                Text(
-                    text = "结婚需同意",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+            DaoCompanionConsentRow(
+                consentRequired = consentRequired,
+                onToggle = {
+                    val newValue = !consentRequired
+                    consentRequired = newValue
+                    viewModel.setDaoCompanionConsentRequired(newValue)
+                }
+            )
+        }
+    }
+}
 
-                Spacer(modifier = Modifier.width(4.dp))
+/** 禁止结婚行（DaoCompanionManagementDialog 拆分）：标题 + 5 个灵根数过滤勾选 */
+@Composable
+private fun DaoCompanionBannedRow(
+    bannedRootCounts: Set<Int>,
+    onRootToggle: (Int) -> Unit
+) {
+    Text(
+        text = "禁止结婚",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
 
-                CircularCheckbox(
-                    checked = consentRequired,
-                    onToggle = {
-                        val newValue = !consentRequired
-                        consentRequired = newValue
-                        viewModel.setDaoCompanionConsentRequired(newValue)
-                    }
-                )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SPIRIT_ROOT_FILTER_OPTIONS.forEachIndexed { index, (count, label) ->
+            RootCountCheckboxRow(
+                label = label,
+                checked = count in bannedRootCounts,
+                onToggle = { onRootToggle(count) }
+            )
+            if (index < SPIRIT_ROOT_FILTER_OPTIONS.size - 1) {
+                Spacer(modifier = Modifier.width(6.dp))
             }
         }
+    }
+}
+
+/** 结婚需同意行（DaoCompanionManagementDialog 拆分）：标题 + 开关 */
+@Composable
+private fun DaoCompanionConsentRow(
+    consentRequired: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Text(
+            text = "结婚需同意",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        CircularCheckbox(
+            checked = consentRequired,
+            onToggle = onToggle
+        )
     }
 }
 

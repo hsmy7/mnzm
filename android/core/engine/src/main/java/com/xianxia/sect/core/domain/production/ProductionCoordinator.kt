@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.core.engine.domain.production
 
 import com.xianxia.sect.core.util.DomainLog
@@ -160,32 +161,18 @@ class ProductionCoordinator @Inject constructor(
             )
         }
 
-        val availableMaterials = mutableMapOf<String, Int>()
-        herbs.forEach { herb ->
-            val herbData = HerbDatabase.getHerbByName(herb.name)
-            if (herbData != null) {
-                availableMaterials[herbData.id] = (availableMaterials[herbData.id] ?: 0) + herb.quantity
-            } else {
-                DomainLog.w(TAG, "Herb not found in database: ${herb.name}, skipping")
-            }
-        }
+        val availableMaterials = buildAlchemyAvailableMaterials(herbs = herbs)
 
         val currentSlot = repository.getSlotByBuildingId(buildingId, slotIndex)
         val txResult = transactionManager.executeStartProductionByBuildingId(
-            buildingId = buildingId,
-            slotIndex = slotIndex,
-            recipeId = recipeId,
-            recipeName = recipe.name,
-            duration = recipe.duration,
-            currentYear = currentYear,
-            currentMonth = currentMonth,
+            buildingId = buildingId, slotIndex = slotIndex, recipeId = recipeId,
+            recipeName = recipe.name, duration = recipe.duration,
+            currentYear = currentYear, currentMonth = currentMonth,
             discipleId = currentSlot?.assignedDiscipleId,
             discipleName = currentSlot?.assignedDiscipleName ?: "",
-            successRate = successRate,
-            materials = recipe.materials,
+            successRate = successRate, materials = recipe.materials,
             availableMaterials = availableMaterials,
-            outputItemId = recipe.id,
-            outputItemName = recipe.name,
+            outputItemId = recipe.id, outputItemName = recipe.name,
             outputItemRarity = recipe.rarity
         )
 
@@ -196,28 +183,12 @@ class ProductionCoordinator @Inject constructor(
         }
 
         // 按 herbId 聚合消耗量，逐 herb 扣减直到满足配方要求
-        val newHerbs = buildList {
-            val remainingRequired = recipe.materials.toMutableMap()
-            for (herb in herbs) {
-                var newQty = herb.quantity
-                val iter = remainingRequired.iterator()
-                while (iter.hasNext()) {
-                    val (herbId, requiredAmount) = iter.next()
-                    val herbData = HerbDatabase.getHerbById(herbId) ?: continue
-                    if (herbData.name != herb.name || herbData.rarity != herb.rarity) continue
-                    val consume = minOf(newQty, requiredAmount)
-                    newQty -= consume
-                    val remaining = requiredAmount - consume
-                    if (remaining <= 0) iter.remove()
-                    else remainingRequired[herbId] = remaining
-                }
-                if (newQty > 0) add(herb.copy(quantity = newQty))
-            }
-        }
+        val newHerbs = consumeHerbsForRecipe(
+            herbs = herbs,
+            recipeMaterials = recipe.materials
+        )
 
-        val consumptionLog = MaterialConsumptionLog(
-            id = java.util.UUID.randomUUID().toString(),
-            timestamp = System.currentTimeMillis(),
+        recordConsumptionLog(
             slotIndex = slotIndex,
             recipeId = recipeId,
             recipeName = recipe.name,
@@ -225,9 +196,6 @@ class ProductionCoordinator @Inject constructor(
             reason = "炼丹开始",
             buildingId = buildingId
         )
-        // 限制日志条目数，防止无界增长
-        val MAX_LOG_ENTRIES = 1000
-        _consumptionLogs.value = (_consumptionLogs.value + consumptionLog).takeLast(MAX_LOG_ENTRIES)
 
         DomainLog.d(TAG, "Alchemy started successfully: $buildingId[$slotIndex]")
         return DomainResult.Success(
@@ -240,6 +208,67 @@ class ProductionCoordinator @Inject constructor(
                 materialUpdate = MaterialUpdate(herbs = newHerbs, materials = emptyList())
             )
         )
+    }
+
+    /** 按 herbId 聚合炼丹可用材料（startAlchemyAtomic 拆分） */
+    private fun buildAlchemyAvailableMaterials(herbs: List<Herb>): Map<String, Int> {
+        val availableMaterials = mutableMapOf<String, Int>()
+        herbs.forEach { herb ->
+            val herbData = HerbDatabase.getHerbByName(herb.name)
+            if (herbData != null) {
+                availableMaterials[herbData.id] = (availableMaterials[herbData.id] ?: 0) + herb.quantity
+            } else {
+                DomainLog.w(TAG, "Herb not found in database: ${herb.name}, skipping")
+            }
+        }
+        return availableMaterials
+    }
+
+    /** 按 herbId 聚合消耗量，逐 herb 扣减直到满足配方要求（startAlchemyAtomic 拆分） */
+    private fun consumeHerbsForRecipe(
+        herbs: List<Herb>,
+        recipeMaterials: Map<String, Int>
+    ): List<Herb> = buildList {
+        val remainingRequired = recipeMaterials.toMutableMap()
+        for (herb in herbs) {
+            var newQty = herb.quantity
+            val iter = remainingRequired.iterator()
+            while (iter.hasNext()) {
+                val (herbId, requiredAmount) = iter.next()
+                val herbData = HerbDatabase.getHerbById(herbId) ?: continue
+                if (herbData.name != herb.name || herbData.rarity != herb.rarity) continue
+                val consume = minOf(newQty, requiredAmount)
+                newQty -= consume
+                val remaining = requiredAmount - consume
+                if (remaining <= 0) iter.remove()
+                else remainingRequired[herbId] = remaining
+            }
+            if (newQty > 0) add(herb.copy(quantity = newQty))
+        }
+    }
+
+    /** 记录材料消耗日志并裁剪到上限（startAlchemyAtomic/startForgingAtomic 拆分） */
+    private fun recordConsumptionLog(
+        slotIndex: Int,
+        recipeId: String,
+        recipeName: String,
+        materials: Map<String, Int>,
+        reason: String,
+        buildingId: String
+    ) {
+        val consumptionLog = MaterialConsumptionLog(
+            id = java.util.UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            slotIndex = slotIndex,
+            recipeId = recipeId,
+            recipeName = recipeName,
+            materials = materials,
+            reason = reason,
+            buildingId = buildingId
+        )
+        // 限制日志条目数，防止无界增长
+        val MAX_LOG_ENTRIES = 1000
+        _consumptionLogs.value = (_consumptionLogs.value + consumptionLog).takeLast(MAX_LOG_ENTRIES)
     }
     
     suspend fun startForgingAtomic(
@@ -258,15 +287,7 @@ class ProductionCoordinator @Inject constructor(
                 AppError.Domain.Production.RecipeNotFound(recipeId = recipeId)
             )
 
-        val availableMaterials = mutableMapOf<String, Int>()
-        materials.forEach { material ->
-            val materialData = BeastMaterialDatabase.getMaterialByName(material.name)
-            if (materialData != null) {
-                availableMaterials[materialData.id] = (availableMaterials[materialData.id] ?: 0) + material.quantity
-            } else {
-                DomainLog.w(TAG, "Material not found in database: ${material.name}, skipping")
-            }
-        }
+        val availableMaterials = buildForgeAvailableMaterials(materials = materials)
 
         val duration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
 
@@ -296,30 +317,14 @@ class ProductionCoordinator @Inject constructor(
         }
 
         // 按 materialId 聚合消耗量，逐 material 扣减直到满足配方要求
-        val newMaterials = buildList {
-            val remainingRequired = recipe.materials.toMutableMap()
-            for (material in materials) {
-                var newQty = material.quantity
-                val iter = remainingRequired.iterator()
-                while (iter.hasNext()) {
-                    val (matId, requiredAmount) = iter.next()
-                    val matData = BeastMaterialDatabase.getMaterialById(matId) ?: continue
-                    if (matData.name != material.name || matData.rarity != material.rarity) continue
-                    val consume = minOf(newQty, requiredAmount)
-                    newQty -= consume
-                    val remaining = requiredAmount - consume
-                    if (remaining <= 0) iter.remove()
-                    else remainingRequired[matId] = remaining
-                }
-                if (newQty > 0) add(material.copy(quantity = newQty))
-            }
-        }
+        val newMaterials = consumeMaterialsForRecipe(
+            materials = materials,
+            recipeMaterials = recipe.materials
+        )
 
         DomainLog.d(TAG, "Forging started successfully: $buildingId[$slotIndex]")
 
-        val forgeConsumptionLog = MaterialConsumptionLog(
-            id = java.util.UUID.randomUUID().toString(),
-            timestamp = System.currentTimeMillis(),
+        recordConsumptionLog(
             slotIndex = slotIndex,
             recipeId = recipeId,
             recipeName = recipe.name,
@@ -327,8 +332,6 @@ class ProductionCoordinator @Inject constructor(
             reason = "锻造开始",
             buildingId = buildingId
         )
-        val MAX_LOG_ENTRIES = 1000
-        _consumptionLogs.value = (_consumptionLogs.value + forgeConsumptionLog).takeLast(MAX_LOG_ENTRIES)
 
         return DomainResult.Success(
             ProductionStartData(
@@ -340,6 +343,43 @@ class ProductionCoordinator @Inject constructor(
                 materialUpdate = MaterialUpdate(herbs = emptyList(), materials = newMaterials)
             )
         )
+    }
+
+    /** 按 materialId 聚合锻造可用材料（startForgingAtomic 拆分） */
+    private fun buildForgeAvailableMaterials(materials: List<Material>): Map<String, Int> {
+        val availableMaterials = mutableMapOf<String, Int>()
+        materials.forEach { material ->
+            val materialData = BeastMaterialDatabase.getMaterialByName(material.name)
+            if (materialData != null) {
+                availableMaterials[materialData.id] = (availableMaterials[materialData.id] ?: 0) + material.quantity
+            } else {
+                DomainLog.w(TAG, "Material not found in database: ${material.name}, skipping")
+            }
+        }
+        return availableMaterials
+    }
+
+    /** 按 materialId 聚合消耗量，逐 material 扣减直到满足配方要求（startForgingAtomic 拆分） */
+    private fun consumeMaterialsForRecipe(
+        materials: List<Material>,
+        recipeMaterials: Map<String, Int>
+    ): List<Material> = buildList {
+        val remainingRequired = recipeMaterials.toMutableMap()
+        for (material in materials) {
+            var newQty = material.quantity
+            val iter = remainingRequired.iterator()
+            while (iter.hasNext()) {
+                val (matId, requiredAmount) = iter.next()
+                val matData = BeastMaterialDatabase.getMaterialById(matId) ?: continue
+                if (matData.name != material.name || matData.rarity != material.rarity) continue
+                val consume = minOf(newQty, requiredAmount)
+                newQty -= consume
+                val remaining = requiredAmount - consume
+                if (remaining <= 0) iter.remove()
+                else remainingRequired[matId] = remaining
+            }
+            if (newQty > 0) add(material.copy(quantity = newQty))
+        }
     }
     
     suspend fun resetSlotAtomic(

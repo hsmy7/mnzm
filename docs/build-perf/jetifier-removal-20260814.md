@@ -29,13 +29,17 @@ support 库引用改写为 androidx 的机制，有显著构建开销（每个 A
 
 ## 决策
 
-- **保持 `enableJetifier=false`**（构建提速：省去每 AAR 的 jetify transform）
-- **技术债**：真机冒烟（广告观看/激励视频/启动闪退排查）通过后正式确认；发现运行期
-  问题则单行回滚 `android.enableJetifier=true`
+- ~~保持 `enableJetifier=false`（构建提速：省去每 AAR 的 jetify transform）~~
+- **已被推翻并回滚（2026-08 归档勘误）**：本试验之后（release 3.2.14，commit `60f99cca`），
+  广告 SDK（TapADN）出现运行期 Support 库缺失，**启用 Jetifier 修复**——当前
+  `gradle.properties:18` 为 `android.enableJetifier=true`，是**有意保留的修复状态**，
+  不再是待还技术债。
+- **偿还触发（重新关闭的前置条件）**：广告 SDK 升级到无 support 字节码残留版本后，
+  重新执行本试验流程（依赖树扫描 + dex 扫描 + 真机冒烟），通过后可再次关闭。
 
 ## 回滚方式
 
 ```properties
 # gradle.properties 第 15 行
-android.enableJetifier=true
+android.enableJetifier=true   # 当前值（有意保留）
 ```

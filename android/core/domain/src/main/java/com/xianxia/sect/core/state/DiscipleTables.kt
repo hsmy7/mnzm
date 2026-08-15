@@ -887,7 +887,17 @@ class DiscipleTables {
     /** insert/update 共用：将 Disciple 所有字段写入组件表 */
     private fun writeAllFields(disciple: Disciple) {
         val id = disciple.id.toInt()
+        writeBasicFields(id = id, disciple = disciple)
+        writeCombatFields(id = id, disciple = disciple)
+        writePillFields(id = id, disciple = disciple)
+        writeEquipmentFields(id = id, disciple = disciple)
+        writeSocialFields(id = id, disciple = disciple)
+        writeSkillFields(id = id, disciple = disciple)
+        writeUsageFields(id = id, disciple = disciple)
+    }
 
+    /** 基础信息 + 境界修为 + 修炼加速 + 列表映射 + 状态（writeAllFields 拆分） */
+    private fun writeBasicFields(id: Int, disciple: Disciple) {
         // 基础信息
         names[id] = disciple.name; surnames[id] = disciple.surname
         genders[id] = disciple.gender; portraitRes[id] = disciple.portraitRes
@@ -913,7 +923,10 @@ class DiscipleTables {
 
         // 状态
         statuses[id] = disciple.status; statusData[id] = disciple.statusData
+    }
 
+    /** 战斗属性（writeAllFields 拆分） */
+    private fun writeCombatFields(id: Int, disciple: Disciple) {
         // 战斗属性
         val c = disciple.combat
         baseHps[id] = c.baseHp; baseMps[id] = c.baseMp
@@ -930,7 +943,10 @@ class DiscipleTables {
         breakthroughCounts[id] = c.breakthroughCount
         breakthroughFailCounts[id] = c.breakthroughFailCount
         currentHps[id] = c.currentHp; currentMps[id] = c.currentMp
+    }
 
+    /** 丹药效果（writeAllFields 拆分） */
+    private fun writePillFields(id: Int, disciple: Disciple) {
         // 丹药效果
         val p = disciple.pillEffects
         pillPhysicalAttackBonuses[id] = p.pillPhysicalAttackBonus
@@ -945,7 +961,10 @@ class DiscipleTables {
         pillSkillExpSpeedBonuses[id] = p.pillSkillExpSpeedBonus
         pillNurtureSpeedBonuses[id] = p.pillNurtureSpeedBonus
         activePillCategories[id] = p.activePillCategory; activePillTypes[id] = p.activePillTypes
+    }
 
+    /** 装备 + 完成时间（writeAllFields 拆分） */
+    private fun writeEquipmentFields(id: Int, disciple: Disciple) {
         // 装备
         val e = disciple.equipment
         weaponIds[id] = e.weaponId; armorIds[id] = e.armorId
@@ -960,7 +979,10 @@ class DiscipleTables {
         manualCompletionPhases[id] = disciple.manualCompletionPhase
         equipmentNurturingCompletionMonths[id] = disciple.equipmentNurturingCompletionMonth
         equipmentNurturingCompletionPhases[id] = disciple.equipmentNurturingCompletionPhase
+    }
 
+    /** 社交（writeAllFields 拆分） */
+    private fun writeSocialFields(id: Int, disciple: Disciple) {
         // 社交
         val s = disciple.social
         partnerIds[id] = s.partnerId; partnerSectIds[id] = s.partnerSectId
@@ -969,7 +991,10 @@ class DiscipleTables {
         childBirthMonths[id] = s.childBirthMonth
         griefEndYears[id] = s.griefEndYear ?: GRIEF_YEAR_NULL_SENTINEL
         masterIds[id] = s.masterId
+    }
 
+    /** 技能属性（writeAllFields 拆分） */
+    private fun writeSkillFields(id: Int, disciple: Disciple) {
         // 技能
         val sk = disciple.skills
         intelligences[id] = sk.intelligence; charms[id] = sk.charm
@@ -981,7 +1006,10 @@ class DiscipleTables {
         salaryPaidCounts[id] = sk.salaryPaidCount; salaryMissedCounts[id] = sk.salaryMissedCount
         alchemyLevels[id] = sk.alchemyLevel; alchemyPromotionCounts[id] = sk.alchemyPromotionCount
         forgeLevels[id] = sk.forgeLevel; forgePromotionCounts[id] = sk.forgePromotionCount
+    }
 
+    /** 使用追踪（writeAllFields 拆分） */
+    private fun writeUsageFields(id: Int, disciple: Disciple) {
         // 使用追踪
         val u = disciple.usage
         usedFunctionalPillTypes[id] = u.usedFunctionalPillTypes
@@ -1360,14 +1388,8 @@ class DiscipleTables {
 
         // 脏列 → 组位图。注意：-1 组 = 本体列（如 cultivations，始终重读），
         // 属正常情况不退化；仅"列索引越界"（新增列未注册）才整体退化全量。
-        var dirtyGroups = 0
-        var hasUnknownColumn = false
-        for (ci in dirtyColumnIndices) {
-            if (ci < 0 || ci >= columnGroupByIndex.size) { hasUnknownColumn = true; break }
-            val group = columnGroupByIndex[ci]
-            if (group >= 0) dirtyGroups = dirtyGroups or (1 shl group)
-        }
-        if (hasUnknownColumn) {
+        val dirtyGroups = computeDirtyGroups(dirtyColumnIndices = dirtyColumnIndices)
+        if (dirtyGroups == null) {
             Log.w(
                 TAG,
                 "assembleAllPatched: 脏列含未注册组映射（新增列未同步 columnGroupByIndex），" +
@@ -1376,7 +1398,38 @@ class DiscipleTables {
             return assembleAll()
         }
 
-        // 升序校验（与 assembleAllIncremental 相同：读档路径可能非升序）
+        if (!isPrevSnapshotSorted(prevSnapshot = prevSnapshot, tag = "assembleAllPatched")) {
+            return assembleAll()
+        }
+
+        // prevSnapshot → id 映射（O(D)，patch 复用 prev 子对象引用）
+        val prevById = buildPrevById(prevSnapshot = prevSnapshot)
+
+        val changedMap = assemblePatchedChangedMap(
+            changedIds = changedIds,
+            prevById = prevById,
+            dirtyGroups = dirtyGroups
+        )
+        return mergePatchedSnapshots(
+            prevSnapshot = prevSnapshot,
+            changedIds = changedIds,
+            changedMap = changedMap
+        )
+    }
+
+    /** 脏列 → 子对象组位图（assembleAllPatched 拆分）；返回 null 表示含未注册列需整体退化 */
+    private fun computeDirtyGroups(dirtyColumnIndices: Set<Int>): Int? {
+        var dirtyGroups = 0
+        for (ci in dirtyColumnIndices) {
+            if (ci < 0 || ci >= columnGroupByIndex.size) return null
+            val group = columnGroupByIndex[ci]
+            if (group >= 0) dirtyGroups = dirtyGroups or (1 shl group)
+        }
+        return dirtyGroups
+    }
+
+    /** 升序校验（assembleAllPatched 拆分）：读档路径可能非升序，失序退化为全量组装 */
+    private fun isPrevSnapshotSorted(prevSnapshot: List<Disciple>, tag: String): Boolean {
         var prevSorted = true
         var lastId = -1
         for (d in prevSnapshot) {
@@ -1385,16 +1438,26 @@ class DiscipleTables {
             lastId = id
         }
         if (!prevSorted) {
-            Log.w(TAG, "assembleAllPatched: prevSnapshot 非升序（读档路径），退化为全量组装")
-            return assembleAll()
+            Log.w(TAG, "$tag: prevSnapshot 非升序（读档路径），退化为全量组装")
         }
+        return prevSorted
+    }
 
-        // prevSnapshot → id 映射（O(D)，patch 复用 prev 子对象引用）
+    /** prevSnapshot → id 映射（assembleAllPatched 拆分），供 patch 复用 prev 子对象引用 */
+    private fun buildPrevById(prevSnapshot: List<Disciple>): HashMap<Int, Disciple> {
         val prevById = HashMap<Int, Disciple>(prevSnapshot.size * 2)
         for (d in prevSnapshot) {
             d.id.toIntOrNull()?.let { prevById[it] = d }
         }
+        return prevById
+    }
 
+    /** 组装变更弟子（assembleAllPatched 拆分）：幽灵跳过 + 列缺失防御 */
+    private fun assemblePatchedChangedMap(
+        changedIds: Set<Int>,
+        prevById: Map<Int, Disciple>,
+        dirtyGroups: Int
+    ): HashMap<Int, Disciple> {
         val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
         for (id in changedIds) {
             if (!isCompleteId(id)) {
@@ -1409,12 +1472,21 @@ class DiscipleTables {
         }
         // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子
         //（组装必然失败），此时归并仍须从 prevSnapshot 剔除这些 id（防陈尸残留）
+        return changedMap
+    }
 
+    /** 双指针归并（assembleAllPatched 拆分）：prevSnapshot（id 升序）∪ changedMap（id 升序） */
+    // 拆分搬移:分支结构与原函数一致
+    @Suppress("CyclomaticComplexMethod")
+    private fun mergePatchedSnapshots(
+        prevSnapshot: List<Disciple>,
+        changedIds: Set<Int>,
+        changedMap: Map<Int, Disciple>
+    ): List<Disciple> {
         // 已移除/幽灵弟子 id：changedIds 中存在但组装失败的——归并时必须从
         // prevSnapshot 中剔除（否则陈尸残留）
         val removedIds = changedIds.filter { it !in changedMap }.toHashSet()
 
-        // 双指针归并：prevSnapshot（id 升序）∪ changedMap（id 升序）
         val result = ArrayList<Disciple>(prevSnapshot.size + changedMap.size)
         var i = 0
         val prevSize = prevSnapshot.size

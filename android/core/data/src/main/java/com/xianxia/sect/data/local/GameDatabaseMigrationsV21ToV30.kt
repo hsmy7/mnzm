@@ -228,10 +228,15 @@ private const val TAG = "GameDatabase"
         /** v30→v31: 删除 disciples 表中的 usage_lastTheftMonth 列 */
         internal val MIGRATION_30_31 = object : Migration(30, 31) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                if (columnExists(db, "disciples", "usage_lastTheftMonth")) {
-                    // SQLite < 3.35.0 不支持 DROP COLUMN，使用 create-copy-drop-rename
-                    // 新表不含 usage_lastTheftMonth 列，与当前 Disciple 实体一致
-                    db.execSQL("""
+                rebuildDisciplesDroppingLastTheftMonth(db)
+            }
+        }
+
+/**
+ * v31 disciples 重建表 SQL（Room 自动生成 v31 schema，create-copy-drop-rename 目标结构）。
+ * 供 MIGRATION_30_31（移除 usage_lastTheftMonth 列）重建使用。
+ */
+private const val DISCIPLES_V31_CREATE_TABLE_SQL = """
                         CREATE TABLE IF NOT EXISTS `disciples_v31` (
                             `id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL,
                             `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL,
@@ -287,58 +292,71 @@ private const val TAG = "GameDatabase"
                             `usage_hasClearAllEffect` INTEGER NOT NULL,
                             PRIMARY KEY(`id`, `slot_id`)
                         )
-                    """)
-                    // 复制所有列（排除 usage_lastTheftMonth）
-                    val insertCols = listOf(
-                        "id", "slot_id", "name", "surname", "realm", "realmLayer",
-                        "cultivation", "cultivationCheckpoint", "cultivationCheckpointGameMonth",
-                        "spiritRootType", "age", "lifespan", "isAlive", "gender",
-                        "portraitRes", "manualIds", "talentIds", "manualMasteries",
-                        "status", "statusData", "cultivationSpeedBonus", "cultivationSpeedDuration",
-                        "discipleType", "autoLearnFromWarehouse", "soulPower",
-                        "cultivationCompletionMonth", "cultivationCompletionPhase",
-                        "manualCompletionMonth", "manualCompletionPhase",
-                        "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
-                        "baseHp", "baseMp", "basePhysicalAttack", "baseMagicAttack",
-                        "basePhysicalDefense", "baseMagicDefense", "baseSpeed",
-                        "hpVariance", "mpVariance", "physicalAttackVariance", "magicAttackVariance",
-                        "physicalDefenseVariance", "magicDefenseVariance", "speedVariance",
-                        "totalCultivation", "breakthroughCount", "breakthroughFailCount",
-                        "currentHp", "currentMp",
-                        "pillPhysicalAttackBonus", "pillMagicAttackBonus",
-                        "pillPhysicalDefenseBonus", "pillMagicDefenseBonus",
-                        "pillHpBonus", "pillMpBonus", "pillSpeedBonus",
-                        "pillCritRateBonus", "pillCritEffectBonus",
-                        "pillCultivationSpeedBonus", "pillSkillExpSpeedBonus", "pillNurtureSpeedBonus",
-                        "pillEffectDuration", "activePillCategory",
-                        "weaponId", "armorId", "bootsId", "accessoryId",
-                        "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture",
-                        "autoEquipFromWarehouse", "storageBagItems", "storageBagSpiritStones", "spiritStones",
-                        "social_partnerId", "social_partnerSectId",
-                        "social_parentId1", "social_parentId2", "social_lastChildYear",
-                        "social_childBirthMonth", "social_griefEndYear", "social_masterId",
-                        "intelligence", "charm", "loyalty", "comprehension",
-                        "artifactRefining", "pillRefining", "spiritPlanting", "mining",
-                        "teaching", "morality",
-                        "salaryPaidCount", "salaryMissedCount",
-                        "usage_usedFunctionalPillTypes", "usage_usedExtendLifePillIds",
-                        "usage_recruitedMonth", "usage_hasReviveEffect", "usage_hasClearAllEffect"
-                    )
-                    val cols = insertCols.joinToString(", ")
-                    db.execSQL("INSERT INTO `disciples_v31` ($cols) SELECT $cols FROM `disciples`")
-                    db.execSQL("DROP TABLE IF EXISTS `disciples`")
-                    db.execSQL("ALTER TABLE `disciples_v31` RENAME TO `disciples`")
-                    // Room 2.7+ 在迁移后校验 schema，create-copy-drop-rename 会丢失索引，必须重建
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_name` ON `disciples` (`name`)")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_realm_realmLayer` ON `disciples` (`realm`, `realmLayer`)")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_realm` ON `disciples` (`isAlive`, `realm`)")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_status` ON `disciples` (`isAlive`, `status`)")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_discipleType` ON `disciples` (`discipleType`)")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_loyalty` ON `disciples` (`loyalty`)")
-                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_age` ON `disciples` (`age`)")
-                    Log.i(TAG, "Migration 30→31: dropped usage_lastTheftMonth from disciples")
-                } else {
-                    Log.i(TAG, "Migration 30→31: usage_lastTheftMonth already absent, skipped")
-                }
-            }
-        }
+                    """
+
+/**
+ * v31 disciples 数据复制列清单（MIGRATION_30_31 拆分）。
+ * 顺序必须与重建 CREATE TABLE 完全一致（usage_lastTheftMonth 已排除）。
+ */
+private val DISCIPLES_V31_COLUMNS = listOf(
+    "id", "slot_id", "name", "surname", "realm", "realmLayer",
+    "cultivation", "cultivationCheckpoint", "cultivationCheckpointGameMonth",
+    "spiritRootType", "age", "lifespan", "isAlive", "gender",
+    "portraitRes", "manualIds", "talentIds", "manualMasteries",
+    "status", "statusData", "cultivationSpeedBonus", "cultivationSpeedDuration",
+    "discipleType", "autoLearnFromWarehouse", "soulPower",
+    "cultivationCompletionMonth", "cultivationCompletionPhase",
+    "manualCompletionMonth", "manualCompletionPhase",
+    "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
+    "baseHp", "baseMp", "basePhysicalAttack", "baseMagicAttack",
+    "basePhysicalDefense", "baseMagicDefense", "baseSpeed",
+    "hpVariance", "mpVariance", "physicalAttackVariance", "magicAttackVariance",
+    "physicalDefenseVariance", "magicDefenseVariance", "speedVariance",
+    "totalCultivation", "breakthroughCount", "breakthroughFailCount",
+    "currentHp", "currentMp",
+    "pillPhysicalAttackBonus", "pillMagicAttackBonus",
+    "pillPhysicalDefenseBonus", "pillMagicDefenseBonus",
+    "pillHpBonus", "pillMpBonus", "pillSpeedBonus",
+    "pillCritRateBonus", "pillCritEffectBonus",
+    "pillCultivationSpeedBonus", "pillSkillExpSpeedBonus", "pillNurtureSpeedBonus",
+    "pillEffectDuration", "activePillCategory",
+    "weaponId", "armorId", "bootsId", "accessoryId",
+    "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture",
+    "autoEquipFromWarehouse", "storageBagItems", "storageBagSpiritStones", "spiritStones",
+    "social_partnerId", "social_partnerSectId",
+    "social_parentId1", "social_parentId2", "social_lastChildYear",
+    "social_childBirthMonth", "social_griefEndYear", "social_masterId",
+    "intelligence", "charm", "loyalty", "comprehension",
+    "artifactRefining", "pillRefining", "spiritPlanting", "mining",
+    "teaching", "morality",
+    "salaryPaidCount", "salaryMissedCount",
+    "usage_usedFunctionalPillTypes", "usage_usedExtendLifePillIds",
+    "usage_recruitedMonth", "usage_hasReviveEffect", "usage_hasClearAllEffect"
+)
+
+/**
+ * v30→v31：移除 disciples.usage_lastTheftMonth 列（create-copy-drop-rename 模式，
+ * MIGRATION_30_31 拆分）。新表不含 usage_lastTheftMonth 列，与当前 Disciple 实体一致。
+ */
+private fun rebuildDisciplesDroppingLastTheftMonth(db: SupportSQLiteDatabase) {
+    if (!columnExists(db, "disciples", "usage_lastTheftMonth")) {
+        Log.i(TAG, "Migration 30→31: usage_lastTheftMonth already absent, skipped")
+        return
+    }
+    // SQLite < 3.35.0 不支持 DROP COLUMN，使用 create-copy-drop-rename
+    db.execSQL(DISCIPLES_V31_CREATE_TABLE_SQL)
+    // 复制所有列（排除 usage_lastTheftMonth）
+    val cols = DISCIPLES_V31_COLUMNS.joinToString(", ")
+    db.execSQL("INSERT INTO `disciples_v31` ($cols) SELECT $cols FROM `disciples`")
+    db.execSQL("DROP TABLE IF EXISTS `disciples`")
+    db.execSQL("ALTER TABLE `disciples_v31` RENAME TO `disciples`")
+    // Room 2.7+ 在迁移后校验 schema，create-copy-drop-rename 会丢失索引，必须重建
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_name` ON `disciples` (`name`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_realm_realmLayer` ON `disciples` (`realm`, `realmLayer`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_realm` ON `disciples` (`isAlive`, `realm`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_status` ON `disciples` (`isAlive`, `status`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_discipleType` ON `disciples` (`discipleType`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_loyalty` ON `disciples` (`loyalty`)")
+    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_age` ON `disciples` (`age`)")
+    Log.i(TAG, "Migration 30→31: dropped usage_lastTheftMonth from disciples")
+}

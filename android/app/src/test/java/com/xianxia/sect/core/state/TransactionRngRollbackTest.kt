@@ -12,7 +12,6 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -59,7 +58,7 @@ class TransactionRngRollbackTest {
     }
 
     private fun createStore(rngPort: RngSnapshotPort = NoopRngSnapshotPort): GameStateStoreImpl {
-        val repository = Mockito.mock(GameStateRepository::class.java)
+        val repository = testGameStateRepository()
         return GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
             repository = repository,
@@ -199,7 +198,7 @@ class TransactionRngRollbackTest {
     fun `failed loadFromSnapshot keeps RNG at pre-load state`() = runTest {
         val mgr = GameRngManager().apply { initSystemSeed(99L) }
         val port = FakeRngPort(mgr)
-        val repository = Mockito.mock(GameStateRepository::class.java)
+        val repository = testGameStateRepository()
         val store = GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
             repository = repository,

@@ -75,14 +75,10 @@ class ProductionTransactionManager @Inject constructor(
             )
         }
 
-        val missingMaterials = mutableMapOf<String, Int>()
-        materials.forEach { (materialId, required) ->
-            val available = availableMaterials[materialId] ?: 0
-            if (available < required) {
-                missingMaterials[materialId] = required - available
-            }
-        }
-
+        val missingMaterials = findMissingMaterials(
+            materials = materials,
+            availableMaterials = availableMaterials
+        )
         if (missingMaterials.isNotEmpty()) {
             DomainLog.w(TAG, "Insufficient materials: $missingMaterials")
             return ProductionTransactionResult(
@@ -114,28 +110,12 @@ class ProductionTransactionManager @Inject constructor(
             }
         }
 
-        return if (result.isSuccess) {
-            DomainLog.d(TAG, "Production started successfully: ${buildingType.name}[$slotIndex]")
-            ProductionTransactionResult(
-                success = true,
-                slot = result.getOrNull(),
-                rollbackData = ProductionRollbackData(
-                    materialsToRestore = materials,
-                    previousSlotState = previousState
-                )
-            )
-        } else {
-            val exception = result.exceptionOrNull()
-            DomainLog.e(TAG, "Failed to start production: ${exception?.message}")
-            ProductionTransactionResult(
-                success = false,
-                error = AppError.Domain.Production.InvalidStateTransition(
-                    exception?.message ?: "Unknown error",
-                    previousState.status.name,
-                    ProductionSlotStatus.WORKING.name
-                )
-            )
-        }
+        return buildStartResult(
+            result = result,
+            previousState = previousState,
+            materials = materials,
+            successLog = "Production started successfully: ${buildingType.name}[$slotIndex]"
+        )
     }
 
     suspend fun executeStartProductionByBuildingId(
@@ -157,28 +137,14 @@ class ProductionTransactionManager @Inject constructor(
     ): ProductionTransactionResult {
         DomainLog.d(TAG, "Starting production by buildingId: $buildingId[$slotIndex] recipe=$recipeId")
 
-        var slot = repository.getSlotByBuildingId(buildingId, slotIndex)
-        if (slot == null) {
-            val buildingType = ProductionSlot.resolveBuildingType(buildingId)
-            slot = ProductionSlot.createIdle(
-                slotIndex = slotIndex,
-                buildingType = buildingType,
-                buildingId = buildingId
+        val slot = ensureSlotForBuilding(buildingId = buildingId, slotIndex = slotIndex)
+            ?: return ProductionTransactionResult(
+                success = false,
+                error = AppError.Domain.Production.InvalidSlot(
+                    "槽位不存在: ${ProductionSlot.resolveBuildingType(buildingId).name}[$slotIndex]",
+                    slotIndex
+                )
             )
-            val addResult = withContext(ioDispatcher.dispatcher) { repository.addSlot(slot) }
-            if (addResult.isFailure) {
-                slot = repository.getSlotByBuildingId(buildingId, slotIndex)
-                if (slot == null) {
-                    DomainLog.e(TAG, "Failed to create slot for $buildingId[$slotIndex]: ${addResult.exceptionOrNull()?.message}")
-                    return ProductionTransactionResult(
-                        success = false,
-                        error = AppError.Domain.Production.InvalidSlot("槽位不存在: ${buildingType.name}[$slotIndex]", slotIndex)
-                    )
-                }
-            } else {
-                DomainLog.d(TAG, "Created idle slot for $buildingId[$slotIndex]")
-            }
-        }
 
         if (slot.status == ProductionSlotStatus.WORKING) {
             DomainLog.w(TAG, "Slot busy: $buildingId[$slotIndex]")
@@ -188,14 +154,10 @@ class ProductionTransactionManager @Inject constructor(
             )
         }
 
-        val missingMaterials = mutableMapOf<String, Int>()
-        materials.forEach { (materialId, required) ->
-            val available = availableMaterials[materialId] ?: 0
-            if (available < required) {
-                missingMaterials[materialId] = required - available
-            }
-        }
-
+        val missingMaterials = findMissingMaterials(
+            materials = materials,
+            availableMaterials = availableMaterials
+        )
         if (missingMaterials.isNotEmpty()) {
             DomainLog.w(TAG, "Insufficient materials: $missingMaterials")
             return ProductionTransactionResult(
@@ -209,28 +171,83 @@ class ProductionTransactionManager @Inject constructor(
         val result = withContext(ioDispatcher.dispatcher) {
             repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
                 SlotStateMachine.startProduction(
-                slot = currentSlot,
-                recipeId = recipeId,
-                recipeName = recipeName,
-                duration = duration,
-                currentYear = currentYear,
-                currentMonth = currentMonth,
-                discipleId = discipleId,
-                discipleName = discipleName,
-                successRate = successRate,
-                materials = materials,
-                outputItemId = outputItemId,
-                outputItemName = outputItemName,
-                outputItemRarity = outputItemRarity
-            ).getOrElse { e ->
-                DomainLog.w(TAG, "startProductionByBuildingId state transition failed: ${e.message}")
-                return@updateSlotByBuildingId currentSlot
+                    slot = currentSlot,
+                    recipeId = recipeId,
+                    recipeName = recipeName,
+                    duration = duration,
+                    currentYear = currentYear,
+                    currentMonth = currentMonth,
+                    discipleId = discipleId,
+                    discipleName = discipleName,
+                    successRate = successRate,
+                    materials = materials,
+                    outputItemId = outputItemId,
+                    outputItemName = outputItemName,
+                    outputItemRarity = outputItemRarity
+                ).getOrElse { e ->
+                    DomainLog.w(TAG, "startProductionByBuildingId state transition failed: ${e.message}")
+                    return@updateSlotByBuildingId currentSlot
+                }
             }
         }
+
+        return buildStartResult(
+            result = result,
+            previousState = previousState,
+            materials = materials,
+            successLog = "Production started successfully: $buildingId[$slotIndex]"
+        )
     }
 
+    /** 获取或创建指定 buildingId 的槽位（executeStartProductionByBuildingId 拆分）；创建失败返回 null */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private suspend fun ensureSlotForBuilding(buildingId: String, slotIndex: Int): ProductionSlot? {
+        var slot = repository.getSlotByBuildingId(buildingId, slotIndex)
+        if (slot != null) return slot
+        val buildingType = ProductionSlot.resolveBuildingType(buildingId)
+        slot = ProductionSlot.createIdle(
+            slotIndex = slotIndex,
+            buildingType = buildingType,
+            buildingId = buildingId
+        )
+        val addResult = withContext(ioDispatcher.dispatcher) { repository.addSlot(slot) }
+        if (addResult.isFailure) {
+            slot = repository.getSlotByBuildingId(buildingId, slotIndex)
+            if (slot == null) {
+                DomainLog.e(TAG, "Failed to create slot for $buildingId[$slotIndex]: ${addResult.exceptionOrNull()?.message}")
+                return null
+            }
+        } else {
+            DomainLog.d(TAG, "Created idle slot for $buildingId[$slotIndex]")
+        }
+        return slot
+    }
+
+    /** 计算缺失材料（executeStartProduction* 拆分） */
+    private fun findMissingMaterials(
+        materials: Map<String, Int>,
+        availableMaterials: Map<String, Int>
+    ): Map<String, Int> {
+        val missingMaterials = mutableMapOf<String, Int>()
+        materials.forEach { (materialId, required) ->
+            val available = availableMaterials[materialId] ?: 0
+            if (available < required) {
+                missingMaterials[materialId] = required - available
+            }
+        }
+        return missingMaterials
+    }
+
+    /** 统一构造启动事务结果（executeStartProduction* 拆分） */
+    private fun buildStartResult(
+        result: Result<ProductionSlot>,
+        previousState: ProductionSlot,
+        materials: Map<String, Int>,
+        successLog: String
+    ): ProductionTransactionResult {
         return if (result.isSuccess) {
-            DomainLog.d(TAG, "Production started successfully: $buildingId[$slotIndex]")
+            DomainLog.d(TAG, successLog)
             ProductionTransactionResult(
                 success = true,
                 slot = result.getOrNull(),

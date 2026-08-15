@@ -931,46 +931,63 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
     val (minRarity, maxRarity) = config.rarityRange
     val itemCount = 1 + (seed / 7) % 6 // 1~6
     repeat(itemCount) {
-        val rarity = minRarity + (seed / (11 * (it + 1))) % (maxRarity - minRarity + 1)
-        val typeIndex = (seed / (13 * (it + 1))) % 3 // 0=功法, 1=装备, 2=丹药
-        when (typeIndex) {
-            0 -> {
-                val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
-                val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addManualStack(manual) }
-                when (result) {
-                    is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
-                    is DomainResult.Partial -> {
-                        DomainLog.w("GameEngine", "${manual.name} 溢出 ${result.overflow} 个")
-                        rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
-                    }
-                    is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${manual.name} 失败: ${result.error}")
+        grantSingleCaveReward(
+            rewards = rewards,
+            seed = seed,
+            index = it,
+            minRarity = minRarity,
+            maxRarity = maxRarity
+        )
+    }
+    return rewards
+}
+
+/** 单次洞穴奖励掉落（handleCaveLevelVictory 拆分）：按确定性类型索引分发功法/装备/丹药 */
+private fun GameEngine.grantSingleCaveReward(
+    rewards: MutableList<BattleRewardItem>,
+    seed: Int,
+    index: Int,
+    minRarity: Int,
+    maxRarity: Int
+) {
+    val rarity = minRarity + (seed / (11 * (index + 1))) % (maxRarity - minRarity + 1)
+    val typeIndex = (seed / (13 * (index + 1))) % 3 // 0=功法, 1=装备, 2=丹药
+    when (typeIndex) {
+        0 -> {
+            val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
+            val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addManualStack(manual) }
+            when (result) {
+                is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
+                is DomainResult.Partial -> {
+                    DomainLog.w("GameEngine", "${manual.name} 溢出 ${result.overflow} 个")
+                    rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
                 }
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${manual.name} 失败: ${result.error}")
             }
-            1 -> {
-                val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
-                val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }
-                when (result) {
-                    is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
-                    is DomainResult.Partial -> {
-                        DomainLog.w("GameEngine", "${equip.name} 溢出 ${result.overflow} 个")
-                        rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
-                    }
-                    is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${equip.name} 失败: ${result.error}")
+        }
+        1 -> {
+            val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
+            val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }
+            when (result) {
+                is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
+                is DomainResult.Partial -> {
+                    DomainLog.w("GameEngine", "${equip.name} 溢出 ${result.overflow} 个")
+                    rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
                 }
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${equip.name} 失败: ${result.error}")
             }
-            else -> {
-                val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
-                val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addPill(pill) }
-                when (result) {
-                    is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
-                    is DomainResult.Partial -> {
-                        DomainLog.w("GameEngine", "${pill.name} 溢出 ${result.overflow} 个")
-                        rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
-                    }
-                    is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${pill.name} 失败: ${result.error}")
+        }
+        else -> {
+            val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
+            val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addPill(pill) }
+            when (result) {
+                is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
+                is DomainResult.Partial -> {
+                    DomainLog.w("GameEngine", "${pill.name} 溢出 ${result.overflow} 个")
+                    rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
                 }
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${pill.name} 失败: ${result.error}")
             }
         }
     }
-    return rewards
 }

@@ -1,78 +1,96 @@
 package com.xianxia.sect.data.config
 
-import android.content.Context
-import android.content.SharedPreferences
+import com.xianxia.sect.data.prefs.KeyValueStore
 import com.xianxia.sect.data.serialization.unified.SerializationFormat
 import com.xianxia.sect.data.serialization.unified.CompressionType
 import com.xianxia.sect.data.serialization.unified.SerializationContext
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * 存储运行时配置（docs/architecture.md 待办 D-29：偏好统一迁入 MMKV）。
+ *
+ * 键名与旧 SharedPreferences 完全一致，旧值一次性迁移（首次访问懒执行，幂等）。
+ */
 @Singleton
 class StorageConfig @Inject constructor(
-    @ApplicationContext private val context: Context
+    private val keyValueStore: KeyValueStore
 ) {
-    private val prefs: SharedPreferences by lazy {
-        context.getSharedPreferences("storage_config", Context.MODE_PRIVATE)
+    @Volatile
+    private var migrated = false
+
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated) return
+            keyValueStore.migrateFromSharedPreferences(PREFS_NAME)
+            migrated = true
+        }
+    }
+
+    private fun store(): KeyValueStore {
+        ensureMigrated()
+        return keyValueStore
     }
 
     val maxSlots: Int
-        get() = prefs.getInt("max_slots", DEFAULT_MAX_SLOTS)
-    
+        get() = store().getInt("max_slots", DEFAULT_MAX_SLOTS)
+
     val maxBattleLogs: Int
-        get() = prefs.getInt("max_battle_logs", DEFAULT_MAX_BATTLE_LOGS)
-    
+        get() = store().getInt("max_battle_logs", DEFAULT_MAX_BATTLE_LOGS)
+
     val maxSaveSize: Long
-        get() = prefs.getLong("max_save_size", DEFAULT_MAX_SAVE_SIZE)
-    
+        get() = store().getLong("max_save_size", DEFAULT_MAX_SAVE_SIZE)
+
     val minMemoryRatio: Float
-        get() = prefs.getFloat("min_memory_ratio", DEFAULT_MIN_MEMORY_RATIO)
-    
+        get() = store().getFloat("min_memory_ratio", DEFAULT_MIN_MEMORY_RATIO)
+
     val gzipBufferSize: Int
-        get() = prefs.getInt("gzip_buffer_size", DEFAULT_GZIP_BUFFER_SIZE)
-    
+        get() = store().getInt("gzip_buffer_size", DEFAULT_GZIP_BUFFER_SIZE)
+
     val maxBackupVersions: Int
-        get() = prefs.getInt("max_backup_versions", DEFAULT_MAX_BACKUP_VERSIONS)
+        get() = store().getInt("max_backup_versions", DEFAULT_MAX_BACKUP_VERSIONS)
 
     val autoBackupOnSave: Boolean
-        get() = prefs.getBoolean("auto_backup_on_save", DEFAULT_AUTO_BACKUP_ON_SAVE)
+        get() = store().getBoolean("auto_backup_on_save", DEFAULT_AUTO_BACKUP_ON_SAVE)
 
     val enablePreSaveValidation: Boolean
-        get() = prefs.getBoolean("enable_pre_save_validation", DEFAULT_ENABLE_PRE_SAVE_VALIDATION)
+        get() = store().getBoolean("enable_pre_save_validation", DEFAULT_ENABLE_PRE_SAVE_VALIDATION)
 
     val maxRetryCount: Int
-        get() = prefs.getInt("max_retry_count", DEFAULT_MAX_RETRY_COUNT)
+        get() = store().getInt("max_retry_count", DEFAULT_MAX_RETRY_COUNT)
 
     val retryDelayMs: Long
-        get() = prefs.getLong("retry_delay_ms", DEFAULT_RETRY_DELAY_MS)
-    
+        get() = store().getLong("retry_delay_ms", DEFAULT_RETRY_DELAY_MS)
+
     val compactionThreshold: Int
-        get() = prefs.getInt("compaction_threshold", DEFAULT_COMPACTION_THRESHOLD)
-    
+        get() = store().getInt("compaction_threshold", DEFAULT_COMPACTION_THRESHOLD)
+
     val maxDeltaChainLength: Int
-        get() = prefs.getInt("max_delta_chain_length", DEFAULT_MAX_DELTA_CHAIN_LENGTH)
-    
+        get() = store().getInt("max_delta_chain_length", DEFAULT_MAX_DELTA_CHAIN_LENGTH)
+
     val maxDisciples: Int
-        get() = prefs.getInt("max_disciples", DEFAULT_MAX_DISCIPLES)
-    
+        get() = store().getInt("max_disciples", DEFAULT_MAX_DISCIPLES)
+
     val cacheDerivedKey: Boolean
-        get() = prefs.getBoolean("cache_derived_key", DEFAULT_CACHE_DERIVED_KEY)
-    
+        get() = store().getBoolean("cache_derived_key", DEFAULT_CACHE_DERIVED_KEY)
+
     val keyCacheDurationMs: Long
-        get() = prefs.getLong("key_cache_duration_ms", DEFAULT_KEY_CACHE_DURATION_MS)
-    
+        get() = store().getLong("key_cache_duration_ms", DEFAULT_KEY_CACHE_DURATION_MS)
+
     val updateCacheAfterSave: Boolean
-        get() = prefs.getBoolean("update_cache_after_save", DEFAULT_UPDATE_CACHE_AFTER_SAVE)
-    
+        get() = store().getBoolean("update_cache_after_save", DEFAULT_UPDATE_CACHE_AFTER_SAVE)
+
     val defaultSerializationFormat: SerializationFormat
         get() = SerializationFormat.valueOf(
-            prefs.getString("serialization_format", DEFAULT_SERIALIZATION_FORMAT.name) ?: DEFAULT_SERIALIZATION_FORMAT.name
+            store().getString("serialization_format", DEFAULT_SERIALIZATION_FORMAT.name)
+                ?: DEFAULT_SERIALIZATION_FORMAT.name
         )
-    
+
     val defaultCompressionType: CompressionType
         get() = CompressionType.valueOf(
-            prefs.getString("compression_type", DEFAULT_COMPRESSION_TYPE.name) ?: DEFAULT_COMPRESSION_TYPE.name
+            store().getString("compression_type", DEFAULT_COMPRESSION_TYPE.name)
+                ?: DEFAULT_COMPRESSION_TYPE.name
         )
 
     fun getQuickSaveContext(): SerializationContext {
@@ -85,22 +103,23 @@ class StorageConfig @Inject constructor(
     }
 
     fun setMaxBackupVersions(versions: Int) {
-        prefs.edit().putInt("max_backup_versions", versions.coerceIn(1, 20)).apply()
+        store().putInt("max_backup_versions", versions.coerceIn(1, 20))
     }
 
     fun setCacheDerivedKey(enabled: Boolean) {
-        prefs.edit().putBoolean("cache_derived_key", enabled).apply()
+        store().putBoolean("cache_derived_key", enabled)
     }
 
     fun setUpdateCacheAfterSave(enabled: Boolean) {
-        prefs.edit().putBoolean("update_cache_after_save", enabled).apply()
+        store().putBoolean("update_cache_after_save", enabled)
     }
 
     fun resetToDefaults() {
-        prefs.edit().clear().apply()
+        store().clearAll()
     }
 
     companion object {
+        const val PREFS_NAME = "storage_config"
         const val DEFAULT_MAX_SLOTS = 6
         const val DEFAULT_MAX_BATTLE_LOGS = 500
         const val DEFAULT_MAX_SAVE_SIZE = 50L * 1024 * 1024L

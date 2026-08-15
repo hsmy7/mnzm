@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
+import androidx.core.graphics.createBitmap
+
 import android.graphics.*
 import com.xianxia.sect.core.render.BuildingRenderGeometry
 import com.xianxia.sect.core.render.DemolishHighlightMark
@@ -222,7 +224,7 @@ class SoftwareCanvasBackend(
             decorSkip: Boolean,
             buildingShadows: Boolean
         ) {
-            val bmp = bitmap ?: Bitmap.createBitmap(CHUNK_PIXEL, CHUNK_PIXEL, Bitmap.Config.RGB_565).also { bitmap = it }
+            val bmp = bitmap ?: createBitmap(CHUNK_PIXEL, CHUNK_PIXEL, Bitmap.Config.RGB_565).also { bitmap = it }
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
 
@@ -1046,7 +1048,7 @@ class SoftwareCanvasBackend(
             }
             // ★ 不调 recycle() — 见 release() 注释。GC + NativeAllocationRegistry
             //   自然回收即可避免 #11008 国产 ROM double-free SIGABRT
-            frameBuffer = Bitmap.createBitmap(vpW.coerceAtLeast(1), vpH.coerceAtLeast(1), bmpConfig)
+            frameBuffer = createBitmap(vpW.coerceAtLeast(1), vpH.coerceAtLeast(1), bmpConfig)
             frameCanvas = Canvas(frameBuffer ?: return)
             // resize 时清除缓存
             chunkCaches.forEach { col -> col.forEach { it.isValid = false } }

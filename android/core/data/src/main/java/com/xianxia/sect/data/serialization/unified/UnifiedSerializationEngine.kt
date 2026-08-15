@@ -138,10 +138,7 @@ class UnifiedSerializationEngine @Inject constructor(
 
         try {
             val header = parseHeader(data)
-
-            val payloadStart = SerializationConstants.HEADER_SIZE +
-                (if (header.hasChecksum) SerializationConstants.CHECKSUM_SIZE else 0)
-            val payload = data.copyOfRange(payloadStart, data.size)
+            val payload = extractPayloadBytes(data = data, hasChecksum = header.hasChecksum)
 
             val decompressionStart = System.currentTimeMillis()
             val decompressAlgo = when (header.compression) {
@@ -153,19 +150,12 @@ class UnifiedSerializationEngine @Inject constructor(
             val rawData = dataCompressor.decompress(payload, decompressAlgo, header.originalSize)
             val decompressionTime = System.currentTimeMillis() - decompressionStart
 
-            var checksumValid = true
-            if (header.hasChecksum && context.includeChecksum) {
-                val storedChecksum = data.copyOfRange(
-                    SerializationConstants.HEADER_SIZE,
-                    SerializationConstants.HEADER_SIZE + SerializationConstants.CHECKSUM_SIZE
-                )
-                val computedChecksum = computeChecksum(rawData)
-                checksumValid = storedChecksum.contentEquals(computedChecksum)
-
-                if (!checksumValid) {
-                    Log.w(TAG, "Checksum mismatch detected")
-                }
-            }
+            val checksumValid = verifyChecksum(
+                data = data,
+                rawData = rawData,
+                hasChecksum = header.hasChecksum,
+                includeChecksum = context.includeChecksum
+            )
 
             val deserializationStart = System.currentTimeMillis()
             // A4：解码用宽松实例（ignoreUnknownKeys=true），旧版 App 读新版档尽力解码
@@ -192,6 +182,35 @@ class UnifiedSerializationEngine @Inject constructor(
                 error = e
             )
         }
+    }
+
+    /** 从输入数据中切出 payload（跳过头部 + 可选校验和区）（deserialize 拆分） */
+    private fun extractPayloadBytes(data: ByteArray, hasChecksum: Boolean): ByteArray {
+        val payloadStart = SerializationConstants.HEADER_SIZE +
+            (if (hasChecksum) SerializationConstants.CHECKSUM_SIZE else 0)
+        return data.copyOfRange(payloadStart, data.size)
+    }
+
+    /** 校验数据校验和（deserialize 拆分）：头部无校验和或未启用校验时恒为 true */
+    private fun verifyChecksum(
+        data: ByteArray,
+        rawData: ByteArray,
+        hasChecksum: Boolean,
+        includeChecksum: Boolean
+    ): Boolean {
+        if (!hasChecksum || !includeChecksum) {
+            return true
+        }
+        val storedChecksum = data.copyOfRange(
+            SerializationConstants.HEADER_SIZE,
+            SerializationConstants.HEADER_SIZE + SerializationConstants.CHECKSUM_SIZE
+        )
+        val computedChecksum = computeChecksum(rawData)
+        val checksumValid = storedChecksum.contentEquals(computedChecksum)
+        if (!checksumValid) {
+            Log.w(TAG, "Checksum mismatch detected")
+        }
+        return checksumValid
     }
 
     fun detectFormat(data: ByteArray): SerializationFormat {

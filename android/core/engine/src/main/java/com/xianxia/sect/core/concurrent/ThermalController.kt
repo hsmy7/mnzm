@@ -185,59 +185,71 @@ class ThermalController @Inject constructor(
         }
 
         // ── 帧率驱动降级 ──
-        if (recentFps > 0) {
-            when {
-                recentFps < FPS_RED_THRESHOLD -> {
-                    consecutiveLowFps++
-                    if (consecutiveLowFps >= STABILIZE_CHECKS) {
-                        consecutiveLowFps = 0
-                        return DegradationLevel.RED
-                    }
-                }
-                recentFps < FPS_ORANGE_THRESHOLD -> {
-                    consecutiveLowFps++
-                    if (consecutiveLowFps >= STABILIZE_CHECKS) {
-                        consecutiveLowFps = 0
-                        return DegradationLevel.ORANGE
-                    }
-                }
-                recentFps < FPS_YELLOW_THRESHOLD -> {
-                    consecutiveLowFps++
-                    if (consecutiveLowFps >= STABILIZE_CHECKS) {
-                        consecutiveLowFps = 0
-                        return DegradationLevel.YELLOW
-                    }
-                }
-                else -> { consecutiveLowFps = 0 }
-            }
-        }
+        evaluateFpsDegradation(recentFps = recentFps)?.let { return it }
 
         // ── 已降级 → 升档检查（阈值带电量偏移，与降级判定一致） ──
-        if (currentLevel != DegradationLevel.GREEN) {
-            val shouldUpgrade = when (currentLevel) {
-                DegradationLevel.RED -> temp <= 0 || temp <= TEMP_ORANGE_THRESHOLD_C + thresholdOffsetC
-                DegradationLevel.ORANGE -> temp <= 0 || temp <= TEMP_YELLOW_THRESHOLD_C + thresholdOffsetC
-                DegradationLevel.YELLOW -> temp <= 0 || temp <= TEMP_GREEN_THRESHOLD_C + thresholdOffsetC
-                else -> true
-            }
-            if (shouldUpgrade && recentFps >= FPS_YELLOW_THRESHOLD) {
-                upgradeCounter++
-                if (upgradeCounter >= STABILIZE_CHECKS) {
-                    upgradeCounter = 0
-                    return when (currentLevel) {
-                        DegradationLevel.RED -> DegradationLevel.ORANGE
-                        DegradationLevel.ORANGE -> DegradationLevel.YELLOW
-                        DegradationLevel.YELLOW -> DegradationLevel.GREEN
-                        else -> DegradationLevel.GREEN
-                    }
-                }
-            } else {
-                upgradeCounter = 0
-            }
-            return currentLevel
-        }
+        return evaluateUpgrade(temp = temp, recentFps = recentFps) ?: DegradationLevel.GREEN
+    }
 
-        return DegradationLevel.GREEN
+    /** 帧率驱动降级（evaluateLevel 拆分）：连续低帧达到稳定次数才降级；返回 null 表示维持当前等级 */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private fun evaluateFpsDegradation(recentFps: Float): DegradationLevel? {
+        if (recentFps <= 0) return null
+        when {
+            recentFps < FPS_RED_THRESHOLD -> {
+                consecutiveLowFps++
+                if (consecutiveLowFps >= STABILIZE_CHECKS) {
+                    consecutiveLowFps = 0
+                    return DegradationLevel.RED
+                }
+            }
+            recentFps < FPS_ORANGE_THRESHOLD -> {
+                consecutiveLowFps++
+                if (consecutiveLowFps >= STABILIZE_CHECKS) {
+                    consecutiveLowFps = 0
+                    return DegradationLevel.ORANGE
+                }
+            }
+            recentFps < FPS_YELLOW_THRESHOLD -> {
+                consecutiveLowFps++
+                if (consecutiveLowFps >= STABILIZE_CHECKS) {
+                    consecutiveLowFps = 0
+                    return DegradationLevel.YELLOW
+                }
+            }
+            else -> { consecutiveLowFps = 0 }
+        }
+        return null
+    }
+
+    /** 降级后升档检查（evaluateLevel 拆分）：已降级时按温度回退逐级升档；返回 null 表示当前为 GREEN */
+    // 拆分搬移:分支结构与原函数一致
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("CyclomaticComplexMethod", "ReturnCount")
+    private fun evaluateUpgrade(temp: Float, recentFps: Float): DegradationLevel? {
+        if (currentLevel == DegradationLevel.GREEN) return null
+        val shouldUpgrade = when (currentLevel) {
+            DegradationLevel.RED -> temp <= 0 || temp <= TEMP_ORANGE_THRESHOLD_C + thresholdOffsetC
+            DegradationLevel.ORANGE -> temp <= 0 || temp <= TEMP_YELLOW_THRESHOLD_C + thresholdOffsetC
+            DegradationLevel.YELLOW -> temp <= 0 || temp <= TEMP_GREEN_THRESHOLD_C + thresholdOffsetC
+            else -> true
+        }
+        if (shouldUpgrade && recentFps >= FPS_YELLOW_THRESHOLD) {
+            upgradeCounter++
+            if (upgradeCounter >= STABILIZE_CHECKS) {
+                upgradeCounter = 0
+                return when (currentLevel) {
+                    DegradationLevel.RED -> DegradationLevel.ORANGE
+                    DegradationLevel.ORANGE -> DegradationLevel.YELLOW
+                    DegradationLevel.YELLOW -> DegradationLevel.GREEN
+                    else -> DegradationLevel.GREEN
+                }
+            }
+        } else {
+            upgradeCounter = 0
+        }
+        return currentLevel
     }
 
     private fun applyLevel(level: DegradationLevel) {

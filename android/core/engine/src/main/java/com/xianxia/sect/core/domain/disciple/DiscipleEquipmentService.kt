@@ -3,6 +3,8 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.accessoryId
 import com.xianxia.sect.core.model.armorId
 import com.xianxia.sect.core.model.bootsId
@@ -45,113 +47,172 @@ class DiscipleEquipmentService @Inject constructor(
     fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
         var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
-            val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) {
-                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
-            }
-
-            val equipmentStack = equipmentStacks.get(equipmentId)
-            val equipmentInstance = equipmentInstances.get(equipmentId)
-
-            if (equipmentStack == null && equipmentInstance == null) {
-                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
-            }
-
-            val discipleRealm = discipleTables.realms[id]
-
-            if (equipmentInstance != null) {
-                if (equipmentInstance.isEquipped) {
-                    if (equipmentInstance.ownerId == discipleId) {
-                        error = AppError.Domain.Disciple.AlreadyEquipped(
-                            slot = equipmentInstance.slot.name
-                        ); return@update
-                    }
-                    error = AppError.Domain.Disciple.AlreadyEquipped(
-                        slot = equipmentInstance.slot.name
-                    ); return@update
-                }
-                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentInstance.minRealm)) {
-                    error = AppError.Domain.Disciple.RealmTooLow(
-                        discipleId = discipleId,
-                        need = "境界${equipmentInstance.minRealm}"
-                    ); return@update
-                }
-            } else if (equipmentStack != null) {
-                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentStack.minRealm)) {
-                    error = AppError.Domain.Disciple.RealmTooLow(
-                        discipleId = discipleId,
-                        need = "境界${equipmentStack.minRealm}"
-                    ); return@update
-                }
-            }
-
-            val slot = equipmentInstance?.slot ?: equipmentStack?.slot ?: run {
-                error = AppError.Domain.Disciple.SlotInvalid("无法确定装备槽位"); return@update
-            }
-            val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
-
-            val oldEquipId = when (slot) {
-                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
-                EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
-                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
-                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
-                else -> ""
-            }
-            if (oldEquipId.isNotEmpty()) {
-                val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
-                if (!unequipped) {
-                    DomainLog.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
-                    error = AppError.Domain.Disciple.SlotInvalid("卸下旧装备失败 $oldEquipId")
-                    return@update
-                }
-            }
-
-            val stack = equipmentStacks.get(equipmentId)
-            val instance = equipmentInstances.get(equipmentId)
-
-            if (stack != null) {
-                val equippedId = UUID.randomUUID().toString()
-                val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
-                if (stack.quantity > 1) {
-                    equipmentStacks.update(equipmentId) { it.copy(quantity = it.quantity - 1) }
-                } else {
-                    equipmentStacks.remove(equipmentId)
-                }
-                equipmentInstances = equipmentInstances + equippedItem
-                when (slot) {
-                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equippedId
-                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equippedId
-                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equippedId
-                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equippedId
-                    else -> {}
-                }
-            } else if (instance != null) {
-                when (slot) {
-                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equipmentId
-                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equipmentId
-                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equipmentId
-                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equipmentId
-                    else -> {}
-                }
-                equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
-            }
-
-            // 记录装备日志
-            val equipAge = discipleTables.ages[id]
-            val equipEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
-            if (oldEquipId.isNotEmpty()) {
-                val oldName = equipmentInstances.get(oldEquipId)?.name ?: "旧装备"
-                discipleTables.lifeEvents[id] = equipEvents +
-                    "${equipAge}岁：将${oldName}替换为${equipName}"
-            } else {
-                discipleTables.lifeEvents[id] = equipEvents +
-                    "${equipAge}岁：装备了${equipName}"
-            }
-
-            error = null
+            error = equipEquipmentInTransaction(
+                discipleId = discipleId,
+                equipmentId = equipmentId
+            )
         }
         val finalError = error
         return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
+    }
+
+    /** 穿戴事务主体（equipEquipment 拆分）：校验 → 卸旧 → 穿新 → 记录日志，返回错误或 null */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private fun MutableGameState.equipEquipmentInTransaction(
+        discipleId: String,
+        equipmentId: String
+    ): AppError.Domain.Disciple? {
+        // 校验弟子与装备存在性
+        val id = discipleId.toIntOrNull()
+        if (id == null || !discipleTables.ids.contains(id)) {
+            return AppError.Domain.Disciple.NotFound(discipleId)
+        }
+        val equipmentStack = equipmentStacks.get(equipmentId)
+        val equipmentInstance = equipmentInstances.get(equipmentId)
+        if (equipmentStack == null && equipmentInstance == null) {
+            return AppError.Domain.Disciple.NotFound(discipleId)
+        }
+
+        // 境界与占用校验
+        val realmError = checkEquipRealmRequirement(
+            id = id,
+            discipleId = discipleId,
+            equipmentStack = equipmentStack,
+            equipmentInstance = equipmentInstance
+        )
+        if (realmError != null) return realmError
+
+        // 确定装备槽位与名称
+        val slot = equipmentInstance?.slot ?: equipmentStack?.slot ?: run {
+            return AppError.Domain.Disciple.SlotInvalid("无法确定装备槽位")
+        }
+        val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
+
+        // 卸下旧装备（失败则中止穿戴）
+        val oldEquipId = currentEquipId(id = id, slot = slot)
+        if (oldEquipId.isNotEmpty()) {
+            val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
+            if (!unequipped) {
+                DomainLog.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
+                return AppError.Domain.Disciple.SlotInvalid("卸下旧装备失败 $oldEquipId")
+            }
+        }
+
+        // 穿戴新装备
+        wearEquipment(
+            equipmentId = equipmentId,
+            discipleId = discipleId,
+            id = id,
+            slot = slot
+        )
+
+        // 记录装备日志
+        recordEquipLog(
+            id = id,
+            oldEquipId = oldEquipId,
+            equipName = equipName
+        )
+
+        return null
+    }
+
+    /** 境界/占用校验（equipEquipment 拆分）：已穿戴或境界不足时返回对应错误 */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private fun MutableGameState.checkEquipRealmRequirement(
+        id: Int,
+        discipleId: String,
+        equipmentStack: EquipmentStack?,
+        equipmentInstance: EquipmentInstance?
+    ): AppError.Domain.Disciple? {
+        val discipleRealm = discipleTables.realms[id]
+        if (equipmentInstance != null) {
+            if (equipmentInstance.isEquipped) {
+                return AppError.Domain.Disciple.AlreadyEquipped(
+                    slot = equipmentInstance.slot.name
+                )
+            }
+            if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentInstance.minRealm)) {
+                return AppError.Domain.Disciple.RealmTooLow(
+                    discipleId = discipleId,
+                    need = "境界${equipmentInstance.minRealm}"
+                )
+            }
+        } else if (equipmentStack != null) {
+            if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentStack.minRealm)) {
+                return AppError.Domain.Disciple.RealmTooLow(
+                    discipleId = discipleId,
+                    need = "境界${equipmentStack.minRealm}"
+                )
+            }
+        }
+        return null
+    }
+
+    /** 当前槽位已装备的装备 id（equipEquipment 拆分） */
+    private fun MutableGameState.currentEquipId(id: Int, slot: EquipmentSlot): String = when (slot) {
+        EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
+        EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
+        EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
+        EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
+        else -> ""
+    }
+
+    /** 穿戴装备入槽（equipEquipment 拆分）：堆叠扣减/移除或实例标记 */
+    private fun MutableGameState.wearEquipment(
+        equipmentId: String,
+        discipleId: String,
+        id: Int,
+        slot: EquipmentSlot
+    ) {
+        val stack = equipmentStacks.get(equipmentId)
+        val instance = equipmentInstances.get(equipmentId)
+
+        if (stack != null) {
+            val equippedId = UUID.randomUUID().toString()
+            val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
+            if (stack.quantity > 1) {
+                equipmentStacks.update(equipmentId) { it.copy(quantity = it.quantity - 1) }
+            } else {
+                equipmentStacks.remove(equipmentId)
+            }
+            equipmentInstances = equipmentInstances + equippedItem
+            when (slot) {
+                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equippedId
+                EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equippedId
+                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equippedId
+                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equippedId
+                else -> {}
+            }
+        } else if (instance != null) {
+            when (slot) {
+                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equipmentId
+                EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equipmentId
+                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equipmentId
+                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equipmentId
+                else -> {}
+            }
+            equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
+        }
+    }
+
+    /** 记录装备日志（equipEquipment 拆分）：替换 / 首次穿戴 */
+    private fun MutableGameState.recordEquipLog(
+        id: Int,
+        oldEquipId: String,
+        equipName: String
+    ) {
+        val equipAge = discipleTables.ages[id]
+        val equipEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+        if (oldEquipId.isNotEmpty()) {
+            val oldName = equipmentInstances.get(oldEquipId)?.name ?: "旧装备"
+            discipleTables.lifeEvents[id] = equipEvents +
+                "${equipAge}岁：将${oldName}替换为${equipName}"
+        } else {
+            discipleTables.lifeEvents[id] = equipEvents +
+                "${equipAge}岁：装备了${equipName}"
+        }
     }
 
     /**

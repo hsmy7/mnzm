@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
@@ -119,6 +120,47 @@ object BattleAI {
             it.damageMultiplier <= 0
         }
 
+        // ---- Tier 2-3: 紧急行动（保命/斩杀）----
+        tryEmergencyActions(
+            unit = unit,
+            supportSkills = supportSkills,
+            attackSkills = attackSkills,
+            aliveEnemies = aliveEnemies,
+            rng = rng,
+            playerDamageModifier = playerDamageModifier
+        )?.let { return it }
+
+        // ---- Tier 4-7: 机会行动（支援/团队Buff/控制/AOE）----
+        tryOpportunityActions(
+            unit = unit,
+            aliveAllies = aliveAllies,
+            aliveEnemies = aliveEnemies,
+            usableSkills = usableSkills,
+            supportSkills = supportSkills,
+            attackSkills = attackSkills,
+            rng = rng
+        )?.let { return it }
+
+        // ---- Tier 8-10: 攻击决策 ----
+        return decideAttackAction(
+            unit, aliveEnemies, attackSkills, rng
+        )
+    }
+
+    /**
+     * Tier 2-3 紧急行动（decideAction 拆分）：保命 (HP < 25%) + 斩杀 (敌 HP < 30%)。
+     * RNG 消费顺序与次数与拆分前完全一致（逐层短路返回）。
+     */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private fun tryEmergencyActions(
+        unit: Combatant,
+        supportSkills: List<CombatSkill>,
+        attackSkills: List<CombatSkill>,
+        aliveEnemies: List<Combatant>,
+        rng: DeterministicRng,
+        playerDamageModifier: Double
+    ): AIAction? {
         // ---- Tier 2: 保命 (HP < 25%) ----
         if (unit.hpPercent < SELF_PRESERVE_HP &&
             rng.nextDouble() < PROB_SELF_PRESERVE
@@ -134,7 +176,24 @@ object BattleAI {
             )
             if (executeAction != null) return executeAction
         }
+        return null
+    }
 
+    /**
+     * Tier 4-7 机会行动（decideAction 拆分）：支援盟友/团队Buff/控制/AOE。
+     * RNG 消费顺序与次数与拆分前完全一致（逐层短路返回）。
+     */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private fun tryOpportunityActions(
+        unit: Combatant,
+        aliveAllies: List<Combatant>,
+        aliveEnemies: List<Combatant>,
+        usableSkills: List<CombatSkill>,
+        supportSkills: List<CombatSkill>,
+        attackSkills: List<CombatSkill>,
+        rng: DeterministicRng
+    ): AIAction? {
         // ---- Tier 4: 支援盟友 (盟友 HP < 40%) ----
         if (rng.nextDouble() < PROB_SUPPORT_ALLY &&
             supportSkills.isNotEmpty()
@@ -179,11 +238,7 @@ object BattleAI {
                 )
             }
         }
-
-        // ---- Tier 8-10: 攻击决策 ----
-        return decideAttackAction(
-            unit, aliveEnemies, attackSkills, rng
-        )
+        return null
     }
 
     /**

@@ -100,10 +100,33 @@ class CultivationRateEquivalenceTest {
         val result = mutableListOf<Fixture>()
 
         // 1. 基础组合：境界 × 弟子类型 × 灵根数量（4×2×3 = 24 个）
+        result.addAll(basicComboFixtures(base = base))
+        // 2. 政策津贴：cultivationSubsidy 仅 realm>5 生效
+        result.addAll(policySubsidyFixtures(base = base))
+        // 3. 父母灵根加成（父母存活、双灵根）+ 4. 父母死亡（无加成）
+        result.addAll(parentFixtures(base = base))
+        // 5. 师徒加成：师父低境界（弟子 realm >= 师父 realm 且有 teaching）
+        result.addAll(masterFixtures(base = base))
+        // 6. 哀悼期：进行中 / 已结束
+        result.addAll(griefFixtures(base = base))
+        // 7. 丹药临时加速
+        result.addAll(pillFixtures(base = base))
+        // 8. 临时加速（cultivationSpeedBonus）
+        result.addAll(speedBonusFixtures(base = base))
+        // 9. 功法熟练度（走 ManualDatabase 兜底路径）
+        result.addAll(manualProficiencyFixtures(base = base))
+        // 10-11. 讲道长老加成（含 teachingFlat 跨阈值回归）
+        result.addAll(preachingElderFixtures(base = base))
+
+        return result
+    }
+
+    /** 基础组合（fixtures 拆分）：境界 × 弟子类型 × 灵根数量（4×2×3 = 24 个） */
+    private fun basicComboFixtures(base: GameData): List<Fixture> = buildList {
         for (realm in listOf(9, 5, 1, 0)) {
             for (type in listOf("outer", "inner")) {
                 for (root in listOf("metal", "metal,fire", "metal,fire,wood,water,earth")) {
-                    result.add(
+                    add(
                         Fixture(
                             "basic realm=$realm type=$type root=$root",
                             makeDisciple(realm = realm, discipleType = type, spiritRootType = root),
@@ -113,23 +136,25 @@ class CultivationRateEquivalenceTest {
                 }
             }
         }
+    }
 
-        // 2. 政策津贴：cultivationSubsidy 仅 realm>5 生效
-        result.add(
+    /** 政策津贴（fixtures 拆分）：cultivationSubsidy 仅 realm>5 生效 + 苦修/宽松组合 */
+    private fun policySubsidyFixtures(base: GameData): List<Fixture> = buildList {
+        add(
             Fixture(
                 "policy subsidy realm=8",
                 makeDisciple(realm = 8),
                 base.copy(sectPolicies = SectPolicies(cultivationSubsidy = true))
             )
         )
-        result.add(
+        add(
             Fixture(
                 "policy subsidy realm=5 (not applicable)",
                 makeDisciple(realm = 5),
                 base.copy(sectPolicies = SectPolicies(cultivationSubsidy = true))
             )
         )
-        result.add(
+        add(
             Fixture(
                 "policy ascetic + relaxed",
                 makeDisciple(realm = 9),
@@ -138,11 +163,13 @@ class CultivationRateEquivalenceTest {
                 ))
             )
         )
+    }
 
-        // 3. 父母灵根加成（父母存活、双灵根）
+    /** 父母灵根加成（fixtures 拆分）：父母存活 / 死亡 */
+    private fun parentFixtures(base: GameData): List<Fixture> = buildList {
         val parent1 = makeDisciple(id = "100", name = "父亲", realm = 5, spiritRootType = "metal,fire")
         val parent2 = makeDisciple(id = "101", name = "母亲", realm = 6, spiritRootType = "metal,wood")
-        result.add(
+        add(
             Fixture(
                 "with living parents",
                 makeDisciple(social = SocialData(parentId1 = "100", parentId2 = "101")),
@@ -150,9 +177,7 @@ class CultivationRateEquivalenceTest {
                 listOf(parent1, parent2)
             )
         )
-
-        // 4. 父母死亡（无加成）
-        result.add(
+        add(
             Fixture(
                 "with dead parent",
                 makeDisciple(social = SocialData(parentId1 = "100")),
@@ -160,13 +185,15 @@ class CultivationRateEquivalenceTest {
                 listOf(parent1.copy(isAlive = false))
             )
         )
+    }
 
-        // 5. 师徒加成：师父低境界（弟子 realm >= 师父 realm 且有 teaching）
+    /** 师徒加成（fixtures 拆分）：师父存活 / 已死 */
+    private fun masterFixtures(base: GameData): List<Fixture> = buildList {
         val master = makeDisciple(
             id = "200", name = "师父", realm = 3,
             skills = SkillStats(teaching = 90)
         )
-        result.add(
+        add(
             Fixture(
                 "with living master teaching=90",
                 makeDisciple(realm = 3, social = SocialData(masterId = "200")),
@@ -174,8 +201,7 @@ class CultivationRateEquivalenceTest {
                 listOf(master)
             )
         )
-        // 师父已死（无加成）
-        result.add(
+        add(
             Fixture(
                 "with dead master",
                 makeDisciple(social = SocialData(masterId = "200")),
@@ -183,25 +209,29 @@ class CultivationRateEquivalenceTest {
                 listOf(master.copy(isAlive = false))
             )
         )
+    }
 
-        // 6. 哀悼期：进行中 / 已结束
-        result.add(
+    /** 哀悼期（fixtures 拆分）：进行中 / 已结束 */
+    private fun griefFixtures(base: GameData): List<Fixture> = buildList {
+        add(
             Fixture(
                 "grieving (currentYear < griefEndYear)",
                 makeDisciple(social = SocialData(griefEndYear = 10)),
                 base.copy(gameYear = 5)
             )
         )
-        result.add(
+        add(
             Fixture(
                 "grief over (currentYear >= griefEndYear)",
                 makeDisciple(social = SocialData(griefEndYear = 3)),
                 base.copy(gameYear = 5)
             )
         )
+    }
 
-        // 7. 丹药临时加速
-        result.add(
+    /** 丹药临时加速（fixtures 拆分）：生效中 / 已过期 */
+    private fun pillFixtures(base: GameData): List<Fixture> = buildList {
+        add(
             Fixture(
                 "pill speed bonus active",
                 makeDisciple(pillEffects = PillEffects(
@@ -210,8 +240,7 @@ class CultivationRateEquivalenceTest {
                 base
             )
         )
-        // 丹药过期（duration=0）
-        result.add(
+        add(
             Fixture(
                 "pill speed bonus expired",
                 makeDisciple(pillEffects = PillEffects(
@@ -220,18 +249,22 @@ class CultivationRateEquivalenceTest {
                 base
             )
         )
+    }
 
-        // 8. 临时加速（cultivationSpeedBonus）
-        result.add(
+    /** 临时加速（fixtures 拆分）：cultivationSpeedBonus */
+    private fun speedBonusFixtures(base: GameData): List<Fixture> = buildList {
+        add(
             Fixture(
                 "temporary speed bonus active",
                 makeDisciple(cultivationSpeedBonus = 0.3, cultivationSpeedDuration = 4),
                 base
             )
         )
+    }
 
-        // 9. 功法熟练度（走 ManualDatabase 兜底路径）
-        result.add(
+    /** 功法熟练度（fixtures 拆分）：走 ManualDatabase 兜底路径 */
+    private fun manualProficiencyFixtures(base: GameData): List<Fixture> = buildList {
+        add(
             Fixture(
                 "with manual proficiency",
                 makeDisciple(manualIds = listOf("m1")),
@@ -244,8 +277,10 @@ class CultivationRateEquivalenceTest {
                 ))
             )
         )
+    }
 
-        // 10. 讲道长老加成（elderSlots 配置 + 长老 teaching）
+    /** 讲道长老加成（fixtures 拆分）：elderSlots 配置 + 长老 teaching，含 teachingFlat 跨阈值回归 */
+    private fun preachingElderFixtures(base: GameData): List<Fixture> = buildList {
         val preachingElder = makeDisciple(
             id = "300", name = "讲道长老", realm = 2,
             discipleType = "elder", skills = SkillStats(teaching = 95)
@@ -254,7 +289,7 @@ class CultivationRateEquivalenceTest {
             preachingElder = "300", preachingMasters = emptyList(),
             qingyunPreachingElder = "", qingyunPreachingMasters = emptyList()
         )
-        result.add(
+        add(
             Fixture(
                 "with preaching elder outer disciple",
                 makeDisciple(realm = 3, discipleType = "outer"),
@@ -264,14 +299,12 @@ class CultivationRateEquivalenceTest {
         )
 
         // 11. teachingFlat 跨阈值：基础 79 + 夫子(teachingFlat) = 有效 ≥80
-        // 修复前结算用列基础值（79 < 80 无加成），UI 用 getBaseStats（含 flat）——
-        // 两入口必须一致且 teachingFlat 生效
         val teachingFlatElder = makeDisciple(
             id = "400", name = "夫子长老", realm = 2,
             discipleType = "elder", skills = SkillStats(teaching = 79),
             talentIds = listOf("r1_base_teach")
         )
-        result.add(
+        add(
             Fixture(
                 "preaching elder with teachingFlat crossing threshold",
                 makeDisciple(realm = 3, discipleType = "outer"),
@@ -282,8 +315,6 @@ class CultivationRateEquivalenceTest {
                 listOf(teachingFlatElder)
             )
         )
-
-        return result
     }
 
     @Test

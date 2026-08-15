@@ -1,6 +1,36 @@
 # FPS 帧率提升方案：全面性能优化计划
 
 > 生成日期：2026-07-07 | 来源数量：25+ | 置信度：高
+> **2026-08 归档**：本文档由"待实施方案"转为**实施状态盘点文档**——下方"实施状态盘点"
+> 章节是当前事实基线（docs/architecture.md 债务根治批次同步更新），后续 Phase 表格保留
+> 原始规划供追溯。未实施项均已作出决策（决策不修的理由+触发条件见盘点表）。
+
+---
+
+## 〇、实施状态盘点（2026-08 归档）
+
+| 项 | 状态 | 说明 |
+|----|------|------|
+| P1.1 Compose strongSkippingMode | ✅ 已实施 | app/core:ui/feature:game 三模块 `enableStrongSkippingMode=true` + stability_config.conf |
+| P1.2 @Immutable 注解 | ✅ 已实施 | stability_config.conf 统一稳定性配置（优于逐类注解） |
+| P1.3 场景自适应帧率 | ✅ 已实施 | GAMEPLAY_IDLE 30fps / IDLE 10fps 两级降档（GameEngineCore） |
+| P1.4 Thermal 多级降级 | ✅ 已实施 | 热控降级链（REDUCE/EMERGENCY） |
+| P1.5 CancellationException 防护 | ✅ 已实施 | 编码规范 8.1 固化 |
+| P1.6 Paint/Path 对象池 | ⏸️ 决策不修 | 每旬热点削减（v4.0.82）已解决主要 GC 压力；全量对象池收益未量化，触发：Profiler 证明 GC 占帧预算 >10% |
+| P2.1 Canvas 地图 LOD | ✅ 已实施 | WP5（scale/热控/显式关闭判定 + chunk 重建防抖） |
+| P2.2 静态层离屏缓存 | ⏸️ 决策不修 | WP1 帧缓冲降采样 + 瓦片可见范围钳制已覆盖主要收益；静态层独立缓存无额外收益，触发：软渲路径 CPU 占比超预算 |
+| P2.3 ADPF Performance Hint | ✅ 已实施 | ThermalMonitor（PerformanceHintManager）+ 动态目标帧时长（平板省电专项） |
+| P2.4 纹理分级压缩 | ✅ 已实施 | ASTC 图集（WP7）+ `bundle.texture.enableSplit=true` AAB 自动分发；ETC2/ETC1 手写分档由 AAB 分发覆盖，不建 |
+| P2.5 SettlementScheduler 帧预算增强 | ✅ 已等效达成 | L3a 年变分帧（T1/T2 + YearlyOpsQueue 30ms drain）+ 每旬热点削减实现分帧目标 |
+| P3.1 Baseline Profile | ✅ 已实施 | :baselineprofile 生成器模块 + ProfileInstaller + baseline.prof |
+| P3.2 R8 Full Mode | ✅ 已实施 | android.enableR8.fullMode=true + optimize proguard 文件（keep 规则收窄见债务根治批次） |
+| P3.3 内存分级预算 | ⏸️ 决策不修 | DeviceCapabilityProfiler 设备分级已存在；DynamicMemoryManager 预算管理器不建，触发：内存相关 OOM 事故报告 |
+| P3.4 服务懒加载 | ⏸️ 决策不修 | Hilt 默认懒构造（首次注入才实例化）已覆盖启动收益；@LazyInit 标记层不建，触发：启动剖析证明 DI 图构建成瓶颈 |
+| P3.5 年度结算分帧 | ✅ 已实施 | 与 P2.5 同源（L3a） |
+| P4.1 Macrobenchmark CI | ⏸️ 决策不修 | device-test.yml 已有 FTL 真机矩阵；性能回归自动检测需持续真机资源，触发：性能预算纳入发布门禁时 |
+| P4.2 Unity URP 对比研究 | ⏸️ 决策不修 | 仅未来引擎迁移选项，当前无迁移意图 |
+| P4.3 Baseline Profile CI 自动生成 | ⏸️ 决策不修 | 生成器已建、release 管线已产出；CI 自动再生成仅省手工一步，触发：profile 覆盖率下降时 |
+| P4.4 Vulkan 专业调优 | ⏸️ 决策不修 | Vulkan 已多轮专项（渲染分辨率缩放/swapchain 重建/离屏降采样）；叠纸方案迁移收益未量化，触发：Vulkan 路径 DrawCall 成本超预算 |
 
 ---
 

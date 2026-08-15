@@ -12,7 +12,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,24 +96,7 @@ fun UnifiedGameDialog(
         BackHandler(onBack = onDismissRequest)
     }
 
-    val (widthModifier, heightModifier) = when (mode) {
-        DialogMode.Half -> Pair(
-            Modifier.fillMaxWidth(0.83f),
-            Modifier.fillMaxHeight(0.78f)
-        )
-        DialogMode.Large -> Pair(
-            Modifier.fillMaxWidth(0.95f),
-            Modifier.fillMaxHeight(0.9f)
-        )
-        DialogMode.Full -> Pair(
-            Modifier.fillMaxSize(),
-            Modifier.fillMaxSize()
-        )
-        DialogMode.Auto -> Pair(
-            Modifier.fillMaxWidth(0.83f),
-            Modifier
-        )
-    }
+    val (widthModifier, heightModifier) = dialogModeModifiers(mode)
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -131,116 +116,242 @@ fun UnifiedGameDialog(
         // FloatingActionMode 在窗口 token 失效后弹 PopupWindow 崩溃（Bugly #3026）
         DialogFocusGuard()
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (scrimEnabled) Modifier.background(Color(0x99000000))
-                    else Modifier
-                )
-                .then(
-                    if (dismissOnClickOutside) {
-                        Modifier.clickableWithSound(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onDismissRequest
-                        )
-                    } else Modifier
-                )
-                .then(
-                    // 对话框窗口内任意触摸 → 刷新引擎闲置计时（防挂机误降帧）
-                    if (onDialogTouch != null) {
-                        Modifier.pointerInput(onDialogTouch) {
-                            awaitEachGesture {
-                                awaitFirstDown(requireUnconsumed = false)
-                                onDialogTouch()
-                            }
-                        }
-                    } else Modifier
-                ),
-            contentAlignment = Alignment.Center
+        DialogScrim(
+            onDismissRequest = onDismissRequest,
+            scrimEnabled = scrimEnabled,
+            dismissOnClickOutside = dismissOnClickOutside,
+            onDialogTouch = onDialogTouch
         ) {
-            Box(
-                modifier = modifier
-                    .then(widthModifier)
-                    .then(heightModifier)
-                    .clickableWithSound(
+            DialogFrame(
+                modifier = modifier,
+                widthModifier = widthModifier,
+                heightModifier = heightModifier,
+                backgroundRes = backgroundRes,
+                showHeader = showHeader,
+                title = title,
+                mode = mode,
+                titleColor = titleColor,
+                titleFontSize = titleFontSize,
+                titleAlignment = titleAlignment,
+                showCloseButton = showCloseButton,
+                headerActions = headerActions,
+                headerContent = headerContent,
+                closeButtonRes = closeButtonRes,
+                onDismissRequest = onDismissRequest,
+                scrollableContent = scrollableContent,
+                content = content,
+                overlay = overlay
+            )
+        }
+    }
+}
+
+/** 对话框尺寸模式 → (宽, 高) 修饰符（UnifiedGameDialog 拆分） */
+private fun dialogModeModifiers(mode: DialogMode): Pair<Modifier, Modifier> = when (mode) {
+    DialogMode.Half -> Pair(
+        Modifier.fillMaxWidth(DialogDefaults.HalfScreenWidthFraction),
+        Modifier.fillMaxHeight(DialogDefaults.HalfScreenHeightFraction)
+    )
+    DialogMode.Large -> Pair(
+        Modifier.fillMaxWidth(0.95f),
+        Modifier.fillMaxHeight(0.9f)
+    )
+    DialogMode.Full -> Pair(
+        Modifier.fillMaxSize(),
+        Modifier.fillMaxSize()
+    )
+    DialogMode.Auto -> Pair(
+        Modifier.fillMaxWidth(DialogDefaults.HalfScreenWidthFraction),
+        Modifier
+    )
+}
+
+/** 框架内容（UnifiedGameDialog 拆分）：背景图 + 标题栏 + 内容区 + 窗口级覆盖层 */
+@Composable
+@Suppress("LongParameterList") // 拆分聚合：18 个平铺参数均为原公共函数参数的搬移（detekt 对 @Composable 不豁免）
+private fun BoxScope.DialogFrame(
+    modifier: Modifier,
+    widthModifier: Modifier,
+    heightModifier: Modifier,
+    @DrawableRes backgroundRes: Int,
+    showHeader: Boolean,
+    title: String,
+    mode: DialogMode,
+    titleColor: Color,
+    titleFontSize: TextUnit,
+    titleAlignment: Alignment,
+    showCloseButton: Boolean,
+    headerActions: (@Composable () -> Unit)?,
+    headerContent: (@Composable () -> Unit)?,
+    @DrawableRes closeButtonRes: Int,
+    onDismissRequest: () -> Unit,
+    scrollableContent: Boolean,
+    content: @Composable () -> Unit,
+    overlay: (@Composable () -> Unit)?
+) {
+    Box(
+        modifier = modifier
+            .then(widthModifier)
+            .then(heightModifier)
+            .clickableWithSound(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+            .clip(RoundedCornerShape(CornerRadius.LG))
+    ) {
+        // backgroundRes = 0 时不绘制背景图（纯色背景由调用方内容区提供）
+        if (backgroundRes != 0) {
+            Image(
+                painter = painterResource(id = backgroundRes),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (showHeader) {
+                DialogHeader(
+                    title = title,
+                    mode = mode,
+                    titleColor = titleColor,
+                    titleFontSize = titleFontSize,
+                    titleAlignment = titleAlignment,
+                    showCloseButton = showCloseButton,
+                    headerActions = headerActions,
+                    headerContent = headerContent,
+                    closeButtonRes = closeButtonRes,
+                    onDismissRequest = onDismissRequest
+                )
+            }
+            DialogContentArea(
+                scrollableContent = scrollableContent,
+                showHeader = showHeader,
+                mode = mode,
+                content = content
+            )
+        }
+    }
+    // 窗口级覆盖层槽位：frame 之后渲染（外层 BoxScope 内 z 序最高），
+    // 内联覆盖层 fillMaxSize 覆盖整个窗口（含 header 与内容区 padding）
+    overlay?.invoke()
+}
+
+/** 遮罩层（UnifiedGameDialog 拆分）：scrim 背景 + 点击外部关闭 + 触摸闲置计时刷新 */
+@Composable
+private fun DialogScrim(
+    onDismissRequest: () -> Unit,
+    scrimEnabled: Boolean,
+    dismissOnClickOutside: Boolean,
+    onDialogTouch: (() -> Unit)?,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(
+                if (scrimEnabled) Modifier.background(Color(0x99000000))
+                else Modifier
+            )
+            .then(
+                if (dismissOnClickOutside) {
+                    Modifier.clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {}
+                        onClick = onDismissRequest
                     )
-                    .clip(RoundedCornerShape(CornerRadius.LG))
-            ) {
-                // backgroundRes = 0 时不绘制背景图（纯色背景由调用方内容区提供）
-                if (backgroundRes != 0) {
-                    Image(
-                        painter = painterResource(id = backgroundRes),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Unified header（showHeader=false 时整体隐藏，供全屏内容覆盖）
-                    if (showHeader) {
-                        val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
-                        val headerTopPadding = if (mode == DialogMode.Full) 4.dp else Spacing.XS
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = headerH, end = headerH, top = headerTopPadding),
-                            contentAlignment = titleAlignment
-                        ) {
-                            Text(
-                                text = title,
-                                fontSize = titleFontSize,
-                                fontWeight = FontWeight.Bold,
-                                color = titleColor
-                            )
-                            if (showCloseButton || headerActions != null) {
-                                Row(
-                                    modifier = Modifier.align(Alignment.CenterEnd),
-                                    horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    headerActions?.invoke()
-                                    if (showCloseButton) {
-                                        CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
-                                    }
-                                }
-                            }
+                } else Modifier
+            )
+            .then(
+                // 对话框窗口内任意触摸 → 刷新引擎闲置计时（防挂机误降帧）
+                if (onDialogTouch != null) {
+                    Modifier.pointerInput(onDialogTouch) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            onDialogTouch()
                         }
-                        // Header extension content (e.g. filter bar)
-                        headerContent?.invoke()
                     }
-                    // Scrollable content
-                    val contentScrollModifier = if (scrollableContent) {
-                        Modifier.verticalScroll(rememberScrollState())
-                    } else {
-                        Modifier
-                    }
-                    val contentHPadding = if (!showHeader) {
-                        0.dp
-                    } else if (mode == DialogMode.Full) {
-                        32.dp
-                    } else {
-                        Spacing.MD
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .then(contentScrollModifier)
-                            .padding(horizontal = contentHPadding)
-                    ) {
-                        content()
-                    }
+                } else Modifier
+            ),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
+}
+
+/** 标题栏（UnifiedGameDialog 拆分）：标题 + 关闭按钮/头部动作 + header 扩展内容 */
+@Composable
+@Suppress("LongParameterList") // 拆分聚合：10 个平铺参数均为原公共函数参数的搬移（detekt 对 @Composable 不豁免）
+private fun DialogHeader(
+    title: String,
+    mode: DialogMode,
+    titleColor: Color,
+    titleFontSize: TextUnit,
+    titleAlignment: Alignment,
+    showCloseButton: Boolean,
+    headerActions: (@Composable () -> Unit)?,
+    headerContent: (@Composable () -> Unit)?,
+    @DrawableRes closeButtonRes: Int,
+    onDismissRequest: () -> Unit
+) {
+    val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
+    val headerTopPadding = if (mode == DialogMode.Full) 4.dp else Spacing.XS
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = headerH, end = headerH, top = headerTopPadding),
+        contentAlignment = titleAlignment
+    ) {
+        Text(
+            text = title,
+            fontSize = titleFontSize,
+            fontWeight = FontWeight.Bold,
+            color = titleColor
+        )
+        if (showCloseButton || headerActions != null) {
+            Row(
+                modifier = Modifier.align(Alignment.CenterEnd),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                headerActions?.invoke()
+                if (showCloseButton) {
+                    CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
                 }
             }
-            // 窗口级覆盖层槽位：frame 之后渲染（外层 BoxScope 内 z 序最高），
-            // 内联覆盖层 fillMaxSize 覆盖整个窗口（含 header 与内容区 padding）
-            overlay?.invoke()
         }
+    }
+    // Header extension content (e.g. filter bar)
+    headerContent?.invoke()
+}
+
+/** 内容区（UnifiedGameDialog 拆分）：滚动修饰 + 水平 padding + content 槽位 */
+@Composable
+private fun ColumnScope.DialogContentArea(
+    scrollableContent: Boolean,
+    showHeader: Boolean,
+    mode: DialogMode,
+    content: @Composable () -> Unit
+) {
+    val contentScrollModifier = if (scrollableContent) {
+        Modifier.verticalScroll(rememberScrollState())
+    } else {
+        Modifier
+    }
+    val contentHPadding = if (!showHeader) {
+        0.dp
+    } else if (mode == DialogMode.Full) {
+        32.dp
+    } else {
+        Spacing.MD
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .then(contentScrollModifier)
+            .padding(horizontal = contentHPadding)
+    ) {
+        content()
     }
 }
 

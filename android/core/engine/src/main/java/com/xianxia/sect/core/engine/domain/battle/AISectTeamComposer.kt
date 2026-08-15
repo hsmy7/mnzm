@@ -111,49 +111,12 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
         val itemType = teamComposerRng.nextInt(7)
         when (itemType) {
             0 -> spiritStones += config.spiritStoneValue
-            1 -> {
-                if (com.xianxia.sect.core.registry.EquipmentDatabase.isInitialized) {
-                    try {
-                        equipmentStacks.add(
-                            com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
-                        )
-                    } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
-                }
-            }
-            2 -> {
-                if (com.xianxia.sect.core.registry.ManualDatabase.isInitialized) {
-                    try {
-                        manualStacks.add(
-                            com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
-                        )
-                    } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
-                }
-            }
-            3 -> {
-                try {
-                    pills.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity))
-                } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
-            }
-            4 -> {
-                try {
-                    materials.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity))
-                } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
-            }
-            5 -> {
-                try {
-                    val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
-                    herbs.add(com.xianxia.sect.core.model.Herb(name = herbTemplate.name, rarity = herbTemplate.rarity,
-                        description = herbTemplate.description, category = herbTemplate.category, quantity = 1))
-                } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
-            }
-            6 -> {
-                try {
-                    val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
-                    seeds.add(com.xianxia.sect.core.model.Seed(name = seedTemplate.name, rarity = seedTemplate.rarity,
-                        description = seedTemplate.description, growTime = seedTemplate.growTime,
-                        yield = seedTemplate.yield, quantity = 1))
-                } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
-            }
+            1 -> addWarEquipment(config, equipmentStacks)
+            2 -> addWarManual(config, manualStacks)
+            3 -> addWarPill(config, pills)
+            4 -> addWarMaterial(config, materials)
+            5 -> addWarHerb(config, herbs)
+            6 -> addWarSeed(config, seeds)
         }
     }
 
@@ -166,4 +129,77 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
         herbs = herbs,
         seeds = seeds
     )
+}
+
+/** 战争奖励：装备生成（generateWarRewards 拆分） */
+private fun addWarEquipment(
+    config: SectWarRewardConfig,
+    equipmentStacks: MutableList<com.xianxia.sect.core.model.EquipmentStack>
+) {
+    if (com.xianxia.sect.core.registry.EquipmentDatabase.isInitialized) {
+        try {
+            equipmentStacks.add(
+                com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)
+            )
+        } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
+    }
+}
+
+/** 战争奖励：功法生成（generateWarRewards 拆分） */
+private fun addWarManual(
+    config: SectWarRewardConfig,
+    manualStacks: MutableList<com.xianxia.sect.core.model.ManualStack>
+) {
+    if (com.xianxia.sect.core.registry.ManualDatabase.isInitialized) {
+        try {
+            manualStacks.add(
+                com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)
+            )
+        } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
+    }
+}
+
+/** 战争奖励：丹药生成（generateWarRewards 拆分） */
+private fun addWarPill(
+    config: SectWarRewardConfig,
+    pills: MutableList<com.xianxia.sect.core.model.Pill>
+) {
+    try {
+        pills.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(config.minRarity, config.maxRarity))
+    } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
+}
+
+/** 战争奖励：材料生成（generateWarRewards 拆分） */
+private fun addWarMaterial(
+    config: SectWarRewardConfig,
+    materials: MutableList<com.xianxia.sect.core.model.Material>
+) {
+    try {
+        materials.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity))
+    } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
+}
+
+/** 战争奖励：灵草生成（generateWarRewards 拆分） */
+private fun addWarHerb(
+    config: SectWarRewardConfig,
+    herbs: MutableList<com.xianxia.sect.core.model.Herb>
+) {
+    try {
+        val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomHerb(config.minRarity, config.maxRarity)
+        herbs.add(com.xianxia.sect.core.model.Herb(name = herbTemplate.name, rarity = herbTemplate.rarity,
+            description = herbTemplate.description, category = herbTemplate.category, quantity = 1))
+    } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
+}
+
+/** 战争奖励：种子生成（generateWarRewards 拆分） */
+private fun addWarSeed(
+    config: SectWarRewardConfig,
+    seeds: MutableList<com.xianxia.sect.core.model.Seed>
+) {
+    try {
+        val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(config.minRarity, config.maxRarity)
+        seeds.add(com.xianxia.sect.core.model.Seed(name = seedTemplate.name, rarity = seedTemplate.rarity,
+            description = seedTemplate.description, growTime = seedTemplate.growTime,
+            yield = seedTemplate.yield, quantity = 1))
+    } catch (e: Exception) { android.util.Log.w("AISectAttackManager", "随机物品生成失败", e) }
 }

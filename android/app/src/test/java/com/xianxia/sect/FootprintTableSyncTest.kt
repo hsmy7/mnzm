@@ -94,9 +94,10 @@ class FootprintTableSyncTest {
     /**
      * 解析 footprint_table.h 的 FP_W[]/FP_H[] 整型字面量。
      * 数组是纯数字字面量单行格式，正则提取可靠。
+     * 2026-08 债务根治：文件已从源码树迁移 build/generated/sprite/（stage3-config-cache.md）。
      */
     private fun parseFootprintArrays(): Pair<List<Int>, List<Int>> {
-        val headerFile = File("src/main/cpp/footprint_table.h")
+        val headerFile = File("build/generated/sprite/footprint_table.h")
         assertTrue(
             "footprint_table.h 不存在：${headerFile.absolutePath}——请运行 ./gradlew generateFootprintHeader",
             headerFile.exists()

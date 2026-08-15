@@ -245,190 +245,205 @@ class ManualDatabaseTest {
     // ============================================================
 
     private fun buildTestManuals(): Map<String, ManualTemplate> {
-        return mapOf(
-            "attack_1" to ManualTemplate(
-                id = "attack_1",
-                name = "烈焰诀",
-                type = ManualType.ATTACK,
-                rarity = 1,
-                description = "基础攻击功法",
-                stats = mapOf("physicalAttack" to 10),
-                skillName = "烈焰斩",
-                skillDescription = "释放烈焰攻击",
-                skillDamageMultiplier = 1.5
-            ),
-            "attack_2" to ManualTemplate(
-                id = "attack_2",
-                name = "寒冰掌",
-                type = ManualType.ATTACK,
-                rarity = 2,
-                description = "中级攻击功法",
-                stats = mapOf("magicAttack" to 15),
-                skillName = "寒冰掌",
-                skillDamageMultiplier = 2.0
-            ),
-            "defense_1" to ManualTemplate(
-                id = "defense_1",
-                name = "铁壁功",
-                type = ManualType.DEFENSE,
-                rarity = 1,
-                description = "基础防御功法",
-                stats = mapOf("physicalDefense" to 10)
-            ),
-            "defense_2" to ManualTemplate(
-                id = "defense_2",
-                name = "金钟罩",
-                type = ManualType.DEFENSE,
-                rarity = 3,
-                description = "高级防御功法",
-                stats = mapOf("physicalDefense" to 30, "magicDefense" to 20)
-            ),
-            "support_1" to ManualTemplate(
-                id = "support_1",
-                name = "回春术",
-                type = ManualType.SUPPORT,
-                rarity = 2,
-                description = "治疗功法",
-                skillName = "回春",
-                skillHealPercent = 0.3
-            ),
-            "support_2" to ManualTemplate(
-                id = "support_2",
-                name = "清心咒",
-                type = ManualType.SUPPORT,
-                rarity = 4,
-                description = "高级辅助功法",
-                skillBuffs = listOf(BuffInfo(type = "speed", value = 0.2, duration = 3))
-            ),
-            "mind_1" to ManualTemplate(
-                id = "mind_1",
-                name = "太虚心经",
-                type = ManualType.MIND,
-                rarity = 5,
-                description = "顶级心法",
-                stats = mapOf("cultivationSpeedPercent" to 50)
-            ),
-            "mind_2" to ManualTemplate(
-                id = "mind_2",
-                name = "无极真经",
-                type = ManualType.MIND,
-                rarity = 6,
-                description = "至高心法",
-                stats = mapOf("cultivationSpeedPercent" to 100)
-            ),
-            // 补充更多稀有度覆盖
-            "attack_3" to ManualTemplate(
-                id = "attack_3",
-                name = "天雷诀",
-                type = ManualType.ATTACK,
-                rarity = 3,
-                description = "雷系攻击功法"
-            ),
-            "attack_4" to ManualTemplate(
-                id = "attack_4",
-                name = "灭世火莲",
-                type = ManualType.ATTACK,
-                rarity = 4,
-                description = "火系高级攻击功法"
-            ),
-            "attack_5" to ManualTemplate(
-                id = "attack_5",
-                name = "九天玄雷",
-                type = ManualType.ATTACK,
-                rarity = 5,
-                description = "顶级攻击功法"
-            ),
-            "attack_6" to ManualTemplate(
-                id = "attack_6",
-                name = "混沌神雷",
-                type = ManualType.ATTACK,
-                rarity = 6,
-                description = "至高攻击功法"
-            ),
-            "defense_3" to ManualTemplate(
-                id = "defense_3",
-                name = "玄武盾",
-                type = ManualType.DEFENSE,
-                rarity = 2,
-                description = "中级防御功法"
-            ),
-            "defense_4" to ManualTemplate(
-                id = "defense_4",
-                name = "不灭金身",
-                type = ManualType.DEFENSE,
-                rarity = 4,
-                description = "高级防御功法"
-            ),
-            "defense_5" to ManualTemplate(
-                id = "defense_5",
-                name = "万法不侵",
-                type = ManualType.DEFENSE,
-                rarity = 5,
-                description = "顶级防御功法"
-            ),
-            "defense_6" to ManualTemplate(
-                id = "defense_6",
-                name = "天地护体",
-                type = ManualType.DEFENSE,
-                rarity = 6,
-                description = "至高防御功法"
-            ),
-            "support_3" to ManualTemplate(
-                id = "support_3",
-                name = "灵泉术",
-                type = ManualType.SUPPORT,
-                rarity = 1,
-                description = "基础辅助功法"
-            ),
-            "support_4" to ManualTemplate(
-                id = "support_4",
-                name = "天音咒",
-                type = ManualType.SUPPORT,
-                rarity = 3,
-                description = "中级辅助功法"
-            ),
-            "support_5" to ManualTemplate(
-                id = "support_5",
-                name = "大梵圣音",
-                type = ManualType.SUPPORT,
-                rarity = 5,
-                description = "顶级辅助功法"
-            ),
-            "support_6" to ManualTemplate(
-                id = "support_6",
-                name = "万灵归宗",
-                type = ManualType.SUPPORT,
-                rarity = 6,
-                description = "至高辅助功法"
-            ),
-            "mind_3" to ManualTemplate(
-                id = "mind_3",
-                name = "清心诀",
-                type = ManualType.MIND,
-                rarity = 1,
-                description = "基础心法"
-            ),
-            "mind_4" to ManualTemplate(
-                id = "mind_4",
-                name = "紫气东来",
-                type = ManualType.MIND,
-                rarity = 2,
-                description = "中级心法"
-            ),
-            "mind_5" to ManualTemplate(
-                id = "mind_5",
-                name = "混元功",
-                type = ManualType.MIND,
-                rarity = 3,
-                description = "高级心法"
-            ),
-            "mind_6" to ManualTemplate(
-                id = "mind_6",
-                name = "太极心经",
-                type = ManualType.MIND,
-                rarity = 4,
-                description = "超级心法"
-            )
-        )
+        return buildAttackTestManuals() + buildDefenseTestManuals() +
+            buildSupportTestManuals() + buildMindTestManuals()
     }
+
+    /** 攻击功法测试数据（buildTestManuals 拆分） */
+    private fun buildAttackTestManuals(): Map<String, ManualTemplate> = mapOf(
+        "attack_1" to ManualTemplate(
+            id = "attack_1",
+            name = "烈焰诀",
+            type = ManualType.ATTACK,
+            rarity = 1,
+            description = "基础攻击功法",
+            stats = mapOf("physicalAttack" to 10),
+            skillName = "烈焰斩",
+            skillDescription = "释放烈焰攻击",
+            skillDamageMultiplier = 1.5
+        ),
+        "attack_2" to ManualTemplate(
+            id = "attack_2",
+            name = "寒冰掌",
+            type = ManualType.ATTACK,
+            rarity = 2,
+            description = "中级攻击功法",
+            stats = mapOf("magicAttack" to 15),
+            skillName = "寒冰掌",
+            skillDamageMultiplier = 2.0
+        ),
+        "attack_3" to ManualTemplate(
+            id = "attack_3",
+            name = "天雷诀",
+            type = ManualType.ATTACK,
+            rarity = 3,
+            description = "雷系攻击功法"
+        ),
+        "attack_4" to ManualTemplate(
+            id = "attack_4",
+            name = "灭世火莲",
+            type = ManualType.ATTACK,
+            rarity = 4,
+            description = "火系高级攻击功法"
+        ),
+        "attack_5" to ManualTemplate(
+            id = "attack_5",
+            name = "九天玄雷",
+            type = ManualType.ATTACK,
+            rarity = 5,
+            description = "顶级攻击功法"
+        ),
+        "attack_6" to ManualTemplate(
+            id = "attack_6",
+            name = "混沌神雷",
+            type = ManualType.ATTACK,
+            rarity = 6,
+            description = "至高攻击功法"
+        )
+    )
+
+    /** 防御功法测试数据（buildTestManuals 拆分） */
+    private fun buildDefenseTestManuals(): Map<String, ManualTemplate> = mapOf(
+        "defense_1" to ManualTemplate(
+            id = "defense_1",
+            name = "铁壁功",
+            type = ManualType.DEFENSE,
+            rarity = 1,
+            description = "基础防御功法",
+            stats = mapOf("physicalDefense" to 10)
+        ),
+        "defense_2" to ManualTemplate(
+            id = "defense_2",
+            name = "金钟罩",
+            type = ManualType.DEFENSE,
+            rarity = 3,
+            description = "高级防御功法",
+            stats = mapOf("physicalDefense" to 30, "magicDefense" to 20)
+        ),
+        "defense_3" to ManualTemplate(
+            id = "defense_3",
+            name = "玄武盾",
+            type = ManualType.DEFENSE,
+            rarity = 2,
+            description = "中级防御功法"
+        ),
+        "defense_4" to ManualTemplate(
+            id = "defense_4",
+            name = "不灭金身",
+            type = ManualType.DEFENSE,
+            rarity = 4,
+            description = "高级防御功法"
+        ),
+        "defense_5" to ManualTemplate(
+            id = "defense_5",
+            name = "万法不侵",
+            type = ManualType.DEFENSE,
+            rarity = 5,
+            description = "顶级防御功法"
+        ),
+        "defense_6" to ManualTemplate(
+            id = "defense_6",
+            name = "天地护体",
+            type = ManualType.DEFENSE,
+            rarity = 6,
+            description = "至高防御功法"
+        )
+    )
+
+    /** 辅助功法测试数据（buildTestManuals 拆分） */
+    private fun buildSupportTestManuals(): Map<String, ManualTemplate> = mapOf(
+        "support_1" to ManualTemplate(
+            id = "support_1",
+            name = "回春术",
+            type = ManualType.SUPPORT,
+            rarity = 2,
+            description = "治疗功法",
+            skillName = "回春",
+            skillHealPercent = 0.3
+        ),
+        "support_2" to ManualTemplate(
+            id = "support_2",
+            name = "清心咒",
+            type = ManualType.SUPPORT,
+            rarity = 4,
+            description = "高级辅助功法",
+            skillBuffs = listOf(BuffInfo(type = "speed", value = 0.2, duration = 3))
+        ),
+        "support_3" to ManualTemplate(
+            id = "support_3",
+            name = "灵泉术",
+            type = ManualType.SUPPORT,
+            rarity = 1,
+            description = "基础辅助功法"
+        ),
+        "support_4" to ManualTemplate(
+            id = "support_4",
+            name = "天音咒",
+            type = ManualType.SUPPORT,
+            rarity = 3,
+            description = "中级辅助功法"
+        ),
+        "support_5" to ManualTemplate(
+            id = "support_5",
+            name = "大梵圣音",
+            type = ManualType.SUPPORT,
+            rarity = 5,
+            description = "顶级辅助功法"
+        ),
+        "support_6" to ManualTemplate(
+            id = "support_6",
+            name = "万灵归宗",
+            type = ManualType.SUPPORT,
+            rarity = 6,
+            description = "至高辅助功法"
+        )
+    )
+
+    /** 心法测试数据（buildTestManuals 拆分） */
+    private fun buildMindTestManuals(): Map<String, ManualTemplate> = mapOf(
+        "mind_1" to ManualTemplate(
+            id = "mind_1",
+            name = "太虚心经",
+            type = ManualType.MIND,
+            rarity = 5,
+            description = "顶级心法",
+            stats = mapOf("cultivationSpeedPercent" to 50)
+        ),
+        "mind_2" to ManualTemplate(
+            id = "mind_2",
+            name = "无极真经",
+            type = ManualType.MIND,
+            rarity = 6,
+            description = "至高心法",
+            stats = mapOf("cultivationSpeedPercent" to 100)
+        ),
+        "mind_3" to ManualTemplate(
+            id = "mind_3",
+            name = "清心诀",
+            type = ManualType.MIND,
+            rarity = 1,
+            description = "基础心法"
+        ),
+        "mind_4" to ManualTemplate(
+            id = "mind_4",
+            name = "紫气东来",
+            type = ManualType.MIND,
+            rarity = 2,
+            description = "中级心法"
+        ),
+        "mind_5" to ManualTemplate(
+            id = "mind_5",
+            name = "混元功",
+            type = ManualType.MIND,
+            rarity = 3,
+            description = "高级心法"
+        ),
+        "mind_6" to ManualTemplate(
+            id = "mind_6",
+            name = "太极心经",
+            type = ManualType.MIND,
+            rarity = 4,
+            description = "超级心法"
+        )
+    )
 }

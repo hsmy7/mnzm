@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game.components.detail
 
 import androidx.compose.foundation.background
@@ -75,115 +76,159 @@ fun StorageBagDialog(
         scrollableContent = false
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(GameColors.Warning)
-                        .clickableWithSound { showRewardDialog = true }
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "赏赐",
-                        fontSize = 10.sp,
-                        color = Color.White
-                    )
-                }
-                Text(
-                    text = "灵石:$spiritStones",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = GameColors.Info
-                )
-            }
+            StorageBagHeaderRow(
+                spiritStones = spiritStones,
+                onRewardClick = { showRewardDialog = true }
+            )
             Spacer(modifier = Modifier.height(12.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp)
-            ) {
-                if (sortedItems.isEmpty()) {
-                    Text(
-                        text = "储物袋为空",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                } else {
-                    Text(
-                        text = "共 ${sortedItems.size} 种物品",
-                        fontSize = 11.sp,
-                        color = Color.Black
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(60.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        itemsIndexed(sortedItems, key = { index, item -> "${item.itemId}_$index" }) { index, item ->
-                            UnifiedItemCard(
-                                data = ItemCardData(
-                                    id = item.itemId,
-                                    name = item.name,
-                                    rarity = item.rarity,
-                                    quantity = item.quantity,
-                                    grade = item.grade,
-                                    isManual = item.itemType == "manual_stack" || item.itemType == "manual_instance",
-                                    isPill = item.itemType == "pill",
-                                    isMaterial = item.itemType == "material"
-                                ),
-                                isSelected = selectedItem?.itemId == item.itemId,
-                                isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
-                                onClick = {
-                                    selectedItem = if (selectedItem?.itemId == item.itemId) null else item
-                                },
-                                onLongPress = {
-                                    selectedItem = item
-                                    showDetailDialog = true
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (showDetailDialog) {
-        selectedItem?.let { item ->
-            ItemDetailDialog(
-                item = item,
-                onDismiss = { showDetailDialog = false },
-                viewModel = viewModel,
-                extraActions = {
-                    GameButton(
-                        text = "没收",
-                        onClick = {
-                            viewModel?.confiscateStorageBagItem(disciple.id, item)
-                            showDetailDialog = false
-                        },
-                        modifier = Modifier.height(32.dp)
-                    )
+            StorageBagItemList(
+                sortedItems = sortedItems,
+                selectedItem = selectedItem,
+                watchedKeys = watchedKeys,
+                onItemClick = { item ->
+                    selectedItem = if (selectedItem?.itemId == item.itemId) null else item
+                },
+                onItemLongPress = { item ->
+                    selectedItem = item
+                    showDetailDialog = true
                 }
             )
         }
     }
+
+    StorageBagDetailDialog(
+        item = if (showDetailDialog) selectedItem else null,
+        viewModel = viewModel,
+        disciple = disciple,
+        onDismiss = { showDetailDialog = false }
+    )
 
     if (showRewardDialog && viewModel != null) {
         RewardItemsDialog(
             disciple = disciple,
             viewModel = viewModel,
             onDismiss = { showRewardDialog = false }
+        )
+    }
+}
+
+/** 储物袋顶部操作行（StorageBagDialog 拆分）：赏赐入口 + 灵石余额 */
+@Composable
+private fun StorageBagHeaderRow(
+    spiritStones: Long,
+    onRewardClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(GameColors.Warning)
+                .clickableWithSound { onRewardClick() }
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "赏赐",
+                fontSize = 10.sp,
+                color = Color.White
+            )
+        }
+        Text(
+            text = "灵石:$spiritStones",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = GameColors.Info
+        )
+    }
+}
+
+/** 储物袋物品区（StorageBagDialog 拆分）：空态/计数 + 物品网格 */
+@Composable
+private fun StorageBagItemList(
+    sortedItems: List<StorageBagItem>,
+    selectedItem: StorageBagItem?,
+    watchedKeys: Set<String>,
+    onItemClick: (StorageBagItem) -> Unit,
+    onItemLongPress: (StorageBagItem) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 400.dp)
+    ) {
+        if (sortedItems.isEmpty()) {
+            Text(
+                text = "储物袋为空",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        } else {
+            Text(
+                text = "共 ${sortedItems.size} 种物品",
+                fontSize = 11.sp,
+                color = Color.Black
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(60.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                itemsIndexed(sortedItems, key = { index, item -> "${item.itemId}_$index" }) { index, item ->
+                    UnifiedItemCard(
+                        data = ItemCardData(
+                            id = item.itemId,
+                            name = item.name,
+                            rarity = item.rarity,
+                            quantity = item.quantity,
+                            grade = item.grade,
+                            isManual = item.itemType == "manual_stack" || item.itemType == "manual_instance",
+                            isPill = item.itemType == "pill",
+                            isMaterial = item.itemType == "material"
+                        ),
+                        isSelected = selectedItem?.itemId == item.itemId,
+                        isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
+                        onClick = { onItemClick(item) },
+                        onLongPress = { onItemLongPress(item) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 储物袋物品详情弹窗（StorageBagDialog 拆分）：详情 + 没收操作 */
+@Composable
+private fun StorageBagDetailDialog(
+    item: StorageBagItem?,
+    viewModel: GameViewModel?,
+    disciple: DiscipleAggregate,
+    onDismiss: () -> Unit
+) {
+    if (item != null) {
+        ItemDetailDialog(
+            item = item,
+            onDismiss = onDismiss,
+            viewModel = viewModel,
+            extraActions = {
+                GameButton(
+                    text = "没收",
+                    onClick = {
+                        viewModel?.confiscateStorageBagItem(disciple.id, item)
+                        onDismiss()
+                    },
+                    modifier = Modifier.height(32.dp)
+                )
+            }
         )
     }
 }
@@ -207,216 +252,71 @@ private fun RewardItemsDialog(
     var selectedFilter by remember { mutableStateOf(RewardFilter.ALL) }
     var selectedItem by remember { mutableStateOf<RewardSelectedItem?>(null) }
     var rewardQuantity by remember { mutableIntStateOf(1) }
-    var showDetailDialog by remember { mutableStateOf(false) }
-    var detailItem by remember { mutableStateOf<Any?>(null) }
     var isRewarding by remember { mutableStateOf(false) }
     val rewardScope = rememberCoroutineScope()
 
-    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
-    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
-    val pills by viewModel.pills.collectAsStateWithLifecycle()
-    val materials by viewModel.materials.collectAsStateWithLifecycle()
-    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
-    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    val lists = rememberRewardInventory(viewModel = viewModel)
     val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
 
-    val availableManuals = manualStacks
-    val availableEquipment = equipmentStacks
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "赏赐道具",
-        mode = DialogMode.Full,
-        scrollableContent = false
-    ) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                FilterButton(
-                    text = RewardFilter.ALL.displayName,
-                    selected = selectedFilter == RewardFilter.ALL,
-                    onClick = { selectedFilter = RewardFilter.ALL },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterButton(
-                    text = RewardFilter.EQUIPMENT.displayName,
-                    selected = selectedFilter == RewardFilter.EQUIPMENT,
-                    onClick = { selectedFilter = RewardFilter.EQUIPMENT },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterButton(
-                    text = RewardFilter.PILL.displayName,
-                    selected = selectedFilter == RewardFilter.PILL,
-                    onClick = { selectedFilter = RewardFilter.PILL },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterButton(
-                    text = RewardFilter.MANUAL.displayName,
-                    selected = selectedFilter == RewardFilter.MANUAL,
-                    onClick = { selectedFilter = RewardFilter.MANUAL },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                FilterButton(
-                    text = RewardFilter.HERB.displayName,
-                    selected = selectedFilter == RewardFilter.HERB,
-                    onClick = { selectedFilter = RewardFilter.HERB },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterButton(
-                    text = RewardFilter.SEED.displayName,
-                    selected = selectedFilter == RewardFilter.SEED,
-                    onClick = { selectedFilter = RewardFilter.SEED },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterButton(
-                    text = RewardFilter.MATERIAL.displayName,
-                    selected = selectedFilter == RewardFilter.MATERIAL,
-                    onClick = { selectedFilter = RewardFilter.MATERIAL },
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(4.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(GameColors.CardBackground)
-            ) {
-                when (selectedFilter) {
-                    RewardFilter.ALL -> RewardAllItemsGrid(
-                        equipment = availableEquipment,
-                        manuals = availableManuals,
-                        pills = pills,
-                        materials = materials,
-                        herbs = herbs,
-                        seeds = seeds,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
-                    RewardFilter.EQUIPMENT -> RewardItemGrid(
-                        items = availableEquipment,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
-                    RewardFilter.PILL -> RewardItemGrid(
-                        items = pills,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
-                    RewardFilter.MANUAL -> RewardItemGrid(
-                        items = availableManuals,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
-                    RewardFilter.HERB -> RewardItemGrid(
-                        items = herbs,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
-                    RewardFilter.SEED -> RewardItemGrid(
-                        items = seeds,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
-                    RewardFilter.MATERIAL -> RewardItemGrid(
-                        items = materials,
-                        watchedKeys = watchedKeys,
-                        selectedItem = selectedItem,
-                        onItemSelect = { item ->
-                            selectedItem = if (selectedItem?.id == item.id) null else item
-                            rewardQuantity = 1
-                        },
-                        onViewDetail = { item ->
-                            detailItem = item
-                            showDetailDialog = true
-                        }
-                    )
+    val onItemSelect: (RewardSelectedItem) -> Unit = { item ->
+        selectedItem = if (selectedItem?.id == item.id) null else item
+        rewardQuantity = 1
+    }
+    val onRewardClick: () -> Unit = {
+        val item = selectedItem
+        if (item != null && rewardQuantity > 0 && !isRewarding) {
+            isRewarding = true
+            rewardScope.launch {
+                try {
+                    viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
+                } finally {
+                    selectedItem = null
+                    rewardQuantity = 1
+                    isRewarding = false
                 }
             }
-
-            RewardBottomPanel(
-                selectedItem = selectedItem,
-                rewardQuantity = rewardQuantity,
-                maxQuantity = selectedItem?.quantity ?: 1,
-                isRewarding = isRewarding,
-                onQuantityChange = { rewardQuantity = it },
-                onRewardClick = {
-                    val item = selectedItem
-                    if (item != null && rewardQuantity > 0 && !isRewarding) {
-                        isRewarding = true
-                        rewardScope.launch {
-                            try {
-                                viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))
-                            } finally {
-                                selectedItem = null
-                                rewardQuantity = 1
-                                isRewarding = false
-                            }
-                        }
-                    }
-                }
-            )
         }
     }
 
+    RewardDetailHost(viewModel = viewModel) { onViewDetail ->
+        UnifiedGameDialog(
+            onDismissRequest = onDismiss,
+            title = "赏赐道具",
+            mode = DialogMode.Full,
+            scrollableContent = false
+        ) {
+            RewardItemsContent(
+                data = RewardDialogData(
+                    selectedFilter = selectedFilter,
+                    lists = lists,
+                    watchedKeys = watchedKeys,
+                    selectedItem = selectedItem,
+                    rewardQuantity = rewardQuantity,
+                    maxQuantity = selectedItem?.quantity ?: 1,
+                    isRewarding = isRewarding
+                ),
+                onFilterSelected = { selectedFilter = it },
+                onQuantityChange = { rewardQuantity = it },
+                onRewardClick = onRewardClick,
+                onItemSelect = onItemSelect,
+                onViewDetail = onViewDetail
+            )
+        }
+    }
+}
+
+/** 赏赐详情弹窗宿主（RewardItemsDialog 拆分）：持有详情状态并渲染 ItemDetailDialog */
+@Composable
+private fun RewardDetailHost(
+    viewModel: GameViewModel,
+    content: @Composable (onViewDetail: (Any) -> Unit) -> Unit
+) {
+    var showDetailDialog by remember { mutableStateOf(false) }
+    var detailItem by remember { mutableStateOf<Any?>(null) }
+    content { item ->
+        detailItem = item
+        showDetailDialog = true
+    }
     if (showDetailDialog) {
         detailItem?.let { item ->
             ItemDetailDialog(
@@ -426,6 +326,195 @@ private fun RewardItemsDialog(
             )
         }
     }
+}
+
+/** 赏赐面板六类物品列表收集（RewardItemsDialog 拆分）：统一订阅 ViewModel StateFlow */
+@Composable
+private fun rememberRewardInventory(viewModel: GameViewModel): RewardItemLists {
+    val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
+    val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
+    val pills by viewModel.pills.collectAsStateWithLifecycle()
+    val materials by viewModel.materials.collectAsStateWithLifecycle()
+    val herbs by viewModel.herbs.collectAsStateWithLifecycle()
+    val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    return RewardItemLists(
+        equipment = equipmentStacks,
+        manuals = manualStacks,
+        pills = pills,
+        materials = materials,
+        herbs = herbs,
+        seeds = seeds
+    )
+}
+
+/** 赏赐面板六类物品列表打包（RewardItemsDialog 拆分，参数 >6 规避 LongParameterList） */
+private data class RewardItemLists(
+    val equipment: List<EquipmentStack>,
+    val manuals: List<ManualStack>,
+    val pills: List<Pill>,
+    val materials: List<Material>,
+    val herbs: List<Herb>,
+    val seeds: List<Seed>
+)
+
+/** 赏赐面板渲染状态打包（RewardItemsDialog 拆分，参数 >6 规避 LongParameterList） */
+private data class RewardDialogData(
+    val selectedFilter: RewardFilter,
+    val lists: RewardItemLists,
+    val watchedKeys: Set<String>,
+    val selectedItem: RewardSelectedItem?,
+    val rewardQuantity: Int,
+    val maxQuantity: Int,
+    val isRewarding: Boolean
+)
+
+/** 赏赐面板主体（RewardItemsDialog 拆分）：筛选行 + 物品区 + 底部操作栏 */
+@Composable
+private fun RewardItemsContent(
+    data: RewardDialogData,
+    onFilterSelected: (RewardFilter) -> Unit,
+    onQuantityChange: (Int) -> Unit,
+    onRewardClick: () -> Unit,
+    onItemSelect: (RewardSelectedItem) -> Unit,
+    onViewDetail: (Any) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+        RewardFilterRows(
+            selectedFilter = data.selectedFilter,
+            onFilterSelected = onFilterSelected
+        )
+        Spacer(Modifier.height(4.dp))
+        RewardGridArea(
+            selectedFilter = data.selectedFilter,
+            lists = data.lists,
+            watchedKeys = data.watchedKeys,
+            selectedItem = data.selectedItem,
+            onItemSelect = onItemSelect,
+            onViewDetail = onViewDetail
+        )
+        RewardBottomPanel(
+            selectedItem = data.selectedItem,
+            rewardQuantity = data.rewardQuantity,
+            maxQuantity = data.maxQuantity,
+            isRewarding = data.isRewarding,
+            onQuantityChange = onQuantityChange,
+            onRewardClick = onRewardClick
+        )
+    }
+}
+
+/** 赏赐筛选按钮两行（RewardItemsDialog 拆分）：第一行 全部/装备/丹药/功法，第二行 草药/种子/材料 */
+@Composable
+private fun RewardFilterRows(
+    selectedFilter: RewardFilter,
+    onFilterSelected: (RewardFilter) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        FilterButton(
+            text = RewardFilter.ALL.displayName,
+            selected = selectedFilter == RewardFilter.ALL,
+            onClick = { onFilterSelected(RewardFilter.ALL) },
+            modifier = Modifier.weight(1f)
+        )
+        FilterButton(
+            text = RewardFilter.EQUIPMENT.displayName,
+            selected = selectedFilter == RewardFilter.EQUIPMENT,
+            onClick = { onFilterSelected(RewardFilter.EQUIPMENT) },
+            modifier = Modifier.weight(1f)
+        )
+        FilterButton(
+            text = RewardFilter.PILL.displayName,
+            selected = selectedFilter == RewardFilter.PILL,
+            onClick = { onFilterSelected(RewardFilter.PILL) },
+            modifier = Modifier.weight(1f)
+        )
+        FilterButton(
+            text = RewardFilter.MANUAL.displayName,
+            selected = selectedFilter == RewardFilter.MANUAL,
+            onClick = { onFilterSelected(RewardFilter.MANUAL) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        FilterButton(
+            text = RewardFilter.HERB.displayName,
+            selected = selectedFilter == RewardFilter.HERB,
+            onClick = { onFilterSelected(RewardFilter.HERB) },
+            modifier = Modifier.weight(1f)
+        )
+        FilterButton(
+            text = RewardFilter.SEED.displayName,
+            selected = selectedFilter == RewardFilter.SEED,
+            onClick = { onFilterSelected(RewardFilter.SEED) },
+            modifier = Modifier.weight(1f)
+        )
+        FilterButton(
+            text = RewardFilter.MATERIAL.displayName,
+            selected = selectedFilter == RewardFilter.MATERIAL,
+            onClick = { onFilterSelected(RewardFilter.MATERIAL) },
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+/** 赏赐物品区（RewardItemsDialog 拆分）：按筛选渲染全量/单类网格 */
+@Composable
+private fun ColumnScope.RewardGridArea(
+    selectedFilter: RewardFilter,
+    lists: RewardItemLists,
+    watchedKeys: Set<String>,
+    selectedItem: RewardSelectedItem?,
+    onItemSelect: (RewardSelectedItem) -> Unit,
+    onViewDetail: (Any) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .background(GameColors.CardBackground)
+    ) {
+        if (selectedFilter == RewardFilter.ALL) {
+            RewardAllItemsGrid(
+                equipment = lists.equipment,
+                manuals = lists.manuals,
+                pills = lists.pills,
+                materials = lists.materials,
+                herbs = lists.herbs,
+                seeds = lists.seeds,
+                watchedKeys = watchedKeys,
+                selectedItem = selectedItem,
+                onItemSelect = onItemSelect,
+                onViewDetail = onViewDetail
+            )
+        } else {
+            RewardItemGrid(
+                items = lists.itemsFor(filter = selectedFilter),
+                watchedKeys = watchedKeys,
+                selectedItem = selectedItem,
+                onItemSelect = onItemSelect,
+                onViewDetail = onViewDetail
+            )
+        }
+    }
+}
+
+/** 非"全部"筛选 → 对应物品列表（RewardItemsDialog 拆分；ALL 由调用方单独走全量网格） */
+private fun RewardItemLists.itemsFor(filter: RewardFilter): List<GameItem> = when (filter) {
+    RewardFilter.EQUIPMENT -> equipment
+    RewardFilter.PILL -> pills
+    RewardFilter.MANUAL -> manuals
+    RewardFilter.HERB -> herbs
+    RewardFilter.SEED -> seeds
+    RewardFilter.MATERIAL -> materials
+    RewardFilter.ALL -> emptyList()
 }
 
 @Composable
@@ -449,49 +538,16 @@ private fun <T> RewardItemGrid(
         ) {
             items(
                 items = items,
-                key = { item ->
-                    when (item) {
-                        is EquipmentStack -> "equipment_${item.id}"
-                        is ManualStack -> "manual_${item.id}"
-                        is Pill -> "pill_${item.id}_${item.quantity}"
-                        is Material -> "material_${item.id}_${item.quantity}"
-                        is Herb -> "herb_${item.id}_${item.quantity}"
-                        is Seed -> "seed_${item.id}_${item.quantity}"
-                        else -> "unknown_${System.identityHashCode(item)}"
-                    }
-                },
+                key = { rewardItemKey(it as Any) },
                 contentType = { "reward_item" }
             ) { item ->
-                val currentSelectedItem = remember(item) {
-                    when (item) {
-                        is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
-                        is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
-                        is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
-                        is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
-                        is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
-                        is Seed -> RewardSelectedItem(item.id, "seed", item.name, item.rarity, item.quantity)
-                        else -> null
-                    }
-                }
-
-                if (currentSelectedItem != null) {
-                    val isSelected = selectedItem?.id == currentSelectedItem.id
-                    UnifiedItemCard(
-                        data = ItemCardData(
-                            name = currentSelectedItem.name,
-                            rarity = currentSelectedItem.rarity,
-                            quantity = currentSelectedItem.quantity,
-                            grade = currentSelectedItem.grade,
-                            isManual = currentSelectedItem.type == "manual",
-                            isPill = currentSelectedItem.type == "pill",
-                            isMaterial = currentSelectedItem.type == "material"
-                        ),
-                        isSelected = isSelected,
-                        isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
-                        onClick = { onItemSelect(currentSelectedItem) },
-                        onLongPress = { onViewDetail(item as Any) }
-                    )
-                }
+                RewardGridItemCard(
+                    item = item as Any,
+                    watchedKeys = watchedKeys,
+                    selectedItem = selectedItem,
+                    onItemSelect = onItemSelect,
+                    onViewDetail = onViewDetail
+                )
             }
         }
     }
@@ -527,51 +583,69 @@ private fun RewardAllItemsGrid(
         ) {
             items(
                 items = allItems,
-                key = { item ->
-                    when (item) {
-                        is EquipmentStack -> "equipment_${item.id}"
-                        is ManualStack -> "manual_${item.id}"
-                        is Pill -> "pill_${item.id}_${item.quantity}"
-                        is Material -> "material_${item.id}_${item.quantity}"
-                        is Herb -> "herb_${item.id}_${item.quantity}"
-                        is Seed -> "seed_${item.id}_${item.quantity}"
-                        else -> "unknown_${System.identityHashCode(item)}"
-                    }
-                },
+                key = { rewardItemKey(it) },
                 contentType = { "game_item" }
             ) { item ->
-                val currentSelectedItem = remember(item) {
-                    when (item) {
-                        is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
-                        is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
-                        is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
-                        is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
-                        is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
-                        is Seed -> RewardSelectedItem(item.id, "seed", item.name, item.rarity, item.quantity)
-                        else -> null
-                    }
-                }
-
-                if (currentSelectedItem != null) {
-                    val isSelected = selectedItem?.id == currentSelectedItem.id
-                    UnifiedItemCard(
-                        data = ItemCardData(
-                            name = currentSelectedItem.name,
-                            rarity = currentSelectedItem.rarity,
-                            quantity = currentSelectedItem.quantity,
-                            grade = currentSelectedItem.grade,
-                            isManual = currentSelectedItem.type == "manual",
-                            isPill = currentSelectedItem.type == "pill",
-                            isMaterial = currentSelectedItem.type == "material"
-                        ),
-                        isSelected = isSelected,
-                        isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
-                        onClick = { onItemSelect(currentSelectedItem) },
-                        onLongPress = { onViewDetail(item as Any) }
-                    )
-                }
+                RewardGridItemCard(
+                    item = item,
+                    watchedKeys = watchedKeys,
+                    selectedItem = selectedItem,
+                    onItemSelect = onItemSelect,
+                    onViewDetail = onViewDetail
+                )
             }
         }
+    }
+}
+
+/** 物品网格稳定 key（RewardItemGrid/RewardAllItemsGrid 拆分） */
+private fun rewardItemKey(item: Any): String = when (item) {
+    is EquipmentStack -> "equipment_${item.id}"
+    is ManualStack -> "manual_${item.id}"
+    is Pill -> "pill_${item.id}_${item.quantity}"
+    is Material -> "material_${item.id}_${item.quantity}"
+    is Herb -> "herb_${item.id}_${item.quantity}"
+    is Seed -> "seed_${item.id}_${item.quantity}"
+    else -> "unknown_${System.identityHashCode(item)}"
+}
+
+/** 奖励网格单项卡片（RewardItemGrid/RewardAllItemsGrid 拆分） */
+@Composable
+private fun RewardGridItemCard(
+    item: Any,
+    watchedKeys: Set<String>,
+    selectedItem: RewardSelectedItem?,
+    onItemSelect: (RewardSelectedItem) -> Unit,
+    onViewDetail: (Any) -> Unit
+) {
+    val currentSelectedItem = remember(item) {
+        when (item) {
+            is EquipmentStack -> RewardSelectedItem(item.id, "equipment", item.name, item.rarity, 1)
+            is ManualStack -> RewardSelectedItem(item.id, "manual", item.name, item.rarity, 1)
+            is Pill -> RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)
+            is Material -> RewardSelectedItem(item.id, "material", item.name, item.rarity, item.quantity)
+            is Herb -> RewardSelectedItem(item.id, "herb", item.name, item.rarity, item.quantity)
+            is Seed -> RewardSelectedItem(item.id, "seed", item.name, item.rarity, item.quantity)
+            else -> null
+        }
+    }
+    if (currentSelectedItem != null) {
+        val isSelected = selectedItem?.id == currentSelectedItem.id
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = currentSelectedItem.name,
+                rarity = currentSelectedItem.rarity,
+                quantity = currentSelectedItem.quantity,
+                grade = currentSelectedItem.grade,
+                isManual = currentSelectedItem.type == "manual",
+                isPill = currentSelectedItem.type == "pill",
+                isMaterial = currentSelectedItem.type == "material"
+            ),
+            isSelected = isSelected,
+            isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
+            onClick = { onItemSelect(currentSelectedItem) },
+            onLongPress = { onViewDetail(item as Any) }
+        )
     }
 }
 
@@ -596,67 +670,85 @@ private fun RewardBottomPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (selectedItem != null) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (rewardQuantity > 1 && !isRewarding) GameColors.Success else GameColors.Border)
-                            .clickableWithSound(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "-",
-                            fontSize = 16.sp,
-                            color = if (rewardQuantity > 1 && !isRewarding) Color.White else Color.Black
-                        )
-                    }
-
-                    Text(
-                        text = "$rewardQuantity",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isRewarding) GameColors.TextSecondary else Color.Black
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (rewardQuantity < maxQuantity && !isRewarding) GameColors.Success else GameColors.Border)
-                            .clickableWithSound(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "+",
-                            fontSize = 16.sp,
-                            color = if (rewardQuantity < maxQuantity && !isRewarding) Color.White else Color.Black
-                        )
-                    }
-
-                    Text(
-                        text = "/ $maxQuantity",
-                        fontSize = 12.sp,
-                        color = GameColors.TextSecondary
-                    )
-                } else {
-                    Text(
-                        text = "请选择要赏赐的道具",
-                        fontSize = 12.sp,
-                        color = GameColors.TextSecondary
-                    )
-                }
-            }
+            RewardQuantityStepper(
+                selectedItem = selectedItem,
+                rewardQuantity = rewardQuantity,
+                maxQuantity = maxQuantity,
+                isRewarding = isRewarding,
+                onQuantityChange = onQuantityChange
+            )
 
             GameButton(
                 text = if (isRewarding) "赏赐中..." else "赏赐",
                 onClick = onRewardClick,
                 modifier = Modifier.height(36.dp),
                 enabled = selectedItem != null && rewardQuantity > 0 && !isRewarding
+            )
+        }
+    }
+}
+
+/** 赏赐数量调节器（RewardBottomPanel 拆分）：减号/数量/加号/上限 */
+@Composable
+private fun RewardQuantityStepper(
+    selectedItem: RewardSelectedItem?,
+    rewardQuantity: Int,
+    maxQuantity: Int,
+    isRewarding: Boolean,
+    onQuantityChange: (Int) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (selectedItem != null) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (rewardQuantity > 1 && !isRewarding) GameColors.Success else GameColors.Border)
+                    .clickableWithSound(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "-",
+                    fontSize = 16.sp,
+                    color = if (rewardQuantity > 1 && !isRewarding) Color.White else Color.Black
+                )
+            }
+
+            Text(
+                text = "$rewardQuantity",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isRewarding) GameColors.TextSecondary else Color.Black
+            )
+
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (rewardQuantity < maxQuantity && !isRewarding) GameColors.Success else GameColors.Border)
+                    .clickableWithSound(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "+",
+                    fontSize = 16.sp,
+                    color = if (rewardQuantity < maxQuantity && !isRewarding) Color.White else Color.Black
+                )
+            }
+
+            Text(
+                text = "/ $maxQuantity",
+                fontSize = 12.sp,
+                color = GameColors.TextSecondary
+            )
+        } else {
+            Text(
+                text = "请选择要赏赐的道具",
+                fontSize = 12.sp,
+                color = GameColors.TextSecondary
             )
         }
     }

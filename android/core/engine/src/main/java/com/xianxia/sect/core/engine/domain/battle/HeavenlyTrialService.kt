@@ -69,6 +69,59 @@ class HeavenlyTrialService @Inject constructor(
         // 2026-08-06 P4 修复：与 LevelGenerator/世界妖兽一致补 ±0.2 方差（加在类型 mod 上）。
         // 确定性派生种子（同 [buildDiscipleEnemy]），预览 = 战斗属性一致。
         val enemyRng = DeterministicRng(enemySeed(levelIndex, def, index))
+        val stats = computeBeastStats(
+            realmStats = realmStats,
+            beastType = beastType,
+            layerMult = layerMult,
+            enemyRng = enemyRng
+        )
+
+        val beastSkills = buildBeastSkills(beastType = beastType)
+
+        val typeIndex = GameConfig.Beast.TYPES.indexOf(beastType)
+
+        return Combatant(
+            id = "trial_beast_${levelIndex}_${index}",
+            name = def.name,
+            side = CombatantSide.ATTACKER,
+            hp = stats.hp,
+            maxHp = stats.hp,
+            mp = stats.mp,
+            maxMp = stats.mp,
+            physicalAttack = stats.physicalAttack,
+            magicAttack = stats.magicAttack,
+            physicalDefense = stats.physicalDefense,
+            magicDefense = stats.magicDefense,
+            speed = stats.speed,
+            critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
+            skills = beastSkills,
+            realm = safeRealm,
+            realmName = GameConfig.Realm.getName(safeRealm),
+            realmLayer = safeLayer,
+            element = beastType.element,
+            portraitRes = "beast_$typeIndex",
+            isBeast = true
+        )
+    }
+
+    /** 妖兽基础属性（buildBeastEnemy 拆分）：realmStats × layerMult ×（类型 mod + 方差），钳制 ≥1 */
+    private data class BeastStats(
+        val hp: Int,
+        val mp: Int,
+        val physicalAttack: Int,
+        val magicAttack: Int,
+        val physicalDefense: Int,
+        val magicDefense: Int,
+        val speed: Int
+    )
+
+    /** 妖兽属性计算（buildBeastEnemy 拆分）：±0.2 方差（加在类型 mod 上）+ 下界钳制 */
+    private fun computeBeastStats(
+        realmStats: GameConfig.Beast.RealmStats,
+        beastType: GameConfig.BeastTypeConfig,
+        layerMult: Double,
+        enemyRng: DeterministicRng
+    ): BeastStats {
         fun variance(): Double = -0.2 + enemyRng.nextDouble() * 0.4
         val hpVariance = variance()
         val atkVariance = variance()
@@ -77,15 +130,20 @@ class HeavenlyTrialService @Inject constructor(
 
         // 属性下界钳制（对抗性审查）：防御未来配置新增低 mod 妖兽类型时出现 0/负属性
         fun safeStat(value: Double): Int = value.toInt().coerceAtLeast(1)
-        val hp = safeStat(realmStats.hp * layerMult * (beastType.hpMod + hpVariance))
-        val mp = safeStat(realmStats.mp * layerMult * (beastType.hpMod + hpVariance))
-        val physicalAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance))
-        val magicAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance))
-        val physicalDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance))
-        val magicDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance))
-        val speed = safeStat(realmStats.speed * layerMult * (beastType.speedMod + speedVariance))
+        return BeastStats(
+            hp = safeStat(realmStats.hp * layerMult * (beastType.hpMod + hpVariance)),
+            mp = safeStat(realmStats.mp * layerMult * (beastType.hpMod + hpVariance)),
+            physicalAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)),
+            magicAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance)),
+            physicalDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)),
+            magicDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance)),
+            speed = safeStat(realmStats.speed * layerMult * (beastType.speedMod + speedVariance))
+        )
+    }
 
-        val beastSkills = beastType.skills.map { skillConfig ->
+    /** 妖兽技能构建（buildBeastEnemy 拆分）：类型技能配置 → CombatSkill 列表 */
+    private fun buildBeastSkills(beastType: GameConfig.BeastTypeConfig): List<CombatSkill> {
+        return beastType.skills.map { skillConfig ->
             CombatSkill(
                 name = skillConfig.name,
                 skillType = skillConfig.skillType,
@@ -110,31 +168,6 @@ class HeavenlyTrialService @Inject constructor(
                 skillDescription = skillConfig.skillDescription
             )
         }
-
-        val typeIndex = GameConfig.Beast.TYPES.indexOf(beastType)
-
-        return Combatant(
-            id = "trial_beast_${levelIndex}_${index}",
-            name = def.name,
-            side = CombatantSide.ATTACKER,
-            hp = hp,
-            maxHp = hp,
-            mp = mp,
-            maxMp = mp,
-            physicalAttack = physicalAttack,
-            magicAttack = magicAttack,
-            physicalDefense = physicalDefense,
-            magicDefense = magicDefense,
-            speed = speed,
-            critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
-            skills = beastSkills,
-            realm = safeRealm,
-            realmName = GameConfig.Realm.getName(safeRealm),
-            realmLayer = safeLayer,
-            element = beastType.element,
-            portraitRes = "beast_$typeIndex",
-            isBeast = true
-        )
     }
 
     fun buildDiscipleEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {

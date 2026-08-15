@@ -15,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.ClearRewardItem
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -87,7 +88,7 @@ fun HeavenlyTrialClearRewardDialog(
 @Composable
 private fun ClearRewardRow(
     label: String,
-    items: List<com.xianxia.sect.core.model.ClearRewardItem>,
+    items: List<ClearRewardItem>,
     isCleared: Boolean,
     canClaim: Boolean,
     watchedKeys: Set<String> = emptySet(),
@@ -113,80 +114,12 @@ private fun ClearRewardRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             items.forEach { item ->
-                Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(6.dp))) {
-                    if (item.isRandom) {
-                        // 随机物品：稀有度底色 + "?" 文字 + 底部名称条
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    getRarityColor(item.rarity),
-                                    RoundedCornerShape(6.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "?",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                        // 底部名称条（clip 在父 Box 限定范围内）
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .fillMaxWidth()
-                                .height(14.dp)
-                                .background(
-                                    Color.White,
-                                    RoundedCornerShape(
-                                        bottomStart = 6.dp,
-                                        bottomEnd = 6.dp
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = item.itemName,
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 1.dp)
-                            )
-                        }
-                    } else {
-                        val cardData = ItemCardData(
-                            name = item.itemName,
-                            rarity = item.rarity,
-                            quantity = item.quantity,
-                            type = item.itemType,
-                            isHerb = item.itemType == "herb",
-                            isSeed = item.itemType == "seed",
-                            isBag = item.itemType == "storageBag",
-                            spiritStoneGrade = if (item.itemType == "spiritStones") SpiritStoneGrade.LOW else null
-                        )
-                        UnifiedItemCard(
-                            data = cardData,
-                            showQuantity = true,
-                            isFollowed = watchedKeys.contains(
-                                watchKey(normalizeItemType(item.itemType), item.itemName)
-                            )
-                        )
-                    }
-                    // 红点
-                    if (canClaim) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 2.dp, y = (-2).dp)
-                                .size(7.dp)
-                                .background(Color.Red, CircleShape)
-                        )
-                    }
+                Box {
+                    ClearRewardItemCell(
+                        item = item,
+                        canClaim = canClaim,
+                        watchedKeys = watchedKeys
+                    )
                 }
             }
         }
@@ -194,20 +127,133 @@ private fun ClearRewardRow(
         Spacer(modifier = Modifier.weight(1f))
 
         // 领取按钮
-        if (isCleared && !canClaim) {
-            // 已领取：灰色不可点击
-            GameButton(
-                text = "已领取",
-                onClick = {},
-                enabled = false
-            )
+        ClearRewardClaimButton(
+            isCleared = isCleared,
+            canClaim = canClaim,
+            onClaim = onClaim
+        )
+    }
+}
+
+/** 单个奖励格（ClearRewardRow 拆分）：随机/具体物品卡 + 可领取红点 */
+@Composable
+private fun BoxScope.ClearRewardItemCell(
+    item: ClearRewardItem,
+    canClaim: Boolean,
+    watchedKeys: Set<String>
+) {
+    Box(modifier = Modifier.size(60.dp).clip(RoundedCornerShape(6.dp))) {
+        if (item.isRandom) {
+            RandomRewardItemCell(item = item)
         } else {
-            // 未通关或可领取：文字统一为"领取"，可点击性由 canClaim 控制
-            GameButton(
-                text = "领取",
-                onClick = onClaim,
-                enabled = canClaim
+            ConcreteRewardItemCell(item = item, watchedKeys = watchedKeys)
+        }
+        // 红点
+        if (canClaim) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 2.dp, y = (-2).dp)
+                    .size(7.dp)
+                    .background(Color.Red, CircleShape)
             )
         }
+    }
+}
+
+/** 随机奖励格（ClearRewardRow 拆分）：稀有度底色 + "?" 文字 + 底部名称条 */
+@Composable
+private fun BoxScope.RandomRewardItemCell(item: ClearRewardItem) {
+    // 随机物品：稀有度底色 + "?" 文字 + 底部名称条
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                getRarityColor(item.rarity),
+                RoundedCornerShape(6.dp)
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "?",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+    // 底部名称条（clip 在父 Box 限定范围内）
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .height(14.dp)
+            .background(
+                Color.White,
+                RoundedCornerShape(
+                    bottomStart = 6.dp,
+                    bottomEnd = 6.dp
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = item.itemName,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 1.dp)
+        )
+    }
+}
+
+/** 具体奖励格（ClearRewardRow 拆分）：物品卡 + 关注态 */
+@Composable
+private fun BoxScope.ConcreteRewardItemCell(
+    item: ClearRewardItem,
+    watchedKeys: Set<String>
+) {
+    val cardData = ItemCardData(
+        name = item.itemName,
+        rarity = item.rarity,
+        quantity = item.quantity,
+        type = item.itemType,
+        isHerb = item.itemType == "herb",
+        isSeed = item.itemType == "seed",
+        isBag = item.itemType == "storageBag",
+        spiritStoneGrade = if (item.itemType == "spiritStones") SpiritStoneGrade.LOW else null
+    )
+    UnifiedItemCard(
+        data = cardData,
+        showQuantity = true,
+        isFollowed = watchedKeys.contains(
+            watchKey(normalizeItemType(item.itemType), item.itemName)
+        )
+    )
+}
+
+/** 领取按钮（ClearRewardRow 拆分）：已领取置灰 / 未通关或可领取统一"领取"文案 */
+@Composable
+private fun ClearRewardClaimButton(
+    isCleared: Boolean,
+    canClaim: Boolean,
+    onClaim: () -> Unit
+) {
+    if (isCleared && !canClaim) {
+        // 已领取：灰色不可点击
+        GameButton(
+            text = "已领取",
+            onClick = {},
+            enabled = false
+        )
+    } else {
+        // 未通关或可领取：文字统一为"领取"，可点击性由 canClaim 控制
+        GameButton(
+            text = "领取",
+            onClick = onClaim,
+            enabled = canClaim
+        )
     }
 }

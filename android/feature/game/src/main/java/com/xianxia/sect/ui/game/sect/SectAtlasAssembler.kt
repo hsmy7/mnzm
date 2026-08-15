@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.sect
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -36,7 +37,7 @@ object SectAtlasAssembler {
      * @return 图集位图
      */
     fun buildAtlasBitmap(context: Context): Bitmap {
-        val atlas = Bitmap.createBitmap(
+        val atlas = createBitmap(
             SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H,
             Bitmap.Config.ARGB_8888
         )

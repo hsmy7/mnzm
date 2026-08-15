@@ -28,53 +28,12 @@ class UiKeyRecoveryCallback(
         val latch = CountDownLatch(1)
 
         Handler(Looper.getMainLooper()).post {
-            try {
-                if (activity.isFinishing || activity.isDestroyed) {
-                    Log.w(TAG, "Activity is finishing/destroyed, cancelling key recovery")
-                    decisionRef.set(KeyRecoveryDecision.CANCEL)
-                    latch.countDown()
-                    return@post
-                }
-
-                AlertDialog.Builder(activity)
-                    .setTitle("存档密钥异常")
-                    .setMessage("$reason\n\n如果选择生成新密钥，旧存档将永久无法恢复。")
-                    .setPositiveButton("导入恢复令牌") { _, _ ->
-                        decisionRef.set(KeyRecoveryDecision.IMPORT_TOKEN)
-                        latch.countDown()
-                    }
-                    .setNegativeButton("取消") { _, _ ->
-                        decisionRef.set(KeyRecoveryDecision.CANCEL)
-                        latch.countDown()
-                    }
-                    .setNeutralButton("生成新密钥（旧存档将丢失）") { _, _ ->
-                        AlertDialog.Builder(activity)
-                            .setTitle("确认生成新密钥？")
-                            .setMessage("此操作不可撤销，所有旧存档将永久无法恢复。")
-                            .setPositiveButton("确认") { _, _ ->
-                                decisionRef.set(KeyRecoveryDecision.GENERATE_NEW_KEY)
-                                latch.countDown()
-                            }
-                            .setNegativeButton("取消") { _, _ ->
-                                decisionRef.set(KeyRecoveryDecision.CANCEL)
-                                latch.countDown()
-                            }
-                            .setOnCancelListener {
-                                decisionRef.set(KeyRecoveryDecision.CANCEL)
-                                latch.countDown()
-                            }
-                            .show()
-                    }
-                    .setOnCancelListener {
-                        decisionRef.set(KeyRecoveryDecision.CANCEL)
-                        latch.countDown()
-                    }
-                    .show()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to show key recovery dialog", e)
-                decisionRef.set(KeyRecoveryDecision.CANCEL)
-                latch.countDown()
-            }
+            showKeyRecoveryDialog(
+                activity = activity,
+                reason = reason,
+                decisionRef = decisionRef,
+                latch = latch
+            )
         }
 
         return try {
@@ -83,6 +42,66 @@ class UiKeyRecoveryCallback(
         } catch (e: InterruptedException) {
             Log.w(TAG, "Key recovery dialog interrupted", e)
             KeyRecoveryDecision.CANCEL
+        }
+    }
+
+    /**
+     * 在主线程展示密钥恢复对话框并写入决策（onKeyRecoveryRequired 拆分）。
+     * 调用方通过 [latch] 阻塞等待决策结果；Activity 已销毁或对话框
+     * 展示异常时统一回退为 CANCEL 并释放 latch。
+     */
+    private fun showKeyRecoveryDialog(
+        activity: Activity,
+        reason: String,
+        decisionRef: AtomicReference<KeyRecoveryDecision>,
+        latch: CountDownLatch
+    ) {
+        try {
+            if (activity.isFinishing || activity.isDestroyed) {
+                Log.w(TAG, "Activity is finishing/destroyed, cancelling key recovery")
+                decisionRef.set(KeyRecoveryDecision.CANCEL)
+                latch.countDown()
+                return
+            }
+
+            AlertDialog.Builder(activity)
+                .setTitle("存档密钥异常")
+                .setMessage("$reason\n\n如果选择生成新密钥，旧存档将永久无法恢复。")
+                .setPositiveButton("导入恢复令牌") { _, _ ->
+                    decisionRef.set(KeyRecoveryDecision.IMPORT_TOKEN)
+                    latch.countDown()
+                }
+                .setNegativeButton("取消") { _, _ ->
+                    decisionRef.set(KeyRecoveryDecision.CANCEL)
+                    latch.countDown()
+                }
+                .setNeutralButton("生成新密钥（旧存档将丢失）") { _, _ ->
+                    AlertDialog.Builder(activity)
+                        .setTitle("确认生成新密钥？")
+                        .setMessage("此操作不可撤销，所有旧存档将永久无法恢复。")
+                        .setPositiveButton("确认") { _, _ ->
+                            decisionRef.set(KeyRecoveryDecision.GENERATE_NEW_KEY)
+                            latch.countDown()
+                        }
+                        .setNegativeButton("取消") { _, _ ->
+                            decisionRef.set(KeyRecoveryDecision.CANCEL)
+                            latch.countDown()
+                        }
+                        .setOnCancelListener {
+                            decisionRef.set(KeyRecoveryDecision.CANCEL)
+                            latch.countDown()
+                        }
+                        .show()
+                }
+                .setOnCancelListener {
+                    decisionRef.set(KeyRecoveryDecision.CANCEL)
+                    latch.countDown()
+                }
+                .show()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show key recovery dialog", e)
+            decisionRef.set(KeyRecoveryDecision.CANCEL)
+            latch.countDown()
         }
     }
 }

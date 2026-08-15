@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.components.getRarityColor
 import com.xianxia.sect.ui.components.materialSpriteRes
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.BloodRefiningUiState
 import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.GameViewModel
@@ -60,15 +61,7 @@ fun BloodRefiningPoolDialog(
         bloodRefiningViewModel.loadActiveProgress(buildingInstanceId)
     }
 
-    val bloodMaterials = remember(materials) {
-        val bloodBeastMaterials = BeastMaterialDatabase.getBloodMaterials()
-        bloodBeastMaterials.mapNotNull { beastMat ->
-            val totalQty = materials
-                .filter { it.name == beastMat.name && it.rarity == beastMat.rarity }
-                .sumOf { it.quantity }
-            if (totalQty >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) beastMat to totalQty else null
-        }
-    }
+    val bloodMaterials = rememberBloodMaterials(materials = materials)
 
     var showMaterialSelection by remember { mutableStateOf(false) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
@@ -79,116 +72,15 @@ fun BloodRefiningPoolDialog(
         mode = DialogMode.Half,
         scrollableContent = true
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            val isRefining = uiState.isRefining && uiState.currentProgress != null
-
-            // ===== 放入材料区域 =====
-            Text("放入材料", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                MaterialSlotBox(
-                    selectedMaterial = uiState.selectedMaterial,
-                    selectedQuantity = uiState.selectedMaterialQuantity,
-                    requiredQuantity = BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT,
-                    onClick = { if (!isRefining) showMaterialSelection = true }
-                )
-            }
-
-            // ===== 放入弟子区域 =====
-            Text("放入弟子", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-
-            // 血炼中：进度条 + 剩余月份（弟子槽位上方，宽度=52dp）
-            if (isRefining) {
-                val progress = uiState.currentProgress ?: return@Column
-                val remaining = uiState.remainingMonths
-                val total = progress.durationMonths
-                val fraction = if (total > 0) (total - remaining).toFloat() / total else 0f
-                val animFractionState = rememberChasingProgress(target = fraction)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "${remaining}月",
-                            color = Color.Black,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        LinearProgressIndicator(
-                            progress = { animFractionState.value },
-                            modifier = Modifier.width(52.dp).height(4.dp),
-                            color = GameColors.Success,
-                            trackColor = Color(0x334CAF50),
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                DiscipleSlot(
-                    disciple = uiState.selectedDisciple,
-                    showActions = uiState.selectedDisciple != null,
-                    onSlotClick = { },
-                    onEmptySlotClick = { if (!isRefining) showDiscipleSelection = true },
-                    onDismiss = {
-                        if (isRefining) bloodRefiningViewModel.cancelRefine(buildingInstanceId)
-                        else bloodRefiningViewModel.selectDisciple(null)
-                    },
-                    onSwap = {
-                        if (isRefining) bloodRefiningViewModel.cancelRefine(buildingInstanceId)
-                        showDiscipleSelection = true
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 红色小字（按钮上方）
-            Text(
-                text = "消耗 100 万灵石",
-                color = Color(0xFFCC0000),
-                fontSize = 11.sp,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // 洗炼按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                GameButton(
-                    text = if (isRefining) "血炼中..." else "洗炼",
-                    onClick = { bloodRefiningViewModel.startRefine(buildingInstanceId = buildingInstanceId) },
-                    enabled = !isRefining && uiState.canStartRefine,
-                    modifier = Modifier
-                        .width(ButtonSizes.StandardWidth)
-                        .height(ButtonSizes.StandardHeight)
-                )
-            }
-
-            // 错误提示
-            uiState.errorMessage?.let { error ->
-                Text(text = error, color = Color.Black, fontSize = 12.sp, textAlign = TextAlign.Center)
-                LaunchedEffect(error) { bloodRefiningViewModel.clearError() }
-            }
-        }
+        BloodRefiningContent(
+            uiState = uiState,
+            bloodRefiningViewModel = bloodRefiningViewModel,
+            buildingInstanceId = buildingInstanceId,
+            onSelectMaterial = { showMaterialSelection = true },
+            onSelectDisciple = { showDiscipleSelection = true }
+        )
     }
 
-    // 材料选择弹窗
     if (showMaterialSelection) {
         MaterialSelectorDialog(
             bloodMaterials = bloodMaterials,
@@ -201,36 +93,255 @@ fun BloodRefiningPoolDialog(
         )
     }
 
-    // 弟子选择弹窗
     if (showDiscipleSelection) {
-        val scope = rememberCoroutineScope()
-        val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
-        val battleAndExplorationIds = remember(gameData) {
-            val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()
-            val allCaveExplorationIds = gameData?.caveExplorationTeams?.flatMap { it.memberIds } ?: emptyList()
-            (allBattleIds + allCaveExplorationIds).toSet()
-        }
-        val eligibleDisciples = disciples.filter { it.isAlive }
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "选择弟子", emptyMessage = "没有空闲弟子"),
-            disciples = eligibleDisciples,
-            showAllEnabled = showAllEnabled,
-            battleAndExplorationIds = battleAndExplorationIds,
-            onDismiss = { showDiscipleSelection = false },
-            onConfirm = { selected ->
-                selected.firstOrNull()?.let {
-                    scope.launch {
-                        if (showAllEnabled && it.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE) {
-                            viewModel.releaseDiscipleForReassignment(it.id)
-                        }
-                        bloodRefiningViewModel.selectDisciple(it)
-                    }
-                }
-                showDiscipleSelection = false
-            },
-            viewModel = viewModel
+        BloodRefiningDiscipleSelectionDialog(
+            gameData = gameData,
+            disciples = disciples,
+            viewModel = viewModel,
+            bloodRefiningViewModel = bloodRefiningViewModel,
+            onSelected = { bloodRefiningViewModel.selectDisciple(it) },
+            onDismiss = { showDiscipleSelection = false }
         )
     }
+}
+
+/** 血炼材料库存收集（BloodRefiningPoolDialog 拆分） */
+@Composable
+private fun rememberBloodMaterials(materials: List<Material>): List<Pair<BeastMaterialDatabase.BeastMaterial, Int>> {
+    return remember(materials) {
+        val bloodBeastMaterials = BeastMaterialDatabase.getBloodMaterials()
+        bloodBeastMaterials.mapNotNull { beastMat ->
+            val totalQty = materials
+                .filter { it.name == beastMat.name && it.rarity == beastMat.rarity }
+                .sumOf { it.quantity }
+            if (totalQty >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) beastMat to totalQty else null
+        }
+    }
+}
+
+/** 血炼池主内容区（BloodRefiningPoolDialog 拆分）：放入材料 + 放入弟子 + 洗炼操作 */
+@Composable
+private fun BloodRefiningContent(
+    uiState: BloodRefiningUiState,
+    bloodRefiningViewModel: BloodRefiningViewModel,
+    buildingInstanceId: String,
+    onSelectMaterial: () -> Unit,
+    onSelectDisciple: () -> Unit
+) {
+    val isRefining = uiState.isRefining && uiState.currentProgress != null
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // ===== 放入材料区域 =====
+        BloodRefiningMaterialSection(
+            selectedMaterial = uiState.selectedMaterial,
+            selectedQuantity = uiState.selectedMaterialQuantity,
+            requiredQuantity = BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT,
+            isRefining = isRefining,
+            onSlotClick = onSelectMaterial
+        )
+
+        // ===== 放入弟子区域 =====
+        BloodRefiningDiscipleSection(
+            uiState = uiState,
+            bloodRefiningViewModel = bloodRefiningViewModel,
+            buildingInstanceId = buildingInstanceId,
+            isRefining = isRefining,
+            onSelectDisciple = onSelectDisciple
+        )
+
+        BloodRefiningActionSection(
+            isRefining = isRefining,
+            canStartRefine = uiState.canStartRefine,
+            errorMessage = uiState.errorMessage,
+            bloodRefiningViewModel = bloodRefiningViewModel,
+            buildingInstanceId = buildingInstanceId
+        )
+    }
+}
+
+/** 放入材料区（BloodRefiningPoolDialog 拆分） */
+@Composable
+private fun BloodRefiningMaterialSection(
+    selectedMaterial: BeastMaterialDatabase.BeastMaterial?,
+    selectedQuantity: Int,
+    requiredQuantity: Int,
+    isRefining: Boolean,
+    onSlotClick: () -> Unit
+) {
+    Text("放入材料", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        MaterialSlotBox(
+            selectedMaterial = selectedMaterial,
+            selectedQuantity = selectedQuantity,
+            requiredQuantity = requiredQuantity,
+            onClick = { if (!isRefining) onSlotClick() }
+        )
+    }
+}
+
+/** 放入弟子区（BloodRefiningPoolDialog 拆分）：进度条 + 弟子槽位 */
+@Composable
+private fun BloodRefiningDiscipleSection(
+    uiState: BloodRefiningUiState,
+    bloodRefiningViewModel: BloodRefiningViewModel,
+    buildingInstanceId: String,
+    isRefining: Boolean,
+    onSelectDisciple: () -> Unit
+) {
+    Text("放入弟子", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+
+    // 血炼中：进度条 + 剩余月份（弟子槽位上方，宽度=52dp）
+    if (isRefining) {
+        BloodRefiningProgressSection(
+            currentProgress = uiState.currentProgress,
+            remainingMonths = uiState.remainingMonths
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        DiscipleSlot(
+            disciple = uiState.selectedDisciple,
+            showActions = uiState.selectedDisciple != null,
+            onSlotClick = { },
+            onEmptySlotClick = { if (!isRefining) onSelectDisciple() },
+            onDismiss = {
+                if (isRefining) bloodRefiningViewModel.cancelRefine(buildingInstanceId)
+                else bloodRefiningViewModel.selectDisciple(null)
+            },
+            onSwap = {
+                if (isRefining) bloodRefiningViewModel.cancelRefine(buildingInstanceId)
+                onSelectDisciple()
+            }
+        )
+    }
+}
+
+/** 血炼进度条（BloodRefiningPoolDialog 拆分）：剩余月份 + 进度条 */
+@Composable
+private fun BloodRefiningProgressSection(
+    currentProgress: com.xianxia.sect.core.model.BloodRefinementProgress?,
+    remainingMonths: Int
+) {
+    val progress = currentProgress ?: return
+    val remaining = remainingMonths
+    val total = progress.durationMonths
+    val fraction = if (total > 0) (total - remaining).toFloat() / total else 0f
+    val animFractionState = rememberChasingProgress(target = fraction)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "${remaining}月",
+                color = Color.Black,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            LinearProgressIndicator(
+                progress = { animFractionState.value },
+                modifier = Modifier.width(52.dp).height(4.dp),
+                color = GameColors.Success,
+                trackColor = Color(0x334CAF50),
+            )
+        }
+    }
+}
+
+/** 洗炼操作区（BloodRefiningPoolDialog 拆分）：消耗提示 + 按钮 + 错误提示 */
+@Composable
+private fun BloodRefiningActionSection(
+    isRefining: Boolean,
+    canStartRefine: Boolean,
+    errorMessage: String?,
+    bloodRefiningViewModel: BloodRefiningViewModel,
+    buildingInstanceId: String
+) {
+    Spacer(modifier = Modifier.height(4.dp))
+
+    // 红色小字（按钮上方）
+    Text(
+        text = "消耗 100 万灵石",
+        color = Color(0xFFCC0000),
+        fontSize = 11.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+
+    // 洗炼按钮
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        GameButton(
+            text = if (isRefining) "血炼中..." else "洗炼",
+            onClick = { bloodRefiningViewModel.startRefine(buildingInstanceId = buildingInstanceId) },
+            enabled = !isRefining && canStartRefine,
+            modifier = Modifier
+                .width(ButtonSizes.StandardWidth)
+                .height(ButtonSizes.StandardHeight)
+        )
+    }
+
+    // 错误提示
+    errorMessage?.let { error ->
+        Text(text = error, color = Color.Black, fontSize = 12.sp, textAlign = TextAlign.Center)
+        LaunchedEffect(error) { bloodRefiningViewModel.clearError() }
+    }
+}
+
+/** 血炼弟子选择弹窗（BloodRefiningPoolDialog 拆分） */
+// 拆分搬移:参数保留原签名语义
+@Suppress("UnusedParameter")
+@Composable
+private fun BloodRefiningDiscipleSelectionDialog(
+    gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel,
+    bloodRefiningViewModel: BloodRefiningViewModel,
+    onSelected: (DiscipleAggregate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+    val battleAndExplorationIds = remember(gameData) {
+        val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -> s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()
+        val allCaveExplorationIds = gameData?.caveExplorationTeams?.flatMap { it.memberIds } ?: emptyList()
+        (allBattleIds + allCaveExplorationIds).toSet()
+    }
+    val eligibleDisciples = disciples.filter { it.isAlive }
+    DiscipleSelectorDialog(
+        config = DiscipleSelectorConfig(title = "选择弟子", emptyMessage = "没有空闲弟子"),
+        disciples = eligibleDisciples,
+        showAllEnabled = showAllEnabled,
+        battleAndExplorationIds = battleAndExplorationIds,
+        onDismiss = onDismiss,
+        onConfirm = { selected ->
+            selected.firstOrNull()?.let {
+                scope.launch {
+                    if (showAllEnabled && it.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE) {
+                        viewModel.releaseDiscipleForReassignment(it.id)
+                    }
+                    onSelected(it)
+                }
+            }
+            onDismiss()
+        },
+        viewModel = viewModel
+    )
 }
 
 // ==================== 材料槽位（复用 UnifiedDiscipleSlot 同款容器） ====================
@@ -328,38 +439,15 @@ private fun MaterialSelectorDialog(
                     Text("无符合条件的材料", fontSize = 14.sp, color = Color.Black)
                 }
             } else {
-                val bloodOrder = listOf("tiger", "snake", "turtle")
-                val grouped = bloodMaterials.groupBy { BeastMaterialDatabase.getBloodTypeFromMaterialId(it.first.id) ?: "" }
-
-                val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
-                    ?: emptySet()
-                bloodOrder.forEach { bloodType ->
-                    val items = grouped[bloodType] ?: return@forEach
-                    items.sortedWith(
-                        compareByDescending<Pair<BeastMaterialDatabase.BeastMaterial, Int>> {
-                            watchKey("material", it.first.name) in watchedKeys
-                        }.thenByDescending { it.first.tier }
-                    ).forEach { (beastMat, qty) ->
-                        UnifiedItemCard(
-                            data = ItemCardData(
-                                id = beastMat.id,
-                                name = beastMat.name,
-                                rarity = beastMat.rarity,
-                                quantity = qty,
-                                description = beastMat.description,
-                                isMaterial = true
-                            ),
-                            isSelected = false,
-                            isFollowed = watchKey("material", beastMat.name) in watchedKeys,
-                            showQuantity = true,
-                            onClick = { onSelect(beastMat, qty) },
-                            onLongPress = {
-                                detailMaterial = beastMat
-                                showDetail = true
-                            }
-                        )
+                BloodMaterialList(
+                    bloodMaterials = bloodMaterials,
+                    viewModel = viewModel,
+                    onSelect = onSelect,
+                    onShowDetail = { mat ->
+                        detailMaterial = mat
+                        showDetail = true
                     }
-                }
+                )
             }
         }
 
@@ -377,6 +465,47 @@ private fun MaterialSelectorDialog(
                     detailMaterial = null
                 },
                 viewModel = viewModel
+            )
+        }
+    }
+}
+
+/** 血炼材料分组列表（MaterialSelectorDialog 拆分）：按妖兽类型分组排序渲染物品卡 */
+@Composable
+private fun BloodMaterialList(
+    bloodMaterials: List<Pair<BeastMaterialDatabase.BeastMaterial, Int>>,
+    viewModel: GameViewModel?,
+    onSelect: (BeastMaterialDatabase.BeastMaterial, Int) -> Unit,
+    onShowDetail: (BeastMaterialDatabase.BeastMaterial) -> Unit
+) {
+    val bloodOrder = listOf("tiger", "snake", "turtle")
+    val grouped = bloodMaterials.groupBy { BeastMaterialDatabase.getBloodTypeFromMaterialId(it.first.id) ?: "" }
+
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
+    bloodOrder.forEach { bloodType ->
+        val items = grouped[bloodType] ?: return@forEach
+        items.sortedWith(
+            compareByDescending<Pair<BeastMaterialDatabase.BeastMaterial, Int>> {
+                watchKey("material", it.first.name) in watchedKeys
+            }.thenByDescending { it.first.tier }
+        ).forEach { (beastMat, qty) ->
+            UnifiedItemCard(
+                data = ItemCardData(
+                    id = beastMat.id,
+                    name = beastMat.name,
+                    rarity = beastMat.rarity,
+                    quantity = qty,
+                    description = beastMat.description,
+                    isMaterial = true
+                ),
+                isSelected = false,
+                isFollowed = watchKey("material", beastMat.name) in watchedKeys,
+                showQuantity = true,
+                onClick = { onSelect(beastMat, qty) },
+                onLongPress = {
+                    onShowDetail(beastMat)
+                }
             )
         }
     }

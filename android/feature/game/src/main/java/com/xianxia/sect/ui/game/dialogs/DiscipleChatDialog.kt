@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -217,7 +217,7 @@ fun DiscipleChatDialog(
     var greetingText by remember { mutableStateOf("") }
     var conversationTree by remember { mutableStateOf<ConversationTree?>(null) }
     var chatMessages by remember { mutableStateOf<List<ChatMsg>>(emptyList()) }
-    var visibleCount by remember { mutableStateOf(0) }
+    var visibleCount by remember { mutableIntStateOf(0) }
     var isChatDone by remember { mutableStateOf(false) }
     var currentNode by remember { mutableStateOf<ConversationNode?>(null) }
     var currentEffectAnnotated by remember { mutableStateOf(AnnotatedString("")) }
@@ -382,7 +382,8 @@ private fun ChatMsgBubble(message: ChatMsg) {
     ) ?: if (message.isPlayer) R.drawable.dialogue_bubble_right
     else R.drawable.dialogue_bubble_left
 
-    val bubbleMaxWidth = (LocalConfiguration.current.screenWidthDp * 0.65f).dp
+    // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
+    val bubbleMaxWidth = (LocalWindowInfo.current.containerSize.width * 0.65f).dp
 
     Row(modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (message.isPlayer) Arrangement.End else Arrangement.Start) {

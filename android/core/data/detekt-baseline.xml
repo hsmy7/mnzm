@@ -33,22 +33,6 @@
     <ID>LargeClass:SecureKeyManager.kt$SecureKeyManager</ID>
     <ID>LargeClass:StorageEngine.kt$StorageEngine</ID>
     <ID>LargeClass:StorageSystemBenchmark.kt$StorageSystemBenchmark</ID>
-    <ID>LongMethod:FunctionalWAL.kt$FunctionalWAL$override suspend fun commit( txnId: Long, checksum: String, gameEvent: String?, currentGameYear: Int ): SaveResult&lt;Unit&gt;</ID>
-    <ID>LongMethod:FunctionalWAL.kt$FunctionalWAL$override suspend fun recover(): RecoveryResult</ID>
-    <ID>LongMethod:FunctionalWAL.kt$FunctionalWAL$private fun launchCheckpoint(): Boolean</ID>
-    <ID>LongMethod:GameDatabaseMigrationSupport.kt$internal fun rebuildGameData( db: SupportSQLiteDatabase, oldSuffix: String, sourceColumns: List&lt;String&gt; )</ID>
-    <ID>LongMethod:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$override fun migrate(db: SupportSQLiteDatabase)</ID>
-    <ID>LongMethod:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$override fun migrate(db: SupportSQLiteDatabase)</ID>
-    <ID>LongMethod:GameStateRepository.kt$GameStateRepository$suspend fun flushDirtyState( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, battleLogs: List&lt;BattleLog&gt; )</ID>
-    <ID>LongMethod:RoomMigrationTest.kt$RoomMigrationTest$@Test fun `full migration from v2 to v36 applies all steps without crash and preserves seed data`()</ID>
-    <ID>LongMethod:SecureKeyManager.kt$SecureKeyManager$private fun readExistingKeyOrRecover( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray?</ID>
-    <ID>LongMethod:StorageEngine.kt$StorageEngine$private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData</ID>
-    <ID>LongMethod:StorageEngine.kt$StorageEngine$private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData</ID>
-    <ID>LongMethod:StorageEngine.kt$StorageEngine$suspend fun load(slot: Int): StorageResult&lt;SaveData&gt;</ID>
-    <ID>LongMethod:StorageEngine.kt$StorageEngine$suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult&lt;SaveOperationStats&gt;</ID>
-    <ID>LongMethod:StorageSystemBenchmark.kt$StorageSystemBenchmark$@Test fun `generate comprehensive storage system assessment report`()</ID>
-    <ID>LongMethod:UiKeyRecoveryCallback.kt$UiKeyRecoveryCallback$override fun onKeyRecoveryRequired(reason: String): KeyRecoveryDecision</ID>
-    <ID>LongMethod:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$@OptIn(ExperimentalSerializationApi::class) fun &lt;T&gt; deserialize( data: ByteArray, context: SerializationContext = SerializationContext(), serializer: KSerializer&lt;T&gt; ): DeserializationResult&lt;T&gt;</ID>
     <ID>LongParameterList:CultivationCapRuleTest.kt$CultivationCapRuleTest$( id: String = "d-1", name: String = "甲", realm: Int = 9, realmLayer: Int = 1, cultivation: Double = 10.0, age: Int = 20, lifespan: Int = 80, isAlive: Boolean = true )</ID>
     <ID>LongParameterList:GameStateRepository.kt$GameStateRepository$( gameData: Boolean = false, disciples: Boolean = false, equipmentStacks: Boolean = false, equipmentInstances: Boolean = false, manualStacks: Boolean = false, manualInstances: Boolean = false, pills: Boolean = false, materials: Boolean = false, herbs: Boolean = false, seeds: Boolean = false, storageBags: Boolean = false, battleLogs: Boolean = false )</ID>
     <ID>LongParameterList:GameStateRepository.kt$GameStateRepository$( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, battleLogs: List&lt;BattleLog&gt; )</ID>

@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.registry.GameDataManager
@@ -43,7 +43,7 @@ class ResourcePreloader @Inject constructor(
     private val buildingConfigService: BuildingConfigService,
     private val configLoader: ConfigLoader,
     private val ioDispatcher: IoDispatcher,
-    private val audioEngine: AudioEngine? = null
+    private val audioEngine: AudioPlayerFacade? = null
 ) {
     companion object {
         private const val TAG = "ResourcePreloader"
@@ -184,8 +184,9 @@ class ResourcePreloader @Inject constructor(
             val resId = if (name == "disciple_portrait") {
                 SpriteResRegistry.resolve("disciple_portrait") ?: return@mapNotNull null
             } else {
-                context.resources.getIdentifier(
-                    name, "drawable", context.packageName)
+                // D-39：DiscouragedApi 根治——动态资源查找改走 PortraitPool 预构建映射
+                //（XianxiaApplication.onCreate 已 initialize），消除裸 getIdentifier
+                PortraitPool.getResourceId(name)
             }
             if (resId == 0) return@mapNotNull null
             try {

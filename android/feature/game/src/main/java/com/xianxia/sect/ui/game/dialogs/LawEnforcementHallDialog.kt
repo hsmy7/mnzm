@@ -51,14 +51,87 @@ fun LawEnforcementHallDialog(
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
     val discipleMap = disciples.associateBy { it.id }
 
-    val battleAndExplorationIds = remember(gameData) {
-        if (gameData != null) {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
-            battleIds + explorationIds
-        } else emptySet()
+    val battleAndExplorationIds = remember(gameData) { buildBattleAndExplorationIds(gameData) }
+
+    LawHallDialogFrame(
+        elder = lawElder,
+        lawDisciples = lawDisciples,
+        disciples = disciples,
+        callbacks = LawHallCallbacks(
+            onElderClick = { lawElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+            onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) },
+            onElderSwap = { showElderSelection = true },
+            onDiscipleClick = { index ->
+                val slot = lawDisciples.find { it.index == index }
+                val d = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
+                d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
+            },
+            onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) },
+            onDiscipleSwap = { index -> showDiscipleSelection = index }
+        ),
+        onDismiss = onDismiss
+    )
+
+    val lawTheme = remember { buildLawTheme() }
+    val selectionData = LawSelectionDialogData(theme = lawTheme, disciples = disciples,
+        gameData = gameData, battleAndExplorationIds = battleAndExplorationIds)
+
+    if (showElderSelection) {
+        LawElderSelectionDialog(
+            data = selectionData,
+            elder = lawElder,
+            onSelect = { discipleId ->
+                productionViewModel.assignElder(ElderSlotType.LAW_ENFORCEMENT, discipleId)
+                showElderSelection = false
+            },
+            onDismiss = { showElderSelection = false }
+        )
     }
 
+    showDiscipleSelection?.let { slotIndex ->
+        LawDiscipleSelectionDialog(
+            data = selectionData,
+            slotIndex = slotIndex,
+            viewModel = viewModel,
+            onSelect = { discipleId ->
+                productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, discipleId)
+                showDiscipleSelection = null
+            },
+            onDismiss = { showDiscipleSelection = null }
+        )
+    }
+
+}
+
+/** 执法堂内容回调（LawEnforcementHallDialog 拆分） */
+private data class LawHallCallbacks(
+    val onElderClick: () -> Unit,
+    val onElderRemove: () -> Unit,
+    val onElderSwap: () -> Unit,
+    val onDiscipleClick: (Int) -> Unit,
+    val onDiscipleRemove: (Int) -> Unit,
+    val onDiscipleSwap: (Int) -> Unit
+)
+
+/** 参战/探索中弟子 ID 集合（LawEnforcementHallDialog 拆分） */
+private fun buildBattleAndExplorationIds(gameData: GameData?): Set<String> {
+    if (gameData != null) {
+        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+        return battleIds + explorationIds
+    }
+    return emptySet()
+}
+
+/** 执法堂主对话框（LawEnforcementHallDialog 拆分）：UnifiedGameDialog + 长老/弟子区 */
+@Composable
+private fun LawHallDialogFrame(
+    elder: DiscipleAggregate?,
+    lawDisciples: List<DirectDiscipleSlot>,
+    disciples: List<DiscipleAggregate>,
+    callbacks: LawHallCallbacks,
+    onDismiss: () -> Unit
+) {
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "执法堂",
@@ -66,97 +139,126 @@ fun LawEnforcementHallDialog(
         scrollableContent = false
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = "维护宗门纪律，执行门规",
-                    fontSize = 10.sp,
-                    color = Color(0xFFE74C3C),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    textAlign = TextAlign.Center
-                )
-
-                LawElderSection(
-                    elder = lawElder,
-                    onElderClick = { lawElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
-                    onElderRemove = { productionViewModel.removeElder(ElderSlotType.LAW_ENFORCEMENT) },
-                    onElderSwap = { showElderSelection = true }
-                )
-
-                LawDisciplesSection(
-                    lawDisciples = lawDisciples,
-                    disciples = disciples,
-                    onDiscipleClick = { index ->
-                        val slot = lawDisciples.find { it.index == index }
-                        val d = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
-                        d?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) }
-                    },
-                    onDiscipleRemove = { index -> productionViewModel.removeDirectDisciple("lawEnforcement", index) },
-                    onDiscipleSwap = { index -> showDiscipleSelection = index }
-                )
-            }
+            LawEnforcementContent(
+                elder = elder,
+                lawDisciples = lawDisciples,
+                disciples = disciples,
+                callbacks = callbacks
+            )
         }
     }
+}
 
-    val lawTheme = remember {
-        ProductionTheme(
-            buildingId = "lawEnforcement",
-            displayName = "执法堂",
-            elderTitle = "执法长老",
-            elderBonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
-            coreAttributeName = "智力",
-            coreAttributeColor = Color(0xFFE74C3C),
-            defaultBorderColor = Color(0xFFE74C3C),
-            workingStatusColor = GameColors.Info,
-            selectedHighlightColor = GameColors.Gold,
-            slotLabelPrefix = "执法",
-            selectionDialogTitle = "",
-            startProductionText = "",
-            elderSelectionTitle = "选择执法长老",
-            recommendAttributeText = "智力",
-            getCoreAttributeValue = { it.intelligence },
-            getElderId = { it.lawEnforcementElder },
-            getDirectDisciples = { it.lawEnforcementDisciples },
-            elderSortComparator = compareByDescending<DiscipleAggregate> { it.intelligence }
-                .thenBy { it.realm }
-                .thenByDescending { it.realmLayer },
-            directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
-                .thenByDescending { it.realmLayer }
-                .thenByDescending { it.intelligence }
+/** 执法堂内容区（LawEnforcementHallDialog 拆分）：门规标语 + 长老 + 弟子区 */
+@Composable
+private fun ColumnScope.LawEnforcementContent(
+    elder: DiscipleAggregate?,
+    lawDisciples: List<DirectDiscipleSlot>,
+    disciples: List<DiscipleAggregate>,
+    callbacks: LawHallCallbacks
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "维护宗门纪律，执行门规",
+            fontSize = 10.sp,
+            color = Color(0xFFE74C3C),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            textAlign = TextAlign.Center
+        )
+
+        LawElderSection(
+            elder = elder,
+            onElderClick = callbacks.onElderClick,
+            onElderRemove = callbacks.onElderRemove,
+            onElderSwap = callbacks.onElderSwap
+        )
+
+        LawDisciplesSection(
+            lawDisciples = lawDisciples,
+            disciples = disciples,
+            onDiscipleClick = callbacks.onDiscipleClick,
+            onDiscipleRemove = callbacks.onDiscipleRemove,
+            onDiscipleSwap = callbacks.onDiscipleSwap
         )
     }
+}
 
-    if (showElderSelection) {
-        ProductionElderSelectionDialog(
-            theme = lawTheme,
-            disciples = disciples.filter { it.isAlive },
-            currentElderId = lawElder?.id,
-            elderSlots = gameData?.elderSlots ?: ElderSlots(),
-            onDismiss = { showElderSelection = false },
-            onSelect = { discipleId ->
-                productionViewModel.assignElder(ElderSlotType.LAW_ENFORCEMENT, discipleId)
-                showElderSelection = false
-            },
-            battleAndExplorationIds = battleAndExplorationIds,
-        )
-    }
+/** 执法堂 ProductionTheme 构建（LawEnforcementHallDialog 拆分） */
+private fun buildLawTheme(): ProductionTheme = ProductionTheme(
+    buildingId = "lawEnforcement",
+    displayName = "执法堂",
+    elderTitle = "执法长老",
+    elderBonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
+    coreAttributeName = "智力",
+    coreAttributeColor = Color(0xFFE74C3C),
+    defaultBorderColor = Color(0xFFE74C3C),
+    workingStatusColor = GameColors.Info,
+    selectedHighlightColor = GameColors.Gold,
+    slotLabelPrefix = "执法",
+    selectionDialogTitle = "",
+    startProductionText = "",
+    elderSelectionTitle = "选择执法长老",
+    recommendAttributeText = "智力",
+    getCoreAttributeValue = { it.intelligence },
+    getElderId = { it.lawEnforcementElder },
+    getDirectDisciples = { it.lawEnforcementDisciples },
+    elderSortComparator = compareByDescending<DiscipleAggregate> { it.intelligence }
+        .thenBy { it.realm }
+        .thenByDescending { it.realmLayer },
+    directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+        .thenByDescending { it.realmLayer }
+        .thenByDescending { it.intelligence }
+)
 
-    showDiscipleSelection?.let { slotIndex ->
-        ProductionDirectDiscipleSelectionDialog(
-            theme = lawTheme,
-            disciples = disciples.filter { it.isAlive },
-            elderSlots = gameData?.elderSlots ?: ElderSlots(),
-            onDismiss = { showDiscipleSelection = null },
-            onSelect = { discipleId ->
-                productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, discipleId)
-                showDiscipleSelection = null
-            },
-            viewModel = viewModel,
-            battleAndExplorationIds = battleAndExplorationIds,
-        )
-    }
+/** 选择弹窗数据（LawEnforcementHallDialog 拆分） */
+private data class LawSelectionDialogData(
+    val theme: ProductionTheme,
+    val disciples: List<DiscipleAggregate>,
+    val gameData: GameData?,
+    val battleAndExplorationIds: Set<String>
+)
 
+/** 执法长老选择弹窗（LawEnforcementHallDialog 拆分） */
+@Composable
+private fun LawElderSelectionDialog(
+    data: LawSelectionDialogData,
+    elder: DiscipleAggregate?,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ProductionElderSelectionDialog(
+        theme = data.theme,
+        disciples = data.disciples.filter { it.isAlive },
+        currentElderId = elder?.id,
+        elderSlots = data.gameData?.elderSlots ?: ElderSlots(),
+        onDismiss = onDismiss,
+        onSelect = onSelect,
+        battleAndExplorationIds = data.battleAndExplorationIds,
+    )
+}
+
+/** 执法弟子选择弹窗（LawEnforcementHallDialog 拆分） */
+// 拆分搬移:参数保留原签名语义
+@Suppress("UnusedParameter")
+@Composable
+private fun LawDiscipleSelectionDialog(
+    data: LawSelectionDialogData,
+    slotIndex: Int,
+    viewModel: GameViewModel,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    ProductionDirectDiscipleSelectionDialog(
+        theme = data.theme,
+        disciples = data.disciples.filter { it.isAlive },
+        elderSlots = data.gameData?.elderSlots ?: ElderSlots(),
+        onDismiss = onDismiss,
+        onSelect = onSelect,
+        viewModel = viewModel,
+        battleAndExplorationIds = data.battleAndExplorationIds,
+    )
 }
 
 @Composable
@@ -224,42 +326,53 @@ private fun LawDisciplesSection(
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            (0..3).forEach { index ->
-                val slot = lawDisciples.find { it.index == index }
-                val disciple = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
-                val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
-                LawDiscipleSlotItem(
-                    disciple = disciple,
-                    isActive = slot?.isActive == true,
-                    spiritRootColor = spiritRootColor,
-                    onClick = { onDiscipleClick(index) },
-                    onRemove = { onDiscipleRemove(index) },
-                    onSwap = { onDiscipleSwap(index) }
-                )
-            }
-        }
+        LawDiscipleSlotRow(
+            lawDisciples = lawDisciples,
+            discipleMap = discipleMap,
+            range = 0..3,
+            onDiscipleClick = onDiscipleClick,
+            onDiscipleRemove = onDiscipleRemove,
+            onDiscipleSwap = onDiscipleSwap
+        )
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            (4..7).forEach { index ->
-                val slot = lawDisciples.find { it.index == index }
-                val disciple = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
-                val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
-                LawDiscipleSlotItem(
-                    disciple = disciple,
-                    isActive = slot?.isActive == true,
-                    spiritRootColor = spiritRootColor,
-                    onClick = { onDiscipleClick(index) },
-                    onRemove = { onDiscipleRemove(index) },
-                    onSwap = { onDiscipleSwap(index) }
-                )
-            }
+        LawDiscipleSlotRow(
+            lawDisciples = lawDisciples,
+            discipleMap = discipleMap,
+            range = 4..7,
+            onDiscipleClick = onDiscipleClick,
+            onDiscipleRemove = onDiscipleRemove,
+            onDiscipleSwap = onDiscipleSwap
+        )
+    }
+}
+
+/** 执法弟子槽位行（LawDisciplesSection 拆分）：给定索引区间渲染 4 个槽位 */
+@Composable
+private fun LawDiscipleSlotRow(
+    lawDisciples: List<DirectDiscipleSlot>,
+    discipleMap: Map<String, DiscipleAggregate>,
+    range: IntRange,
+    onDiscipleClick: (Int) -> Unit,
+    onDiscipleRemove: (Int) -> Unit,
+    onDiscipleSwap: (Int) -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        range.forEach { index ->
+            val slot = lawDisciples.find { it.index == index }
+            val disciple = if (slot != null && slot.isActive) discipleMap[slot.discipleId] else null
+            val spiritRootColor = slot?.discipleSpiritRootColor ?: ""
+            LawDiscipleSlotItem(
+                disciple = disciple,
+                isActive = slot?.isActive == true,
+                spiritRootColor = spiritRootColor,
+                onClick = { onDiscipleClick(index) },
+                onRemove = { onDiscipleRemove(index) },
+                onSwap = { onDiscipleSwap(index) }
+            )
         }
     }
 }
@@ -353,4 +466,3 @@ private fun LawDiscipleSlotItem(
         )
     }
 }
-

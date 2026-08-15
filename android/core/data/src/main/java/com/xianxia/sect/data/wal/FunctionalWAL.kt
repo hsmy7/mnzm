@@ -466,44 +466,13 @@ class FunctionalWAL @Inject constructor(
                             "Transaction $txnId not found or already completed"
                         )
                     }
-
-                    val metaData = buildString {
-                        append("checksum=").append(checksum)
-                        append("|gameEvent=").append(gameEvent ?: "")
-                        append("|currentGameYear=").append(currentGameYear)
-                    }.toByteArray(Charsets.UTF_8)
-
-                    if (!writeEntry(WALEntryType.COMMIT, txnId, record.slot, metaData)) {
-                        record.statusRef.set(TransactionStatus.ACTIVE)
-                        return@withContext SaveResult.failure(
-                            SaveError.WAL_ERROR,
-                            "Failed to write COMMIT entry for transaction $txnId"
-                        )
-                    }
-
-                    flushInternal()
-
-                    record.statusRef.set(TransactionStatus.COMMITTED)
-                    record.checksum = checksum
-                    record.gameEvent = gameEvent
-                    record.currentGameYear = currentGameYear
-                    activeTransactions.remove(txnId)
-                    committedCount.incrementAndGet()
-
-                    val sinceCp = commitsSinceCheckpoint.incrementAndGet()
-                    if (sinceCp >= StorageConstants.CHECKPOINT_INTERVAL) {
-                        if (!thermalMonitor.shouldReduceWorkload()) {
-                            launchCheckpoint()
-                        }
-                    } else {
-                        val fileSize = try { walFile.length() } catch (_: Exception) { 0L }
-                        if (fileSize > StorageConstants.MAX_WAL_SIZE_BYTES) {
-                            launchCheckpoint()
-                        }
-                    }
-
-                    Log.d(TAG, "Transaction committed: txnId=$txnId, slot=${record.slot}")
-                    SaveResult.success(Unit)
+                    performCommit(
+                        txnId = txnId,
+                        checksum = checksum,
+                        gameEvent = gameEvent,
+                        currentGameYear = currentGameYear,
+                        record = record
+                    )
                 }.also {
                     txnLocks.remove(txnId)
                 }
@@ -512,6 +481,56 @@ class FunctionalWAL @Inject constructor(
                 SaveResult.failure(SaveError.WAL_ERROR, "Failed to commit: ${e.message}", e)
             }
         }
+    }
+
+    /**
+     * 提交事务的内部实现（commit 拆分）：在事务锁内写入 COMMIT 条目并强制 flush，
+     * 登记提交状态并触发 checkpoint 判定。
+     */
+    private fun performCommit(
+        txnId: Long,
+        checksum: String,
+        gameEvent: String?,
+        currentGameYear: Int,
+        record: TransactionRecord
+    ): SaveResult<Unit> {
+        val metaData = buildString {
+            append("checksum=").append(checksum)
+            append("|gameEvent=").append(gameEvent ?: "")
+            append("|currentGameYear=").append(currentGameYear)
+        }.toByteArray(Charsets.UTF_8)
+
+        if (!writeEntry(WALEntryType.COMMIT, txnId, record.slot, metaData)) {
+            record.statusRef.set(TransactionStatus.ACTIVE)
+            return SaveResult.failure(
+                SaveError.WAL_ERROR,
+                "Failed to write COMMIT entry for transaction $txnId"
+            )
+        }
+
+        flushInternal()
+
+        record.statusRef.set(TransactionStatus.COMMITTED)
+        record.checksum = checksum
+        record.gameEvent = gameEvent
+        record.currentGameYear = currentGameYear
+        activeTransactions.remove(txnId)
+        committedCount.incrementAndGet()
+
+        val sinceCp = commitsSinceCheckpoint.incrementAndGet()
+        if (sinceCp >= StorageConstants.CHECKPOINT_INTERVAL) {
+            if (!thermalMonitor.shouldReduceWorkload()) {
+                launchCheckpoint()
+            }
+        } else {
+            val fileSize = try { walFile.length() } catch (_: Exception) { 0L }
+            if (fileSize > StorageConstants.MAX_WAL_SIZE_BYTES) {
+                launchCheckpoint()
+            }
+        }
+
+        Log.d(TAG, "Transaction committed: txnId=$txnId, slot=${record.slot}")
+        return SaveResult.success(Unit)
     }
 
     /**
@@ -591,46 +610,15 @@ class FunctionalWAL @Inject constructor(
     override suspend fun recover(): RecoveryResult {
         return withContext(Dispatchers.IO) {
             try {
-                val cached = cachedInitEntries
-                val entries = if (cached != null) {
-                    cachedInitEntries = null
-                    cached
-                } else {
-                    if (!walFile.exists() || walFile.length() == 0L) {
-                        Log.i(TAG, "No WAL file to recover")
-                        return@withContext RecoveryResult(true, emptySet(), emptySet(), emptyList())
-                    }
-                    val walData = walFile.readBytes()
-                    parseEntries(walData)
-                }
+                val entries = readEntriesForRecovery()
+                    ?: return@withContext RecoveryResult(true, emptySet(), emptySet(), emptyList())
 
                 if (entries.isEmpty()) {
                     return@withContext RecoveryResult(true, emptySet(), emptySet(), emptyList())
                 }
 
                 // 追踪事务生命周期
-                val beginEntries = mutableMapOf<Long, RecoveryTxnInfo>()
-                val completedTxnIds = mutableSetOf<Long>()
-
-                for (entry in entries) {
-                    if (!entry.valid) continue
-                    when (entry.type) {
-                        WALEntryType.BEGIN -> {
-                            val operation = try {
-                                WALEntryType.valueOf(String(entry.data, Charsets.UTF_8))
-                            } catch (_: Exception) { null }
-                            beginEntries[entry.txnId] = RecoveryTxnInfo(
-                                slotId = entry.slotId,
-                                operation = operation,
-                                timestamp = entry.timestamp
-                            )
-                        }
-                        WALEntryType.COMMIT -> completedTxnIds.add(entry.txnId)
-                        WALEntryType.ABORT -> completedTxnIds.add(entry.txnId)
-                        WALEntryType.SNAPSHOT -> { /* 独立快照，不影响事务状态 */ }
-                        WALEntryType.DATA -> { /* DATA 条目不影响事务完成状态 */ }
-                    }
-                }
+                val (beginEntries, completedTxnIds) = trackTransactionLifecycle(entries = entries)
 
                 // 查找未完成事务
                 val uncommitted = beginEntries.filter { (txnId, _) -> txnId !in completedTxnIds }
@@ -646,34 +634,11 @@ class FunctionalWAL @Inject constructor(
                 val failedSlots = mutableSetOf<Int>()
                 val errors = mutableListOf<String>()
 
-                for ((txnId, info) in uncommitted) {
-                    val slot = info.slotId
-
-                    // D25（2026-08-05）：超保留期的未完成事务不注册——崩溃遗留的
-                    // BEGIN 条目此前永久登记（无任何代码 abort/commit 它们），
-                    // checkpoint 保留其条目、WAL 文件随崩溃次数单调增长
-                    if (info.timestamp > 0L &&
-                        System.currentTimeMillis() - info.timestamp > RECOVERED_TXN_RETENTION_MS
-                    ) {
-                        Log.w(TAG, "跳过超保留期未完成事务 $txnId (slot=$slot, " +
-                            "age=${(System.currentTimeMillis() - info.timestamp) / 86_400_000L} 天)")
-                        continue
-                    }
-
-                    // 将未完成事务注册到活跃事务表（快照能力已移除 2026-08-01，
-                    // 恢复依赖 Room WAL 事务原子性 + .sav 备份，未完成事务仅登记供监控）
-                    val record = TransactionRecord(
-                        txnId = txnId,
-                        slot = slot,
-                        operation = info.operation ?: WALEntryType.DATA,
-                        startTime = info.timestamp
-                    )
-                    activeTransactions[txnId] = record
-
-                    failedSlots.add(slot)
-                    errors.add("Uncommitted transaction $txnId on slot $slot (DB 事务已回滚，无需快照恢复)")
-                    Log.w(TAG, "Uncommitted transaction: txnId=$txnId, slot=$slot")
-                }
+                registerUncommittedTransactions(
+                    uncommitted = uncommitted,
+                    failedSlots = failedSlots,
+                    errors = errors
+                )
 
                 // 更新 txnIdGenerator 避免冲突
                 updateTxnIdFromEntries(entries)
@@ -685,6 +650,97 @@ class FunctionalWAL @Inject constructor(
                 Log.e(TAG, "Recovery failed", e)
                 RecoveryResult(false, emptySet(), emptySet(), listOf("Recovery failed: ${e.message}"))
             }
+        }
+    }
+
+    /**
+     * 读取 WAL 条目（recover 拆分）：优先使用 init 缓存，否则读文件解析；
+     * 文件不存在或为空时返回 null。
+     */
+    private fun readEntriesForRecovery(): List<ParsedEntry>? {
+        val cached = cachedInitEntries
+        return if (cached != null) {
+            cachedInitEntries = null
+            cached
+        } else {
+            if (!walFile.exists() || walFile.length() == 0L) {
+                Log.i(TAG, "No WAL file to recover")
+                null
+            } else {
+                parseEntries(walFile.readBytes())
+            }
+        }
+    }
+
+    /**
+     * 追踪事务生命周期（recover 拆分）：汇总 BEGIN 条目与已完成事务 ID 集合。
+     *
+     * @return (BEGIN 条目表, 已完成事务 ID 集合)
+     */
+    private fun trackTransactionLifecycle(
+        entries: List<ParsedEntry>
+    ): Pair<Map<Long, RecoveryTxnInfo>, Set<Long>> {
+        val beginEntries = mutableMapOf<Long, RecoveryTxnInfo>()
+        val completedTxnIds = mutableSetOf<Long>()
+
+        for (entry in entries) {
+            if (!entry.valid) continue
+            when (entry.type) {
+                WALEntryType.BEGIN -> {
+                    val operation = try {
+                        WALEntryType.valueOf(String(entry.data, Charsets.UTF_8))
+                    } catch (_: Exception) { null }
+                    beginEntries[entry.txnId] = RecoveryTxnInfo(
+                        slotId = entry.slotId,
+                        operation = operation,
+                        timestamp = entry.timestamp
+                    )
+                }
+                WALEntryType.COMMIT -> completedTxnIds.add(entry.txnId)
+                WALEntryType.ABORT -> completedTxnIds.add(entry.txnId)
+                WALEntryType.SNAPSHOT -> { /* 独立快照，不影响事务状态 */ }
+                WALEntryType.DATA -> { /* DATA 条目不影响事务完成状态 */ }
+            }
+        }
+
+        return beginEntries to completedTxnIds
+    }
+
+    /**
+     * 注册未完成事务（recover 拆分）：超保留期的未完成事务跳过，其余登记活跃事务表。
+     */
+    private fun registerUncommittedTransactions(
+        uncommitted: Map<Long, RecoveryTxnInfo>,
+        failedSlots: MutableSet<Int>,
+        errors: MutableList<String>
+    ) {
+        for ((txnId, info) in uncommitted) {
+            val slot = info.slotId
+
+            // D25（2026-08-05）：超保留期的未完成事务不注册——崩溃遗留的
+            // BEGIN 条目此前永久登记（无任何代码 abort/commit 它们），
+            // checkpoint 保留其条目、WAL 文件随崩溃次数单调增长
+            if (info.timestamp > 0L &&
+                System.currentTimeMillis() - info.timestamp > RECOVERED_TXN_RETENTION_MS
+            ) {
+                Log.w(TAG, "跳过超保留期未完成事务 $txnId (slot=$slot, " +
+                    "age=${(System.currentTimeMillis() - info.timestamp) / 86_400_000L} 天)")
+                continue
+            }
+
+            // 将未完成事务注册到活跃事务表（快照能力已移除 2026-08-01，
+            // 恢复依赖 Room WAL 事务原子性 + .sav 备份，未完成事务仅登记供监控）
+            val record = TransactionRecord(
+                txnId = txnId,
+                slot = slot,
+                operation = info.operation ?: WALEntryType.DATA,
+                startTime = info.timestamp
+            )
+            activeTransactions[txnId] = record
+
+            failedSlots.add(slot)
+            errors.add("Uncommitted transaction $txnId on slot $slot (DB 事务已回滚，无需快照恢复)")
+            Log.w(TAG, "Uncommitted transaction: txnId=$txnId, slot=$slot")
         }
     }
 
@@ -731,7 +787,6 @@ class FunctionalWAL @Inject constructor(
                     Log.w(TAG, "Error flushing before checkpoint", e)
                 }
                 bufferedOutputStream = null
-
                 // 步骤 2: 读取 WAL
                 if (!walFile.exists() || walFile.length() == 0L) {
                     openWALFileInternal()
@@ -749,7 +804,6 @@ class FunctionalWAL @Inject constructor(
                 }
 
                 val entries = parseEntries(walData)
-
                 // 步骤 3: 过滤
                 val activeTxnIds = activeTransactions.keys
                 val filteredEntries = entries.filter { entry ->
@@ -765,61 +819,10 @@ class FunctionalWAL @Inject constructor(
                     FileOutputStream(tempFile),
                     StorageConstants.WAL_BUFFER_SIZE_BYTES
                 )
+                writeCheckpointEntries(tempBos = tempBos, entries = filteredEntries)
 
-                for (entry in filteredEntries) {
-                    val baos = ByteArrayOutputStream(ENTRY_HEADER_SIZE + entry.data.size)
-                    val dos = DataOutputStream(baos)
-                    dos.writeByte(MAGIC_BYTE_1.toInt())
-                    dos.writeByte(MAGIC_BYTE_2.toInt())
-                    dos.writeByte(entry.type.ordinal)
-                    dos.writeLong(entry.txnId)
-                    dos.writeInt(entry.slotId)
-                    dos.writeLong(entry.timestamp)
-                    dos.writeInt(entry.data.size)
-                    dos.write(entry.data)
-                    dos.flush()
-
-                    val entryBytes = baos.toByteArray()
-                    val checksum = sha256(entryBytes)
-                    tempBos.write(entryBytes)
-                    tempBos.write(checksum)
-                }
-
-                tempBos.flush()
-                tempBos.close()
-
-                // 步骤 5: 原子替换
-                val oldFile = File(walDir, "${StorageConstants.WAL_FILE_NAME}.old")
-                if (oldFile.exists()) oldFile.delete()
-
-                if (walFile.exists()) {
-                    walFile.renameTo(oldFile)
-                }
-
-                if (!tempFile.renameTo(walFile)) {
-                    // 替换失败，尝试回滚
-                    Log.e(TAG, "Failed to rename temp WAL file, attempting rollback")
-                    if (oldFile.exists()) {
-                        oldFile.renameTo(walFile)
-                    }
-                    openWALFileInternal()
-                    return false
-                }
-
-                // 清理旧文件
-                if (oldFile.exists()) {
-                    oldFile.delete()
-                }
-
-                // 步骤 6: 重新打开输出流
-                openWALFileInternal()
-
-                // 更新统计
-                lastCheckpointTime = System.currentTimeMillis()
-                commitsSinceCheckpoint.set(0L)
-
-                Log.i(TAG, "Checkpoint completed: kept=${filteredEntries.size} entries, size=${walFile.length()}B")
-                true
+                // 步骤 5+6: 原子替换 + 重新打开 + 更新统计
+                replaceWalFile(tempFile = tempFile, keptEntries = filteredEntries.size)
             } catch (e: Exception) {
                 Log.e(TAG, "Checkpoint failed", e)
                 try {
@@ -830,6 +833,73 @@ class FunctionalWAL @Inject constructor(
                 false
             }
         }
+    }
+
+    /**
+     * 写入过滤后的条目到临时文件（launchCheckpoint 拆分）：逐条重建二进制条目格式。
+     */
+    private fun writeCheckpointEntries(tempBos: BufferedOutputStream, entries: List<ParsedEntry>) {
+        for (entry in entries) {
+            val baos = ByteArrayOutputStream(ENTRY_HEADER_SIZE + entry.data.size)
+            val dos = DataOutputStream(baos)
+            dos.writeByte(MAGIC_BYTE_1.toInt())
+            dos.writeByte(MAGIC_BYTE_2.toInt())
+            dos.writeByte(entry.type.ordinal)
+            dos.writeLong(entry.txnId)
+            dos.writeInt(entry.slotId)
+            dos.writeLong(entry.timestamp)
+            dos.writeInt(entry.data.size)
+            dos.write(entry.data)
+            dos.flush()
+
+            val entryBytes = baos.toByteArray()
+            val checksum = sha256(entryBytes)
+            tempBos.write(entryBytes)
+            tempBos.write(checksum)
+        }
+
+        tempBos.flush()
+        tempBos.close()
+    }
+
+    /**
+     * 原子替换 WAL 文件（launchCheckpoint 拆分）：旧文件回退 + 清理 + 重新打开 + 统计更新。
+     *
+     * @return true 表示替换成功；替换失败已回滚时返回 false
+     */
+    private fun replaceWalFile(tempFile: File, keptEntries: Int): Boolean {
+        // 步骤 5: 原子替换
+        val oldFile = File(walDir, "${StorageConstants.WAL_FILE_NAME}.old")
+        if (oldFile.exists()) oldFile.delete()
+
+        if (walFile.exists()) {
+            walFile.renameTo(oldFile)
+        }
+
+        if (!tempFile.renameTo(walFile)) {
+            // 替换失败，尝试回滚
+            Log.e(TAG, "Failed to rename temp WAL file, attempting rollback")
+            if (oldFile.exists()) {
+                oldFile.renameTo(walFile)
+            }
+            openWALFileInternal()
+            return false
+        }
+
+        // 清理旧文件
+        if (oldFile.exists()) {
+            oldFile.delete()
+        }
+
+        // 步骤 6: 重新打开输出流
+        openWALFileInternal()
+
+        // 更新统计
+        lastCheckpointTime = System.currentTimeMillis()
+        commitsSinceCheckpoint.set(0L)
+
+        Log.i(TAG, "Checkpoint completed: kept=$keptEntries entries, size=${walFile.length()}B")
+        return true
     }
 
     /**

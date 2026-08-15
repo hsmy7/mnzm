@@ -53,6 +53,11 @@ jobs:
       - name: Run Detekt
         run: ./gradlew detekt --max-workers=1 --build-cache
 
+      # 2026-08 债务根治：lintRelease 纳入 CI（此前本地清单有 lint 但 CI 漏跑——
+      # 文档债务 baseline-20260814「CI 全绿」项包含 lint 验证面）
+      - name: Run lint
+        run: ./gradlew lintRelease --max-workers=1 --build-cache
+
       - name: Validate changelog JSON
         run: ./gradlew validateChangelogJson --build-cache
 

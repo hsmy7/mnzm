@@ -24,11 +24,13 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleRoundData
+import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.model.SecretRealmEventRecord
+import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.SpriteImage
@@ -83,19 +85,67 @@ fun SecretRealmExplorationScreen(
     val session by viewModel.session.collectAsStateWithLifecycle()
     val disciples by viewModel.disciples.collectAsStateWithLifecycle()
 
-    // 选项卡片：事件信息逐行显示完成后自动弹出（初始不弹，等待逐行播放）
     var showOptions by remember { mutableStateOf(false) }
     var showBackpack by remember { mutableStateOf(false) }
-    // 战斗播放数据（chooseOption 返回的战斗日志）
     var combatLog by remember { mutableStateOf<BattleLogData?>(null) }
-    // 战斗场景标题（如"远离妖兽被发现"/"发起战斗"/"尝试偷袭"，由所选选项决定）
     var combatTitle by remember { mutableStateOf<String?>(null) }
-    var skipCombat by remember { mutableStateOf(false) }
-    // 选项请求锁：引擎事务完成前禁止再次选择（对抗性审查 M2 连点防重）
-    var choosing by remember { mutableStateOf(false) }
-    // 首帧会话标记：避免初始 null 一帧误触发关闭（对抗性审查 B10）
-    var hasSessionBefore by remember { mutableStateOf(false) }
 
+    // 探索生命周期（暂停/恢复 + 租约续约）+ 会话结束监听（末战回放写回窗口防护）
+    SecretRealmScreenEffects(
+        viewModel = viewModel,
+        session = session,
+        combatLog = combatLog,
+        onSessionClosed = {
+            showOptions = false
+            onFinished()
+        }
+    )
+
+    // 返回 = 暂存退出（会话保留，下次详情界面"继续探索"）
+    BackHandler { onExit() }
+
+    val memberUis = remember(session, disciples) {
+        session?.members?.map { ms -> ms.toMemberHpUi(disciples) } ?: emptyList()
+    }
+    // 篡改档防御：会话不活跃（members 为空）时即使 currentEvent 非空也不渲染幻影事件，
+    // 引擎 validateChoice 已拒绝选择（对抗性审查 C-L1）；"结束探索"按钮仍可用防软锁
+    val event = session?.takeIf { it.isActive }?.currentEvent
+    val stamina = session?.stamina ?: 0
+    var eventLinesShown by remember { mutableStateOf(false) }
+    LaunchedEffect(event) { eventLinesShown = false }
+
+    SecretRealmScreenContent(
+        session = session,
+        event = event,
+        stamina = stamina,
+        memberUis = memberUis,
+        showOptions = showOptions,
+        showBackpack = showBackpack,
+        combatLog = combatLog,
+        combatTitle = combatTitle,
+        eventLinesShown = eventLinesShown,
+        viewModel = viewModel,
+        onShowOptions = { eventLinesShown = true; showOptions = true },
+        onEndExploration = { showOptions = false; viewModel.endExploration(onDone = { }) },
+        onOpenBackpack = { showBackpack = true },
+        onDismissOptions = { eventLinesShown = false; showOptions = false },
+        onCombatStart = { title, log -> combatTitle = title; combatLog = log },
+        onPlaybackFinished = { combatLog = null },
+        onCollapse = { showOptions = false },
+        onDismissBackpack = { showBackpack = false }
+    )
+}
+
+// ── 拆分提取的子组件 ────────────────────────────────────────────────
+
+/** 探索生命周期副作用（SecretRealmExplorationScreen 拆分）：暂停/恢复 + 暂停租约续约 + 会话结束监听 */
+@Composable
+private fun SecretRealmScreenEffects(
+    viewModel: SecretRealmViewModel,
+    session: SecretRealmExplorationSession?,
+    combatLog: BattleLogData?,
+    onSessionClosed: () -> Unit
+) {
     // 进入探索界面：暂停游戏时间；退出（暂存/结束）：恢复
     LaunchedEffect(Unit) { viewModel.enterExploration() }
     DisposableEffect(Unit) {
@@ -110,57 +160,47 @@ fun SecretRealmExplorationScreen(
             delay(GameEngineCore.SECRET_REALM_RENEW_INTERVAL_MS)
         }
     }
-
     // 探索会话结束（主动结束/体力耗尽/全灭）→ 通知宿主关闭
     // 末战回放保留：会话已清但战斗日志仍在播放时暂不关闭（对抗性审查 B5）
     // 竞态防护：引擎回调写入 combatLog 晚于会话清空（跨线程），等待写回窗口再决定关闭，
     // 避免末战回放偶发丢失、界面直接关闭
+    var hasSessionBefore by remember { mutableStateOf(false) }
     LaunchedEffect(session, combatLog) {
         if (session != null) {
             hasSessionBefore = true
         } else if (combatLog == null && hasSessionBefore) {
+            // 等待写回窗口后关闭：若末战日志写回到达，combatLog 键变化会取消本协程重启，
+            // 故此处无需二次判空（LaunchedEffect 键控重启语义已覆盖写回竞态）
             delay(BATTLE_LOG_WRITE_GRACE_MS)
-            if (combatLog == null) {
-                showOptions = false
-                onFinished()
-            }
+            onSessionClosed()
         }
     }
+}
 
-    // 返回 = 暂存退出（会话保留，下次详情界面"继续探索"）
-    BackHandler { onExit() }
-
-    val memberUis = remember(session, disciples) {
-        session?.members?.map { ms -> ms.toMemberHpUi(disciples) } ?: emptyList()
-    }
-    // 篡改档防御：会话不活跃（members 为空）时即使 currentEvent 非空也不渲染幻影事件，
-    // 引擎 validateChoice 已拒绝选择（对抗性审查 C-L1）；"结束探索"按钮仍可用防软锁
-    val event = session?.takeIf { it.isActive }?.currentEvent
-    val stamina = session?.stamina ?: 0
-
-    // 当前事件逐行播放完成标记：新事件重置；收起卡片重新查看事件时直接全量显示（不重复播放）
-    var eventLinesShown by remember { mutableStateOf(false) }
-    LaunchedEffect(event) { eventLinesShown = false }
-
-    // 战斗播放推进：每秒 2 回合；全部回合播完停顿 1 秒再切换下一事件（跳过则不等待）
-    var playedRounds by remember(combatLog) { mutableIntStateOf(0) }
-    LaunchedEffect(combatLog, skipCombat) {
-        val log = combatLog ?: return@LaunchedEffect
-        while (playedRounds < log.rounds.size && !skipCombat) {
-            delay(BATTLE_ROUND_DELAY_MS)
-            playedRounds++
-        }
-        if (!skipCombat) {
-            // 全部回合播放完成：停顿 1 秒展示战果，再切换到下一事件
-            delay(BATTLE_END_PAUSE_MS)
-        }
-        // 播放完成或跳过：结算已完成，显示下一事件（逐行播放完成后自动弹出选项卡片）
-        combatLog = null
-        combatTitle = null
-        skipCombat = false
-        playedRounds = 0
-    }
-
+/** 探索界面主体（SecretRealmExplorationScreen 拆分）：全屏背景 + 事件面板 + 底部操作行 + 选项覆盖层 + 背包弹窗 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun SecretRealmScreenContent(
+    session: SecretRealmExplorationSession?,
+    event: SecretRealmEventRecord?,
+    stamina: Int,
+    memberUis: List<MemberHpUi>,
+    showOptions: Boolean,
+    showBackpack: Boolean,
+    combatLog: BattleLogData?,
+    combatTitle: String?,
+    eventLinesShown: Boolean,
+    viewModel: SecretRealmViewModel,
+    onShowOptions: () -> Unit,
+    onEndExploration: () -> Unit,
+    onOpenBackpack: () -> Unit,
+    onDismissOptions: () -> Unit,
+    onCombatStart: (String, BattleLogData) -> Unit,
+    onPlaybackFinished: () -> Unit,
+    onCollapse: () -> Unit,
+    onDismissBackpack: () -> Unit
+) {
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = GameColors.PageBackground
@@ -175,182 +215,296 @@ fun SecretRealmExplorationScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds
             )
-
             Column(modifier = Modifier.fillMaxSize()) {
-                // ===== 米色纯色面板 + 面板下方操作行（左右留 10%、上方留 15%） =====
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    // 面板上方留 15%（提前捕获，供嵌套作用域使用）
-                    val panelTopPadding = maxHeight * 0.15f
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .fillMaxWidth(0.8f)
-                            .fillMaxHeight(1f)
-                    ) {
-                        // 米色纯色面板（与消息栏展开态同色）：上方留 15%
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(top = panelTopPadding)
-                                .background(SecretRealmBackground)
-                        ) {
-                            // 中央事件内容区（右上角叠加体力与跳过按钮；卡片弹出时不显示事件文字）
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                val currentCombatLog = combatLog
-                                if (currentCombatLog != null) {
-                                    CombatPlaybackContent(
-                                        title = combatTitle ?: "发生战斗",
-                                        log = currentCombatLog,
-                                        playedRounds = playedRounds
-                                    )
-                                } else if (!showOptions && event != null) {
-                                    // 卡片弹出时事件内容区不显示任何内容（仅保留右上角体力）
-                                    EventContent(
-                                        event = event,
-                                        alreadyShown = eventLinesShown,
-                                        onLinesShown = {
-                                            eventLinesShown = true
-                                            showOptions = true
-                                        }
-                                    )
-                                }
-
-                                // ===== 右上角：体力（无背景）+ 战斗播放时的跳过按钮 =====
-                                Row(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(end = 10.dp, top = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (currentCombatLog != null) {
-                                        GameButton(
-                                            text = "跳过",
-                                            width = ButtonSizes.StandardWidth,
-                                            height = ButtonSizes.StandardHeight,
-                                            onClick = { skipCombat = true }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                    }
-                                    Text(
-                                        // 篡改档防御：体力显示 clamp 到正常范围
-                                        text = "体力:${stamina.coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX)}",
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (stamina <= 5) GameColors.Error else Color.Black
-                                    )
-                                }
-                            }
-
-                        }
-                    }
-                }
-
-                // ===== 底部（背景图上）：弟子头像列（左下）+ 结束探索/选择选项（屏幕水平居中、面板与底部间垂直居中）+ 背包按钮（右下） =====
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
-                ) {
-                    // 4 弟子横排（左下）
-                    Row(
-                        modifier = Modifier.align(Alignment.BottomStart),
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        // 篡改档防御：最多显示队伍上限人数，防止底部行水平溢出
-                        memberUis.take(GameConfig.SecretRealm.TEAM_SIZE).forEach { member ->
-                            MemberColumn(member = member)
-                        }
-                    }
-                    // 结束探索 / 选择选项（屏幕水平居中；卡片弹出时隐藏）
-                    // 会话活跃时始终显示"结束探索"（含 event 异常的篡改档兜底，防软锁）
-                    if (!showOptions && combatLog == null && (event != null || session != null)) {
-                        Row(
-                            modifier = Modifier.align(Alignment.Center),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            GameButton(
-                                text = "结束探索",
-                                width = ButtonSizes.StandardWidth,
-                                height = ButtonSizes.StandardHeight,
-                                onClick = {
-                                    showOptions = false
-                                    viewModel.endExploration(onDone = { /* 会话清空后 LaunchedEffect 触发 onFinished */ })
-                                }
-                            )
-                            if (event != null) {
-                                Spacer(modifier = Modifier.width(16.dp))
-                                GameButton(
-                                    text = "选择选项",
-                                    width = ButtonSizes.StandardWidth,
-                                    height = ButtonSizes.StandardHeight,
-                                    onClick = {
-                                        // 播放中断标记：收起后不再从头重播该事件
-                                        eventLinesShown = true
-                                        showOptions = true
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    // 背包按钮（右下）
-                    GameButton(
-                        modifier = Modifier.align(Alignment.BottomEnd),
-                        text = "背包",
-                        width = ButtonSizes.StandardWidth,
-                        height = ButtonSizes.StandardHeight,
-                        onClick = { showBackpack = true }
-                    )
-                }
+                // ===== 米色纯色面板（左右留 10%、上方留 15%） =====
+                SecretRealmEventPanel(
+                    combatLog = combatLog,
+                    combatTitle = combatTitle,
+                    showOptions = showOptions,
+                    event = event,
+                    eventLinesShown = eventLinesShown,
+                    stamina = stamina,
+                    onShowOptions = onShowOptions,
+                    onPlaybackFinished = onPlaybackFinished
+                )
+                // ===== 底部（背景图上）：弟子头像列（左下）+ 结束探索/选择选项（水平居中）+ 背包按钮（右下） =====
+                SecretRealmBottomBar(
+                    memberUis = memberUis,
+                    showOptions = showOptions,
+                    combatLog = combatLog,
+                    hasEvent = event != null,
+                    hasSession = session != null,
+                    onEndExploration = onEndExploration,
+                    onChooseOptions = onShowOptions,
+                    onOpenBackpack = onOpenBackpack
+                )
             }
-
             // ===== 选项卡片覆盖层（覆盖全屏，卡片+收起按钮整体居中与屏幕完全对称） =====
             if (showOptions && event != null && combatLog == null) {
-                OptionsOverlay(
-                    options = event.options,
-                    onSelect = { index ->
-                        if (!choosing) {
-                            choosing = true
-                            // 提前重置播放标记（新事件到达前），避免新事件内容闪现全量一帧
-                            eventLinesShown = false
-                            showOptions = false
-                            viewModel.chooseOption(index) { result ->
-                                choosing = false
-                                val success = result as? com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult.Success
-                                if (success != null && success.enteredCombat && success.combatLog != null) {
-                                    combatTitle = combatTitleFor(
-                                        index, success.ambushSucceeded,
-                                        event.eventType, event.params.aiSectName
-                                    )
-                                    combatLog = success.combatLog
-                                    skipCombat = false
-                                }
-                            }
-                        }
-                    },
-                    onCollapse = { showOptions = false }
+                SecretRealmOptionOverlay(
+                    event = event,
+                    viewModel = viewModel,
+                    onDismissOptions = onDismissOptions,
+                    onCombatStart = onCombatStart,
+                    onCollapse = onCollapse
                 )
             }
         }
     }
-
     // ===== 背包弹窗 =====
     if (showBackpack) {
         SecretRealmBackpackDialog(
-            backpack = session?.backpack ?: com.xianxia.sect.core.model.SecretRealmBackpack(),
-            onDismiss = { showBackpack = false }
+            backpack = session?.backpack ?: SecretRealmBackpack(),
+            onDismiss = onDismissBackpack
         )
     }
+}
+
+/** 事件面板（SecretRealmExplorationScreen 拆分）：战斗播放推进驱动 + 米色面板容器 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun ColumnScope.SecretRealmEventPanel(
+    combatLog: BattleLogData?,
+    combatTitle: String?,
+    showOptions: Boolean,
+    event: SecretRealmEventRecord?,
+    eventLinesShown: Boolean,
+    stamina: Int,
+    onShowOptions: () -> Unit,
+    onPlaybackFinished: () -> Unit
+) {
+    // 战斗播放推进：每秒 2 回合；全部回合播完停顿 1 秒再切换下一事件（跳过则不等待）
+    var skipCombat by remember { mutableStateOf(false) }
+    var playedRounds by remember(combatLog) { mutableIntStateOf(0) }
+    LaunchedEffect(combatLog, skipCombat) {
+        val log = combatLog ?: return@LaunchedEffect
+        while (playedRounds < log.rounds.size && !skipCombat) {
+            delay(BATTLE_ROUND_DELAY_MS)
+            playedRounds++
+        }
+        if (!skipCombat) {
+            // 全部回合播放完成：停顿 1 秒展示战果，再切换到下一事件
+            delay(BATTLE_END_PAUSE_MS)
+        }
+        // 播放完成或跳过：结算已完成，显示下一事件（逐行播放完成后自动弹出选项卡片）
+        skipCombat = false
+        playedRounds = 0
+        onPlaybackFinished()
+    }
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+    ) {
+        // 面板上方留 15%（提前捕获，供嵌套作用域使用）
+        val panelTopPadding = maxHeight * 0.15f
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth(0.8f)
+                .fillMaxHeight(1f)
+        ) {
+            // 米色纯色面板（与消息栏展开态同色）：上方留 15%
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(top = panelTopPadding)
+                    .background(SecretRealmBackground)
+            ) {
+                SecretRealmPanelBox(
+                    combatLog = combatLog,
+                    combatTitle = combatTitle,
+                    showOptions = showOptions,
+                    event = event,
+                    eventLinesShown = eventLinesShown,
+                    stamina = stamina,
+                    playedRounds = playedRounds,
+                    onShowOptions = onShowOptions,
+                    onSkip = { skipCombat = true }
+                )
+            }
+        }
+    }
+}
+
+/** 面板内容盒（SecretRealmExplorationScreen 拆分）：战斗播放/事件内容 + 右上角体力与跳过按钮 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun ColumnScope.SecretRealmPanelBox(
+    combatLog: BattleLogData?,
+    combatTitle: String?,
+    showOptions: Boolean,
+    event: SecretRealmEventRecord?,
+    eventLinesShown: Boolean,
+    stamina: Int,
+    playedRounds: Int,
+    onShowOptions: () -> Unit,
+    onSkip: () -> Unit
+) {
+    // 中央事件内容区（右上角叠加体力与跳过按钮；卡片弹出时不显示事件文字）
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        val currentCombatLog = combatLog
+        if (currentCombatLog != null) {
+            CombatPlaybackContent(
+                title = combatTitle ?: "发生战斗",
+                log = currentCombatLog,
+                playedRounds = playedRounds
+            )
+        } else if (!showOptions && event != null) {
+            // 卡片弹出时事件内容区不显示任何内容（仅保留右上角体力）
+            EventContent(
+                event = event,
+                alreadyShown = eventLinesShown,
+                onLinesShown = onShowOptions
+            )
+        }
+        // ===== 右上角：体力（无背景）+ 战斗播放时的跳过按钮 =====
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = 10.dp, top = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (currentCombatLog != null) {
+                GameButton(
+                    text = "跳过",
+                    width = ButtonSizes.StandardWidth,
+                    height = ButtonSizes.StandardHeight,
+                    onClick = onSkip
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+            Text(
+                // 篡改档防御：体力显示 clamp 到正常范围
+                text = "体力:${stamina.coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX)}",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (stamina <= 5) GameColors.Error else Color.Black
+            )
+        }
+    }
+}
+
+/** 底部操作行（SecretRealmExplorationScreen 拆分）：弟子列 + 结束探索/选择选项 + 背包按钮 */
+// 拆分聚合:平铺参数搬移自原公共函数
+// 拆分搬移:嵌套/条件结构与原函数一致
+@Suppress("LongParameterList", "ComplexCondition")
+@Composable
+private fun SecretRealmBottomBar(
+    memberUis: List<MemberHpUi>,
+    showOptions: Boolean,
+    combatLog: BattleLogData?,
+    hasEvent: Boolean,
+    hasSession: Boolean,
+    onEndExploration: () -> Unit,
+    onChooseOptions: () -> Unit,
+    onOpenBackpack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
+    ) {
+        // 4 弟子横排（左下）
+        Row(
+            modifier = Modifier.align(Alignment.BottomStart),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.Bottom
+        ) {
+            // 篡改档防御：最多显示队伍上限人数，防止底部行水平溢出
+            memberUis.take(GameConfig.SecretRealm.TEAM_SIZE).forEach { member ->
+                MemberColumn(member = member)
+            }
+        }
+        // 结束探索 / 选择选项（屏幕水平居中；卡片弹出时隐藏）
+        // 会话活跃时始终显示"结束探索"（含 event 异常的篡改档兜底，防软锁）
+        if (!showOptions && combatLog == null && (hasEvent || hasSession)) {
+            Row(
+                modifier = Modifier.align(Alignment.Center),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                GameButton(
+                    text = "结束探索",
+                    width = ButtonSizes.StandardWidth,
+                    height = ButtonSizes.StandardHeight,
+                    onClick = onEndExploration
+                )
+                if (hasEvent) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    GameButton(
+                        text = "选择选项",
+                        width = ButtonSizes.StandardWidth,
+                        height = ButtonSizes.StandardHeight,
+                        onClick = onChooseOptions
+                    )
+                }
+            }
+        }
+        // 背包按钮（右下）
+        GameButton(
+            modifier = Modifier.align(Alignment.BottomEnd),
+            text = "背包",
+            width = ButtonSizes.StandardWidth,
+            height = ButtonSizes.StandardHeight,
+            onClick = onOpenBackpack
+        )
+    }
+}
+
+/** 选项卡片覆盖层入口（SecretRealmExplorationScreen 拆分）：选项请求锁 + 选择/战斗启动分发 */
+@Composable
+private fun SecretRealmOptionOverlay(
+    event: SecretRealmEventRecord,
+    viewModel: SecretRealmViewModel,
+    onDismissOptions: () -> Unit,
+    onCombatStart: (String, BattleLogData) -> Unit,
+    onCollapse: () -> Unit
+) {
+    // 选项请求锁：引擎事务完成前禁止再次选择（对抗性审查 M2 连点防重）
+    var choosing by remember { mutableStateOf(false) }
+    OptionsOverlay(
+        options = event.options,
+        onSelect = { index ->
+            if (!choosing) {
+                choosing = true
+                // 提前重置播放标记（新事件到达前），避免新事件内容闪现全量一帧
+                onDismissOptions()
+                viewModel.chooseOption(index) { result ->
+                    choosing = false
+                    val success = result as? SecretRealmChoiceResult.Success
+                    if (success != null && success.enteredCombat && success.combatLog != null) {
+                        // 战斗场景标题：选项索引（0=远离 / 1=战斗 / 2=偷袭，与妖兽事件选项顺序一致）；
+                        // AI 宗门遭遇事件（选项 1 与之交战）显示宗门名；其余沿用妖兽事件语义
+                        val isAiSectEncounter =
+                            event.eventType == com.xianxia.sect.core.model.SecretRealmEventType.AI_SECT_ENCOUNTER.name
+                        val title = if (isAiSectEncounter) {
+                            "与${event.params.aiSectName.ifEmpty { "对方" }}探索队伍交战"
+                        } else {
+                            when (index) {
+                                0 -> "远离妖兽被发现"
+                                1 -> "发起战斗"
+                                else -> if (success.ambushSucceeded) "偷袭成功" else "偷袭失败"
+                            }
+                        }
+                        val log = success.combatLog
+                        if (log != null) {
+                            onCombatStart(title, log)
+                        }
+                    }
+                }
+            }
+        },
+        onCollapse = onCollapse
+    )
 }
 
 // ── 子组件 ────────────────────────────────────────────────────────────
@@ -450,26 +604,6 @@ private fun BeastEventContent(event: com.xianxia.sect.core.model.SecretRealmEven
 
 /** 事件信息行数：标题（第 1 行，立即显示）+ 内容块（第 2 行，延迟 1 秒） */
 private const val EVENT_LINE_COUNT = 2
-
-/**
- * 战斗场景标题：选项索引（0=远离 / 1=战斗 / 2=偷袭，与妖兽事件选项顺序一致）→ 触发战斗的具体场景。
- * AI 宗门遭遇事件（选项 1 与之交战）显示宗门名；其余沿用妖兽事件语义。
- */
-private fun combatTitleFor(
-    optionIndex: Int,
-    ambushSucceeded: Boolean,
-    eventType: String = "",
-    aiSectName: String = ""
-): String {
-    if (eventType == com.xianxia.sect.core.model.SecretRealmEventType.AI_SECT_ENCOUNTER.name) {
-        return "与${aiSectName.ifEmpty { "对方" }}探索队伍交战"
-    }
-    return when (optionIndex) {
-        0 -> "远离妖兽被发现"
-        1 -> "发起战斗"
-        else -> if (ambushSucceeded) "偷袭成功" else "偷袭失败"
-    }
-}
 
 /** 战斗播放视图：场景标题 + 战斗消息栏（逐回合日志，与战斗日志弹窗显示一致；
  * 跳过按钮由外层与体力并排渲染；消息栏短内容居中、超长内容封顶滚动） */

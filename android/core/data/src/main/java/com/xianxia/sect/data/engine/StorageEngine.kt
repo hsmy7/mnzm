@@ -2,20 +2,32 @@ package com.xianxia.sect.data.engine
 
 import android.util.Log
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiplomacyState
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAttributes
 import com.xianxia.sect.core.model.DiscipleCombatStats
 import com.xianxia.sect.core.model.DiscipleCompact
 import com.xianxia.sect.core.model.DiscipleCore
 import com.xianxia.sect.core.model.DiscipleEquipment
 import com.xianxia.sect.core.model.DiscipleExtended
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameHeavyData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.PatrolStateEntity
+import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.ProductionState
 import com.xianxia.sect.core.model.Recipe
 import com.xianxia.sect.core.model.SectPolicyState
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.WorldMapStateEntity
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.util.BagMaterializeInput
 import com.xianxia.sect.core.util.StorageBagMaterializer
@@ -155,8 +167,7 @@ class StorageEngine @Inject constructor(
             try {
                 // D20（2026-08-05）：熔断器接入主链路——此前仅修剪任务接入，
                 // 保存/读取无保护；连续失败（5 次）时熔断 30s 防雪崩重试
-                if (!infra.circuitBreaker.allowRequest("save")) {
-                    Log.w(TAG, "保存熔断中（存储连续失败），拒绝本次保存 slot=$slot")
+                if (isSaveCircuitOpen(slot = slot)) {
                     return@withWriteLockLight StorageResult.failure(
                         StorageError.SAVE_FAILED, "保存熔断中（存储连续失败），请稍后重试"
                     )
@@ -176,16 +187,7 @@ class StorageEngine @Inject constructor(
                 handleSaveResult(slot, result, dataWithTimestamp)
 
                 // D20：保存结果反馈熔断器（成功重置计数，失败累计）
-                if (result.isSuccess) {
-                    infra.circuitBreaker.recordSuccess("save")
-                    // 对抗性审查修复（2026-08-06）：保存成功后清除删除 tombstone——
-                    // 删除中途崩溃残留的 tombstone 若不清除，会永久背负在新档上：
-                    // 日后 DB 损坏时 restoreFromBackup 见 tombstone 拒绝恢复，
-                    // clearSlotDataQuietly 还会删掉新档的唯一 .sav/.bak 恢复源
-                    saveFileManager.clearSlotDeleted(slot)
-                } else {
-                    infra.circuitBreaker.recordFailure("save")
-                }
+                recordSaveCircuitResult(slot = slot, result = result)
 
                 result.map { stats ->
                     val elapsed = System.currentTimeMillis() - startTime
@@ -208,6 +210,32 @@ class StorageEngine @Inject constructor(
                 }
                 StorageResult.failure(error, e.message ?: "Save failed", e)
             }
+        }
+    }
+
+    /**
+     * D20：保存熔断检查（save 拆分）——熔断中返回 true（拒绝保存），否则 false。
+     */
+    private suspend fun isSaveCircuitOpen(slot: Int): Boolean {
+        if (infra.circuitBreaker.allowRequest("save")) return false
+        Log.w(TAG, "保存熔断中（存储连续失败），拒绝本次保存 slot=$slot")
+        return true
+    }
+
+    /**
+     * D20：保存结果反馈熔断器（save 拆分）——成功重置计数并清除删除 tombstone，
+     * 失败累计失败计数。
+     */
+    private suspend fun recordSaveCircuitResult(slot: Int, result: StorageResult<SaveOperationStats>) {
+        if (result.isSuccess) {
+            infra.circuitBreaker.recordSuccess("save")
+            // 对抗性审查修复（2026-08-06）：保存成功后清除删除 tombstone——
+            // 删除中途崩溃残留的 tombstone 若不清除，会永久背负在新档上：
+            // 日后 DB 损坏时 restoreFromBackup 见 tombstone 拒绝恢复，
+            // clearSlotDataQuietly 还会删掉新档的唯一 .sav/.bak 恢复源
+            saveFileManager.clearSlotDeleted(slot)
+        } else {
+            infra.circuitBreaker.recordFailure("save")
         }
     }
 
@@ -353,23 +381,7 @@ class StorageEngine @Inject constructor(
                 val dbData = loadFromDatabase(slot)
 
                 if (dbData != null) {
-                    // 对抗性审查修复（2026-08-06）：DB 命中路径也查删除 tombstone——
-                    // delete() 在"tombstone 已写、DB 事务未提交"窗口崩溃时 DB 数据完整，
-                    // 原实现走 DB 路径直接返回旧数据（已删存档复活），与文件残留窗口
-                    // 的"已删"语义不一致
-                    if (saveFileManager.isSlotDeleted(slot)) {
-                        Log.w(TAG, "槽位 $slot 存在删除 tombstone 但 DB 有数据（删除中断），清理为已删")
-                        clearSlotDataQuietly(slot)
-                        return@withReadLockLight StorageResult.failure(
-                            StorageError.SLOT_EMPTY, "该槽位存档已删除"
-                        )
-                    }
-                    infra.storageMetrics.recordLoad()
-                    clearCacheForSlot(slot)
-                    // P-2 拆分：完整性校验 + 损坏备份恢复
-                    val validated = validateDbData(slot, dbData)
-                    if (validated.isSuccess) infra.circuitBreaker.recordSuccess("load")
-                    return@withReadLockLight validated
+                    return@withReadLockLight handleDbDataHit(slot = slot, dbData = dbData)
                 }
 
                 // ── 数据库无数据时尝试从备份文件恢复 ──
@@ -397,6 +409,29 @@ class StorageEngine @Inject constructor(
                 StorageResult.failure(StorageError.LOAD_FAILED, "内存不足，读档失败", e)
             }
         }
+    }
+
+    /**
+     * DB 命中路径（load 拆分）：删除 tombstone 守卫 + 读档指标 + 缓存清理 + 完整性校验。
+     */
+    private suspend fun handleDbDataHit(slot: Int, dbData: SaveData): StorageResult<SaveData> {
+        // 对抗性审查修复（2026-08-06）：DB 命中路径也查删除 tombstone——
+        // delete() 在"tombstone 已写、DB 事务未提交"窗口崩溃时 DB 数据完整，
+        // 原实现走 DB 路径直接返回旧数据（已删存档复活），与文件残留窗口
+        // 的"已删"语义不一致
+        if (saveFileManager.isSlotDeleted(slot)) {
+            Log.w(TAG, "槽位 $slot 存在删除 tombstone 但 DB 有数据（删除中断），清理为已删")
+            clearSlotDataQuietly(slot)
+            return StorageResult.failure(
+                StorageError.SLOT_EMPTY, "该槽位存档已删除"
+            )
+        }
+        infra.storageMetrics.recordLoad()
+        clearCacheForSlot(slot)
+        // P-2 拆分：完整性校验 + 损坏备份恢复
+        val validated = validateDbData(slot, dbData)
+        if (validated.isSuccess) infra.circuitBreaker.recordSuccess("load")
+        return validated
     }
 
     /** P-2：缓存命中尝试（命中时记录指标与进度，返回数据；未命中返回 null）。 */
@@ -1250,49 +1285,70 @@ class StorageEngine @Inject constructor(
         // Phase B 第 740-791 行），若 heavy_data 因写入中断丢失，domain state 表仍有完整数据。
         // 防止写入中断后重型字段永久为空（世界地图空白/招募列表为空等）。
         if (allRows.isEmpty()) {
-            val worldMapEntity = try {
-                core.database.worldMapStateDao().getBySlot(slot)
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                  Log.w(TAG, "mergeHeavyData: worldMapStateDao fallback failed", e)
-                  null
-              }
-            val diplomacyEntity = try {
-                core.database.diplomacyStateDao().getBySlot(slot)
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                  Log.w(TAG, "mergeHeavyData: diplomacyStateDao fallback failed", e)
-                  null
-              }
-            val productionEntity = try {
-                core.database.productionStateDao().getBySlot(slot)
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                  Log.w(TAG, "mergeHeavyData: productionStateDao fallback failed", e)
-                  null
-              }
-
-            val hasFallbackData = worldMapEntity?.worldMapSects?.isNotEmpty() == true
-            if (hasFallbackData) {
-                Log.w(TAG, "mergeHeavyData: heavy_data empty for slot $slot, " +
-                    "falling back to domain state tables " +
-                    "(worldSects=${worldMapEntity?.worldMapSects?.size}, " +
-                    "sectDetails=${diplomacyEntity?.sectDetails?.size}, " +
-                    "manualProficiencies=${productionEntity?.manualProficiencies?.size})")
-                return gameData.copy(
-                    worldMapSects = worldMapEntity?.worldMapSects ?: gameData.worldMapSects,
-                    aiSectDisciples = worldMapEntity?.aiSectDisciples ?: gameData.aiSectDisciples,
-                    sectDetails = diplomacyEntity?.sectDetails ?: gameData.sectDetails,
-                    exploredSects = diplomacyEntity?.exploredSects ?: gameData.exploredSects,
-                    scoutInfo = diplomacyEntity?.scoutInfo ?: gameData.scoutInfo,
-                    manualProficiencies = productionEntity?.manualProficiencies ?: gameData.manualProficiencies
-                    // recruitList 无 domain state 表可恢复，保持 gameData 原有值
-                )
-            }
+            val restored = restoreHeavyDataFromDomainTables(gameData = gameData, slot = slot)
+            if (restored != null) return restored
             Log.w(TAG, "mergeHeavyData: all domain state tables empty for slot $slot")
             return gameData
         }
 
+        return decodeHeavyDataFromRows(gameData = gameData, allRows = allRows)
+    }
+
+    /**
+     * 从 domain state 表恢复重型字段（mergeHeavyData 拆分）：heavy_data 表为空时
+     * 兜底恢复世界地图/外交/生产等字段。
+     *
+     * @return 恢复后的数据；无可用 fallback 数据时返回 null
+     */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ThrowsCount")
+    private suspend fun restoreHeavyDataFromDomainTables(gameData: GameData, slot: Int): GameData? {
+        val worldMapEntity = try {
+            core.database.worldMapStateDao().getBySlot(slot)
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+              Log.w(TAG, "mergeHeavyData: worldMapStateDao fallback failed", e)
+              null
+          }
+        val diplomacyEntity = try {
+            core.database.diplomacyStateDao().getBySlot(slot)
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+              Log.w(TAG, "mergeHeavyData: diplomacyStateDao fallback failed", e)
+              null
+          }
+        val productionEntity = try {
+            core.database.productionStateDao().getBySlot(slot)
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+              Log.w(TAG, "mergeHeavyData: productionStateDao fallback failed", e)
+              null
+          }
+
+        val hasFallbackData = worldMapEntity?.worldMapSects?.isNotEmpty() == true
+        if (hasFallbackData) {
+            Log.w(TAG, "mergeHeavyData: heavy_data empty for slot $slot, " +
+                "falling back to domain state tables " +
+                "(worldSects=${worldMapEntity?.worldMapSects?.size}, " +
+                "sectDetails=${diplomacyEntity?.sectDetails?.size}, " +
+                "manualProficiencies=${productionEntity?.manualProficiencies?.size})")
+            return gameData.copy(
+                worldMapSects = worldMapEntity?.worldMapSects ?: gameData.worldMapSects,
+                aiSectDisciples = worldMapEntity?.aiSectDisciples ?: gameData.aiSectDisciples,
+                sectDetails = diplomacyEntity?.sectDetails ?: gameData.sectDetails,
+                exploredSects = diplomacyEntity?.exploredSects ?: gameData.exploredSects,
+                scoutInfo = diplomacyEntity?.scoutInfo ?: gameData.scoutInfo,
+                manualProficiencies = productionEntity?.manualProficiencies ?: gameData.manualProficiencies
+                // recruitList 无 domain state 表可恢复，保持 gameData 原有值
+            )
+        }
+        return null
+    }
+
+    /**
+     * 从 heavy_data 行解码重型字段（mergeHeavyData 拆分）：已有值保持，空值按 key 解码填充。
+     */
+    private fun decodeHeavyDataFromRows(gameData: GameData, allRows: List<GameHeavyData>): GameData {
         return gameData.copy(
             aiSectDisciples = if (gameData.aiSectDisciples.isEmpty())
                 ProtobufConverters.decodeDiscipleListMapFromRows(allRows, GameHeavyData.KEY_AI_SECT_DISCIPLES)
@@ -1362,55 +1418,28 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData = withContext(Dispatchers.IO) {
-        val deferredDisciples = async { core.database.discipleDao().getAllSync(slot) }
-        val deferredEquipmentStacks = async { core.database.equipmentStackDao().getAllSync(slot) }
-        val deferredEquipmentInstances = async { core.database.equipmentInstanceDao().getAllSync(slot) }
-        val deferredManualStacks = async { core.database.manualStackDao().getAllSync(slot) }
-        val deferredManualInstances = async { core.database.manualInstanceDao().getAllSync(slot) }
-        val deferredPills = async { core.database.pillDao().getAllSync(slot) }
-        val deferredMaterials = async { core.database.materialDao().getAllSync(slot) }
-        val deferredHerbs = async { core.database.herbDao().getAllSync(slot) }
-        val deferredSeeds = async { core.database.seedDao().getAllSync(slot) }
-        val deferredStorageBags = async { core.database.storageBagDao().getAll(slot) }
-        val deferredBattleLogs = async { core.database.battleLogDao().getAllSync(slot) }
-        var deferredProductionSlots = async { core.database.productionSlotDao().getBySlotSync(slot) }
-
-        val disciples = deferredDisciples.await()
-        val equipmentStacks = deferredEquipmentStacks.await()
-        val equipmentInstances = deferredEquipmentInstances.await()
-        val manualStacks = deferredManualStacks.await()
-        val manualInstances = deferredManualInstances.await()
-        val pills = deferredPills.await()
-        val materials = deferredMaterials.await()
-        val herbs = deferredHerbs.await()
-        val seeds = deferredSeeds.await()
-        val storageBags = deferredStorageBags.await()
-        val battleLogs = deferredBattleLogs.await()
-        var productionSlots = deferredProductionSlots.await()
+        val loaded = loadAllEntities(slot = slot)
 
         val alliances = gameData.alliances ?: emptyList()
 
-        if (productionSlots.isEmpty()) {
-            val fallbackSlots = gameData.productionSlots
-            if (!fallbackSlots.isNullOrEmpty()) {
-                Log.w(TAG, "Production slots empty in DB, using GameData fallback (${fallbackSlots.size} slots)")
-                productionSlots = fallbackSlots
-            }
-        }
+        val productionSlots = productionSlotsWithFallback(
+            productionSlots = loaded.productionSlots,
+            gameData = gameData
+        )
 
         // D-03 储物袋独立存储：老存档引用式袋条目（payload==null）物化为持有数据，
         // 并从仓库扣减对应数量（防复制）；悬空条目直接删除。物化幂等。
         val materialized = StorageBagMaterializer.materializeDiscipleBagItems(
             BagMaterializeInput(
-                disciples = disciples,
-                equipmentStacks = equipmentStacks,
-                equipmentInstances = equipmentInstances,
-                manualStacks = manualStacks,
-                manualInstances = manualInstances,
-                pills = pills,
-                materials = materials,
-                herbs = herbs,
-                seeds = seeds
+                disciples = loaded.disciples,
+                equipmentStacks = loaded.equipmentStacks,
+                equipmentInstances = loaded.equipmentInstances,
+                manualStacks = loaded.manualStacks,
+                manualInstances = loaded.manualInstances,
+                pills = loaded.pills,
+                materials = loaded.materials,
+                herbs = loaded.herbs,
+                seeds = loaded.seeds
             )
         )
         if (materialized.materializedCount > 0) {
@@ -1431,14 +1460,84 @@ class StorageEngine @Inject constructor(
             materials = materialized.materials,
             herbs = materialized.herbs,
             seeds = materialized.seeds,
-            storageBags = storageBags,
-            battleLogs = battleLogs,
+            storageBags = loaded.storageBags,
+            battleLogs = loaded.battleLogs,
             alliances = alliances,
             productionSlots = productionSlots,
             stacksSerialized = true
         ).also {
-            Log.d(TAG, "loadFromDatabase: slot=$slot, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
+            Log.d(
+                TAG,
+                "loadFromDatabase: slot=$slot, ${loaded.disciples.size} disciples, " +
+                    "recruitList=${gameData.recruitList.size} unrecruited disciples"
+            )
         }
+    }
+
+    /**
+     * 并行读取槽位全量实体（buildSaveDataFromDatabase 拆分）：async 并发 + await 汇总。
+     */
+    private suspend fun loadAllEntities(slot: Int): DbLoadResult = withContext(Dispatchers.IO) {
+        val deferredDisciples = async { core.database.discipleDao().getAllSync(slot) }
+        val deferredEquipmentStacks = async { core.database.equipmentStackDao().getAllSync(slot) }
+        val deferredEquipmentInstances = async { core.database.equipmentInstanceDao().getAllSync(slot) }
+        val deferredManualStacks = async { core.database.manualStackDao().getAllSync(slot) }
+        val deferredManualInstances = async { core.database.manualInstanceDao().getAllSync(slot) }
+        val deferredPills = async { core.database.pillDao().getAllSync(slot) }
+        val deferredMaterials = async { core.database.materialDao().getAllSync(slot) }
+        val deferredHerbs = async { core.database.herbDao().getAllSync(slot) }
+        val deferredSeeds = async { core.database.seedDao().getAllSync(slot) }
+        val deferredStorageBags = async { core.database.storageBagDao().getAll(slot) }
+        val deferredBattleLogs = async { core.database.battleLogDao().getAllSync(slot) }
+        var deferredProductionSlots = async { core.database.productionSlotDao().getBySlotSync(slot) }
+
+        DbLoadResult(
+            disciples = deferredDisciples.await(),
+            equipmentStacks = deferredEquipmentStacks.await(),
+            equipmentInstances = deferredEquipmentInstances.await(),
+            manualStacks = deferredManualStacks.await(),
+            manualInstances = deferredManualInstances.await(),
+            pills = deferredPills.await(),
+            materials = deferredMaterials.await(),
+            herbs = deferredHerbs.await(),
+            seeds = deferredSeeds.await(),
+            storageBags = deferredStorageBags.await(),
+            battleLogs = deferredBattleLogs.await(),
+            productionSlots = deferredProductionSlots.await()
+        )
+    }
+
+    /** 数据库并行读取结果（buildSaveDataFromDatabase 拆分） */
+    private data class DbLoadResult(
+        val disciples: List<Disciple>,
+        val equipmentStacks: List<EquipmentStack>,
+        val equipmentInstances: List<EquipmentInstance>,
+        val manualStacks: List<ManualStack>,
+        val manualInstances: List<ManualInstance>,
+        val pills: List<Pill>,
+        val materials: List<Material>,
+        val herbs: List<Herb>,
+        val seeds: List<Seed>,
+        val storageBags: List<StorageBag>,
+        val battleLogs: List<BattleLog>,
+        val productionSlots: List<ProductionSlot>
+    )
+
+    /**
+     * 生产槽位回退（buildSaveDataFromDatabase 拆分）：DB 查询为空时用 GameData 兜底。
+     */
+    private fun productionSlotsWithFallback(
+        productionSlots: List<ProductionSlot>,
+        gameData: GameData
+    ): List<ProductionSlot> {
+        if (productionSlots.isEmpty()) {
+            val fallbackSlots = gameData.productionSlots
+            if (!fallbackSlots.isNullOrEmpty()) {
+                Log.w(TAG, "Production slots empty in DB, using GameData fallback (${fallbackSlots.size} slots)")
+                return fallbackSlots
+            }
+        }
+        return productionSlots
     }
 
     private fun updateCacheAfterSave(slot: Int, data: SaveData) {

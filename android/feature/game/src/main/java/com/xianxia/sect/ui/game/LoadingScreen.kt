@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -78,74 +79,101 @@ private fun LoadingScreenContent(
         contentAlignment = Alignment.Center
     ) {
         // 背景图片
-        Image(
-            painter = painterResource(id = R.drawable.loading_background),
-            contentDescription = "加载界面背景",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        LoadingBackgroundImage()
 
         // 底部进度条和百分比
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 60.dp, start = 32.dp, end = 32.dp)
-                .align(Alignment.BottomCenter),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            if (showProgress) {
-                // 阶段标签文本
-                if (phaseText.isNotEmpty()) {
-                    Text(
-                        text = phaseText,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Normal,
-                        color = Color.White
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                // 自定义金色进度条（百分比嵌入内部居中）
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(0.8f)
-                        .height(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CustomGoldenProgressBar(
-                        progress = animatedProgress,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Text(
-                        text = "$progressPercent%",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-
-                // 游戏玩法提示（每2秒轮换）
-                var currentTip by remember { mutableStateOf(LoadingTips.randomTip()) }
-                LaunchedEffect(Unit) {
-                    while (true) {
-                        delay(2000)
-                        currentTip = LoadingTips.randomTip()
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = currentTip,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color.White,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+        if (showProgress) {
+            LoadingProgressPanel(
+                animatedProgress = animatedProgress,
+                progressPercent = progressPercent,
+                phaseText = phaseText
+            )
         }
     }
+}
+
+/** 背景图片（LoadingScreenContent 拆分） */
+@Composable
+private fun LoadingBackgroundImage() {
+    // 背景图片
+    Image(
+        painter = painterResource(id = R.drawable.loading_background),
+        contentDescription = "加载界面背景",
+        modifier = Modifier.fillMaxSize(),
+        contentScale = ContentScale.Crop
+    )
+}
+
+/** 底部进度条面板（LoadingScreenContent 拆分）：阶段标签 + 金色进度条 + 玩法提示 */
+@Composable
+private fun BoxScope.LoadingProgressPanel(
+    animatedProgress: Float,
+    progressPercent: Int,
+    phaseText: String
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 60.dp, start = 32.dp, end = 32.dp)
+            .align(Alignment.BottomCenter),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        if (phaseText.isNotEmpty()) {
+            // 阶段标签文本
+            Text(
+                text = phaseText,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // 自定义金色进度条（百分比嵌入内部居中）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.8f)
+                .height(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            CustomGoldenProgressBar(
+                progress = animatedProgress,
+                modifier = Modifier.fillMaxSize()
+            )
+            Text(
+                text = "$progressPercent%",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+
+        LoadingTipSection()
+    }
+}
+
+/** 游戏玩法提示（LoadingScreenContent 拆分）：每 2 秒轮换一条 */
+@Composable
+private fun LoadingTipSection() {
+    // 游戏玩法提示（每2秒轮换）
+    var currentTip by remember { mutableStateOf(LoadingTips.randomTip()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2000)
+            currentTip = LoadingTips.randomTip()
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    Text(
+        text = currentTip,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Normal,
+        color = Color.White,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 /**
@@ -185,65 +213,129 @@ private fun CustomGoldenProgressBar(
             val cornerRadius = CornerRadius(4.dp.toPx())
             
             // 1. 绘制进度条背景槽
-            drawRoundRect(
-                color = Color.Black.copy(alpha = 0.4f),
-                topLeft = Offset(barStartX, barTop),
-                size = Size(barWidth, barHeight),
+            drawProgressTrack(
+                barStartX = barStartX,
+                barTop = barTop,
+                barWidth = barWidth,
+                barHeight = barHeight,
                 cornerRadius = cornerRadius
             )
             
             // 2. 绘制金色进度
-            val progressWidth = barWidth * progress
-            if (progressWidth > 0) {
-                val gradient = Brush.horizontalGradient(
-                    colors = listOf(
-                        GameColors.Gold,
-                        Color(0xFFFFE55F),
-                        GameColors.Gold
-                    ),
-                    startX = barStartX,
-                    endX = barStartX + progressWidth
-                )
-                
-                drawRoundRect(
-                    brush = gradient,
-                    topLeft = Offset(barStartX, barTop),
-                    size = Size(progressWidth, barHeight),
-                    cornerRadius = cornerRadius
-                )
-                
-                // 进度条高亮效果
-                drawRoundRect(
-                    color = Color.White.copy(alpha = 0.3f),
-                    topLeft = Offset(barStartX, barTop),
-                    size = Size(progressWidth, barHeight * 0.3f),
-                    cornerRadius = CornerRadius(2.dp.toPx())
-                )
-            }
+            drawProgressFill(
+                progress = progress,
+                barStartX = barStartX,
+                barTop = barTop,
+                barWidth = barWidth,
+                barHeight = barHeight,
+                cornerRadius = cornerRadius
+            )
             
             // 3. 绘制整个进度条的镂空边框（包括中间矩形和两侧半菱形）
-            val borderPath = Path().apply {
-                // 左侧半菱形（向左的三角形）
-                moveTo(barStartX, barTop - borderWidth)
-                lineTo(barStartX - diamondWidth, canvasHeight / 2)
-                lineTo(barStartX, barBottom + borderWidth)
-                
-                // 底边
-                lineTo(barEndX, barBottom + borderWidth)
-                
-                // 右侧半菱形（向右的三角形）
-                lineTo(barEndX + diamondWidth, canvasHeight / 2)
-                lineTo(barEndX, barTop - borderWidth)
-                
-                // 顶边
-                close()
-            }
-            
-            drawPath(
-                path = borderPath,
-                color = borderColor,
-                style = Stroke(width = borderWidth * 1.5f)
+            drawProgressBorder(
+                geometry = ProgressBorderGeometry(
+                    barStartX = barStartX,
+                    barEndX = barEndX,
+                    barTop = barTop,
+                    barBottom = barBottom,
+                    diamondWidth = diamondWidth,
+                    borderWidth = borderWidth
+                ),
+                borderColor = borderColor
             )
         }
+    }
+}
+
+/** 进度条边框几何参数（CustomGoldenProgressBar 拆分） */
+private data class ProgressBorderGeometry(
+    val barStartX: Float,
+    val barEndX: Float,
+    val barTop: Float,
+    val barBottom: Float,
+    val diamondWidth: Float,
+    val borderWidth: Float
+)
+
+/** 镂空边框（含两侧半菱形）绘制（CustomGoldenProgressBar 拆分） */
+private fun DrawScope.drawProgressBorder(
+    geometry: ProgressBorderGeometry,
+    borderColor: Color
+) {
+    val borderPath = Path().apply {
+        // 左侧半菱形（向左的三角形）
+        moveTo(geometry.barStartX, geometry.barTop - geometry.borderWidth)
+        lineTo(geometry.barStartX - geometry.diamondWidth, size.height / 2)
+        lineTo(geometry.barStartX, geometry.barBottom + geometry.borderWidth)
+        
+        // 底边
+        lineTo(geometry.barEndX, geometry.barBottom + geometry.borderWidth)
+        
+        // 右侧半菱形（向右的三角形）
+        lineTo(geometry.barEndX + geometry.diamondWidth, size.height / 2)
+        lineTo(geometry.barEndX, geometry.barTop - geometry.borderWidth)
+        
+        // 顶边
+        close()
+    }
+    
+    drawPath(
+        path = borderPath,
+        color = borderColor,
+        style = Stroke(width = geometry.borderWidth * 1.5f)
+    )
+}
+
+/** 进度条背景槽（CustomGoldenProgressBar 拆分） */
+private fun DrawScope.drawProgressTrack(
+    barStartX: Float,
+    barTop: Float,
+    barWidth: Float,
+    barHeight: Float,
+    cornerRadius: CornerRadius
+) {
+    drawRoundRect(
+        color = Color.Black.copy(alpha = 0.4f),
+        topLeft = Offset(barStartX, barTop),
+        size = Size(barWidth, barHeight),
+        cornerRadius = cornerRadius
+    )
+}
+
+/** 金色进度 + 高亮（CustomGoldenProgressBar 拆分） */
+private fun DrawScope.drawProgressFill(
+    progress: Float,
+    barStartX: Float,
+    barTop: Float,
+    barWidth: Float,
+    barHeight: Float,
+    cornerRadius: CornerRadius
+) {
+    val progressWidth = barWidth * progress
+    if (progressWidth > 0) {
+        val gradient = Brush.horizontalGradient(
+            colors = listOf(
+                GameColors.Gold,
+                Color(0xFFFFE55F),
+                GameColors.Gold
+            ),
+            startX = barStartX,
+            endX = barStartX + progressWidth
+        )
+        
+        drawRoundRect(
+            brush = gradient,
+            topLeft = Offset(barStartX, barTop),
+            size = Size(progressWidth, barHeight),
+            cornerRadius = cornerRadius
+        )
+        
+        // 进度条高亮效果
+        drawRoundRect(
+            color = Color.White.copy(alpha = 0.3f),
+            topLeft = Offset(barStartX, barTop),
+            size = Size(progressWidth, barHeight * 0.3f),
+            cornerRadius = CornerRadius(2.dp.toPx())
+        )
     }
 }

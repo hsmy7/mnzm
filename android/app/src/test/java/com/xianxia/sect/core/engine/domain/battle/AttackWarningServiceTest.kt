@@ -6,7 +6,7 @@ import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.di.ApplicationScopeProvider
-import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.core.state.testGameStateRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -15,7 +15,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.mockito.Mockito.mock
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -26,7 +25,7 @@ class AttackWarningServiceTest {
 
     @Before
     fun setUp() {
-        stateStore = GameStateStoreImpl(ApplicationScopeProvider(), mock(GameStateRepository::class.java))
+        stateStore = GameStateStoreImpl(ApplicationScopeProvider(), testGameStateRepository())
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         service = AttackWarningService(stateStore)
         runBlocking { stateStore.reset() }

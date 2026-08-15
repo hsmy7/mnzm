@@ -57,70 +57,62 @@ class GameMonitorManager @Inject constructor(
     }
 
     private fun registerDefaultMetrics() {
-        unifiedPerformanceMonitor.registerMetric(
-            MetricDefinition(
-                name = "game_tick_duration",
-                category = MetricCategory.GAME_LOOP,
-                unit = "ns",
-                description = "Game tick execution duration",
-                warningThreshold = 16_000_000L,
-                criticalThreshold = 33_000_000L
-            )
-        )
+        registerMetrics(definitions = buildDefaultMetricDefinitions())
+    }
 
-        unifiedPerformanceMonitor.registerMetric(
-            MetricDefinition(
-                name = "save_operation_duration",
-                category = MetricCategory.STORAGE,
-                unit = "ns",
-                description = "Save operation duration",
-                warningThreshold = 1_000_000_000L,
-                criticalThreshold = 3_000_000_000L
-            )
+    /** 默认指标定义列表（GameMonitorManager 拆分：6 项默认指标集中声明） */
+    private fun buildDefaultMetricDefinitions(): List<MetricDefinition> = listOf(
+        MetricDefinition(
+            name = "game_tick_duration",
+            category = MetricCategory.GAME_LOOP,
+            unit = "ns",
+            description = "Game tick execution duration",
+            warningThreshold = 16_000_000L,
+            criticalThreshold = 33_000_000L
+        ),
+        MetricDefinition(
+            name = "save_operation_duration",
+            category = MetricCategory.STORAGE,
+            unit = "ns",
+            description = "Save operation duration",
+            warningThreshold = 1_000_000_000L,
+            criticalThreshold = 3_000_000_000L
+        ),
+        MetricDefinition(
+            name = "load_operation_duration",
+            category = MetricCategory.STORAGE,
+            unit = "ns",
+            description = "Load operation duration",
+            warningThreshold = 1_500_000_000L,
+            criticalThreshold = 5_000_000_000L
+        ),
+        MetricDefinition(
+            name = "ui_frame_duration",
+            category = MetricCategory.UI,
+            unit = "ns",
+            description = "UI frame render duration",
+            warningThreshold = 16_000_000L,
+            criticalThreshold = 33_000_000L
+        ),
+        MetricDefinition(
+            name = "db_query_duration",
+            category = MetricCategory.DATABASE,
+            unit = "ns",
+            description = "Database query duration",
+            warningThreshold = 100_000_000L,
+            criticalThreshold = 500_000_000L
+        ),
+        MetricDefinition(
+            name = "memory_usage",
+            category = MetricCategory.MEMORY,
+            unit = "bytes",
+            description = "Current memory usage"
         )
+    )
 
-        unifiedPerformanceMonitor.registerMetric(
-            MetricDefinition(
-                name = "load_operation_duration",
-                category = MetricCategory.STORAGE,
-                unit = "ns",
-                description = "Load operation duration",
-                warningThreshold = 1_500_000_000L,
-                criticalThreshold = 5_000_000_000L
-            )
-        )
-
-        unifiedPerformanceMonitor.registerMetric(
-            MetricDefinition(
-                name = "ui_frame_duration",
-                category = MetricCategory.UI,
-                unit = "ns",
-                description = "UI frame render duration",
-                warningThreshold = 16_000_000L,
-                criticalThreshold = 33_000_000L
-            )
-        )
-
-        unifiedPerformanceMonitor.registerMetric(
-            MetricDefinition(
-                name = "db_query_duration",
-                category = MetricCategory.DATABASE,
-                unit = "ns",
-                description = "Database query duration",
-                warningThreshold = 100_000_000L,
-                criticalThreshold = 500_000_000L
-            )
-        )
-
-        unifiedPerformanceMonitor.registerMetric(
-            MetricDefinition(
-                name = "memory_usage",
-                category = MetricCategory.MEMORY,
-                unit = "bytes",
-                description = "Current memory usage"
-            )
-        )
-
+    /** 批量注册指标并打印默认指标总数（GameMonitorManager 拆分） */
+    private fun registerMetrics(definitions: List<MetricDefinition>) {
+        definitions.forEach { unifiedPerformanceMonitor.registerMetric(it) }
         Log.d(TAG, "Registered ${unifiedPerformanceMonitor.getAllMetricDefinitions().size} default metrics")
     }
 

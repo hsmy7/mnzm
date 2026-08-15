@@ -1,9 +1,6 @@
 package com.xianxia.sect.analytics
 
-import android.content.Context
-import android.content.SharedPreferences
 import com.xianxia.sect.taptap.TapDBManager
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,14 +9,26 @@ import javax.inject.Singleton
  *
  * 按用户（userId，即 TapDB setUser 的 openid）持久化标记：
  * 同一用户同一事件仅上报一次；登出/重登不丢；换账号不串。
+ *
+ * 存储：MMKV 统一偏好（docs/architecture.md 待办 D-29），旧 SharedPreferences
+ * 一次性迁移（首次访问时懒执行，幂等）。
  */
 @Singleton
 class FirstEventTracker @Inject constructor(
-    @ApplicationContext private val context: Context
+    private val keyValueStore: com.xianxia.sect.data.prefs.KeyValueStore
 ) {
 
-    private val prefs: SharedPreferences
-        get() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    @Volatile
+    private var migrated = false
+
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated) return
+            keyValueStore.migrateFromSharedPreferences(PREFS_NAME)
+            migrated = true
+        }
+    }
 
     /**
      * 上报首次事件：本次为首发则上报并置位，返回 true；已上报过则静默跳过，返回 false。
@@ -34,10 +43,10 @@ class FirstEventTracker @Inject constructor(
         eventName: String,
         properties: Map<String, Any> = emptyMap()
     ): Boolean {
+        ensureMigrated()
         val key = firstEventKey(userId, eventName)
-        val prefs = prefs
-        if (prefs.getBoolean(key, false)) return false
-        prefs.edit().putBoolean(key, true).apply()
+        if (keyValueStore.getBoolean(key, false)) return false
+        keyValueStore.putBoolean(key, true)
         TapDBManager.trackEvent(eventName, properties)
         return true
     }

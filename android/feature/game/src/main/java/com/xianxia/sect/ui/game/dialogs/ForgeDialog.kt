@@ -51,10 +51,34 @@ import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalLocale
 
 
+/** 锻造坊派生状态（ForgeDialog 拆分） */
+private data class ForgeDialogState(
+    val buildingIndex: Int,
+    val slotIndex: Int,
+    val mySlot: ForgeSlot?,
+    val assignedDiscipleId: String?,
+    val workerDisciple: DiscipleAggregate?,
+    val discipleMap: Map<String, DiscipleAggregate>,
+    val battleAndExplorationIds: Set<String>,
+    val showAllEnabled: Boolean,
+    val coroutineScope: CoroutineScope,
+    val gameData: GameData?
+)
+
+/** 锻造坊对话框回调组（ForgeDialog 拆分） */
+private data class ForgeDialogActions(
+    val onWorkerSlotEmptyClick: () -> Unit,
+    val onWorkerDismiss: () -> Unit,
+    val onWorkerSwap: () -> Unit,
+    val onAutoToggle: () -> Unit,
+    val onReplace: () -> Unit,
+    val onIdleClick: () -> Unit
+)
 
 @Composable
 fun ForgeDialog(
@@ -69,12 +93,72 @@ fun ForgeDialog(
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
-    val theme = FORGE_THEME
     var showEquipmentSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
+    val forgeState = rememberForgeDialogState(
+        buildingInstanceId = buildingInstanceId, forgeSlots = forgeSlots, gameData = gameData,
+        disciples = disciples, viewModel = viewModel
+    )
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "锻造坊",
+        mode = DialogMode.Half,
+        scrollableContent = false
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ForgeDialogBody(
+                state = forgeState, viewModel = viewModel, disciples = disciples, forgeViewModel = forgeViewModel,
+                actions = ForgeDialogActions(
+                    onWorkerSlotEmptyClick = { showWorkerSelection = true },
+                    onWorkerDismiss = { forgeViewModel.removeWorker(forgeState.buildingIndex) },
+                    onWorkerSwap = { showWorkerSelection = true },
+                    onAutoToggle = { forgeViewModel.toggleAuto(forgeState.buildingIndex) },
+                    onReplace = {
+                        replaceSlotIndex = forgeState.slotIndex
+                        selectedSlotIndex = forgeState.slotIndex
+                        showEquipmentSelection = true
+                    },
+                    onIdleClick = {
+                        selectedSlotIndex = forgeState.slotIndex
+                        showEquipmentSelection = true
+                    }
+                )
+            )
+        }
+    }
+
+    if (showWorkerSelection) {
+        ForgeWorkerSelectionSection(
+            state = forgeState, viewModel = viewModel, forgeViewModel = forgeViewModel,
+            onDismiss = { showWorkerSelection = false }, onWorkerAssigned = { showWorkerSelection = false }
+        )
+    }
+
+    if (showEquipmentSelection) {
+        selectedSlotIndex?.let { slotIdx ->
+            ForgeEquipmentSelectionSection(
+                slotIdx = slotIdx, isReplacing = replaceSlotIndex != null,
+                materials = materials, workerDisciple = forgeState.workerDisciple,
+                viewModel = viewModel, forgeViewModel = forgeViewModel,
+                onDismiss = { showEquipmentSelection = false; selectedSlotIndex = null; replaceSlotIndex = null }
+            )
+        }
+    }
+}
+
+/** 锻造坊派生状态计算（ForgeDialog 拆分） */
+@Composable
+private fun rememberForgeDialogState(
+    buildingInstanceId: String,
+    forgeSlots: List<ForgeSlot>,
+    gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel
+): ForgeDialogState {
     val globalForges = gameData?.placedBuildings?.filter { it.displayName == "锻造坊" } ?: emptyList()
     val buildingIndex = globalForges.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
 
@@ -95,190 +179,291 @@ fun ForgeDialog(
     val coroutineScope = rememberCoroutineScope()
     // Composition 内禁止读 StateFlow.value（不触发重组）；gameData 参数已由调用方 collect 派生
     val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+    return ForgeDialogState(
+        buildingIndex = buildingIndex,
+        slotIndex = slotIndex,
+        mySlot = mySlot,
+        assignedDiscipleId = assignedDiscipleId,
+        workerDisciple = workerDisciple,
+        discipleMap = discipleMap,
+        battleAndExplorationIds = battleAndExplorationIds,
+        showAllEnabled = showAllEnabled,
+        coroutineScope = coroutineScope,
+        gameData = gameData
+    )
+}
 
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "锻造坊",
-        mode = DialogMode.Half,
-        scrollableContent = false
+/** 锻造坊主内容区（ForgeDialog 拆分） */
+@Composable
+private fun ColumnScope.ForgeDialogBody(
+    state: ForgeDialogState,
+    viewModel: GameViewModel,
+    disciples: List<DiscipleAggregate>,
+    forgeViewModel: ForgeViewModel,
+    actions: ForgeDialogActions
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        ForgeWorkerSection(
+            workerDisciple = state.workerDisciple,
+            viewModel = viewModel,
+            disciples = disciples,
+            onEmptySlotClick = actions.onWorkerSlotEmptyClick,
+            onDismiss = actions.onWorkerDismiss,
+            onSwap = actions.onWorkerSwap
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = GameColors.Border, thickness = 1.dp)
+
+        // 自动炼器开关行
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = FORGE_THEME.slotLabelPrefix + "位",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            val isAutoEnabled = state.mySlot?.autoRestartEnabled ?: false
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (isAutoEnabled) GameColors.Gold else Color.Black)
+                    .clickable { actions.onAutoToggle() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
-                // Worker disciple section
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
-                    ) {
-                        Text(
-                            text = "锻造弟子",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        ProfessionInfoButton(isAlchemy = false)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    ProfessionProgressSection(disciple = workerDisciple, isAlchemy = false)
-                    ProfessionLabel(level = workerDisciple?.forgeLevel, isAlchemy = false)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    DiscipleSlot(
-                        disciple = workerDisciple,
-                        showActions = true,
-                        onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
-                        onEmptySlotClick = { showWorkerSelection = true },
-                        onDismiss = { forgeViewModel.removeWorker(buildingIndex) },
-                        onSwap = { showWorkerSelection = true }
-                    )
-                }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = theme.slotLabelPrefix + "位",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    val isAutoEnabled = mySlot?.autoRestartEnabled ?: false
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isAutoEnabled) GameColors.Gold else Color.Black)
-                            .clickable { forgeViewModel.toggleAuto(buildingIndex) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = if (isAutoEnabled) "自动炼器:开" else "自动炼器:关",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isAutoEnabled) Color.Black else Color.White
-                        )
-                    }
-                }
-
-                val isIdle = mySlot?.status == ForgeSlotStatus.IDLE || mySlot == null
-                val isWorking = mySlot?.status == ForgeSlotStatus.WORKING
-                val remainingMonths = if (isWorking && gameData != null)
-                    mySlot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
-
-                ProductionSlotItem(
-                    theme = theme,
-                    productName = mySlot?.equipmentName,
-                    isWorking = isWorking,
-                    isIdle = isIdle,
-                    remainingMonths = remainingMonths,
-                    index = slotIndex,
-                    productRarity = mySlot?.equipmentRarity ?: 1,
-                    totalDuration = mySlot?.duration ?: 1,
-                    successRate = mySlot?.successRate ?: 0.0,
-                    gamePhase = gameData?.gamePhase ?: 0,
-                    onCancel = if (isWorking) { { forgeViewModel.cancelForge(slotIndex) } } else null,
-                    onReplace = if (isWorking) { {
-                        replaceSlotIndex = slotIndex
-                        selectedSlotIndex = slotIndex
-                        showEquipmentSelection = true
-                    } } else null,
-                    onClick = {
-                        if (isIdle) {
-                            selectedSlotIndex = slotIndex
-                            showEquipmentSelection = true
-                        }
-                    }
+                Text(
+                    text = if (isAutoEnabled) "自动炼器:开" else "自动炼器:关",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isAutoEnabled) Color.Black else Color.White
                 )
             }
         }
-    }
 
-    if (showWorkerSelection) {
-        val workerTheme = remember {
-            ProductionTheme(
-                buildingId = "forge",
-                displayName = "锻造坊",
-                elderTitle = "锻造弟子",
-                elderBonusInfo = ElderBonusInfo(
-                    title = "锻造弟子",
-                    requiredAttribute = "炼器",
-                    effectDescription = "负责锻造槽位的工作，炼器属性影响产出",
-                    bonusFormula = "炼器越高，产出越高"
-                ),
-                coreAttributeName = "炼器",
-                coreAttributeColor = GameColors.Success,
-                defaultBorderColor = GameColors.Warning,
-                workingStatusColor = GameColors.Warning,
-                selectedHighlightColor = GameColors.Warning,
-                slotLabelPrefix = "炼器槽",
-                selectionDialogTitle = "选择锻造弟子",
-                startProductionText = "确认",
-                elderSelectionTitle = "选择锻造弟子",
-                recommendAttributeText = "炼器",
-                getCoreAttributeValue = { it.artifactRefining },
-                getElderId = { it.forgeElder },
-                getDirectDisciples = { it.forgeDisciples.filter { d -> d.sectId == (gameData?.activeSectId ?: "") } },
-                elderSortComparator = compareByDescending<DiscipleAggregate> { it.artifactRefining }
-                    .thenBy { it.realm }.thenByDescending { it.realmLayer },
-                directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
-                    .thenByDescending { it.realmLayer }
-            )
-        }
-        ProductionElderSelectionDialog(
-            theme = workerTheme,
-            disciples = forgeViewModel.getAvailableWorkers(),
-            currentElderId = assignedDiscipleId,
-            elderSlots = gameData?.elderSlots ?: ElderSlots(),
-            viewModel = viewModel,
-            onDismiss = { showWorkerSelection = false },
-            onSelect = { discipleId ->
-                val disciple = discipleMap[discipleId]
-                coroutineScope.launch {
-                    if (showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
-                        viewModel.releaseDiscipleForReassignment(discipleId)
-                    }
-                    val d = discipleMap[discipleId]
-                    forgeViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
-                }
-                showWorkerSelection = false
-            },
-            battleAndExplorationIds = battleAndExplorationIds,
+        ForgeSlotItem(
+            mySlot = state.mySlot,
+            gameData = state.gameData,
+            slotIndex = state.slotIndex,
+            forgeViewModel = forgeViewModel,
+            onReplace = actions.onReplace,
+            onIdleClick = actions.onIdleClick
         )
     }
+}
 
-    if (showEquipmentSelection) {
-        selectedSlotIndex?.let { slotIdx ->
-            val isReplacing = replaceSlotIndex != null
-            EquipmentSelectionDialog(
-                materials = materials,
-                slotIndex = slotIdx,
-                workerDisciple = workerDisciple,
-                viewModel = viewModel,
-                forgeViewModel = forgeViewModel,
-                onDismiss = {
-                    showEquipmentSelection = false
-                    selectedSlotIndex = null
-                    replaceSlotIndex = null
-                },
-                onConfirmOverride = if (isReplacing) { { recipe ->
-                    forgeViewModel.cancelForge(slotIdx)
-                    forgeViewModel.startForge(slotIdx, recipe)
-                } } else null
+/** 锻造弟子区（ForgeDialog 拆分） */
+@Composable
+private fun ForgeWorkerSection(
+    workerDisciple: DiscipleAggregate?,
+    viewModel: GameViewModel,
+    disciples: List<DiscipleAggregate>,
+    onEmptySlotClick: () -> Unit,
+    onDismiss: () -> Unit,
+    onSwap: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
+        ) {
+            Text(
+                text = "锻造弟子",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
             )
+            ProfessionInfoButton(isAlchemy = false)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        ProfessionProgressSection(disciple = workerDisciple, isAlchemy = false)
+        ProfessionLabel(level = workerDisciple?.forgeLevel, isAlchemy = false)
+        Spacer(modifier = Modifier.height(2.dp))
+        DiscipleSlot(
+            disciple = workerDisciple,
+            showActions = true,
+            onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+            onEmptySlotClick = onEmptySlotClick,
+            onDismiss = onDismiss,
+            onSwap = onSwap
+        )
+    }
+}
+
+/** 锻造槽位条目（ForgeDialog 拆分） */
+@Composable
+private fun ForgeSlotItem(
+    mySlot: ForgeSlot?,
+    gameData: GameData?,
+    slotIndex: Int,
+    forgeViewModel: ForgeViewModel,
+    onReplace: () -> Unit,
+    onIdleClick: () -> Unit
+) {
+    val isIdle = mySlot?.status == ForgeSlotStatus.IDLE || mySlot == null
+    val isWorking = mySlot?.status == ForgeSlotStatus.WORKING
+    val remainingMonths = if (isWorking && gameData != null)
+        mySlot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
+
+    ProductionSlotItem(
+        theme = FORGE_THEME,
+        productName = mySlot?.equipmentName,
+        isWorking = isWorking,
+        isIdle = isIdle,
+        remainingMonths = remainingMonths,
+        index = slotIndex,
+        productRarity = mySlot?.equipmentRarity ?: 1,
+        totalDuration = mySlot?.duration ?: 1,
+        successRate = mySlot?.successRate ?: 0.0,
+        gamePhase = gameData?.gamePhase ?: 0,
+        onCancel = if (isWorking) { { forgeViewModel.cancelForge(slotIndex) } } else null,
+        onReplace = if (isWorking) { onReplace } else null,
+        onClick = { if (isIdle) onIdleClick() }
+    )
+}
+
+/** 锻造弟子选择区块（ForgeDialog 拆分） */
+@Composable
+private fun ForgeWorkerSelectionSection(
+    state: ForgeDialogState,
+    viewModel: GameViewModel,
+    forgeViewModel: ForgeViewModel,
+    onDismiss: () -> Unit,
+    onWorkerAssigned: () -> Unit
+) {
+    val workerTheme = remember {
+        ProductionTheme(
+            buildingId = "forge",
+            displayName = "锻造坊",
+            elderTitle = "锻造弟子",
+            elderBonusInfo = ElderBonusInfo(
+                title = "锻造弟子",
+                requiredAttribute = "炼器",
+                effectDescription = "负责锻造槽位的工作，炼器属性影响产出",
+                bonusFormula = "炼器越高，产出越高"
+            ),
+            coreAttributeName = "炼器",
+            coreAttributeColor = GameColors.Success,
+            defaultBorderColor = GameColors.Warning,
+            workingStatusColor = GameColors.Warning,
+            selectedHighlightColor = GameColors.Warning,
+            slotLabelPrefix = "炼器槽",
+            selectionDialogTitle = "选择锻造弟子",
+            startProductionText = "确认",
+            elderSelectionTitle = "选择锻造弟子",
+            recommendAttributeText = "炼器",
+            getCoreAttributeValue = { it.artifactRefining },
+            getElderId = { it.forgeElder },
+            getDirectDisciples = { it.forgeDisciples.filter { d -> d.sectId == (state.gameData?.activeSectId ?: "") } },
+            elderSortComparator = compareByDescending<DiscipleAggregate> { it.artifactRefining }
+                .thenBy { it.realm }.thenByDescending { it.realmLayer },
+            directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+    }
+    ProductionElderSelectionDialog(
+        theme = workerTheme,
+        disciples = forgeViewModel.getAvailableWorkers(),
+        currentElderId = state.assignedDiscipleId,
+        elderSlots = state.gameData?.elderSlots ?: ElderSlots(),
+        viewModel = viewModel,
+        onDismiss = onDismiss,
+        onSelect = { discipleId ->
+            val disciple = state.discipleMap[discipleId]
+            state.coroutineScope.launch {
+                if (state.showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
+                    viewModel.releaseDiscipleForReassignment(discipleId)
+                }
+                val d = state.discipleMap[discipleId]
+                forgeViewModel.assignWorker(state.buildingIndex, discipleId, d?.name ?: "")
+            }
+            onWorkerAssigned()
+        },
+        battleAndExplorationIds = state.battleAndExplorationIds,
+    )
+}
+
+/** 装备选择弹窗区块（ForgeDialog 拆分） */
+@Composable
+private fun ForgeEquipmentSelectionSection(
+    slotIdx: Int,
+    isReplacing: Boolean,
+    materials: List<Material>,
+    workerDisciple: DiscipleAggregate?,
+    viewModel: GameViewModel,
+    forgeViewModel: ForgeViewModel,
+    onDismiss: () -> Unit
+) {
+    EquipmentSelectionDialog(
+        materials = materials,
+        slotIndex = slotIdx,
+        workerDisciple = workerDisciple,
+        viewModel = viewModel,
+        forgeViewModel = forgeViewModel,
+        onDismiss = onDismiss,
+        onConfirmOverride = if (isReplacing) { { recipe ->
+            forgeViewModel.cancelForge(slotIdx)
+            forgeViewModel.startForge(slotIdx, recipe)
+        } } else null
+    )
+}
+
+/** 配方 + 可制作状态（EquipmentSelectionDialog 拆分） */
+private data class EquipmentRecipeWithStatus(
+    val recipe: ForgeRecipeDatabase.ForgeRecipe,
+    val canCraft: Boolean
+)
+
+/** 装备配方可制作状态（EquipmentSelectionDialog 拆分） */
+private fun equipmentRecipesWithStatus(
+    allRecipes: List<ForgeRecipeDatabase.ForgeRecipe>,
+    materialIndex: Map<Pair<String, Int>, Int>
+): List<EquipmentRecipeWithStatus> = allRecipes.map { recipe ->
+    val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
+        val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
+        materialData != null && run {
+            val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+            available >= requiredQuantity
         }
     }
+    EquipmentRecipeWithStatus(recipe, canCraft)
+}
 
+/** 装备配方排序：已关注优先 → 稀有度降序（EquipmentSelectionDialog 拆分） */
+private fun sortEquipmentRecipes(
+    recipesWithStatus: List<EquipmentRecipeWithStatus>,
+    watchedKeys: Set<String>
+): List<EquipmentRecipeWithStatus> {
+    val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
+    val comparator =
+        compareByDescending<EquipmentRecipeWithStatus> {
+            watchKey("equipment", it.recipe.name) in watchedKeys
+        }.thenByDescending { it.recipe.rarity }
+    return craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
+}
+
+/** 点击锻造配方：无弟子/职业等级不够弹提示，否则切换选中状态 */
+private fun handleEquipmentRecipeClick(
+    recipe: ForgeRecipeDatabase.ForgeRecipe,
+    workerDisciple: DiscipleAggregate?,
+    forgeViewModel: ForgeViewModel,
+    isSelected: Boolean,
+    onSelectionChange: (ForgeRecipeDatabase.ForgeRecipe?) -> Unit
+) {
+    val workerLevel = workerDisciple?.forgeLevel ?: 0
+    when {
+        workerDisciple == null -> forgeViewModel.showNoWorkerHint()
+        !ProfessionRules.canCraftTier(workerLevel, recipe.tier) -> forgeViewModel.showTierLockedHint()
+        isSelected -> onSelectionChange(null)
+        else -> onSelectionChange(recipe)
+    }
 }
 
 @Composable
@@ -303,97 +488,40 @@ private fun EquipmentSelectionDialog(
         onDismiss = onDismiss,
         enableScroll = false
     ) {
-        data class RecipeWithStatus(
-            val recipe: ForgeRecipeDatabase.ForgeRecipe,
-            val canCraft: Boolean
-        )
-
         val materialIndex = remember(materials) {
             materials.groupBy { it.name to it.rarity }
                 .mapValues { (_, list) -> list.sumOf { it.quantity } }
         }
-
         val recipesWithStatus = remember(allRecipes, materialIndex) {
-            allRecipes.map { recipe ->
-                val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
-                    val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
-                    materialData != null && run {
-                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                        available >= requiredQuantity
-                    }
-                }
-                RecipeWithStatus(recipe, canCraft)
-            }
+            equipmentRecipesWithStatus(allRecipes, materialIndex)
         }
 
         val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
         val sortedRecipes = remember(recipesWithStatus, watchedKeys) {
-            val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
-            val comparator =
-                compareByDescending<RecipeWithStatus> {
-                    watchKey("equipment", it.recipe.name) in watchedKeys
-                }.thenByDescending { it.recipe.rarity }
-            craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
+            sortEquipmentRecipes(recipesWithStatus, watchedKeys)
         }
 
         Column(modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(60.dp),
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sortedRecipes, key = { it.recipe.id }, contentType = { "recipe" }) { recipeWithStatus ->
-                    val recipe = recipeWithStatus.recipe
-                    val hasEnoughMaterials = recipeWithStatus.canCraft
-                    val isSelected = selectedRecipe?.id == recipe.id
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        UnifiedItemCard(
-                            data = ItemCardData(
-                                name = recipe.name,
-                                rarity = recipe.rarity
-                            ),
-                            isSelected = isSelected,
-                            isFollowed = watchKey("equipment", recipe.name) in watchedKeys,
-                            craftable = hasEnoughMaterials,
-                            showQuantity = false,
-                            onClick = {
-                                // 职业门禁提示框：无弟子/职业等级不够时点击配方不选中，弹提示
-                                val workerLevel = workerDisciple?.forgeLevel ?: 0
-                                if (workerDisciple == null) {
-                                    forgeViewModel.showNoWorkerHint()
-                                } else if (!ProfessionRules.canCraftTier(workerLevel, recipe.tier)) {
-                                    forgeViewModel.showTierLockedHint()
-                                } else if (selectedRecipe?.id == recipe.id) {
-                                    selectedRecipe = null
-                                    clickedRecipe = null
-                                } else {
-                                    selectedRecipe = recipe
-                                    clickedRecipe = recipe
-                                }
-                            },
-                            onLongPress = { clickedRecipe = recipe; showDetail = true }
-                        )
-                    }
-                }
-            }
+            EquipmentRecipeGrid(
+                sortedRecipes = sortedRecipes,
+                selectedRecipeId = selectedRecipe?.id,
+                workerDisciple = workerDisciple,
+                forgeViewModel = forgeViewModel,
+                watchedKeys = watchedKeys,
+                onSelectionChange = { recipe -> selectedRecipe = recipe; clickedRecipe = recipe },
+                onLongPress = { recipe -> clickedRecipe = recipe; showDetail = true }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
-            val selectedRecipeStatus = sortedRecipes.find { it.recipe.id == selectedRecipe?.id }
-            val hasEnoughMaterialsForSelected = selectedRecipeStatus?.canCraft ?: false
+            val hasEnoughMaterialsForSelected = sortedRecipes
+                .find { it.recipe.id == selectedRecipe?.id }?.canCraft ?: false
 
             GameButton(
                 text = FORGE_THEME.startProductionText,
                 onClick = {
                     selectedRecipe?.let { recipe ->
-                        if (onConfirmOverride != null) {
-                            onConfirmOverride(recipe)
-                        } else {
-                            forgeViewModel.startForge(slotIndex, recipe)
-                        }
+                        if (onConfirmOverride != null) onConfirmOverride(recipe)
+                        else forgeViewModel.startForge(slotIndex, recipe)
                         onDismiss()
                     }
                 },
@@ -405,11 +533,56 @@ private fun EquipmentSelectionDialog(
     if (showDetail) {
         clickedRecipe?.let { recipe ->
             EquipmentDetailDialog(
-                recipe = recipe,
-                materials = materials,
-                viewModel = viewModel,
+                recipe = recipe, materials = materials, viewModel = viewModel,
                 onDismiss = { showDetail = false }
             )
+        }
+    }
+}
+
+/** 装备配方网格（EquipmentSelectionDialog 拆分） */
+@Composable
+private fun ColumnScope.EquipmentRecipeGrid(
+    sortedRecipes: List<EquipmentRecipeWithStatus>,
+    selectedRecipeId: String?,
+    workerDisciple: DiscipleAggregate?,
+    forgeViewModel: ForgeViewModel,
+    watchedKeys: Set<String>,
+    onSelectionChange: (ForgeRecipeDatabase.ForgeRecipe?) -> Unit,
+    onLongPress: (ForgeRecipeDatabase.ForgeRecipe) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(60.dp),
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(sortedRecipes, key = { it.recipe.id }, contentType = { "recipe" }) { recipeWithStatus ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                UnifiedItemCard(
+                    data = ItemCardData(
+                        name = recipeWithStatus.recipe.name,
+                        rarity = recipeWithStatus.recipe.rarity
+                    ),
+                    isSelected = selectedRecipeId == recipeWithStatus.recipe.id,
+                    isFollowed = watchKey("equipment", recipeWithStatus.recipe.name) in watchedKeys,
+                    craftable = recipeWithStatus.canCraft,
+                    showQuantity = false,
+                    onClick = {
+                        // 职业门禁提示框：无弟子/职业等级不够时点击配方不选中，弹提示
+                        handleEquipmentRecipeClick(
+                            recipe = recipeWithStatus.recipe,
+                            workerDisciple = workerDisciple,
+                            forgeViewModel = forgeViewModel,
+                            isSelected = selectedRecipeId == recipeWithStatus.recipe.id,
+                            onSelectionChange = onSelectionChange
+                        )
+                    },
+                    onLongPress = { onLongPress(recipeWithStatus.recipe) }
+                )
+            }
         }
     }
 }
@@ -436,32 +609,7 @@ private fun EquipmentDetailDialog(
                     Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
                 }
 
-                Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    recipe.materials.forEach { (materialId, requiredQuantity) ->
-                        val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
-                        val materialName = materialData?.name
-                        val materialRarity = materialData?.rarity ?: 1
-                        val material = materials.find { it.name == materialName && it.rarity == materialRarity }
-                        val hasEnough = material != null && material.quantity >= requiredQuantity
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = material?.name ?: materialName ?: materialId,
-                                fontSize = 11.sp,
-                                color = if (hasEnough) Color.Black else Color(0xFFE74C3C)
-                            )
-                            Text(
-                                text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity",
-                                fontSize = 11.sp,
-                                color = if (hasEnough) GameColors.Success else Color(0xFFE74C3C)
-                            )
-                        }
-                    }
-                }
+                EquipmentMaterialRequirementList(recipe = recipe, materials = materials)
 
                 Text(text = "属性加成:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
@@ -501,5 +649,39 @@ private fun EquipmentDetailDialog(
                 }
                 }
             }
+    }
+}
+
+/** 所需材料列表（EquipmentDetailDialog 拆分） */
+@Composable
+private fun EquipmentMaterialRequirementList(
+    recipe: ForgeRecipeDatabase.ForgeRecipe,
+    materials: List<Material>
+) {
+    Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        recipe.materials.forEach { (materialId, requiredQuantity) ->
+            val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
+            val materialName = materialData?.name
+            val materialRarity = materialData?.rarity ?: 1
+            val material = materials.find { it.name == materialName && it.rarity == materialRarity }
+            val hasEnough = material != null && material.quantity >= requiredQuantity
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = material?.name ?: materialName ?: materialId,
+                    fontSize = 11.sp,
+                    color = if (hasEnough) Color.Black else Color(0xFFE74C3C)
+                )
+                Text(
+                    text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity",
+                    fontSize = 11.sp,
+                    color = if (hasEnough) GameColors.Success else Color(0xFFE74C3C)
+                )
+            }
+        }
     }
 }

@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.ManualInstance
@@ -70,7 +70,8 @@ fun ManualsSection(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val manualColumnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / 100))
+            // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
+            val manualColumnCount = maxOf(1, (LocalWindowInfo.current.containerSize.width / 100))
             manualSlots.chunked(manualColumnCount).forEachIndexed { rowIndex, rowSlots ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -167,20 +168,14 @@ fun ManualSelectionDialog(
     val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
         ?: emptySet()
 
-    val availableManualStacks = remember(manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots, watchedKeys) {
-        if (currentManualIds.size >= maxManualSlots) {
-            emptyList()
-        } else {
-            val manualMap = allManuals.associateBy { it.id }
-            val hasMindManual = currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
-            val learnedNames = currentManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
-            manualStacks.filter { stack ->
-                !(hasMindManual && stack.type == ManualType.MIND) &&
-                stack.name !in learnedNames &&
-                GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
-            }.sortedByWatchedThenRarity(watchedKeys)
-        }
-    }
+    val availableManualStacks = rememberAvailableManualStacks(
+        manualStacks = manualStacks,
+        allManuals = allManuals,
+        currentManualIds = currentManualIds,
+        discipleRealm = discipleRealm,
+        maxManualSlots = maxManualSlots,
+        watchedKeys = watchedKeys
+    )
 
     var showDetailStack by remember { mutableStateOf<ManualStack?>(null) }
 
@@ -189,59 +184,17 @@ fun ManualSelectionDialog(
         containerColor = GameColors.PageBackground,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
         title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "选择功法",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismiss)
-            }
+            ManualSelectionTitle(onDismiss = onDismiss)
         },
         text = {
             DialogSystemBarGuard()
-
-            if (availableManualStacks.isEmpty()) {
-                Text(
-                    text = "暂无可学习的功法",
-                    fontSize = 12.sp,
-                    color = Color.Black,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                )
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(60.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(availableManualStacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
-                        UnifiedItemCard(
-                            data = ItemCardData(
-                                id = stack.id,
-                                name = stack.name,
-                                rarity = stack.rarity,
-                                quantity = stack.quantity,
-                                isLocked = stack.isLocked,
-                                isManual = true
-                            ),
-                            isSelected = selectedManualId == stack.id,
-                            isFollowed = stack.watchKey() in watchedKeys,
-                            onClick = {
-                                onSelect(stack.id)
-                            },
-                            onLongPress = { showDetailStack = stack }
-                        )
-                    }
-                }
-            }
+            ManualSelectionGrid(
+                stacks = availableManualStacks,
+                selectedManualId = selectedManualId,
+                watchedKeys = watchedKeys,
+                onStackClick = onSelect,
+                onStackLongPress = { showDetailStack = it }
+            )
         },
         confirmButton = {
             Row(
@@ -266,5 +219,96 @@ fun ManualSelectionDialog(
             onDismiss = { showDetailStack = null },
             viewModel = viewModel
         )
+    }
+}
+
+/** 可选功法列表计算（ManualSelectionDialog 拆分） */
+@Composable
+private fun rememberAvailableManualStacks(
+    manualStacks: List<ManualStack>,
+    allManuals: List<ManualInstance>,
+    currentManualIds: List<String>,
+    discipleRealm: Int,
+    maxManualSlots: Int,
+    watchedKeys: Set<String>
+): List<ManualStack> {
+    return remember(manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots, watchedKeys) {
+        if (currentManualIds.size >= maxManualSlots) {
+            emptyList()
+        } else {
+            val manualMap = allManuals.associateBy { it.id }
+            val hasMindManual = currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
+            val learnedNames = currentManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
+            manualStacks.filter { stack ->
+                !(hasMindManual && stack.type == ManualType.MIND) &&
+                stack.name !in learnedNames &&
+                GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
+            }.sortedByWatchedThenRarity(watchedKeys)
+        }
+    }
+}
+
+/** 功法选择标题行（ManualSelectionDialog 拆分） */
+@Composable
+private fun ManualSelectionTitle(onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "选择功法",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        CloseButton(onClick = onDismiss)
+    }
+}
+
+/** 功法选择网格区（ManualSelectionDialog 拆分）：空态提示 + 功法网格 */
+@Composable
+private fun ManualSelectionGrid(
+    stacks: List<ManualStack>,
+    selectedManualId: String?,
+    watchedKeys: Set<String>,
+    onStackClick: (String) -> Unit,
+    onStackLongPress: (ManualStack) -> Unit
+) {
+    if (stacks.isEmpty()) {
+        Text(
+            text = "暂无可学习的功法",
+            fontSize = 12.sp,
+            color = Color.Black,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+        )
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(60.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 400.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(stacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
+                UnifiedItemCard(
+                    data = ItemCardData(
+                        id = stack.id,
+                        name = stack.name,
+                        rarity = stack.rarity,
+                        quantity = stack.quantity,
+                        isLocked = stack.isLocked,
+                        isManual = true
+                    ),
+                    isSelected = selectedManualId == stack.id,
+                    isFollowed = stack.watchKey() in watchedKeys,
+                    onClick = {
+                        onStackClick(stack.id)
+                    },
+                    onLongPress = { onStackLongPress(stack) }
+                )
+            }
+        }
     }
 }

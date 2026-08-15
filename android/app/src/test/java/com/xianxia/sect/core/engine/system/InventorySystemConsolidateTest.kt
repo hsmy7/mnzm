@@ -13,7 +13,7 @@ import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.event.EventBus
-import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -45,7 +45,7 @@ class InventorySystemConsolidateTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        stateStore = GameStateStoreImpl(scopeProvider, testGameStateRepository())
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))

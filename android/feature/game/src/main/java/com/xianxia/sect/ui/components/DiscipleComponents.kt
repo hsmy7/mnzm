@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -138,7 +139,6 @@ fun PortraitDiscipleCard(
 ) {
     val borderColor = if (isSelected) GameColors.Gold else GameColors.SurfaceLightGray
     val borderWidth = if (isSelected) 2.dp else 1.dp
-    val statusText = disciple.statusText
 
     Box(
         modifier = Modifier
@@ -158,125 +158,170 @@ fun PortraitDiscipleCard(
             modifier = Modifier.fillMaxWidth().padding(DiscipleCardStyles.cardPadding),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.width(48.dp)
-            ) {
-                val resId = remember(disciple.portraitRes) {
-                    val preloaded = PortraitPool.getResourceId(disciple.portraitRes)
-                    if (preloaded != 0) preloaded
-                    else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
-                }
-                if (resId != 0) {
-                    Image(
-                        painter = painterResource(id = resId),
-                        contentDescription = null,
-                        modifier = Modifier.width(44.dp).height(56.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-                Text(
-                    text = disciple.name,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            PortraitDisciplePortraitColumn(disciple = disciple)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = disciple.genderName, fontSize = 12.sp, color = Color.Black)
-                        Text(
-                            text = formatDiscipleAge(disciple.age),
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                        // 当有自定义 actions 时，状态文字移至年龄右侧（避免与按钮挤在同一侧）
-                        if (actions != null && showStatus) {
-                            Text(text = statusText, fontSize = 12.sp, color = Color.Black, maxLines = 1)
-                        }
-                        if (disciple.isFollowed) FollowedTag()
-                        if (isCurrent) {
-                            Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
-                        }
-                    }
-                    if (actions != null) {
-                        actions()
-                    } else {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (showStatus) {
-                                Text(
-                                    text = statusText,
-                                    fontSize = 12.sp,
-                                    color = Color.Black,
-                                    maxLines = 1
-                                )
-                            }
-                            if (isSelected) {
-                                Text(
-                                    text = "✓",
-                                    fontSize = 13.sp,
-                                    color = GameColors.GoldDark,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val spiritRootColor = try {
-                        Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
-                    } catch (e: kotlinx.coroutines.CancellationException) { throw e
-                    } catch (_: Exception) { Color.Black }
+                PortraitDiscipleTopRow(
+                    disciple = disciple,
+                    isSelected = isSelected,
+                    isCurrent = isCurrent,
+                    showStatus = showStatus,
+                    actions = actions
+                )
+                PortraitDiscipleRealmRow(disciple = disciple)
+                PortraitDiscipleAttrsRow(
+                    disciple = disciple,
+                    extraAttributes = extraAttributes,
+                    customAttributes = customAttributes
+                )
+            }
+        }
+    }
+}
+
+/** 弟子卡左半身像列（PortraitDiscipleCard 拆分） */
+@Composable
+private fun PortraitDisciplePortraitColumn(disciple: DiscipleAggregate) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(48.dp)
+    ) {
+        val resId = remember(disciple.portraitRes) {
+            val preloaded = PortraitPool.getResourceId(disciple.portraitRes)
+            if (preloaded != 0) preloaded
+            else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
+        }
+        if (resId != 0) {
+            Image(
+                painter = painterResource(id = resId),
+                contentDescription = null,
+                modifier = Modifier.width(44.dp).height(56.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Text(
+            text = disciple.name,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** 弟子卡信息区第一行（PortraitDiscipleCard 拆分）：性别/年龄/状态/选中标记/操作槽位 */
+@Composable
+private fun PortraitDiscipleTopRow(
+    disciple: DiscipleAggregate,
+    isSelected: Boolean,
+    isCurrent: Boolean,
+    showStatus: Boolean,
+    actions: (@Composable () -> Unit)?
+) {
+    val statusText = disciple.statusText
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = disciple.genderName, fontSize = 12.sp, color = Color.Black)
+            Text(
+                text = formatDiscipleAge(disciple.age),
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            // 当有自定义 actions 时，状态文字移至年龄右侧（避免与按钮挤在同一侧）
+            if (actions != null && showStatus) {
+                Text(text = statusText, fontSize = 12.sp, color = Color.Black, maxLines = 1)
+            }
+            if (disciple.isFollowed) FollowedTag()
+            if (isCurrent) {
+                Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
+            }
+        }
+        if (actions != null) {
+            actions()
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showStatus) {
                     Text(
-                        text = disciple.realmName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
+                        text = statusText,
+                        fontSize = 12.sp,
                         color = Color.Black,
                         maxLines = 1
                     )
+                }
+                if (isSelected) {
                     Text(
-                        text = disciple.spiritRootName,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = spiritRootColor,
-                        maxLines = 1
+                        text = "✓",
+                        fontSize = 13.sp,
+                        color = GameColors.GoldDark,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    if (customAttributes != null) {
-                        customAttributes()
-                    } else {
-                        DiscipleAttrText("悟性", disciple.comprehension)
-                        DiscipleAttrText("忠诚", disciple.loyalty)
-                    }
-                    extraAttributes.forEach { (name, value) ->
-                        DiscipleAttrText(name, value)
-                    }
-                }
             }
+        }
+    }
+}
+
+/** 弟子卡信息区第二行（PortraitDiscipleCard 拆分）：境界/灵根 */
+@Composable
+private fun PortraitDiscipleRealmRow(disciple: DiscipleAggregate) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val spiritRootColor = try {
+            Color(android.graphics.Color.parseColor(disciple.spiritRoot.countColor))
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (_: Exception) { Color.Black }
+        Text(
+            text = disciple.realmName,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            maxLines = 1
+        )
+        Text(
+            text = disciple.spiritRootName,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = spiritRootColor,
+            maxLines = 1
+        )
+    }
+}
+
+/** 弟子卡信息区第三行（PortraitDiscipleCard 拆分）：悟性/忠诚/自定义属性/附加属性 */
+@Composable
+private fun PortraitDiscipleAttrsRow(
+    disciple: DiscipleAggregate,
+    extraAttributes: List<Pair<String, Int>>,
+    customAttributes: (@Composable () -> Unit)?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        if (customAttributes != null) {
+            customAttributes()
+        } else {
+            DiscipleAttrText(name = "悟性", value = disciple.comprehension)
+            DiscipleAttrText(name = "忠诚", value = disciple.loyalty)
+        }
+        extraAttributes.forEach { (name, value) ->
+            DiscipleAttrText(name = name, value = value)
         }
     }
 }
@@ -371,132 +416,196 @@ fun DiscipleSlot(
         modifier = modifier
     ) {
         // 槽位本体
-        Box(
-            modifier = Modifier
-                .width(52.dp)
-                .height(88.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (disciple != null) Color.White else GameColors.PageBackground)
-                .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-                .clickable {
-                    if (disciple != null) onSlotClick() else onEmptySlotClick()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            if (disciple != null) {
-                val dividerColor = Color(0xFF757575)
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // 境界（顶部）
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(16.dp)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = disciple.realmName,
-                            fontSize = 9.sp,
-                            color = Color.Black,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    // 分割线
-                    HorizontalDivider(thickness = 1.dp, color = dividerColor)
-                    // 精灵图（中部）
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (disciple.isAlive) {
-                            val portraitRes = disciple.portraitRes
-                            val isBeastPortrait = portraitRes.startsWith("beast_")
-                            val resId = remember(portraitRes) {
-                                val id = if (isBeastPortrait) {
-                                    val suffix = portraitRes.removePrefix("beast_")
-                                    val index = suffix.toIntOrNull() ?: -1
-                                    if (index in 0..7) beastSpriteRes(index) ?: 0
-                                    else if (index > 0) index
-                                    else 0
-                                } else PortraitPool.getResourceId(portraitRes)
-                                if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
-                            }
-                            if (resId != 0) {
-                                Image(
-                                    painter = painterResource(id = resId),
-                                    contentDescription = null,
-                                    modifier = Modifier.width(40.dp).height(48.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                            }
-                        } else {
-                            Text(
-                                text = "死亡",
-                                fontSize = 8.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = GameColors.Error,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                    // 分割线
-                    HorizontalDivider(thickness = 1.dp, color = dividerColor)
-                    // 名称（底部）
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(16.dp)
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = disciple.name,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            } else {
-                Text(
-                    text = "+",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-            }
-        }
+        DiscipleSlotBody(
+            disciple = disciple,
+            borderColor = borderColor,
+            onSlotClick = onSlotClick,
+            onEmptySlotClick = onEmptySlotClick
+        )
 
         // 操作按钮（可选）
         if (showActions && disciple != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (onDismiss != null) {
-                    Text(
-                        text = "卸任",
-                        fontSize = 9.sp,
-                        color = Color(0xFFE53935),
-                        modifier = Modifier.clickable { onDismiss() }
-                    )
-                }
-                if (onSwap != null) {
-                    Text(
-                        text = "更换",
-                        fontSize = 9.sp,
-                        color = Color.Black,
-                        modifier = Modifier.clickable { onSwap() }
-                    )
-                }
+            DiscipleSlotActions(
+                onDismiss = onDismiss,
+                onSwap = onSwap
+            )
+        }
+    }
+}
+
+/** 弟子槽位本体（DiscipleSlot 拆分）：边框 + 点击 + 填充/空槽 */
+@Composable
+private fun DiscipleSlotBody(
+    disciple: DiscipleAggregate?,
+    borderColor: Color,
+    onSlotClick: () -> Unit,
+    onEmptySlotClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(52.dp)
+            .height(88.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (disciple != null) Color.White else GameColors.PageBackground)
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+            .clickable {
+                if (disciple != null) onSlotClick() else onEmptySlotClick()
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (disciple != null) {
+            DiscipleSlotFilledContent(disciple = disciple)
+        } else {
+            Text(
+                text = "+",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+        }
+    }
+}
+
+/** 弟子槽位填充内容（DiscipleSlot 拆分）：境界/精灵图/名称三段 */
+@Composable
+private fun DiscipleSlotFilledContent(disciple: DiscipleAggregate) {
+    val dividerColor = Color(0xFF757575)
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        DiscipleSlotRealmSection(
+            disciple = disciple,
+            dividerColor = dividerColor
+        )
+        DiscipleSlotPortraitSection(
+            disciple = disciple,
+            dividerColor = dividerColor
+        )
+        DiscipleSlotNameSection(disciple = disciple)
+    }
+}
+
+/** 弟子槽位境界区（DiscipleSlot 拆分） */
+@Composable
+private fun DiscipleSlotRealmSection(
+    disciple: DiscipleAggregate,
+    dividerColor: Color
+) {
+    // 境界（顶部）
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(16.dp)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = disciple.realmName,
+            fontSize = 9.sp,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+    // 分割线
+    HorizontalDivider(thickness = 1.dp, color = dividerColor)
+}
+
+/** 弟子槽位精灵图区（DiscipleSlot 拆分） */
+@Composable
+private fun ColumnScope.DiscipleSlotPortraitSection(
+    disciple: DiscipleAggregate,
+    dividerColor: Color
+) {
+    // 精灵图（中部）
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        if (disciple.isAlive) {
+            val portraitRes = disciple.portraitRes
+            val isBeastPortrait = portraitRes.startsWith("beast_")
+            val resId = remember(portraitRes) {
+                val id = if (isBeastPortrait) {
+                    val suffix = portraitRes.removePrefix("beast_")
+                    val index = suffix.toIntOrNull() ?: -1
+                    if (index in 0..7) beastSpriteRes(index) ?: 0
+                    else if (index > 0) index
+                    else 0
+                } else PortraitPool.getResourceId(portraitRes)
+                if (id != 0) id else (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
             }
+            if (resId != 0) {
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier.width(40.dp).height(48.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        } else {
+            Text(
+                text = "死亡",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                color = GameColors.Error,
+                maxLines = 1
+            )
+        }
+    }
+    // 分割线
+    HorizontalDivider(thickness = 1.dp, color = dividerColor)
+}
+
+/** 弟子槽位名称区（DiscipleSlot 拆分） */
+@Composable
+private fun DiscipleSlotNameSection(disciple: DiscipleAggregate) {
+    // 名称（底部）
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(16.dp)
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = disciple.name,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** 弟子槽位操作按钮（DiscipleSlot 拆分）：卸任/更换 */
+@Composable
+private fun DiscipleSlotActions(
+    onDismiss: (() -> Unit)?,
+    onSwap: (() -> Unit)?
+) {
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (onDismiss != null) {
+            Text(
+                text = "卸任",
+                fontSize = 9.sp,
+                color = Color(0xFFE53935),
+                modifier = Modifier.clickable { onDismiss() }
+            )
+        }
+        if (onSwap != null) {
+            Text(
+                text = "更换",
+                fontSize = 9.sp,
+                color = Color.Black,
+                modifier = Modifier.clickable { onSwap() }
+            )
         }
     }
 }

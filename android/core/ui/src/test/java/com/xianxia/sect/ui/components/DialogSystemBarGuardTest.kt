@@ -7,7 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.graphics.Insets

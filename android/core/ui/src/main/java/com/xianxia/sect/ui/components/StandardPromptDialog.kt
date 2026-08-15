@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -33,11 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -251,9 +253,11 @@ fun StandardPromptDialog(
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button,
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
-    val config = LocalConfiguration.current
-    val dialogWidth = (config.screenWidthDp * 0.5f).dp
-    val dialogHeight = (config.screenHeightDp * 0.55f).dp
+    // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
+    //（Android 15 edge-to-edge 下两者 insets 行为差异且取整精度不同）
+    val windowSize = LocalWindowInfo.current.containerSize
+    val dialogWidth = (windowSize.width / 2).dp
+    val dialogHeight = (windowSize.height * 0.55f).dp
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -272,136 +276,32 @@ fun StandardPromptDialog(
         // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
         DialogFocusGuard()
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (scrimEnabled) Modifier.background(Color(0x99000000))
-                    else Modifier
-                )
-                .then(
-                    if (dismissOnClickOutside) {
-                        Modifier.clickableWithSound(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onDismissRequest
-                        )
-                    } else Modifier
-                ),
-            contentAlignment = Alignment.Center
+        PromptDialogScrim(
+            onDismissRequest = onDismissRequest,
+            scrimEnabled = scrimEnabled,
+            dismissOnClickOutside = dismissOnClickOutside,
+            applyImePadding = false
         ) {
-            Box(
-                modifier = Modifier
-                    .width(dialogWidth)
-                    .height(dialogHeight)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickableWithSound(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {}
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                painter = painterResource(id = dialogBackgroundRes),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
+            PromptDialogFrame(
+                dialogWidth = dialogWidth,
+                dialogHeight = dialogHeight,
+                dialogBackgroundRes = dialogBackgroundRes,
+                config = PromptDialogContent(
+                    title = title,
+                    titleColor = titleColor,
+                    showCloseButton = showCloseButton,
+                    closeButtonRes = closeButtonRes,
+                    text = text,
+                    onDismissRequest = onDismissRequest,
+                    confirmLabel = confirmLabel,
+                    onConfirm = onConfirm,
+                    dismissLabel = dismissLabel,
+                    onDismiss = onDismiss,
+                    customButtons = customButtons,
+                    buttonBackgroundRes = buttonBackgroundRes
+                ),
+                content = content
             )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (showCloseButton) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = title,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = titleColor
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
-                    }
-                } else {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = titleColor,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (text != null) {
-                    Text(
-                        text = text,
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                if (text != null && (customButtons != null || !showCloseButton)) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // Content area: 输入框优先，按钮在底部且空间不足时折叠
-                Column(modifier = Modifier.weight(1f)) {
-                    content()
-
-                    // 弹性空间：有富余空间时把按钮推到底部，空间不足时率先折叠
-                    if (!showCloseButton) {
-                        if (customButtons != null) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                customButtons()
-                            }
-                        } else if (dismissLabel != null) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                GameButton(
-                                    text = dismissLabel,
-                                    onClick = { (onDismiss ?: onDismissRequest)() },
-                                    buttonBackgroundRes = buttonBackgroundRes
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                GameButton(
-                                    text = confirmLabel,
-                                    onClick = onConfirm,
-                                    buttonBackgroundRes = buttonBackgroundRes
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                GameButton(
-                                    text = confirmLabel,
-                                    onClick = onConfirm,
-                                    buttonBackgroundRes = buttonBackgroundRes
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            }
         }
     }
 }
@@ -462,10 +362,11 @@ fun InlineStandardPromptDialog(
     // 放大器环节（荣耀 X70 根治，见 SystemBarFreezeScope KDoc）
     SystemBarFreezeEffect(freezeSystemBars)
 
-    // 在 composition 入口处读取屏幕尺寸并用 remember 缓存，之后不再变化
-    val screenConfig = LocalConfiguration.current
-    val dialogWidth = remember { (screenConfig.screenWidthDp * 0.5f).dp }
-    val dialogHeight = remember { (screenConfig.screenHeightDp * 0.55f).dp }
+    // 在 composition 入口处读取窗口尺寸并用 remember 缓存，之后不再变化
+    // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
+    val windowSize = LocalWindowInfo.current.containerSize
+    val dialogWidth = remember { (windowSize.width / 2).dp }
+    val dialogHeight = remember { (windowSize.height * 0.55f).dp }
 
     if (dismissOnBackPress) {
         BackHandler { onDismissRequest() }
@@ -482,10 +383,71 @@ fun InlineStandardPromptDialog(
     val dialogView = LocalView.current
     val insideDialogWindow = remember { isInsideDialogWindow(dialogView) }
 
+    PromptDialogScrim(
+        onDismissRequest = onDismissRequest,
+        scrimEnabled = scrimEnabled,
+        dismissOnClickOutside = dismissOnClickOutside,
+        applyImePadding = !insideDialogWindow
+    ) {
+        PromptDialogFrame(
+            dialogWidth = dialogWidth,
+            dialogHeight = dialogHeight,
+            dialogBackgroundRes = dialogBackgroundRes,
+            config = PromptDialogContent(
+                title = title,
+                titleColor = titleColor,
+                showCloseButton = showCloseButton,
+                closeButtonRes = closeButtonRes,
+                text = text,
+                onDismissRequest = onDismissRequest,
+                confirmLabel = confirmLabel,
+                onConfirm = onConfirm,
+                dismissLabel = dismissLabel,
+                onDismiss = onDismiss,
+                customButtons = customButtons,
+                buttonBackgroundRes = buttonBackgroundRes
+            ),
+            content = content
+        )
+    }
+}
+
+/**
+ * 提示框内容配置（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：
+ * 两个公共函数平铺参数中与 frame 渲染相关的部分聚合于此，避免 16+ 参数的
+ * 私有组件触发 detekt LongParameterList（data class 不计入）。
+ */
+private data class PromptDialogContent(
+    val title: String,
+    val titleColor: Color,
+    val showCloseButton: Boolean,
+    @DrawableRes val closeButtonRes: Int,
+    val text: String?,
+    val onDismissRequest: () -> Unit,
+    val confirmLabel: String,
+    val onConfirm: () -> Unit,
+    val dismissLabel: String?,
+    val onDismiss: (() -> Unit)?,
+    val customButtons: (@Composable RowScope.() -> Unit)?,
+    @DrawableRes val buttonBackgroundRes: Int
+)
+
+/** 提示框遮罩层（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：scrim 背景 + 点击外部关闭 + 可选 imePadding */
+@Composable
+private fun PromptDialogScrim(
+    onDismissRequest: () -> Unit,
+    scrimEnabled: Boolean,
+    dismissOnClickOutside: Boolean,
+    applyImePadding: Boolean,
+    content: @Composable BoxScope.() -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .then(if (!insideDialogWindow) Modifier.imePadding() else Modifier)
+            .then(
+                if (applyImePadding) Modifier.imePadding()
+                else Modifier
+            )
             .then(
                 if (scrimEnabled) Modifier.background(Color(0x99000000))
                 else Modifier
@@ -499,119 +461,180 @@ fun InlineStandardPromptDialog(
                     )
                 } else Modifier
             ),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
+}
+
+/** 提示框内容框（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：背景图 + 标题/文本 + 内容槽 + 底部按钮 */
+@Composable
+private fun PromptDialogFrame(
+    dialogWidth: Dp,
+    dialogHeight: Dp,
+    @DrawableRes dialogBackgroundRes: Int,
+    config: PromptDialogContent,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(dialogWidth)
+            .height(dialogHeight)
+            .clip(RoundedCornerShape(12.dp))
+            .clickableWithSound(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {} // 阻止点击穿透到外层
+            ),
         contentAlignment = Alignment.Center
     ) {
-        Box(
+        Image(
+            painter = painterResource(id = dialogBackgroundRes),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Column(
             modifier = Modifier
-                .width(dialogWidth)
-                .height(dialogHeight)
-                .clip(RoundedCornerShape(12.dp))
-                .clickableWithSound(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {} // 阻止点击穿透到外层
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Image(
-                painter = painterResource(id = dialogBackgroundRes),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds
+            PromptDialogHeader(
+                showCloseButton = config.showCloseButton,
+                title = config.title,
+                titleColor = config.titleColor,
+                closeButtonRes = config.closeButtonRes,
+                onDismissRequest = config.onDismissRequest
             )
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (showCloseButton) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = title,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = titleColor
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
-                    }
-                } else {
-                    Text(
-                        text = title,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = titleColor,
-                        textAlign = TextAlign.Center
+            Spacer(modifier = Modifier.height(8.dp))
+            PromptDialogText(
+                text = config.text,
+                customButtons = config.customButtons,
+                showCloseButton = config.showCloseButton
+            )
+            // Content area: 输入框优先，按钮在底部且空间不足时折叠
+            Column(modifier = Modifier.weight(1f)) {
+                content()
+                // 弹性空间：有富余空间时把按钮推到底部，空间不足时率先折叠
+                if (!config.showCloseButton) {
+                    PromptDialogButtons(
+                        customButtons = config.customButtons,
+                        dismissLabel = config.dismissLabel,
+                        onDismiss = config.onDismiss,
+                        onDismissRequest = config.onDismissRequest,
+                        confirmLabel = config.confirmLabel,
+                        onConfirm = config.onConfirm,
+                        buttonBackgroundRes = config.buttonBackgroundRes
                     )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (text != null) {
-                    Text(
-                        text = text,
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                if (text != null && (customButtons != null || !showCloseButton)) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // Content area: 输入框优先，按钮在底部且空间不足时折叠
-                Column(modifier = Modifier.weight(1f)) {
-                    content()
-
-                    // 弹性空间：有富余空间时把按钮推到底部，空间不足时率先折叠
-                    if (!showCloseButton) {
-                        if (customButtons != null) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                customButtons()
-                            }
-                        } else if (dismissLabel != null) {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                GameButton(
-                                    text = dismissLabel,
-                                    onClick = { (onDismiss ?: onDismissRequest)() },
-                                    buttonBackgroundRes = buttonBackgroundRes
-                                )
-                                Spacer(modifier = Modifier.width(16.dp))
-                                GameButton(
-                                    text = confirmLabel,
-                                    onClick = onConfirm,
-                                    buttonBackgroundRes = buttonBackgroundRes
-                                )
-                            }
-                        } else {
-                            Spacer(modifier = Modifier.weight(1f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                GameButton(
-                                    text = confirmLabel,
-                                    onClick = onConfirm,
-                                    buttonBackgroundRes = buttonBackgroundRes
-                                )
-                            }
-                        }
-                    }
                 }
             }
+        }
+    }
+}
+
+/** 标题行（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：有关闭按钮时右对齐关闭，否则居中标题 */
+@Composable
+private fun PromptDialogHeader(
+    showCloseButton: Boolean,
+    title: String,
+    titleColor: Color,
+    closeButtonRes: Int,
+    onDismissRequest: () -> Unit
+) {
+    if (showCloseButton) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = titleColor
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
+        }
+    } else {
+        Text(
+            text = title,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = titleColor,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** 文本块（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：正文 + 与按钮区之间的条件间距 */
+@Composable
+private fun PromptDialogText(
+    text: String?,
+    customButtons: (@Composable RowScope.() -> Unit)?,
+    showCloseButton: Boolean
+) {
+    if (text != null) {
+        Text(
+            text = text,
+            fontSize = 12.sp,
+            color = Color.Black,
+            textAlign = TextAlign.Center
+        )
+    }
+
+    if (text != null && (customButtons != null || !showCloseButton)) {
+        Spacer(modifier = Modifier.height(12.dp))
+    }
+}
+
+/** 底部按钮区（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：customButtons / 取消+确认 / 仅确认 三态 */
+@Composable
+private fun ColumnScope.PromptDialogButtons(
+    customButtons: (@Composable RowScope.() -> Unit)?,
+    dismissLabel: String?,
+    onDismiss: (() -> Unit)?,
+    onDismissRequest: () -> Unit,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    @DrawableRes buttonBackgroundRes: Int
+) {
+    if (customButtons != null) {
+        Spacer(modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            customButtons()
+        }
+    } else if (dismissLabel != null) {
+        Spacer(modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            GameButton(
+                text = dismissLabel,
+                onClick = { (onDismiss ?: onDismissRequest)() },
+                buttonBackgroundRes = buttonBackgroundRes
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            GameButton(
+                text = confirmLabel,
+                onClick = onConfirm,
+                buttonBackgroundRes = buttonBackgroundRes
+            )
+        }
+    } else {
+        Spacer(modifier = Modifier.weight(1f))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            GameButton(
+                text = confirmLabel,
+                onClick = onConfirm,
+                buttonBackgroundRes = buttonBackgroundRes
+            )
         }
     }
 }

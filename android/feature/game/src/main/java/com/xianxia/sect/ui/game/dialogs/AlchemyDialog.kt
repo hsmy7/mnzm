@@ -52,10 +52,34 @@ import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.util.Locale
 
 
+/** 炼丹炉派生状态（AlchemyDialog 拆分） */
+private data class AlchemyDialogState(
+    val buildingIndex: Int,
+    val slotIndex: Int,
+    val mySlot: AlchemySlot?,
+    val assignedDiscipleId: String?,
+    val workerDisciple: DiscipleAggregate?,
+    val discipleMap: Map<String, DiscipleAggregate>,
+    val battleAndExplorationIds: Set<String>,
+    val showAllEnabled: Boolean,
+    val coroutineScope: CoroutineScope,
+    val gameData: GameData?
+)
+
+/** 炼丹炉对话框回调组（AlchemyDialog 拆分） */
+private data class AlchemyDialogActions(
+    val onWorkerSlotEmptyClick: () -> Unit,
+    val onWorkerDismiss: () -> Unit,
+    val onWorkerSwap: () -> Unit,
+    val onAutoToggle: () -> Unit,
+    val onReplace: () -> Unit,
+    val onIdleClick: () -> Unit
+)
 
 @Composable
 fun AlchemyDialog(
@@ -71,14 +95,85 @@ fun AlchemyDialog(
     colors: com.xianxia.sect.ui.theme.XianxiaColorScheme,
     onDismiss: () -> Unit
 ) {
-    val theme = ALCHEMY_THEME
     var showPillSelection by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showWorkerSelection by remember { mutableStateOf(false) }
     var replaceSlotIndex by remember { mutableStateOf<Int?>(null) }
 
+    val state = rememberAlchemyDialogState(
+        buildingInstanceId = buildingInstanceId, alchemySlots = alchemySlots, gameData = gameData,
+        disciples = disciples, viewModel = viewModel
+    )
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss, title = "炼丹炉", mode = DialogMode.Half, scrollableContent = false
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            AlchemyDialogBody(
+                state = state, viewModel = viewModel, disciples = disciples, alchemyViewModel = alchemyViewModel,
+                actions = AlchemyDialogActions(
+                    onWorkerSlotEmptyClick = { showWorkerSelection = true },
+                    onWorkerDismiss = { alchemyViewModel.removeWorker(state.buildingIndex) },
+                    onWorkerSwap = { showWorkerSelection = true },
+                    onAutoToggle = { alchemyViewModel.toggleAuto(state.buildingIndex) },
+                    onReplace = {
+                        replaceSlotIndex = state.slotIndex
+                        selectedSlotIndex = state.slotIndex
+                        showPillSelection = true
+                    },
+                    onIdleClick = {
+                        selectedSlotIndex = state.slotIndex
+                        showPillSelection = true
+                    }
+                )
+            )
+        }
+    }
+
+    if (showWorkerSelection) {
+        AlchemyWorkerSelectionSection(
+            state = state, viewModel = viewModel, alchemyViewModel = alchemyViewModel,
+            onDismiss = { showWorkerSelection = false }, onWorkerAssigned = { showWorkerSelection = false }
+        )
+    }
+
+    if (showPillSelection) {
+        selectedSlotIndex?.let { slotIdx ->
+            val isReplacing = replaceSlotIndex != null
+            PillSelectionDialog(
+                materials = materials, herbs = herbs,
+                slotIndex = slotIdx, workerDisciple = state.workerDisciple,
+                viewModel = viewModel, alchemyViewModel = alchemyViewModel,
+                onDismiss = { showPillSelection = false; selectedSlotIndex = null; replaceSlotIndex = null },
+                onConfirmOverride = if (isReplacing) { { recipe ->
+                    alchemyViewModel.cancelAlchemy(slotIdx)
+                    alchemyViewModel.startAlchemy(slotIdx, recipe)
+                } } else null
+            )
+        }
+    }
+
+}
+
+/** 炼丹炉派生状态计算（AlchemyDialog 拆分） */
+@Composable
+private fun rememberAlchemyDialogState(
+    buildingInstanceId: String,
+    alchemySlots: List<AlchemySlot>,
+    gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel
+): AlchemyDialogState {
     val globalFurnaces = gameData?.placedBuildings?.filter { it.displayName == "炼丹炉" } ?: emptyList()
     val buildingIndex = globalFurnaces.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
+
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else emptySet()
+    }
     val alchemySlotsState by viewModel.alchemySlots.collectAsStateWithLifecycle()
     val mySlot = alchemySlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
@@ -89,200 +184,198 @@ fun AlchemyDialog(
     val coroutineScope = rememberCoroutineScope()
     // Composition 内禁止读 StateFlow.value（不触发重组）；gameData 参数已由调用方 collect 派生
     val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+    return AlchemyDialogState(
+        buildingIndex = buildingIndex,
+        slotIndex = slotIndex,
+        mySlot = mySlot,
+        assignedDiscipleId = assignedDiscipleId,
+        workerDisciple = workerDisciple,
+        discipleMap = discipleMap,
+        battleAndExplorationIds = battleAndExplorationIds,
+        showAllEnabled = showAllEnabled,
+        coroutineScope = coroutineScope,
+        gameData = gameData
+    )
+}
 
-    val battleAndExplorationIds = remember(gameData) {
-        if (gameData != null) {
-            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
-            battleIds + explorationIds
-        } else emptySet()
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "炼丹炉",
-        mode = DialogMode.Half,
-        scrollableContent = false
+/** 炼丹炉主内容区（AlchemyDialog 拆分） */
+@Composable
+private fun ColumnScope.AlchemyDialogBody(
+    state: AlchemyDialogState,
+    viewModel: GameViewModel,
+    disciples: List<DiscipleAggregate>,
+    alchemyViewModel: AlchemyViewModel,
+    actions: AlchemyDialogActions
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        // Worker disciple section
+        val workerDisciple = state.workerDisciple
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
             ) {
-                // Worker disciple section
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.Start)
-                    ) {
-                        Text(
-                            text = "炼丹弟子",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        ProfessionInfoButton(isAlchemy = true)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    ProfessionProgressSection(disciple = workerDisciple, isAlchemy = true)
-                    ProfessionLabel(level = workerDisciple?.alchemyLevel, isAlchemy = true)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    DiscipleSlot(
-                        disciple = workerDisciple,
-                        showActions = true,
-                        onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
-                        onEmptySlotClick = { showWorkerSelection = true },
-                        onDismiss = { alchemyViewModel.removeWorker(buildingIndex) },
-                        onSwap = { showWorkerSelection = true }
-                    )
-                }
-
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 4.dp),
-                    color = GameColors.Border,
-                    thickness = 1.dp
+                Text(
+                    text = "炼丹弟子",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = theme.slotLabelPrefix,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    val autoEnabled = mySlot?.autoRestartEnabled ?: false
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (autoEnabled) GameColors.Gold else Color.Black)
-                            .clickable { alchemyViewModel.toggleAuto(buildingIndex) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = if (autoEnabled) "自动炼丹:开" else "自动炼丹:关",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (autoEnabled) Color.Black else Color.White
-                        )
-                    }
-                }
-
-                val isIdle = mySlot?.status == AlchemySlotStatus.IDLE || mySlot == null
-                val isWorking = mySlot?.status == AlchemySlotStatus.WORKING
-                val remainingMonths = if (isWorking && gameData != null)
-                    mySlot.getRemainingMonths(gameData.gameYear, gameData.gameMonth) else 0
-
-                ProductionSlotItem(
-                    theme = theme,
-                    productName = mySlot?.pillName,
-                    isWorking = isWorking,
-                    isIdle = isIdle,
-                    remainingMonths = remainingMonths,
-                    index = slotIndex,
-                    productRarity = mySlot?.pillRarity ?: 1,
-                    totalDuration = mySlot?.duration ?: 1,
-                    isPill = true,
-                    successRate = mySlot?.successRate ?: 0.0,
-                    gamePhase = gameData?.gamePhase ?: 0,
-                    onCancel = if (isWorking) { { alchemyViewModel.cancelAlchemy(slotIndex) } } else null,
-                    onReplace = if (isWorking) { {
-                        replaceSlotIndex = slotIndex
-                        selectedSlotIndex = slotIndex
-                        showPillSelection = true
-                    } } else null,
-                    onClick = {
-                        if (isIdle) {
-                            selectedSlotIndex = slotIndex
-                            showPillSelection = true
-                        }
-                    }
-                )
+                ProfessionInfoButton(isAlchemy = true)
             }
-        }
-    }
-
-    if (showWorkerSelection) {
-        val workerTheme = remember {
-            ProductionTheme(
-                buildingId = "alchemy",
-                displayName = "炼丹炉",
-                elderTitle = "炼丹弟子",
-                elderBonusInfo = ElderBonusInfo(
-                    title = "炼丹弟子",
-                    requiredAttribute = "炼丹",
-                    effectDescription = "负责炼丹槽位的工作，炼丹属性影响产出",
-                    bonusFormula = "炼丹越高，产出越高"
-                ),
-                coreAttributeName = "炼丹",
-                coreAttributeColor = Color(0xFF9C27B0),
-                defaultBorderColor = Color(0xFF9C27B0),
-                workingStatusColor = GameColors.Info,
-                selectedHighlightColor = GameColors.Gold,
-                slotLabelPrefix = "炼丹槽",
-                selectionDialogTitle = "选择炼丹弟子",
-                startProductionText = "确认",
-                elderSelectionTitle = "选择炼丹弟子",
-                recommendAttributeText = "炼丹",
-                getCoreAttributeValue = { it.pillRefining },
-                getElderId = { it.alchemyElder },
-                getDirectDisciples = { it.alchemyDisciples.filter { d -> d.sectId == (gameData?.activeSectId ?: "") } },
-                elderSortComparator = compareByDescending<DiscipleAggregate> { it.pillRefining }
-                    .thenBy { it.realm }.thenByDescending { it.realmLayer },
-                directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
-                    .thenByDescending { it.realmLayer }
+            Spacer(modifier = Modifier.height(4.dp))
+            ProfessionProgressSection(disciple = workerDisciple, isAlchemy = true)
+            ProfessionLabel(level = workerDisciple?.alchemyLevel, isAlchemy = true)
+            Spacer(modifier = Modifier.height(2.dp))
+            DiscipleSlot(
+                disciple = workerDisciple,
+                showActions = true,
+                onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } },
+                onEmptySlotClick = actions.onWorkerSlotEmptyClick,
+                onDismiss = actions.onWorkerDismiss,
+                onSwap = actions.onWorkerSwap
             )
         }
-        ProductionElderSelectionDialog(
-            theme = workerTheme,
-            disciples = alchemyViewModel.getAvailableWorkers(),
-            currentElderId = assignedDiscipleId,
-            elderSlots = gameData?.elderSlots ?: ElderSlots(),
-            viewModel = viewModel,
-            onDismiss = { showWorkerSelection = false },
-            onSelect = { discipleId ->
-                val disciple = discipleMap[discipleId]
-                coroutineScope.launch {
-                    if (showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
-                        viewModel.releaseDiscipleForReassignment(discipleId)
-                    }
-                    val d = discipleMap[discipleId]
-                    alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
-                }
-                showWorkerSelection = false
-            },
-            battleAndExplorationIds = battleAndExplorationIds,
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = GameColors.Border, thickness = 1.dp)
+
+        AlchemySlotSection(
+            state = state,
+            alchemyViewModel = alchemyViewModel,
+            onAutoToggle = actions.onAutoToggle,
+            onReplace = actions.onReplace,
+            onIdleClick = actions.onIdleClick
         )
     }
+}
 
-    if (showPillSelection) {
-        selectedSlotIndex?.let { slotIdx ->
-            val isReplacing = replaceSlotIndex != null
-            PillSelectionDialog(
-                materials = materials,
-                herbs = herbs,
-                slotIndex = slotIdx,
-                workerDisciple = workerDisciple,
-                viewModel = viewModel,
-                alchemyViewModel = alchemyViewModel,
-                onDismiss = {
-                    showPillSelection = false
-                    selectedSlotIndex = null
-                    replaceSlotIndex = null
-                },
-                onConfirmOverride = if (isReplacing) { { recipe ->
-                    alchemyViewModel.cancelAlchemy(slotIdx)
-                    alchemyViewModel.startAlchemy(slotIdx, recipe)
-                } } else null
+/** 炼丹槽位区：自动开关行 + 槽位条目（AlchemyDialog 拆分） */
+// 拆分搬移:分支结构与原函数一致
+@Suppress("CyclomaticComplexMethod")
+@Composable
+private fun AlchemySlotSection(
+    state: AlchemyDialogState,
+    alchemyViewModel: AlchemyViewModel,
+    onAutoToggle: () -> Unit,
+    onReplace: () -> Unit,
+    onIdleClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = ALCHEMY_THEME.slotLabelPrefix,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        val autoEnabled = state.mySlot?.autoRestartEnabled ?: false
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(if (autoEnabled) GameColors.Gold else Color.Black)
+                .clickable { onAutoToggle() }
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = if (autoEnabled) "自动炼丹:开" else "自动炼丹:关",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (autoEnabled) Color.Black else Color.White
             )
         }
     }
 
+    val isIdle = state.mySlot?.status == AlchemySlotStatus.IDLE || state.mySlot == null
+    val isWorking = state.mySlot?.status == AlchemySlotStatus.WORKING
+    val remainingMonths = if (isWorking && state.gameData != null)
+        state.mySlot.getRemainingMonths(state.gameData.gameYear, state.gameData.gameMonth) else 0
+
+    ProductionSlotItem(
+        theme = ALCHEMY_THEME,
+        productName = state.mySlot?.pillName,
+        isWorking = isWorking,
+        isIdle = isIdle,
+        remainingMonths = remainingMonths,
+        index = state.slotIndex,
+        productRarity = state.mySlot?.pillRarity ?: 1,
+        totalDuration = state.mySlot?.duration ?: 1,
+        isPill = true,
+        successRate = state.mySlot?.successRate ?: 0.0,
+        gamePhase = state.gameData?.gamePhase ?: 0,
+        onCancel = if (isWorking) { { alchemyViewModel.cancelAlchemy(state.slotIndex) } } else null,
+        onReplace = if (isWorking) { onReplace } else null,
+        onClick = { if (isIdle) onIdleClick() }
+    )
+}
+
+/** 炼丹弟子选择区块（AlchemyDialog 拆分） */
+@Composable
+private fun AlchemyWorkerSelectionSection(
+    state: AlchemyDialogState,
+    viewModel: GameViewModel,
+    alchemyViewModel: AlchemyViewModel,
+    onDismiss: () -> Unit,
+    onWorkerAssigned: () -> Unit
+) {
+    val workerTheme = remember {
+        val gameData = state.gameData
+        ProductionTheme(
+            buildingId = "alchemy",
+            displayName = "炼丹炉",
+            elderTitle = "炼丹弟子",
+            elderBonusInfo = ElderBonusInfo(
+                title = "炼丹弟子",
+                requiredAttribute = "炼丹",
+                effectDescription = "负责炼丹槽位的工作，炼丹属性影响产出",
+                bonusFormula = "炼丹越高，产出越高"
+            ),
+            coreAttributeName = "炼丹",
+            coreAttributeColor = Color(0xFF9C27B0),
+            defaultBorderColor = Color(0xFF9C27B0),
+            workingStatusColor = GameColors.Info,
+            selectedHighlightColor = GameColors.Gold,
+            slotLabelPrefix = "炼丹槽",
+            selectionDialogTitle = "选择炼丹弟子",
+            startProductionText = "确认",
+            elderSelectionTitle = "选择炼丹弟子",
+            recommendAttributeText = "炼丹",
+            getCoreAttributeValue = { it.pillRefining },
+            getElderId = { it.alchemyElder },
+            getDirectDisciples = { it.alchemyDisciples.filter { d -> d.sectId == (gameData?.activeSectId ?: "") } },
+            elderSortComparator = compareByDescending<DiscipleAggregate> { it.pillRefining }
+                .thenBy { it.realm }.thenByDescending { it.realmLayer },
+            directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
+                .thenByDescending { it.realmLayer }
+        )
+    }
+    ProductionElderSelectionDialog(
+        theme = workerTheme,
+        disciples = alchemyViewModel.getAvailableWorkers(),
+        currentElderId = state.assignedDiscipleId,
+        elderSlots = state.gameData?.elderSlots ?: ElderSlots(),
+        viewModel = viewModel,
+        onDismiss = onDismiss,
+        onSelect = { discipleId ->
+            val disciple = state.discipleMap[discipleId]
+            state.coroutineScope.launch {
+                if (state.showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
+                    viewModel.releaseDiscipleForReassignment(discipleId)
+                }
+                val d = state.discipleMap[discipleId]
+                alchemyViewModel.assignWorker(state.buildingIndex, discipleId, d?.name ?: "")
+            }
+            onWorkerAssigned()
+        },
+        battleAndExplorationIds = state.battleAndExplorationIds,
+    )
 }
 
 /** 点击炼丹配方：无弟子/职业等级不够弹提示，否则切换选中状态 */
@@ -302,6 +395,42 @@ private fun handlePillRecipeClick(
     }
 }
 
+/** 配方 + 可制作状态（PillSelectionDialog 拆分） */
+private data class PillRecipeWithStatus(
+    val recipe: PillRecipeDatabase.PillRecipe,
+    val canCraft: Boolean
+)
+
+/** 丹药配方可制作状态（PillSelectionDialog 拆分） */
+private fun pillRecipesWithStatus(
+    displayedRecipes: List<PillRecipeDatabase.PillRecipe>,
+    herbs: List<Herb>
+): List<PillRecipeWithStatus> = displayedRecipes.map { recipe ->
+    val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
+        val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
+        val herbName = herbData?.name
+        val herbRarity = herbData?.rarity ?: 1
+        val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+        herb != null && herb.quantity >= requiredQuantity
+    }
+    PillRecipeWithStatus(recipe, canCraft)
+}
+
+/** 丹药配方排序：已关注优先 → 阶数降序（PillSelectionDialog 拆分） */
+private fun sortPillRecipes(
+    recipesWithStatus: List<PillRecipeWithStatus>,
+    watchedKeys: Set<String>
+): List<PillRecipeWithStatus> {
+    val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
+    val comparator =
+        compareByDescending<PillRecipeWithStatus> {
+            watchKey("pill", it.recipe.name) in watchedKeys
+        }.thenByDescending { it.recipe.tier }
+    return craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
+}
+
+// 拆分搬移:参数保留原签名语义
+@Suppress("UnusedParameter")
 @Composable
 private fun PillSelectionDialog(
     materials: List<Material>,
@@ -319,10 +448,8 @@ private fun PillSelectionDialog(
 
     val allRecipes = PillRecipeDatabase.getAllRecipes()
 
-    // 按 (tier, pillType) 分组，每组包含 3 个品质变体
-    val recipeGroups = remember(allRecipes) {
-        allRecipes.groupBy { it.tier to it.name }
-    }
+    // 详情弹窗需要同组全部品质变体
+    val recipeGroups = remember(allRecipes) { allRecipes.groupBy { it.tier to it.name } }
 
     // 展示用：每组取 MEDIUM 品质作为代表
     val displayedRecipes = remember(recipeGroups) {
@@ -330,108 +457,28 @@ private fun PillSelectionDialog(
             group.firstOrNull { it.grade == PillGrade.MEDIUM } ?: group.first()
         }
     }
+    val recipesWithStatus = remember(displayedRecipes, herbs) { pillRecipesWithStatus(displayedRecipes, herbs) }
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+    val sortedRecipes = remember(recipesWithStatus, watchedKeys) { sortPillRecipes(recipesWithStatus, watchedKeys) }
 
     ProductionCommonDialog(
-        title = ALCHEMY_THEME.selectionDialogTitle,
-        theme = ALCHEMY_THEME,
-        onDismiss = onDismiss,
-        enableScroll = false
+        title = ALCHEMY_THEME.selectionDialogTitle, theme = ALCHEMY_THEME,
+        onDismiss = onDismiss, enableScroll = false
     ) {
-
-        data class RecipeWithStatus(
-            val recipe: PillRecipeDatabase.PillRecipe,
-            val canCraft: Boolean
-        )
-
-        val recipesWithStatus = remember(displayedRecipes, herbs) {
-            displayedRecipes.map { recipe ->
-                val canCraft = recipe.materials.all { (materialId, requiredQuantity) ->
-                    val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
-                    val herbName = herbData?.name
-                    val herbRarity = herbData?.rarity ?: 1
-                    val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
-                    herb != null && herb.quantity >= requiredQuantity
-                }
-                RecipeWithStatus(recipe, canCraft)
-            }
-        }
-
-        val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
-        val sortedRecipes = remember(recipesWithStatus, watchedKeys) {
-            val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
-            val comparator =
-                compareByDescending<RecipeWithStatus> {
-                    watchKey("pill", it.recipe.name) in watchedKeys
-                }.thenByDescending { it.recipe.tier }
-            craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
-        }
-
         Column(modifier = Modifier.weight(1f)) {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(60.dp),
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(sortedRecipes, key = { it.recipe.id }, contentType = { "recipe" }) { recipeWithStatus ->
-                    val recipe = recipeWithStatus.recipe
-                    val hasEnoughMaterials = recipeWithStatus.canCraft
-                    val isSelected = selectedRecipe?.id == recipe.id
+            PillRecipeGrid(
+                sortedRecipes = sortedRecipes,
+                selectedRecipeId = selectedRecipe?.id,
+                workerDisciple = workerDisciple,
+                alchemyViewModel = alchemyViewModel,
+                watchedKeys = watchedKeys,
+                onSelectionChange = { recipe -> selectedRecipe = recipe; clickedRecipe = recipe },
+                onLongPress = { recipe -> clickedRecipe = recipe; showDetail = true }
+            )
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        UnifiedItemCard(
-                            data = ItemCardData(
-                                name = recipe.name,
-                                rarity = recipe.rarity,
-                                isPill = true
-                            ),
-                            isSelected = isSelected,
-                            isFollowed = watchKey("pill", recipe.name) in watchedKeys,
-                            craftable = hasEnoughMaterials,
-                            showQuantity = false,
-                            onClick = {
-                                // 职业门禁提示框：无弟子/职业等级不够时点击配方不选中，弹提示
-                                handlePillRecipeClick(
-                                    recipe = recipe,
-                                    workerDisciple = workerDisciple,
-                                    alchemyViewModel = alchemyViewModel,
-                                    isSelected = selectedRecipe?.id == recipe.id,
-                                    onSelectionChange = {
-                                        selectedRecipe = it
-                                        clickedRecipe = it
-                                    }
-                                )
-                            },
-                            onLongPress = { clickedRecipe = recipe; showDetail = true }
-                        )
-                        Text(
-                            text = "${recipe.duration}月",
-                            fontSize = 9.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            val selectedRecipeStatus = sortedRecipes.find { it.recipe.id == selectedRecipe?.id }
-            val hasEnoughMaterialsForSelected = selectedRecipeStatus?.canCraft ?: false
-
-            GameButton(
-                text = ALCHEMY_THEME.startProductionText,
-                onClick = {
-                    selectedRecipe?.let { recipe ->
-                        if (onConfirmOverride != null) {
-                            onConfirmOverride(recipe)
-                        } else {
-                            alchemyViewModel.startAlchemy(slotIndex, recipe)
-                        }
-                        onDismiss()
-                    }
-                },
-                enabled = selectedRecipe != null && hasEnoughMaterialsForSelected
+            PillSelectionConfirmBar(
+                selectedRecipe = selectedRecipe, sortedRecipes = sortedRecipes, slotIndex = slotIndex,
+                alchemyViewModel = alchemyViewModel, onConfirmOverride = onConfirmOverride, onDismiss = onDismiss
             )
         }
     }
@@ -440,13 +487,137 @@ private fun PillSelectionDialog(
         clickedRecipe?.let { recipe ->
             val allGrades = recipeGroups[recipe.tier to recipe.name] ?: listOf(recipe)
             PillDetailDialog(
-                recipes = allGrades,
-                herbs = herbs,
-                viewModel = viewModel,
+                recipes = allGrades, herbs = herbs, viewModel = viewModel,
                 onDismiss = { showDetail = false }
             )
         }
     }
+}
+
+/** 丹药配方网格（PillSelectionDialog 拆分） */
+@Composable
+private fun ColumnScope.PillRecipeGrid(
+    sortedRecipes: List<PillRecipeWithStatus>,
+    selectedRecipeId: String?,
+    workerDisciple: DiscipleAggregate?,
+    alchemyViewModel: AlchemyViewModel,
+    watchedKeys: Set<String>,
+    onSelectionChange: (PillRecipeDatabase.PillRecipe?) -> Unit,
+    onLongPress: (PillRecipeDatabase.PillRecipe) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(60.dp),
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(sortedRecipes, key = { it.recipe.id }, contentType = { "recipe" }) { recipeWithStatus ->
+            val recipe = recipeWithStatus.recipe
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                UnifiedItemCard(
+                    data = ItemCardData(
+                        name = recipe.name,
+                        rarity = recipe.rarity,
+                        isPill = true
+                    ),
+                    isSelected = selectedRecipeId == recipe.id,
+                    isFollowed = watchKey("pill", recipe.name) in watchedKeys,
+                    craftable = recipeWithStatus.canCraft,
+                    showQuantity = false,
+                    onClick = {
+                        // 职业门禁提示框：无弟子/职业等级不够时点击配方不选中，弹提示
+                        handlePillRecipeClick(
+                            recipe = recipe,
+                            workerDisciple = workerDisciple,
+                            alchemyViewModel = alchemyViewModel,
+                            isSelected = selectedRecipeId == recipe.id,
+                            onSelectionChange = onSelectionChange
+                        )
+                    },
+                    onLongPress = { onLongPress(recipe) }
+                )
+                Text(
+                    text = "${recipe.duration}月",
+                    fontSize = 9.sp,
+                    color = Color.Black
+                )
+            }
+        }
+    }
+}
+
+/** 丹药选择确认栏（PillSelectionDialog 拆分） */
+@Composable
+private fun PillSelectionConfirmBar(
+    selectedRecipe: PillRecipeDatabase.PillRecipe?,
+    sortedRecipes: List<PillRecipeWithStatus>,
+    slotIndex: Int,
+    alchemyViewModel: AlchemyViewModel,
+    onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -> Unit)?,
+    onDismiss: () -> Unit
+) {
+    Spacer(modifier = Modifier.height(12.dp))
+    val hasEnoughMaterialsForSelected = sortedRecipes.find { it.recipe.id == selectedRecipe?.id }?.canCraft ?: false
+
+    GameButton(
+        text = ALCHEMY_THEME.startProductionText,
+        onClick = {
+            selectedRecipe?.let { recipe ->
+                if (onConfirmOverride != null) {
+                    onConfirmOverride(recipe)
+                } else {
+                    alchemyViewModel.startAlchemy(slotIndex, recipe)
+                }
+                onDismiss()
+            }
+        },
+        enabled = selectedRecipe != null && hasEnoughMaterialsForSelected
+    )
+}
+
+/** 丹药详情属性行（PillDetailDialog 拆分） */
+private data class PillStatLine(val label: String, val value: String)
+
+/** 丹药详情属性行列表（PillDetailDialog 拆分） */
+// 拆分搬移:分支结构与原函数一致
+// 拆分搬移:参数保留原签名语义
+@Suppress("CyclomaticComplexMethod", "UnusedParameter")
+private fun pillDetailStatLines(
+    recipe: PillRecipeDatabase.PillRecipe,
+    low: PillRecipeDatabase.PillRecipe?,
+    high: PillRecipeDatabase.PillRecipe?,
+    intRange: (getter: (PillRecipeDatabase.PillRecipe) -> Int) -> String,
+    pctRange: (getter: (PillRecipeDatabase.PillRecipe) -> Double) -> String
+): List<PillStatLine> = buildList {
+    if (recipe.breakthroughChance > 0) {
+        add(PillStatLine("突破成功率", pctRange { it.breakthroughChance }))
+        if (recipe.targetRealm > 0) add(PillStatLine("目标境界", "${recipe.targetRealm}阶"))
+    }
+    if (recipe.cultivationSpeedPercent > 0) add(PillStatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))
+    if (recipe.cultivationAdd > 0) add(PillStatLine("修为", intRange { it.cultivationAdd }))
+    if (recipe.physicalAttackAdd > 0) add(PillStatLine("物理攻击", intRange { it.physicalAttackAdd }))
+    if (recipe.magicAttackAdd > 0) add(PillStatLine("法术攻击", intRange { it.magicAttackAdd }))
+    if (recipe.physicalDefenseAdd > 0) add(PillStatLine("物理防御", intRange { it.physicalDefenseAdd }))
+    if (recipe.magicDefenseAdd > 0) add(PillStatLine("法术防御", intRange { it.magicDefenseAdd }))
+    if (recipe.hpAdd > 0) add(PillStatLine("生命值", intRange { it.hpAdd }))
+    if (recipe.mpAdd > 0) add(PillStatLine("灵力容量", intRange { it.mpAdd }))
+    if (recipe.speedAdd > 0) add(PillStatLine("身法", intRange { it.speedAdd }))
+    if (recipe.critRateAdd > 0) add(PillStatLine("暴击率", pctRange { it.critRateAdd }))
+    if (recipe.critEffectAdd > 0) add(PillStatLine("暴击效果", pctRange { it.critEffectAdd }))
+    if (recipe.skillExpAdd > 0) add(PillStatLine("功法熟练度", intRange { it.skillExpAdd }))
+    if (recipe.nurtureAdd > 0) add(PillStatLine("孕育值", intRange { it.nurtureAdd }))
+    if (recipe.extendLife > 0) add(PillStatLine("延长寿命", "${intRange { it.extendLife }}年"))
+    if (recipe.intelligenceAdd > 0) add(PillStatLine("悟性", intRange { it.intelligenceAdd }))
+    if (recipe.charmAdd > 0) add(PillStatLine("魅力", intRange { it.charmAdd }))
+    if (recipe.loyaltyAdd > 0) add(PillStatLine("忠诚", intRange { it.loyaltyAdd }))
+    if (recipe.comprehensionAdd > 0) add(PillStatLine("领悟", intRange { it.comprehensionAdd }))
+    if (recipe.artifactRefiningAdd > 0) add(PillStatLine("炼器", intRange { it.artifactRefiningAdd }))
+    if (recipe.pillRefiningAdd > 0) add(PillStatLine("炼丹", intRange { it.pillRefiningAdd }))
+    if (recipe.spiritPlantingAdd > 0) add(PillStatLine("种植", intRange { it.spiritPlantingAdd }))
+    if (recipe.teachingAdd > 0) add(PillStatLine("传授", intRange { it.teachingAdd }))
+    if (recipe.moralityAdd > 0) add(PillStatLine("道德", intRange { it.moralityAdd }))
 }
 
 @Composable
@@ -489,70 +660,14 @@ private fun PillDetailDialog(
                     Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
                 }
 
-                Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    recipe.materials.forEach { (materialId, requiredQuantity) ->
-                        val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
-                        val herbName = herbData?.name
-                        val herbRarity = herbData?.rarity ?: 1
-                        val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
-                        val hasEnough = herb != null && herb.quantity >= requiredQuantity
-                        val materialName = herb?.name ?: herbData?.name ?: materialId
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = materialName,
-                                fontSize = 11.sp,
-                                color = if (hasEnough) Color.Black else Color(0xFFE74C3C)
-                            )
-                            Text(
-                                text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity",
-                                fontSize = 11.sp,
-                                color = if (hasEnough) GameColors.Success else Color(0xFFE74C3C)
-                            )
-                        }
-                    }
-                }
+                PillMaterialRequirementList(recipe = recipe, herbs = herbs)
 
                 Text(text = "效果 (下品~上品):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(text = "类型: ${recipe.category.displayName}", fontSize = 11.sp, color = Color.Black)
 
-                    data class StatLine(val label: String, val value: String)
-
-                    val statLines = buildList {
-                        if (recipe.breakthroughChance > 0) {
-                            add(StatLine("突破成功率", pctRange { it.breakthroughChance }))
-                            if (recipe.targetRealm > 0) add(StatLine("目标境界", "${recipe.targetRealm}阶"))
-                        }
-                        if (recipe.cultivationSpeedPercent > 0) add(StatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))
-                        if (recipe.cultivationAdd > 0) add(StatLine("修为", intRange { it.cultivationAdd }))
-                        if (recipe.physicalAttackAdd > 0) add(StatLine("物理攻击", intRange { it.physicalAttackAdd }))
-                        if (recipe.magicAttackAdd > 0) add(StatLine("法术攻击", intRange { it.magicAttackAdd }))
-                        if (recipe.physicalDefenseAdd > 0) add(StatLine("物理防御", intRange { it.physicalDefenseAdd }))
-                        if (recipe.magicDefenseAdd > 0) add(StatLine("法术防御", intRange { it.magicDefenseAdd }))
-                        if (recipe.hpAdd > 0) add(StatLine("生命值", intRange { it.hpAdd }))
-                        if (recipe.mpAdd > 0) add(StatLine("灵力容量", intRange { it.mpAdd }))
-                        if (recipe.speedAdd > 0) add(StatLine("身法", intRange { it.speedAdd }))
-                        if (recipe.critRateAdd > 0) add(StatLine("暴击率", pctRange { it.critRateAdd }))
-                        if (recipe.critEffectAdd > 0) add(StatLine("暴击效果", pctRange { it.critEffectAdd }))
-                        if (recipe.skillExpAdd > 0) add(StatLine("功法熟练度", intRange { it.skillExpAdd }))
-                        if (recipe.nurtureAdd > 0) add(StatLine("孕育值", intRange { it.nurtureAdd }))
-                        if (recipe.extendLife > 0) add(StatLine("延长寿命", "${intRange { it.extendLife }}年"))
-                        if (recipe.intelligenceAdd > 0) add(StatLine("悟性", intRange { it.intelligenceAdd }))
-                        if (recipe.charmAdd > 0) add(StatLine("魅力", intRange { it.charmAdd }))
-                        if (recipe.loyaltyAdd > 0) add(StatLine("忠诚", intRange { it.loyaltyAdd }))
-                        if (recipe.comprehensionAdd > 0) add(StatLine("领悟", intRange { it.comprehensionAdd }))
-                        if (recipe.artifactRefiningAdd > 0) add(StatLine("炼器", intRange { it.artifactRefiningAdd }))
-                        if (recipe.pillRefiningAdd > 0) add(StatLine("炼丹", intRange { it.pillRefiningAdd }))
-                        if (recipe.spiritPlantingAdd > 0) add(StatLine("种植", intRange { it.spiritPlantingAdd }))
-                        if (recipe.teachingAdd > 0) add(StatLine("传授", intRange { it.teachingAdd }))
-                        if (recipe.moralityAdd > 0) add(StatLine("道德", intRange { it.moralityAdd }))
-                    }
+                    val statLines = pillDetailStatLines(recipe, low, high, ::intRange, ::pctRange)
                     statLines.forEach { line ->
                         Text(text = "${line.label} ${line.value}", fontSize = 11.sp, color = Color.Black)
                     }
@@ -578,5 +693,40 @@ private fun PillDetailDialog(
                 }
                 }
             }
+    }
+}
+
+/** 所需材料列表（PillDetailDialog 拆分） */
+@Composable
+private fun PillMaterialRequirementList(
+    recipe: PillRecipeDatabase.PillRecipe,
+    herbs: List<Herb>
+) {
+    Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        recipe.materials.forEach { (materialId, requiredQuantity) ->
+            val herbData = com.xianxia.sect.core.registry.HerbDatabase.getHerbById(materialId)
+            val herbName = herbData?.name
+            val herbRarity = herbData?.rarity ?: 1
+            val herb = herbs.find { it.name == herbName && it.rarity == herbRarity }
+            val hasEnough = herb != null && herb.quantity >= requiredQuantity
+            val materialName = herb?.name ?: herbData?.name ?: materialId
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = materialName,
+                    fontSize = 11.sp,
+                    color = if (hasEnough) Color.Black else Color(0xFFE74C3C)
+                )
+                Text(
+                    text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity",
+                    fontSize = 11.sp,
+                    color = if (hasEnough) GameColors.Success else Color(0xFFE74C3C)
+                )
+            }
+        }
     }
 }

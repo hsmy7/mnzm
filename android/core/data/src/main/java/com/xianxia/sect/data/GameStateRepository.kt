@@ -146,35 +146,7 @@ class GameStateRepository @Inject constructor(
                     gameDataDao.insert(gameData.copy(id = "game_data_$slotId", slotId = slotId))
                 }
                 if (snapshot.disciples) {
-                    // 先清后写：防止已移除弟子的行残留在 DB 中
-                    discipleDaos.discipleDao.deleteAll(slotId)
-                    discipleDaos.discipleCoreDao.deleteAll(slotId)
-                    discipleDaos.discipleCombatStatsDao.deleteAll(slotId)
-                    discipleDaos.discipleEquipmentDao.deleteAll(slotId)
-                    discipleDaos.discipleExtendedDao.deleteAll(slotId)
-                    discipleDaos.discipleAttributesDao.deleteAll(slotId)
-                    database.discipleCompactDao().deleteAll(slotId)
-
-                    val batch = disciples.map { it.copy(slotId = slotId) }
-                    discipleDaos.discipleDao.upsertAll(batch)
-                    discipleDaos.discipleCoreDao.upsertAll(
-                        batch.map { DiscipleCore.fromDisciple(it).copy(slotId = slotId) }
-                    )
-                    discipleDaos.discipleCombatStatsDao.upsertAll(
-                        batch.map { DiscipleCombatStats.fromDisciple(it).copy(slotId = slotId) }
-                    )
-                    discipleDaos.discipleEquipmentDao.upsertAll(
-                        batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) }
-                    )
-                    discipleDaos.discipleExtendedDao.upsertAll(
-                        batch.map { DiscipleExtended.fromDisciple(it).copy(slotId = slotId) }
-                    )
-                    discipleDaos.discipleAttributesDao.upsertAll(
-                        batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) }
-                    )
-                    database.discipleCompactDao().insertAll(batch.map {
-                        DiscipleCompact.fromDisciple(it, gameData.bloodRefinementPctTotals)
-                    })
+                    flushDisciples(slotId = slotId, disciples = disciples, gameData = gameData)
                 }
                 if (snapshot.equipmentStacks) {
                     itemDaos.equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })
@@ -212,23 +184,69 @@ class GameStateRepository @Inject constructor(
         } catch (e: CancellationException) { throw e }
           catch (e: Exception) {
             // 事务失败：恢复被 getAndSet 清空的脏标记，防止数据永久丢失
-            dirty.updateAndGet { current ->
-                DirtySet(
-                    gameData = current.gameData || snapshot.gameData,
-                    disciples = current.disciples || snapshot.disciples,
-                    equipmentStacks = current.equipmentStacks || snapshot.equipmentStacks,
-                    equipmentInstances = current.equipmentInstances || snapshot.equipmentInstances,
-                    manualStacks = current.manualStacks || snapshot.manualStacks,
-                    manualInstances = current.manualInstances || snapshot.manualInstances,
-                    pills = current.pills || snapshot.pills,
-                    materials = current.materials || snapshot.materials,
-                    herbs = current.herbs || snapshot.herbs,
-                    seeds = current.seeds || snapshot.seeds,
-                    storageBags = current.storageBags || snapshot.storageBags,
-                    battleLogs = current.battleLogs || snapshot.battleLogs
-                )
-            }
+            restoreDirtyMarks(snapshot = snapshot)
             Log.e(TAG, "Failed to flush dirty state, restored marks", e)
+        }
+    }
+
+    /**
+     * 弟子脏数据落库（flushDirtyState 拆分）：先清后写，防止已移除弟子的行残留在 DB 中。
+     */
+    private suspend fun flushDisciples(
+        slotId: Int,
+        disciples: List<Disciple>,
+        gameData: GameData
+    ) {
+        // 先清后写：防止已移除弟子的行残留在 DB 中
+        discipleDaos.discipleDao.deleteAll(slotId)
+        discipleDaos.discipleCoreDao.deleteAll(slotId)
+        discipleDaos.discipleCombatStatsDao.deleteAll(slotId)
+        discipleDaos.discipleEquipmentDao.deleteAll(slotId)
+        discipleDaos.discipleExtendedDao.deleteAll(slotId)
+        discipleDaos.discipleAttributesDao.deleteAll(slotId)
+        database.discipleCompactDao().deleteAll(slotId)
+
+        val batch = disciples.map { it.copy(slotId = slotId) }
+        discipleDaos.discipleDao.upsertAll(batch)
+        discipleDaos.discipleCoreDao.upsertAll(
+            batch.map { DiscipleCore.fromDisciple(it).copy(slotId = slotId) }
+        )
+        discipleDaos.discipleCombatStatsDao.upsertAll(
+            batch.map { DiscipleCombatStats.fromDisciple(it).copy(slotId = slotId) }
+        )
+        discipleDaos.discipleEquipmentDao.upsertAll(
+            batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) }
+        )
+        discipleDaos.discipleExtendedDao.upsertAll(
+            batch.map { DiscipleExtended.fromDisciple(it).copy(slotId = slotId) }
+        )
+        discipleDaos.discipleAttributesDao.upsertAll(
+            batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) }
+        )
+        database.discipleCompactDao().insertAll(batch.map {
+            DiscipleCompact.fromDisciple(it, gameData.bloodRefinementPctTotals)
+        })
+    }
+
+    /**
+     * 恢复脏标记（flushDirtyState 拆分）：事务失败时把已清空的标记按位并回当前值。
+     */
+    private fun restoreDirtyMarks(snapshot: DirtySet) {
+        dirty.updateAndGet { current ->
+            DirtySet(
+                gameData = current.gameData || snapshot.gameData,
+                disciples = current.disciples || snapshot.disciples,
+                equipmentStacks = current.equipmentStacks || snapshot.equipmentStacks,
+                equipmentInstances = current.equipmentInstances || snapshot.equipmentInstances,
+                manualStacks = current.manualStacks || snapshot.manualStacks,
+                manualInstances = current.manualInstances || snapshot.manualInstances,
+                pills = current.pills || snapshot.pills,
+                materials = current.materials || snapshot.materials,
+                herbs = current.herbs || snapshot.herbs,
+                seeds = current.seeds || snapshot.seeds,
+                storageBags = current.storageBags || snapshot.storageBags,
+                battleLogs = current.battleLogs || snapshot.battleLogs
+            )
         }
     }
 

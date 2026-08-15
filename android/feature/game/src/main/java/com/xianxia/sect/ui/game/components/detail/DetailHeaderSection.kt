@@ -61,18 +61,7 @@ fun DetailRightPanel(
         modifier = Modifier.fillMaxHeight().fillMaxWidth(0.4f).padding(12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val resId = PortraitPool.getResourceId(disciple.portraitRes)
-            .takeIf { it != 0 }
-            ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
-        if (resId != 0) {
-            Image(
-                    painter = painterResource(id = resId),
-                    contentDescription = null,
-                    modifier = Modifier.weight(2f).fillMaxWidth().padding(horizontal = 4.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+        DetailPortrait(disciple = disciple)
         // 提前计算翻页索引，用于名称两侧的翻页按钮
         val currentIndex = allDisciples.indexOfFirst { it.id == disciple.id }
         val hasPrev = currentIndex > 0
@@ -80,40 +69,20 @@ fun DetailRightPanel(
         val navTo = actions.onNavigateToDisciple
 
         // 弟子名称行：翻页按钮在名称两侧
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            if (hasPrev && navTo != null) {
-                Box(
-                    modifier = Modifier.size(28.dp).clip(CircleShape)
-                        .background(Color(0x99000000))
-                        .clickableWithSound { dismissDropdown(); navTo(allDisciples[currentIndex - 1]) },
-                    contentAlignment = Alignment.Center
-                ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        DetailNameRow(
+            disciple = disciple,
+            hasPrev = hasPrev,
+            hasNext = hasNext,
+            onPrevClick = if (hasPrev && navTo != null) {
+                { dismissDropdown(); navTo(allDisciples[currentIndex - 1]) }
+            } else null,
+            onNextClick = if (hasNext && navTo != null) {
+                { dismissDropdown(); navTo(allDisciples[currentIndex + 1]) }
+            } else null,
+            onNameClick = actions.onRenameDisciple?.let { rename ->
+                { dismissDropdown(); rename() }
             }
-            Text(
-                disciple.name,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .clickableWithSound(enabled = actions.onRenameDisciple != null) {
-                        dismissDropdown()
-                        actions.onRenameDisciple?.invoke()
-                    }
-            )
-            if (hasNext && navTo != null) {
-                Box(
-                    modifier = Modifier.size(28.dp).clip(CircleShape)
-                        .background(Color(0x99000000))
-                        .clickableWithSound { dismissDropdown(); navTo(allDisciples[currentIndex + 1]) },
-                    contentAlignment = Alignment.Center
-                ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-            }
-        }
+        )
         Text(disciple.realmName, fontSize = 14.sp, color = Color.Black)
         Text(disciple.spiritRootName, fontSize = 12.sp, color = Color(0xFF00695C))
         Spacer(modifier = Modifier.height(8.dp))
@@ -123,93 +92,207 @@ fun DetailRightPanel(
             horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val btnColor = if (localDiscipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
-            val btnShape = if (showDiscipleTypeDropdown)
-                RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
-            else
-                RoundedCornerShape(4.dp)
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .clip(btnShape)
-                        .background(btnColor)
-                        .clickableWithSound { onDiscipleTypeDropdownChange(!showDiscipleTypeDropdown) }
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        if (localDiscipleType == "inner") "内门弟子" else "外门弟子",
-                        fontSize = 10.sp,
-                        color = Color.White
-                    )
+            DetailTypeDropdown(
+                localDiscipleType = localDiscipleType,
+                showDropdown = showDiscipleTypeDropdown,
+                onDropdownToggle = { onDiscipleTypeDropdownChange(!showDiscipleTypeDropdown) },
+                onTypeSelected = { newType ->
+                    onDiscipleTypeDropdownChange(false)
+                    onLocalDiscipleTypeChange(newType)
+                    viewModel?.changeDiscipleType(disciple.id, newType)
                 }
-                if (showDiscipleTypeDropdown) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
-                            .background(Color.White)
-                            .border(1.dp, btnColor)
-                            .clickableWithSound {
-                                onDiscipleTypeDropdownChange(false)
-                                val newType = if (localDiscipleType == "outer") "inner" else "outer"
-                                onLocalDiscipleTypeChange(newType)
-                                viewModel?.changeDiscipleType(disciple.id, newType)
-                            }
-                            .padding(horizontal = 6.dp, vertical = 1.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            if (localDiscipleType == "outer") "内门弟子" else "外门弟子",
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-            }
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Success)
-                    .clickableWithSound { dismissDropdown(); actions.onShowRelations() }.padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text("关系", fontSize = 10.sp, color = Color.White) }
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Info)
-                    .clickableWithSound { dismissDropdown(); actions.onShowStorageBag() }.padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                    .background(if (disciple.isFollowed) GameColors.Gold else Color.Black)
-                    .clickableWithSound { dismissDropdown(); viewModel?.toggleFollowDisciple(disciple.id) }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
-                    .clickableWithSound { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Warning)
-                    .clickableWithSound { dismissDropdown(); actions.onShowChat() }.padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text("交谈", fontSize = 10.sp, color = Color.White) }
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF00BCD4))
-                    .clickableWithSound { dismissDropdown(); actions.onShowLifeLog() }.padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text("日志", fontSize = 10.sp, color = Color.White) }
-            // 拜师按钮：已有师父时灰色禁用显示"已拜师"；师徒关系永久，仅一方死亡解绑
-            val hasMaster = disciple.masterId != null
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                    .background(if (hasMaster) Color(0xFF9E9E9E) else Color(0xFF8D6E63))
-                    .clickableWithSound(enabled = !hasMaster) { dismissDropdown(); actions.onShowApprentice() }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text(if (hasMaster) "已拜师" else "拜师", fontSize = 10.sp, color = Color.White) }
-            // 卸任按钮：空闲/死亡置灰；其余状态点击后由 DiscipleDetailScreen 按状态分流
-            val resignDisabled = evaluateResignGate(disciple.status, disciple.isAlive) is ResignGateResult.Disabled
-            Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                    .background(if (resignDisabled) Color(0xFF9E9E9E) else Color(0xFF607D8B))
-                    .clickableWithSound(enabled = !resignDisabled) {
-                        dismissDropdown(); actions.onShowResignConfirm()
-                    }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) { Text("卸任", fontSize = 10.sp, color = Color.White) }
+            )
+            DetailActionButtonsRow(
+                disciple = disciple,
+                dismissDropdown = dismissDropdown,
+                viewModel = viewModel,
+                actions = actions
+            )
         }
         Spacer(modifier = Modifier.weight(0.5f))
     }
+}
+
+/** 弟子头像区（DetailRightPanel 拆分）：头像 + 底部间距 */
+@Composable
+private fun ColumnScope.DetailPortrait(disciple: DiscipleAggregate) {
+    val resId = PortraitPool.getResourceId(disciple.portraitRes)
+        .takeIf { it != 0 }
+        ?: (SpriteResRegistry.resolve("disciple_portrait") ?: 0)
+    if (resId != 0) {
+        Image(
+            painter = painterResource(id = resId),
+            contentDescription = null,
+            modifier = Modifier.weight(2f).fillMaxWidth().padding(horizontal = 4.dp),
+            contentScale = ContentScale.Fit
+        )
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+}
+
+/** 弟子名称行（DetailRightPanel 拆分）：翻页按钮在名称两侧 */
+@Composable
+private fun DetailNameRow(
+    disciple: DiscipleAggregate,
+    hasPrev: Boolean,
+    hasNext: Boolean,
+    onPrevClick: (() -> Unit)?,
+    onNextClick: (() -> Unit)?,
+    onNameClick: (() -> Unit)?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (hasPrev && onPrevClick != null) {
+            Box(
+                modifier = Modifier.size(28.dp).clip(CircleShape)
+                    .background(Color(0x99000000))
+                    .clickableWithSound { onPrevClick() },
+                contentAlignment = Alignment.Center
+            ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        }
+        Text(
+            disciple.name,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .clickableWithSound(enabled = onNameClick != null) {
+                    onNameClick?.invoke()
+                }
+        )
+        if (hasNext && onNextClick != null) {
+            Box(
+                modifier = Modifier.size(28.dp).clip(CircleShape)
+                    .background(Color(0x99000000))
+                    .clickableWithSound { onNextClick() },
+                contentAlignment = Alignment.Center
+            ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+        }
+    }
+}
+
+/** 弟子类型切换按钮 + 下拉（DetailRightPanel 拆分） */
+@Composable
+private fun DetailTypeDropdown(
+    localDiscipleType: String,
+    showDropdown: Boolean,
+    onDropdownToggle: () -> Unit,
+    onTypeSelected: (String) -> Unit
+) {
+    val btnColor = if (localDiscipleType == "inner") Color(0xFF9C27B0) else Color(0xFF7B1FA2)
+    val btnShape = if (showDropdown)
+        RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
+    else
+        RoundedCornerShape(4.dp)
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .clip(btnShape)
+                .background(btnColor)
+                .clickableWithSound { onDropdownToggle() }
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                if (localDiscipleType == "inner") "内门弟子" else "外门弟子",
+                fontSize = 10.sp,
+                color = Color.White
+            )
+        }
+        if (showDropdown) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
+                    .background(Color.White)
+                    .border(1.dp, btnColor)
+                    .clickableWithSound {
+                        onTypeSelected(if (localDiscipleType == "outer") "inner" else "outer")
+                    }
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    if (localDiscipleType == "outer") "内门弟子" else "外门弟子",
+                    fontSize = 10.sp,
+                    color = Color.Black
+                )
+            }
+        }
+    }
+}
+
+/** 弟子操作按钮区（DetailRightPanel 拆分）：关系/储物袋/关注/驱逐/交谈/日志/拜师/卸任 */
+@Composable
+private fun DetailActionButtonsRow(
+    disciple: DiscipleAggregate,
+    dismissDropdown: () -> Unit,
+    viewModel: GameViewModel?,
+    actions: DetailActionCallbacks
+) {
+    DetailActionButton(
+        text = "关系",
+        color = GameColors.Success,
+        onClick = { dismissDropdown(); actions.onShowRelations() }
+    )
+    DetailActionButton(
+        text = "储物袋",
+        color = GameColors.Info,
+        onClick = { dismissDropdown(); actions.onShowStorageBag() }
+    )
+    DetailActionButton(
+        text = if (disciple.isFollowed) "已关注" else "关注",
+        color = if (disciple.isFollowed) GameColors.Gold else Color.Black,
+        onClick = { dismissDropdown(); viewModel?.toggleFollowDisciple(disciple.id) }
+    )
+    DetailActionButton(
+        text = "驱逐",
+        color = Color(0xFFE74C3C),
+        onClick = { dismissDropdown(); actions.onShowExpelConfirm() }
+    )
+    DetailActionButton(
+        text = "交谈",
+        color = GameColors.Warning,
+        onClick = { dismissDropdown(); actions.onShowChat() }
+    )
+    DetailActionButton(
+        text = "日志",
+        color = Color(0xFF00BCD4),
+        onClick = { dismissDropdown(); actions.onShowLifeLog() }
+    )
+    // 拜师按钮：已有师父时灰色禁用显示"已拜师"；师徒关系永久，仅一方死亡解绑
+    val hasMaster = disciple.masterId != null
+    DetailActionButton(
+        text = if (hasMaster) "已拜师" else "拜师",
+        color = if (hasMaster) Color(0xFF9E9E9E) else Color(0xFF8D6E63),
+        enabled = !hasMaster,
+        onClick = { dismissDropdown(); actions.onShowApprentice() }
+    )
+    // 卸任按钮：空闲/死亡置灰；其余状态点击后由 DiscipleDetailScreen 按状态分流
+    val resignDisabled = evaluateResignGate(disciple.status, disciple.isAlive) is ResignGateResult.Disabled
+    DetailActionButton(
+        text = "卸任",
+        color = if (resignDisabled) Color(0xFF9E9E9E) else Color(0xFF607D8B),
+        enabled = !resignDisabled,
+        onClick = { dismissDropdown(); actions.onShowResignConfirm() }
+    )
+}
+
+/** 通用操作按钮（DetailRightPanel 拆分） */
+@Composable
+private fun DetailActionButton(
+    text: String,
+    color: Color,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(color)
+            .clickableWithSound(enabled = enabled) { onClick() }
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) { Text(text, fontSize = 10.sp, color = Color.White) }
 }

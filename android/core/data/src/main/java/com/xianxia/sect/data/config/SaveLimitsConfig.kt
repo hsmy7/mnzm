@@ -1,9 +1,7 @@
 package com.xianxia.sect.data.config
 
-import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
-import dagger.hilt.android.qualifiers.ApplicationContext
+import com.xianxia.sect.data.prefs.KeyValueStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -11,19 +9,33 @@ import javax.inject.Singleton
  * 存档限制集中配置管理器。
  *
  * 统一管理所有与存档大小、数量、归档策略相关的运行时可调参数。
- * 所有值均通过 SharedPreferences 持久化，支持运行时热更新。
+ * 所有值均通过 MMKV 统一偏好持久化（docs/architecture.md 待办 D-29），支持运行时热更新。
  * 配置变更会自动约束在 [minValue, maxValue] 范围内。
  */
 @Singleton
 class SaveLimitsConfig @Inject constructor(
-    @ApplicationContext private val context: Context
+    private val keyValueStore: KeyValueStore
 ) {
-    private val prefs: SharedPreferences by lazy {
-        context.getSharedPreferences("save_limits_config", Context.MODE_PRIVATE)
+    @Volatile
+    private var migrated = false
+
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated) return
+            keyValueStore.migrateFromSharedPreferences(PREFS_NAME)
+            migrated = true
+        }
+    }
+
+    private fun store(): KeyValueStore {
+        ensureMigrated()
+        return keyValueStore
     }
 
     companion object {
         private const val TAG = "SaveLimitsConfig"
+        const val PREFS_NAME = "save_limits_config"
 
         // ==================== SharedPreferences Key 常量 ====================
 
@@ -99,7 +111,7 @@ class SaveLimitsConfig @Inject constructor(
      * 运行时可通过 [setMaxSaveSizeMb] 调整。
      */
     val maxSaveSizeBytes: Long
-        get() = prefs.getLong(
+        get() = store().getLong(
             KEY_MAX_SAVE_SIZE,
             DEFAULT_MAX_SAVE_SIZE_MB * 1024 * 1024
         ).coerceIn(1L * 1024 * 1024, ABSOLUTE_MAX_SAVE_SIZE_MB * 1024 * 1024)
@@ -109,7 +121,7 @@ class SaveLimitsConfig @Inject constructor(
      * 超出部分通过 DataArchiver 归档到磁盘。
      */
     val maxBattleLogs: Int
-        get() = prefs.getInt(KEY_MAX_BATTLE_LOGS, DEFAULT_MAX_BATTLE_LOGS)
+        get() = store().getInt(KEY_MAX_BATTLE_LOGS, DEFAULT_MAX_BATTLE_LOGS)
             .coerceIn(100, ABSOLUTE_MAX_BATTLE_LOGS)
 
     // ==================== 公开属性：总存储配额 ====================
@@ -119,7 +131,7 @@ class SaveLimitsConfig @Inject constructor(
      * 可通过 [setTotalStorageQuotaMb] 在运行时调整。
      */
     val totalStorageQuotaBytes: Long
-        get() = prefs.getLong(KEY_TOTAL_STORAGE_QUOTA, DEFAULT_TOTAL_STORAGE_QUOTA_MB * 1024 * 1024)
+        get() = store().getLong(KEY_TOTAL_STORAGE_QUOTA, DEFAULT_TOTAL_STORAGE_QUOTA_MB * 1024 * 1024)
             .coerceIn(100L * 1024 * 1024, ABSOLUTE_MAX_TOTAL_STORAGE_MB * 1024 * 1024)
 
     // ==================== 公开属性：分片降级 ====================
@@ -129,14 +141,14 @@ class SaveLimitsConfig @Inject constructor(
      * 当预估存档大小超过此值时，启用分片方案降低单次写入压力。
      */
     val shardingThresholdBytes: Long
-        get() = prefs.getLong(KEY_SHARDING_THRESHOLD, DEFAULT_SHARDING_THRESHOLD_MB * 1024 * 1024)
+        get() = store().getLong(KEY_SHARDING_THRESHOLD, DEFAULT_SHARDING_THRESHOLD_MB * 1024 * 1024)
             .coerceIn(20L * 1024 * 1024, maxSaveSizeBytes)
 
     /**
      * 单个分片的最大大小（字节）。
      */
     val shardMaxSizeBytes: Long
-        get() = prefs.getLong(KEY_SHARD_MAX_SIZE, DEFAULT_SHARD_MAX_SIZE_MB * 1024 * 1024)
+        get() = store().getLong(KEY_SHARD_MAX_SIZE, DEFAULT_SHARD_MAX_SIZE_MB * 1024 * 1024)
             .coerceIn(10L * 1024 * 1024, maxSaveSizeBytes / 2)
 
     // ==================== 公开属性：动态配额 ====================
@@ -146,7 +158,7 @@ class SaveLimitsConfig @Inject constructor(
      * 启用后，长期游戏的存储配额会自动放大。
      */
     val isDynamicQuotaEnabled: Boolean
-        get() = prefs.getBoolean(KEY_DYNAMIC_QUOTA_ENABLED, true)
+        get() = store().getBoolean(KEY_DYNAMIC_QUOTA_ENABLED, true)
 
     /**
      * 当前生效的总存储配额（字节），已包含动态调整因子。
@@ -182,30 +194,30 @@ class SaveLimitsConfig @Inject constructor(
 
     fun setMaxSaveSizeMb(sizeMb: Long) {
         val clamped = sizeMb.coerceIn(1, ABSOLUTE_MAX_SAVE_SIZE_MB)
-        prefs.edit().putLong(KEY_MAX_SAVE_SIZE, clamped * 1024 * 1024).apply()
+        store().putLong(KEY_MAX_SAVE_SIZE, clamped * 1024 * 1024)
         Log.i(TAG, "maxSaveSize updated: ${clamped}MB (${clamped * 1024 * 1024} bytes)")
     }
 
     fun setMaxBattleLogs(count: Int) {
         val clamped = count.coerceIn(100, ABSOLUTE_MAX_BATTLE_LOGS)
-        prefs.edit().putInt(KEY_MAX_BATTLE_LOGS, clamped).apply()
+        store().putInt(KEY_MAX_BATTLE_LOGS, clamped)
         Log.i(TAG, "maxBattleLogs updated: $clamped")
     }
 
     fun setTotalStorageQuotaMb(quotaMb: Long) {
         val clamped = quotaMb.coerceIn(100, ABSOLUTE_MAX_TOTAL_STORAGE_MB)
-        prefs.edit().putLong(KEY_TOTAL_STORAGE_QUOTA, clamped * 1024 * 1024).apply()
+        store().putLong(KEY_TOTAL_STORAGE_QUOTA, clamped * 1024 * 1024)
         Log.i(TAG, "totalStorageQuota updated: ${clamped}MB")
     }
 
     fun setShardingThresholdMb(thresholdMb: Long) {
         val clamped = thresholdMb.coerceIn(20, ABSOLUTE_MAX_SAVE_SIZE_MB)
-        prefs.edit().putLong(KEY_SHARDING_THRESHOLD, clamped * 1024 * 1024).apply()
+        store().putLong(KEY_SHARDING_THRESHOLD, clamped * 1024 * 1024)
         Log.i(TAG, "shardingThreshold updated: ${clamped}MB")
     }
 
     fun setDynamicQuotaEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_DYNAMIC_QUOTA_ENABLED, enabled).apply()
+        store().putBoolean(KEY_DYNAMIC_QUOTA_ENABLED, enabled)
         Log.i(TAG, "dynamicQuota enabled=$enabled")
     }
 
@@ -213,7 +225,7 @@ class SaveLimitsConfig @Inject constructor(
      * 重置所有配置为默认值。
      */
     fun resetToDefaults() {
-        prefs.edit().clear().apply()
+        store().clearAll()
         Log.i(TAG, "All save limits reset to defaults")
     }
 

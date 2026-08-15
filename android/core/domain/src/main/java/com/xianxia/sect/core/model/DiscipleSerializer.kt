@@ -34,7 +34,13 @@ object DiscipleSerializer : KSerializer<Disciple> {
     override val descriptor: SerialDescriptor = DiscipleSurrogate.serializer().descriptor
 
     override fun serialize(encoder: Encoder, value: Disciple) {
-        val surrogate = DiscipleSurrogate(
+        val surrogate = buildSurrogate(value = value)
+        encoder.encodeSerializableValue(DiscipleSurrogate.serializer(), surrogate)
+    }
+
+    /** 构建平铺代理对象（serialize 拆分）：直接字段 + 各 @Embedded 段 copy 填充 */
+    private fun buildSurrogate(value: Disciple): DiscipleSurrogate {
+        var surrogate = DiscipleSurrogate(
             // ===== 直接字段 =====
             id = value.id,
             name = value.name,
@@ -66,8 +72,17 @@ object DiscipleSerializer : KSerializer<Disciple> {
             manualCompletionMonth = value.manualCompletionMonth,
             manualCompletionPhase = value.manualCompletionPhase,
             equipmentNurturingCompletionMonth = value.equipmentNurturingCompletionMonth,
-            equipmentNurturingCompletionPhase = value.equipmentNurturingCompletionPhase,
+            equipmentNurturingCompletionPhase = value.equipmentNurturingCompletionPhase
+        )
+        surrogate = withCombatPillFields(surrogate = surrogate, value = value)
+        surrogate = withEquipmentSocialUsageFields(surrogate = surrogate, value = value)
+        surrogate = withSkillFields(surrogate = surrogate, value = value)
+        return surrogate
+    }
 
+    /** 战斗属性 + 丹药效果段（serialize 拆分） */
+    private fun withCombatPillFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
+        surrogate.copy(
             // ===== CombatAttributes @Embedded =====
             baseHp = value.combat.baseHp,
             baseMp = value.combat.baseMp,
@@ -104,8 +119,12 @@ object DiscipleSerializer : KSerializer<Disciple> {
             pillNurtureSpeedBonus = value.pillEffects.pillNurtureSpeedBonus,
             pillEffectDuration = value.pillEffects.pillEffectDuration,
             activePillCategory = value.pillEffects.activePillCategory,
-            activePillTypes = value.pillEffects.activePillTypes.toList(),
+            activePillTypes = value.pillEffects.activePillTypes.toList()
+        )
 
+    /** 装备 + 社交 + 使用追踪段（serialize 拆分） */
+    private fun withEquipmentSocialUsageFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
+        surrogate.copy(
             // ===== EquipmentSet @Embedded =====
             weaponId = value.equipment.weaponId,
             armorId = value.equipment.armorId,
@@ -129,6 +148,19 @@ object DiscipleSerializer : KSerializer<Disciple> {
             griefEndYear = value.social.griefEndYear ?: NULL_INT_SENTINEL,
             masterId = value.social.masterId ?: "",
 
+            // ===== UsageTracking @Embedded =====
+            usedFunctionalPillTypes = value.usage.usedFunctionalPillTypes,
+            usedExtendLifePillIds = value.usage.usedExtendLifePillIds,
+            usedPermanentPillKeys = value.usage.usedPermanentPillKeys.toList(),
+            usedExtendLifePillTypes = value.usage.usedExtendLifePillTypes.toList(),
+            recruitedMonth = value.usage.recruitedMonth,
+            hasReviveEffect = value.usage.hasReviveEffect,
+            hasClearAllEffect = value.usage.hasClearAllEffect
+        )
+
+    /** 技能属性段（serialize 拆分） */
+    private fun withSkillFields(surrogate: DiscipleSurrogate, value: Disciple): DiscipleSurrogate =
+        surrogate.copy(
             // ===== SkillStats @Embedded =====
             intelligence = value.skills.intelligence,
             charm = value.skills.charm,
@@ -146,23 +178,17 @@ object DiscipleSerializer : KSerializer<Disciple> {
             alchemyLevel = value.skills.alchemyLevel,
             alchemyPromotionCount = value.skills.alchemyPromotionCount,
             forgeLevel = value.skills.forgeLevel,
-            forgePromotionCount = value.skills.forgePromotionCount,
-
-            // ===== UsageTracking @Embedded =====
-            usedFunctionalPillTypes = value.usage.usedFunctionalPillTypes,
-            usedExtendLifePillIds = value.usage.usedExtendLifePillIds,
-            usedPermanentPillKeys = value.usage.usedPermanentPillKeys.toList(),
-            usedExtendLifePillTypes = value.usage.usedExtendLifePillTypes.toList(),
-            recruitedMonth = value.usage.recruitedMonth,
-            hasReviveEffect = value.usage.hasReviveEffect,
-            hasClearAllEffect = value.usage.hasClearAllEffect,
+            forgePromotionCount = value.skills.forgePromotionCount
         )
-        encoder.encodeSerializableValue(DiscipleSurrogate.serializer(), surrogate)
-    }
 
     override fun deserialize(decoder: Decoder): Disciple {
         val surrogate = decoder.decodeSerializableValue(DiscipleSurrogate.serializer())
-        return Disciple(
+        return buildDisciple(surrogate = surrogate)
+    }
+
+    /** 从平铺代理对象构建 Disciple（deserialize 拆分）：直接字段 + 各 @Embedded 段 copy 填充 */
+    private fun buildDisciple(surrogate: DiscipleSurrogate): Disciple {
+        var disciple = Disciple(
             // ===== 直接字段 =====
             id = surrogate.id,
             slotId = 0, // slotId 由 StorageEngine 写入时赋值
@@ -195,9 +221,17 @@ object DiscipleSerializer : KSerializer<Disciple> {
             manualCompletionMonth = surrogate.manualCompletionMonth,
             manualCompletionPhase = surrogate.manualCompletionPhase,
             equipmentNurturingCompletionMonth = surrogate.equipmentNurturingCompletionMonth,
-            equipmentNurturingCompletionPhase = surrogate.equipmentNurturingCompletionPhase,
+            equipmentNurturingCompletionPhase = surrogate.equipmentNurturingCompletionPhase
+        )
+        disciple = withCombatPillValues(disciple = disciple, surrogate = surrogate)
+        disciple = withEquipmentSocialUsageValues(disciple = disciple, surrogate = surrogate)
+        disciple = withSkillsValues(disciple = disciple, surrogate = surrogate)
+        return disciple
+    }
 
-            // ===== CombatAttributes @Embedded =====
+    /** 战斗属性 + 丹药效果段（deserialize 拆分） */
+    private fun withCombatPillValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
+        disciple.copy(
             combat = CombatAttributes(
                 baseHp = surrogate.baseHp,
                 baseMp = surrogate.baseMp,
@@ -217,10 +251,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 breakthroughCount = surrogate.breakthroughCount,
                 breakthroughFailCount = surrogate.breakthroughFailCount,
                 currentHp = surrogate.currentHp,
-                currentMp = surrogate.currentMp,
+                currentMp = surrogate.currentMp
             ),
-
-            // ===== PillEffects @Embedded =====
             pillEffects = PillEffects(
                 pillPhysicalAttackBonus = surrogate.pillPhysicalAttackBonus,
                 pillMagicAttackBonus = surrogate.pillMagicAttackBonus,
@@ -236,10 +268,13 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 pillNurtureSpeedBonus = surrogate.pillNurtureSpeedBonus,
                 pillEffectDuration = surrogate.pillEffectDuration,
                 activePillCategory = surrogate.activePillCategory,
-                activePillTypes = surrogate.activePillTypes.toSet(),
-            ),
+                activePillTypes = surrogate.activePillTypes.toSet()
+            )
+        )
 
-            // ===== EquipmentSet @Embedded =====
+    /** 装备 + 社交 + 使用追踪段（deserialize 拆分） */
+    private fun withEquipmentSocialUsageValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
+        disciple.copy(
             equipment = EquipmentSet(
                 weaponId = surrogate.weaponId,
                 armorId = surrogate.armorId,
@@ -251,10 +286,8 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 accessoryNurture = surrogate.accessoryNurture,
                 storageBagItems = surrogate.storageBagItems,
                 storageBagSpiritStones = surrogate.storageBagSpiritStones,
-                spiritStones = surrogate.spiritStones,
+                spiritStones = surrogate.spiritStones
             ),
-
-            // ===== SocialData @Embedded =====
             social = SocialData(
                 partnerId = surrogate.partnerId.ifEmpty { null },
                 partnerSectId = surrogate.partnerSectId.ifEmpty { null },
@@ -263,10 +296,22 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 lastChildYear = surrogate.lastChildYear,
                 childBirthMonth = surrogate.childBirthMonth.takeIf { it != 0 },
                 griefEndYear = surrogate.griefEndYear.takeIf { it != NULL_INT_SENTINEL },
-                masterId = surrogate.masterId.ifEmpty { null },
+                masterId = surrogate.masterId.ifEmpty { null }
             ),
+            usage = UsageTracking(
+                usedFunctionalPillTypes = surrogate.usedFunctionalPillTypes,
+                usedExtendLifePillIds = surrogate.usedExtendLifePillIds,
+                usedPermanentPillKeys = surrogate.usedPermanentPillKeys.toSet(),
+                usedExtendLifePillTypes = surrogate.usedExtendLifePillTypes.toSet(),
+                recruitedMonth = surrogate.recruitedMonth,
+                hasReviveEffect = surrogate.hasReviveEffect,
+                hasClearAllEffect = surrogate.hasClearAllEffect
+            )
+        )
 
-            // ===== SkillStats @Embedded =====
+    /** 技能属性段（deserialize 拆分） */
+    private fun withSkillsValues(disciple: Disciple, surrogate: DiscipleSurrogate): Disciple =
+        disciple.copy(
             skills = SkillStats(
                 intelligence = surrogate.intelligence,
                 charm = surrogate.charm,
@@ -284,21 +329,9 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 alchemyLevel = surrogate.alchemyLevel,
                 alchemyPromotionCount = surrogate.alchemyPromotionCount,
                 forgeLevel = surrogate.forgeLevel,
-                forgePromotionCount = surrogate.forgePromotionCount,
-            ),
-
-            // ===== UsageTracking @Embedded =====
-            usage = UsageTracking(
-                usedFunctionalPillTypes = surrogate.usedFunctionalPillTypes,
-                usedExtendLifePillIds = surrogate.usedExtendLifePillIds,
-                usedPermanentPillKeys = surrogate.usedPermanentPillKeys.toSet(),
-                usedExtendLifePillTypes = surrogate.usedExtendLifePillTypes.toSet(),
-                recruitedMonth = surrogate.recruitedMonth,
-                hasReviveEffect = surrogate.hasReviveEffect,
-                hasClearAllEffect = surrogate.hasClearAllEffect,
-            ),
+                forgePromotionCount = surrogate.forgePromotionCount
+            )
         )
-    }
 
     private fun safeDiscipleStatus(name: String): DiscipleStatus {
         return try {

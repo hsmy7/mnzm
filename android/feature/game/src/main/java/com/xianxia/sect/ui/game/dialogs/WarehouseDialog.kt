@@ -54,104 +54,143 @@ fun WarehouseDialog(
         mode = DialogMode.Half,
         scrollableContent = false
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "驻守弟子",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getWarehouseGarrisonInfo())
-            }
-
-            val borderColor = if (garrisonDisciple != null) {
-                try {
-                    Color(android.graphics.Color.parseColor(garrisonDisciple.spiritRoot.countColor))
-                } catch (e: Exception) {
-                    GameColors.Success
+        WarehouseDialogContent(
+            garrisonDisciple = garrisonDisciple,
+            onGarrisonSelect = { showGarrisonSelect = true },
+            onGarrisonDetail = {
+                garrisonDisciple?.let {
+                    viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
                 }
-            } else {
-                GameColors.SurfaceLightGray
+            },
+            onGarrisonRemove = {
+                scope.launch {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        productionViewModel
+                            .removeWarehouseGarrison(buildingInstanceId)
+                    }
+                }
             }
-
-            DiscipleSlot(
-                disciple = garrisonDisciple,
-                borderColor = borderColor,
-                showActions = true,
-                onSlotClick = {
-                    garrisonDisciple?.let {
-                        viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples))
-                    }
-                },
-                onEmptySlotClick = { showGarrisonSelect = true },
-                onDismiss = {
-                    scope.launch {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            productionViewModel
-                                .removeWarehouseGarrison(buildingInstanceId)
-                        }
-                    }
-                },
-                onSwap = { showGarrisonSelect = true }
-            )
-        }
+        )
     }
 
     if (showGarrisonSelect) {
-        val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
-        val battleAndExplorationIds = remember(gameData) {
-            val gd = gameData
-            if (gd == null) return@remember emptySet()
-            val battleIds = gd.battleTeams.flatMap { t ->
-                t.slots.map { it.discipleId }
-            }.filter { it.isNotEmpty() }.toSet()
-            val explorationIds = gd.caveExplorationTeams.flatMap { t ->
-                t.memberIds
-            }.filter { it.isNotEmpty() }.toSet()
-            battleIds + explorationIds
-        }
-        val availableDisciples = disciples.filter { d ->
-            d.isAlive
-                && (gameData?.warehouseGarrisons?.none { it.discipleId == d.id } ?: true)
-        }
-
-        DiscipleSelectorDialog(
-            config = DiscipleSelectorConfig(title = "选择驻守弟子"),
-            disciples = availableDisciples,
-            showAllEnabled = showAllEnabled,
-            battleAndExplorationIds = battleAndExplorationIds,
-            onDismiss = { showGarrisonSelect = false },
-            onConfirm = { selected ->
-                if (selected.isNotEmpty()) {
-                    scope.launch {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            val disciple = selected.first()
-                            if (showAllEnabled
-                                && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
-                            ) {
-                                viewModel.releaseDiscipleForReassignment(disciple.id)
-                            }
-                            productionViewModel.assignWarehouseGarrison(
-                                buildingInstanceId, disciple.id,
-                                disciple.name, activeSectId
-                            )
-                            showGarrisonSelect = false
-                        }
-                    }
-                }
-            },
-            viewModel = viewModel
+        WarehouseGarrisonSelectDialog(
+            buildingInstanceId = buildingInstanceId,
+            activeSectId = activeSectId,
+            gameData = gameData,
+            disciples = disciples,
+            viewModel = viewModel,
+            productionViewModel = productionViewModel,
+            onDismiss = { showGarrisonSelect = false }
         )
     }
+}
+
+/** 仓库主内容区（WarehouseDialog 拆分）：驻守弟子槽位 */
+@Composable
+private fun WarehouseDialogContent(
+    garrisonDisciple: DiscipleAggregate?,
+    onGarrisonSelect: () -> Unit,
+    onGarrisonDetail: () -> Unit,
+    onGarrisonRemove: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "驻守弟子",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            ElderBonusInfoButton(bonusInfo = ElderBonusInfoProvider.getWarehouseGarrisonInfo())
+        }
+
+        val borderColor = if (garrisonDisciple != null) {
+            try {
+                Color(android.graphics.Color.parseColor(garrisonDisciple.spiritRoot.countColor))
+            } catch (e: Exception) {
+                GameColors.Success
+            }
+        } else {
+            GameColors.SurfaceLightGray
+        }
+
+        DiscipleSlot(
+            disciple = garrisonDisciple,
+            borderColor = borderColor,
+            showActions = true,
+            onSlotClick = onGarrisonDetail,
+            onEmptySlotClick = onGarrisonSelect,
+            onDismiss = onGarrisonRemove,
+            onSwap = onGarrisonSelect
+        )
+    }
+}
+
+/** 仓库驻守弟子选择弹窗（WarehouseDialog 拆分） */
+@Composable
+private fun WarehouseGarrisonSelectDialog(
+    buildingInstanceId: String,
+    activeSectId: String,
+    gameData: GameData?,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel,
+    productionViewModel: ProductionViewModel,
+    onDismiss: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+    val battleAndExplorationIds = remember(gameData) {
+        val gd = gameData
+        if (gd == null) return@remember emptySet()
+        val battleIds = gd.battleTeams.flatMap { t ->
+            t.slots.map { it.discipleId }
+        }.filter { it.isNotEmpty() }.toSet()
+        val explorationIds = gd.caveExplorationTeams.flatMap { t ->
+            t.memberIds
+        }.filter { it.isNotEmpty() }.toSet()
+        battleIds + explorationIds
+    }
+    val availableDisciples = disciples.filter { d ->
+        d.isAlive
+            && (gameData?.warehouseGarrisons?.none { it.discipleId == d.id } ?: true)
+    }
+
+    DiscipleSelectorDialog(
+        config = DiscipleSelectorConfig(title = "选择驻守弟子"),
+        disciples = availableDisciples,
+        showAllEnabled = showAllEnabled,
+        battleAndExplorationIds = battleAndExplorationIds,
+        onDismiss = onDismiss,
+        onConfirm = { selected ->
+            if (selected.isNotEmpty()) {
+                scope.launch {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        val disciple = selected.first()
+                        if (showAllEnabled
+                            && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
+                        ) {
+                            viewModel.releaseDiscipleForReassignment(disciple.id)
+                        }
+                        productionViewModel.assignWarehouseGarrison(
+                            buildingInstanceId, disciple.id,
+                            disciple.name, activeSectId
+                        )
+                        onDismiss()
+                    }
+                }
+            }
+        },
+        viewModel = viewModel
+    )
 }

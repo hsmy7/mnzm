@@ -128,61 +128,25 @@ class ElderManagementUseCase @Inject constructor(
 
         // 捕获被顶替的长老与被清空的亲传弟子列表，写后释放 gate
         // （回归：顶替旧长老时从不 release，旧弟子 gate 注册残留从可用列表"消失"）
-        val replacedIds = mutableListOf<String>()
-        val oldElderId = getElderIdBySlotType(elderSlots, slotType)
-        if (oldElderId.isNotEmpty() && oldElderId != discipleId) replacedIds.add(oldElderId)
-        if (slotType in SLOT_TYPES_CLEARING_DIRECT_DISCIPLES) {
-            // 只释放该分支实际清空的那一类亲传列表——全部 7 类一起 release 会
-            // 误释仍在岗的亲传弟子（数据还在但 gate 被清，从可用列表"消失"）
-            replacedIds += getClearedDirectList(elderSlots, slotType)
-        }
+        val replacedIds = collectReplacedIds(
+            elderSlots = elderSlots,
+            slotType = slotType,
+            discipleId = discipleId
+        )
 
-        val newElderSlots = when (slotType) {
-            ElderSlotType.HERB_GARDEN -> elderSlots.copy(
-                herbGardenElder = discipleId,
-                herbGardenDisciples = emptyList()
-            )
-            ElderSlotType.ALCHEMY -> elderSlots.copy(
-                alchemyElder = discipleId,
-                alchemyDisciples = emptyList()
-            )
-            ElderSlotType.FORGE -> elderSlots.copy(
-                forgeElder = discipleId,
-                forgeDisciples = emptyList()
-            )
-            ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
-                viceSectMaster = discipleId
-            )
-            ElderSlotType.OUTER_ELDER -> elderSlots.copy(
-                outerElder = discipleId
-            )
-            ElderSlotType.PREACHING -> elderSlots.copy(
-                preachingElder = discipleId,
-                preachingMasters = emptyList()
-            )
-            ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
-                lawEnforcementElder = discipleId,
-                lawEnforcementDisciples = emptyList()
-            )
-            ElderSlotType.INNER_ELDER -> elderSlots.copy(
-                innerElder = discipleId
-            )
-            ElderSlotType.RECRUITING -> elderSlots.copy(
-                recruitingElder = discipleId
-            )
-            ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
-                qingyunPreachingElder = discipleId,
-                qingyunPreachingMasters = emptyList()
-            )
-        }
+        val newElderSlots = buildElderSlotsWithAppointment(
+            elderSlots = elderSlots,
+            slotType = slotType,
+            discipleId = discipleId
+        )
         gameEngine.updateElderSlots(newElderSlots)
         // 登记分配
         assignmentGate.confirmAssign(discipleId, targetSlot)
         // 释放被顶替者 gate + 同步状态（未注册时为空操作，安全）
-        replacedIds.distinct().filter { it != discipleId }.forEach { id ->
-            assignmentGate.release(id)
-            gameEngine.syncSingleDiscipleStatus(id)
-        }
+        releaseReplacedIds(
+            replacedIds = replacedIds,
+            discipleId = discipleId
+        )
         // Checkpoint：长老变化后重算生产 duration
         if (slotType in productionElderTypes) {
             gameEngine.checkpointAllProduction()
@@ -192,6 +156,75 @@ class ElderManagementUseCase @Inject constructor(
             gameEngine.checkpointAllDisciples()
         }
         return ElderResult.Success("长老任命成功")
+    }
+
+    /** 收集被顶替长老与被清空亲传弟子 id（assignElder 拆分）：写后释放 gate 用 */
+    private fun collectReplacedIds(
+        elderSlots: ElderSlots,
+        slotType: ElderSlotType,
+        discipleId: String
+    ): List<String> {
+        val replacedIds = mutableListOf<String>()
+        val oldElderId = getElderIdBySlotType(elderSlots, slotType)
+        if (oldElderId.isNotEmpty() && oldElderId != discipleId) replacedIds.add(oldElderId)
+        if (slotType in SLOT_TYPES_CLEARING_DIRECT_DISCIPLES) {
+            // 只释放该分支实际清空的那一类亲传列表——全部 7 类一起 release 会
+            // 误释仍在岗的亲传弟子（数据还在但 gate 被清，从可用列表"消失"）
+            replacedIds += getClearedDirectList(elderSlots, slotType)
+        }
+        return replacedIds
+    }
+
+    /** 任命后长老槽位（assignElder 拆分）：按类型写入选定槽位并清空对应亲传列表 */
+    private fun buildElderSlotsWithAppointment(
+        elderSlots: ElderSlots,
+        slotType: ElderSlotType,
+        discipleId: String
+    ): ElderSlots = when (slotType) {
+        ElderSlotType.HERB_GARDEN -> elderSlots.copy(
+            herbGardenElder = discipleId,
+            herbGardenDisciples = emptyList()
+        )
+        ElderSlotType.ALCHEMY -> elderSlots.copy(
+            alchemyElder = discipleId,
+            alchemyDisciples = emptyList()
+        )
+        ElderSlotType.FORGE -> elderSlots.copy(
+            forgeElder = discipleId,
+            forgeDisciples = emptyList()
+        )
+        ElderSlotType.VICE_SECT_MASTER -> elderSlots.copy(
+            viceSectMaster = discipleId
+        )
+        ElderSlotType.OUTER_ELDER -> elderSlots.copy(
+            outerElder = discipleId
+        )
+        ElderSlotType.PREACHING -> elderSlots.copy(
+            preachingElder = discipleId,
+            preachingMasters = emptyList()
+        )
+        ElderSlotType.LAW_ENFORCEMENT -> elderSlots.copy(
+            lawEnforcementElder = discipleId,
+            lawEnforcementDisciples = emptyList()
+        )
+        ElderSlotType.INNER_ELDER -> elderSlots.copy(
+            innerElder = discipleId
+        )
+        ElderSlotType.RECRUITING -> elderSlots.copy(
+            recruitingElder = discipleId
+        )
+        ElderSlotType.CLOUD_PREACHING -> elderSlots.copy(
+            qingyunPreachingElder = discipleId,
+            qingyunPreachingMasters = emptyList()
+        )
+    }
+
+    /** 释放被顶替者 gate 并同步状态（assignElder 拆分）：未注册时为空操作，安全 */
+    private suspend fun releaseReplacedIds(replacedIds: List<String>, discipleId: String) {
+        replacedIds.distinct().filter { it != discipleId }.forEach { id ->
+            assignmentGate.release(id)
+            gameEngine.syncSingleDiscipleStatus(id)
+        }
     }
 
     // ==================== 长老卸任 ====================

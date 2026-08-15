@@ -103,7 +103,7 @@ class GameStateStoreRollbackTest {
             ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
         }
 
-        repository = Mockito.mock(GameStateRepository::class.java)
+        repository = testGameStateRepository()
         stateStore = GameStateStoreImpl(
             applicationScopeProvider = ApplicationScopeProvider(),
             repository = repository

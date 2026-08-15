@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -70,80 +71,115 @@ fun GuideDialog(
             .background(GameColors.ButtonBackground)    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ======== 顶部栏 ========
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(GameColors.ButtonBackground)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "修仙引导",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                CloseButton(onClick = onDismiss)
-            }
+            GuideHeader(onDismiss = onDismiss)
 
             // ======== 三栏内容 ========
-            Row(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)
-            ) {
-                // ---- 左栏：任务列表 ----
-                TaskListColumn(
+            GuideContentRow(
+                display = GuideDisplayData(
                     allTasks = allTasks,
-                    claimedRewardTaskIds = claimedRewardIds,
+                    claimedRewardIds = claimedRewardIds,
                     selectedTaskId = selectedTaskId,
-                    onTaskSelected = { selectedTaskId = it },
-                    modifier = Modifier
-                        .weight(0.2f)
-                        .fillMaxHeight()
-                )
-
-                // 分隔线
-                VerticalDivider(
-                    color = GameColors.Border,
-                    modifier = Modifier.fillMaxHeight(),
-                    thickness = 1.dp
-                )
-
-                // ---- 中栏：任务详情 ----
-                TaskDetailColumn(
                     selectedTask = selectedTask,
                     gameData = gameData,
-                    discipleTables = discipleTables,
-                    modifier = Modifier
-                        .weight(0.6f)
-                        .fillMaxHeight()
-                )
-
-                // 分隔线
-                VerticalDivider(
-                    color = GameColors.Border,
-                    modifier = Modifier.fillMaxHeight(),
-                    thickness = 1.dp
-                )
-
-                // ---- 右栏：奖励 ----
-                RewardColumn(
-                    selectedTask = selectedTask,
-                    isClaimed = selectedTask?.let { it.id in claimedRewardIds } ?: false,
-                    isCompleted = selectedTask?.let { task ->
-                        task.conditions.all { condition -> condition.isMet(gameData, discipleTables) }
-                    } ?: false,
-                    onClaimReward = { taskId ->
-                        onClaimReward(taskId)
-                    },
-                    modifier = Modifier
-                        .weight(0.2f)
-                        .fillMaxHeight()
-                )
-            }
+                    discipleTables = discipleTables
+                ),
+                onTaskSelected = { selectedTaskId = it },
+                onClaimReward = onClaimReward
+            )
         }
+    }
+}
+
+/** 三栏展示数据（GuideDialog 拆分） */
+private data class GuideDisplayData(
+    val allTasks: List<GuideTask>,
+    val claimedRewardIds: Set<Int>,
+    val selectedTaskId: Int,
+    val selectedTask: GuideTask?,
+    val gameData: GameData,
+    val discipleTables: DiscipleTables?
+)
+
+/** 顶部栏（GuideDialog 拆分）：标题 + 关闭按钮 */
+@Composable
+private fun GuideHeader(onDismiss: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(GameColors.ButtonBackground)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "修仙引导",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        CloseButton(onClick = onDismiss)
+    }
+}
+
+/** 三栏内容区（GuideDialog 拆分）：任务列表 + 任务详情 + 奖励 */
+@Composable
+private fun ColumnScope.GuideContentRow(
+    display: GuideDisplayData,
+    onTaskSelected: (Int) -> Unit,
+    onClaimReward: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .weight(1f)
+    ) {
+        // ---- 左栏：任务列表 ----
+        TaskListColumn(
+            allTasks = display.allTasks,
+            claimedRewardTaskIds = display.claimedRewardIds,
+            selectedTaskId = display.selectedTaskId,
+            onTaskSelected = onTaskSelected,
+            modifier = Modifier
+                .weight(0.2f)
+                .fillMaxHeight()
+        )
+
+        // 分隔线
+        VerticalDivider(
+            color = GameColors.Border,
+            modifier = Modifier.fillMaxHeight(),
+            thickness = 1.dp
+        )
+
+        // ---- 中栏：任务详情 ----
+        TaskDetailColumn(
+            selectedTask = display.selectedTask,
+            gameData = display.gameData,
+            discipleTables = display.discipleTables,
+            modifier = Modifier
+                .weight(0.6f)
+                .fillMaxHeight()
+        )
+
+        // 分隔线
+        VerticalDivider(
+            color = GameColors.Border,
+            modifier = Modifier.fillMaxHeight(),
+            thickness = 1.dp
+        )
+
+        // ---- 右栏：奖励 ----
+        RewardColumn(
+            selectedTask = display.selectedTask,
+            isClaimed = display.selectedTask?.let { it.id in display.claimedRewardIds } ?: false,
+            isCompleted = display.selectedTask?.let { task ->
+                task.conditions.all { condition -> condition.isMet(display.gameData, display.discipleTables) }
+            } ?: false,
+            onClaimReward = onClaimReward,
+            modifier = Modifier
+                .weight(0.2f)
+                .fillMaxHeight()
+        )
     }
 }
 
@@ -217,20 +253,7 @@ private fun TaskDetailColumn(
 
     Column(modifier = modifier.fillMaxSize()) {
         // ---- 上 50%：任务描述 ----
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.5f)
-                .padding(16.dp)
-        ) {
-            Text(
-                text = selectedTask.description,
-                fontSize = 14.sp,
-                color = Color(0xFF333333),
-                lineHeight = 22.sp,
-                modifier = Modifier.verticalScroll(rememberScrollState())
-            )
-        }
+        TaskDescriptionArea(text = selectedTask.description)
 
         // 描述与条件之间的分隔线
         HorizontalDivider(
@@ -240,27 +263,60 @@ private fun TaskDetailColumn(
         )
 
         // ---- 下 50%：条件列表 ----
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.5f)
-                .padding(16.dp)
-        ) {
-            if (selectedTask.conditions.isEmpty()) {
-                Text(
-                    text = "无条件限制",
-                    fontSize = 13.sp,
-                    color = Color(0xFF999999)
-                )
-            } else {
-                LazyColumn {
-                    items(selectedTask.conditions) { condition ->
-                        ConditionItem(
-                            condition = condition,
-                            gameData = gameData,
-                            discipleTables = discipleTables
-                        )
-                    }
+        TaskConditionsColumn(
+            conditions = selectedTask.conditions,
+            gameData = gameData,
+            discipleTables = discipleTables
+        )
+    }
+}
+
+/** 任务描述区（TaskDetailColumn 拆分）：上 50% 描述文本 */
+@Composable
+private fun ColumnScope.TaskDescriptionArea(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(0.5f)
+            .padding(16.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 14.sp,
+            color = Color(0xFF333333),
+            lineHeight = 22.sp,
+            modifier = Modifier.verticalScroll(rememberScrollState())
+        )
+    }
+}
+
+/** 条件进度列表（TaskDetailColumn 拆分）：下 50% 条件清单 */
+@Composable
+private fun ColumnScope.TaskConditionsColumn(
+    conditions: List<GuideCondition>,
+    gameData: GameData,
+    discipleTables: DiscipleTables?
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(0.5f)
+            .padding(16.dp)
+    ) {
+        if (conditions.isEmpty()) {
+            Text(
+                text = "无条件限制",
+                fontSize = 13.sp,
+                color = Color(0xFF999999)
+            )
+        } else {
+            LazyColumn {
+                items(conditions) { condition ->
+                    ConditionItem(
+                        condition = condition,
+                        gameData = gameData,
+                        discipleTables = discipleTables
+                    )
                 }
             }
         }

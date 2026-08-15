@@ -37,13 +37,17 @@ class DiscipleServiceCrudTest {
         val store = FakeAtomicStateStore()
         mockStore = store
         tables = store.discipleTables
+        service = buildTestService(store = store)
+    }
 
+    /** setUp 拆分：组装 DiscipleService 依赖树（真实依赖 + delegate mock 端口） */
+    private fun buildTestService(store: FakeAtomicStateStore): DiscipleService {
         // ProductionSlotRepository 是 final 类：mock 拦截依赖类加载时机（顺序敏感 flaky），
         // 用真实实例 + mockSmart 端口（getSlots() 真实返回空列表，语义与 mock 时代一致；
         // clearDiscipleFromAllSlots 遍历该列表）
         val productionRepo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slotManager = DiscipleSlotManager(
-            stateStore = mockStore,
+            stateStore = store,
             productionSlotRepository = productionRepo,
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
@@ -52,20 +56,20 @@ class DiscipleServiceCrudTest {
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
-            stateStore = mockStore
+            stateStore = store
         )
         val masterService = DiscipleMasterApprenticeService(
-            stateStore = mockStore
+            stateStore = store
         )
         val lifecycleManager = DiscipleLifecycleManager(
-            stateStore = mockStore,
+            stateStore = store,
             discipleFactory = mockSmart(),
             rngManager = mockSmart(),
             slotManager = slotManager,
             productionSlotRepository = mockSmart(),
         )
-        service = DiscipleService(
-            stateStore = mockStore,
+        return DiscipleService(
+            stateStore = store,
             discipleFactory = mockSmart(),
             rngManager = mockSmart(),
             discipleEquipmentService = equipmentService,

@@ -31,11 +31,57 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
+
+/** 自动分配单项状态（AutoManagementDialog 拆分） */
+private class AutoAssignSectionState(
+    initialFocused: Boolean,
+    initialRootCounts: List<Int>,
+    initialThreshold: String
+) {
+    var focused by mutableStateOf(initialFocused)
+    var rootCounts by mutableStateOf(initialRootCounts)
+    var threshold by mutableStateOf(initialThreshold)
+}
+
+/** 自动管理对话框状态（AutoManagementDialog 拆分） */
+private class AutoManagementState(policies: SectPolicies?) {
+    val mine = AutoAssignSectionState(
+        policies?.autoMineFocused ?: false,
+        policies?.autoMineRootCounts ?: emptyList(),
+        (policies?.autoMineThreshold ?: 1).toString()
+    )
+    val alchemy = AutoAssignSectionState(
+        policies?.autoAlchemyFocused ?: false,
+        policies?.autoAlchemyRootCounts ?: emptyList(),
+        (policies?.autoAlchemyThreshold ?: 1).toString()
+    )
+    val forge = AutoAssignSectionState(
+        policies?.autoForgeFocused ?: false,
+        policies?.autoForgeRootCounts ?: emptyList(),
+        (policies?.autoForgeThreshold ?: 1).toString()
+    )
+    val singleResidence = AutoAssignSectionState(
+        policies?.autoSingleResidenceFocused ?: false,
+        policies?.autoSingleResidenceRootCounts ?: emptyList(),
+        (policies?.autoSingleResidenceThreshold ?: 1).toString()
+    )
+    val multiResidence = AutoAssignSectionState(
+        policies?.autoMultiResidenceFocused ?: false,
+        policies?.autoMultiResidenceRootCounts ?: emptyList(),
+        (policies?.autoMultiResidenceThreshold ?: 1).toString()
+    )
+    val plant = AutoAssignSectionState(
+        policies?.autoPlantFocused ?: false,
+        policies?.autoPlantRootCounts ?: emptyList(),
+        (policies?.autoPlantThreshold ?: 1).toString()
+    )
+}
 
 @Composable
 fun AutoManagementDialog(
@@ -44,41 +90,20 @@ fun AutoManagementDialog(
     onDismiss: () -> Unit
 ) {
     val policies = gameData?.sectPolicies
+    val state = remember { AutoManagementState(policies) }
 
-    var mineFocused by remember { mutableStateOf(policies?.autoMineFocused ?: false) }
-    var mineRootCounts by remember { mutableStateOf(policies?.autoMineRootCounts ?: emptyList<Int>()) }
-    var mineThreshold by remember { mutableStateOf((policies?.autoMineThreshold ?: 1).toString()) }
+    fun parsedThreshold(value: String): Int = value.toIntOrNull()?.coerceIn(1, 999) ?: 1
 
-    var alchemyFocused by remember { mutableStateOf(policies?.autoAlchemyFocused ?: false) }
-    var alchemyRootCounts by remember { mutableStateOf(policies?.autoAlchemyRootCounts ?: emptyList<Int>()) }
-    var alchemyThreshold by remember { mutableStateOf((policies?.autoAlchemyThreshold ?: 1).toString()) }
-
-    var forgeFocused by remember { mutableStateOf(policies?.autoForgeFocused ?: false) }
-    var forgeRootCounts by remember { mutableStateOf(policies?.autoForgeRootCounts ?: emptyList<Int>()) }
-    var forgeThreshold by remember { mutableStateOf((policies?.autoForgeThreshold ?: 1).toString()) }
-
-    var singleResidenceFocused by remember { mutableStateOf(policies?.autoSingleResidenceFocused ?: false) }
-    var singleResidenceRootCounts by remember { mutableStateOf(policies?.autoSingleResidenceRootCounts ?: emptyList<Int>()) }
-    var singleResidenceThreshold by remember { mutableStateOf((policies?.autoSingleResidenceThreshold ?: 1).toString()) }
-
-    var multiResidenceFocused by remember { mutableStateOf(policies?.autoMultiResidenceFocused ?: false) }
-    var multiResidenceRootCounts by remember { mutableStateOf(policies?.autoMultiResidenceRootCounts ?: emptyList<Int>()) }
-    var multiResidenceThreshold by remember { mutableStateOf((policies?.autoMultiResidenceThreshold ?: 1).toString()) }
-
-    var plantFocused by remember { mutableStateOf(policies?.autoPlantFocused ?: false) }
-    var plantRootCounts by remember { mutableStateOf(policies?.autoPlantRootCounts ?: emptyList<Int>()) }
-    var plantThreshold by remember { mutableStateOf((policies?.autoPlantThreshold ?: 1).toString()) }
-
-    val parsedThreshold: (String) -> Int = { it.toIntOrNull()?.coerceIn(1, 999) ?: 1 }
-
-    val saveAll = {
+    fun saveAll() {
         viewModel.setAutoAssignSettings(
-            mineFocused, mineRootCounts, parsedThreshold(mineThreshold),
-            alchemyFocused, alchemyRootCounts, parsedThreshold(alchemyThreshold),
-            forgeFocused, forgeRootCounts, parsedThreshold(forgeThreshold),
-            singleResidenceFocused, singleResidenceRootCounts, parsedThreshold(singleResidenceThreshold),
-            multiResidenceFocused, multiResidenceRootCounts, parsedThreshold(multiResidenceThreshold),
-            plantFocused, plantRootCounts, parsedThreshold(plantThreshold)
+            state.mine.focused, state.mine.rootCounts, parsedThreshold(state.mine.threshold),
+            state.alchemy.focused, state.alchemy.rootCounts, parsedThreshold(state.alchemy.threshold),
+            state.forge.focused, state.forge.rootCounts, parsedThreshold(state.forge.threshold),
+            state.singleResidence.focused, state.singleResidence.rootCounts,
+            parsedThreshold(state.singleResidence.threshold),
+            state.multiResidence.focused, state.multiResidence.rootCounts,
+            parsedThreshold(state.multiResidence.threshold),
+            state.plant.focused, state.plant.rootCounts, parsedThreshold(state.plant.threshold)
         )
     }
 
@@ -98,132 +123,73 @@ fun AutoManagementDialog(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            AutoAssignSection(
-                title = "无视状态自动入住单人住所",
-                attrLabel = "悟性 ≥",
-                focused = singleResidenceFocused,
-                rootCounts = singleResidenceRootCounts,
-                threshold = singleResidenceThreshold,
-                onFocusedToggle = {
-                    singleResidenceFocused = !singleResidenceFocused
-                    saveAll()
-                },
-                onRootToggle = { count ->
-                    singleResidenceRootCounts = if (count in singleResidenceRootCounts)
-                        singleResidenceRootCounts - count else singleResidenceRootCounts + count
-                    saveAll()
-                },
-                onThresholdChange = {
-                    singleResidenceThreshold = it
-                    saveAll()
-                }
+            AutoAssignSectionBlock(
+                title = "无视状态自动入住单人住所", attrLabel = "悟性 ≥",
+                state = state.singleResidence,
+                onChanged = { saveAll() }
             )
 
-            AutoAssignSection(
-                title = "无视状态自动入住多人住所",
-                attrLabel = "悟性 ≥",
-                focused = multiResidenceFocused,
-                rootCounts = multiResidenceRootCounts,
-                threshold = multiResidenceThreshold,
-                onFocusedToggle = {
-                    multiResidenceFocused = !multiResidenceFocused
-                    saveAll()
-                },
-                onRootToggle = { count ->
-                    multiResidenceRootCounts = if (count in multiResidenceRootCounts)
-                        multiResidenceRootCounts - count else multiResidenceRootCounts + count
-                    saveAll()
-                },
-                onThresholdChange = {
-                    multiResidenceThreshold = it
-                    saveAll()
-                }
+            AutoAssignSectionBlock(
+                title = "无视状态自动入住多人住所", attrLabel = "悟性 ≥",
+                state = state.multiResidence,
+                onChanged = { saveAll() }
             )
 
-            AutoAssignSection(
-                title = "空闲弟子自动种植（灵植阁）",
-                attrLabel = "灵植属性 ≥",
-                focused = plantFocused,
-                rootCounts = plantRootCounts,
-                threshold = plantThreshold,
-                onFocusedToggle = {
-                    plantFocused = !plantFocused
-                    saveAll()
-                },
-                onRootToggle = { count ->
-                    plantRootCounts = if (count in plantRootCounts) plantRootCounts - count else plantRootCounts + count
-                    saveAll()
-                },
-                onThresholdChange = {
-                    plantThreshold = it
-                    saveAll()
-                }
+            AutoAssignSectionBlock(
+                title = "空闲弟子自动种植（灵植阁）", attrLabel = "灵植属性 ≥",
+                state = state.plant,
+                onChanged = { saveAll() }
             )
 
-            AutoAssignSection(
-                title = "空闲弟子自动采矿（灵矿场）",
-                attrLabel = "采矿属性 ≥",
-                focused = mineFocused,
-                rootCounts = mineRootCounts,
-                threshold = mineThreshold,
-                onFocusedToggle = {
-                    mineFocused = !mineFocused
-                    saveAll()
-                },
-                onRootToggle = { count ->
-                    mineRootCounts = if (count in mineRootCounts) mineRootCounts - count else mineRootCounts + count
-                    saveAll()
-                },
-                onThresholdChange = {
-                    mineThreshold = it
-                    saveAll()
-                }
+            AutoAssignSectionBlock(
+                title = "空闲弟子自动采矿（灵矿场）", attrLabel = "采矿属性 ≥",
+                state = state.mine,
+                onChanged = { saveAll() }
             )
 
-            AutoAssignSection(
-                title = "空闲弟子自动炼丹（炼丹炉）",
-                attrLabel = "炼丹属性 ≥",
-                focused = alchemyFocused,
-                rootCounts = alchemyRootCounts,
-                threshold = alchemyThreshold,
-                onFocusedToggle = {
-                    alchemyFocused = !alchemyFocused
-                    saveAll()
-                },
-                onRootToggle = { count ->
-                    alchemyRootCounts = if (count in alchemyRootCounts) alchemyRootCounts - count else alchemyRootCounts + count
-                    saveAll()
-                },
-                onThresholdChange = {
-                    alchemyThreshold = it
-                    saveAll()
-                }
+            AutoAssignSectionBlock(
+                title = "空闲弟子自动炼丹（炼丹炉）", attrLabel = "炼丹属性 ≥",
+                state = state.alchemy,
+                onChanged = { saveAll() }
             )
 
-            AutoAssignSection(
-                title = "空闲弟子自动炼器（锻造坊）",
-                attrLabel = "炼器属性 ≥",
-                focused = forgeFocused,
-                rootCounts = forgeRootCounts,
-                threshold = forgeThreshold,
-                onFocusedToggle = {
-                    forgeFocused = !forgeFocused
-                    saveAll()
-                },
-                onRootToggle = { count ->
-                    forgeRootCounts = if (count in forgeRootCounts) forgeRootCounts - count else forgeRootCounts + count
-                    saveAll()
-                },
-                onThresholdChange = {
-                    forgeThreshold = it
-                    saveAll()
-                }
+            AutoAssignSectionBlock(
+                title = "空闲弟子自动炼器（锻造坊）", attrLabel = "炼器属性 ≥",
+                state = state.forge,
+                onChanged = { saveAll() }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
+
+/** 自动分配区块（AutoManagementDialog 拆分）：标题 + 勾选行 + 阈值输入 */
+@Composable
+private fun AutoAssignSectionBlock(
+    title: String,
+    attrLabel: String,
+    state: AutoAssignSectionState,
+    onChanged: () -> Unit
+) {
+    AutoAssignSection(
+        title = title,
+        attrLabel = attrLabel,
+        focused = state.focused,
+        rootCounts = state.rootCounts,
+        threshold = state.threshold,
+        onFocusedToggle = { state.focused = !state.focused; onChanged() },
+        onRootToggle = { count ->
+            state.rootCounts = toggleRootCount(state.rootCounts, count)
+            onChanged()
+        },
+        onThresholdChange = { state.threshold = it; onChanged() }
+    )
+}
+
+/** 灵根数量开关切换（AutoManagementDialog 拆分） */
+private fun toggleRootCount(current: List<Int>, count: Int): List<Int> =
+    if (count in current) current - count else current + count
 
 @Composable
 private fun AutoAssignSection(
@@ -244,65 +210,95 @@ private fun AutoAssignSection(
             color = Color.Black
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Start,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "已关注", fontSize = 12.sp, color = Color.Black)
-                Spacer(modifier = Modifier.width(2.dp))
-                CircularCheckbox(checked = focused, onToggle = onFocusedToggle)
-            }
-            Spacer(modifier = Modifier.width(6.dp))
-            SPIRIT_ROOT_FILTER_OPTIONS.forEachIndexed { index, (count, label) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = label, fontSize = 12.sp, color = Color.Black)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    CircularCheckbox(
-                        checked = count in rootCounts,
-                        onToggle = { onRootToggle(count) }
-                    )
-                }
-                if (index < SPIRIT_ROOT_FILTER_OPTIONS.size - 1) {
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-            }
-        }
+        AutoAssignCheckRow(
+            focused = focused,
+            rootCounts = rootCounts,
+            onFocusedToggle = onFocusedToggle,
+            onRootToggle = onRootToggle
+        )
 
         Spacer(modifier = Modifier.height(4.dp))
 
+        AutoAssignThresholdField(
+            attrLabel = attrLabel,
+            threshold = threshold,
+            onThresholdChange = onThresholdChange
+        )
+    }
+}
+
+/** 已关注 + 灵根数勾选行（AutoAssignSection 拆分） */
+@Composable
+private fun AutoAssignCheckRow(
+    focused: Boolean,
+    rootCounts: List<Int>,
+    onFocusedToggle: () -> Unit,
+    onRootToggle: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = attrLabel, fontSize = 12.sp, color = Color.Black)
-            Spacer(modifier = Modifier.width(4.dp))
-            BasicTextField(
-                value = threshold,
-                onValueChange = { v ->
-                    val filtered = v.filter { it.isDigit() }
-                    val num = filtered.toIntOrNull()
-                    onThresholdChange(
-                        when {
-                            num == null -> {
-                                // 溢出或空输入时保留当前值不变
-                                threshold
-                            }
-                            num < 1 -> "1"
-                            num > 999 -> "999"
-                            else -> num.toString()
-                        }
-                    )
-                },
-                modifier = Modifier.width(40.dp)
-                    .background(Color.White, RoundedCornerShape(4.dp))
-                    .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                singleLine = true,
-                textStyle = TextStyle(
-                    fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    color = Color.Black, textAlign = TextAlign.Center
-                ),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
+            Text(text = "已关注", fontSize = 12.sp, color = Color.Black)
+            Spacer(modifier = Modifier.width(2.dp))
+            CircularCheckbox(checked = focused, onToggle = onFocusedToggle)
         }
+        Spacer(modifier = Modifier.width(6.dp))
+        SPIRIT_ROOT_FILTER_OPTIONS.forEachIndexed { index, (count, label) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = label, fontSize = 12.sp, color = Color.Black)
+                Spacer(modifier = Modifier.width(2.dp))
+                CircularCheckbox(
+                    checked = count in rootCounts,
+                    onToggle = { onRootToggle(count) }
+                )
+            }
+            if (index < SPIRIT_ROOT_FILTER_OPTIONS.size - 1) {
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+        }
+    }
+}
+
+/** 属性门槛输入行（AutoAssignSection 拆分） */
+@Composable
+private fun AutoAssignThresholdField(
+    attrLabel: String,
+    threshold: String,
+    onThresholdChange: (String) -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = attrLabel, fontSize = 12.sp, color = Color.Black)
+        Spacer(modifier = Modifier.width(4.dp))
+        BasicTextField(
+            value = threshold,
+            onValueChange = { v ->
+                val filtered = v.filter { it.isDigit() }
+                val num = filtered.toIntOrNull()
+                onThresholdChange(
+                    when {
+                        num == null -> {
+                            // 溢出或空输入时保留当前值不变
+                            threshold
+                        }
+                        num < 1 -> "1"
+                        num > 999 -> "999"
+                        else -> num.toString()
+                    }
+                )
+            },
+            modifier = Modifier.width(40.dp)
+                .background(Color.White, RoundedCornerShape(4.dp))
+                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = Color.Black, textAlign = TextAlign.Center
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
     }
 }

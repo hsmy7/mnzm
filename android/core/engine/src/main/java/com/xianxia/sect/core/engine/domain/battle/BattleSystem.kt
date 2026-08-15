@@ -184,44 +184,86 @@ class BattleSystem @Inject constructor(
             GameConfig.Beast.getType(0)
         }
 
-        val hp: Int
-        val mp: Int
-        val physicalAttack: Int
-        val magicAttack: Int
-        val physicalDefense: Int
-        val magicDefense: Int
-        val speed: Int
-        val realmLayer: Int
+        val stats = resolveBeastStats(realmIndex, type, preGenStats)
+        val beastSkills = buildBeastSkills(type)
+        val typeIndex = GameConfig.Beast.TYPES.indexOf(type)
 
+        return Combatant(
+            id = "beast_$index",
+            name = "${type.prefix}${type.name}",
+            side = CombatantSide.ATTACKER,
+            hp = stats.hp,
+            maxHp = stats.hp,
+            mp = stats.mp,
+            maxMp = stats.mp,
+            physicalAttack = stats.physicalAttack,
+            magicAttack = stats.magicAttack,
+            physicalDefense = stats.physicalDefense,
+            magicDefense = stats.magicDefense,
+            speed = stats.speed,
+            critRate = 0.05 + realmIndex * 0.01,
+            skills = beastSkills,
+            realm = realmIndex,
+            realmName = GameConfig.Realm.getName(realmIndex),
+            realmLayer = stats.realmLayer,
+            element = type.element,
+            portraitRes = "beast_$typeIndex",
+            isBeast = true
+        )
+    }
+
+    /** 妖兽战斗属性（createBeast 拆分） */
+    private data class BeastCombatStats(
+        val hp: Int,
+        val mp: Int,
+        val physicalAttack: Int,
+        val magicAttack: Int,
+        val physicalDefense: Int,
+        val magicDefense: Int,
+        val speed: Int,
+        val realmLayer: Int
+    )
+
+    /** 妖兽属性解析（createBeast 拆分）：预计算属性（含随机方差）或向后兼容基础值 */
+    private fun resolveBeastStats(
+        realmIndex: Int,
+        type: GameConfig.BeastTypeConfig,
+        preGenStats: BeastPreGenStats?
+    ): BeastCombatStats {
         if (preGenStats != null) {
             // 使用预计算属性（生成时已含随机方差，地图显示战力 = 战斗实际战力）
             val s = preGenStats
             // 钳制防止存档篡改或数据损坏导致异常值
-            hp = s.maxHp.coerceIn(1, 10_000_000)
-            mp = s.maxMp.coerceAtLeast(0)
-            physicalAttack = s.physicalAttack.coerceAtLeast(0)
-            magicAttack = s.magicAttack.coerceAtLeast(0)
-            physicalDefense = s.physicalDefense.coerceAtLeast(0)
-            magicDefense = s.magicDefense.coerceAtLeast(0)
-            speed = s.speed.coerceAtLeast(0)
-            realmLayer = s.realmLayer
-        } else {
-            // 向后兼容：旧存档妖兽无预计算属性时，用基础值（不含随机方差）确保战斗不崩溃
-            val rl = 5 // 默认中层
-            val layerMult = 1.0 + (rl - 1) * 0.1
-            val stats = GameConfig.Beast.getRealmStats(realmIndex)
-
-            hp = (stats.hp * layerMult * type.hpMod).toInt()
-            mp = (stats.mp * layerMult * type.hpMod).toInt()
-            physicalAttack = (stats.attack * layerMult * type.atkMod).toInt()
-            magicAttack = (stats.attack * layerMult * type.atkMod).toInt()
-            physicalDefense = (stats.defense * layerMult * type.defMod).toInt()
-            magicDefense = (stats.defense * layerMult * type.defMod).toInt()
-            speed = (stats.speed * layerMult * type.speedMod).toInt()
-            realmLayer = rl
+            return BeastCombatStats(
+                hp = s.maxHp.coerceIn(1, 10_000_000),
+                mp = s.maxMp.coerceAtLeast(0),
+                physicalAttack = s.physicalAttack.coerceAtLeast(0),
+                magicAttack = s.magicAttack.coerceAtLeast(0),
+                physicalDefense = s.physicalDefense.coerceAtLeast(0),
+                magicDefense = s.magicDefense.coerceAtLeast(0),
+                speed = s.speed.coerceAtLeast(0),
+                realmLayer = s.realmLayer
+            )
         }
+        // 向后兼容：旧存档妖兽无预计算属性时，用基础值（不含随机方差）确保战斗不崩溃
+        val rl = 5 // 默认中层
+        val layerMult = 1.0 + (rl - 1) * 0.1
+        val stats = GameConfig.Beast.getRealmStats(realmIndex)
+        return BeastCombatStats(
+            hp = (stats.hp * layerMult * type.hpMod).toInt(),
+            mp = (stats.mp * layerMult * type.hpMod).toInt(),
+            physicalAttack = (stats.attack * layerMult * type.atkMod).toInt(),
+            magicAttack = (stats.attack * layerMult * type.atkMod).toInt(),
+            physicalDefense = (stats.defense * layerMult * type.defMod).toInt(),
+            magicDefense = (stats.defense * layerMult * type.defMod).toInt(),
+            speed = (stats.speed * layerMult * type.speedMod).toInt(),
+            realmLayer = rl
+        )
+    }
 
-        val beastSkills = type.skills.map { skillConfig ->
+    /** 妖兽技能构建（createBeast 拆分）：模板技能配置 → CombatSkill 列表 */
+    private fun buildBeastSkills(type: GameConfig.BeastTypeConfig): List<CombatSkill> {
+        return type.skills.map { skillConfig ->
             CombatSkill(
                 name = skillConfig.name,
                 skillType = skillConfig.skillType,
@@ -246,31 +288,6 @@ class BattleSystem @Inject constructor(
                 skillDescription = skillConfig.skillDescription
             )
         }
-
-        val typeIndex = GameConfig.Beast.TYPES.indexOf(type)
-
-        return Combatant(
-            id = "beast_$index",
-            name = "${type.prefix}${type.name}",
-            side = CombatantSide.ATTACKER,
-            hp = hp,
-            maxHp = hp,
-            mp = mp,
-            maxMp = mp,
-            physicalAttack = physicalAttack,
-            magicAttack = magicAttack,
-            physicalDefense = physicalDefense,
-            magicDefense = magicDefense,
-            speed = speed,
-            critRate = 0.05 + realmIndex * 0.01,
-            skills = beastSkills,
-            realm = realmIndex,
-            realmName = GameConfig.Realm.getName(realmIndex),
-            realmLayer = realmLayer,
-            element = type.element,
-            portraitRes = "beast_$typeIndex",
-            isBeast = true
-        )
     }
 
     /**

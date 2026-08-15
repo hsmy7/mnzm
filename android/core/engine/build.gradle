@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
+    // 2026-08 债务根治：SDK 配置收编 convention plugin（stage3-config-cache.md 技术债）
+    id 'xianxia.android'
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
@@ -42,14 +42,6 @@ detekt {
 android {
     namespace = 'com.xianxia.sect.core.engine'
 
-    // 2026-08-14：SDK 配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
-    compileSdk = 35
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        encoding = 'UTF-8'
-    }
-
     buildFeatures {
         buildConfig = true
     }
@@ -66,8 +58,6 @@ android {
     }
 
     defaultConfig {
-        minSdk = 24
-        targetSdk = 35
         consumerProguardFiles "consumer-rules.pro"
 
         buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
@@ -211,14 +201,10 @@ dependencies {
     testImplementation libs.robolectric
 }
 
-// 2026-08-14：Java/Kotlin 编译配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.compilerArgs += ['-Xlint:-deprecation']
-}
+// 2026-08 债务根治：SDK/Java/Kotlin 编译配置已收编 convention plugin（xianxia.android）；
+// 模块特有编译器参数保留在此（convention 的 -Xjsr305=strict 自动叠加）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
-        jvmTarget = '17'
-        freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+        freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
     }
 }

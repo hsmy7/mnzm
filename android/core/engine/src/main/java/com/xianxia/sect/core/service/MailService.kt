@@ -261,15 +261,7 @@ class MailService @Inject constructor(
             // 并刷新 UI，使领取按钮自然消失。
             val snapshot = stateStore.gameData.value
             if (snapshot.mailRecords.any { it.mailId == mailId }) {
-                try {
-                    mailRepo.update(mail.copy(
-                        attachmentClaimed = true, isRead = true
-                    ))
-                    refreshActiveMails(slotId)
-                } catch (e: Exception) {
-                    DomainLog.e(TAG,
-                        "Heal Room state failed for mail $mailId: ${e.message}", e)
-                }
+                healRoomClaimState(mail = mail, mailId = mailId, slotId = slotId)
                 return ClaimResult.AlreadyClaimed
             }
 
@@ -289,31 +281,12 @@ class MailService @Inject constructor(
             }
 
             // 原子发放：物品入库 + 领取记录在同一 stateStore 事务中
-            val rewardCards: List<RewardCardItem>
-            if (attachments.isNotEmpty()) {
-                try {
-                    stateStore.update {
-                        distributeAttachmentsInline(this, attachments)
-                        gameData = gameData.copy(
-                            mailRecords = gameData.mailRecords + MailClaimRecord(
-                                mailId = mail.id,
-                                claimedAt = System.currentTimeMillis(),
-                                source = mail.source
-                            )
-                        )
-                    }
-                    rewardCards = buildRewardCardsFromAttachments(attachments)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    DomainLog.e(TAG, "Failed to distribute attachments for mail $mailId", e)
-                    return ClaimResult.DistributeFailed(
-                        "发放附件失败: ${e.message ?: "未知错误"}"
-                    )
-                }
-            } else {
-                rewardCards = emptyList()
-            }
+            val (rewardCards, distributeError) = grantAttachments(
+                mail = mail,
+                attachments = attachments,
+                slotId = slotId
+            )
+            if (distributeError != null) return distributeError
 
             // Room DB 更新失败不影响领取结果（物品已安全入库 + mailRecord 已写入），
             // 仅记录日志；mailRecords 二次保护防止重复领取
@@ -324,6 +297,54 @@ class MailService @Inject constructor(
             }
             refreshActiveMails(slotId)
             ClaimResult.Success(attachments, rewardCards)
+        }
+    }
+
+    /** Room 状态自愈（claimAttachment 拆分）：mailRecords 已有记录而 Room 未同步时主动修复 */
+    private suspend fun healRoomClaimState(mail: MailEntity, mailId: String, slotId: Int) {
+        try {
+            mailRepo.update(mail.copy(
+                attachmentClaimed = true, isRead = true
+            ))
+            refreshActiveMails(slotId)
+        } catch (e: Exception) {
+            DomainLog.e(TAG,
+                "Heal Room state failed for mail $mailId: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 附件发放（claimAttachment 拆分）：物品入库 + 领取记录在同一事务内原子写入。
+     *
+     * @return (奖励卡片, 失败结果)——发放异常时失败结果非空，凭据未写入可重试
+     */
+    // 拆分搬移:参数保留原签名语义
+    @Suppress("UnusedParameter")
+    private suspend fun grantAttachments(
+        mail: MailEntity,
+        attachments: List<MailAttachment>,
+        slotId: Int
+    ): Pair<List<RewardCardItem>, ClaimResult?> {
+        if (attachments.isEmpty()) return Pair(emptyList(), null)
+        return try {
+            stateStore.update {
+                distributeAttachmentsInline(this, attachments)
+                gameData = gameData.copy(
+                    mailRecords = gameData.mailRecords + MailClaimRecord(
+                        mailId = mail.id,
+                        claimedAt = System.currentTimeMillis(),
+                        source = mail.source
+                    )
+                )
+            }
+            Pair(buildRewardCardsFromAttachments(attachments), null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "Failed to distribute attachments for mail ${mail.id}", e)
+            Pair(emptyList(), ClaimResult.DistributeFailed(
+                "发放附件失败: ${e.message ?: "未知错误"}"
+            ))
         }
     }
 

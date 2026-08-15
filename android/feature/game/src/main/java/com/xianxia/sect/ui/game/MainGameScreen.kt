@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.*
@@ -22,8 +23,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xianxia.sect.ui.game.leaderboard.LeaderboardViewModel
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
@@ -35,14 +37,18 @@ import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.ui.navigation.toDialogType
+import kotlinx.coroutines.CoroutineScope
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.core.util.TimeProgressUtil
+import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 
@@ -79,7 +85,6 @@ import com.xianxia.sect.core.touch.LongPressResult
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchEngineCallbacks
 import com.xianxia.sect.core.touch.TouchEngineConfig
-import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.animation.CameraAnimator
 import androidx.compose.runtime.mutableIntStateOf
 
@@ -154,84 +159,244 @@ fun MainGameScreen(
     vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
-    // gameData 包含资源、日期等，每 tick (100ms) 都可能变化
-    // derivedStateOf 确保：只有当 UI 实际读取的字段变化时才触发重组
-    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
-    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
-    val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
-    val aliveDisciples = remember {
-        derivedStateOf { disciples.filter { it.isAlive } }
-    }
-
-    var screenWidthPx by remember { mutableFloatStateOf(0f) }
-    var screenHeightPx by remember { mutableFloatStateOf(0f) }
-
-    // 建筑放置状态
-    val placedBuildings by viewModel.placedBuildings.collectAsStateWithLifecycle()
-    var isPlacingBuilding by remember { mutableStateOf(false) }
-    var placingBuildingName by remember { mutableStateOf("") }
-    var placingWorldX by remember { mutableFloatStateOf(0f) }
-    var placingWorldY by remember { mutableFloatStateOf(0f) }
-    var buildingBarExpanded by remember { mutableStateOf(false) }
-    var isUiVisible by remember { mutableStateOf(true) }
-
-    // 一键拆除模式状态
-    var isDemolishMode by remember { mutableStateOf(false) }
-    var demolishSelectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // 区域选择模式：进入时直径重置为默认值
-    var isAreaSelectMode by remember { mutableStateOf(false) }
-    var areaDiameter by remember { mutableIntStateOf(AREA_DEFAULT_DIAMETER) }
-
-    // 建筑移动状态（长按拖动）
-    var movingBuilding by remember { mutableStateOf<GridBuildingData?>(null) }
-    var movingWorldX by remember { mutableFloatStateOf(0f) }
-    var movingWorldY by remember { mutableFloatStateOf(0f) }
-    var movingSnappedGridX by remember { mutableIntStateOf(0) }
-    var movingSnappedGridY by remember { mutableIntStateOf(0) }
-    var movingValid by remember {
-        mutableStateOf<GridSnapHelper.PlacementValidity>(GridSnapHelper.PlacementValidity.Valid)
-    }
-    val movingBuildingSize by remember {
-        derivedStateOf {
-            movingBuilding?.let { GridSnapHelper.BuildingSize(it.width, it.height) }
-                ?: GridSnapHelper.BuildingSize(2, 3)
-        }
-    }
-
-    // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
-    val activeSectBuildings by remember {
-        derivedStateOf {
-            val sid = gameData.activeSectId
-            placedBuildings.filter { it.sectId == sid }
-        }
-    }
-    val effectivePlacedBuildings by remember {
-        derivedStateOf {
-            val mb = movingBuilding
-            if (mb != null) activeSectBuildings.filter { it.instanceId != mb.instanceId }
-            else activeSectBuildings
-        }
-    }
-
-    // D-12（2026-08-06）：movingBuilding 状态单点同步到渲染总线排除通道——
-    // 总线不感知 Compose 局部 movingBuilding，不排除会导致拖拽窗口期该建筑
-    // 仍在旧位置渲染（双渲染）+ 点不中 + 其格子可叠建（绿色）
-    LaunchedEffect(movingBuilding) {
-        viewModel.setMovingBuildingInstanceId(movingBuilding?.instanceId)
-    }
-
-    val tileSize = mapPreloadData.tileSize
-    val worldPixelWidth = mapPreloadData.worldPixelWidth
-    val worldPixelHeight = mapPreloadData.worldPixelHeight
-
-    // 统一相机 — 相机在世界空间中移动，screenX = worldX - cameraX
-    // 所有设备水平固定显示 24 格（SectCameraState.VISIBLE_COLS），垂直自然适配
-    val cameraState = rememberSectCamera(
-        worldWidth = worldPixelWidth.toFloat(),
-        worldHeight = worldPixelHeight.toFloat(),
-        worldWidthCells = mapPreloadData.worldWidthCells
+    val state = remember { MainGameScreenState() }
+    val data = rememberMainGameScreenData(
+        mapPreloadData = mapPreloadData, state = state, viewModel = viewModel,
+        forceSoftwareRendering = forceSoftwareRendering,
+        vulkanInitListener = vulkanInitListener
     )
 
+    MainGameScreenEffects(state = state, data = data, viewModel = viewModel)
+    MainGameScreenRenderEffects(
+        state = state, data = data, viewModel = viewModel
+    )
+    MainGameScreenBackHandler(state = state)
+
+    val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsStateWithLifecycle()
+    val atlasResult by saveLoadViewModel.atlasResult.collectAsStateWithLifecycle()
+
+    CompositionLocalProvider(
+        LocalItemSpriteCache provides preloadedItemSprites,
+        LocalAtlasCache provides atlasResult
+    ) {
+        MainGameScreenContent(
+            state = state,
+            data = data,
+            viewModel = viewModel,
+            saveLoadViewModel = saveLoadViewModel,
+            vms = OverlayViewModels(
+                game = viewModel, saveLoad = saveLoadViewModel,
+                production = productionViewModel, alchemy = alchemyViewModel,
+                forge = forgeViewModel, herbGarden = herbGardenViewModel,
+                spiritMine = spiritMineViewModel,
+                patrolTower = patrolTowerViewModel,
+                bloodRefining = bloodRefiningViewModel,
+                worldMapInteraction = worldMapInteractionViewModel,
+                worldMapGarrison = worldMapGarrisonViewModel,
+                battle = battleViewModel
+            ),
+            onLogout = onLogout,
+            onRestartGame = onRestartGame
+        )
+    } // CompositionLocalProvider
+}
+
+/** MainGameScreen 编辑交互状态（MainGameScreen 拆分）：放置/移动/拆除/金手指模式状态 */
+private class MainGameScreenState {
+    var screenWidthPx by mutableFloatStateOf(0f)
+    var screenHeightPx by mutableFloatStateOf(0f)
+
+    // 建筑放置状态
+    var isPlacingBuilding by mutableStateOf(false)
+    var placingBuildingName by mutableStateOf("")
+    var placingWorldX by mutableFloatStateOf(0f)
+    var placingWorldY by mutableFloatStateOf(0f)
+    var buildingBarExpanded by mutableStateOf(false)
+    var isUiVisible by mutableStateOf(true)
+
+    // 一键拆除模式状态
+    var isDemolishMode by mutableStateOf(false)
+    var demolishSelectedIds by mutableStateOf<Set<String>>(emptySet())
+    // 区域选择模式：进入时直径重置为默认值
+    var isAreaSelectMode by mutableStateOf(false)
+    var areaDiameter by mutableIntStateOf(AREA_DEFAULT_DIAMETER)
+
+    // 建筑移动状态（长按拖动）
+    var movingBuilding by mutableStateOf<GridBuildingData?>(null)
+    var movingWorldX by mutableFloatStateOf(0f)
+    var movingWorldY by mutableFloatStateOf(0f)
+    var movingSnappedGridX by mutableIntStateOf(0)
+    var movingSnappedGridY by mutableIntStateOf(0)
+    var movingValid by mutableStateOf<GridSnapHelper.PlacementValidity>(
+        GridSnapHelper.PlacementValidity.Valid
+    )
+
+    // 当前放置建筑的尺寸 / 吸附后的网格坐标 / 放置合法性
+    var placingBuildingSize by mutableStateOf(GridSnapHelper.BuildingSize(2, 3))
+    var placingSnappedGridX by mutableIntStateOf(0)
+    var placingSnappedGridY by mutableIntStateOf(0)
+    var placementValidity by mutableStateOf<GridSnapHelper.PlacementValidity>(
+        GridSnapHelper.PlacementValidity.Valid
+    )
+
+    // 金手指批量建造状态
+    var goldFingerState by mutableStateOf(GoldFingerState())
+
+    var nativeSurfaceView by mutableStateOf<NativeSurfaceView?>(null)
+
+    // 普通点击选中格（WP3 选中高亮）：点击建筑时记录其格坐标，点击空地清除。
+    // 渲染端经 findBuildingIndex 转换为建筑索引（双后端共用同一命中几何）
+    var selectedBuildingGrid by mutableStateOf<Pair<Int, Int>?>(null)
+
+    /** 退出全部编辑模式（切 Tab/开对话框/取消放置共用） */
+    fun exitAllEditModes() {
+        isPlacingBuilding = false
+        movingBuilding = null
+        goldFingerState = GoldFingerState()
+        isDemolishMode = false
+        isAreaSelectMode = false
+        demolishSelectedIds = emptySet()
+    }
+
+    /** 进入一键拆除模式（一键拆除按钮复用） */
+    fun enterDemolishMode() {
+        isDemolishMode = true
+        isAreaSelectMode = false
+        demolishSelectedIds = emptySet()
+        isPlacingBuilding = false
+        placingBuildingName = ""
+        movingBuilding = null
+        goldFingerState = GoldFingerState()
+    }
+}
+
+/** MainGameScreen 派生状态（MainGameScreen 拆分）：derivedStateOf 稳定实例（remember 单例，触控回调可读当前值） */
+private class MainGameScreenDerived(
+    private val state: MainGameScreenState,
+    private val gameDataState: State<GameData>,
+    private val disciplesState: State<List<DiscipleAggregate>>,
+    private val placedBuildingsState: State<List<GridBuildingData>>
+) {
+    val gameData: GameData get() = gameDataState.value
+    val aliveDisciples by derivedStateOf { disciplesState.value.filter { it.isAlive } }
+    // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
+    val activeSectBuildings by derivedStateOf {
+        val sid = gameDataState.value.activeSectId
+        placedBuildingsState.value.filter { it.sectId == sid }
+    }
+    val effectivePlacedBuildings by derivedStateOf {
+        val mb = state.movingBuilding
+        if (mb != null) activeSectBuildings.filter { it.instanceId != mb.instanceId }
+        else activeSectBuildings
+    }
+    val movingBuildingSize by derivedStateOf {
+        state.movingBuilding?.let { GridSnapHelper.BuildingSize(it.width, it.height) }
+            ?: GridSnapHelper.BuildingSize(2, 3)
+    }
+}
+
+/** MainGameScreen 地图静态数据（MainGameScreen 拆分）：尺寸 + 建筑尺寸映射 + 建造列表 */
+private data class MainGameScreenMapData(
+    val tileSize: Int,
+    val worldPixelWidth: Int,
+    val worldPixelHeight: Int,
+    val worldWidthCells: Int,
+    val worldHeightCells: Int,
+    val buildingSizes: Map<String, GridSnapHelper.BuildingSize>,
+    val buildingSpriteSizes: Map<String, GridSnapHelper.BuildingSize>,
+    val buildingList: List<Pair<String, (GridBuildingData?) -> Unit>>
+)
+
+/** MainGameScreen 瓦片/数组数据（MainGameScreen 拆分）：渲染数据源 */
+private data class MainGameScreenMapTiles(
+    val flatTileData: IntArray,
+    val buildingDataArray: FloatArray?,
+    val spiritCropData: FloatArray?,
+    val demolishHighlightData: ByteArray?
+)
+
+/** MainGameScreen 渲染数据（MainGameScreen 拆分）：索引/网格/精灵/配置 */
+private data class MainGameScreenRenderData(
+    val goldenFingerBmp: ImageBitmap?,
+    val flatTileData: IntArray,
+    val gridSystem: GridSystem,
+    val buildingIndex: BuildingSpatialIndex,
+    val nativeConfig: NativeRenderConfig,
+    val buildingDataArray: FloatArray?,
+    val spiritCropData: FloatArray?,
+    val demolishHighlightData: ByteArray?
+)
+
+/** MainGameScreen 视口数据（MainGameScreen 拆分）：相机/预览/渲染参数 */
+private data class MainGameScreenViewportData(
+    val viewportParams: SectMapViewportParams,
+    val previewState: MapPreviewState,
+    val cameraState: SectCameraState,
+    val touchScope: CoroutineScope,
+    val cameraAnimator: CameraAnimator,
+    val cancelCameraAnim: () -> Unit
+)
+
+/** MainGameScreen 聚合数据（MainGameScreen 拆分）：派生/静态/渲染/视口 + 触控引擎 */
+private class MainGameScreenData(
+    val derived: MainGameScreenDerived,
+    val mapData: MainGameScreenMapData,
+    val renderData: MainGameScreenRenderData,
+    val viewportData: MainGameScreenViewportData,
+    val touchEngine: SectMapTouchEngine
+)
+
+/** MainGameScreen 派生状态计算（MainGameScreen 拆分）：StateFlow 收集 + 稳定派生实例 */
+@Composable
+private fun rememberMainGameScreenDerived(
+    state: MainGameScreenState,
+    viewModel: GameViewModel
+): MainGameScreenDerived {
+    val gameDataState = viewModel.gameDataUi.collectAsStateWithLifecycle()
+    val disciplesState = viewModel.discipleAggregates.collectAsStateWithLifecycle()
+    val placedBuildingsState = viewModel.placedBuildings.collectAsStateWithLifecycle()
+    return remember {
+        MainGameScreenDerived(state, gameDataState, disciplesState, placedBuildingsState)
+    }
+}
+
+/** 建造列表构建（MainGameScreen 拆分）：建筑 key → 对话框导航回调 */
+// 拆分搬移:分支结构与原函数一致
+@Suppress("CyclomaticComplexMethod")
+private fun buildMainGameScreenBuildingList(
+    viewModel: GameViewModel
+): List<Pair<String, (GridBuildingData?) -> Unit>> {
+    return BuildingFeatureRegistry.constructible.map { def ->
+        val handler: (GridBuildingData?) -> Unit = when (def.key) {
+            "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.SpiritMine(it)) }; Unit }
+            "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogType.HerbGarden) }
+            "spirit_field" -> { _ -> viewModel.navigateToDialog(DialogType.Planting) }
+            "alchemy" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Alchemy(it)) }; Unit }
+            "forge" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Forge(it)) }; Unit }
+            "library" -> { _ -> viewModel.navigateToDialog(DialogType.Library) }
+            "wen_dao_peak" -> { _ -> viewModel.navigateToDialog(DialogType.WenDaoPeak) }
+            "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogType.QingyunPeak) }
+            "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogType.TianshuHall) }
+            "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogType.LawEnforcementHall) }
+            "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogType.MissionHall) }
+            "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
+            "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.PatrolTower(it)) }; Unit }
+            "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.BloodRefiningPool(it)) }; Unit }
+            "single_residence", "multi_residence",
+            "single_residence_upgraded", "multi_residence_upgraded" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Residence(it)) }; Unit }
+            "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.WarehouseBuilding(it)) }; Unit }
+            else -> { _ -> Unit }
+        }
+        def.displayName to handler
+    }
+}
+
+/** MainGameScreen 地图静态数据计算（MainGameScreen 拆分） */
+@Composable
+private fun rememberMainGameScreenMapData(
+    mapPreloadData: MapPreloadData,
+    viewModel: GameViewModel
+): MainGameScreenMapData {
     // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
     val buildingSizes = remember {
         BuildingFeatureRegistry.all.associate { def ->
@@ -239,7 +404,6 @@ fun MainGameScreen(
             def.displayName to GridSnapHelper.BuildingSize(w, h)
         }
     }
-
     // 建筑精灵比例尺寸映射 — 用于渲染视觉大小（可能大于占地尺寸）
     val buildingSpriteSizes = remember {
         BuildingFeatureRegistry.all.associate { def ->
@@ -247,44 +411,38 @@ fun MainGameScreen(
             def.displayName to GridSnapHelper.BuildingSize(sw, sh)
         }
     }
-
-    // 当前放置建筑的尺寸
-    var placingBuildingSize by remember { mutableStateOf(GridSnapHelper.BuildingSize(2, 3)) }
-
-    // 吸附后的网格坐标（拖拽中实时更新）
-    var placingSnappedGridX by remember { mutableIntStateOf(0) }
-    var placingSnappedGridY by remember { mutableIntStateOf(0) }
-
-    // 放置合法性
-    var placementValidity by remember {
-        mutableStateOf<GridSnapHelper.PlacementValidity>(GridSnapHelper.PlacementValidity.Valid)
+    // 建筑列表及点击回调
+    val buildingList = remember {
+        buildMainGameScreenBuildingList(viewModel)
     }
+    return MainGameScreenMapData(
+        tileSize = mapPreloadData.tileSize,
+        worldPixelWidth = mapPreloadData.worldPixelWidth,
+        worldPixelHeight = mapPreloadData.worldPixelHeight,
+        worldWidthCells = mapPreloadData.worldWidthCells,
+        worldHeightCells = mapPreloadData.worldHeightCells,
+        buildingSizes = buildingSizes,
+        buildingSpriteSizes = buildingSpriteSizes,
+        buildingList = buildingList
+    )
+}
 
-    // 金手指批量建造状态
-    var goldFingerState by remember { mutableStateOf<com.xianxia.sect.ui.game.sect.GoldFingerState>(com.xianxia.sect.ui.game.sect.GoldFingerState()) }
-    val goldFingerBuildingCost = remember {
-        derivedStateOf {
-            val name = goldFingerState.buildingName
-            if (name.isNotEmpty()) viewModel.getBuildingCost(name) else 0L
-        }
-    }
-    val goldFingerAvailableStones = remember {
-        derivedStateOf { gameData?.spiritStones ?: 0L }
-    }
-
-    val worldWidthCells = mapPreloadData.worldWidthCells
-    val worldHeightCells = mapPreloadData.worldHeightCells
-
-    // 地图瓦片素材 — 由 GameActivity 预加载，此处同步读取
-
-    val rawTileData = mapPreloadData.rawTileData
-
-    // 纹理将在 NativeSurfaceView 的 onRendererReady 回调中上传
+/** MainGameScreen 瓦片/数组数据计算（MainGameScreen 拆分） */
+@Composable
+private fun rememberMainGameScreenMapTiles(
+    mapPreloadData: MapPreloadData,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    state: MainGameScreenState,
+    viewModel: GameViewModel
+): MainGameScreenMapTiles {
+    val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
     // 瓦片数据（含建筑占位标记）：装饰物类型 + 建筑占用 → 统一 tileData
-    val tileData = remember(rawTileData, effectivePlacedBuildings) {
+    val rawTileData = mapPreloadData.rawTileData
+    val tileData = remember(rawTileData, derived.effectivePlacedBuildings) {
         val data = Array(rawTileData.size) { rawTileData[it].copyOf() }
-        for (b in effectivePlacedBuildings) {
+        for (b in derived.effectivePlacedBuildings) {
             for (cx in b.gridX until b.gridX + b.width) {
                 for (cy in b.gridY until b.gridY + b.height) {
                     if (cy in data.indices && cx in data[cy].indices) {
@@ -295,51 +453,233 @@ fun MainGameScreen(
         }
         data
     }
+    // flatTileData — 由 tileData 派生，建筑占位变化时自动重算
+    val flatTileData = remember(tileData) {
+        tileData.flatMap { it.toList() }.toIntArray()
+    }
+    // ★ 优化：缓存 buildingData FloatArray，仅在建筑列表变化时重建
+    // 拖拽时 cameraState 变化触发的重组不重新分配
+    val buildingDataArray = remember(derived.effectivePlacedBuildings, mapData.buildingSpriteSizes) {
+        if (derived.effectivePlacedBuildings.isNotEmpty()) {
+            buildBuildingDataArray(derived.effectivePlacedBuildings, mapData.buildingSpriteSizes)
+        } else null
+    }
+    // ★ 灵田作物数据（WP6）：灵田建筑 ↔ 种植记录按 buildingInstanceId 映射，
+    // progress01 = 游戏时间进度（TimeProgressUtil，与生产结算同源）；低频变化走帧率门控 RenderFrame
+    val spiritCropData = remember {
+        derivedStateOf {
+            buildSpiritCropData(
+                buildings = derived.effectivePlacedBuildings,
+                plants = gameData.spiritFieldPlants,
+                currentYear = gameData.gameYear,
+                currentMonth = gameData.gameMonth,
+                sectId = gameData.activeSectId
+            )
+        }
+    }
+    // ★ 拆除模式高亮标记：与 buildingDataArray 同源同序（effectivePlacedBuildings，
+    // 拆除模式下 movingBuilding=null 两者内容一致）；null = 非拆除模式，双后端跳过整层
+    val demolishHighlightData = remember {
+        derivedStateOf {
+            if (!state.isDemolishMode) null
+            else buildDemolishHighlightData(derived.effectivePlacedBuildings, state.demolishSelectedIds)
+        }
+    }
+    return MainGameScreenMapTiles(
+        flatTileData = flatTileData,
+        buildingDataArray = buildingDataArray,
+        spiritCropData = spiritCropData.value,
+        demolishHighlightData = demolishHighlightData.value
+    )
+}
+
+/** MainGameScreen 渲染数据计算（MainGameScreen 拆分）：精灵位图 + 索引 + 渲染配置 */
+@Composable
+private fun rememberMainGameScreenRenderData(
+    mapData: MainGameScreenMapData,
+    tiles: MainGameScreenMapTiles
+): MainGameScreenRenderData {
+    // D-39：LocalResources 替代 context.resources（配置变化时正确更新）
+    val resources = LocalResources.current
+
+    // 金手指图标位图
+    val goldenFingerBmp = remember {
+        val resId = SpriteResRegistry.resolve("golden_finger")
+        if (resId != null) {
+            val opts = android.graphics.BitmapFactory.Options().apply {
+                inSampleSize = 1
+            }
+            android.graphics.BitmapFactory.decodeResource(resources, resId, opts)
+                ?.asImageBitmap()
+        } else null
+    }
 
     // 网格系统（管理建筑放置与占用格查询）
-    val gridSystem = remember(tileSize, worldWidthCells, worldHeightCells) {
-        GridSystem(tileSize, worldWidthCells, worldHeightCells,
+    val gridSystem = remember(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells) {
+        GridSystem(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells,
             buildableBorder = GameConfig.SectMap.BORDER_TREE_RING)
-    }
-    LaunchedEffect(effectivePlacedBuildings) {
-        gridSystem.rebuildFrom(effectivePlacedBuildings)
     }
 
     // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
     // 2026-08-06 修复：传入精灵视觉尺寸，命中区域扩展为占地 ∪ 精灵包围盒，
     // 高层建筑（塔楼/藏经阁等）悬空上半身可点击
     val buildingIndex = remember { BuildingSpatialIndex() }
-    LaunchedEffect(effectivePlacedBuildings) {
-        buildingIndex.rebuild(effectivePlacedBuildings, buildingSpriteSizes)
+
+    // 宗门大地图层（Vulkan 原生渲染）
+    // v4.0.43+ 架构：替换 Compose Canvas 为 Vulkan 原生渲染管线，
+    // 实现 GPU 批处理（3 draw calls/帧）、独立渲染线程、VSYNC 对齐。
+    // 参见: docs/map-rendering-architecture.md
+    val nativeConfig = remember(mapData.tileSize) {
+        NativeRenderConfig(
+            tileSize = mapData.tileSize,
+            worldWidthCells = mapData.worldWidthCells,
+            worldHeightCells = mapData.worldHeightCells,
+            worldPixelWidth = mapData.worldPixelWidth,
+            worldPixelHeight = mapData.worldPixelHeight
+        )
     }
 
-    // 建筑列表及点击回调
-    val buildingList = remember {
-        BuildingFeatureRegistry.constructible.map { def ->
-            val handler: (GridBuildingData?) -> Unit = when (def.key) {
-                "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.SpiritMine(it)) }; Unit }
-                "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogType.HerbGarden) }
-                "spirit_field" -> { _ -> viewModel.navigateToDialog(DialogType.Planting) }
-                "alchemy" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Alchemy(it)) }; Unit }
-                "forge" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Forge(it)) }; Unit }
-                "library" -> { _ -> viewModel.navigateToDialog(DialogType.Library) }
-                "wen_dao_peak" -> { _ -> viewModel.navigateToDialog(DialogType.WenDaoPeak) }
-                "qingyun_peak" -> { _ -> viewModel.navigateToDialog(DialogType.QingyunPeak) }
-                "tianshu_hall" -> { _ -> viewModel.navigateToDialog(DialogType.TianshuHall) }
-                "law_enforcement_hall" -> { _ -> viewModel.navigateToDialog(DialogType.LawEnforcementHall) }
-                "mission_hall" -> { _ -> viewModel.navigateToDialog(DialogType.MissionHall) }
-                "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
-                "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.PatrolTower(it)) }; Unit }
-                "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.BloodRefiningPool(it)) }; Unit }
-                "single_residence", "multi_residence",
-                "single_residence_upgraded", "multi_residence_upgraded" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Residence(it)) }; Unit }
-                "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.WarehouseBuilding(it)) }; Unit }
-                else -> { _ -> Unit }
-            }
-            def.displayName to handler
+    return MainGameScreenRenderData(
+        goldenFingerBmp = goldenFingerBmp,
+        flatTileData = tiles.flatTileData,
+        gridSystem = gridSystem,
+        buildingIndex = buildingIndex,
+        nativeConfig = nativeConfig,
+        buildingDataArray = tiles.buildingDataArray,
+        spiritCropData = tiles.spiritCropData,
+        demolishHighlightData = tiles.demolishHighlightData
+    )
+}
+
+/** MainGameScreen 视口数据计算（MainGameScreen 拆分）：相机/预览/渲染参数 */
+@Composable
+private fun rememberMainGameScreenViewportData(
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    state: MainGameScreenState,
+    viewModel: GameViewModel,
+    forceSoftwareRendering: Boolean,
+    vulkanInitListener: NativeSurfaceView.VulkanInitListener?
+): MainGameScreenViewportData {
+    // 统一相机 — 相机在世界空间中移动，screenX = worldX - cameraX
+    val cameraState = rememberSectCamera(
+        worldWidth = mapData.worldPixelWidth.toFloat(), worldHeight = mapData.worldPixelHeight.toFloat(),
+        worldWidthCells = mapData.worldWidthCells
+    )
+    val touchScope = rememberCoroutineScope()
+    val cameraAnimator = remember(cameraState, touchScope) {
+        CameraAnimator(cameraState, touchScope)
+    }
+    // 用户交互时取消动画
+    val cancelCameraAnim: () -> Unit = { cameraAnimator.cancel() }
+    // P-7：地图视口抽离为 SectMapViewport（参数稳定引用——每旬 gameData 变化不触发
+    // AndroidView update；相机/预览/建筑实际变化才重组）
+    val viewportParams = remember {
+        derivedStateOf {
+            SectMapViewportParams(
+                nativeConfig = renderData.nativeConfig, cameraState = cameraState,
+                flatTileData = renderData.flatTileData, buildingDataArray = renderData.buildingDataArray,
+                buildingCount = derived.effectivePlacedBuildings.size,
+                tileSize = mapData.tileSize, worldWidthCells = mapData.worldWidthCells,
+                worldHeightCells = mapData.worldHeightCells,
+                forceSoftwareRendering = forceSoftwareRendering, vulkanInitListener = vulkanInitListener,
+                surfaceProviderFactory = viewModel.getSurfaceProviderFactory(), gpuTier = viewModel.getGpuTier(),
+                buildingSpriteSizes = mapData.buildingSpriteSizes, selectedGrid = state.selectedBuildingGrid,
+                spiritCropData = renderData.spiritCropData, demolishHighlightData = renderData.demolishHighlightData,
+                gridOverlayVisible = state.isPlacingBuilding || state.movingBuilding != null,
+                alphaProvider = { viewModel.gameEngineCore.currentAlpha }
+            )
         }
     }
+    val previewState = remember {
+        derivedStateOf {
+            MapPreviewState(
+                isPlacingBuilding = state.isPlacingBuilding,
+                placingBuildingName = state.placingBuildingName,
+                placingWorldX = state.placingWorldX,
+                placingWorldY = state.placingWorldY,
+                placingBuildingSize = state.placingBuildingSize,
+                placementValidity = state.placementValidity,
+                movingBuilding = state.movingBuilding,
+                movingWorldX = state.movingWorldX,
+                movingWorldY = state.movingWorldY,
+                movingBuildingSize = derived.movingBuildingSize,
+                movingValid = state.movingValid
+            )
+        }
+    }
+    return MainGameScreenViewportData(
+        viewportParams = viewportParams.value, previewState = previewState.value,
+        cameraState = cameraState, touchScope = touchScope,
+        cameraAnimator = cameraAnimator, cancelCameraAnim = cancelCameraAnim
+    )
+}
 
+/** MainGameScreen 触控引擎（MainGameScreen 拆分）：跨平台手势引擎 */
+@Composable
+private fun rememberMainGameScreenTouchEngine(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    viewportData: MainGameScreenViewportData,
+    viewModel: GameViewModel
+): SectMapTouchEngine {
+    val cameraState = viewportData.cameraState
+    val buildingIndex = renderData.buildingIndex
+    val gridSystem = renderData.gridSystem
+    return remember(cameraState, buildingIndex, gridSystem) {
+        SectMapTouchEngine(
+            callbacks = buildMainGameScreenTouchCallbacks(
+                state = state, derived = derived, mapData = mapData,
+                renderData = renderData, viewportData = viewportData,
+                viewModel = viewModel
+            ),
+            scope = viewportData.touchScope,
+            config = TouchEngineConfig()
+        )
+    }
+}
+
+/** MainGameScreen 聚合数据计算（MainGameScreen 拆分） */
+@Composable
+private fun rememberMainGameScreenData(
+    mapPreloadData: MapPreloadData,
+    state: MainGameScreenState,
+    viewModel: GameViewModel,
+    forceSoftwareRendering: Boolean,
+    vulkanInitListener: NativeSurfaceView.VulkanInitListener?
+): MainGameScreenData {
+    val derived = rememberMainGameScreenDerived(state = state, viewModel = viewModel)
+    val mapData = rememberMainGameScreenMapData(mapPreloadData = mapPreloadData, viewModel = viewModel)
+    val tiles = rememberMainGameScreenMapTiles(
+        mapPreloadData = mapPreloadData, derived = derived, mapData = mapData,
+        state = state, viewModel = viewModel
+    )
+    val renderData = rememberMainGameScreenRenderData(mapData = mapData, tiles = tiles)
+    val viewportData = rememberMainGameScreenViewportData(
+        derived = derived, mapData = mapData, renderData = renderData, state = state,
+        viewModel = viewModel, forceSoftwareRendering = forceSoftwareRendering,
+        vulkanInitListener = vulkanInitListener
+    )
+    val touchEngine = rememberMainGameScreenTouchEngine(
+        state = state, derived = derived, mapData = mapData, renderData = renderData,
+        viewportData = viewportData, viewModel = viewModel
+    )
+    return MainGameScreenData(
+        derived = derived, mapData = mapData, renderData = renderData,
+        viewportData = viewportData, touchEngine = touchEngine
+    )
+}
+
+/** MainGameScreen 数据副作用（MainGameScreen 拆分）：导航/对话框重置/排行榜/相机视口 */
+@Composable
+private fun MainGameScreenEffects(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
     LaunchedEffect(Unit) {
         viewModel.navigationEvents.collect { route ->
             viewModel.navigateToDialog(route.toDialogType())
@@ -349,14 +689,8 @@ fun MainGameScreen(
     LaunchedEffect(Unit) {
         viewModel.currentDialogType.collect { route ->
             if (route !is DialogType.None) {
-                isPlacingBuilding = false
-                movingBuilding = null
-                buildingBarExpanded = false
-                isDemolishMode = false
-                isAreaSelectMode = false
-                demolishSelectedIds = emptySet()
-                // 防金手指覆盖层悬浮在非放置模式（预存缺陷：开对话框时漏重置）
-                goldFingerState = GoldFingerState()
+                state.exitAllEditModes()
+                state.buildingBarExpanded = false
             }
         }
     }
@@ -369,10 +703,12 @@ fun MainGameScreen(
     }
 
     // 相机视口更新 + 初始居中（只执行一次）
-    LaunchedEffect(screenWidthPx, screenHeightPx) {
-        if (screenWidthPx > 0 && screenHeightPx > 0) {
-            cameraState.updateViewport(screenWidthPx.toInt(), screenHeightPx.toInt())
-            cameraState.tryCenterOn(worldPixelWidth / 2f, worldPixelHeight / 2f)
+    LaunchedEffect(state.screenWidthPx, state.screenHeightPx) {
+        if (state.screenWidthPx > 0 && state.screenHeightPx > 0) {
+            data.viewportData.cameraState.updateViewport(state.screenWidthPx.toInt(), state.screenHeightPx.toInt())
+            data.viewportData.cameraState.tryCenterOn(
+                data.mapData.worldPixelWidth / 2f, data.mapData.worldPixelHeight / 2f
+            )
         }
     }
 
@@ -383,926 +719,561 @@ fun MainGameScreen(
             viewModel.openGameOverDialog()
         }
     }
+}
 
-    // 移动模式/金手指/拆除模式下按返回键取消
-    BackHandler(
-        enabled = movingBuilding != null || goldFingerState.isActive || isDemolishMode
-    ) {
-        when {
-            goldFingerState.isActive -> goldFingerState = GoldFingerState()
-            isDemolishMode -> {
-                isDemolishMode = false
-                isAreaSelectMode = false
-                demolishSelectedIds = emptySet()
-            }
-            else -> movingBuilding = null
+/** MainGameScreen 渲染副作用（MainGameScreen 拆分）：索引重建 + 表面接线 */
+@Composable
+private fun MainGameScreenRenderEffects(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    // D-12（2026-08-06）：movingBuilding 状态单点同步到渲染总线排除通道——
+    // 总线不感知 Compose 局部 movingBuilding，不排除会导致拖拽窗口期该建筑
+    // 仍在旧位置渲染（双渲染）+ 点不中 + 其格子可叠建（绿色）
+    LaunchedEffect(state.movingBuilding) {
+        viewModel.setMovingBuildingInstanceId(state.movingBuilding?.instanceId)
+    }
+
+    LaunchedEffect(data.derived.effectivePlacedBuildings) {
+        data.renderData.gridSystem.rebuildFrom(data.derived.effectivePlacedBuildings)
+    }
+
+    LaunchedEffect(data.derived.effectivePlacedBuildings) {
+        data.renderData.buildingIndex.rebuild(data.derived.effectivePlacedBuildings, data.mapData.buildingSpriteSizes)
+    }
+
+    // 挂载 touchEngine 到 NativeSurfaceView
+    LaunchedEffect(state.nativeSurfaceView) {
+        state.nativeSurfaceView?.touchEngine = data.touchEngine
+    }
+
+    // 将引擎渲染帧率（热控+场景+性能模式综合）接入 NativeSurfaceView
+    LaunchedEffect(state.nativeSurfaceView) {
+        val view = state.nativeSurfaceView ?: return@LaunchedEffect
+        viewModel.renderFrameRate.collect { fps ->
+            view.targetFps = fps
         }
     }
 
-    val preloadedItemSprites by saveLoadViewModel.preloadedItemSprites.collectAsStateWithLifecycle()
-    val atlasResult by saveLoadViewModel.atlasResult.collectAsStateWithLifecycle()
+    // 接通渲染质量/装饰降级流（热控 + 节能模式低画质真实生效）。
+    // 经 NativeSurfaceView 转发属性写入——backend 未创建时先存值、
+    // 创建后立即应用，防初始发射丢失。
+    LaunchedEffect(state.nativeSurfaceView) {
+        val view = state.nativeSurfaceView ?: return@LaunchedEffect
+        combine(
+            viewModel.renderingQualityFactor,
+            viewModel.decorationsDisabled
+        ) { quality, decorations -> quality to decorations }
+            .distinctUntilChanged()
+            .collect { (quality, decorations) ->
+                view.renderQualityFactor = quality
+                view.renderDecorationsDisabled = decorations
+            }
+    }
 
-    CompositionLocalProvider(
-        LocalItemSpriteCache provides preloadedItemSprites,
-        LocalAtlasCache provides atlasResult
+    // 渲染线程实际达成帧率 → 引擎热控（激活帧率驱动降级）
+    LaunchedEffect(state.nativeSurfaceView) {
+        state.nativeSurfaceView?.onObservedFps = { fps ->
+            viewModel.gameEngineCore.setObservedRenderFps(fps)
+        }
+    }
+
+    // 设置动画器引用，使 tryCenterOn 使用平滑动画
+    LaunchedEffect(data.viewportData.cameraAnimator) {
+        data.viewportData.cameraState.setAnimator(data.viewportData.cameraAnimator)
+    }
+}
+
+/** 编辑模式返回键取消（MainGameScreen 拆分）：移动/金手指/拆除模式下按返回键取消 */
+@Composable
+private fun MainGameScreenBackHandler(state: MainGameScreenState) {
+    // 移动模式/金手指/拆除模式下按返回键取消
+    BackHandler(
+        enabled = state.movingBuilding != null || state.goldFingerState.isActive || state.isDemolishMode
     ) {
+        when {
+            state.goldFingerState.isActive -> state.goldFingerState = GoldFingerState()
+            state.isDemolishMode -> {
+                state.isDemolishMode = false
+                state.isAreaSelectMode = false
+                state.demolishSelectedIds = emptySet()
+            }
+            else -> state.movingBuilding = null
+        }
+    }
+}
+
+/** MainGameScreen 触控回调（MainGameScreen 拆分）：跨平台手势引擎回调 */
+private fun buildMainGameScreenTouchCallbacks(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    viewportData: MainGameScreenViewportData,
+    viewModel: GameViewModel
+): TouchEngineCallbacks = object : TouchEngineCallbacks {
+    override fun onPanCamera(dx: Float, dy: Float) {
+        viewportData.cameraState.pan(dx, dy)
+        viewportData.cancelCameraAnim()
+        viewModel.onUserInteraction()
+    }
+    override fun onTap(screenX: Float, screenY: Float) {
+        handleMainGameScreenTap(
+            state = state, derived = derived, mapData = mapData,
+            renderData = renderData, viewportData = viewportData,
+            viewModel = viewModel, screenX = screenX, screenY = screenY
+        )
+    }
+    override fun onLongPress(screenX: Float, screenY: Float): LongPressResult {
+        return handleMainGameScreenLongPress(
+            state = state, derived = derived, mapData = mapData,
+            renderData = renderData, viewportData = viewportData,
+            viewModel = viewModel, screenX = screenX, screenY = screenY
+        )
+    }
+    override fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) {
+        handleMainGameScreenDragUpdate(
+            state = state, derived = derived, mapData = mapData,
+            renderData = renderData,
+            worldDx = worldDx, worldDy = worldDy
+        )
+    }
+    override fun onBuildingDragEnd() { /* 松手后保持最后位置，显示确认/取消按钮 */ }
+    override fun onGoldFingerUpdate(screenX: Float, screenY: Float) {
+        handleMainGameScreenGoldFingerUpdate(
+            state = state, derived = derived, mapData = mapData,
+            viewportData = viewportData,
+            screenX = screenX, screenY = screenY
+        )
+    }
+    override fun isGoldFingerActive(): Boolean = state.goldFingerState.isActive
+    override fun getCameraScale(): Float = viewportData.cameraState.scale
+    override fun findBuildingAt(screenX: Float, screenY: Float): Any? {
+        return findMainGameScreenBuildingAt(
+            state = state, mapData = mapData,
+            renderData = renderData, viewportData = viewportData,
+            screenX = screenX, screenY = screenY
+        )
+    }
+    override fun isInEditMode(): Boolean = state.isPlacingBuilding || state.movingBuilding != null
+    override fun onDragStart() { viewModel.setGameScene(GameEngineCore.GameScene.GAMEPLAY) }
+    override fun onDragEnd() { /* 由 idle timeout 自动降帧 (30s → IDLE 10fps) */ }
+    override fun onFlingStart() { viewModel.setGameScene(GameEngineCore.GameScene.MAP_SCROLL) }
+    override fun onFlingEnd() { /* 由 idle timeout 自动降帧 (30s → IDLE 10fps) */ }
+}
+
+/** 点击处理（MainGameScreen 拆分）：拆除选中 / 建筑详情打开 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+private fun handleMainGameScreenTap(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    viewportData: MainGameScreenViewportData,
+    viewModel: GameViewModel,
+    screenX: Float,
+    screenY: Float
+) {
+    val wx = viewportData.cameraState.screenToWorldX(screenX)
+    val wy = viewportData.cameraState.screenToWorldY(screenY)
+    val gx = (wx / mapData.tileSize).toInt()
+    val gy = (wy / mapData.tileSize).toInt()
+    // 拆除模式：单点切换选中 / 区域模式范围选中，不弹详情
+    if (state.isDemolishMode) {
+        handleDemolishTap(
+            state = state, derived = derived, renderData = renderData, gx = gx, gy = gy
+        )
+        return
+    }
+    val clicked = renderData.buildingIndex.findBuildingAt(gx, gy)
+    // 点击空地 → 清除选中高亮（任意模式）
+    if (clicked == null) {
+        state.selectedBuildingGrid = null
+    }
+    if (clicked != null && !state.isPlacingBuilding && state.movingBuilding == null) {
+        // 点击建筑 → 记录选中格（渲染端金色高亮描边），并打开详情
+        state.selectedBuildingGrid = gx to gy
+        val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
+        when (def?.key) {
+            "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
+            "alchemy" -> viewModel.navigateToDialog(DialogType.Alchemy(clicked.instanceId))
+            "forge" -> viewModel.navigateToDialog(DialogType.Forge(clicked.instanceId))
+            "single_residence", "single_residence_upgraded", "multi_residence", "multi_residence_upgraded" -> {
+                viewModel.navigateToDialog(DialogType.Residence(clicked.instanceId))
+            }
+            else -> {
+                // R1 诊断（B1）：displayName 未注册 / 无回调 → 点击被静默吞掉。
+                // 渲染端会用索引 0 兜底画出该建筑，点击却无任何分支处理——唯一"可见但点不中"确定性路径。
+                if (def == null) {
+                    DomainLog.w(
+                        BUILDING_TAP_TAG,
+                        "点击建筑 displayName 未注册: name=${clicked.displayName} " +
+                            "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
+                            "grid=(${clicked.gridX},${clicked.gridY}) " +
+                            "activeSectId=${derived.gameData.activeSectId} " +
+                            "sectBuildings=${derived.activeSectBuildings.size}"
+                    )
+                }
+                val b = mapData.buildingList.find { it.first == clicked.displayName }
+                if (b != null) {
+                    b.second?.invoke(clicked)
+                } else {
+                    DomainLog.w(
+                        BUILDING_TAP_TAG,
+                        "点击建筑无回调处理: name=${clicked.displayName} " +
+                            "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
+                            "grid=(${clicked.gridX},${clicked.gridY}) " +
+                            "activeSectId=${derived.gameData.activeSectId} " +
+                            "sectBuildings=${derived.activeSectBuildings.size}"
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 长按处理（MainGameScreen 拆分）：金手指入口检测 / 建筑移动模式 */
+// 拆分聚合:平铺参数搬移自原公共函数
+// 拆分搬移:多出口与原函数一致
+@Suppress("LongParameterList", "ReturnCount")
+private fun handleMainGameScreenLongPress(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    viewportData: MainGameScreenViewportData,
+    viewModel: GameViewModel,
+    screenX: Float,
+    screenY: Float
+): LongPressResult {
+    val wx = viewportData.cameraState.screenToWorldX(screenX)
+    val wy = viewportData.cameraState.screenToWorldY(screenY)
+    val gx = (wx / mapData.tileSize).toInt()
+    val gy = (wy / mapData.tileSize).toInt()
+
+    // 放置模式 → 金手指图标检测：唯一图标随激活状态移动
+    // （未激活在预览角作入口；激活后跟随 endGrid，按住它即可重入框选）
+    if (state.isPlacingBuilding) {
+        return handleGoldFingerLongPress(
+            state = state, derived = derived, mapData = mapData,
+            viewModel = viewModel, wx = wx, wy = wy
+        )
+    }
+
+    // 非放置模式 → 建筑长按 → 移动模式
+    // 注意：movingBuilding 可能非 null（上次拖拽后确认/取消按钮还在显示）
+    // 如果按钮显示期间再次长按同一建筑，应允许继续拖拽
+    // 拆除模式禁止长按移动
+    if (!state.isPlacingBuilding && !state.isDemolishMode) {
+        val touched = renderData.buildingIndex.findBuildingAt(gx, gy)
+            ?: (if (state.movingBuilding != null) state.movingBuilding else null)
+        if (touched != null) {
+            val isResumeDrag = state.movingBuilding?.instanceId == touched.instanceId
+            if (!isResumeDrag) {
+                // 新建筑拖拽 → 从该建筑的原始网格坐标开始
+                state.movingWorldX = (touched.gridX * mapData.tileSize).toFloat()
+                state.movingWorldY = (touched.gridY * mapData.tileSize).toFloat()
+                state.movingSnappedGridX = touched.gridX
+                state.movingSnappedGridY = touched.gridY
+                state.movingValid = GridSnapHelper.PlacementValidity.Valid
+            }
+            state.movingBuilding = touched
+            return LongPressResult.BuildingDrag
+        }
+    }
+    return LongPressResult.NotHandled
+}
+
+/** 金手指图标长按（MainGameScreen 拆分）：首次激活锚定预览位置并重算状态 */
+// 拆分搬移:嵌套/条件结构与原函数一致
+@Suppress("ComplexCondition")
+private fun handleGoldFingerLongPress(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    viewModel: GameViewModel,
+    wx: Float,
+    wy: Float
+): LongPressResult {
+    val gfWx = (if (state.goldFingerState.isActive) state.goldFingerState.endGridX
+        else state.placingSnappedGridX + state.placingBuildingSize.width) * mapData.tileSize
+    val gfWy = (if (state.goldFingerState.isActive) state.goldFingerState.endGridY
+        else state.placingSnappedGridY + state.placingBuildingSize.height) * mapData.tileSize
+    if (wx >= gfWx && wx < gfWx + mapData.tileSize &&
+        wy >= gfWy && wy < gfWy + mapData.tileSize
+    ) {
+        if (!state.goldFingerState.isActive) {
+            // 首次激活：起点锚定预览位置，钳制到可建区后重算状态
+            val sel = clampGoldFingerSelection(
+                GoldFingerSelection(
+                    state.placingSnappedGridX, state.placingSnappedGridY,
+                    state.placingSnappedGridX, state.placingSnappedGridY
+                ),
+                mapData.worldWidthCells, mapData.worldHeightCells,
+                GameConfig.SectMap.BORDER_TREE_RING
+            )
+            state.goldFingerState = recomputeGoldFingerState(
+                f = GoldFingerState(
+                    isActive = true,
+                    buildingName = state.placingBuildingName,
+                    buildingSize = state.placingBuildingSize,
+                    buildingCost = viewModel.getBuildingCost(state.placingBuildingName)
+                ),
+                sel = sel,
+                existingBuildings = derived.effectivePlacedBuildings,
+                worldWidthCells = mapData.worldWidthCells,
+                worldHeightCells = mapData.worldHeightCells,
+                buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+                spiritStones = derived.gameData?.spiritStones ?: 0L
+            )
+        }
+        // 已激活：不改动选区（等待 MOVE 重新框定，可扩大可缩小），直接重入框选
+        return LongPressResult.GoldFingerDrag
+    }
+    return LongPressResult.NotHandled
+}
+
+/** 拖拽更新（MainGameScreen 拆分）：放置预览 / 移动建筑位置实时更新 */
+private fun handleMainGameScreenDragUpdate(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    worldDx: Float,
+    worldDy: Float
+) {
+    if (state.isPlacingBuilding) {
+        // 放置模式：更新预览位置
+        state.placingWorldX += worldDx
+        state.placingWorldY += worldDy
+        val oldSnappedX = state.placingSnappedGridX
+        val oldSnappedY = state.placingSnappedGridY
+        state.placingSnappedGridX = GridSnapHelper.worldToGrid(state.placingWorldX, mapData.tileSize)
+        state.placingSnappedGridY = GridSnapHelper.worldToGrid(state.placingWorldY, mapData.tileSize)
+        val dgx = state.placingSnappedGridX - oldSnappedX
+        val dgy = state.placingSnappedGridY - oldSnappedY
+        // 金手指激活时选区随预览同增量平移（Bug 2 修复），钳制到可建区后重算
+        if (state.goldFingerState.isActive && (dgx != 0 || dgy != 0)) {
+            val f = state.goldFingerState
+            val sel = translateGoldFingerSelection(
+                GoldFingerSelection(f.startGridX, f.startGridY, f.endGridX, f.endGridY),
+                dgx, dgy, mapData.worldWidthCells, mapData.worldHeightCells,
+                GameConfig.SectMap.BORDER_TREE_RING
+            )
+            state.goldFingerState = recomputeGoldFingerState(
+                f = f, sel = sel,
+                existingBuildings = derived.effectivePlacedBuildings,
+                worldWidthCells = mapData.worldWidthCells,
+                worldHeightCells = mapData.worldHeightCells,
+                buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+                spiritStones = derived.gameData?.spiritStones ?: 0L
+            )
+        }
+        state.placementValidity = renderData.gridSystem.validatePlacement(
+            state.placingSnappedGridX, state.placingSnappedGridY,
+            state.placingBuildingSize.width, state.placingBuildingSize.height
+        )
+    } else {
+        // 移动模式：更新被拖建筑位置
+        state.movingWorldX += worldDx
+        state.movingWorldY += worldDy
+        state.movingSnappedGridX = GridSnapHelper.worldToGrid(state.movingWorldX, mapData.tileSize)
+        state.movingSnappedGridY = GridSnapHelper.worldToGrid(state.movingWorldY, mapData.tileSize)
+        state.movingValid = renderData.gridSystem.validatePlacement(
+            state.movingSnappedGridX, state.movingSnappedGridY,
+            derived.movingBuildingSize.width, derived.movingBuildingSize.height
+        )
+    }
+}
+
+/** 金手指拖拽更新（MainGameScreen 拆分）：终点格吸附 + 钳制可建区 + 重算状态 */
+private fun handleMainGameScreenGoldFingerUpdate(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    mapData: MainGameScreenMapData,
+    viewportData: MainGameScreenViewportData,
+    screenX: Float,
+    screenY: Float
+) {
+    if (!state.goldFingerState.isActive) return
+    val newWx = viewportData.cameraState.screenToWorldX(screenX)
+    val newWy = viewportData.cameraState.screenToWorldY(screenY)
+    // 终点格用 GridSnapHelper.worldToGrid（roundToInt，与预览吸附一致），
+    // 并整体钳制到可建区，保证视觉框 == 实际建造区
+    val newGridX = GridSnapHelper.worldToGrid(newWx, mapData.tileSize)
+    val newGridY = GridSnapHelper.worldToGrid(newWy, mapData.tileSize)
+    val f = state.goldFingerState
+    val sel = clampGoldFingerSelection(
+        GoldFingerSelection(f.startGridX, f.startGridY, newGridX, newGridY),
+        mapData.worldWidthCells, mapData.worldHeightCells,
+        GameConfig.SectMap.BORDER_TREE_RING
+    )
+    state.goldFingerState = recomputeGoldFingerState(
+        f = f, sel = sel,
+        existingBuildings = derived.effectivePlacedBuildings,
+        worldWidthCells = mapData.worldWidthCells,
+        worldHeightCells = mapData.worldHeightCells,
+        buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+        spiritStones = derived.gameData?.spiritStones ?: 0L
+    )
+}
+
+/** 触控命中建筑检测（MainGameScreen 拆分）：拆除/放置/移动模式分支 */
+// 拆分搬移:多出口与原函数一致
+// 拆分搬移:嵌套/条件结构与原函数一致
+@Suppress("ReturnCount", "ComplexCondition")
+private fun findMainGameScreenBuildingAt(
+    state: MainGameScreenState,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    viewportData: MainGameScreenViewportData,
+    screenX: Float,
+    screenY: Float
+): Any? {
+    // 拆除模式：不返回建筑 → touch 引擎不会启动 BuildingDrag 定时器，
+    // 短按/滑动正常走 onTap / 平移相机
+    if (state.isDemolishMode) return null
+    val wx = viewportData.cameraState.screenToWorldX(screenX)
+    val wy = viewportData.cameraState.screenToWorldY(screenY)
+
+    // 放置模式：用世界坐标检测触摸是否在预览区域内（比网格检测更精准）
+    if (state.isPlacingBuilding) {
+        val previewLeft = state.placingWorldX
+        val previewTop = state.placingWorldY
+        val previewRight = previewLeft + state.placingBuildingSize.width * mapData.tileSize
+        val previewBottom = previewTop + state.placingBuildingSize.height * mapData.tileSize
+        if (wx >= previewLeft && wx < previewRight &&
+            wy >= previewTop && wy < previewBottom
+        ) {
+            return Any()
+        }
+        return null
+    }
+
+    val gx = (wx / mapData.tileSize).toInt()
+    val gy = (wy / mapData.tileSize).toInt()
+
+    // buildingIndex 不包含 movingBuilding，手动检查
+    val mb = state.movingBuilding
+    if (mb != null) {
+        // 用当前拖拽位置（movingSnappedGridX/Y）而非原始位置检查
+        if (gx >= state.movingSnappedGridX && gx < state.movingSnappedGridX + mb.width &&
+            gy >= state.movingSnappedGridY && gy < state.movingSnappedGridY + mb.height
+        ) {
+            return mb
+        }
+    }
+    return renderData.buildingIndex.findBuildingAt(gx, gy)
+}
+
+/** 拆除模式点击处理（MainGameScreen 拆分）：区域模式范围选中 / 单点切换选中 */
+private fun handleDemolishTap(
+    state: MainGameScreenState,
+    derived: MainGameScreenDerived,
+    renderData: MainGameScreenRenderData,
+    gx: Int,
+    gy: Int
+) {
+    if (state.isAreaSelectMode) {
+        // 区域模式：以点击格为中心做正方形范围选中（并集累积 + Set 幂等——
+        // 新区域内已选中的建筑保持选中，重复框选不取消；点击任意格都触发，
+        // 不要求格上有建筑——越界格纯几何计算天然安全）。
+        state.demolishSelectedIds = state.demolishSelectedIds + buildingsInSquare(
+            buildings = derived.effectivePlacedBuildings,
+            centerX = gx,
+            centerY = gy,
+            diameter = state.areaDiameter
+        )
+    } else {
+        // 单点模式：点击建筑切换选中状态
+        val b = renderData.buildingIndex.findBuildingAt(gx, gy) ?: return
+        if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
+            state.demolishSelectedIds = if (b.instanceId in state.demolishSelectedIds)
+                state.demolishSelectedIds - b.instanceId
+            else state.demolishSelectedIds + b.instanceId
+        }
+    }
+}
+
+/** 建造卡片点击（MainGameScreen 拆分）：进入放置模式（拆除模式下忽略） */
+private fun onSelectBuildingFromBar(
+    state: MainGameScreenState,
+    mapData: MainGameScreenMapData,
+    renderData: MainGameScreenRenderData,
+    viewportData: MainGameScreenViewportData,
+    name: String
+) {
+    // 拆除模式下点击建造卡片不进入放置模式
+    if (state.isDemolishMode) return
+    val size = mapData.buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
+    state.isPlacingBuilding = true
+    state.placingBuildingName = name
+    state.placingBuildingSize = size
+    state.placingWorldX = viewportData.cameraState.screenToWorldX(state.screenWidthPx / 2f) -
+        size.width * mapData.tileSize / 2f
+    state.placingWorldY = viewportData.cameraState.screenToWorldY(state.screenHeightPx / 2f) -
+        size.height * mapData.tileSize / 2f
+    state.placingSnappedGridX = GridSnapHelper.worldToGrid(state.placingWorldX, mapData.tileSize)
+    state.placingSnappedGridY = GridSnapHelper.worldToGrid(state.placingWorldY, mapData.tileSize)
+    state.placementValidity = renderData.gridSystem.validatePlacement(
+        state.placingSnappedGridX, state.placingSnappedGridY,
+        size.width, size.height
+    )
+}
+
+/** MainGameScreen 主体内容（MainGameScreen 拆分）：地图视口 + 覆盖层 + UI 覆盖层 */
+@Composable
+private fun MainGameScreenContent(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel,
+    vms: OverlayViewModels,
+    onLogout: () -> Unit,
+    onRestartGame: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Transparent)
             .onSizeChanged { size ->
-                screenWidthPx = size.width.toFloat()
-                screenHeightPx = size.height.toFloat()
+                state.screenWidthPx = size.width.toFloat()
+                state.screenHeightPx = size.height.toFloat()
             }
     ) {
-        val context = LocalContext.current
-
-        // 金手指图标位图
-        val goldenFingerBmp = remember {
-            val resId = SpriteResRegistry.resolve("golden_finger")
-            if (resId != null) {
-                val opts = android.graphics.BitmapFactory.Options().apply {
-                    inSampleSize = 1
-                }
-                android.graphics.BitmapFactory.decodeResource(context.resources, resId, opts)
-                    ?.asImageBitmap()
-            } else null
-        }
-
-        // 宗门大地图层（Vulkan 原生渲染）
-        // v4.0.43+ 架构：替换 Compose Canvas 为 Vulkan 原生渲染管线，
-        // 实现 GPU 批处理（3 draw calls/帧）、独立渲染线程、VSYNC 对齐。
-        // 参见: docs/map-rendering-architecture.md
-        val nativeConfig = remember(tileSize) {
-            NativeRenderConfig(
-                tileSize = tileSize,
-                worldWidthCells = worldWidthCells,
-                worldHeightCells = worldHeightCells,
-                worldPixelWidth = worldPixelWidth,
-                worldPixelHeight = worldPixelHeight
-            )
-        }
-        var nativeSurfaceView by remember { mutableStateOf<NativeSurfaceView?>(null) }
-
-        // 普通点击选中格（WP3 选中高亮）：点击建筑时记录其格坐标，点击空地清除。
-        // 渲染端经 findBuildingIndex 转换为建筑索引（双后端共用同一命中几何）
-        var selectedBuildingGrid by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-
-        // flatTileData — 由 tileData 派生，建筑占位变化时自动重算
-        val flatTileData = remember(tileData) {
-            tileData.flatMap { it.toList() }.toIntArray()
-        }
-
-        // 统一 UV 映射表（来自 SpriteAtlasDef，与 C++ TextureAtlas.h 一致）
-        val decorUvMap = SpriteAtlasDef.TILE_UV_MAP
-
-        // ★ 优化：缓存 buildingData FloatArray，仅在建筑列表变化时重建
-        // 拖拽时 cameraState 变化触发的重组不重新分配
-        val buildingDataArray = remember(effectivePlacedBuildings, buildingSpriteSizes) {
-            if (effectivePlacedBuildings.isNotEmpty()) {
-                buildBuildingDataArray(effectivePlacedBuildings, buildingSpriteSizes)
-            } else null
-        }
-
-        // ★ 灵田作物数据（WP6）：灵田建筑 ↔ 种植记录按 buildingInstanceId 映射，
-        // progress01 = 游戏时间进度（TimeProgressUtil，与生产结算同源）。
-        // 低频变化（种植/收获/逐月生长）走帧率门控 RenderFrame——不新增命令总线槽位。
-        // derivedStateOf：游戏时间/种植记录不变时不重建数组（gameData 每 tick 变化
-        // 触发的是 recomposition 而非本派生重算）
-        val spiritCropData = remember {
-            derivedStateOf {
-                buildSpiritCropData(
-                    buildings = effectivePlacedBuildings,
-                    plants = gameData.spiritFieldPlants,
-                    currentYear = gameData.gameYear,
-                    currentMonth = gameData.gameMonth,
-                    sectId = gameData.activeSectId
-                )
-            }
-        }
-
-        // ★ 拆除模式高亮标记：与 buildingDataArray 同源同序（effectivePlacedBuildings，
-        // 拆除模式下 movingBuilding=null 两者内容一致）——低频变化（模式进出/选中切换）
-        // 走帧率门控 RenderFrame，渲染端与精灵同帧同相机快照绘制（消除 Compose 覆盖层
-        // 相位差错位）；null = 非拆除模式，双后端跳过整层
-        val demolishHighlightData = remember {
-            derivedStateOf {
-                if (!isDemolishMode) null
-                else buildDemolishHighlightData(effectivePlacedBuildings, demolishSelectedIds)
-            }
-        }
-
-        // ★ 优化：RenderFrame 推送帧率门控
-        // SOFTWARE 路径下限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
-        var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }
-
-        // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
-        // P-7：地图视口抽离为 SectMapViewport（参数稳定引用——每旬 gameData
-        // 变化不触发 AndroidView update；相机/预览/建筑实际变化才重组）
-        val viewportParams = remember {
-            derivedStateOf {
-                SectMapViewportParams(
-                    nativeConfig = nativeConfig,
-                    cameraState = cameraState,
-                    flatTileData = flatTileData,
-                    buildingDataArray = buildingDataArray,
-                    buildingCount = effectivePlacedBuildings.size,
-                    tileSize = tileSize,
-                    worldWidthCells = worldWidthCells,
-                    worldHeightCells = worldHeightCells,
-                    forceSoftwareRendering = forceSoftwareRendering,
-                    vulkanInitListener = vulkanInitListener,
-                    surfaceProviderFactory = viewModel.getSurfaceProviderFactory(),
-                    gpuTier = viewModel.getGpuTier(),
-                    buildingSpriteSizes = buildingSpriteSizes,
-                    selectedGrid = selectedBuildingGrid,
-                    spiritCropData = spiritCropData.value,
-                    demolishHighlightData = demolishHighlightData.value,
-                    gridOverlayVisible = isPlacingBuilding || movingBuilding != null,
-                    alphaProvider = { viewModel.gameEngineCore.currentAlpha }
-                )
-            }
-        }
-        val previewState = remember {
-            derivedStateOf {
-                MapPreviewState(
-                    isPlacingBuilding = isPlacingBuilding,
-                    placingBuildingName = placingBuildingName,
-                    placingWorldX = placingWorldX,
-                    placingWorldY = placingWorldY,
-                    placingBuildingSize = placingBuildingSize,
-                    placementValidity = placementValidity,
-                    movingBuilding = movingBuilding,
-                    movingWorldX = movingWorldX,
-                    movingWorldY = movingWorldY,
-                    movingBuildingSize = movingBuildingSize,
-                    movingValid = movingValid
-                )
-            }
-        }
         SectMapViewport(
-            params = viewportParams.value,
-            preview = previewState.value,
+            params = data.viewportData.viewportParams,
+            preview = data.viewportData.previewState,
             commandBus = viewModel.getRenderCommandBus(),
-            onViewCreated = { view -> nativeSurfaceView = view }
+            onViewCreated = { view -> state.nativeSurfaceView = view }
         )
 
-        // ================================================================
-        // 跨平台手势引擎 + 平滑镜头动画
-        // ================================================================
-        val touchScope = rememberCoroutineScope()
-        val cameraAnimator = remember(cameraState, touchScope) {
-            CameraAnimator(cameraState, touchScope)
-        }
-        // 设置动画器引用，使 tryCenterOn 使用平滑动画
-        LaunchedEffect(cameraAnimator) {
-            cameraState.setAnimator(cameraAnimator)
-        }
-        // 用户交互时取消动画
-        val cancelCameraAnim: () -> Unit = { cameraAnimator.cancel() }
-
-        // 拆除模式点击处理（提取自 onTap，防 LongMethod；闭包访问模式状态）。
-        // 区域模式：以点击格为中心做正方形范围选中（并集累积 + Set 幂等——
-        // 新区域内已选中的建筑保持选中，重复框选不取消；点击任意格都触发，
-        // 不要求格上有建筑——越界格纯几何计算天然安全）。
-        // 单点模式：点击建筑切换选中状态。
-        fun handleDemolishTap(gx: Int, gy: Int) {
-            if (isAreaSelectMode) {
-                demolishSelectedIds = demolishSelectedIds + buildingsInSquare(
-                    buildings = effectivePlacedBuildings,
-                    centerX = gx,
-                    centerY = gy,
-                    diameter = areaDiameter
-                )
-            } else {
-                val b = buildingIndex.findBuildingAt(gx, gy) ?: return
-                if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
-                    demolishSelectedIds = if (b.instanceId in demolishSelectedIds)
-                        demolishSelectedIds - b.instanceId
-                    else demolishSelectedIds + b.instanceId
-                }
-            }
-        }
-
-        val touchEngine = remember(cameraState, buildingIndex, gridSystem) {
-            SectMapTouchEngine(
-                callbacks = object : TouchEngineCallbacks {
-                    override fun onPanCamera(dx: Float, dy: Float) {
-                        cameraState.pan(dx, dy)
-                        cancelCameraAnim()
-                        viewModel.onUserInteraction()
-                    }
-
-                    override fun onTap(screenX: Float, screenY: Float) {
-                        val wx = cameraState.screenToWorldX(screenX)
-                        val wy = cameraState.screenToWorldY(screenY)
-                        val gx = (wx / tileSize).toInt()
-                        val gy = (wy / tileSize).toInt()
-                        // 拆除模式：单点切换选中 / 区域模式范围选中，不弹详情
-                        if (isDemolishMode) {
-                            handleDemolishTap(gx, gy)
-                            return
-                        }
-                        val clicked = buildingIndex.findBuildingAt(gx, gy)
-                        // 点击空地 → 清除选中高亮（任意模式）
-                        if (clicked == null) {
-                            selectedBuildingGrid = null
-                        }
-                        if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
-                            // 点击建筑 → 记录选中格（渲染端金色高亮描边），并打开详情
-                            selectedBuildingGrid = gx to gy
-                            val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
-                            when (def?.key) {
-                                "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
-                                "alchemy" -> viewModel.navigateToDialog(DialogType.Alchemy(clicked.instanceId))
-                                "forge" -> viewModel.navigateToDialog(DialogType.Forge(clicked.instanceId))
-                                "single_residence", "single_residence_upgraded", "multi_residence", "multi_residence_upgraded" -> {
-                                    viewModel.navigateToDialog(DialogType.Residence(clicked.instanceId))
-                                }
-                                else -> {
-                                    // R1 诊断（B1）：displayName 未注册 / 无回调 → 点击被静默吞掉。
-                                    // 渲染端会用索引 0 兜底画出该建筑，点击却无任何分支处理——唯一"可见但点不中"确定性路径。
-                                    if (def == null) {
-                                        DomainLog.w(
-                                            BUILDING_TAP_TAG,
-                                            "点击建筑 displayName 未注册: name=${clicked.displayName} " +
-                                                "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
-                                                "grid=(${clicked.gridX},${clicked.gridY}) " +
-                                                "activeSectId=${gameData.activeSectId} " +
-                                                "sectBuildings=${activeSectBuildings.size}"
-                                        )
-                                    }
-                                    val b = buildingList.find { it.first == clicked.displayName }
-                                    if (b != null) {
-                                        b.second?.invoke(clicked)
-                                    } else {
-                                        DomainLog.w(
-                                            BUILDING_TAP_TAG,
-                                            "点击建筑无回调处理: name=${clicked.displayName} " +
-                                                "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
-                                                "grid=(${clicked.gridX},${clicked.gridY}) " +
-                                                "activeSectId=${gameData.activeSectId} " +
-                                                "sectBuildings=${activeSectBuildings.size}"
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    override fun onLongPress(screenX: Float, screenY: Float): LongPressResult {
-                        val wx = cameraState.screenToWorldX(screenX)
-                        val wy = cameraState.screenToWorldY(screenY)
-                        val gx = (wx / tileSize).toInt()
-                        val gy = (wy / tileSize).toInt()
-
-                        // 放置模式 → 金手指图标检测：唯一图标随激活状态移动
-                        // （未激活在预览角作入口；激活后跟随 endGrid，按住它即可重入框选）
-                        if (isPlacingBuilding) {
-                            val gfWx = (if (goldFingerState.isActive) goldFingerState.endGridX
-                                else placingSnappedGridX + placingBuildingSize.width) * tileSize
-                            val gfWy = (if (goldFingerState.isActive) goldFingerState.endGridY
-                                else placingSnappedGridY + placingBuildingSize.height) * tileSize
-                            if (wx >= gfWx && wx < gfWx + tileSize &&
-                                wy >= gfWy && wy < gfWy + tileSize
-                            ) {
-                                if (!goldFingerState.isActive) {
-                                    // 首次激活：起点锚定预览位置，钳制到可建区后重算状态
-                                    val sel = clampGoldFingerSelection(
-                                        GoldFingerSelection(
-                                            placingSnappedGridX, placingSnappedGridY,
-                                            placingSnappedGridX, placingSnappedGridY
-                                        ),
-                                        worldWidthCells, worldHeightCells,
-                                        GameConfig.SectMap.BORDER_TREE_RING
-                                    )
-                                    goldFingerState = recomputeGoldFingerState(
-                                        f = GoldFingerState(
-                                            isActive = true,
-                                            buildingName = placingBuildingName,
-                                            buildingSize = placingBuildingSize,
-                                            buildingCost = viewModel.getBuildingCost(placingBuildingName)
-                                        ),
-                                        sel = sel,
-                                        existingBuildings = effectivePlacedBuildings,
-                                        worldWidthCells = worldWidthCells,
-                                        worldHeightCells = worldHeightCells,
-                                        buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-                                        spiritStones = gameData?.spiritStones ?: 0L
-                                    )
-                                }
-                                // 已激活：不改动选区（等待 MOVE 重新框定，可扩大可缩小），直接重入框选
-                                return LongPressResult.GoldFingerDrag
-                            }
-                            return LongPressResult.NotHandled
-                        }
-
-                        // 非放置模式 → 建筑长按 → 移动模式
-                        // 注意：movingBuilding 可能非 null（上次拖拽后确认/取消按钮还在显示）
-                        // 如果按钮显示期间再次长按同一建筑，应允许继续拖拽
-                        // 拆除模式禁止长按移动
-                        if (!isPlacingBuilding && !isDemolishMode) {
-                            val touched = buildingIndex.findBuildingAt(gx, gy)
-                                ?: (if (movingBuilding != null) movingBuilding else null)
-                            if (touched != null) {
-                                val isResumeDrag = movingBuilding?.instanceId == touched.instanceId
-                                if (!isResumeDrag) {
-                                    // 新建筑拖拽 → 从该建筑的原始网格坐标开始
-                                    movingWorldX = (touched.gridX * tileSize).toFloat()
-                                    movingWorldY = (touched.gridY * tileSize).toFloat()
-                                    movingSnappedGridX = touched.gridX
-                                    movingSnappedGridY = touched.gridY
-                                    movingValid = GridSnapHelper.PlacementValidity.Valid
-                                }
-                                movingBuilding = touched
-                                return LongPressResult.BuildingDrag
-                            }
-                        }
-                        return LongPressResult.NotHandled
-                    }
-
-                    override fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) {
-                        if (isPlacingBuilding) {
-                            // 放置模式：更新预览位置
-                            placingWorldX += worldDx
-                            placingWorldY += worldDy
-                            val oldSnappedX = placingSnappedGridX
-                            val oldSnappedY = placingSnappedGridY
-                            placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
-                            placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
-                            val dgx = placingSnappedGridX - oldSnappedX
-                            val dgy = placingSnappedGridY - oldSnappedY
-                            // 金手指激活时选区随预览同增量平移（Bug 2 修复），钳制到可建区后重算
-                            if (goldFingerState.isActive && (dgx != 0 || dgy != 0)) {
-                                val f = goldFingerState
-                                val sel = translateGoldFingerSelection(
-                                    GoldFingerSelection(f.startGridX, f.startGridY, f.endGridX, f.endGridY),
-                                    dgx, dgy, worldWidthCells, worldHeightCells,
-                                    GameConfig.SectMap.BORDER_TREE_RING
-                                )
-                                goldFingerState = recomputeGoldFingerState(
-                                    f = f, sel = sel,
-                                    existingBuildings = effectivePlacedBuildings,
-                                    worldWidthCells = worldWidthCells,
-                                    worldHeightCells = worldHeightCells,
-                                    buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-                                    spiritStones = gameData?.spiritStones ?: 0L
-                                )
-                            }
-                            placementValidity = gridSystem.validatePlacement(
-                                placingSnappedGridX, placingSnappedGridY,
-                                placingBuildingSize.width, placingBuildingSize.height
-                            )
-                        } else {
-                            // 移动模式：更新被拖建筑位置
-                            movingWorldX += worldDx
-                            movingWorldY += worldDy
-                            movingSnappedGridX = GridSnapHelper.worldToGrid(movingWorldX, tileSize)
-                            movingSnappedGridY = GridSnapHelper.worldToGrid(movingWorldY, tileSize)
-                            movingValid = gridSystem.validatePlacement(
-                                movingSnappedGridX, movingSnappedGridY,
-                                movingBuildingSize.width, movingBuildingSize.height
-                            )
-                        }
-                    }
-
-                    override fun onBuildingDragEnd() {
-                        // 松手后保持最后位置，显示确认/取消按钮
-                        // movingBuilding 保持非 null，确认按钮触发 viewModel.moveBuilding()
-                    }
-
-                    override fun onGoldFingerUpdate(screenX: Float, screenY: Float) {
-                        if (!goldFingerState.isActive) return
-                        val newWx = cameraState.screenToWorldX(screenX)
-                        val newWy = cameraState.screenToWorldY(screenY)
-                        // 终点格用 GridSnapHelper.worldToGrid（roundToInt，与预览吸附一致），
-                        // 并整体钳制到可建区，保证视觉框 == 实际建造区
-                        val newGridX = GridSnapHelper.worldToGrid(newWx, tileSize)
-                        val newGridY = GridSnapHelper.worldToGrid(newWy, tileSize)
-                        val f = goldFingerState
-                        val sel = clampGoldFingerSelection(
-                            GoldFingerSelection(f.startGridX, f.startGridY, newGridX, newGridY),
-                            worldWidthCells, worldHeightCells,
-                            GameConfig.SectMap.BORDER_TREE_RING
-                        )
-                        goldFingerState = recomputeGoldFingerState(
-                            f = f, sel = sel,
-                            existingBuildings = effectivePlacedBuildings,
-                            worldWidthCells = worldWidthCells,
-                            worldHeightCells = worldHeightCells,
-                            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-                            spiritStones = gameData?.spiritStones ?: 0L
-                        )
-                    }
-
-                    override fun isGoldFingerActive(): Boolean = goldFingerState.isActive
-                    override fun getCameraScale(): Float = cameraState.scale
-
-                    /**
-                     * [关键] DOWN 时刻检测是否在建筑上。
-                     * 引擎据此选择长按超时：建筑上 → 200ms 长按进 BuildingDrag；空地 → 800ms（金手指）。
-                     * Slop→Scrolling 判决统一由 touchSlop 决定，与返回值无关；拖动视角不再被建筑吞掉。
-                     * 复用 buildingIndex 的 O(1) 空间索引查询。
-                     */
-                    override fun findBuildingAt(screenX: Float, screenY: Float): Any? {
-                        // 拆除模式：不返回建筑 → touch 引擎不会启动 BuildingDrag 定时器，
-                        // 短按/滑动正常走 onTap / 平移相机
-                        if (isDemolishMode) return null
-                        val wx = cameraState.screenToWorldX(screenX)
-                        val wy = cameraState.screenToWorldY(screenY)
-
-                        // 放置模式：用世界坐标检测触摸是否在预览区域内（比网格检测更精准）
-                        if (isPlacingBuilding) {
-                            val previewLeft = placingWorldX
-                            val previewTop = placingWorldY
-                            val previewRight = previewLeft + placingBuildingSize.width * tileSize
-                            val previewBottom = previewTop + placingBuildingSize.height * tileSize
-                            if (wx >= previewLeft && wx < previewRight &&
-                                wy >= previewTop && wy < previewBottom
-                            ) {
-                                return Any()
-                            }
-                            return null
-                        }
-
-                        val gx = (wx / tileSize).toInt()
-                        val gy = (wy / tileSize).toInt()
-
-                        // buildingIndex 不包含 movingBuilding，手动检查
-                        val mb = movingBuilding
-                        if (mb != null) {
-                            // 用当前拖拽位置（movingSnappedGridX/Y）而非原始位置检查
-                            if (gx >= movingSnappedGridX && gx < movingSnappedGridX + mb.width &&
-                                gy >= movingSnappedGridY && gy < movingSnappedGridY + mb.height
-                            ) {
-                                return mb
-                            }
-                        }
-                        return buildingIndex.findBuildingAt(gx, gy)
-                    }
-
-                    /**
-                     * 是否已在编辑模式（移动或放置中）。
-                     * true  → 直接拖拽，无需长按
-                     * false → 首次触摸建筑需长按 200ms
-                     */
-                    override fun isInEditMode(): Boolean = isPlacingBuilding || movingBuilding != null
-
-                    override fun onDragStart() {
-                        viewModel.setGameScene(
-                            GameEngineCore.GameScene.GAMEPLAY
-                        )
-                    }
-
-                    override fun onDragEnd() {
-                        // 由 idle timeout 自动降帧 (30s → IDLE 10fps)
-                    }
-
-                    override fun onFlingStart() {
-                        viewModel.setGameScene(
-                            GameEngineCore.GameScene.MAP_SCROLL
-                        )
-                    }
-
-                    override fun onFlingEnd() {
-                        // 由 idle timeout 自动降帧 (30s → IDLE 10fps)
-                    }
-                },
-                scope = touchScope,
-                config = TouchEngineConfig()
-            )
-        }
-
-        // 挂载 touchEngine 到 NativeSurfaceView
-        LaunchedEffect(nativeSurfaceView) {
-            nativeSurfaceView?.touchEngine = touchEngine
-        }
-
-        // 将引擎渲染帧率（热控+场景+性能模式综合）接入 NativeSurfaceView
-        LaunchedEffect(nativeSurfaceView) {
-            val view = nativeSurfaceView ?: return@LaunchedEffect
-            viewModel.renderFrameRate.collect { fps ->
-                view.targetFps = fps
-            }
-        }
-
-        // 接通渲染质量/装饰降级流（热控 + 节能模式低画质真实生效）。
-        // 经 NativeSurfaceView 转发属性写入——backend 未创建时先存值、
-        // 创建后立即应用，防初始发射丢失。
-        LaunchedEffect(nativeSurfaceView) {
-            val view = nativeSurfaceView ?: return@LaunchedEffect
-            combine(
-                viewModel.renderingQualityFactor,
-                viewModel.decorationsDisabled
-            ) { quality, decorations -> quality to decorations }
-                .distinctUntilChanged()
-                .collect { (quality, decorations) ->
-                    view.renderQualityFactor = quality
-                    view.renderDecorationsDisabled = decorations
-                }
-        }
-
-        // 渲染线程实际达成帧率 → 引擎热控（激活帧率驱动降级）
-        LaunchedEffect(nativeSurfaceView) {
-            nativeSurfaceView?.onObservedFps = { fps ->
-                viewModel.gameEngineCore.setObservedRenderFps(fps)
-            }
-        }
-
-        // 网格线已迁移至 native 渲染层（viewportParams.gridOverlayVisible，
-        // 放置/移动模式时与地图同帧同相机绘制——消除 Compose 覆盖层相位差错位）
-
-        // 金手指图标（建筑预览框右下角）— 仅未激活时显示作入口；
-        // 激活后唯一图标由覆盖层承担（跟随 endGrid，即手指位置）
-        if (isPlacingBuilding && !goldFingerState.isActive && goldenFingerBmp != null) {
-            GoldFingerIcon(
-                goldenFingerBmp = goldenFingerBmp,
-                gridX = placingSnappedGridX + placingBuildingSize.width,
-                gridY = placingSnappedGridY + placingBuildingSize.height,
-                cameraState = cameraState,
-                tileSize = tileSize
-            )
-        }
-
-        // 金手指框选覆盖层 — 激活时绘制选区方块和边框
-        if (goldFingerState.isActive) {
-            GoldFingerSelectionOverlay(
-                goldFingerState = goldFingerState,
-                cameraState = cameraState,
-                tileSize = tileSize,
-                goldenFingerBmp = goldenFingerBmp
-            )
-        }
-
-        // 一键拆除占地高亮已迁移至 native 渲染层（viewportParams.demolishHighlightData，
-        // 与建筑精灵同帧同相机快照绘制——消除拖动视角时的相位差错位）
-
-        // 灵植阁光环范围 — 放置/移动灵植阁时显示光环范围圈 + 范围内灵田高亮
-        val herbGardenDisplayName = "灵植阁"
-        val showHerbGardenAura = (isPlacingBuilding && placingBuildingName == herbGardenDisplayName) ||
-                (movingBuilding?.displayName == herbGardenDisplayName)
-        val auraGridX = if (isPlacingBuilding) placingSnappedGridX else movingSnappedGridX
-        val auraGridY = if (isPlacingBuilding) placingSnappedGridY else movingSnappedGridY
-        val auraSize = if (isPlacingBuilding) placingBuildingSize else movingBuildingSize
-        val spiritFieldDisplayName = "灵田"
-        val spiritFieldBuildings = remember(placedBuildings, movingBuilding) {
-            placedBuildings.filter { it.displayName == spiritFieldDisplayName }
-        }
-        HerbGardenAuraOverlay(
-            showAura = showHerbGardenAura,
-            buildingGridX = auraGridX,
-            buildingGridY = auraGridY,
-            buildingW = auraSize.width,
-            buildingH = auraSize.height,
-            spiritFieldBuildings = spiritFieldBuildings,
-            cameraState = cameraState,
-            tileSize = tileSize
-        )
-
-        if (isPlacingBuilding) {
-            val isGf = goldFingerState.isActive
-            PlacementConfirmButtons(
-                snappedGridX = placingSnappedGridX,
-                snappedGridY = placingSnappedGridY,
-                buildingSize = placingBuildingSize,
-                cameraState = cameraState,
-                tileSize = tileSize,
-                validity = if (isGf && !goldFingerState.canAfford) GridSnapHelper.PlacementValidity.OutOfBounds else placementValidity,
-                onConfirm = {
-                    if (isGf) {
-                        viewModel.batchPlaceBuilding(goldFingerState)
-                        goldFingerState = GoldFingerState()
-                    } else if (placementValidity == GridSnapHelper.PlacementValidity.Valid) {
-                        viewModel.placeBuilding(
-                            name = placingBuildingName,
-                            gridX = placingSnappedGridX,
-                            gridY = placingSnappedGridY,
-                            width = placingBuildingSize.width,
-                            height = placingBuildingSize.height
-                        )
-                    }
-                    isPlacingBuilding = false
-                    placingBuildingName = ""
-                },
-                onCancel = {
-                    if (isGf) goldFingerState = GoldFingerState()
-                    else {
-                        isPlacingBuilding = false
-                        placingBuildingName = ""
-                    }
-                }
-            )
-        }
-
-        // 移动模式确认按钮 + 拆除按钮
-        if (movingBuilding != null) {
-            val moveScope = rememberCoroutineScope()
-            PlacementConfirmButtons(
-                snappedGridX = movingSnappedGridX,
-                snappedGridY = movingSnappedGridY,
-                buildingSize = movingBuildingSize,
-                cameraState = cameraState,
-                tileSize = tileSize,
-                validity = movingValid,
-                onConfirm = {
-                    val b = movingBuilding
-                    if (b != null &&
-                        movingValid == GridSnapHelper.PlacementValidity.Valid &&
-                        (movingSnappedGridX != b.gridX || movingSnappedGridY != b.gridY)
-                    ) {
-                        moveScope.launch {
-                            viewModel.moveBuilding(b.instanceId, movingSnappedGridX, movingSnappedGridY)
-                            // 同步更新空间索引，避免 LaunchedEffect 异步重建前
-                            // 第二次长按读到旧坐标导致建筑跳回原位置
-                            // 注：add 须传同一 spriteSizes，否则移动中的建筑丢失精灵扩展命中
-                            buildingIndex.remove(b.instanceId)
-                            buildingIndex.add(
-                                b.copy(gridX = movingSnappedGridX, gridY = movingSnappedGridY),
-                                buildingSpriteSizes
-                            )
-                            movingBuilding = null
-                        }
-                    } else {
-                        movingBuilding = null
-                    }
-                },
-                onCancel = { movingBuilding = null }
-            )
-
-            val building = checkNotNull(movingBuilding) { "DemolishButton rendered with null building" }
-            DemolishButton(
-                building = building,
-                snappedGridX = movingSnappedGridX,
-                snappedGridY = movingSnappedGridY,
-                buildingSize = movingBuildingSize,
-                cameraState = cameraState,
-                tileSize = tileSize,
-                onDemolish = {
-                    viewModel.demolishBuilding(building.instanceId)
-                    movingBuilding = null
-                }
-            )
-        }
-
-        // 宗门地图边缘装饰 — 在世界边界外绘制古风卷轴边缘渐变
-        // 位于地图之上、UI 元素之下，对两渲染后端透明
-        SectMapEdgeOverlay(
-            cameraState = cameraState,
-            worldPixelWidth = worldPixelWidth,
-            worldPixelHeight = worldPixelHeight
+        MainGameScreenMapOverlays(
+            state = state,
+            data = data,
+            viewModel = viewModel
         )
 
         // UI overlay — SectInfoCard + toggle + two side button columns
-        Box(modifier = Modifier.fillMaxSize()) {
-            // 宗门信息卡片 + 隐藏UI按钮（卡片外部右侧，同一行）
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 32.dp, top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isUiVisible) {
-                    val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
-                    val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
-                    SectInfoCard(
-                        sectName = gameData?.sectName ?: "青云宗",
-                        gameYear = gameData?.gameYear ?: 1,
-                        gameMonth = gameData?.gameMonth ?: 1,
-                        gamePhase = gameData?.gamePhase ?: 0,
-                        lowStones = gameData?.spiritStones ?: 0L,
-                        midStones = gameData?.midGradeSpiritStones ?: 0L,
-                        highStones = gameData?.highGradeSpiritStones ?: 0L,
-                        discipleCount = aliveDisciples.value.size,
-                        combatPower = sectCombatPower,
-                        sectLevel = currentSectLevel,
-                        showRewardBadge = showRewardBadge,
-                        onSectIconClick = { viewModel.navigateToSectLevelDetail() },
-                        onSectNameClick = { viewModel.navigateToDialog(DialogType.RenameSect) }
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Column(
-                    horizontalAlignment = Alignment.Start,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // 隐藏 UI 按钮与玉符货币栏同行（玉符栏位于隐藏按钮正右侧，
-                    // 不再与外层 Row 垂直居中、与暂停按钮同列中部）
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        HideUiToggleButton(
-                            isUiVisible = isUiVisible,
-                            onToggle = { isUiVisible = !isUiVisible },
-                            modifier = Modifier.size(28.dp)
-                        )
-                        if (isUiVisible) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框，
-                            // "+"按钮弹玉符广告确认对话框）
-                            JadeSymbolBadge(
-                                jadeSymbols = gameData?.jadeSymbols ?: 0,
-                                onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) },
-                                onAddClick = { viewModel.navigateToDialog(DialogType.JadeSymbolAd) }
-                            )
-                        }
-                    }
-                    // 暂停/继续按钮（根据 isPaused 切换精灵图）
-                    val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .clickableWithSound { saveLoadViewModel.togglePause() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        SpriteImage(
-                            name = if (isPaused) "ui_play_button" else "ui_pause_button",
-                            contentDescription = if (isPaused) "继续" else "暂停",
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                    }
-                }
-            }
-
-            // 仅 UI 可见时显示侧边按钮
-            if (isUiVisible) {
-                LeftSideButtons(
-                    viewModel = viewModel,
-                    modifier = Modifier.align(Alignment.CenterStart)
-                )
-
-                // 消息栏系统 — 左下角（建造栏展开时自然遮挡消息栏）
-                val gameEventRecords by viewModel.gameEventRecords.collectAsStateWithLifecycle()
-                MessageBarHost(
-                    events = gameEventRecords,
-                    isUiVisible = isUiVisible,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 32.dp, bottom = 16.dp)
-                )
-
-                GameActionButtons(
-                    viewModel = viewModel,
-                    buildingBarExpanded = buildingBarExpanded,
-                    onToggleBuildingBar = {
-                        buildingBarExpanded = !buildingBarExpanded
-                        isPlacingBuilding = false
-                        movingBuilding = null
-                        goldFingerState = GoldFingerState()
-                        isDemolishMode = false
-                        isAreaSelectMode = false
-                        demolishSelectedIds = emptySet()
-                    },
-                    onCancelPlacement = {
-                        isPlacingBuilding = false
-                        movingBuilding = null
-                        isDemolishMode = false
-                        isAreaSelectMode = false
-                        demolishSelectedIds = emptySet()
-                        // 防御性补齐：退出放置时清金手指（toggle 已重置，此处兜底）
-                        goldFingerState = GoldFingerState()
-                    },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                )
-            }
-        }
+        MainGameScreenUiOverlay(
+            state = state,
+            data = data,
+            viewModel = viewModel,
+            saveLoadViewModel = saveLoadViewModel
+        )
 
         // 建造栏 — 开关式，展开时显示；拆除模式按钮位于建造栏外部上方最右侧（间距 2dp）
-        if (buildingBarExpanded && isUiVisible) {
-            val currentSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
-            val constructionBarList = remember {
-                buildingList // BuildingRegistry.constructible now includes intermediate buildings
-            }
-            val buildingCosts = remember {
-                constructionBarList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-            ) {
-                // 按钮行：建造栏外部上方最右侧；拆除模式显示 区域选择+取消+确认，否则显示 一键拆除
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    if (isDemolishMode) {
-                        // 区域选择按钮 + 正上方的直径调整进度条（仅区域模式激活时显示）
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            if (isAreaSelectMode) {
-                                AreaDiameterSlider(
-                                    diameter = areaDiameter,
-                                    onDiameterChange = { areaDiameter = it }
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                            AreaSelectButton(
-                                isActive = isAreaSelectMode,
-                                onClick = {
-                                    isAreaSelectMode = !isAreaSelectMode
-                                    if (isAreaSelectMode) areaDiameter = AREA_DEFAULT_DIAMETER
-                                }
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        GameButton(
-                            text = "取消拆除",
-                            onClick = {
-                                isDemolishMode = false
-                                isAreaSelectMode = false
-                                demolishSelectedIds = emptySet()
-                            }
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        GameButton(
-                            text = "确认拆除",
-                            enabled = demolishSelectedIds.isNotEmpty(),
-                            onClick = {
-                                viewModel.demolishBuildings(demolishSelectedIds.toList())
-                                isDemolishMode = false
-                                isAreaSelectMode = false
-                                demolishSelectedIds = emptySet()
-                            }
-                        )
-                    } else {
-                        GameButton(
-                            text = "一键拆除",
-                            onClick = {
-                                isDemolishMode = true
-                                isAreaSelectMode = false
-                                demolishSelectedIds = emptySet()
-                                isPlacingBuilding = false
-                                placingBuildingName = ""
-                                movingBuilding = null
-                                goldFingerState = GoldFingerState()
-                            }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(2.dp)) // 与建造栏距离 2dp
-                BuildingConstructionBar(
-                    buildingList = constructionBarList,
-                    placedBuildings = activeSectBuildings,
-                    buildingCosts = buildingCosts,
-                    spiritStones = gameData.spiritStones,
-                    currentSectLevel = currentSectLevel,
-                    onSelectBuildingLevelRequirement = { name ->
-                        viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
-                    },
-                    onSelectBuilding = { name ->
-                        // 拆除模式下点击建造卡片不进入放置模式
-                        if (!isDemolishMode) {
-                            val size = buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
-                            isPlacingBuilding = true
-                            placingBuildingName = name
-                            placingBuildingSize = size
-                            placingWorldX = cameraState.screenToWorldX(screenWidthPx / 2f) - size.width * tileSize / 2f
-                            placingWorldY = cameraState.screenToWorldY(screenHeightPx / 2f) - size.height * tileSize / 2f
-                            placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
-                            placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
-                            placementValidity = gridSystem.validatePlacement(
-                                placingSnappedGridX, placingSnappedGridY,
-                                size.width, size.height
-                            )
-                        }
-                    },
-                    getBuildingMaxCount = { name ->
-                        when {
-                            BuildingFeatureRegistry.isResidence(name) || BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
-                            else -> 1
-                        }
-                    },
-                    getBuildingCount = { name ->
-                        if (BuildingFeatureRegistry.isGloballyUnique(name)) {
-                            gameData.placedBuildings.count { it.displayName == name }
-                        } else {
-                            activeSectBuildings.count { it.displayName == name }
-                        }
-                    }
-                )
-            }
-        }
+        MainGameScreenBuildingBar(
+            state = state,
+            data = data,
+            viewModel = viewModel
+        )
 
         // Dialog overlay — extracted to GameOverlayHost
         GameOverlayHost(
-            vms = OverlayViewModels(
-                game = viewModel,
-                saveLoad = saveLoadViewModel,
-                production = productionViewModel,
-                alchemy = alchemyViewModel,
-                forge = forgeViewModel,
-                herbGarden = herbGardenViewModel,
-                spiritMine = spiritMineViewModel,
-                patrolTower = patrolTowerViewModel,
-                bloodRefining = bloodRefiningViewModel,
-                worldMapInteraction = worldMapInteractionViewModel,
-                worldMapGarrison = worldMapGarrisonViewModel,
-                battle = battleViewModel
-            ),
+            vms = vms,
             callbacks = OverlayCallbacks(
                 onLogout = onLogout,
                 onRestartGame = onRestartGame
@@ -1319,8 +1290,473 @@ fun MainGameScreen(
             )
         }
     }
-    } // CompositionLocalProvider
 }
+
+/** 地图覆盖层（MainGameScreen 拆分）：金手指/灵植阁光环/放置确认/移动控制/边缘装饰 */
+@Composable
+private fun MainGameScreenMapOverlays(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    // 金手指图标（建筑预览框右下角）— 仅未激活时显示作入口；
+    // 激活后唯一图标由覆盖层承担（跟随 endGrid，即手指位置）
+    if (state.isPlacingBuilding && !state.goldFingerState.isActive && data.renderData.goldenFingerBmp != null) {
+        GoldFingerIcon(
+            goldenFingerBmp = data.renderData.goldenFingerBmp,
+            gridX = state.placingSnappedGridX + state.placingBuildingSize.width,
+            gridY = state.placingSnappedGridY + state.placingBuildingSize.height,
+            cameraState = data.viewportData.cameraState,
+            tileSize = data.mapData.tileSize
+        )
+    }
+
+    // 金手指框选覆盖层 — 激活时绘制选区方块和边框
+    if (state.goldFingerState.isActive) {
+        GoldFingerSelectionOverlay(
+            goldFingerState = state.goldFingerState,
+            cameraState = data.viewportData.cameraState,
+            tileSize = data.mapData.tileSize,
+            goldenFingerBmp = data.renderData.goldenFingerBmp
+        )
+    }
+
+    // 一键拆除占地高亮已迁移至 native 渲染层（viewportParams.demolishHighlightData，
+    // 与建筑精灵同帧同相机快照绘制——消除拖动视角时的相位差错位）
+
+    // 灵植阁光环范围 — 放置/移动灵植阁时显示光环范围圈 + 范围内灵田高亮
+    MainGameScreenAuraOverlay(
+        state = state,
+        data = data,
+        viewModel = viewModel
+    )
+
+    if (state.isPlacingBuilding) {
+        MainGameScreenPlacementConfirm(
+            state = state,
+            data = data,
+            viewModel = viewModel
+        )
+    }
+
+    // 移动模式确认按钮 + 拆除按钮
+    if (state.movingBuilding != null) {
+        MainGameScreenMovingControls(
+            state = state,
+            data = data,
+            viewModel = viewModel
+        )
+    }
+
+    // 宗门地图边缘装饰 — 在世界边界外绘制古风卷轴边缘渐变
+    // 位于地图之上、UI 元素之下，对两渲染后端透明
+    SectMapEdgeOverlay(
+        cameraState = data.viewportData.cameraState,
+        worldPixelWidth = data.mapData.worldPixelWidth,
+        worldPixelHeight = data.mapData.worldPixelHeight
+    )
+}
+
+/** 灵植阁光环范围（MainGameScreen 拆分）：放置/移动灵植阁时显示光环 + 灵田高亮 */
+@Composable
+private fun MainGameScreenAuraOverlay(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    val placedBuildings by viewModel.placedBuildings.collectAsStateWithLifecycle()
+    val herbGardenDisplayName = "灵植阁"
+    val showHerbGardenAura = (state.isPlacingBuilding && state.placingBuildingName == herbGardenDisplayName) ||
+        (state.movingBuilding?.displayName == herbGardenDisplayName)
+    val auraGridX = if (state.isPlacingBuilding) state.placingSnappedGridX else state.movingSnappedGridX
+    val auraGridY = if (state.isPlacingBuilding) state.placingSnappedGridY else state.movingSnappedGridY
+    val auraSize = if (state.isPlacingBuilding) state.placingBuildingSize else data.derived.movingBuildingSize
+    val spiritFieldDisplayName = "灵田"
+    val spiritFieldBuildings = remember(placedBuildings, state.movingBuilding) {
+        placedBuildings.filter { it.displayName == spiritFieldDisplayName }
+    }
+    HerbGardenAuraOverlay(
+        showAura = showHerbGardenAura,
+        buildingGridX = auraGridX,
+        buildingGridY = auraGridY,
+        buildingW = auraSize.width,
+        buildingH = auraSize.height,
+        spiritFieldBuildings = spiritFieldBuildings,
+        cameraState = data.viewportData.cameraState,
+        tileSize = data.mapData.tileSize
+    )
+}
+
+/** 放置模式确认按钮（MainGameScreen 拆分） */
+@Composable
+private fun MainGameScreenPlacementConfirm(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    val isGf = state.goldFingerState.isActive
+    PlacementConfirmButtons(
+        snappedGridX = state.placingSnappedGridX,
+        snappedGridY = state.placingSnappedGridY,
+        buildingSize = state.placingBuildingSize,
+        cameraState = data.viewportData.cameraState,
+        tileSize = data.mapData.tileSize,
+        validity = if (isGf && !state.goldFingerState.canAfford) {
+            GridSnapHelper.PlacementValidity.OutOfBounds
+        } else {
+            state.placementValidity
+        },
+        onConfirm = {
+            if (isGf) {
+                viewModel.batchPlaceBuilding(state.goldFingerState)
+                state.goldFingerState = GoldFingerState()
+            } else if (state.placementValidity == GridSnapHelper.PlacementValidity.Valid) {
+                viewModel.placeBuilding(
+                    name = state.placingBuildingName,
+                    gridX = state.placingSnappedGridX,
+                    gridY = state.placingSnappedGridY,
+                    width = state.placingBuildingSize.width,
+                    height = state.placingBuildingSize.height
+                )
+            }
+            state.isPlacingBuilding = false
+            state.placingBuildingName = ""
+        },
+        onCancel = {
+            if (isGf) state.goldFingerState = GoldFingerState()
+            else {
+                state.isPlacingBuilding = false
+                state.placingBuildingName = ""
+            }
+        }
+    )
+}
+
+/** 移动模式确认按钮 + 拆除按钮（MainGameScreen 拆分） */
+// 拆分搬移:嵌套/条件结构与原函数一致
+@Suppress("ComplexCondition")
+@Composable
+private fun MainGameScreenMovingControls(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    val moveScope = rememberCoroutineScope()
+    PlacementConfirmButtons(
+        snappedGridX = state.movingSnappedGridX,
+        snappedGridY = state.movingSnappedGridY,
+        buildingSize = data.derived.movingBuildingSize,
+        cameraState = data.viewportData.cameraState,
+        tileSize = data.mapData.tileSize,
+        validity = state.movingValid,
+        onConfirm = {
+            val b = state.movingBuilding
+            if (b != null &&
+                state.movingValid == GridSnapHelper.PlacementValidity.Valid &&
+                (state.movingSnappedGridX != b.gridX || state.movingSnappedGridY != b.gridY)
+            ) {
+                moveScope.launch {
+                    viewModel.moveBuilding(b.instanceId, state.movingSnappedGridX, state.movingSnappedGridY)
+                    // 同步更新空间索引，避免 LaunchedEffect 异步重建前
+                    // 第二次长按读到旧坐标导致建筑跳回原位置
+                    // 注：add 须传同一 spriteSizes，否则移动中的建筑丢失精灵扩展命中
+                    data.renderData.buildingIndex.remove(b.instanceId)
+                    data.renderData.buildingIndex.add(
+                        b.copy(gridX = state.movingSnappedGridX, gridY = state.movingSnappedGridY),
+                        data.mapData.buildingSpriteSizes
+                    )
+                    state.movingBuilding = null
+                }
+            } else {
+                state.movingBuilding = null
+            }
+        },
+        onCancel = { state.movingBuilding = null }
+    )
+
+    val building = checkNotNull(state.movingBuilding) { "DemolishButton rendered with null building" }
+    DemolishButton(
+        building = building,
+        snappedGridX = state.movingSnappedGridX,
+        snappedGridY = state.movingSnappedGridY,
+        buildingSize = data.derived.movingBuildingSize,
+        cameraState = data.viewportData.cameraState,
+        tileSize = data.mapData.tileSize,
+        onDemolish = {
+            viewModel.demolishBuilding(building.instanceId)
+            state.movingBuilding = null
+        }
+    )
+}
+
+/** UI 覆盖层（MainGameScreen 拆分）：顶部栏 + 侧边按钮 */
+@Composable
+private fun MainGameScreenUiOverlay(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        MainGameScreenTopBar(
+            state = state,
+            data = data,
+            viewModel = viewModel,
+            saveLoadViewModel = saveLoadViewModel
+        )
+
+        // 仅 UI 可见时显示侧边按钮
+        if (state.isUiVisible) {
+            MainGameScreenSideControls(
+                state = state,
+                viewModel = viewModel,
+                onToggleBuildingBar = {
+                    state.buildingBarExpanded = !state.buildingBarExpanded
+                    state.exitAllEditModes()
+                },
+                onCancelPlacement = {
+                    // 防御性补齐：退出放置时清金手指（toggle 已重置，此处兜底）
+                    state.exitAllEditModes()
+                }
+            )
+        }
+    }
+}
+
+/** 顶部 UI（MainGameScreen 拆分）：宗门信息卡 + 隐藏 UI/玉符/暂停列 */
+@Composable
+private fun BoxScope.MainGameScreenTopBar(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel
+) {
+    // 宗门信息卡片 + 隐藏UI按钮（卡片外部右侧，同一行）
+    Row(
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .padding(start = 32.dp, top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (state.isUiVisible) {
+            val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
+            val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
+            val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
+            SectInfoCard(
+                sectName = data.derived.gameData?.sectName ?: "青云宗",
+                gameYear = data.derived.gameData?.gameYear ?: 1,
+                gameMonth = data.derived.gameData?.gameMonth ?: 1,
+                gamePhase = data.derived.gameData?.gamePhase ?: 0,
+                lowStones = data.derived.gameData?.spiritStones ?: 0L,
+                midStones = data.derived.gameData?.midGradeSpiritStones ?: 0L,
+                highStones = data.derived.gameData?.highGradeSpiritStones ?: 0L,
+                discipleCount = data.derived.aliveDisciples.size,
+                combatPower = sectCombatPower,
+                sectLevel = currentSectLevel,
+                showRewardBadge = showRewardBadge,
+                onSectIconClick = { viewModel.navigateToSectLevelDetail() },
+                onSectNameClick = { viewModel.navigateToDialog(DialogType.RenameSect) }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Column(
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // 隐藏 UI 按钮与玉符货币栏同行（玉符栏位于隐藏按钮正右侧，
+            // 不再与外层 Row 垂直居中、与暂停按钮同列中部）
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HideUiToggleButton(
+                    isUiVisible = state.isUiVisible,
+                    onToggle = { state.isUiVisible = !state.isUiVisible },
+                    modifier = Modifier.size(28.dp)
+                )
+                if (state.isUiVisible) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框，
+                    // "+"按钮弹玉符广告确认对话框）
+                    JadeSymbolBadge(
+                        jadeSymbols = data.derived.gameData?.jadeSymbols ?: 0,
+                        onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) },
+                        onAddClick = { viewModel.navigateToDialog(DialogType.JadeSymbolAd) }
+                    )
+                }
+            }
+            // 暂停/继续按钮（根据 isPaused 切换精灵图）
+            PauseResumeButton(saveLoadViewModel = saveLoadViewModel)
+        }
+    }
+}
+
+/** 暂停/继续按钮（MainGameScreen 拆分） */
+@Composable
+private fun PauseResumeButton(saveLoadViewModel: SaveLoadViewModel) {
+    val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .clickableWithSound { saveLoadViewModel.togglePause() },
+        contentAlignment = Alignment.Center
+    ) {
+        SpriteImage(
+            name = if (isPaused) "ui_play_button" else "ui_pause_button",
+            contentDescription = if (isPaused) "继续" else "暂停",
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+    }
+}
+
+/** 侧边按钮（MainGameScreen 拆分）：左按钮列 + 消息栏 + 右上动作按钮 */
+@Composable
+private fun BoxScope.MainGameScreenSideControls(
+    state: MainGameScreenState,
+    viewModel: GameViewModel,
+    onToggleBuildingBar: () -> Unit,
+    onCancelPlacement: () -> Unit
+) {
+    LeftSideButtons(
+        viewModel = viewModel,
+        modifier = Modifier.align(Alignment.CenterStart)
+    )
+
+    // 消息栏系统 — 左下角（建造栏展开时自然遮挡消息栏）
+    val gameEventRecords by viewModel.gameEventRecords.collectAsStateWithLifecycle()
+    MessageBarHost(
+        events = gameEventRecords,
+        isUiVisible = state.isUiVisible,
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .padding(start = 32.dp, bottom = 16.dp)
+    )
+
+    GameActionButtons(
+        viewModel = viewModel,
+        buildingBarExpanded = state.buildingBarExpanded,
+        onToggleBuildingBar = onToggleBuildingBar,
+        onCancelPlacement = onCancelPlacement,
+        modifier = Modifier.align(Alignment.TopEnd)
+    )
+}
+
+/** 建造栏（MainGameScreen 拆分）：拆除控制行 + 建筑卡片栏 */
+@Composable
+private fun BoxScope.MainGameScreenBuildingBar(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    if (state.buildingBarExpanded && state.isUiVisible) {
+        val currentSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
+        val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
+        val buildingCosts = remember {
+            data.mapData.buildingList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+        ) {
+            MainGameScreenDemolishControls(state = state, viewModel = viewModel)
+            Spacer(modifier = Modifier.height(2.dp)) // 与建造栏距离 2dp
+            BuildingConstructionBar(
+                buildingList = data.mapData.buildingList,
+                placedBuildings = data.derived.activeSectBuildings,
+                buildingCosts = buildingCosts,
+                spiritStones = gameData.spiritStones,
+                currentSectLevel = currentSectLevel,
+                onSelectBuildingLevelRequirement = { name ->
+                    viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
+                },
+                onSelectBuilding = { name ->
+                    onSelectBuildingFromBar(
+                        state = state, mapData = data.mapData,
+                        renderData = data.renderData, viewportData = data.viewportData,
+                        name = name
+                    )
+                },
+                getBuildingMaxCount = { name ->
+                    when {
+                        BuildingFeatureRegistry.isResidence(name) ||
+                            BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
+                        else -> 1
+                    }
+                },
+                getBuildingCount = { name ->
+                    if (BuildingFeatureRegistry.isGloballyUnique(name)) {
+                        gameData.placedBuildings.count { it.displayName == name }
+                    } else {
+                        data.derived.activeSectBuildings.count { it.displayName == name }
+                    }
+                }
+            )
+        }
+    }
+}
+
+/** 建造栏顶部拆除控制行（MainGameScreen 拆分）：区域选择 + 取消/确认拆除 */
+@Composable
+private fun MainGameScreenDemolishControls(
+    state: MainGameScreenState,
+    viewModel: GameViewModel
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+        if (state.isDemolishMode) {
+            // 区域选择按钮 + 正上方的直径调整进度条（仅区域模式激活时显示）
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (state.isAreaSelectMode) {
+                    AreaDiameterSlider(
+                        diameter = state.areaDiameter,
+                        onDiameterChange = { state.areaDiameter = it }
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                AreaSelectButton(
+                    isActive = state.isAreaSelectMode,
+                    onClick = {
+                        state.isAreaSelectMode = !state.isAreaSelectMode
+                        if (state.isAreaSelectMode) state.areaDiameter = AREA_DEFAULT_DIAMETER
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            GameButton(
+                text = "取消拆除",
+                onClick = {
+                    state.isDemolishMode = false
+                    state.isAreaSelectMode = false
+                    state.demolishSelectedIds = emptySet()
+                }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            GameButton(
+                text = "确认拆除",
+                enabled = state.demolishSelectedIds.isNotEmpty(),
+                onClick = {
+                    viewModel.demolishBuildings(state.demolishSelectedIds.toList())
+                    state.isDemolishMode = false
+                    state.isAreaSelectMode = false
+                    state.demolishSelectedIds = emptySet()
+                }
+            )
+        } else {
+            GameButton(
+                text = "一键拆除",
+                onClick = { state.enterDemolishMode() }
+            )
+        }
+    }
+}
+
 
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。

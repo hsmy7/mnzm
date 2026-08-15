@@ -53,51 +53,77 @@ fun ListingManagementDialog(
     var showInventorySelectDialog by remember { mutableStateOf(false) }
     val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
     val listItems = remember(playerListedItems, watchedKeys) {
-        playerListedItems.map { item ->
-            PlayerListItem(id = item.id, name = item.name, type = item.type,
-                rarity = item.rarity, quantity = item.quantity, price = item.price,
-                itemId = item.itemId, grade = item.grade)
-        }.sortedByWatchedThenRarity(
-            watchedKeys,
-            keyOf = { item ->
-                val type = normalizeItemType(item.type)
-                if (type in WATCHABLE_ITEM_TYPES) watchKey(type, item.name) else null
-            },
-            rarityOf = { it.rarity },
-            nameOf = { it.name }
-        )
+        sortPlayerListedItems(playerListedItems, watchedKeys)
     }
 
     UnifiedGameDialog(onDismissRequest = onDismiss, title = "上架管理", mode = DialogMode.Full, scrollableContent = false,
         headerActions = { GameButton(text = "上架", onClick = { showInventorySelectDialog = true }) }
     ) {
-        Column(Modifier.fillMaxSize()) {
-            if (listItems.isEmpty()) {
-                Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(8.dp),
-                    contentAlignment = Alignment.Center) { Text("暂无上架道具", fontSize = 12.sp, color = GameColors.TextSecondary) }
-            } else {
-                Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(8.dp)) {
-                    Column(Modifier.fillMaxSize()) {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text("道具名称", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.weight(1f))
-                            Text("数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                            Text("价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                            Text("操作", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
-                        }
-                        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
-                        LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                            itemsIndexed(listItems, key = { _, item -> item.id }) { index, item ->
-                                Column {
-                                    ListedItemCard(
-                                        item = item,
-                                        isFollowed = watchedKeys.contains(
-                                            watchKey(normalizeItemType(item.type), item.name)
-                                        ),
-                                        onDelist = { viewModel.removePlayerListedItem(item.id) }
-                                    )
-                                    if (index < listItems.lastIndex) {
-                                        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
-                                    }
+        ListingManagementContent(
+            listItems = listItems,
+            watchedKeys = watchedKeys,
+            onDelist = { viewModel.removePlayerListedItem(it.id) }
+        )
+    }
+
+    if (showInventorySelectDialog) {
+        InventorySelectDialog(viewModel = viewModel, onDismiss = { showInventorySelectDialog = false })
+    }
+}
+
+/** 上架列表排序（ListingManagementDialog 拆分）：转 PlayerListItem + 已关注优先排序 */
+private fun sortPlayerListedItems(
+    playerListedItems: List<com.xianxia.sect.core.model.MerchantItem>,
+    watchedKeys: Set<String>
+): List<PlayerListItem> {
+    return playerListedItems.map { item ->
+        PlayerListItem(id = item.id, name = item.name, type = item.type,
+            rarity = item.rarity, quantity = item.quantity, price = item.price,
+            itemId = item.itemId, grade = item.grade)
+    }.sortedByWatchedThenRarity(
+        watchedKeys,
+        keyOf = { item ->
+            val type = normalizeItemType(item.type)
+            if (type in WATCHABLE_ITEM_TYPES) watchKey(type, item.name) else null
+        },
+        rarityOf = { it.rarity },
+        nameOf = { it.name }
+    )
+}
+
+/** 上架管理内容区（ListingManagementDialog 拆分）：空态提示 + 列表头 + 上架道具列表 */
+@Composable
+private fun ListingManagementContent(
+    listItems: List<PlayerListItem>,
+    watchedKeys: Set<String>,
+    onDelist: (PlayerListItem) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        if (listItems.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(8.dp),
+                contentAlignment = Alignment.Center) { Text("暂无上架道具", fontSize = 12.sp, color = GameColors.TextSecondary) }
+        } else {
+            Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(8.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("道具名称", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.weight(1f))
+                        Text("数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                        Text("价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                        Text("操作", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
+                    }
+                    HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
+                    LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                        itemsIndexed(listItems, key = { _, item -> item.id }) { index, item ->
+                            Column {
+                                ListedItemCard(
+                                    item = item,
+                                    isFollowed = watchedKeys.contains(
+                                        watchKey(normalizeItemType(item.type), item.name)
+                                    ),
+                                    onDelist = { onDelist(item) }
+                                )
+                                if (index < listItems.lastIndex) {
+                                    HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
                                 }
                             }
                         }
@@ -105,10 +131,6 @@ fun ListingManagementDialog(
                 }
             }
         }
-    }
-
-    if (showInventorySelectDialog) {
-        InventorySelectDialog(viewModel = viewModel, onDismiss = { showInventorySelectDialog = false })
     }
 }
 

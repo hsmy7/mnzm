@@ -6,6 +6,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
 import androidx.activity.compose.BackHandler
@@ -22,6 +23,27 @@ import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.ui.game.SecretRealmViewModel
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 
+/** 世界地图子对话框 UI 状态（WorldMapDialog 拆分） */
+private class WorldMapDialogUiState {
+    var selectedSect by mutableStateOf<WorldSect?>(null)
+    var showSectDetail by mutableStateOf(false)
+    var selectedLevel by mutableStateOf<MapItem.Level?>(null)
+    var showLevelDetail by mutableStateOf(false)
+    var selectedSecretRealm by mutableStateOf<MapItem.SecretRealm?>(null)
+    var showSecretRealmDetail by mutableStateOf(false)
+    var showSecretRealmExploration by mutableStateOf(false)
+}
+
+/** 世界地图子对话框上下文（WorldMapDialog 拆分） */
+private data class WorldMapDialogContext(
+    val gameData: GameData?,
+    val disciples: List<DiscipleAggregate>,
+    val viewModel: GameViewModel,
+    val interactionViewModel: WorldMapInteractionViewModel,
+    val garrisonViewModel: WorldMapGarrisonViewModel,
+    val secretRealmViewModel: SecretRealmViewModel
+)
+
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun WorldMapDialog(
@@ -34,13 +56,7 @@ internal fun WorldMapDialog(
     garrisonViewModel: WorldMapGarrisonViewModel,
     onDismiss: () -> Unit
 ) {
-    var selectedSect by remember { mutableStateOf<WorldSect?>(null) }
-    var showSectDetail by remember { mutableStateOf(false) }
-    var selectedLevel by remember { mutableStateOf<MapItem.Level?>(null) }
-    var showLevelDetail by remember { mutableStateOf(false) }
-    var selectedSecretRealm by remember { mutableStateOf<MapItem.SecretRealm?>(null) }
-    var showSecretRealmDetail by remember { mutableStateOf(false) }
-    var showSecretRealmExploration by remember { mutableStateOf(false) }
+    val uiState = remember { WorldMapDialogUiState() }
 
     // WorldMap sub-dialogs — rendered locally to keep world map as background
     val showSectTradeDialog by interactionViewModel.showSectTradeDialog.collectAsStateWithLifecycle()
@@ -48,172 +64,268 @@ internal fun WorldMapDialog(
     val sectTradeItems by interactionViewModel.sectTradeItems.collectAsStateWithLifecycle()
     val showScoutDialog by interactionViewModel.showScoutDialog.collectAsStateWithLifecycle()
     val selectedScoutSectId by interactionViewModel.selectedScoutSectId.collectAsStateWithLifecycle()
-    val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
-    val playerSectX = playerSect?.x
-        ?: MapCoordinateSystem.WORLD_WIDTH / 2f
-    val playerSectY = playerSect?.y
-        ?: MapCoordinateSystem.WORLD_HEIGHT / 2f
-    val sectItems = remember(worldSects) {
-        MapItemMapper.fromWorldSects(worldSects, emptySet())
-    }
-
-    val levelItems = remember(mapRenderData.worldLevels) {
-        MapItemMapper.fromLevels(mapRenderData.worldLevels)
-    }
-
-    val realmItem = remember(mapRenderData.secretRealm) {
-        mapRenderData.secretRealm?.let { MapItemMapper.fromSecretRealm(it) }
-    }
-
-    val mapItems = remember(sectItems, levelItems, realmItem) {
-        sectItems + levelItems + listOfNotNull(realmItem)
-    }
+    val (playerSectX, playerSectY) = playerSectCenter(mapRenderData)
+    val mapItems = buildWorldMapItems(worldSects = worldSects, mapRenderData = mapRenderData)
 
     // 秘境探索全屏宿主（会话存在时暂停游戏时间，退出恢复）
     val secretRealmViewModel: SecretRealmViewModel =
         androidx.hilt.navigation.compose.hiltViewModel()
+    val context = WorldMapDialogContext(
+        gameData = gameData,
+        disciples = disciples,
+        viewModel = viewModel,
+        interactionViewModel = interactionViewModel,
+        garrisonViewModel = garrisonViewModel,
+        secretRealmViewModel = secretRealmViewModel
+    )
 
     BackHandler(onBack = onDismiss)
     Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
+        WorldMapScreenHost(
+            mapItems = mapItems,
+            focusWorld = Offset(playerSectX, playerSectY),
+            onBack = onDismiss,
+            onUserInteraction = viewModel::onUserInteraction,
+            onSectClick = { item ->
+                val sect = worldSects.find { it.id == item.id }
+                if (sect != null) {
+                    uiState.selectedSect = sect
+                    uiState.showSectDetail = true
+                }
+            },
+            onLevelClick = { item ->
+                uiState.selectedLevel = item
+                uiState.showLevelDetail = true
+            },
+            onSecretRealmClick = { item ->
+                uiState.selectedSecretRealm = item
+                uiState.showSecretRealmDetail = true
+            }
+        )
+        WorldMapSecretRealmExplorationGate(context = context, uiState = uiState)
+        WorldMapSectDetailGate(context = context, uiState = uiState)
+        WorldMapSecretRealmDetailGate(context = context, uiState = uiState)
+        WorldMapLevelDetailGate(context = context, uiState = uiState)
+        WorldMapSectTradeGate(
+            context = context,
+            showSectTradeDialog = showSectTradeDialog,
+            selectedTradeSectId = selectedTradeSectId,
+            sectTradeItems = sectTradeItems
+        )
+        WorldMapScoutGate(
+            context = context,
+            showScoutDialog = showScoutDialog,
+            selectedScoutSectId = selectedScoutSectId
+        )
+    }
+}
+
+/** 玩家宗门中心坐标（WorldMapDialog 拆分） */
+private fun playerSectCenter(mapRenderData: WorldMapRenderData): Pair<Float, Float> {
+    val playerSect = mapRenderData.worldMapSects.find { it.isPlayerSect }
+    return (playerSect?.x ?: MapCoordinateSystem.WORLD_WIDTH / 2f) to
+        (playerSect?.y ?: MapCoordinateSystem.WORLD_HEIGHT / 2f)
+}
+
+/** 地图渲染项构建（WorldMapDialog 拆分）：宗门 + 关卡 + 秘境 */
+@Composable
+private fun buildWorldMapItems(
+    worldSects: List<WorldSect>,
+    mapRenderData: WorldMapRenderData
+): List<MapItem> {
+    val sectItems = remember(worldSects) {
+        MapItemMapper.fromWorldSects(worldSects, emptySet())
+    }
+    val levelItems = remember(mapRenderData.worldLevels) {
+        MapItemMapper.fromLevels(mapRenderData.worldLevels)
+    }
+    val realmItem = remember(mapRenderData.secretRealm) {
+        mapRenderData.secretRealm?.let { MapItemMapper.fromSecretRealm(it) }
+    }
+    return remember(sectItems, levelItems, realmItem) {
+        sectItems + levelItems + listOfNotNull(realmItem)
+    }
+}
+
+/** 世界地图屏幕宿主（WorldMapDialog 拆分）：地图 + 点击分派 */
+@Composable
+private fun WorldMapScreenHost(
+    mapItems: List<MapItem>,
+    focusWorld: Offset,
+    onBack: () -> Unit,
+    onUserInteraction: () -> Unit,
+    onSectClick: (MapItem.Sect) -> Unit,
+    onLevelClick: (MapItem.Level) -> Unit,
+    onSecretRealmClick: (MapItem.SecretRealm) -> Unit
+) {
     WorldMapScreen(
         items = mapItems,
-        focusWorld = Offset(playerSectX, playerSectY),
-        onBack = onDismiss,
-        onUserInteraction = viewModel::onUserInteraction,
+        focusWorld = focusWorld,
+        onBack = onBack,
+        onUserInteraction = onUserInteraction,
         onItemClick = { item ->
             when (item) {
-                is MapItem.Sect -> {
-                    val sect = worldSects.find { it.id == item.id }
-                    if (sect != null) {
-                        selectedSect = sect
-                        showSectDetail = true
-                    }
-                }
-                is MapItem.Level -> {
-                    selectedLevel = item
-                    showLevelDetail = true
-                }
-                is MapItem.SecretRealm -> {
-                    selectedSecretRealm = item
-                    showSecretRealmDetail = true
-                }
+                is MapItem.Sect -> onSectClick(item)
+                is MapItem.Level -> onLevelClick(item)
+                is MapItem.SecretRealm -> onSecretRealmClick(item)
             }
         }
     )
+}
 
-    // 远古秘境探索全屏（覆盖地图；返回 = 暂存退出，会话保留）
-    if (showSecretRealmExploration) {
+/** 远古秘境探索全屏（WorldMapDialog 拆分）：覆盖地图，返回 = 暂存退出 */
+@Composable
+private fun WorldMapSecretRealmExplorationGate(
+    context: WorldMapDialogContext,
+    uiState: WorldMapDialogUiState
+) {
+    if (uiState.showSecretRealmExploration) {
         SecretRealmExplorationScreen(
-            viewModel = secretRealmViewModel,
+            viewModel = context.secretRealmViewModel,
             onExit = {
-                showSecretRealmExploration = false
-                viewModel.onUserInteraction()
+                uiState.showSecretRealmExploration = false
+                context.viewModel.onUserInteraction()
             },
             onFinished = {
-                showSecretRealmExploration = false
-                showSecretRealmDetail = false
-                selectedSecretRealm = null
-                viewModel.onUserInteraction()
+                uiState.showSecretRealmExploration = false
+                uiState.showSecretRealmDetail = false
+                uiState.selectedSecretRealm = null
+                context.viewModel.onUserInteraction()
             }
         )
     }
+}
 
-    if (showSectDetail) {
-        selectedSect?.let { sect ->
+/** 宗门详情弹窗（WorldMapDialog 拆分） */
+@Composable
+private fun WorldMapSectDetailGate(
+    context: WorldMapDialogContext,
+    uiState: WorldMapDialogUiState
+) {
+    if (uiState.showSectDetail) {
+        uiState.selectedSect?.let { sect ->
             WorldMapSectDetailDialog(
                 sect = sect,
-                gameData = gameData,
-                disciples = disciples,
-                viewModel = viewModel,
-                interactionViewModel = interactionViewModel,
-                garrisonViewModel = garrisonViewModel,
+                gameData = context.gameData,
+                disciples = context.disciples,
+                viewModel = context.viewModel,
+                interactionViewModel = context.interactionViewModel,
+                garrisonViewModel = context.garrisonViewModel,
                 onDismiss = {
-                    showSectDetail = false
-                    selectedSect = null
+                    uiState.showSectDetail = false
+                    uiState.selectedSect = null
                 }
             )
         }
     }
+}
 
-    if (showSecretRealmDetail && !showSecretRealmExploration) {
-        val realm = selectedSecretRealm
+/** 远古秘境详情弹窗（WorldMapDialog 拆分） */
+@Composable
+private fun WorldMapSecretRealmDetailGate(
+    context: WorldMapDialogContext,
+    uiState: WorldMapDialogUiState
+) {
+    if (uiState.showSecretRealmDetail && !uiState.showSecretRealmExploration) {
+        val realm = uiState.selectedSecretRealm
         if (realm != null) {
             SecretRealmDetailDialog(
                 realm = realm,
-                gameData = gameData,
-                viewModel = secretRealmViewModel,
-                onStart = { memberIds ->
-                    showSecretRealmDetail = false
-                    showSecretRealmExploration = true
+                gameData = context.gameData,
+                viewModel = context.secretRealmViewModel,
+                onStart = {
+                    uiState.showSecretRealmDetail = false
+                    uiState.showSecretRealmExploration = true
                 },
                 onContinue = {
-                    showSecretRealmDetail = false
-                    showSecretRealmExploration = true
+                    uiState.showSecretRealmDetail = false
+                    uiState.showSecretRealmExploration = true
                 },
                 onDismiss = {
-                    showSecretRealmDetail = false
-                    selectedSecretRealm = null
+                    uiState.showSecretRealmDetail = false
+                    uiState.selectedSecretRealm = null
                 }
             )
         }
     }
+}
 
-    if (showLevelDetail) {
+/** 关卡详情弹窗（WorldMapDialog 拆分）：BEAST 类型打开时锁定妖兽 */
+@Composable
+private fun WorldMapLevelDetailGate(
+    context: WorldMapDialogContext,
+    uiState: WorldMapDialogUiState
+) {
+    if (uiState.showLevelDetail) {
         // 打开 BEAST 类型关卡详情时锁定该妖兽（防止月度结算被 AI 攻击）
-        LaunchedEffect(showLevelDetail, selectedLevel) {
-            val lvl = selectedLevel
+        LaunchedEffect(uiState.showLevelDetail, uiState.selectedLevel) {
+            val lvl = uiState.selectedLevel
             if (lvl != null && lvl.levelType == LevelType.BEAST) {
-                viewModel.lockBeast(lvl.id)
+                context.viewModel.lockBeast(lvl.id)
             }
         }
 
-        selectedLevel?.let { level ->
+        uiState.selectedLevel?.let { level ->
             LevelDetailDialog(
                 level = level,
-                disciples = disciples,
-                viewModel = viewModel,
+                disciples = context.disciples,
+                viewModel = context.viewModel,
                 onAttack = { slotIds ->
-                    viewModel.attackWorldLevel(level.id, slotIds)
-                    viewModel.unlockBeast(level.id)
-                    showLevelDetail = false
-                    selectedLevel = null
+                    context.viewModel.attackWorldLevel(level.id, slotIds)
+                    context.viewModel.unlockBeast(level.id)
+                    uiState.showLevelDetail = false
+                    uiState.selectedLevel = null
                 },
                 onDismiss = {
-                    viewModel.unlockBeast(selectedLevel?.id ?: "")
-                    showLevelDetail = false
-                    selectedLevel = null
+                    context.viewModel.unlockBeast(uiState.selectedLevel?.id ?: "")
+                    uiState.showLevelDetail = false
+                    uiState.selectedLevel = null
                 }
             )
         }
     }
+}
 
+/** 宗门交易弹窗（WorldMapDialog 拆分） */
+@Composable
+private fun WorldMapSectTradeGate(
+    context: WorldMapDialogContext,
+    showSectTradeDialog: Boolean,
+    selectedTradeSectId: String?,
+    sectTradeItems: List<MerchantItem>
+) {
     if (showSectTradeDialog) {
-        val sect = gameData?.worldMapSects?.find { it.id == selectedTradeSectId }
+        val sect = context.gameData?.worldMapSects?.find { it.id == selectedTradeSectId }
         SectTradeDialog(
             sect = sect,
-            gameData = gameData,
+            gameData = context.gameData,
             tradeItems = sectTradeItems,
-            viewModel = viewModel,
-            interactionViewModel = interactionViewModel,
-            onDismiss = { interactionViewModel.closeSectTradeDialog() }
+            viewModel = context.viewModel,
+            interactionViewModel = context.interactionViewModel,
+            onDismiss = { context.interactionViewModel.closeSectTradeDialog() }
         )
     }
+}
 
+/** 探查弹窗（WorldMapDialog 拆分） */
+@Composable
+private fun WorldMapScoutGate(
+    context: WorldMapDialogContext,
+    showScoutDialog: Boolean,
+    selectedScoutSectId: String?
+) {
     if (showScoutDialog) {
-        val sect = gameData?.worldMapSects?.find { it.id == selectedScoutSectId }
+        val sect = context.gameData?.worldMapSects?.find { it.id == selectedScoutSectId }
         // 状态过滤（空闲/显示所有）委托 ScoutDialog 内部 DiscipleSelectorDialog，
         // 此处不得预过滤 IDLE（回归：预过滤会导致"显示所有弟子"勾选失效）
         ScoutDialog(
             sectName = sect?.name ?: "未知",
-            disciples = disciples,
-            viewModel = viewModel,
+            disciples = context.disciples,
+            viewModel = context.viewModel,
             onScout = { memberIds ->
-                interactionViewModel.startScoutMission(memberIds, selectedScoutSectId ?: "")
+                context.interactionViewModel.startScoutMission(memberIds, selectedScoutSectId ?: "")
             },
-            onDismiss = { interactionViewModel.closeScoutDialog() }
+            onDismiss = { context.interactionViewModel.closeScoutDialog() }
         )
     }
-
-    }
-
 }

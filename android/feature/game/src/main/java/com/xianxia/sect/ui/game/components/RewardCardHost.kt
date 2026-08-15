@@ -122,85 +122,7 @@ private fun AnimatedRewardCard(
             )
         }
         // Card body — dark background between dividers
-        Box(
-            modifier = Modifier
-                .width(200.dp)
-                .background(
-                    brush = Brush.horizontalGradient(
-                        0.0f to Color.Transparent,
-                        0.15f to CARD_BG,
-                        0.85f to CARD_BG,
-                        1.0f to Color.Transparent
-                    )
-                )
-                .padding(horizontal = 10.dp, vertical = 1.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 品阶色背景 + 灰色边框，无精灵时显示占位文本
-                val rarityColor = getRarityColor(item.rarity)
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .background(rarityColor)
-                        .border(1.dp, Color.Gray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val sprite = getRewardSprite(item.itemType, item.itemName, item.rarity)
-                    if (sprite != null && sprite != 0) {
-                        val cachedBitmap = LocalItemSpriteCache.current[sprite]
-                        if (cachedBitmap != null) {
-                            Image(
-                                bitmap = cachedBitmap,
-                                contentDescription = item.itemName,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .padding(2.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = sprite),
-                                contentDescription = item.itemName,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .padding(2.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = "敬请期待",
-                            color = Color.Black,
-                            fontSize = 7.sp,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = item.itemName,
-                    color = GOLD,
-                    fontSize = 14.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    text = "x${item.quantity}",
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
+        RewardCardBody(item = item)
         HorizontalDivider(
             color = Color.Gray,
             thickness = 1.dp,
@@ -209,5 +131,95 @@ private fun AnimatedRewardCard(
         )
         // 卡片间隔 2dp
         Spacer(modifier = Modifier.height(2.dp))
+    }
+}
+
+/** 奖励卡片主体（AnimatedRewardCard 拆分）：渐变背景 + 精灵/名称/数量行 */
+@Composable
+private fun RewardCardBody(item: RewardCardItem) {
+    Box(
+        modifier = Modifier
+            .width(200.dp)
+            .background(
+                brush = Brush.horizontalGradient(
+                    0.0f to Color.Transparent,
+                    0.15f to CARD_BG,
+                    0.85f to CARD_BG,
+                    1.0f to Color.Transparent
+                )
+            )
+            .padding(horizontal = 10.dp, vertical = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RewardCardSprite(item = item)
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = item.itemName,
+                color = GOLD,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = "x${item.quantity}",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+/** 奖励卡片精灵区（AnimatedRewardCard 拆分）：品阶色背景 + 精灵/占位文本 */
+@Composable
+private fun RewardCardSprite(item: RewardCardItem) {
+    // 品阶色背景 + 灰色边框，无精灵时显示占位文本
+    val rarityColor = getRarityColor(item.rarity)
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .background(rarityColor)
+            .border(1.dp, Color.Gray),
+        contentAlignment = Alignment.Center
+    ) {
+        val sprite = getRewardSprite(item.itemType, item.itemName, item.rarity)
+        if (sprite != null && sprite != 0) {
+            val cachedBitmap = LocalItemSpriteCache.current[sprite]
+            if (cachedBitmap != null) {
+                Image(
+                    bitmap = cachedBitmap,
+                    contentDescription = item.itemName,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(2.dp),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = sprite),
+                    contentDescription = item.itemName,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(2.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+        } else {
+            Text(
+                text = "敬请期待",
+                color = Color.Black,
+                fontSize = 7.sp,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
     }
 }

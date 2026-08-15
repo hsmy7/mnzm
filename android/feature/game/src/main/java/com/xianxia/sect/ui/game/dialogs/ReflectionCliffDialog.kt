@@ -44,123 +44,173 @@ fun ReflectionCliffDialog(
         title = "监牢",
         onDismiss = onDismiss
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "悔过自新，洗涤心灵",
-                fontSize = 10.sp,
-                color = Color(0xFF9C27B0)
-            )
-
-            if (reflectingDisciples.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(150.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "空无一人",
-                            fontSize = 14.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "监牢目前没有弟子在思过",
-                            fontSize = 11.sp,
-                            color = GameColors.DividerGray
-                        )
-                    }
-                }
-            } else {
-                Text(
-                    text = "当前思过弟子: ${reflectingDisciples.size}人",
-                    fontSize = 11.sp,
-                    color = Color.Black
-                )
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(reflectingDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                        val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: 1
-                        val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (startYear + 10)
-                        val remainingYears = (endYear - (gameData?.gameYear ?: 1)).coerceAtLeast(0)
-                        PortraitDiscipleCard(
-                            disciple = disciple,
-                            extraAttributes = listOf("道德" to disciple.morality, "思过" to remainingYears),
-                            actions = {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFF27AE60))
-                                            .clickable { onReleaseDisciple(disciple.id) }
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(text = "释放", fontSize = 10.sp, color = Color.White)
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFFE74C3C))
-                                            .clickable { showExpelConfirmDialog = disciple }
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(text = "驱逐", fontSize = 10.sp, color = Color.White)
-                                    }
-                                }
-                            },
-                            onClick = {}
-                        )
-                    }
-                }
-            }
-        }
+        ReflectionCliffContent(
+            reflectingDisciples = reflectingDisciples,
+            gameData = gameData,
+            onReleaseDisciple = onReleaseDisciple,
+            onExpel = { showExpelConfirmDialog = it }
+        )
     }
 
     showExpelConfirmDialog?.let { disciple ->
-        UnifiedGameDialog(
-            onDismissRequest = { showExpelConfirmDialog = null },
-            title = "确认驱逐",
-            mode = DialogMode.Half
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        GameButton(
-                            text = "取消",
-                            onClick = { showExpelConfirmDialog = null },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                        GameButton(
-                            text = "确认",
-                            onClick = {
-                                onExpelDisciple(disciple.id)
-                                showExpelConfirmDialog = null
-                            },
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    }
-                }
+        ReflectionExpelConfirmDialog(
+            disciple = disciple,
+            onExpel = {
+                onExpelDisciple(disciple.id)
+                showExpelConfirmDialog = null
+            },
+            onDismiss = { showExpelConfirmDialog = null }
+        )
+    }
+}
+
+/** 监牢主体内容区（ReflectionCliffDialog 拆分）：标语 + 空态或思过弟子网格 */
+@Composable
+private fun ReflectionCliffContent(
+    reflectingDisciples: List<DiscipleAggregate>,
+    gameData: GameData?,
+    onReleaseDisciple: (String) -> Unit,
+    onExpel: (DiscipleAggregate) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "悔过自新，洗涤心灵",
+            fontSize = 10.sp,
+            color = Color(0xFF9C27B0)
+        )
+
+        if (reflectingDisciples.isEmpty()) {
+            ReflectionEmptyState()
+        } else {
+            Text(
+                text = "当前思过弟子: ${reflectingDisciples.size}人",
+                fontSize = 11.sp,
+                color = Color.Black
+            )
+            ReflectionDiscipleGrid(
+                reflectingDisciples = reflectingDisciples,
+                gameData = gameData,
+                onReleaseDisciple = onReleaseDisciple,
+                onExpel = onExpel
+            )
         }
     }
 }
 
+/** 无思过弟子空态（ReflectionCliffDialog 拆分） */
+@Composable
+private fun ReflectionEmptyState() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "空无一人",
+                fontSize = 14.sp,
+                color = Color.Black
+            )
+            Text(
+                text = "监牢目前没有弟子在思过",
+                fontSize = 11.sp,
+                color = GameColors.DividerGray
+            )
+        }
+    }
+}
+
+/** 思过弟子网格（ReflectionCliffDialog 拆分）：卡片 + 释放/驱逐操作 */
+@Composable
+private fun ReflectionDiscipleGrid(
+    reflectingDisciples: List<DiscipleAggregate>,
+    gameData: GameData?,
+    onReleaseDisciple: (String) -> Unit,
+    onExpel: (DiscipleAggregate) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 300.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(reflectingDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
+            val startYear = disciple.statusData["reflectionStartYear"]?.toIntOrNull() ?: 1
+            val endYear = disciple.statusData["reflectionEndYear"]?.toIntOrNull() ?: (startYear + 10)
+            val remainingYears = (endYear - (gameData?.gameYear ?: 1)).coerceAtLeast(0)
+            PortraitDiscipleCard(
+                disciple = disciple,
+                extraAttributes = listOf("道德" to disciple.morality, "思过" to remainingYears),
+                actions = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF27AE60))
+                                .clickable { onReleaseDisciple(disciple.id) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(text = "释放", fontSize = 10.sp, color = Color.White)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFFE74C3C))
+                                .clickable { onExpel(disciple) }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(text = "驱逐", fontSize = 10.sp, color = Color.White)
+                        }
+                    }
+                },
+                onClick = {}
+            )
+        }
+    }
+}
+
+/** 驱逐确认弹窗（ReflectionCliffDialog 拆分） */
+@Composable
+private fun ReflectionExpelConfirmDialog(
+    disciple: DiscipleAggregate,
+    onExpel: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "确认驱逐",
+        mode = DialogMode.Half
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "确定要驱逐弟子 ${disciple.name} 吗？此操作不可撤销。",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss,
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
+                )
+                GameButton(
+                    text = "确认",
+                    onClick = onExpel,
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
+                )
+            }
+        }
+    }
+}

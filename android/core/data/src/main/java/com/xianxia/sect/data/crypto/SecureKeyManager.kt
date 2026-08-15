@@ -166,58 +166,22 @@ object SecureKeyManager {
             }
             return null
         }
-        try {
-            val readResult = readKeyFileSafely(context, keyFile)
-            when (readResult) {
-                is KeyReadResult.Success -> {
-                    val deviceSecret = getDeviceSecret(context)
-                    val decryptedKey = decryptKey(readResult.data, deviceSecret)
-
-                    val storedHash = prefs.getString(KEY_PREF_KEY, null)
-                    if (storedHash != null) {
-                        val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
-                            .joinToString("") { "%02x".format(it) }
-                        if (currentHash != storedHash) {
-                            Log.w(TAG, "Key hash mismatch, attempting recovery from backup")
-                            return tryRecoverFromBackup(context, backupFile, prefs)
-                                ?: throw KeyIntegrityException(
-                                    "Key integrity verification failed. " +
-                                    "This may indicate data corruption or tampering."
-                                )
-                        }
-                    }
-
-                    return decryptedKey
-                }
-                is KeyReadResult.FileNotFound -> {
-                    Log.w(TAG, "Key file reported as existing but could not be found")
-                }
-                is KeyReadResult.PermissionDenied -> {
-                    Log.w(TAG, "Permission denied reading key file, attempting backup recovery")
-                    val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
-                    if (recoveredKey != null) {
-                        return recoveredKey
-                    }
-                    throw KeyPermissionException("Permission denied accessing key file and no backup available")
-                }
-                is KeyReadResult.Error -> {
-                    Log.w(TAG, "Error reading key file: ${readResult.exception.message}", readResult.exception)
-                }
-            }
-
-            val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
-            if (recoveredKey != null) {
-                return recoveredKey
-            }
-            throw KeyIntegrityException(
-                "Failed to read key file and no valid backup found."
+        val keyFromFile = try {
+            readKeyFileVerified(
+                context = context,
+                prefs = prefs,
+                keyFile = keyFile,
+                backupFile = backupFile
             )
         } catch (e: javax.crypto.AEADBadTagException) {
             Log.w(TAG, "Key decryption failed (AEADBadTagException), device secret may have changed", e)
+            null
         } catch (e: java.security.InvalidKeyException) {
             Log.w(TAG, "Key decryption failed (InvalidKeyException), key material invalid", e)
+            null
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "Key data appears corrupted or truncated", e)
+            null
         } catch (e: KeyIntegrityException) {
             throw e
         } catch (e: KeyPermissionException) {
@@ -226,10 +190,92 @@ object SecureKeyManager {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read existing key, attempting recovery from backup", e)
+            null
         }
+        return keyFromFile ?: tryRecoverFromBackup(context, backupFile, prefs)
+    }
 
-        val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
-        return recoveredKey
+    /**
+     * 读取密钥文件并校验（readExistingKeyOrRecover 拆分）：解密 + 哈希校验；
+     * 分支读取失败时以备份恢复兜底，恢复失败抛对应异常。
+     */
+    private fun readKeyFileVerified(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+        keyFile: File,
+        backupFile: File
+    ): ByteArray {
+        val fromFile = when (val readResult = readKeyFileSafely(context, keyFile)) {
+            is KeyReadResult.Success -> {
+                val deviceSecret = getDeviceSecret(context)
+                val decryptedKey = decryptKey(readResult.data, deviceSecret)
+                if (verifyKeyHash(decryptedKey = decryptedKey, prefs = prefs)) {
+                    decryptedKey
+                } else {
+                    Log.w(TAG, "Key hash mismatch, attempting recovery from backup")
+                    recoverKeyOrThrow(
+                        context = context,
+                        backupFile = backupFile,
+                        prefs = prefs,
+                        onFailure = {
+                            KeyIntegrityException(
+                                "Key integrity verification failed. " +
+                                "This may indicate data corruption or tampering."
+                            )
+                        }
+                    )
+                }
+            }
+            is KeyReadResult.FileNotFound -> {
+                Log.w(TAG, "Key file reported as existing but could not be found")
+                null
+            }
+            is KeyReadResult.PermissionDenied -> {
+                Log.w(TAG, "Permission denied reading key file, attempting backup recovery")
+                recoverKeyOrThrow(
+                    context = context,
+                    backupFile = backupFile,
+                    prefs = prefs,
+                    onFailure = {
+                        KeyPermissionException("Permission denied accessing key file and no backup available")
+                    }
+                )
+            }
+            is KeyReadResult.Error -> {
+                Log.w(TAG, "Error reading key file: ${readResult.exception.message}", readResult.exception)
+                null
+            }
+        }
+        return fromFile ?: recoverKeyOrThrow(
+            context = context,
+            backupFile = backupFile,
+            prefs = prefs,
+            onFailure = {
+                KeyIntegrityException("Failed to read key file and no valid backup found.")
+            }
+        )
+    }
+
+    /**
+     * 备份恢复兜底（readExistingKeyOrRecover 拆分）：恢复失败时抛出自定义异常。
+     */
+    private fun recoverKeyOrThrow(
+        context: Context,
+        backupFile: File,
+        prefs: android.content.SharedPreferences,
+        onFailure: () -> Throwable
+    ): ByteArray {
+        return tryRecoverFromBackup(context, backupFile, prefs) ?: throw onFailure()
+    }
+
+    /**
+     * 密钥哈希校验（readExistingKeyOrRecover 拆分）：无存储哈希视为通过。
+     */
+    private fun verifyKeyHash(decryptedKey: ByteArray, prefs: android.content.SharedPreferences): Boolean {
+        val storedHash = prefs.getString(KEY_PREF_KEY, null) ?: return true
+        val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
+            .joinToString("") { "%02x".format(it) }
+        return currentHash == storedHash
     }
 
     /**

@@ -1,8 +1,6 @@
 package com.xianxia.sect.taptap
 
 import android.app.Activity
-import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
 import com.tapsdk.tapad.constants.Constants
 import com.tapsdk.tapad.group.DirichletSdk
@@ -11,7 +9,6 @@ import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.service.AdPurpose
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.util.AnalyticsEvents
-import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,8 +26,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class AdServiceImpl @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val adRevenueReporter: AdRevenueReporter
+    private val adRevenueReporter: AdRevenueReporter,
+    private val gamePreferences: com.xianxia.sect.data.prefs.GamePreferences
 ) : AdService {
 
     companion object {
@@ -135,11 +132,14 @@ class AdServiceImpl @Inject constructor(
         }
     }
 
-    override fun isPersonalizedAdsEnabled(): Boolean =
-        prefs().getBoolean(KEY_PERSONALIZED_ADS, true)
+    override fun isPersonalizedAdsEnabled(): Boolean {
+        ensureMigrated()
+        return gamePreferences.getBoolean(KEY_PERSONALIZED_ADS, true)
+    }
 
     override fun setPersonalizedAdsEnabled(enabled: Boolean) {
-        prefs().edit().putBoolean(KEY_PERSONALIZED_ADS, enabled).apply()
+        ensureMigrated()
+        gamePreferences.putBoolean(KEY_PERSONALIZED_ADS, enabled)
         applyPersonalizationSetting()
     }
 
@@ -165,6 +165,15 @@ class AdServiceImpl @Inject constructor(
         }
     }
 
-    private fun prefs(): SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    /** 旧 SharedPreferences 一次性迁移守卫（D-29：偏好统一迁入 MMKV，幂等） */
+    @Volatile private var migrated = false
+
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated) return
+            gamePreferences.migrateFromSharedPreferences(PREFS_NAME)
+            migrated = true
+        }
+    }
 }

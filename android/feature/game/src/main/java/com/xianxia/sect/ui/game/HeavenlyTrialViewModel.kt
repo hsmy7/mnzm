@@ -2,6 +2,8 @@ package com.xianxia.sect.ui.game
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.GameEngine
@@ -43,15 +45,15 @@ class HeavenlyTrialViewModel @Inject constructor(
         .map { it.filter { d -> d.isAlive } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    var selectedLevelIndex by mutableStateOf(0)
-    var selectedPhaseIndex by mutableStateOf(0)
+    var selectedLevelIndex by mutableIntStateOf(0)
+    var selectedPhaseIndex by mutableIntStateOf(0)
 
     var playerCombatants by mutableStateOf<List<Combatant>>(emptyList())
     var enemyCombatants by mutableStateOf<List<Combatant>>(emptyList())
 
     var showResult by mutableStateOf(false)
     var resultWon by mutableStateOf(false)
-    var resultDuration by mutableStateOf(0L)
+    var resultDuration by mutableLongStateOf(0L)
 
     // 通关奖励弹窗状态
     var showClearRewardDialog by mutableStateOf(false)

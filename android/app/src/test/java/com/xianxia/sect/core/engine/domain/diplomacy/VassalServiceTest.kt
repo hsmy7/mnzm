@@ -10,7 +10,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.di.ApplicationScopeProvider
-import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.core.state.testGameStateRepository
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -33,7 +33,7 @@ class VassalServiceTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        stateStore = GameStateStoreImpl(scopeProvider, testGameStateRepository())
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
         val rngManager = GameRngManager()

@@ -177,26 +177,15 @@ class VassalService @Inject constructor(
         val favor = FavorDomain.findFavor(data.sectRelations, playerSect.id, sectId)
 
         // 计算战绩（仅宗门战，近3年）
-        val recentRecords = data.sectBattleRecords.filter {
-            it.year >= data.gameYear - 3
-        }
-        val conquestCount = recentRecords.count {
-            it.type == SectBattleType.CONQUEST
-        }
-        val lostSectCount = recentRecords.count {
-            it.type == SectBattleType.LOST_SECT
-        }
-        val battleWinCount = recentRecords.count {
-            it.type == SectBattleType.BATTLE_WIN
-        }
-        val battleLossCount = recentRecords.count {
-            it.type == SectBattleType.BATTLE_LOSS
-        }
+        val stats = computeRecentBattleStats(
+            data = data,
+            gameYear = data.gameYear
+        )
 
         val chance = calculateVassalChance(
             playerPower.toDouble(), aiPower.toDouble(),
-            conquestCount, lostSectCount,
-            battleWinCount, battleLossCount, favor
+            stats.conquests, stats.losses,
+            stats.wins, stats.battleLosses, favor
         )
         val success = rng.nextDouble() < chance
 
@@ -220,6 +209,35 @@ class VassalService @Inject constructor(
         }
 
         return success
+    }
+
+    /** 宗门战战绩统计（requestVassalContract 拆分） */
+    private data class SectBattleStats(
+        val conquests: Int,
+        val losses: Int,
+        val wins: Int,
+        val battleLosses: Int
+    )
+
+    /** 近 N 年宗门战战绩统计（requestVassalContract 拆分）：仅宗门战，近3年 */
+    private fun computeRecentBattleStats(data: com.xianxia.sect.core.model.GameData, gameYear: Int): SectBattleStats {
+        val recentRecords = data.sectBattleRecords.filter {
+            it.year >= gameYear - 3
+        }
+        return SectBattleStats(
+            conquests = recentRecords.count {
+                it.type == SectBattleType.CONQUEST
+            },
+            losses = recentRecords.count {
+                it.type == SectBattleType.LOST_SECT
+            },
+            wins = recentRecords.count {
+                it.type == SectBattleType.BATTLE_WIN
+            },
+            battleLosses = recentRecords.count {
+                it.type == SectBattleType.BATTLE_LOSS
+            }
+        )
     }
 
     /**

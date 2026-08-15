@@ -540,42 +540,9 @@ class CaveExplorationProcessor @Inject constructor(
     ) {
         val template = PillRecipeDatabase.getRecipeById(reward.itemId)
         if (template != null) {
-            val pill = Pill(
-                id = java.util.UUID.randomUUID().toString(),
-                name = template.name,
-                rarity = template.rarity,
-                quantity = reward.quantity,
-                description = template.description,
-                category = template.category,
-                effects = PillEffect(
-                    breakthroughChance = template.breakthroughChance,
-                    targetRealm = template.targetRealm,
-                    cultivationSpeedPercent = template.cultivationSpeedPercent,
-                    duration = template.duration,
-                    cultivationAdd = template.cultivationAdd,
-                    skillExpAdd = template.skillExpAdd,
-                    nurtureAdd = template.nurtureAdd,
-                    extendLife = template.extendLife,
-                    physicalAttackAdd = template.physicalAttackAdd,
-                    magicAttackAdd = template.magicAttackAdd,
-                    physicalDefenseAdd = template.physicalDefenseAdd,
-                    magicDefenseAdd = template.magicDefenseAdd,
-                    hpAdd = template.hpAdd,
-                    mpAdd = template.mpAdd,
-                    speedAdd = template.speedAdd,
-                    critRateAdd = template.critRateAdd,
-                    critEffectAdd = template.critEffectAdd,
-                    intelligenceAdd = template.intelligenceAdd,
-                    charmAdd = template.charmAdd,
-                    loyaltyAdd = template.loyaltyAdd,
-                    comprehensionAdd = template.comprehensionAdd,
-                    artifactRefiningAdd = template.artifactRefiningAdd,
-                    pillRefiningAdd = template.pillRefiningAdd,
-                    spiritPlantingAdd = template.spiritPlantingAdd,
-                    teachingAdd = template.teachingAdd,
-                    moralityAdd = template.moralityAdd
-                ),
-                minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
+            val pill = buildPillFromTemplate(
+                template = template,
+                reward = reward
             )
             val result = inventorySystem.withTrackingSource("cave") { inventorySystem.addPill(pill) }
             when (val r = result) {
@@ -600,6 +567,48 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
     }
+
+    /** 由丹药配方模板构建 Pill（grantPillReward 拆分） */
+    private fun buildPillFromTemplate(
+        template: PillRecipeDatabase.PillRecipe,
+        reward: CaveRewardItem
+    ): Pill = Pill(
+        id = java.util.UUID.randomUUID().toString(),
+        name = template.name,
+        rarity = template.rarity,
+        quantity = reward.quantity,
+        description = template.description,
+        category = template.category,
+        effects = PillEffect(
+            breakthroughChance = template.breakthroughChance,
+            targetRealm = template.targetRealm,
+            cultivationSpeedPercent = template.cultivationSpeedPercent,
+            duration = template.duration,
+            cultivationAdd = template.cultivationAdd,
+            skillExpAdd = template.skillExpAdd,
+            nurtureAdd = template.nurtureAdd,
+            extendLife = template.extendLife,
+            physicalAttackAdd = template.physicalAttackAdd,
+            magicAttackAdd = template.magicAttackAdd,
+            physicalDefenseAdd = template.physicalDefenseAdd,
+            magicDefenseAdd = template.magicDefenseAdd,
+            hpAdd = template.hpAdd,
+            mpAdd = template.mpAdd,
+            speedAdd = template.speedAdd,
+            critRateAdd = template.critRateAdd,
+            critEffectAdd = template.critEffectAdd,
+            intelligenceAdd = template.intelligenceAdd,
+            charmAdd = template.charmAdd,
+            loyaltyAdd = template.loyaltyAdd,
+            comprehensionAdd = template.comprehensionAdd,
+            artifactRefiningAdd = template.artifactRefiningAdd,
+            pillRefiningAdd = template.pillRefiningAdd,
+            spiritPlantingAdd = template.spiritPlantingAdd,
+            teachingAdd = template.teachingAdd,
+            moralityAdd = template.moralityAdd
+        ),
+        minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
+    )
 
     private fun buildAndStoreBattleLog(
         data: GameData,

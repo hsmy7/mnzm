@@ -7,6 +7,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.FloatingActionButton
@@ -64,56 +65,83 @@ fun MessageListContent(
     Box(modifier = modifier) {
         // 空列表占位提示
         if (events.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "暂无消息",
-                    fontSize = 13.sp,
-                    color = Color(0xFF888888)
-                )
-            }
+            MessageListEmptyHint()
         }
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-        ) {
-            itemsIndexed(
-                items = events,
-                key = { index, event ->
-                    // P-9：sequenceId 稳定 key——头部 takeLast 移除不再使其余条目 key
-                    // 位移（整列表重建）。旧档未回填（sequenceId=0）时退回 index+时间戳
-                    // +类型组合（S4 修复：index 前缀防同毫秒同类型碰撞——原旧实现含
-                    // index，去掉会重引入此前 Bugly 已修过的 LazyColumn 重复 key 崩溃）
-                    if (event.sequenceId != 0L) "seq_${event.sequenceId}"
-                    else "${index}_${event.timestamp}_${event.eventType}"
-                }
-            ) { _, event ->
-                MessageRow(event = event)
-            }
-        }
+        MessageListColumn(listState = listState, events = events)
 
         // "↓"跳转到底部按钮
-        AnimatedVisibility(
+        MessageListScrollFab(
             visible = !isAtBottom && events.isNotEmpty(),
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
-            modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
-        ) {
-            FloatingActionButton(
-                onClick = {
-                    coroutineScope.launch {
-                        listState.animateScrollToItem(events.size - 1)
-                    }
-                },
-                modifier = Modifier.size(32.dp),
-                containerColor = Color(0xCCFFFFFF)
-            ) {
-                Text(text = "↓", fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+            onScrollToBottom = {
+                coroutineScope.launch {
+                    listState.animateScrollToItem(events.size - 1)
+                }
             }
+        )
+    }
+}
+
+/** 空列表占位提示（MessageListContent 拆分） */
+@Composable
+private fun MessageListEmptyHint() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "暂无消息",
+            fontSize = 13.sp,
+            color = Color(0xFF888888)
+        )
+    }
+}
+
+/** 消息列表（MessageListContent 拆分）：稳定 key 的 LazyColumn */
+@Composable
+private fun MessageListColumn(
+    listState: LazyListState,
+    events: List<GameEventRecord>
+) {
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        itemsIndexed(
+            items = events,
+            key = { index, event ->
+                // P-9：sequenceId 稳定 key——头部 takeLast 移除不再使其余条目 key
+                // 位移（整列表重建）。旧档未回填（sequenceId=0）时退回 index+时间戳
+                // +类型组合（S4 修复：index 前缀防同毫秒同类型碰撞——原旧实现含
+                // index，去掉会重引入此前 Bugly 已修过的 LazyColumn 重复 key 崩溃）
+                if (event.sequenceId != 0L) "seq_${event.sequenceId}"
+                else "${index}_${event.timestamp}_${event.eventType}"
+            }
+        ) { _, event ->
+            MessageRow(event = event)
+        }
+    }
+}
+
+/** "↓"跳转到底部按钮（MessageListContent 拆分） */
+@Composable
+private fun BoxScope.MessageListScrollFab(
+    visible: Boolean,
+    onScrollToBottom: () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + scaleIn(),
+        exit = fadeOut() + scaleOut(),
+        modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp)
+    ) {
+        FloatingActionButton(
+            onClick = onScrollToBottom,
+            modifier = Modifier.size(32.dp),
+            containerColor = Color(0xCCFFFFFF)
+        ) {
+            Text(text = "↓", fontSize = 16.sp, color = Color.Black, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -144,5 +172,3 @@ private fun MessageRow(event: GameEventRecord) {
         )
     }
 }
-
-

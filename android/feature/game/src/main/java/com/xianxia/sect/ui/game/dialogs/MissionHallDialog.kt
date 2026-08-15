@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
@@ -60,10 +61,8 @@ fun MissionHallDialog(
     var showActiveMissionDetail by remember { mutableStateOf(false) }
 
     val activeMissions = gameData?.activeMissions ?: emptyList()
-    val availableMissions = gameData?.availableMissions ?: emptyList()
     val currentYear = gameData?.gameYear ?: 1
     val currentMonth = gameData?.gameMonth ?: 1
-
     // 执行弟子血条真实血量（含血炼口径，与详情页/引擎一致）：装备/功法实例走 viewModel 订阅
     val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manualInstances by viewModel.manualInstances.collectAsStateWithLifecycle()
@@ -80,91 +79,91 @@ fun MissionHallDialog(
             )
         }
     }
+    val busyDiscipleIds = remember(activeMissions) { activeMissions.flatMap { it.discipleIds }.toSet() }
 
-    val busyDiscipleIds = remember(activeMissions) {
-        activeMissions.flatMap { it.discipleIds }.toSet()
+    ScrollableInfoDialog(title = "任务阁", onDismiss = onDismiss) {
+        MissionHallContent(
+            gameData = gameData,
+            onActiveMissionClick = {
+                selectedActiveMission = it
+                showActiveMissionDetail = true
+            },
+            onAvailableMissionClick = {
+                selectedMission = it
+                showDispatchDialog = true
+            }
+        )
     }
+    selectedMission?.takeIf { showDispatchDialog }?.let { mission ->
+        MissionDispatchDialog(
+            mission = mission,
+            allDisciples = disciples,
+            busyDiscipleIds = busyDiscipleIds,
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showDispatchDialog = false; selectedMission = null }
+        )
+    }
+    selectedActiveMission?.takeIf { showActiveMissionDetail }?.let { mission ->
+        ActiveMissionDetailDialog(
+            data = ActiveMissionDisplayData(mission, currentYear, currentMonth),
+            disciples = disciples,
+            hpRatioById = hpRatioById,
+            onDiscipleClick = { it?.let { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } },
+            onDismiss = { showActiveMissionDetail = false; selectedActiveMission = null }
+        )
+    }
+}
 
-    ScrollableInfoDialog(
-        title = "任务阁",
-        onDismiss = onDismiss
+/** 任务列表内容区（MissionHallDialog 拆分）：空态提示 + 活动/可接任务 LazyColumn */
+@Composable
+private fun MissionHallContent(
+    gameData: GameData?,
+    onActiveMissionClick: (ActiveMission) -> Unit,
+    onAvailableMissionClick: (Mission) -> Unit
+) {
+    val activeMissions = gameData?.activeMissions ?: emptyList()
+    val availableMissions = gameData?.availableMissions ?: emptyList()
+    val currentYear = gameData?.gameYear ?: 1
+    val currentMonth = gameData?.gameMonth ?: 1
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (availableMissions.isEmpty() && activeMissions.isEmpty()) {
-                Text(
-                    text = "暂无任务，每三月刷新",
-                    fontSize = 11.sp,
-                    color = Color.Black,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 40.dp),
-                    textAlign = TextAlign.Center
-                )
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.heightIn(max = 400.dp)
-                ) {
-                    lazyItems(activeMissions, key = { it.id }, contentType = { "active_mission" }) { activeMission ->
-                        ActiveMissionCard(
-                            mission = activeMission,
-                            currentYear = currentYear,
-                            currentMonth = currentMonth,
-                            onClick = {
-                                selectedActiveMission = activeMission
-                                showActiveMissionDetail = true
-                            }
-                        )
-                    }
+        if (availableMissions.isEmpty() && activeMissions.isEmpty()) {
+            Text(
+                text = "暂无任务，每三月刷新",
+                fontSize = 11.sp,
+                color = Color.Black,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 40.dp),
+                textAlign = TextAlign.Center
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.heightIn(max = 400.dp)
+            ) {
+                lazyItems(activeMissions, key = { it.id }, contentType = { "active_mission" }) { activeMission ->
+                    ActiveMissionCard(
+                        mission = activeMission,
+                        currentYear = currentYear,
+                        currentMonth = currentMonth,
+                        onClick = { onActiveMissionClick(activeMission) }
+                    )
+                }
 
-                    lazyItems(availableMissions, key = { it.id }, contentType = { "available_mission" }) { mission ->
-                        AvailableMissionCard(
-                            mission = mission,
-                            onClick = {
-                                selectedMission = mission
-                                showDispatchDialog = true
-                            }
-                        )
-                    }
+                lazyItems(availableMissions, key = { it.id }, contentType = { "available_mission" }) { mission ->
+                    AvailableMissionCard(
+                        mission = mission,
+                        onClick = { onAvailableMissionClick(mission) }
+                    )
                 }
             }
         }
     }
-
-    if (showDispatchDialog) {
-        selectedMission?.let { mission ->
-            MissionDispatchDialog(
-                mission = mission,
-                allDisciples = disciples,
-                busyDiscipleIds = busyDiscipleIds,
-                gameData = gameData,
-                viewModel = viewModel,
-                onDismiss = {
-                    showDispatchDialog = false
-                    selectedMission = null
-                }
-            )
-        }
-    }
-
-    if (showActiveMissionDetail) {
-        selectedActiveMission?.let { mission ->
-            ActiveMissionDetailDialog(
-                data = ActiveMissionDisplayData(mission, currentYear, currentMonth),
-                disciples = disciples,
-                hpRatioById = hpRatioById,
-                onDiscipleClick = { it?.let { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } },
-                onDismiss = {
-                    showActiveMissionDetail = false
-                    selectedActiveMission = null
-                }
-            )
-        }
-    }
-
 }
 
 @Composable
@@ -203,32 +202,15 @@ private fun ActiveMissionCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = mission.missionName,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "执行中",
-                        fontSize = 10.sp,
-                        color = GameColors.Info,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text(mission.missionName, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Text("执行中", fontSize = 10.sp, color = GameColors.Info, fontWeight = FontWeight.Bold)
                 }
-                Text(
-                    text = mission.difficulty.displayName,
-                    fontSize = 10.sp,
-                    color = getDifficultyColor(mission.difficulty)
-                )
+                Text(mission.difficulty.displayName, fontSize = 10.sp, color = getDifficultyColor(mission.difficulty))
             }
 
             LinearProgressIndicator(
                 progress = { animMissionState.value },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
                 color = GameColors.Info,
                 trackColor = GameColors.SurfaceLightGray
             )
@@ -237,16 +219,8 @@ private fun ActiveMissionCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(
-                    text = "剩余：$remainingMonths 月",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
-                    fontSize = 10.sp,
-                    color = Color(0xFFD4A017)
-                )
+                Text("剩余：$remainingMonths 月", fontSize = 10.sp, color = Color.Black)
+                Text("奖励：${formatSpiritStoneReward(mission.rewards)}", fontSize = 10.sp, color = Color(0xFFD4A017))
             }
         }
     }
@@ -278,49 +252,20 @@ private fun AvailableMissionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = mission.name,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Text(
-                    text = mission.difficulty.displayName,
-                    fontSize = 10.sp,
-                    color = getDifficultyColor(mission.difficulty)
-                )
+                Text(mission.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text(mission.difficulty.displayName, fontSize = 10.sp, color = getDifficultyColor(mission.difficulty))
             }
 
-            Text(
-                text = mission.description,
-                fontSize = 10.sp,
-                color = Color.Black
-            )
+            Text(mission.description, fontSize = 10.sp, color = Color.Black)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text(
-                    text = mission.difficulty.conditionText,
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "耗时：${mission.duration}月",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "需要：${mission.memberCount}名弟子",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
-                    fontSize = 10.sp,
-                    color = Color(0xFFD4A017)
-                )
+                Text(mission.difficulty.conditionText, fontSize = 10.sp, color = Color.Black)
+                Text("耗时：${mission.duration}月", fontSize = 10.sp, color = Color.Black)
+                Text("需要：${mission.memberCount}名弟子", fontSize = 10.sp, color = Color.Black)
+                Text("奖励：${formatSpiritStoneReward(mission.rewards)}", fontSize = 10.sp, color = Color(0xFFD4A017))
             }
         }
     }
@@ -376,7 +321,8 @@ private fun ActiveMissionDetailDialog(
     }
 }
 
-// ── ActiveMissionDetailDialog 子组件（2026-08-11 拆分，LongMethod 124 行 → 2 个小组件）──
+// ── ActiveMissionDetailDialog 子组件（2026-08-11 拆分；难度行归并回 Block、进度/奖励归并为 Section，
+//    以控制单文件函数数 ≤15，函数体均 ≤60 行）──
 
 @Composable
 private fun ActiveMissionProgressBlock(
@@ -386,31 +332,33 @@ private fun ActiveMissionProgressBlock(
     val progress = data.mission.getProgressPercent(data.currentYear, data.currentMonth)
     val remainingMonths = data.mission.getRemainingMonths(data.currentYear, data.currentMonth)
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        MissionDifficultyRow(data)
-        MissionProgressSection(progress, remainingMonths, animMissionState)
-        MissionRewardSection(data)
-    }
-}
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "难度：${data.mission.difficulty.displayName}",
+                fontSize = 11.sp,
+                color = getDifficultyColor(data.mission.difficulty)
+            )
+        }
 
-@Composable
-private fun MissionDifficultyRow(data: ActiveMissionDisplayData) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = "难度：${data.mission.difficulty.displayName}",
-            fontSize = 11.sp,
-            color = getDifficultyColor(data.mission.difficulty)
+        MissionProgressAndRewardSections(
+            progress = progress,
+            remainingMonths = remainingMonths,
+            animMissionState = animMissionState,
+            data = data
         )
     }
 }
 
+/** 执行进度 + 任务奖励区（ActiveMissionProgressBlock 拆分/归并） */
 @Composable
-private fun MissionProgressSection(
+private fun MissionProgressAndRewardSections(
     progress: Int,
     remainingMonths: Int,
-    animMissionState: Float
+    animMissionState: Float,
+    data: ActiveMissionDisplayData
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         HorizontalDivider(
@@ -419,19 +367,11 @@ private fun MissionProgressSection(
             thickness = 1.dp
         )
 
-        Text(
-            text = "执行进度",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Text("执行进度", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
         LinearProgressIndicator(
             progress = { animMissionState },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp)),
+            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = GameColors.Success,
             trackColor = GameColors.SurfaceLightGray
         )
@@ -440,22 +380,11 @@ private fun MissionProgressSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "进度：$progress%",
-                fontSize = 11.sp,
-                color = Color.Black
-            )
-            Text(
-                text = "剩余：$remainingMonths 月",
-                fontSize = 11.sp,
-                color = Color.Black
-            )
+            Text("进度：$progress%", fontSize = 11.sp, color = Color.Black)
+            Text("剩余：$remainingMonths 月", fontSize = 11.sp, color = Color.Black)
         }
     }
-}
 
-@Composable
-private fun MissionRewardSection(data: ActiveMissionDisplayData) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 4.dp),
@@ -463,18 +392,9 @@ private fun MissionRewardSection(data: ActiveMissionDisplayData) {
             thickness = 1.dp
         )
 
-        Text(
-            text = "任务奖励",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Text("任务奖励", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
-        Text(
-            text = formatSpiritStoneReward(data.mission.rewards),
-            fontSize = 11.sp,
-            color = Color(0xFFD4A017)
-        )
+        Text(formatSpiritStoneReward(data.mission.rewards), fontSize = 11.sp, color = Color(0xFFD4A017))
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 4.dp),
@@ -624,9 +544,8 @@ private fun MissionDispatchDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
+    var selectingSlotIndex by remember { mutableIntStateOf(-1) }
     val selectedSlotIds = remember { mutableStateListOf<String?>(*Array(6) { null }) }
-    var selectingSlotIndex by remember { mutableStateOf(-1) }
-
     val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
     val battleAndExplorationIds = remember(gameData) {
         if (gameData != null) {
@@ -643,9 +562,6 @@ private fun MissionDispatchDialog(
             disciple.id !in busyDiscipleIds
         })
     }
-
-    val filledCount = selectedSlotIds.filterNotNull().size
-    val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
 
     if (selectingSlotIndex >= 0) {
         val alreadySelected = selectedSlotIds.filterNotNull().toSet()
@@ -668,154 +584,192 @@ private fun MissionDispatchDialog(
         )
     } else {
         UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "派遣队伍",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            onDismissRequest = onDismiss,
+            title = "派遣队伍",
+            mode = DialogMode.Half,
+            scrollableContent = false
         ) {
-            // Mission info card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = mission.name,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = mission.difficulty.displayName,
-                            fontSize = 10.sp,
-                            color = getDifficultyColor(mission.difficulty)
-                        )
-                        Text(
-                            text = mission.difficulty.conditionText,
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "耗时：${mission.duration}月",
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "奖励：${formatSpiritStoneReward(mission.rewards)}",
-                            fontSize = 10.sp,
-                            color = Color(0xFFD4A017)
-                        )
-                    }
-                }
-            }
-
-            // One-click assign button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                GameButton(
-                    text = "一键任命",
-                    onClick = {
-                        val alreadySelected = selectedSlotIds.filterNotNull().toSet()
-                        val available = eligibleDisciples
-                            .filter { it.id !in alreadySelected }
-                            .sortedBy { it.realm }
-                        var idx = 0
-                        for (slot in 0 until 6) {
-                            if (selectedSlotIds[slot] == null && idx < available.size) {
-                                selectedSlotIds[slot] = available[idx].id
-                                idx++
-                            }
-                        }
-                    },
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-            }
-
-            // Disciple slot grid header
-            Text(
-                text = "派遣弟子 (${filledCount}/6)",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
+            MissionDispatchDialogContent(
+                mission = mission,
+                selectedSlotIds = selectedSlotIds,
+                eligibleDisciples = eligibleDisciples,
+                allDisciples = allDisciples,
+                viewModel = viewModel,
+                onSlotEdit = { selectingSlotIndex = it },
+                onDismiss = onDismiss
             )
-
-            // 3×2 slot grid
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (row in 0..1) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        for (col in 0..2) {
-                            val slotIndex = row * 3 + col
-                            val discipleId = selectedSlotIds[slotIndex]
-                            val disciple = discipleId?.let { discipleMap[it] }
-                            DiscipleSlot(
-                                disciple = disciple,
-                                showActions = true,
-                                onSlotClick = {
-                                    if (disciple != null) {
-                                        viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, allDisciples))
-                                    }
-                                },
-                                onEmptySlotClick = {
-                                    selectingSlotIndex = slotIndex
-                                },
-                                onDismiss = {
-                                    selectedSlotIds[slotIndex] = null
-                                },
-                                onSwap = {
-                                    selectingSlotIndex = slotIndex
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Bottom buttons
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-                GameButton(
-                    text = "派遣",
-                    enabled = filledCount == 6,
-                    onClick = {
-                        val selected = eligibleDisciples.filter { it.id in selectedSlotIds.filterNotNull() }
-                        viewModel.startMission(mission, selected)
-                        onDismiss()
-                    },
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-            }
         }
-    }
     }
 
 }
 
+/** 派遣弹窗内容区（MissionDispatchDialog 拆分） */
+@Composable
+private fun MissionDispatchDialogContent(
+    mission: Mission,
+    selectedSlotIds: MutableList<String?>,
+    eligibleDisciples: List<DiscipleAggregate>,
+    allDisciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel,
+    onSlotEdit: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val filledCount = selectedSlotIds.filterNotNull().size
+    val discipleMap = remember(allDisciples) { allDisciples.associateBy { it.id } }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Mission info card + one-click assign + slot header
+        MissionInfoAndAssignRow(
+            mission = mission,
+            eligibleDisciples = eligibleDisciples,
+            selectedSlotIds = selectedSlotIds,
+            filledCount = filledCount
+        )
+
+        // 3×2 slot grid + bottom buttons
+        MissionSlotGridAndButtons(
+            selectedSlotIds = selectedSlotIds,
+            discipleMap = discipleMap,
+            filledCount = filledCount,
+            onSlotEdit = onSlotEdit,
+            onDismiss = onDismiss,
+            onDispatch = {
+                val selected = eligibleDisciples.filter { it.id in selectedSlotIds.filterNotNull() }
+                viewModel.startMission(mission, selected)
+                onDismiss()
+            },
+            onDiscipleClick = { disciple ->
+                viewModel.showDiscipleDetail(DiscipleDetailRequest(disciple, allDisciples))
+            }
+        )
+    }
+}
+
+/** 任务信息卡 + 一键任命 + 派遣弟子标题（MissionDispatchDialog 拆分） */
+@Composable
+private fun MissionInfoAndAssignRow(
+    mission: Mission,
+    eligibleDisciples: List<DiscipleAggregate>,
+    selectedSlotIds: MutableList<String?>,
+    filledCount: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(mission.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(mission.difficulty.displayName, fontSize = 10.sp, color = getDifficultyColor(mission.difficulty))
+                Text(mission.difficulty.conditionText, fontSize = 10.sp, color = Color.Black)
+                Text("耗时：${mission.duration}月", fontSize = 10.sp, color = Color.Black)
+                Text("奖励：${formatSpiritStoneReward(mission.rewards)}", fontSize = 10.sp, color = Color(0xFFD4A017))
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End
+    ) {
+        GameButton(
+            text = "一键任命",
+            onClick = {
+                val alreadySelected = selectedSlotIds.filterNotNull().toSet()
+                val available = eligibleDisciples
+                    .filter { it.id !in alreadySelected }
+                    .sortedBy { it.realm }
+                var idx = 0
+                for (slot in 0 until 6) {
+                    if (selectedSlotIds[slot] == null && idx < available.size) {
+                        selectedSlotIds[slot] = available[idx].id
+                        idx++
+                    }
+                }
+            },
+            modifier = Modifier.width(ButtonSizes.StandardWidth)
+        )
+    }
+
+    Text(
+        text = "派遣弟子 (${filledCount}/6)",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+}
+
+/** 3×2 槽位网格 + 底部按钮（MissionDispatchDialog 拆分） */
+@Composable
+private fun MissionSlotGridAndButtons(
+    selectedSlotIds: MutableList<String?>,
+    discipleMap: Map<String, DiscipleAggregate>,
+    filledCount: Int,
+    onSlotEdit: (Int) -> Unit,
+    onDispatch: () -> Unit,
+    onDiscipleClick: (DiscipleAggregate) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (row in 0..1) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                for (col in 0..2) {
+                    val slotIndex = row * 3 + col
+                    val discipleId = selectedSlotIds[slotIndex]
+                    val disciple = discipleId?.let { discipleMap[it] }
+                    DiscipleSlot(
+                        disciple = disciple,
+                        showActions = true,
+                        onSlotClick = {
+                            if (disciple != null) {
+                                onDiscipleClick(disciple)
+                            }
+                        },
+                        onEmptySlotClick = { onSlotEdit(slotIndex) },
+                        onDismiss = {
+                            selectedSlotIds[slotIndex] = null
+                        },
+                        onSwap = {
+                            onSlotEdit(slotIndex)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
+    ) {
+        GameButton(
+            text = "取消",
+            onClick = onDismiss,
+            modifier = Modifier.width(ButtonSizes.StandardWidth)
+        )
+        GameButton(
+            text = "派遣",
+            enabled = filledCount == 6,
+            onClick = onDispatch,
+            modifier = Modifier.width(ButtonSizes.StandardWidth)
+        )
+    }
+}

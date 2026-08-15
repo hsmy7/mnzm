@@ -116,10 +116,7 @@ class SectMapTouchEngine(
 
     private fun handleDown(data: TouchData) {
         // 中断 Fling
-        if (state is GestureState.Flinging) {
-            flingJob?.cancel(); flingJob = null
-            callbacks.onFlingEnd()
-        }
+        interruptFlingIfActive()
 
         downX = data.x
         downY = data.y
@@ -133,36 +130,53 @@ class SectMapTouchEngine(
         val alreadyEditing = callbacks.isInEditMode()
 
         if (alreadyEditing) {
-            // [编辑模式] 放置/移动中：
-            //  - 触摸在建筑/预览上 → 等待 MOVE 或 200ms 超时进入 BuildingDrag
-            //  - 触摸在金手指图标 → 立即进入 GoldFingerDrag（激活 / 已激活时重新框选）
-            //  - 触摸在空地 → 保持 Down：slop → Scrolling（平移视角），短触 → onTap
-            hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
-            when (callbacks.onLongPress(data.x, data.y)) {
-                LongPressResult.GoldFingerDrag -> {
-                    state = GestureState.GoldFingerDrag
-                    callbacks.onDragStart()
-                }
-                LongPressResult.BuildingDrag,
-                LongPressResult.NotHandled -> {
-                    // 保持 Down：目标上 MOVE → BuildingDrag；空地上 slop → Scrolling
-                }
-            }
-            // 触摸在目标上 → 200ms 自动进入 BuildingDrag（空地不进入）
-            if (state is GestureState.Down && hasBuildingTarget) {
-                longPressJob = scope.launch {
-                    try {
-                        delay(config.buildingLongPressTimeoutMs)
-                        if (state is GestureState.Down) {
-                            state = GestureState.BuildingDrag
-                            callbacks.onDragStart()
-                        }
-                    } catch (e: CancellationException) { throw e }
-                }
-            }
-            return
+            handleEditModeDown(data = data)
+        } else {
+            handleNormalModeDown(data = data)
         }
+    }
 
+    /** 中断惯性滑行（handleDown 拆分） */
+    private fun interruptFlingIfActive() {
+        if (state is GestureState.Flinging) {
+            flingJob?.cancel(); flingJob = null
+            callbacks.onFlingEnd()
+        }
+    }
+
+    /** 编辑模式按下处理（handleDown 拆分）：建筑/预览上等待 MOVE 或超时，金手指立即拖拽，空地保持 Down */
+    private fun handleEditModeDown(data: TouchData) {
+        // [编辑模式] 放置/移动中：
+        //  - 触摸在建筑/预览上 → 等待 MOVE 或 200ms 超时进入 BuildingDrag
+        //  - 触摸在金手指图标 → 立即进入 GoldFingerDrag（激活 / 已激活时重新框选）
+        //  - 触摸在空地 → 保持 Down：slop → Scrolling（平移视角），短触 → onTap
+        hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
+        when (callbacks.onLongPress(data.x, data.y)) {
+            LongPressResult.GoldFingerDrag -> {
+                state = GestureState.GoldFingerDrag
+                callbacks.onDragStart()
+            }
+            LongPressResult.BuildingDrag,
+            LongPressResult.NotHandled -> {
+                // 保持 Down：目标上 MOVE → BuildingDrag；空地上 slop → Scrolling
+            }
+        }
+        // 触摸在目标上 → 200ms 自动进入 BuildingDrag（空地不进入）
+        if (state is GestureState.Down && hasBuildingTarget) {
+            longPressJob = scope.launch {
+                try {
+                    delay(config.buildingLongPressTimeoutMs)
+                    if (state is GestureState.Down) {
+                        state = GestureState.BuildingDrag
+                        callbacks.onDragStart()
+                    }
+                } catch (e: CancellationException) { throw e }
+            }
+        }
+    }
+
+    /** 非编辑模式按下处理（handleDown 拆分）：建筑上长按进入 BuildingDrag，空地长按激活金手指 */
+    private fun handleNormalModeDown(data: TouchData) {
         // [非编辑模式] 检测是否在建筑上
         hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
 

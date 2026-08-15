@@ -44,56 +44,14 @@ object CaveExplorationSystem {
         cave: CultivatorCave,
         bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): Battle {
-        val playerCombatants = playerDisciples.map { disciple ->
-            val discipleEquipment = buildMap {
-                disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-                disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
-            }
-            val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
-            val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
-            val stats = disciple.getFinalStats(
-                discipleEquipment, discipleManuals, discipleProficiencies,
-                bloodRefinementMap[disciple.id]
-            )
-            val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
-            val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
-            val skills = disciple.manualIds.mapNotNull { manualId ->
-                val manual = discipleManuals[manualId] ?: return@mapNotNull null
-                val proficiencyData = discipleProficiencies[manualId]
-                val masteryLevel = proficiencyData?.masteryLevel ?: 0
-                val baseSkill = manual.skill ?: return@mapNotNull null
-                val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
-                    baseSkill.damageMultiplier,
-                    masteryLevel
-                )
-                baseSkill.copy(
-                    damageMultiplier = adjustedMultiplier
-                ).toCombatSkill(manualName = manual.name)
-            }
-            Combatant(
-                id = disciple.id,
-                name = disciple.name,
-                side = CombatantSide.DEFENDER,
-                hp = effectiveHp,
-                maxHp = stats.maxHp,
-                mp = effectiveMp,
-                maxMp = stats.maxMp,
-                physicalAttack = stats.physicalAttack,
-                magicAttack = stats.magicAttack,
-                physicalDefense = stats.physicalDefense,
-                magicDefense = stats.magicDefense,
-                speed = stats.speed,
-                critRate = stats.critRate,
-                skills = skills,
-                realm = disciple.realm,
-                realmName = disciple.realmName,
-                realmLayer = disciple.realmLayer,
-                element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
-            )
-        }
-        
+        val playerCombatants = buildPlayerCombatants(
+            playerDisciples = playerDisciples,
+            playerEquipmentMap = playerEquipmentMap,
+            playerManualMap = playerManualMap,
+            playerManualProficiencies = playerManualProficiencies,
+            bloodRefinementMap = bloodRefinementMap
+        )
+
         val guardianRealm = (cave.ownerRealm - 1).coerceIn(0, 9)
         val guardianCount = when {
             cave.ownerRealm <= 2 -> 4 + rng.nextInt(3)
@@ -105,7 +63,7 @@ object CaveExplorationSystem {
             val isBoss = hasBoss && index == 0
             createGuardian(guardianRealm, index, isBoss)
         }
-        
+
         return Battle(
             team = playerCombatants,
             beasts = guardians,
@@ -113,6 +71,65 @@ object CaveExplorationSystem {
             isFinished = false,
             winner = null,
             maxTurns = Int.MAX_VALUE
+        )
+    }
+
+    /** 玩家弟子 → 参战单位（createGuardianBattle 拆分） */
+    // 拆分搬移:分支结构与原函数一致
+    @Suppress("CyclomaticComplexMethod")
+    private fun buildPlayerCombatants(
+        playerDisciples: List<Disciple>,
+        playerEquipmentMap: Map<String, EquipmentInstance>,
+        playerManualMap: Map<String, ManualInstance>,
+        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal>
+    ): List<Combatant> = playerDisciples.map { disciple ->
+        val discipleEquipment = buildMap {
+            disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+        }
+        val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
+        val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
+        val stats = disciple.getFinalStats(
+            discipleEquipment, discipleManuals, discipleProficiencies,
+            bloodRefinementMap[disciple.id]
+        )
+        val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
+        val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
+        val skills = disciple.manualIds.mapNotNull { manualId ->
+            val manual = discipleManuals[manualId] ?: return@mapNotNull null
+            val proficiencyData = discipleProficiencies[manualId]
+            val masteryLevel = proficiencyData?.masteryLevel ?: 0
+            val baseSkill = manual.skill ?: return@mapNotNull null
+            val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
+                baseSkill.damageMultiplier,
+                masteryLevel
+            )
+            baseSkill.copy(
+                damageMultiplier = adjustedMultiplier
+            ).toCombatSkill(manualName = manual.name)
+        }
+        Combatant(
+            id = disciple.id,
+            name = disciple.name,
+            side = CombatantSide.DEFENDER,
+            hp = effectiveHp,
+            maxHp = stats.maxHp,
+            mp = effectiveMp,
+            maxMp = stats.maxMp,
+            physicalAttack = stats.physicalAttack,
+            magicAttack = stats.magicAttack,
+            physicalDefense = stats.physicalDefense,
+            magicDefense = stats.magicDefense,
+            speed = stats.speed,
+            critRate = stats.critRate,
+            skills = skills,
+            realm = disciple.realm,
+            realmName = disciple.realmName,
+            realmLayer = disciple.realmLayer,
+            element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
         )
     }
 
@@ -138,31 +155,7 @@ object CaveExplorationSystem {
         val magicDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
         val speed = (stats.speed * layerMult * (beastType.speedMod + speedVariance) * bossMultiplier).toInt()
 
-        val beastSkills = beastType.skills.map { skillConfig ->
-            CombatSkill(
-                name = skillConfig.name,
-                skillType = skillConfig.skillType,
-                damageType = skillConfig.damageType,
-                damageMultiplier = skillConfig.damageMultiplier,
-                mpCost = skillConfig.mpCost,
-                cooldown = skillConfig.cooldown,
-                hits = skillConfig.hits,
-                healPercent = skillConfig.healPercent,
-                healFixed = skillConfig.healFixed,
-                healType = skillConfig.healType,
-                buffType = skillConfig.buffType,
-                buffValue = skillConfig.buffValue,
-                buffDuration = skillConfig.buffDuration,
-                buffs = skillConfig.buffs,
-                isAoe = skillConfig.isAoe,
-                targetScope = skillConfig.targetScope,
-                shieldPercent = skillConfig.shieldPercent,
-                turnAdvancePercent = skillConfig.turnAdvancePercent,
-                damageSharePercent = skillConfig.damageSharePercent,
-                damageLinkPercent = skillConfig.damageLinkPercent,
-                skillDescription = skillConfig.skillDescription
-            )
-        }
+        val beastSkills = createBeastSkills(beastType = beastType)
 
         val guardianName = if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "守护兽·${beastType.prefix}${beastType.name}"
 
@@ -188,6 +181,34 @@ object CaveExplorationSystem {
             isBeast = true
         )
     }
+
+    /** 守护兽技能映射（createGuardian 拆分） */
+    private fun createBeastSkills(beastType: GameConfig.BeastTypeConfig): List<CombatSkill> =
+        beastType.skills.map { skillConfig ->
+            CombatSkill(
+                name = skillConfig.name,
+                skillType = skillConfig.skillType,
+                damageType = skillConfig.damageType,
+                damageMultiplier = skillConfig.damageMultiplier,
+                mpCost = skillConfig.mpCost,
+                cooldown = skillConfig.cooldown,
+                hits = skillConfig.hits,
+                healPercent = skillConfig.healPercent,
+                healFixed = skillConfig.healFixed,
+                healType = skillConfig.healType,
+                buffType = skillConfig.buffType,
+                buffValue = skillConfig.buffValue,
+                buffDuration = skillConfig.buffDuration,
+                buffs = skillConfig.buffs,
+                isAoe = skillConfig.isAoe,
+                targetScope = skillConfig.targetScope,
+                shieldPercent = skillConfig.shieldPercent,
+                turnAdvancePercent = skillConfig.turnAdvancePercent,
+                damageSharePercent = skillConfig.damageSharePercent,
+                damageLinkPercent = skillConfig.damageLinkPercent,
+                skillDescription = skillConfig.skillDescription
+            )
+        }
 
     fun generateVictoryRewards(cave: CultivatorCave): CaveRewards {
         val rewards = mutableListOf<CaveRewardItem>()

@@ -108,13 +108,9 @@ class BloodRefiningViewModel @Inject constructor(
 
         gameEngine.launchOnEngine {
             // 构造 BloodRefinementProgress
-            val progress = BloodRefinementProgress(
-                discipleId = disciple.id,
-                discipleName = disciple.name,
-                materialId = material.id,
-                materialName = material.name,
-                startYear = 0,  // 将在引擎侧基于当前 gameData 填充
-                startMonth = 0,
+            val progress = buildBloodRefinementProgress(
+                disciple = disciple,
+                material = material,
                 durationMonths = durationMonths,
                 selectedStat = selectedStat,
                 bonusPercent = bonusPercent
@@ -131,36 +127,69 @@ class BloodRefiningViewModel @Inject constructor(
                 progress = progress
             )
 
-            if (result !is BloodRefinementStartResult.Success) {
-                val msg = when (result) {
-                    is BloodRefinementStartResult.InsufficientStones -> "灵石不足，洗炼失败"
-                    is BloodRefinementStartResult.InsufficientMaterials -> "兽血材料不足，洗炼失败"
-                    is BloodRefinementStartResult.Error -> "资源不足，洗炼失败"
-                    else -> null
-                }
-                if (msg != null) { showError(msg) }
-            } else {
-                // 更新UI状态
-                val updatedData = gameEngine.gameData.value
-                val savedProgress = updatedData?.activeBloodRefinements?.get(buildingInstanceId)
-                if (savedProgress != null) {
-                    _uiState.update { it.copy(
-                        isRefining = true,
-                        currentProgress = savedProgress,
-                        remainingMonths = durationMonths,
-                        errorMessage = null
-                    ) }
-                }
+            handleStartRefineResult(
+                result = result,
+                buildingInstanceId = buildingInstanceId,
+                durationMonths = durationMonths,
+                disciple = disciple
+            )
+        }
+    }
 
-                // 登记血炼分配
-                val slotRef = SlotRef(
-                    category = SlotCategory.BLOOD_REFINEMENT,
-                    slotType = buildingInstanceId,
-                    slotId = "blood_$buildingInstanceId"
-                )
-                gameEngine.confirmAssignDisciple(disciple.id, slotRef)
+    /** 血炼进度构造（startRefine 拆分）：引擎事务外组装进度对象（startYear/startMonth 由引擎侧填充） */
+    private fun buildBloodRefinementProgress(
+        disciple: DiscipleAggregate,
+        material: BeastMaterialDatabase.BeastMaterial,
+        durationMonths: Int,
+        selectedStat: String,
+        bonusPercent: Double
+    ): BloodRefinementProgress = BloodRefinementProgress(
+        discipleId = disciple.id,
+        discipleName = disciple.name,
+        materialId = material.id,
+        materialName = material.name,
+        startYear = 0,  // 将在引擎侧基于当前 gameData 填充
+        startMonth = 0,
+        durationMonths = durationMonths,
+        selectedStat = selectedStat,
+        bonusPercent = bonusPercent
+    )
+
+    /** 血炼启动结果处理（startRefine 拆分）：失败提示 / 成功登记进度与血炼分配 */
+    private fun handleStartRefineResult(
+        result: BloodRefinementStartResult,
+        buildingInstanceId: String,
+        durationMonths: Int,
+        disciple: DiscipleAggregate
+    ) {
+        if (result !is BloodRefinementStartResult.Success) {
+            val msg = when (result) {
+                is BloodRefinementStartResult.InsufficientStones -> "灵石不足，洗炼失败"
+                is BloodRefinementStartResult.InsufficientMaterials -> "兽血材料不足，洗炼失败"
+                is BloodRefinementStartResult.Error -> "资源不足，洗炼失败"
+                else -> null
+            }
+            if (msg != null) { showError(msg) }
+        } else {
+            // 更新UI状态
+            val updatedData = gameEngine.gameData.value
+            val savedProgress = updatedData?.activeBloodRefinements?.get(buildingInstanceId)
+            if (savedProgress != null) {
+                _uiState.update { it.copy(
+                    isRefining = true,
+                    currentProgress = savedProgress,
+                    remainingMonths = durationMonths,
+                    errorMessage = null
+                ) }
             }
 
+            // 登记血炼分配
+            val slotRef = SlotRef(
+                category = SlotCategory.BLOOD_REFINEMENT,
+                slotType = buildingInstanceId,
+                slotId = "blood_$buildingInstanceId"
+            )
+            gameEngine.confirmAssignDisciple(disciple.id, slotRef)
         }
     }
 

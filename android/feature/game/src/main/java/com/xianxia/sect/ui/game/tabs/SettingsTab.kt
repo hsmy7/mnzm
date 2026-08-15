@@ -1,3 +1,4 @@
+@file:Suppress("TooManyFunctions") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game.tabs
 
 import androidx.compose.foundation.Image
@@ -25,12 +26,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.data.ChangelogData
+import com.xianxia.sect.data.ChangelogEntry
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CircularCheckbox
@@ -41,6 +46,7 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.dialogs.RewardItem
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -58,24 +64,12 @@ internal fun RedeemCodeDialog(
     var showTipDialog by remember { mutableStateOf(false) }
     var tipMessage by remember { mutableStateOf("") }
     var tipIsError by remember { mutableStateOf(false) }
-    var rewardItems by remember { mutableStateOf<List<com.xianxia.sect.ui.game.dialogs.RewardItem>>(emptyList()) }
+    var rewardItems by remember { mutableStateOf<List<RewardItem>>(emptyList()) }
 
     LaunchedEffect(redeemResult) {
         redeemResult?.let { result ->
             if (result.success && result.rewards.isNotEmpty()) {
-                rewardItems = result.rewards.map { reward ->
-                    val rarityColor = try {
-                        Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(reward.rarity)))
-                    } catch (e: Exception) { Color.Black }
-                    com.xianxia.sect.ui.game.dialogs.RewardItem(
-                        name = when (reward.type) {
-                            "spiritStones" -> "${reward.quantity}灵石"
-                            "disciple" -> "弟子 ${reward.name}"
-                            else -> "${reward.name} ×${reward.quantity}"
-                        },
-                        rarityColor = rarityColor
-                    )
-                }
+                rewardItems = result.rewards.map { redeemRewardToItem(it) }
                 showRewardDialog = true
             } else if (result.success) {
                 tipMessage = "兑换成功！"
@@ -89,29 +83,16 @@ internal fun RedeemCodeDialog(
         }
     }
 
-    InlineStandardPromptDialog(
-        onDismissRequest = onDismiss,
-        title = "兑换码",
-        confirmLabel = "兑换",
+    RedeemCodeInput(
+        codeInput = codeInput,
+        onCodeChange = { codeInput = it.uppercase(Locale.getDefault()) },
         onConfirm = {
             if (codeInput.isNotBlank()) {
                 viewModel.redeemCode(codeInput.trim())
             }
         },
-        dismissLabel = "取消",
-        onDismiss = onDismiss,
-        // 含输入框：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
-        freezeSystemBars = true
-    ) {
-        OutlinedTextField(
-            value = codeInput,
-            onValueChange = { codeInput = it.uppercase(Locale.getDefault()) },
-            label = { Text("请输入兑换码", fontSize = 12.sp) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            textStyle = TextStyle(fontSize = 14.sp)
-        )
-    }
+        onDismiss = onDismiss
+    )
 
     if (showRewardDialog) {
         com.xianxia.sect.ui.game.dialogs.RewardDialog(
@@ -130,6 +111,50 @@ internal fun RedeemCodeDialog(
         )
     }
 }
+
+/** 兑换码输入区（RedeemCodeDialog 拆分）：内联输入框 + 兑换/取消动作 */
+@Composable
+private fun RedeemCodeInput(
+    codeInput: String,
+    onCodeChange: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    InlineStandardPromptDialog(
+        onDismissRequest = onDismiss,
+        title = "兑换码",
+        confirmLabel = "兑换",
+        onConfirm = onConfirm,
+        dismissLabel = "取消",
+        onDismiss = onDismiss,
+        // 含输入框：挂载期间冻结宿主窗口系统栏操作（荣耀X70键盘频闪根治）
+        freezeSystemBars = true
+    ) {
+        OutlinedTextField(
+            value = codeInput,
+            onValueChange = onCodeChange,
+            label = { Text("请输入兑换码", fontSize = 12.sp) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp)
+        )
+    }
+}
+
+/** 兑换奖励项映射（RedeemCodeDialog 拆分）：奖励明细 → 弹窗展示项（纯函数） */
+private fun redeemRewardToItem(reward: RewardSelectedItem): RewardItem {
+    val rarityColor = try {
+        Color(android.graphics.Color.parseColor(GameConfig.Rarity.getColor(reward.rarity)))
+    } catch (e: Exception) { Color.Black }
+    return RewardItem(
+        name = when (reward.type) {
+            "spiritStones" -> "${reward.quantity}灵石"
+            "disciple" -> "弟子 ${reward.name}"
+            else -> "${reward.name} ×${reward.quantity}"
+        },
+        rarityColor = rarityColor
+    )
+}
 @Composable
 internal fun SettingsTab(
     viewModel: GameViewModel,
@@ -139,7 +164,7 @@ internal fun SettingsTab(
 ) {
     val timeSpeed by saveLoadViewModel.timeSpeed.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
-    
+
     var showSaveSlotDialog by remember { mutableStateOf(false) }
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
@@ -148,251 +173,338 @@ internal fun SettingsTab(
     var showOtherSettingsDialog by remember { mutableStateOf(false) }
     var showSalaryConfigDialog by remember { mutableStateOf(false) }
 
+    SettingsTabContent(
+        timeSpeed = timeSpeed, gameData = gameData,
+        viewModel = viewModel, saveLoadViewModel = saveLoadViewModel,
+        actions = SettingsTabActions(
+            onSalaryClick = { showSalaryConfigDialog = true }, onSaveSlotClick = { showSaveSlotDialog = true },
+            onOtherSettingsClick = { showOtherSettingsDialog = true },
+            onResetDisciplesClick = { showResetDisciplesConfirmDialog = true },
+            onRestartClick = { showRestartConfirmDialog = true }, onExitClick = { showExitConfirmDialog = true })
+    )
+
+    if (showSaveSlotDialog) {
+        SaveSlotDialog(viewModel = viewModel, saveLoadViewModel = saveLoadViewModel,
+            onDismiss = { showSaveSlotDialog = false })
+    }
+
+    RestartConfirmDialog(visible = showRestartConfirmDialog, onDismiss = { showRestartConfirmDialog = false },
+        onConfirm = {
+            showRestartConfirmDialog = false
+            onDismiss()
+            saveLoadViewModel.restartGame()
+        })
+    ResetDisciplesConfirmDialog(visible = showResetDisciplesConfirmDialog,
+        onDismiss = { showResetDisciplesConfirmDialog = false }, onConfirm = {
+            showResetDisciplesConfirmDialog = false
+            saveLoadViewModel.resetAllDisciplesStatus()
+        })
+    ExitConfirmDialog(visible = showExitConfirmDialog, onDismiss = { showExitConfirmDialog = false },
+        onConfirm = {
+            showExitConfirmDialog = false
+            onLogout()
+        })
+
+    if (showOtherSettingsDialog) {
+        OtherSettingsDialog(viewModel = viewModel, onDismiss = { showOtherSettingsDialog = false },
+            onRedeemCodeClick = { showOtherSettingsDialog = false; viewModel.openRedeemCodeDialog() },
+            onChangelogClick = { showOtherSettingsDialog = false; showChangelogDialog = true })
+    }
+
+    if (showChangelogDialog) ChangelogDialog(onDismiss = { showChangelogDialog = false })
+
+    if (showSalaryConfigDialog) {
+        SalaryConfigDialog(gameData = gameData, viewModel = viewModel,
+            onDismiss = { showSalaryConfigDialog = false })
+    }
+}
+
+/** 设置页触发动作集合（SettingsTab 拆分）：六个入口按钮 → 各自对话框打开回调 */
+private data class SettingsTabActions(
+    val onSalaryClick: () -> Unit = {},
+    val onSaveSlotClick: () -> Unit = {},
+    val onOtherSettingsClick: () -> Unit = {},
+    val onResetDisciplesClick: () -> Unit = {},
+    val onRestartClick: () -> Unit = {},
+    val onExitClick: () -> Unit = {}
+)
+
+/** 设置页主体列表（SettingsTab 拆分）：时间流速/性能模式/音频/触发按钮/操作行 */
+@Composable
+private fun SettingsTabContent(
+    timeSpeed: Int,
+    gameData: GameData,
+    viewModel: GameViewModel,
+    saveLoadViewModel: SaveLoadViewModel,
+    actions: SettingsTabActions
+) {
     Box(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-        Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                TimeSpeedControlItem(saveLoadViewModel, timeSpeed)
-            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item { TimeSpeedControlItem(saveLoadViewModel = saveLoadViewModel, timeSpeed = timeSpeed) }
 
-            item {
-                val performanceMode by viewModel.performanceMode.collectAsStateWithLifecycle()
-                PerformanceModeItem(
-                    performanceMode = performanceMode,
-                    onModeSelected = viewModel::setPerformanceMode
-                )
-            }
-
-            item {
-                AudioToggleItem(
-                    musicEnabled = gameData.musicEnabled,
-                    soundEnabled = gameData.soundEnabled,
-                    onMusicToggle = { viewModel.setMusicEnabled(!gameData.musicEnabled) },
-                    onSoundToggle = { viewModel.setSoundEnabled(!gameData.soundEnabled) }
-                )
-            }
-
-            item {
-                SettingsDialogButtonsItem(
-                    onSalaryClick = { showSalaryConfigDialog = true },
-                    onSaveSlotClick = { showSaveSlotDialog = true }
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                SettingsActionButton("其他设置", withSound = true) { showOtherSettingsDialog = true }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    SettingsActionButton("重置状态", withSound = true) { showResetDisciplesConfirmDialog = true }
-                    SettingsActionButton("重新开始", withSound = false) { showRestartConfirmDialog = true }
-                    SettingsActionButton("退出游戏", withSound = false) { showExitConfirmDialog = true }
+                item {
+                    val performanceMode by viewModel.performanceMode.collectAsStateWithLifecycle()
+                    PerformanceModeItem(performanceMode = performanceMode,
+                        onModeSelected = viewModel::setPerformanceMode)
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "版本 ${com.xianxia.sect.core.GameConfig.Game.VERSION}",
-                    fontSize = 10.sp,
-                    color = Color.Black,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
+
+                item {
+                    AudioToggleItem(musicEnabled = gameData.musicEnabled, soundEnabled = gameData.soundEnabled,
+                        onMusicToggle = { viewModel.setMusicEnabled(!gameData.musicEnabled) },
+                        onSoundToggle = { viewModel.setSoundEnabled(!gameData.soundEnabled) })
+                }
+
+                item {
+                    SettingsDialogButtonsItem(onSalaryClick = actions.onSalaryClick,
+                        onSaveSlotClick = actions.onSaveSlotClick)
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SettingsActionButton(label = "其他设置", withSound = true) { actions.onOtherSettingsClick() }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SettingsActionButton(label = "重置状态", withSound = true) { actions.onResetDisciplesClick() }
+                        SettingsActionButton(label = "重新开始", withSound = false) { actions.onRestartClick() }
+                        SettingsActionButton(label = "退出游戏", withSound = false) { actions.onExitClick() }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "版本 ${com.xianxia.sect.core.GameConfig.Game.VERSION}",
+                        fontSize = 10.sp, color = Color.Black,
+                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                    )
+                }
             }
         }
-        }
-        }
-
-    if (showSaveSlotDialog) {
-        SaveSlotDialog(
-            viewModel = viewModel,
-            saveLoadViewModel = saveLoadViewModel,
-            onDismiss = { showSaveSlotDialog = false }
-        )
     }
+}
 
-    if (showRestartConfirmDialog) {
+/** 重新开始确认框（SettingsTab 拆分） */
+@Composable
+private fun RestartConfirmDialog(
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (visible) {
         StandardPromptDialog(
-            onDismissRequest = { showRestartConfirmDialog = false },
+            onDismissRequest = onDismiss,
             title = "确认重新开始",
             text = "确定要重新开始游戏吗？当前游戏进度将会丢失！",
             confirmLabel = "确认",
-            onConfirm = {
-                showRestartConfirmDialog = false
-                onDismiss()
-                saveLoadViewModel.restartGame()
-            },
+            onConfirm = onConfirm,
             dismissLabel = "取消",
-            onDismiss = { showRestartConfirmDialog = false }
+            onDismiss = onDismiss
         )
     }
+}
 
-    if (showResetDisciplesConfirmDialog) {
+/** 重置弟子状态确认框（SettingsTab 拆分） */
+@Composable
+private fun ResetDisciplesConfirmDialog(
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (visible) {
         StandardPromptDialog(
-            onDismissRequest = { showResetDisciplesConfirmDialog = false },
+            onDismissRequest = onDismiss,
             title = "确认重置弟子状态",
             text = "确定要重置所有弟子状态吗？\n探索/战斗队伍将解散，工作/职务槽位将清空，监牢弟子不受影响。",
             confirmLabel = "确认",
-            onConfirm = {
-                showResetDisciplesConfirmDialog = false
-                saveLoadViewModel.resetAllDisciplesStatus()
-            },
+            onConfirm = onConfirm,
             dismissLabel = "取消",
-            onDismiss = { showResetDisciplesConfirmDialog = false }
+            onDismiss = onDismiss
         )
     }
+}
 
-    if (showExitConfirmDialog) {
+/** 退出游戏确认框（SettingsTab 拆分） */
+@Composable
+private fun ExitConfirmDialog(
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (visible) {
         StandardPromptDialog(
-            onDismissRequest = { showExitConfirmDialog = false },
+            onDismissRequest = onDismiss,
             title = "确认退出",
             text = "确定要退出游戏吗？游戏进度会自动保存。",
             confirmLabel = "确认退出",
-            onConfirm = {
-                showExitConfirmDialog = false
-                onLogout()
-            },
+            onConfirm = onConfirm,
             dismissLabel = "取消",
-            onDismiss = { showExitConfirmDialog = false }
+            onDismiss = onDismiss
         )
     }
+}
 
-    if (showOtherSettingsDialog) {
-        val personalizedAdsEnabled by viewModel.personalizedAdsEnabled.collectAsStateWithLifecycle()
-        UnifiedGameDialog(
-            onDismissRequest = { showOtherSettingsDialog = false },
-            title = "其他设置",
-            mode = DialogMode.Half,
-            scrollableContent = true,
-            backgroundRes = com.xianxia.sect.feature.game.R.drawable.bg_horizontal,
-            dismissOnClickOutside = false
-        ) {
-            Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
-                Spacer(modifier = Modifier.height(12.dp))
+/** 其他设置弹窗（SettingsTab 拆分）：兑换码/更新日志入口 + 个性化广告开关 */
+@Composable
+private fun OtherSettingsDialog(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit,
+    onRedeemCodeClick: () -> Unit,
+    onChangelogClick: () -> Unit
+) {
+    val personalizedAdsEnabled by viewModel.personalizedAdsEnabled.collectAsStateWithLifecycle()
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "其他设置",
+        mode = DialogMode.Half,
+        scrollableContent = true,
+        backgroundRes = com.xianxia.sect.feature.game.R.drawable.bg_horizontal,
+        dismissOnClickOutside = false
+    ) {
+        Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
+            Spacer(modifier = Modifier.height(12.dp))
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable {
-                                showOtherSettingsDialog = false
-                                viewModel.openRedeemCodeDialog()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "兑换码",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
+            OtherSettingsActionRow(
+                onRedeemCodeClick = onRedeemCodeClick,
+                onChangelogClick = onChangelogClick
+            )
 
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable {
-                                showOtherSettingsDialog = false
-                                showChangelogDialog = true
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "更新日志",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
+            // 个性化广告开关（TapADN 合规要求：App 内必须提供退出个性化广告的能力）
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "个性化广告",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            PersonalizedAdsToggle(
+                personalizedAdsEnabled = personalizedAdsEnabled,
+                onToggle = { viewModel.setPersonalizedAdsEnabled(!personalizedAdsEnabled) }
+            )
 
-                // 个性化广告开关（TapADN 合规要求：App 内必须提供退出个性化广告的能力）
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "个性化广告",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    CircularCheckbox(
-                        checked = personalizedAdsEnabled,
-                        onToggle = { viewModel.setPersonalizedAdsEnabled(!personalizedAdsEnabled) }
-                    )
-                    Text(
-                        text = "关闭后广告将不再基于您的兴趣推送",
-                        fontSize = 10.sp,
-                        color = Color.Black
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
+}
 
-    if (showChangelogDialog) {
-        ChangelogDialog(onDismiss = { showChangelogDialog = false })
-    }
-
-    if (showSalaryConfigDialog) {
-        UnifiedGameDialog(
-            onDismissRequest = { showSalaryConfigDialog = false },
-            title = "年俸设置",
-            mode = DialogMode.Half,
-            dismissOnClickOutside = false
+/** 其他设置功能入口行（OtherSettingsDialog 拆分）：兑换码 + 更新日志两个按钮 */
+@Composable
+private fun OtherSettingsActionRow(
+    onRedeemCodeClick: () -> Unit,
+    onChangelogClick: () -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(ButtonSizes.StandardWidth)
+                .height(ButtonSizes.StandardHeight)
+                .clip(RoundedCornerShape(4.dp))
+                .clickable(onClick = onRedeemCodeClick),
+            contentAlignment = Alignment.Center
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(top = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                val realms = listOf(
-                    0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
-                    4 to "炼虚", 5 to "化神", 6 to "元婴", 7 to "金丹",
-                    8 to "筑基", 9 to "练气"
+            Image(
+                painter = painterResource(id = R.drawable.ui_button),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Text(
+                text = "兑换码",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .width(ButtonSizes.StandardWidth)
+                .height(ButtonSizes.StandardHeight)
+                .clip(RoundedCornerShape(4.dp))
+                .clickable(onClick = onChangelogClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ui_button),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            Text(
+                text = "更新日志",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        }
+    }
+}
+
+/** 个性化广告开关行（OtherSettingsDialog 拆分）：复选框 + 说明文案 */
+@Composable
+private fun PersonalizedAdsToggle(
+    personalizedAdsEnabled: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        CircularCheckbox(
+            checked = personalizedAdsEnabled,
+            onToggle = onToggle
+        )
+        Text(
+            text = "关闭后广告将不再基于您的兴趣推送",
+            fontSize = 10.sp,
+            color = Color.Black
+        )
+    }
+}
+
+/** 年俸设置弹窗（SettingsTab 拆分）：境界 → 年薪配置列表 */
+@Composable
+private fun SalaryConfigDialog(
+    gameData: GameData,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "年俸设置",
+        mode = DialogMode.Half,
+        dismissOnClickOutside = false
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val realms = listOf(
+                0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
+                4 to "炼虚", 5 to "化神", 6 to "元婴", 7 to "金丹",
+                8 to "筑基", 9 to "练气"
+            )
+            items(realms, key = { it.first }, contentType = { "realm" }) { (realm, name) ->
+                val salary = gameData.yearlySalary[realm] ?: 0
+                val enabled = gameData.yearlySalaryEnabled[realm] ?: true
+                SalaryRealmCard(
+                    realmName = name,
+                    salary = salary,
+                    enabled = enabled,
+                    onEnabledChange = { viewModel.setYearlySalaryEnabled(realm, it) }
                 )
-                items(realms, key = { it.first }, contentType = { "realm" }) { (realm, name) ->
-                    val salary = gameData.yearlySalary[realm] ?: 0
-                    val enabled = gameData.yearlySalaryEnabled[realm] ?: true
-                    SalaryRealmCard(
-                        realmName = name,
-                        salary = salary,
-                        enabled = enabled,
-                        onEnabledChange = { viewModel.setYearlySalaryEnabled(realm, it) }
-                    )
-                }
             }
         }
     }
@@ -648,55 +760,85 @@ private fun TimeSpeedControlItem(
     ) {
         val pauseAlpha = if (isPaused) 1f else 0.5f
         val btnSize = ButtonSizes.StandardHeight + 6.dp
-        Box(
-            modifier = Modifier
-                .size(btnSize)
-                .alpha(pauseAlpha)
-                .clip(CircleShape)
-                .clickable { saveLoadViewModel.togglePause() },
-            contentAlignment = Alignment.Center
-        ) {
-            if (isPaused) {
-                Image(
-                    painter = painterResource(id = R.drawable.ui_play_button),
-                    contentDescription = "继续",
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-            } else {
-                Image(
-                    painter = painterResource(id = R.drawable.ui_pause_button),
-                    contentDescription = "暂停",
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-            }
-        }
+        PauseToggleButton(
+            isPaused = isPaused,
+            pauseAlpha = pauseAlpha,
+            btnSize = btnSize,
+            onClick = { saveLoadViewModel.togglePause() }
+        )
 
         listOf(1, 2).forEach { speed ->
             val speedAlpha = if (timeSpeed == speed && !isPaused) 1f else 0.5f
-            Box(
-                modifier = Modifier
-                    .width(ButtonSizes.StandardWidth)
-                    .height(ButtonSizes.StandardHeight)
-                    .alpha(speedAlpha)
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable { saveLoadViewModel.setTimeSpeed(speed) },
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ui_button),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Text(
-                    text = "${speed}倍速",
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
+            SpeedToggleButton(
+                speed = speed,
+                speedAlpha = speedAlpha,
+                onClick = { saveLoadViewModel.setTimeSpeed(speed) }
+            )
         }
+    }
+}
+
+/** 暂停/继续圆形按钮（TimeSpeedControlItem 拆分） */
+@Composable
+private fun PauseToggleButton(
+    isPaused: Boolean,
+    pauseAlpha: Float,
+    btnSize: Dp,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(btnSize)
+            .alpha(pauseAlpha)
+            .clip(CircleShape)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        if (isPaused) {
+            Image(
+                painter = painterResource(id = R.drawable.ui_play_button),
+                contentDescription = "继续",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        } else {
+            Image(
+                painter = painterResource(id = R.drawable.ui_pause_button),
+                contentDescription = "暂停",
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        }
+    }
+}
+
+/** 倍速切换按钮（TimeSpeedControlItem 拆分） */
+@Composable
+private fun SpeedToggleButton(
+    speed: Int,
+    speedAlpha: Float,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(ButtonSizes.StandardWidth)
+            .height(ButtonSizes.StandardHeight)
+            .alpha(speedAlpha)
+            .clip(RoundedCornerShape(4.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Text(
+            text = "${speed}倍速",
+            fontSize = 12.sp,
+            color = Color.Black
+        )
     }
 }
 
@@ -709,11 +851,7 @@ internal fun SaveSlotDialog(
     val saveSlots by saveLoadViewModel.saveSlots.collectAsStateWithLifecycle()
     val saveLoadState by saveLoadViewModel.saveLoadState.collectAsStateWithLifecycle()
     val isBusy = saveLoadState.isBusy
-    val isSaving = saveLoadState.isSaving
-    val isLoading = saveLoadState.isLoading
-    val pendingSlot = saveLoadState.pendingSlot
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
-
     // ── 转圈动画状态（最少显示 1 秒） ──
     var showAnimation by remember { mutableStateOf(false) }
     var animationStartTime by remember { mutableLongStateOf(0L) }
@@ -732,19 +870,7 @@ internal fun SaveSlotDialog(
             showAnimation = false
         }
     }
-
-    // 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复
-    LaunchedEffect(Unit) {
-        delay(30000) // 给云存档网络操作 30 秒宽限期
-        val currentState = saveLoadViewModel.saveLoadState.value
-        if (currentState.isSaving || currentState.isLoading) {
-            saveLoadViewModel.cancelSaveLoad()
-        }
-    }
-
-    val selectedSlotInfo = remember(saveSlots, selectedSlot) {
-        saveSlots.find { it.slot == selectedSlot }
-    }
+    SaveLoadWatchdogEffect(saveLoadViewModel = saveLoadViewModel)
 
     UnifiedGameDialog(
         onDismissRequest = {
@@ -755,135 +881,193 @@ internal fun SaveSlotDialog(
         mode = DialogMode.Large,
         dismissOnClickOutside = false,
         headerActions = {
-            if (isBusy) {
-                GameButton(
-                    text = "取消",
-                    onClick = {
-                        saveLoadViewModel.cancelSaveLoad()
-                        onDismiss()
-                    }
-                )
-            }
+            SaveSlotCancelAction(isBusy = isBusy, onCancel = {
+                saveLoadViewModel.cancelSaveLoad()
+                onDismiss()
+            })
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-                // ── 转圈动画（保存/读取中） ──
-                if (showAnimation) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(48.dp),
-                                strokeWidth = 4.dp,
-                                color = Color.Black
-                            )
-                            Text(
-                                text = operationLabel,
-                                fontSize = 16.sp,
-                                color = Color.Black
-                            )
-                        }
-                    }
-                }
+            if (showAnimation) {
+                SaveSlotBusyIndicator(operationLabel = operationLabel)
+            }
 
-                if (!showAnimation) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
-                            SaveSlotCard(
-                                slot = slot,
-                                isSelected = selectedSlot == slot.slot,
-                                onClick = { selectedSlot = slot.slot }
-                            )
-                        }
-                    }
-                }
-
-                if (!showAnimation) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val saveEnabled = selectedSlot != null && !isBusy
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .alpha(if (saveEnabled) 1f else 0.45f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .then(
-                                if (saveEnabled) {
-                                    Modifier.clickable {
-                                        saveLoadViewModel.saveGame(selectedSlot.toString())
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "保存",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    val loadEnabled = selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .alpha(if (loadEnabled) 1f else 0.45f)
-                            .clip(RoundedCornerShape(4.dp))
-                            .then(
-                                if (loadEnabled) {
-                                    Modifier.clickable {
-                                        selectedSlot?.let { slotId ->
-                                            saveLoadViewModel.loadGameFromSlot(slotId)
-                                        }
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "读取",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-            }  // if (!showAnimation) buttons
+            if (!showAnimation) {
+                SaveSlotDialogContent(
+                    saveSlots = saveSlots,
+                    selectedSlot = selectedSlot,
+                    isBusy = isBusy,
+                    onSlotClick = { selectedSlot = it },
+                    onSave = { saveLoadViewModel.saveGame(it.toString()) },
+                    onLoad = { saveLoadViewModel.loadGameFromSlot(it) }
+                )
             }
         }
-}  // SaveSlotDialog
+    }
+}
+
+/** 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复（SaveSlotDialog 拆分） */
+@Composable
+private fun SaveLoadWatchdogEffect(saveLoadViewModel: SaveLoadViewModel) {
+    LaunchedEffect(Unit) {
+        delay(30000) // 给云存档网络操作 30 秒宽限期
+        val currentState = saveLoadViewModel.saveLoadState.value
+        if (currentState.isSaving || currentState.isLoading) {
+            saveLoadViewModel.cancelSaveLoad()
+        }
+    }
+}
+
+/** 对话框内容区（SaveSlotDialog 拆分）：转圈动画 + 槽位列表 + 操作按钮 */
+@Composable
+private fun ColumnScope.SaveSlotDialogContent(
+    saveSlots: List<SaveSlot>,
+    selectedSlot: Int?,
+    isBusy: Boolean,
+    onSlotClick: (Int) -> Unit,
+    onSave: (Int) -> Unit,
+    onLoad: (Int) -> Unit
+) {
+    SaveSlotList(
+        saveSlots = saveSlots,
+        selectedSlot = selectedSlot,
+        onSlotClick = onSlotClick
+    )
+    SaveSlotActionRow(
+        selectedSlot = selectedSlot,
+        saveSlots = saveSlots,
+        isBusy = isBusy,
+        onSave = onSave,
+        onLoad = onLoad
+    )
+}
+
+/** 保存/读取中转圈指示（SaveSlotDialog 拆分） */
+@Composable
+private fun ColumnScope.SaveSlotBusyIndicator(operationLabel: String) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(48.dp),
+                strokeWidth = 4.dp,
+                color = Color.Black
+            )
+            Text(
+                text = operationLabel,
+                fontSize = 16.sp,
+                color = Color.Black
+            )
+        }
+    }
+}
+
+/** 存档槽位列表（SaveSlotDialog 拆分） */
+@Composable
+private fun ColumnScope.SaveSlotList(
+    saveSlots: List<SaveSlot>,
+    selectedSlot: Int?,
+    onSlotClick: (Int) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .weight(1f)
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
+            SaveSlotCard(
+                slot = slot,
+                isSelected = selectedSlot == slot.slot,
+                onClick = { onSlotClick(slot.slot) }
+            )
+        }
+    }
+}
+
+/** 保存/读取操作按钮行（SaveSlotDialog 拆分） */
+@Composable
+private fun SaveSlotActionRow(
+    selectedSlot: Int?,
+    saveSlots: List<SaveSlot>,
+    isBusy: Boolean,
+    onSave: (Int) -> Unit,
+    onLoad: (Int) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val saveEnabled = selectedSlot != null && !isBusy
+        SaveSlotActionButton(
+            label = "保存",
+            enabled = saveEnabled,
+            onClick = { selectedSlot?.let(onSave) }
+        )
+        val loadEnabled = selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy
+        SaveSlotActionButton(
+            label = "读取",
+            enabled = loadEnabled,
+            onClick = { selectedSlot?.let(onLoad) }
+        )
+    }
+}
+
+/** 存档操作按钮（SaveSlotDialog 拆分）：标准尺寸 + 背景图 + 可用态置灰 */
+@Composable
+private fun SaveSlotActionButton(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(ButtonSizes.StandardWidth)
+            .height(ButtonSizes.StandardHeight)
+            .alpha(if (enabled) 1f else 0.45f)
+            .clip(RoundedCornerShape(4.dp))
+            .then(
+                if (enabled) {
+                    Modifier.clickable(onClick = onClick)
+                } else {
+                    Modifier
+                }
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.Black
+        )
+    }
+}
+
+/** 标题栏取消动作（SaveSlotDialog 拆分）：忙碌中显示"取消"按钮 */
+@Composable
+private fun SaveSlotCancelAction(isBusy: Boolean, onCancel: () -> Unit) {
+    if (isBusy) {
+        GameButton(
+            text = "取消",
+            onClick = onCancel
+        )
+    }
+}
 
 @Composable
 internal fun SaveSlotCard(
@@ -926,39 +1110,44 @@ internal fun SaveSlotCard(
                     color = Color.Black
                 )
             }
-            
-            if (!slot.isEmpty) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = slot.sectName,
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = slot.displayTime,
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Text(
-                        text = "弟子: ${slot.discipleCount}",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = "灵石: ${slot.spiritStones}",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-            }
+            SaveSlotDetails(slot = slot)
+        }
+    }
+}
+
+/** 存档详情（SaveSlotCard 拆分）：宗门/时间 + 弟子数/灵石（非空槽位） */
+@Composable
+private fun ColumnScope.SaveSlotDetails(slot: SaveSlot) {
+    if (!slot.isEmpty) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = slot.sectName,
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            Text(
+                text = slot.displayTime,
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "弟子: ${slot.discipleCount}",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+            Text(
+                text = "灵石: ${slot.spiritStones}",
+                fontSize = 12.sp,
+                color = Color.Black
+            )
         }
     }
 }
@@ -980,55 +1169,61 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                 .padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-                ChangelogData.entries.forEach { entry ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(GameColors.CardBackground)
-                            .padding(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "v${entry.version}",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = GameColors.GoldDark
-                            )
-                            Text(
-                                text = entry.date,
-                                fontSize = 10.sp,
-                                color = Color.Black
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        entry.changes.forEach { change ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 1.dp)
-                            ) {
-                                Text(
-                                    text = "•",
-                                    fontSize = 11.sp,
-                                    color = Color.Black
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = change,
-                                    fontSize = 11.sp,
-                                    color = Color.Black,
-                                    lineHeight = 18.sp
-                                )
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
+            ChangelogData.entries.forEach { entry ->
+                ChangelogEntryCard(entry = entry)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+/** 单条更新日志卡片（ChangelogDialog 拆分）：版本/日期 + 变更明细 */
+@Composable
+private fun ChangelogEntryCard(entry: ChangelogEntry) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(GameColors.CardBackground)
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "v${entry.version}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = GameColors.GoldDark
+            )
+            Text(
+                text = entry.date,
+                fontSize = 10.sp,
+                color = Color.Black
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        entry.changes.forEach { change ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 1.dp)
+            ) {
+                Text(
+                    text = "•",
+                    fontSize = 11.sp,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = change,
+                    fontSize = 11.sp,
+                    color = Color.Black,
+                    lineHeight = 18.sp
+                )
             }
         }
+    }
 }

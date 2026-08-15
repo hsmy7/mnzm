@@ -73,28 +73,38 @@ internal fun BuildingsTab(
         BuildingFeatureRegistry.constructible.filter { def ->
             !def.isResidence && def.key != "spirit_field"
         }.map { def ->
-            val desc = buildingDescriptions[def.key] ?: ""
-            val onClick: () -> Unit = {
-                when (def.key) {
-                    "spirit_mine" -> viewModel.openSpiritMineDialog()
-                    "herb_garden" -> viewModel.openHerbGardenDialog()
-                    "alchemy" -> viewModel.openAlchemyDialog()
-                    "forge" -> viewModel.openForgeDialog()
-                    "library" -> viewModel.openLibraryDialog()
-                    "wen_dao_peak" -> viewModel.openWenDaoPeakDialog()
-                    "qingyun_peak" -> viewModel.openQingyunPeakDialog()
-                    "tianshu_hall" -> viewModel.openTianshuHallDialog()
-                    "law_enforcement_hall" -> viewModel.openLawEnforcementHallDialog()
-                    "mission_hall" -> viewModel.openMissionHallDialog()
-                    "reflection_cliff" -> viewModel.openReflectionCliffDialog()
-                    "patrol_tower" -> viewModel.openPatrolTowerDialog()
-                    "blood_refining_pool" -> viewModel.openBloodRefiningPoolDialog()
-                }
-            }
-            Triple(def.displayName, desc, onClick)
+            Triple(
+                def.displayName, buildingDescriptions[def.key] ?: "",
+                buildingOpenAction(viewModel = viewModel, key = def.key)
+            )
         }
     }
 
+    BuildingTabGrid(buildings = buildings)
+}
+
+/** 建筑点击动作（BuildingsTab 拆分）：按键分发到对应对话框打开入口 */
+private fun buildingOpenAction(viewModel: GameViewModel, key: String): () -> Unit = {
+    when (key) {
+        "spirit_mine" -> viewModel.openSpiritMineDialog()
+        "herb_garden" -> viewModel.openHerbGardenDialog()
+        "alchemy" -> viewModel.openAlchemyDialog()
+        "forge" -> viewModel.openForgeDialog()
+        "library" -> viewModel.openLibraryDialog()
+        "wen_dao_peak" -> viewModel.openWenDaoPeakDialog()
+        "qingyun_peak" -> viewModel.openQingyunPeakDialog()
+        "tianshu_hall" -> viewModel.openTianshuHallDialog()
+        "law_enforcement_hall" -> viewModel.openLawEnforcementHallDialog()
+        "mission_hall" -> viewModel.openMissionHallDialog()
+        "reflection_cliff" -> viewModel.openReflectionCliffDialog()
+        "patrol_tower" -> viewModel.openPatrolTowerDialog()
+        "blood_refining_pool" -> viewModel.openBloodRefiningPoolDialog()
+    }
+}
+
+/** 建筑卡片网格（BuildingsTab 拆分）：每行两张建筑卡 */
+@Composable
+private fun BuildingTabGrid(buildings: List<Triple<String, String, () -> Unit>>) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Column(
             verticalArrangement = Arrangement.spacedBy(Spacing.SM)
@@ -104,45 +114,55 @@ internal fun BuildingsTab(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.SM)
                 ) {
-                            rowBuildings.forEach { building ->
-                                val name = building.first
-                                val desc = building.second
-                                val onClick = building.third
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
-                                        .clickableWithSound { onClick() }
-                                ) {
-                                    Image(
-                                        painter = painterResource(id = R.drawable.bg_horizontal),
-                                        contentDescription = null,
-                                        modifier = Modifier.matchParentSize(),
-                                        contentScale = ContentScale.FillBounds
-                                    )
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(
-                                            text = name,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(
-                                            text = desc,
-                                            fontSize = 12.sp,
-                                            color = Color.Black
-                                        )
-                                    }
-                                }
-                            }
-                            if (rowBuildings.size == 1) {
-                                Spacer(modifier = Modifier.weight(1f))
-                            }
-                        }
+                    rowBuildings.forEach { building ->
+                        BuildingTabCard(
+                            name = building.first,
+                            desc = building.second,
+                            onClick = building.third
+                        )
                     }
+                    if (rowBuildings.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
+    }
+}
 
+/** 建筑卡（BuildingsTab 拆分）：名称 + 描述，点击打开对应对话框 */
+@Composable
+private fun RowScope.BuildingTabCard(
+    name: String,
+    desc: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
+            .clickableWithSound { onClick() }
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = desc,
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        }
+    }
 }

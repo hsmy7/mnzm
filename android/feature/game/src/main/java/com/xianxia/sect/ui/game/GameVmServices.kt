@@ -1,7 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -25,7 +25,7 @@ import javax.inject.Inject
  */
 class GameVmAudioServices @Inject constructor(
     val audioConfig: AudioConfig,
-    val audioEngine: AudioEngine
+    val audioEngine: AudioPlayerFacade
 )
 
 class GameVmCoreServices @Inject constructor(

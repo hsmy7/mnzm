@@ -12,7 +12,7 @@ import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.util.HttpClientProvider
-import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.core.state.testGameStateRepository
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -88,7 +88,7 @@ class MailServiceTest {
         httpClient = mock(HttpClientProvider::class.java)
         stateStore = GameStateStoreImpl(
             scopeProvider,
-            mock(GameStateRepository::class.java)
+            testGameStateRepository()
         )
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
 

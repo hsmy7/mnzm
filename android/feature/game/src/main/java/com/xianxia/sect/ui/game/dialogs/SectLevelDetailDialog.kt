@@ -53,26 +53,16 @@ fun SectLevelDetailDialog(
 
     // 计算升级条件状态（仅当 viewedLevel == playerLevel 时显示）
     val upgradeConditions = remember(viewedLevel, playerLevel, aliveDisciples, gameData) {
-        if (viewedLevel == playerLevel && viewedLevel < SectLevel.TOP) {
-            val targetLevel = viewedLevel + 1
-            val highestRealm = aliveDisciples.filter { it.isAlive }
-                .minOfOrNull { it.realm } ?: 9
-            val occupiedSectLevels = gameData.worldMapSects
-                .filter { it.isPlayerOccupied }
-                .map { it.level }
-            SectLevelRewardConfig.getUpgradeConditionStates(
-                targetLevel, highestRealm, occupiedSectLevels
-            )
-        } else {
-            emptyList()
-        }
+        computeUpgradeConditions(
+            viewedLevel = viewedLevel,
+            playerLevel = playerLevel,
+            aliveDisciples = aliveDisciples,
+            gameData = gameData
+        )
     }
 
-    val allConditionsMet = upgradeConditions.isNotEmpty() &&
-            upgradeConditions.all { it.isMet }
-
+    val allConditionsMet = upgradeConditions.isNotEmpty() && upgradeConditions.all { it.isMet }
     val isViewingCurrentLevel = viewedLevel == playerLevel
-    val isAtMaxLevel = playerLevel >= SectLevel.TOP
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -80,151 +70,20 @@ fun SectLevelDetailDialog(
         mode = DialogMode.Half,
         scrollableContent = false
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // ======== 区域 1: 等级名称 + 翻页箭头 ========
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // 左箭头
-                    val canGoLeft = viewedLevel > SectLevel.SMALL
-                    Text(
-                        text = "◀",
-                        fontSize = 24.sp,
-                        color = if (canGoLeft) Color.Black else Color.Gray,
-                        modifier = Modifier
-                            .clickableWithSound(enabled = canGoLeft) {
-                                if (canGoLeft) viewedLevel--
-                            }
-                            .padding(8.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(24.dp))
-
-                    // 等级名称
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = SectLevel.levelName(viewedLevel),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        if (viewedLevel > playerLevel) {
-                            Text(
-                                text = "🔒 未解锁",
-                                fontSize = 12.sp,
-                                color = Color(0xFF999999)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(24.dp))
-
-                    // 右箭头
-                    val canGoRight = viewedLevel < SectLevel.TOP
-                    Text(
-                        text = "▶",
-                        fontSize = 24.sp,
-                        color = if (canGoRight) Color.Black else Color.Gray,
-                        modifier = Modifier
-                            .clickableWithSound(enabled = canGoRight) {
-                                if (canGoRight) viewedLevel++
-                            }
-                            .padding(8.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                // ======== 区域 2: 升级条件 + 升级按钮 ========
-                if (viewedLevel == playerLevel && viewedLevel < SectLevel.TOP) {
-                    val targetLevel = viewedLevel + 1
-                    Text(
-                        text = "晋升至${SectLevel.levelName(targetLevel)}的条件",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    if (upgradeConditions.isEmpty()) {
-                        Text(
-                            text = "无法晋升（配置缺失）",
-                            fontSize = 12.sp,
-                            color = GameColors.Error
-                        )
-                    } else {
-                        upgradeConditions.forEach { condition ->
-                            ConditionRow(condition = condition)
-                            Spacer(modifier = Modifier.height(6.dp))
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // 升级按钮
-                    GameButton(
-                        text = "晋升",
-                        onClick = { viewModel.upgradeSectLevel() },
-                        enabled = allConditionsMet
-                    )
-                } else if (viewedLevel == playerLevel && isAtMaxLevel) {
-                    Text(
-                        text = "已达最高等级",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.Success
-                    )
-                } else if (viewedLevel > playerLevel) {
-                    Text(
-                        text = "需先达到${SectLevel.levelName(viewedLevel)}方可查看升级条件",
-                        fontSize = 12.sp,
-                        color = Color(0xFF999999)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(80.dp)) // 底部留白给奖励按钮
-            }
-
-            // ======== 奖励按钮（右下角） ========
-            if (isViewingCurrentLevel) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 12.dp, bottom = 12.dp)
-                ) {
-                    GameButton(
-                        text = "每周奖励",
-                        onClick = { showRewardDialog = true },
-                        width = 90.dp,
-                        height = 38.dp
-                    )
-                    // 红点
-                    if (rewardClaimable) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 4.dp, y = (-4).dp)
-                                .size(8.dp)
-                                .background(Color.Red, CircleShape)
-                        )
-                    }
-                }
-            }
-        }
+        SectLevelDialogContent(
+            contentData = SectLevelContentData(
+                viewedLevel = viewedLevel,
+                playerLevel = playerLevel,
+                upgradeConditions = upgradeConditions,
+                allConditionsMet = allConditionsMet,
+                isViewingCurrentLevel = isViewingCurrentLevel,
+                rewardClaimable = rewardClaimable
+            ),
+            onPrevious = { viewedLevel-- },
+            onNext = { viewedLevel++ },
+            onUpgrade = { viewModel.upgradeSectLevel() },
+            onRewardClick = { showRewardDialog = true }
+        )
     }
 
     // 奖励子界面
@@ -234,6 +93,240 @@ fun SectLevelDetailDialog(
             viewModel = viewModel,
             onDismiss = { showRewardDialog = false }
         )
+    }
+}
+
+/** 宗门等级详情内容数据（SectLevelDetailDialog 拆分） */
+private data class SectLevelContentData(
+    val viewedLevel: Int,
+    val playerLevel: Int,
+    val upgradeConditions: List<UpgradeConditionState>,
+    val allConditionsMet: Boolean,
+    val isViewingCurrentLevel: Boolean,
+    val rewardClaimable: Boolean
+)
+
+/** 宗门等级详情内容（SectLevelDetailDialog 拆分）：区域 1 翻页 + 区域 2 条件 + 右下角奖励按钮 */
+@Composable
+private fun SectLevelDialogContent(
+    contentData: SectLevelContentData,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onUpgrade: () -> Unit,
+    onRewardClick: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ======== 区域 1: 等级名称 + 翻页箭头 ========
+            SectLevelHeaderRow(
+                viewedLevel = contentData.viewedLevel,
+                playerLevel = contentData.playerLevel,
+                onPrevious = onPrevious,
+                onNext = onNext
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ======== 区域 2: 升级条件 + 升级按钮 ========
+            SectLevelUpgradeSection(
+                viewedLevel = contentData.viewedLevel,
+                playerLevel = contentData.playerLevel,
+                upgradeConditions = contentData.upgradeConditions,
+                allConditionsMet = contentData.allConditionsMet,
+                onUpgrade = onUpgrade
+            )
+
+            Spacer(modifier = Modifier.height(80.dp)) // 底部留白给奖励按钮
+        }
+
+        // ======== 奖励按钮（右下角） ========
+        if (contentData.isViewingCurrentLevel) {
+            SectLevelRewardButton(
+                rewardClaimable = contentData.rewardClaimable,
+                onRewardClick = onRewardClick
+            )
+        }
+    }
+}
+
+/** 升级条件状态计算（SectLevelDetailDialog 拆分）：仅当前等级且未满级时计算 */
+private fun computeUpgradeConditions(
+    viewedLevel: Int,
+    playerLevel: Int,
+    aliveDisciples: List<DiscipleAggregate>,
+    gameData: GameData
+): List<UpgradeConditionState> =
+    if (viewedLevel == playerLevel && viewedLevel < SectLevel.TOP) {
+        val targetLevel = viewedLevel + 1
+        val highestRealm = aliveDisciples.filter { it.isAlive }
+            .minOfOrNull { it.realm } ?: 9
+        val occupiedSectLevels = gameData.worldMapSects
+            .filter { it.isPlayerOccupied }
+            .map { it.level }
+        SectLevelRewardConfig.getUpgradeConditionStates(
+            targetLevel, highestRealm, occupiedSectLevels
+        )
+    } else {
+        emptyList()
+    }
+
+/** 等级名称 + 左右翻页箭头（SectLevelDetailDialog 拆分） */
+@Composable
+private fun SectLevelHeaderRow(
+    viewedLevel: Int,
+    playerLevel: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // 左箭头
+        val canGoLeft = viewedLevel > SectLevel.SMALL
+        Text(
+            text = "◀",
+            fontSize = 24.sp,
+            color = if (canGoLeft) Color.Black else Color.Gray,
+            modifier = Modifier
+                .clickableWithSound(enabled = canGoLeft) {
+                    if (canGoLeft) onPrevious()
+                }
+                .padding(8.dp)
+        )
+
+        Spacer(modifier = Modifier.width(24.dp))
+
+        // 等级名称
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = SectLevel.levelName(viewedLevel),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            if (viewedLevel > playerLevel) {
+                Text(
+                    text = "🔒 未解锁",
+                    fontSize = 12.sp,
+                    color = Color(0xFF999999)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(24.dp))
+
+        // 右箭头
+        val canGoRight = viewedLevel < SectLevel.TOP
+        Text(
+            text = "▶",
+            fontSize = 24.sp,
+            color = if (canGoRight) Color.Black else Color.Gray,
+            modifier = Modifier
+                .clickableWithSound(enabled = canGoRight) {
+                    if (canGoRight) onNext()
+                }
+                .padding(8.dp)
+        )
+    }
+}
+
+/** 升级条件 + 晋升按钮（SectLevelDetailDialog 拆分） */
+@Composable
+private fun SectLevelUpgradeSection(
+    viewedLevel: Int,
+    playerLevel: Int,
+    upgradeConditions: List<UpgradeConditionState>,
+    allConditionsMet: Boolean,
+    onUpgrade: () -> Unit
+) {
+    val isAtMaxLevel = playerLevel >= SectLevel.TOP
+    if (viewedLevel == playerLevel && viewedLevel < SectLevel.TOP) {
+        val targetLevel = viewedLevel + 1
+        Text(
+            text = "晋升至${SectLevel.levelName(targetLevel)}的条件",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (upgradeConditions.isEmpty()) {
+            Text(
+                text = "无法晋升（配置缺失）",
+                fontSize = 12.sp,
+                color = GameColors.Error
+            )
+        } else {
+            upgradeConditions.forEach { condition ->
+                ConditionRow(condition = condition)
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 升级按钮
+        GameButton(
+            text = "晋升",
+            onClick = onUpgrade,
+            enabled = allConditionsMet
+        )
+    } else if (viewedLevel == playerLevel && isAtMaxLevel) {
+        Text(
+            text = "已达最高等级",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = GameColors.Success
+        )
+    } else if (viewedLevel > playerLevel) {
+        Text(
+            text = "需先达到${SectLevel.levelName(viewedLevel)}方可查看升级条件",
+            fontSize = 12.sp,
+            color = Color(0xFF999999)
+        )
+    }
+}
+
+/** 每周奖励按钮（右下角，含红点）（SectLevelDetailDialog 拆分） */
+@Composable
+private fun BoxScope.SectLevelRewardButton(
+    rewardClaimable: Boolean,
+    onRewardClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(end = 12.dp, bottom = 12.dp)
+    ) {
+        GameButton(
+            text = "每周奖励",
+            onClick = onRewardClick,
+            width = 90.dp,
+            height = 38.dp
+        )
+        // 红点
+        if (rewardClaimable) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(8.dp)
+                    .background(Color.Red, CircleShape)
+            )
+        }
     }
 }
 

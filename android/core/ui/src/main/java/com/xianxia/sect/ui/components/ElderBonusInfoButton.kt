@@ -81,111 +81,144 @@ fun ElderBonusInfoDialog(
         // 窗口销毁前清除焦点并隐藏软键盘，防文本选择 FloatingActionMode BadToken（Bugly #3026）
         DialogFocusGuard()
 
+        ElderBonusInfoDialogFrame(
+            bonusInfo = bonusInfo,
+            onDismiss = onDismiss,
+            backgroundRes = backgroundRes,
+            closeButtonRes = closeButtonRes
+        )
+    }
+}
+
+/** 长老加成信息框（ElderBonusInfoDialog 拆分）：背景图 + 标题/分隔线/属性/效果/公式 */
+@Composable
+private fun ElderBonusInfoDialogFrame(
+    bonusInfo: ElderBonusInfo,
+    onDismiss: () -> Unit,
+    @DrawableRes backgroundRes: Int,
+    @DrawableRes closeButtonRes: Int
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+    ) {
+        Image(
+            painter = painterResource(id = backgroundRes),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .padding(16.dp)
         ) {
-            Image(
-                painter = painterResource(id = backgroundRes),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Column(
+            Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Header: title + close button in top-right
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = bonusInfo.title,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextPrimary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    CloseButton(
-                        onClick = onDismiss,
-                        closeButtonRes = closeButtonRes
-                    )
-                }
-
+                ElderBonusInfoHeader(
+                    title = bonusInfo.title,
+                    onDismiss = onDismiss,
+                    closeButtonRes = closeButtonRes
+                )
                 HorizontalDivider(
                     color = GameColors.Border,
                     thickness = 1.dp
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "所需属性:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextSecondary
-                    )
-                    Text(
-                        text = bonusInfo.requiredAttribute,
-                        fontSize = 13.sp,
-                        color = GameColors.Primary
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "效果说明:",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.TextSecondary
-                    )
-                    Text(
-                        text = bonusInfo.effectDescription,
-                        fontSize = 13.sp,
-                        color = GameColors.Success
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White.copy(alpha = 0.5f))
-                        .padding(12.dp)
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "加成计算:",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GameColors.TextSecondary
-                        )
-                        Text(
-                            text = bonusInfo.bonusFormula,
-                            fontSize = 12.sp,
-                            color = GameColors.TextTertiary,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-
-
-	            }
+                ElderBonusInfoFieldRow(
+                    label = "所需属性:",
+                    value = bonusInfo.requiredAttribute,
+                    valueColor = GameColors.Primary
+                )
+                ElderBonusInfoFieldRow(
+                    label = "效果说明:",
+                    value = bonusInfo.effectDescription,
+                    valueColor = GameColors.Success
+                )
+                ElderBonusInfoFormulaBox(formula = bonusInfo.bonusFormula)
+            }
         }
+    }
+}
+
+/** 标题行（ElderBonusInfoDialog 拆分）：标题 + 右上角关闭按钮 */
+@Composable
+private fun ElderBonusInfoHeader(
+    title: String,
+    onDismiss: () -> Unit,
+    @DrawableRes closeButtonRes: Int
+) {
+    // Header: title + close button in top-right
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = GameColors.TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        CloseButton(
+            onClick = onDismiss,
+            closeButtonRes = closeButtonRes
+        )
+    }
+}
+
+/** 属性/效果行（ElderBonusInfoDialog 拆分）：标签 + 值 */
+@Composable
+private fun ElderBonusInfoFieldRow(
+    label: String,
+    value: String,
+    valueColor: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = GameColors.TextSecondary
+        )
+        Text(
+            text = value,
+            fontSize = 13.sp,
+            color = valueColor
+        )
+    }
+}
+
+/** 加成计算框（ElderBonusInfoDialog 拆分） */
+@Composable
+private fun ElderBonusInfoFormulaBox(formula: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White.copy(alpha = 0.5f))
+            .padding(12.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = "加成计算:",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = GameColors.TextSecondary
+            )
+            Text(
+                text = formula,
+                fontSize = 12.sp,
+                color = GameColors.TextTertiary,
+                lineHeight = 18.sp
+            )
         }
     }
 }

@@ -32,20 +32,6 @@ fun DiscipleManagementDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val initialPillFocused = gameData?.breakthroughAutoPillFocused ?: false
-    val initialPillRootCounts = gameData?.breakthroughAutoPillRootCounts ?: emptySet()
-    val initialEquipFocused = gameData?.autoEquipFromWarehouseFocused ?: false
-    val initialEquipRootCounts = gameData?.autoEquipFromWarehouseRootCounts ?: emptySet()
-    val initialLearnFocused = gameData?.autoLearnFromWarehouseFocused ?: false
-    val initialLearnRootCounts = gameData?.autoLearnFromWarehouseRootCounts ?: emptySet()
-
-    var pillFocused by remember { mutableStateOf(initialPillFocused) }
-    var pillRootCounts by remember { mutableStateOf(initialPillRootCounts) }
-    var equipFocused by remember { mutableStateOf(initialEquipFocused) }
-    var equipRootCounts by remember { mutableStateOf(initialEquipRootCounts) }
-    var learnFocused by remember { mutableStateOf(initialLearnFocused) }
-    var learnRootCounts by remember { mutableStateOf(initialLearnRootCounts) }
-
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "弟子管理",
@@ -59,57 +45,82 @@ fun DiscipleManagementDialog(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Section 1: 自动使用突破丹
-            AutoUseSection(
-                title = "弟子突破时自动使用仓库中突破丹药（优先高品阶）",
-                focused = pillFocused,
-                rootCounts = pillRootCounts,
-                onFocusedToggle = {
-                    val new = !pillFocused
-                    pillFocused = new
-                    viewModel.setBreakthroughAutoPillSettings(new, pillRootCounts)
-                },
-                onRootToggle = { count ->
-                    val new = if (count in pillRootCounts) pillRootCounts - count else pillRootCounts + count
-                    pillRootCounts = new
-                    viewModel.setBreakthroughAutoPillSettings(pillFocused, new)
-                }
-            )
-
+            AutoPillSection(gameData = gameData, viewModel = viewModel)
             // Section 2: 自动装备
-            AutoUseSection(
-                title = "弟子自动装备仓库中符合境界的装备（优先高品阶，只装备不更换）",
-                focused = equipFocused,
-                rootCounts = equipRootCounts,
-                onFocusedToggle = {
-                    val new = !equipFocused
-                    equipFocused = new
-                    viewModel.setAutoEquipSettings(new, equipRootCounts)
-                },
-                onRootToggle = { count ->
-                    val new = if (count in equipRootCounts) equipRootCounts - count else equipRootCounts + count
-                    equipRootCounts = new
-                    viewModel.setAutoEquipSettings(equipFocused, new)
-                }
-            )
-
+            AutoEquipSection(gameData = gameData, viewModel = viewModel)
             // Section 3: 自动学习功法
-            AutoUseSection(
-                title = "弟子自动学习仓库中符合境界的功法（优先高品阶，只学习不更换）",
-                focused = learnFocused,
-                rootCounts = learnRootCounts,
-                onFocusedToggle = {
-                    val new = !learnFocused
-                    learnFocused = new
-                    viewModel.setAutoLearnSettings(new, learnRootCounts)
-                },
-                onRootToggle = { count ->
-                    val new = if (count in learnRootCounts) learnRootCounts - count else learnRootCounts + count
-                    learnRootCounts = new
-                    viewModel.setAutoLearnSettings(learnFocused, new)
-                }
-            )
+            AutoLearnSection(gameData = gameData, viewModel = viewModel)
         }
     }
+}
+
+/** 自动使用突破丹设置区（DiscipleManagementDialog 拆分）：聚焦开关 + 灵根数过滤 */
+@Composable
+private fun AutoPillSection(gameData: GameData?, viewModel: GameViewModel) {
+    var pillFocused by remember { mutableStateOf(gameData?.breakthroughAutoPillFocused ?: false) }
+    var pillRootCounts by remember { mutableStateOf(gameData?.breakthroughAutoPillRootCounts ?: emptySet()) }
+
+    AutoUseSection(
+        title = "弟子突破时自动使用仓库中突破丹药（优先高品阶）",
+        focused = pillFocused,
+        rootCounts = pillRootCounts,
+        onFocusedToggle = {
+            val new = !pillFocused
+            pillFocused = new
+            viewModel.setBreakthroughAutoPillSettings(new, pillRootCounts)
+        },
+        onRootToggle = { count ->
+            val new = if (count in pillRootCounts) pillRootCounts - count else pillRootCounts + count
+            pillRootCounts = new
+            viewModel.setBreakthroughAutoPillSettings(pillFocused, new)
+        }
+    )
+}
+
+/** 自动装备设置区（DiscipleManagementDialog 拆分）：聚焦开关 + 灵根数过滤 */
+@Composable
+private fun AutoEquipSection(gameData: GameData?, viewModel: GameViewModel) {
+    var equipFocused by remember { mutableStateOf(gameData?.autoEquipFromWarehouseFocused ?: false) }
+    var equipRootCounts by remember { mutableStateOf(gameData?.autoEquipFromWarehouseRootCounts ?: emptySet()) }
+
+    AutoUseSection(
+        title = "弟子自动装备仓库中符合境界的装备（优先高品阶，只装备不更换）",
+        focused = equipFocused,
+        rootCounts = equipRootCounts,
+        onFocusedToggle = {
+            val new = !equipFocused
+            equipFocused = new
+            viewModel.setAutoEquipSettings(new, equipRootCounts)
+        },
+        onRootToggle = { count ->
+            val new = if (count in equipRootCounts) equipRootCounts - count else equipRootCounts + count
+            equipRootCounts = new
+            viewModel.setAutoEquipSettings(equipFocused, new)
+        }
+    )
+}
+
+/** 自动学习功法设置区（DiscipleManagementDialog 拆分）：聚焦开关 + 灵根数过滤 */
+@Composable
+private fun AutoLearnSection(gameData: GameData?, viewModel: GameViewModel) {
+    var learnFocused by remember { mutableStateOf(gameData?.autoLearnFromWarehouseFocused ?: false) }
+    var learnRootCounts by remember { mutableStateOf(gameData?.autoLearnFromWarehouseRootCounts ?: emptySet()) }
+
+    AutoUseSection(
+        title = "弟子自动学习仓库中符合境界的功法（优先高品阶，只学习不更换）",
+        focused = learnFocused,
+        rootCounts = learnRootCounts,
+        onFocusedToggle = {
+            val new = !learnFocused
+            learnFocused = new
+            viewModel.setAutoLearnSettings(new, learnRootCounts)
+        },
+        onRootToggle = { count ->
+            val new = if (count in learnRootCounts) learnRootCounts - count else learnRootCounts + count
+            learnRootCounts = new
+            viewModel.setAutoLearnSettings(learnFocused, new)
+        }
+    )
 }
 
 @Composable

@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -10,7 +9,6 @@ import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -32,7 +30,7 @@ class GameStateStoreAggregationCacheTest {
         Disciple(id = id.toString(), name = "弟子$id", realm = 5, realmLayer = 1)
 
     private fun store(): GameStateStoreImpl {
-        val s = GameStateStoreImpl(ApplicationScopeProvider(), mock(GameStateRepository::class.java))
+        val s = GameStateStoreImpl(ApplicationScopeProvider(), testGameStateRepository())
         s.unsafeAllowMainThreadUpdateForTest = true
         return s
     }

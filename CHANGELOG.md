@@ -1,5 +1,30 @@
 ## [4.00.99] - 2026-08-15
 
+### 债务根治（2026-08 架构文档债务全量根治批次）
+
+> 背景：用户要求根治架构文档（docs/architecture.md 待办 D 系列 + docs/platform-abilities.md G 系列 + 各挂账文档）登记的全部债务。范围：19 项活跃待办 + 4 项 YAGNI 转档案 + 8 项平台缺口 + 构建挂账 + 245 条超长函数拆分队列。详见 docs/architecture.md 实施记录。
+
+- **D-42（玩家可见）** — 游戏内防沉迷合规回调根治：新增进程级 `ComplianceCallbackHost`（WindowPort 接口 + 登录/游戏双窗口弱引用转发），MainActivity/GameActivity 各注册窗口端口；共享 `ComplianceLimitDialogs`（生命周期门控 + DialogSystemBarGuard）；`ComplianceCallbackHostTest` 10 用例。修复"进游戏后时长/时间/年龄限制提示永远无法弹出"
+- **D-31（架构级）** — `GameForegroundService.onDestroy` 仅 `stopGameLoop()`：引擎初始化状态进程级持有（@Singleton 生命周期一次 initializeAll），Service 仅循环启停；`shutdown()` 保留为完整拆除路径（A2 触发）；`GameEngineCoreInitializeOnceTest` 4 用例守卫
+- **D-29（iOS 前置）** — DataStore 依赖移除；新增 `KeyValueStore` 接口 + `GamePreferences`（MMKV，含 SP 一次性迁移纯函数 `migrateInto`）+ Hilt 绑定；8 处普通偏好迁移（AdServiceImpl/FirstEventTracker/LeaderboardManager/TapCloudSaveManager/GameActivity×2/StorageConfig/SaveLimitsConfig）；豁免清单（SessionManager 加密/SecureKeyManager 密钥/CrashHandler 崩溃恢复/TapDB SDK 接口）登记 GamePreferences KDoc
+- **D-28** — retrofit/converter-gson 死依赖声明移除（生产 Gson 早已清零，仅迁移测试 JsonParser 保留 gson testImplementation）
+- **G1/A1（iOS 前置）** — `AudioPlayerFacade` 接口（core/engine 零 Android 依赖）+ `AndroidAudioPlayer`（app 层实现）；AudioEngine 从 core/engine 移除，audio 包 `import android.*` 清零；AudioPreloader 依赖接口 + DomainLog
+- **G3** — `CrashReporter` 接口（core/domain）+ `BuglyCrashReporter`（app 层）+ CrashReporterModule 绑定；XianxiaApplication 与 BuglyEngineCrashReporter 直引/反射收敛到实现类
+- **D-30** — `GameConfig.initialize` 进程级幂等守卫（+resetForTest 测试接缝）+ `BuildingConfigService.initialize` 实例级守卫；幂等测试 5 用例
+- **D-26/D-27** — app 测试共享工厂 `testGameStateRepository()`（mockSmart+智能空值）替换 23 处裸 mock（19 测试类）；新建 `rules/testing.md`（final 类禁裸 mock/mockSmart 入口/sealed doReturn 风格）
+- **D-41** — 14 个测试文件 `createAndroidComposeRule` → `androidx.compose.ui.test.junit4.v2`（模块测试全绿）
+- **D-32/D-33/D-34/D-35/D-36/D-37/D-38/D-39** — lint 批量根治：121 字符行拆行；8 处 `LocalWindowInfo.containerSize` 迁移；2 处路由小驼峰；17 处 KTX createBitmap（1 处 IntArray 豁免）；14 处 mutableIntStateOf/mutableLongStateOf；4 处 modifier 参数重排；杂项 8 处（LocalResources×2/不可变 Set/PortraitPool.getResourceId/删冗余 ui_tooltip.webp/2 处原生豁免注释）
+- **J 项** — GameOverlayHost 云存档覆盖弹窗 4 处 `!!` → `?.let` 安全访问
+- **D-43** — CLAUDE.md 测试命令改模块限定写法（含 Version Release 段）
+- **构建挂账** — generateFootprintHeader 输出迁移 `build/generated/sprite/`（源码树生成物清零）；jetifier 文档闭环（3.2.14 已回滚启用，广告 SDK 需要）；core/domain kover 开关补齐；CI 补 lintRelease；`xianxia.android[.application/.test]` convention plugin 收编 7 模块 SDK 配置（build-logic）；6 项依赖升级（mmkv 2.4.1/mockk 1.14.11/test-ext-junit 1.3.0/test-runner 1.7.0/test-core 1.7.0/uiautomator 2.4.0）
+- **F 项（proguard）** — 删除 `core.model.**`/`data.model.**` 两条宽 keep 规则（序列化访问由既有针对性规则覆盖），其余宽规则逐条补保留原因注释（kotlinx.serialization 反射/HarmonyOS AOT 等）
+- **K 项销账** — RNG 事务性已实施（RngSnapshotPort + executeBlockWithRngGuard + TransactionRngRollbackTest），方案文档标注修正
+- **P3 队列（245 条超长函数）** — 全量拆分（含 19 个并行工作组的提取重构 + 编译修复），detekt baseline LongMethod 逐条摘除（陈旧条目一并清理）
+- **G4/G5/G6 评估 ADR** — `docs/adr/sqlite-sqldelight-evaluation.md`、`di-abstraction-evaluation.md`、`compose-multiplatform-evaluation.md`（含迁移启动判据）
+- **文档** — architecture.md 待办表清空 + 偿还触发条件档案（T-D46~T-D49/T-D40A/T-D40B/T-A2/T-RB/T-CONV/T-PRO）；fps-optimization-plan.md 转实施状态盘点；platform-abilities.md G 系列全闭环；audio-thread-audit.md A1 闭环
+- **测试** — 新增：`ComplianceCallbackHostTest`/`GameEngineCoreInitializeOnceTest`/`GameConfigIdempotenceTest`/`BuildingConfigServiceIdempotenceTest`/`GamePreferencesMigrateTest` 共 5 类；串行全量测试 + detekt + lintRelease + assembleRelease 验证门
+- **兼容性** — 无 Entity/Migration 变更（DATABASE_VERSION 不变）；D-29 旧 SharedPreferences 一次性迁移幂等（读旧值→写 MMKV→清旧文件）；无经济/隐私变更（D-42 仅恢复合规提示展示）；convention plugin 与模块拆分为构建级等价重构
+
 ### 调整（2026-08-17 洗炼天赋/体质/词条不再刷回弟子已有特质）
 
 > 背景：用户需求"可刷到之前刷到的，但不能刷到弟子已有的"。原实现洗炼排除集只含**保留槽位**（`if (keptId == targetId) continue` 跳过目标槽位），目标槽位当前特质仍在候选池 → 洗炼可能"刷回原样"白耗 1 玉符。需求语义：洗炼产物不得等于弟子**已有**任何特质（含目标槽位自身）；历史刷到过但已不在身上的条目仍在候选池（无需历史记录，天然可再次刷到）。

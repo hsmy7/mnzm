@@ -1,10 +1,8 @@
 package com.xianxia.sect.taptap
 
-import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
+import com.xianxia.sect.data.prefs.KeyValueStore
 import com.xianxia.sect.taptap.TapTapLeaderboardApi.LeaderboardApiException
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,12 +12,14 @@ import javax.inject.Singleton
  * - 上报与查询均要求 TapTap 登录；未登录时上报静默跳过、查询返回 NeedLogin。
  * - 上报失败仅记日志次日重试（不阻塞游戏）。
  * - 错误经 [LeaderboardResult] 返回，不抛裸异常。
+ * - 存储：MMKV 统一偏好（docs/architecture.md 待办 D-29），旧 SharedPreferences
+ *   一次性迁移（首次访问时懒执行，幂等）。
  */
 @Singleton
 class LeaderboardManager @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val cloudApi: LeaderboardCloudApi,
-    private val loginBridge: TapTapLoginBridge
+    private val loginBridge: TapTapLoginBridge,
+    private val keyValueStore: KeyValueStore
 ) {
 
     companion object {
@@ -29,8 +29,17 @@ class LeaderboardManager @Inject constructor(
         private const val KEY_LAST_UPLOADED_POWER = "last_uploaded_power"
     }
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    @Volatile
+    private var migrated = false
+
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated) return
+            keyValueStore.migrateFromSharedPreferences(PREFS_NAME)
+            migrated = true
+        }
+    }
 
     /** 当前是否具备云端榜条件（已登录 + 已初始化） */
     fun isCloudAvailable(): Boolean = loginBridge.isLoggedIn()
@@ -46,10 +55,11 @@ class LeaderboardManager @Inject constructor(
             Log.d(TAG, "未登录，跳过排行榜上报")
             return false
         }
+        ensureMigrated()
         val today = LeaderboardUploadPolicy.formatDate(System.currentTimeMillis())
-        val lastDate = prefs.getString(KEY_LAST_UPLOAD_DATE, null)
-        val lastPower = if (prefs.contains(KEY_LAST_UPLOADED_POWER)) {
-            prefs.getLong(KEY_LAST_UPLOADED_POWER, 0L)
+        val lastDate = keyValueStore.getString(KEY_LAST_UPLOAD_DATE, null)
+        val lastPower = if (keyValueStore.contains(KEY_LAST_UPLOADED_POWER)) {
+            keyValueStore.getLong(KEY_LAST_UPLOADED_POWER, 0L)
         } else {
             null
         }
@@ -59,10 +69,8 @@ class LeaderboardManager @Inject constructor(
         }
         val success = cloudApi.submitStatistic(power)
         if (success) {
-            prefs.edit()
-                .putString(KEY_LAST_UPLOAD_DATE, today)
-                .putLong(KEY_LAST_UPLOADED_POWER, power)
-                .apply()
+            keyValueStore.putString(KEY_LAST_UPLOAD_DATE, today)
+            keyValueStore.putLong(KEY_LAST_UPLOADED_POWER, power)
             Log.d(TAG, "排行榜上报成功: power=$power")
         } else {
             Log.w(TAG, "排行榜上报失败（次日重试）")

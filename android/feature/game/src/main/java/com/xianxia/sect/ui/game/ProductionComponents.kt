@@ -266,69 +266,113 @@ fun ProductionSlotItem(
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         if (isWorking) {
+            ProductionSlotProgressInfo(
+                successRate = successRate,
+                progressState = progressState
+            )
+        }
+        ProductionSlotProductArea(
+            productName = productName,
+            productRarity = productRarity,
+            isPill = isPill,
+            isHerb = isHerb,
+            isWorking = isWorking,
+            onClick = onClick
+        )
+        ProductionSlotActionRow(
+            isWorking = isWorking,
+            onCancel = onCancel,
+            onReplace = onReplace
+        )
+    }
+}
+
+/** 生产槽位成功率进度条（ProductionSlotItem 拆分） */
+@Composable
+private fun ProductionSlotProgressInfo(
+    successRate: Double,
+    progressState: State<Float>
+) {
+    Text(
+        text = "成功率${(successRate * 100).toInt()}%",
+        fontSize = 10.sp,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(2.dp))
+    LinearProgressIndicator(
+        progress = { progressState.value },
+        modifier = Modifier
+            .width(60.dp)
+            .height(4.dp)
+            .clip(RoundedCornerShape(2.dp)),
+        color = GameColors.Success,
+        trackColor = GameColors.Border
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+}
+
+/** 生产槽位产品区（ProductionSlotItem 拆分）：制作中显示物品卡，否则显示空槽占位 */
+@Composable
+private fun ProductionSlotProductArea(
+    productName: String?,
+    productRarity: Int,
+    isPill: Boolean,
+    isHerb: Boolean,
+    isWorking: Boolean,
+    onClick: () -> Unit
+) {
+    if (isWorking && productName != null) {
+        UnifiedItemCard(
+            data = ItemCardData(
+                name = productName,
+                rarity = productRarity,
+                quantity = 1,
+                isPill = isPill,
+                isHerb = isHerb
+            ),
+            showQuantity = false,
+            onClick = onClick
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(GameColors.PageBackground)
+                .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "+", fontSize = 24.sp, color = Color.Black)
+        }
+    }
+}
+
+/** 生产槽位操作行（ProductionSlotItem 拆分）：取消/更换 */
+@Composable
+private fun ProductionSlotActionRow(
+    isWorking: Boolean,
+    onCancel: (() -> Unit)?,
+    onReplace: (() -> Unit)?
+) {
+    if (isWorking && onCancel != null && onReplace != null) {
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+        ) {
             Text(
-                text = "成功率${(successRate * 100).toInt()}%",
-                fontSize = 10.sp,
-                color = Color.Black
+                text = "取消",
+                fontSize = 9.sp,
+                color = Color(0xFFE53935),
+                modifier = Modifier.clickable { onCancel() }
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            LinearProgressIndicator(
-                progress = { progressState.value },
-                modifier = Modifier
-                    .width(60.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                color = GameColors.Success,
-                trackColor = GameColors.Border
+            Text(
+                text = "更换",
+                fontSize = 9.sp,
+                color = Color.Black,
+                modifier = Modifier.clickable { onReplace() }
             )
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        if (isWorking && productName != null) {
-            UnifiedItemCard(
-                data = ItemCardData(
-                    name = productName,
-                    rarity = productRarity,
-                    quantity = 1,
-                    isPill = isPill,
-                    isHerb = isHerb
-                ),
-                showQuantity = false,
-                onClick = onClick
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(GameColors.PageBackground)
-                    .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-                    .clickable { onClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "+", fontSize = 24.sp, color = Color.Black)
-            }
-        }
-
-        if (isWorking && onCancel != null && onReplace != null) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-            ) {
-                Text(
-                    text = "取消",
-                    fontSize = 9.sp,
-                    color = Color(0xFFE53935),
-                    modifier = Modifier.clickable { onCancel() }
-                )
-                Text(
-                    text = "更换",
-                    fontSize = 9.sp,
-                    color = Color.Black,
-                    modifier = Modifier.clickable { onReplace() }
-                )
-            }
         }
     }
 }
@@ -344,13 +388,7 @@ fun ProductionElderSelectionDialog(
     viewModel: GameViewModel? = null,
     battleAndExplorationIds: Set<String> = emptySet(),
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-
+    val uiState = remember { ProductionFilterUiState() }
     val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
@@ -369,8 +407,13 @@ fun ProductionElderSelectionDialog(
         filteredDisciplesBase.sortedWith(theme.elderSortComparator)
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)
+    val filteredDisciples = remember(sortedDisciples, uiState.selectedRealmFilter, uiState.selectedSpiritRootFilter, uiState.selectedAttributeSort) {
+        sortedDisciples.applyFilters(
+            uiState.selectedRealmFilter,
+            uiState.selectedSpiritRootFilter,
+            uiState.selectedAttributeSort,
+            ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key
+        )
     }
 
     UnifiedGameDialog(
@@ -382,67 +425,22 @@ fun ProductionElderSelectionDialog(
             Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = GameColors.Success)
         },
         headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
+            ProductionSelectionFilterBar(
+                uiState = uiState,
                 realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
                 spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true,
-                showAllCheckboxVisible = true,
                 showAllEnabled = showAllEnabled,
                 onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    if (filteredDisciples.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "需要: 空闲中 · 未担任其他职务",
-                                    fontSize = 10.sp,
-                                    color = Color(0xFF888888)
-                                )
-                            }
-                        }
-                    } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                                ProductionDiscipleSelectionCard(
-                                    theme = theme,
-                                    disciple = disciple,
-                                    onClick = { onSelect(disciple.id) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        ProductionSelectionGridContent(
+            filteredDisciples = filteredDisciples,
+            theme = theme,
+            onSelect = onSelect,
+            showUnavailableHint = true
+        )
+    }
 }
 
 @Composable
@@ -455,13 +453,7 @@ fun ProductionDirectDiscipleSelectionDialog(
     viewModel: GameViewModel? = null,
     battleAndExplorationIds: Set<String> = emptySet(),
 ) {
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-
+    val uiState = remember { ProductionFilterUiState() }
     val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
     val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
@@ -480,8 +472,13 @@ fun ProductionDirectDiscipleSelectionDialog(
         filteredDisciplesBase.sortedWith(theme.directDiscipleSortComparator)
     }
 
-    val filteredDisciples = remember(sortedDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)
+    val filteredDisciples = remember(sortedDisciples, uiState.selectedRealmFilter, uiState.selectedSpiritRootFilter, uiState.selectedAttributeSort) {
+        sortedDisciples.applyFilters(
+            uiState.selectedRealmFilter,
+            uiState.selectedSpiritRootFilter,
+            uiState.selectedAttributeSort,
+            ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key
+        )
     }
 
     UnifiedGameDialog(
@@ -493,59 +490,113 @@ fun ProductionDirectDiscipleSelectionDialog(
             Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = GameColors.Success)
         },
         headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
+            ProductionSelectionFilterBar(
+                uiState = uiState,
                 realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
                 spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true,
-                showAllCheckboxVisible = true,
                 showAllEnabled = showAllEnabled,
                 onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
             )
         }
     ) {
-        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
-                    if (filteredDisciples.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
+        ProductionSelectionGridContent(
+            filteredDisciples = filteredDisciples,
+            theme = theme,
+            onSelect = onSelect,
+            showUnavailableHint = false
+        )
+    }
+}
+
+/** 生产选择对话框筛选状态（ProductionElderSelectionDialog/ProductionDirectDiscipleSelectionDialog 拆分） */
+private class ProductionFilterUiState {
+    var selectedRealmFilter by mutableStateOf<Set<Int>>(emptySet())
+    var selectedSpiritRootFilter by mutableStateOf<Set<Int>>(emptySet())
+    var selectedAttributeSort by mutableStateOf<String?>(null)
+    var spiritRootExpanded by mutableStateOf(false)
+    var attributeExpanded by mutableStateOf(false)
+    var realmExpanded by mutableStateOf(false)
+}
+
+/** 生产选择对话框筛选栏（ProductionElderSelectionDialog/ProductionDirectDiscipleSelectionDialog 拆分） */
+@Composable
+private fun ProductionSelectionFilterBar(
+    uiState: ProductionFilterUiState,
+    realmCounts: Map<Int, Int>,
+    spiritRootCounts: Map<Int, Int>,
+    showAllEnabled: Boolean,
+    onShowAllToggle: () -> Unit
+) {
+    SpiritRootAttributeFilterBar(
+        selectedSpiritRootFilter = uiState.selectedSpiritRootFilter,
+        selectedAttributeSort = uiState.selectedAttributeSort,
+        selectedRealmFilter = uiState.selectedRealmFilter,
+        realmFilterOptions = REALM_FILTER_OPTIONS,
+        realmCounts = realmCounts,
+        spiritRootExpanded = uiState.spiritRootExpanded,
+        attributeExpanded = uiState.attributeExpanded,
+        realmExpanded = uiState.realmExpanded,
+        spiritRootCounts = spiritRootCounts,
+        onSpiritRootFilterSelected = { uiState.selectedSpiritRootFilter = uiState.selectedSpiritRootFilter + it },
+        onSpiritRootFilterRemoved = { uiState.selectedSpiritRootFilter = uiState.selectedSpiritRootFilter - it },
+        onAttributeSortSelected = { uiState.selectedAttributeSort = it },
+        onRealmFilterSelected = { uiState.selectedRealmFilter = uiState.selectedRealmFilter + it },
+        onRealmFilterRemoved = { uiState.selectedRealmFilter = uiState.selectedRealmFilter - it },
+        onSpiritRootExpandToggle = { uiState.spiritRootExpanded = !uiState.spiritRootExpanded },
+        onAttributeExpandToggle = { uiState.attributeExpanded = !uiState.attributeExpanded },
+        onRealmExpandToggle = { uiState.realmExpanded = !uiState.realmExpanded },
+        isCompact = true,
+        showAllCheckboxVisible = true,
+        showAllEnabled = showAllEnabled,
+        onShowAllToggle = onShowAllToggle
+    )
+}
+
+/** 生产选择对话框弟子网格（ProductionElderSelectionDialog/ProductionDirectDiscipleSelectionDialog 拆分） */
+@Composable
+private fun ProductionSelectionGridContent(
+    filteredDisciples: List<DiscipleAggregate>,
+    theme: ProductionTheme,
+    onSelect: (String) -> Unit,
+    showUnavailableHint: Boolean
+) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
+            if (filteredDisciples.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "暂无可用弟子", fontSize = 12.sp, color = Color.Black)
+                        if (showUnavailableHint) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "需要: 空闲中 · 未担任其他职务",
+                                fontSize = 10.sp,
+                                color = Color(0xFF888888)
+                            )
                         }
-                    } else {
-                        LazyVerticalGrid(
-                            columns = GridCells.Fixed(2),
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                                ProductionDiscipleSelectionCard(
-                                    theme = theme,
-                                    disciple = disciple,
-                                    onClick = { onSelect(disciple.id) }
-                                )
-                            }
-                        }
+                    }
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
+                        ProductionDiscipleSelectionCard(
+                            theme = theme,
+                            disciple = disciple,
+                            onClick = { onSelect(disciple.id) }
+                        )
                     }
                 }
             }
         }
+    }
 }
 
 @Composable

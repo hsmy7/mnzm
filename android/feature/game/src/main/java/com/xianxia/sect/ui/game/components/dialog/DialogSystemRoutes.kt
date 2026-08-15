@@ -84,15 +84,15 @@ internal fun DialogType.renderSystemRoutes(
                 onDismiss = onDismiss
             )
         }
-        DialogType.JadeSymbol -> JadeSymbolDialogRoute(viewModel, onDismiss)
-        DialogType.JadeSymbolAd -> JadeSymbolAdDialogRoute(viewModel, onDismiss)
+        DialogType.JadeSymbol -> jadeSymbolDialogRoute(viewModel, onDismiss)
+        DialogType.JadeSymbolAd -> jadeSymbolAdDialogRoute(viewModel, onDismiss)
         else -> Unit
     }
 }
 
-/** 玉符信息对话框路由（拆出保持 renderSystemRoutes ≤60 行）。 */
+/** 玉符信息对话框路由（拆出保持 renderSystemRoutes ≤60 行；D-35 小驼峰命名）。 */
 @Composable
-private fun JadeSymbolDialogRoute(
+private fun jadeSymbolDialogRoute(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
@@ -102,9 +102,9 @@ private fun JadeSymbolDialogRoute(
     )
 }
 
-/** 玉符广告确认对话框路由（拆出保持 renderSystemRoutes ≤60 行）。 */
+/** 玉符广告确认对话框路由（拆出保持 renderSystemRoutes ≤60 行；D-35 小驼峰命名）。 */
 @Composable
-private fun JadeSymbolAdDialogRoute(
+private fun jadeSymbolAdDialogRoute(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {

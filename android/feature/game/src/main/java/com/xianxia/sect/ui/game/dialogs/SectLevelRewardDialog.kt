@@ -58,6 +58,8 @@ fun SectLevelRewardDialog(
         }
     }
 
+    val alreadyClaimed = hasClaimed || !rewardClaimable
+
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "${SectLevel.levelName(level)}每周奖励",
@@ -71,59 +73,82 @@ fun SectLevelRewardDialog(
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (rewardCards.isEmpty()) {
-                    Text(
-                        text = "暂无奖励配置",
-                        fontSize = 14.sp,
-                        color = Color(0xFF999999)
-                    )
-                } else {
-                    // 奖励物品卡片 — 居中排列
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        rewardCards.forEach { card ->
-                            val isRandom = card.itemType == "beastMaterial" &&
-                                    card.itemName.startsWith("随机")
-                            if (isRandom) {
-                                RandomRewardCard(card = card)
-                            } else {
-                                UnifiedItemCard(
-                                    data = card.toItemCardData(),
-                                    showQuantity = true,
-                                    isFollowed = watchedKeys.contains(
-                                        watchKey(normalizeItemType(card.itemType), card.itemName)
-                                    ),
-                                    modifier = Modifier.padding(4.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                SectLevelRewardCards(
+                    rewardCards = rewardCards,
+                    watchedKeys = watchedKeys
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 领取按钮 / 已领取文本
-                val alreadyClaimed = hasClaimed || !rewardClaimable
-                if (alreadyClaimed) {
-                    Text(
-                        text = "已领取",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = GameColors.Success
-                    )
+                SectLevelRewardClaimButton(
+                    alreadyClaimed = alreadyClaimed,
+                    onClaim = {
+                        viewModel.claimSectLevelReward(level)
+                        hasClaimed = true
+                    }
+                )
+            }
+        }
+    }
+}
+
+/** 奖励物品卡片区（SectLevelRewardDialog 拆分）：随机物品显示 ? 图标 */
+@Composable
+private fun SectLevelRewardCards(
+    rewardCards: List<RewardCardItem>,
+    watchedKeys: Set<String>
+) {
+    if (rewardCards.isEmpty()) {
+        Text(
+            text = "暂无奖励配置",
+            fontSize = 14.sp,
+            color = Color(0xFF999999)
+        )
+    } else {
+        // 奖励物品卡片 — 居中排列
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            rewardCards.forEach { card ->
+                val isRandom = card.itemType == "beastMaterial" &&
+                        card.itemName.startsWith("随机")
+                if (isRandom) {
+                    RandomRewardCard(card = card)
                 } else {
-                    GameButton(
-                        text = "领取",
-                        onClick = {
-                            viewModel.claimSectLevelReward(level)
-                            hasClaimed = true
-                        }
+                    UnifiedItemCard(
+                        data = card.toItemCardData(),
+                        showQuantity = true,
+                        isFollowed = watchedKeys.contains(
+                            watchKey(normalizeItemType(card.itemType), card.itemName)
+                        ),
+                        modifier = Modifier.padding(4.dp)
                     )
                 }
             }
         }
+    }
+}
+
+/** 领取按钮 / 已领取文本（SectLevelRewardDialog 拆分） */
+@Composable
+private fun SectLevelRewardClaimButton(
+    alreadyClaimed: Boolean,
+    onClaim: () -> Unit
+) {
+    if (alreadyClaimed) {
+        Text(
+            text = "已领取",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = GameColors.Success
+        )
+    } else {
+        GameButton(
+            text = "领取",
+            onClick = onClaim
+        )
     }
 }
 

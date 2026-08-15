@@ -2,7 +2,7 @@
 
 > 对标 Godot `platform/` 目录 + DisplayServer 抽象（OS/窗口/渲染/音频/输入按平台实现，引擎核心不感知）。
 > 本文档是 **iOS 跨平台可移植性**的唯一事实基线，替代 knowledge-base.md「iOS 跨平台可移植性基线」一节并扩展接口缺口分析。
-> 更新日期：2026-08-13。
+> 更新日期：2026-08（债务根治批次：G1/G3/G7/G8 已闭环，G2 已抽象确认，G4/G5/G6 评估 ADR 落地）。
 
 ---
 
@@ -17,11 +17,11 @@
 | 动画时钟 | TimeSource + FadeTransition 纯函数 | 无（纯 JVM） | 直接复用（EngineTween 批次 1b 落地后统一） | ✅ 已抽象 |
 | 广告 | `AdService` 接口（core/engine）→ `AdServiceImpl`（app 层） | TapTap SDK | TapTap iOS SDK 实现同一接口 | ✅ 已抽象 |
 | 远程配置 | `RemoteConfigProvider` 接口（core/domain）→ `HttpRemoteConfigProvider`（core/engine，未绑定） | 无 | 直接复用 | ✅ 已抽象（未激活） |
-| 崩溃上报 | CrashHandler 自研兜底 + Bugly | Bugly SDK | iOS 对等崩溃上报 SDK | ⚠️ 半抽象（app 层直引） |
-| **音频** | `AudioEngine`（SoundPool + MediaPlayer） | **core/engine 直接 `import android.media.*`** | 需接口抽象（AVAudioEngine/AVAudioPlayer） | ❌ 未抽象（audio-thread-audit.md 发现项 A1） |
-| 本地存储 | Room 2.7 + MMKV + DataStore + LZ4/Zstd | Room/DataStore Android 独占；MMKV 跨平台 | SQLDelight/原生 SQLite + MMKV | ⚠️ 部分（MMKV 跨平台，Room 未抽象） |
+| 崩溃上报 | CrashHandler 自研兜底 + Bugly（经 `CrashReporter` 接口，G3 根治） | Bugly SDK | iOS 对等崩溃上报 SDK | ✅ 已抽象 |
+| **音频** | `AudioPlayerFacade` 接口（core/engine）+ `AndroidAudioPlayer`（app 层，G1 根治） | 实现层 SoundPool/MediaPlayer | AVAudioEngine/AVAudioPlayer | ✅ 已抽象 |
+| 本地存储 | Room 2.7 + MMKV 2.4.1（`KeyValueStore` 统一偏好，G8 根治）+ LZ4/Zstd | Room Android 独占；MMKV 跨平台 | SQLDelight/原生 SQLite + MMKV | ⚠️ 部分（MMKV 跨平台，Room 未抽象） |
 | 存档序列化 | ProtoBuf + kotlinx.serialization + CBOR | 无 | 直接复用 | ✅ 已抽象 |
-| 网络 | Retrofit + OkHttp + Gson | Android 生态（Gson 遗留，项目其余处用 kotlinx.serialization） | Ktor 或接口抽象 | ⚠️ 部分 |
+| 网络 | OkHttp + kotlinx.serialization（G7 根治：Gson 生产使用清零） | 无（OkHttp 跨平台有 Ktor 对等） | Ktor 或接口抽象 | ⚠️ 部分 |
 | 登录/云存档 | TapTap SDK（反射桥接 ReflectiveCloudSaveApi） | TapTap Android | TapTap iOS SDK + 同接口 | ⚠️ 半抽象（app 层） |
 | DI | Hilt | Android 独占 | Koin/手写 DI | ❌ 未抽象 |
 | UI 框架 | Jetpack Compose | Android 独占 | Compose Multiplatform 或重写 | ❌ 未抽象（最大迁移风险点） |
@@ -32,14 +32,14 @@
 
 | # | 缺口 | 方案 | 关联批次 |
 |---|------|------|---------|
-| G1 | 音频无接口抽象（AudioEngine 破坏 :core:engine 零 Android 依赖自我声明） | `AudioPlayerFacade` 接口（core/engine）+ `AndroidAudioPlayer`（app 层注入），参照 `AdService` 模式 | 登记待办（audio-thread-audit.md A1） |
-| G2 | 渲染 surface 生命周期耦合 NativeSurfaceView（1107 行，Android 专属） | `SurfaceProvider` 接口（core/engine/.../platform/）+ AndroidSurfaceProvider 实现 | 批次 1c |
-| G3 | 崩溃上报直引 Bugly | 抽象 `CrashReporter` 接口（core/domain）+ app 层实现 | 登记待办 |
-| G4 | Room 无接口层 | 新数据层组件优先跨平台选型（SQLDelight 评估中），存量不动 | 登记待办 |
-| G5 | DI 无抽象 | Koin/手写 DI 评估，迁移前置条件之一 | 登记待办 |
-| G6 | UI 框架 Compose 独占 | Compose Multiplatform 评估（最高风险点，需专项 ADR） | 登记待办 |
-| G7 | **网络层 Gson 遗留**（2026-08-13 登记） | 项目其余处统一用 kotlinx.serialization，仅网络层用 Gson——两套序列化并存易错；统一为 kotlinx.serialization（Retrofit converter 替换），iOS 迁移前无需先决 | 登记待办 |
-| G8 | **DataStore/MMKV 双存储并存**（2026-08-13 登记） | 两套本地 K-V 干一件事；MMKV 已跨平台、DataStore Android 独占——偏好设置逐步迁入 MMKV，移除 DataStore 依赖（iOS 迁移前置项之一） | 登记待办 |
+| G1 | 音频无接口抽象（AudioEngine 破坏 :core:engine 零 Android 依赖自我声明） | `AudioPlayerFacade` 接口（core/engine）+ `AndroidAudioPlayer`（app 层注入），参照 `AdService` 模式 | 2026-08 根治批次（docs/architecture.md D 系列根治） |
+| G2 | 渲染 surface 生命周期耦合 NativeSurfaceView（1107 行，Android 专属） | `SurfaceProvider` 接口（core/engine/.../platform/）+ AndroidSurfaceProvider 实现 | ✅ 已抽象（commit `e8c7bb97`，core/engine/platform/SurfaceProvider.kt + feature/game AndroidSurfaceProvider） |
+| G3 | 崩溃上报直引 Bugly | 抽象 `CrashReporter` 接口（core/domain）+ app 层实现 | 2026-08 根治批次（docs/architecture.md D 系列根治） |
+| G4 | Room 无接口层 | 新数据层组件优先跨平台选型（SQLDelight 评估中），存量不动 | 评估 ADR：docs/adr/sqlite-sqldelight-evaluation.md |
+| G5 | DI 无抽象 | Koin/手写 DI 评估，迁移前置条件之一 | 评估 ADR：docs/adr/di-abstraction-evaluation.md |
+| G6 | UI 框架 Compose 独占 | Compose Multiplatform 评估（最高风险点，需专项 ADR） | 评估 ADR：docs/adr/compose-multiplatform-evaluation.md |
+| G7 | **网络层 Gson 遗留**（2026-08-13 登记） | 项目其余处统一用 kotlinx.serialization，仅网络层用 Gson——两套序列化并存易错；统一为 kotlinx.serialization（Retrofit converter 替换），iOS 迁移前无需先决 | ✅ 已根治（2026-08：生产代码 Gson 已清零，retrofit/converter-gson 死依赖声明移除，仅迁移测试保留 gson testImplementation） |
+| G8 | **DataStore/MMKV 双存储并存**（2026-08-13 登记） | 两套本地 K-V 干一件事；MMKV 已跨平台、DataStore Android 独占——偏好设置逐步迁入 MMKV，移除 DataStore 依赖（iOS 迁移前置项之一） | ✅ 已根治（2026-08：DataStore 依赖移除；普通偏好统一迁入 `KeyValueStore`/`GamePreferences`（MMKV），豁免清单见 GamePreferences KDoc） |
 
 ## 三、既有接口清单（新代码必须复用，禁止另起炉灶）
 

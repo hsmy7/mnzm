@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.components.sectIconRes
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.clickableWithSound
@@ -50,243 +51,370 @@ internal fun SectDiplomacyDialog(
     interactionViewModel: WorldMapInteractionViewModel,
     onDismiss: () -> Unit
 ) {
-    val currentYear = gameData?.gameYear ?: 1
+    // 聊天状态
+    val uiState = remember { DiplomacyUiState() }
+    val scope = rememberCoroutineScope()
+
+    // 1秒延迟逐条显示，完成后保留聊天记录，恢复操作按钮
+    LaunchedEffect(uiState.messages, uiState.skipped) {
+        if (uiState.isChatting && uiState.messages.isNotEmpty()) {
+            uiState.animateTyping()
+        }
+    }
+
+    DiplomacyFrame(
+        inputs = DiplomacyInputs(
+            sect = sect,
+            relation = relation,
+            gameData = gameData,
+            interactionViewModel = interactionViewModel
+        ),
+        uiState = uiState,
+        frameCallbacks = DiplomacyFrameCallbacks(
+            onDismiss = onDismiss,
+            onAllianceClick = { uiState.start(scope) { performAllianceFlow(interactionViewModel, gameData, sect) } },
+            onDissolveClick = { uiState.start(scope) { performDissolveFlow(interactionViewModel, sect.id) } },
+            onVassalClick = { uiState.start(scope) { performVassalFlow(interactionViewModel, gameData, sect) } },
+            onDissolveVassalClick = {
+                uiState.start(scope) { performDissolveVassalFlow(interactionViewModel, sect.id) }
+            },
+            onSkipClick = { uiState.skipped = true }
+        ),
+        giftCallbacks = DiplomacyGiftCallbacks(
+            onGiftClick = { uiState.showGiftOptions = true },
+            onGiftTierClick = { tier ->
+                uiState.showGiftOptions = false
+                uiState.start(scope) {
+                    performGiftFlow(interactionViewModel, sect.id, tier, sect.name, FavorDomain.getLevel(relation))
+                }
+            },
+            onCancelGiftClick = { uiState.showGiftOptions = false }
+        )
+    )
+}
+
+/** 外交对话流程状态（SectDiplomacyDialog 拆分）：聊天消息 + 逐条显示进度 + 送礼选项 */
+private class DiplomacyUiState {
+    var messages by mutableStateOf<List<ChatMessage>>(emptyList())
+    var visibleCount by mutableIntStateOf(0)
+    var isChatting by mutableStateOf(false)
+    var isChatDone by mutableStateOf(false)
+    var skipped by mutableStateOf(false)
+    var showGiftOptions by mutableStateOf(false)
+
+    /** 重置聊天状态并启动异步流程（消息生成在 IO 线程，完成后写回） */
+    fun start(scope: CoroutineScope, produce: suspend () -> List<ChatMessage>) {
+        isChatDone = false
+        isChatting = true
+        visibleCount = 0
+        skipped = false
+        messages = emptyList()
+        scope.launch { messages = produce() }
+    }
+
+    /** 逐条显示聊天消息（1 秒/条，完成后标记结束；跳过时直接显示全部） */
+    suspend fun animateTyping() {
+        if (skipped) {
+            visibleCount = messages.size
+        } else {
+            for (i in messages.indices) {
+                delay(1000L)
+                visibleCount = i + 1
+            }
+        }
+        isChatDone = true
+    }
+}
+
+/** 外交输入数据（SectDiplomacyDialog 拆分） */
+private data class DiplomacyInputs(
+    val sect: WorldSect,
+    val relation: Int,
+    val gameData: GameData?,
+    val interactionViewModel: WorldMapInteractionViewModel
+)
+
+/** 对话框主体框架（SectDiplomacyDialog 拆分）：左面板 + 右面板 */
+@Composable
+private fun DiplomacyFrame(
+    inputs: DiplomacyInputs,
+    uiState: DiplomacyUiState,
+    frameCallbacks: DiplomacyFrameCallbacks,
+    giftCallbacks: DiplomacyGiftCallbacks
+) {
+    val sect = inputs.sect
+    val gameData = inputs.gameData
+    val interactionViewModel = inputs.interactionViewModel
     val isAlly = interactionViewModel.isAlly(sect.id)
     val isPlayerVassal = interactionViewModel.isPlayerVassal(sect.id)
-    val lastGiftYear = gameData?.sectDetails?.get(sect.id)?.lastGiftYear
-    val hasGiftedThisYear = (lastGiftYear ?: 0) == currentYear
-
-    val relationLevel = FavorDomain.getLevel(relation)
+    val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == (gameData?.gameYear ?: 1)
+    val relationLevel = FavorDomain.getLevel(inputs.relation)
     val playerPortraitRes = interactionViewModel.getFirstPlayerDisciplePortrait()
     val aiPortraitRes = gameData?.sectDetails?.get(sect.id)?.portraitRes ?: ""
 
     // 初始问候语仅创建时计算一次，避免因 isAlly 变化导致问候语变化
     val initialDialogueText = remember { dialogueTextForRelation(relationLevel, isAlly) }
-
-    // 聊天状态
-    var chatMessages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
-    var visibleCount by remember { mutableStateOf(0) }
-    var isChatting by remember { mutableStateOf(false) }
-    var isChatDone by remember { mutableStateOf(false) }
-    var skipped by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    // 送礼选项状态
-    var showGiftOptions by remember { mutableStateOf(false) }
-
-    // 是否可附属（非盟友即可附属）
     val canVassal = !isPlayerVassal && !isAlly
-
-    // 送礼档位点击处理
-    val onGiftTierClick: (Int) -> Unit = { tier ->
-        showGiftOptions = false
-        isChatDone = false
-        isChatting = true
-        visibleCount = 0
-        skipped = false
-        chatMessages = emptyList()
-        scope.launch {
-            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                interactionViewModel.performGiftSpiritStones(sect.id, tier)
-            }
-            val playerGiftText = buildPlayerGiftText(sect.name, tier)
-            if (result != null) {
-                val aiResponseText = if (result.success) {
-                    getGiftAiAcceptText(relationLevel)
-                } else {
-                    getGiftAiRejectText(relationLevel)
-                }
-                val playerReplyText = buildPlayerReplyText(result.success)
-                chatMessages = listOf(
-                    ChatMessage(text = playerGiftText, isPlayer = true),
-                    ChatMessage(text = aiResponseText, isPlayer = false),
-                    ChatMessage(text = playerReplyText, isPlayer = true)
-                )
-            } else {
-                chatMessages = listOf(
-                    ChatMessage(text = playerGiftText, isPlayer = true)
-                )
-            }
-        }
-    }
 
     // 对话背景图资源
     val bgRes = SpriteResRegistry.resolve("dialogue_bg")
         ?: R.drawable.dialogue_bg
 
-    // 1秒延迟逐条显示，完成后保留聊天记录，恢复操作按钮
-    LaunchedEffect(chatMessages, skipped) {
-        if (isChatting && chatMessages.isNotEmpty()) {
-            if (skipped) {
-                visibleCount = chatMessages.size
-            } else {
-                for (i in chatMessages.indices) {
-                    delay(1000L)
-                    visibleCount = i + 1
-                }
-            }
-            isChatDone = true
-        }
-    }
-
     UnifiedGameDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = frameCallbacks.onDismiss,
         title = sect.name,
         mode = DialogMode.Full,
         scrollableContent = false,
         backgroundRes = bgRes
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
-
-            // ═══════════ 左侧面板 (2/10) ═══════════
-            LeftPanel(
-                sect = sect,
-                modifier = Modifier.weight(0.2f).fillMaxHeight()
-            )
-
-            // 垂直分割线
-            VerticalDivider(
-                modifier = Modifier.fillMaxHeight(),
-                thickness = 1.dp,
-                color = Color.Gray
-            )
+            // ═══════════ 左侧面板 (2/10) + 垂直分割线 ═══════════
+            DiplomacyLeftPanel(sect = sect)
 
             // ═══════════ 右侧面板 (8/10) ═══════════
-            RightPanel(
-                initialDialogueText = initialDialogueText,
-                portraitRes = aiPortraitRes,
-                playerPortraitRes = playerPortraitRes,
-                sectName = sect.name,
-                isAlly = isAlly,
-                isPlayerVassal = isPlayerVassal,
-                canVassal = canVassal,
-                hasGiftedThisYear = hasGiftedThisYear,
-                relationLevel = relationLevel,
-                spiritStones = gameData?.spiritStones ?: 0,
-                chatMessages = chatMessages,
-                visibleCount = visibleCount,
-                isChatting = isChatting,
-                isChatDone = isChatDone,
-                skipped = skipped,
-                showGiftOptions = showGiftOptions,
-                onAllianceClick = {
-                    isChatDone = false
-                    isChatting = true
-                    visibleCount = 0
-                    skipped = false
-                    chatMessages = emptyList()
-                    scope.launch {
-                        val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
-                        val aiSectName = sect.name
-                        val playerSectId = playerSect?.id ?: ""
-                        val favor = if (playerSectId.isNotEmpty()) {
-                            gameData?.sectRelations?.find {
-                                (it.sectId1 == playerSectId && it.sectId2 == sect.id) ||
-                                (it.sectId1 == sect.id && it.sectId2 == playerSectId)
-                            }?.favor ?: 0
-                        } else 0
-
-                        val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            interactionViewModel.requestAllianceSimple(sect.id)
-                        }
-                        val aiText = getAiResponseText(favor, success)
-                        val playerReply = if (success) {
-                            "太好了！从今往后你我二宗同气连枝，守望相助！"
-                        } else {
-                            "既然贵宗无意，那我等也不便强求。告辞。"
-                        }
-
-                        chatMessages = listOf(
-                            ChatMessage(
-                                text = "尊敬的道友，我宗愿与贵宗结为同盟，共谋发展，不知尊意如何？",
-                                isPlayer = true
-                            ),
-                            ChatMessage(text = aiText, isPlayer = false),
-                            ChatMessage(text = playerReply, isPlayer = true)
-                        )
-                    }
-                },
-                onDissolveClick = {
-                    isChatDone = false
-                    isChatting = true
-                    visibleCount = 0
-                    skipped = false
-                    chatMessages = emptyList()
-                    scope.launch {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            interactionViewModel.dissolveAllianceSimple(sect.id)
-                        }
-                        chatMessages = listOf(
-                            ChatMessage(
-                                text = "道友，我宗深思熟虑后决定解除盟约，日后各走各路，还望见谅。",
-                                isPlayer = true
-                            ),
-                            ChatMessage(
-                                text = "既如此，我宗也不强留。从此两清，各自珍重。",
-                                isPlayer = false
-                            ),
-                            ChatMessage(
-                                text = "多谢成全，后会有期。",
-                                isPlayer = true
-                            )
-                        )
-                    }
-                },
-                // 附属聊天流
-                onVassalClick = {
-                    isChatDone = false
-                    isChatting = true
-                    visibleCount = 0
-                    skipped = false
-                    chatMessages = emptyList()
-                    scope.launch {
-                        val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
-                        val favor = if (playerSect != null) {
-                            gameData?.sectRelations?.find {
-                                (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
-                                (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
-                            }?.favor ?: 0
-                        } else 0
-
-                        val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            interactionViewModel.requestVassalContract(sect.id)
-                        }
-                        val aiText = getVassalAiResponseText(favor, success)
-                        val playerReply = buildPlayerVassalReplyText(success)
-                        chatMessages = listOf(
-                            ChatMessage(text = buildPlayerVassalRequestText(sect.name), isPlayer = true),
-                            ChatMessage(text = aiText, isPlayer = false),
-                            ChatMessage(text = playerReply, isPlayer = true)
-                        )
-                    }
-                },
-                onDissolveVassalClick = {
-                    isChatDone = false
-                    isChatting = true
-                    visibleCount = 0
-                    skipped = false
-                    chatMessages = emptyList()
-                    scope.launch {
-                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                            interactionViewModel.dissolveVassalContract(sect.id)
-                        }
-                        chatMessages = listOf(
-                            ChatMessage(text = buildPlayerVassalDissolveText(), isPlayer = true),
-                            ChatMessage(text = getVassalAiDissolveText(), isPlayer = false),
-                            ChatMessage(text = "好自为之。", isPlayer = true)
-                        )
-                    }
-                },
-                onSkipClick = { skipped = true },
-                onGiftClick = {
-                    showGiftOptions = true
-                },
-                onGiftTierClick = onGiftTierClick,
-                onCancelGiftClick = { showGiftOptions = false },
-                modifier = Modifier.weight(0.8f).fillMaxHeight()
+            DiplomacyRightPanel(
+                frameData = DiplomacyFrameData(
+                    initialDialogueText = initialDialogueText,
+                    portraitRes = aiPortraitRes,
+                    playerPortraitRes = playerPortraitRes,
+                    sectName = sect.name,
+                    isAlly = isAlly,
+                    isPlayerVassal = isPlayerVassal,
+                    canVassal = canVassal
+                ),
+                relationState = DiplomacyRelationState(
+                    hasGiftedThisYear = hasGiftedThisYear,
+                    relationLevel = relationLevel,
+                    spiritStones = gameData?.spiritStones ?: 0,
+                    showGiftOptions = uiState.showGiftOptions
+                ),
+                chat = uiState,
+                frameCallbacks = frameCallbacks,
+                giftCallbacks = giftCallbacks
             )
         }
     }
+}
+
+/** 左侧面板区（DiplomacyFrame 拆分）：左面板 + 垂直分割线 */
+@Composable
+private fun RowScope.DiplomacyLeftPanel(sect: WorldSect) {
+    LeftPanel(
+        sect = sect,
+        modifier = Modifier.weight(0.2f).fillMaxHeight()
+    )
+
+    // 垂直分割线
+    VerticalDivider(
+        modifier = Modifier.fillMaxHeight(),
+        thickness = 1.dp,
+        color = Color.Gray
+    )
+}
+
+/** 右侧面板展示数据（SectDiplomacyDialog 拆分） */
+private data class DiplomacyFrameData(
+    val initialDialogueText: String,
+    val portraitRes: String,
+    val playerPortraitRes: String,
+    val sectName: String,
+    val isAlly: Boolean,
+    val isPlayerVassal: Boolean,
+    val canVassal: Boolean
+)
+
+/** 右侧面板关系数据（SectDiplomacyDialog 拆分） */
+private data class DiplomacyRelationState(
+    val hasGiftedThisYear: Boolean,
+    val relationLevel: SectRelationLevel,
+    val spiritStones: Long,
+    val showGiftOptions: Boolean
+)
+
+/** 聊天/框架回调（SectDiplomacyDialog 拆分） */
+private data class DiplomacyFrameCallbacks(
+    val onDismiss: () -> Unit,
+    val onAllianceClick: () -> Unit,
+    val onDissolveClick: () -> Unit,
+    val onVassalClick: () -> Unit,
+    val onDissolveVassalClick: () -> Unit,
+    val onSkipClick: () -> Unit
+)
+
+/** 送礼回调（SectDiplomacyDialog 拆分） */
+private data class DiplomacyGiftCallbacks(
+    val onGiftClick: () -> Unit,
+    val onGiftTierClick: (Int) -> Unit,
+    val onCancelGiftClick: () -> Unit
+)
+
+/** 右侧面板装配（SectDiplomacyDialog 拆分）：把分组数据解包传给 RightPanel */
+@Composable
+private fun RowScope.DiplomacyRightPanel(
+    frameData: DiplomacyFrameData,
+    relationState: DiplomacyRelationState,
+    chat: DiplomacyUiState,
+    frameCallbacks: DiplomacyFrameCallbacks,
+    giftCallbacks: DiplomacyGiftCallbacks
+) {
+    RightPanel(
+        initialDialogueText = frameData.initialDialogueText,
+        portraitRes = frameData.portraitRes,
+        playerPortraitRes = frameData.playerPortraitRes,
+        sectName = frameData.sectName,
+        isAlly = frameData.isAlly,
+        isPlayerVassal = frameData.isPlayerVassal,
+        canVassal = frameData.canVassal,
+        hasGiftedThisYear = relationState.hasGiftedThisYear,
+        relationLevel = relationState.relationLevel,
+        spiritStones = relationState.spiritStones,
+        chatMessages = chat.messages,
+        visibleCount = chat.visibleCount,
+        isChatting = chat.isChatting,
+        isChatDone = chat.isChatDone,
+        skipped = chat.skipped,
+        showGiftOptions = relationState.showGiftOptions,
+        onAllianceClick = frameCallbacks.onAllianceClick,
+        onDissolveClick = frameCallbacks.onDissolveClick,
+        onVassalClick = frameCallbacks.onVassalClick,
+        onDissolveVassalClick = frameCallbacks.onDissolveVassalClick,
+        onSkipClick = frameCallbacks.onSkipClick,
+        onGiftClick = giftCallbacks.onGiftClick,
+        onGiftTierClick = giftCallbacks.onGiftTierClick,
+        onCancelGiftClick = giftCallbacks.onCancelGiftClick,
+        modifier = Modifier.weight(0.8f).fillMaxHeight()
+    )
+}
+
+/** 送礼聊天流程（SectDiplomacyDialog 拆分，原 onGiftTierClick 内联逻辑） */
+private suspend fun performGiftFlow(
+    interactionViewModel: WorldMapInteractionViewModel,
+    sectId: String,
+    tier: Int,
+    sectName: String,
+    relationLevel: SectRelationLevel
+): List<ChatMessage> {
+    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        interactionViewModel.performGiftSpiritStones(sectId, tier)
+    }
+    val playerGiftText = buildPlayerGiftText(sectName, tier)
+    if (result != null) {
+        val aiResponseText = if (result.success) {
+            getGiftAiAcceptText(relationLevel)
+        } else {
+            getGiftAiRejectText(relationLevel)
+        }
+        val playerReplyText = buildPlayerReplyText(result.success)
+        return listOf(
+            ChatMessage(text = playerGiftText, isPlayer = true),
+            ChatMessage(text = aiResponseText, isPlayer = false),
+            ChatMessage(text = playerReplyText, isPlayer = true)
+        )
+    }
+    return listOf(
+        ChatMessage(text = playerGiftText, isPlayer = true)
+    )
+}
+
+/** 结盟聊天流程（SectDiplomacyDialog 拆分，原 onAllianceClick 内联逻辑） */
+private suspend fun performAllianceFlow(
+    interactionViewModel: WorldMapInteractionViewModel,
+    gameData: GameData?,
+    sect: WorldSect
+): List<ChatMessage> {
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val aiSectName = sect.name
+    val playerSectId = playerSect?.id ?: ""
+    val favor = if (playerSectId.isNotEmpty()) {
+        gameData?.sectRelations?.find {
+            (it.sectId1 == playerSectId && it.sectId2 == sect.id) ||
+            (it.sectId1 == sect.id && it.sectId2 == playerSectId)
+        }?.favor ?: 0
+    } else 0
+
+    val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        interactionViewModel.requestAllianceSimple(sect.id)
+    }
+    val aiText = getAiResponseText(favor, success)
+    val playerReply = if (success) {
+        "太好了！从今往后你我二宗同气连枝，守望相助！"
+    } else {
+        "既然贵宗无意，那我等也不便强求。告辞。"
+    }
+
+    return listOf(
+        ChatMessage(
+            text = "尊敬的道友，我宗愿与贵宗结为同盟，共谋发展，不知尊意如何？",
+            isPlayer = true
+        ),
+        ChatMessage(text = aiText, isPlayer = false),
+        ChatMessage(text = playerReply, isPlayer = true)
+    )
+}
+
+/** 散盟聊天流程（SectDiplomacyDialog 拆分，原 onDissolveClick 内联逻辑） */
+private suspend fun performDissolveFlow(
+    interactionViewModel: WorldMapInteractionViewModel,
+    sectId: String
+): List<ChatMessage> {
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        interactionViewModel.dissolveAllianceSimple(sectId)
+    }
+    return listOf(
+        ChatMessage(
+            text = "道友，我宗深思熟虑后决定解除盟约，日后各走各路，还望见谅。",
+            isPlayer = true
+        ),
+        ChatMessage(
+            text = "既如此，我宗也不强留。从此两清，各自珍重。",
+            isPlayer = false
+        ),
+        ChatMessage(
+            text = "多谢成全，后会有期。",
+            isPlayer = true
+        )
+    )
+}
+
+/** 附属聊天流程（SectDiplomacyDialog 拆分，原 onVassalClick 内联逻辑） */
+private suspend fun performVassalFlow(
+    interactionViewModel: WorldMapInteractionViewModel,
+    gameData: GameData?,
+    sect: WorldSect
+): List<ChatMessage> {
+    val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
+    val favor = if (playerSect != null) {
+        gameData?.sectRelations?.find {
+            (it.sectId1 == playerSect.id && it.sectId2 == sect.id) ||
+            (it.sectId1 == sect.id && it.sectId2 == playerSect.id)
+        }?.favor ?: 0
+    } else 0
+
+    val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        interactionViewModel.requestVassalContract(sect.id)
+    }
+    val aiText = getVassalAiResponseText(favor, success)
+    val playerReply = buildPlayerVassalReplyText(success)
+    return listOf(
+        ChatMessage(text = buildPlayerVassalRequestText(sect.name), isPlayer = true),
+        ChatMessage(text = aiText, isPlayer = false),
+        ChatMessage(text = playerReply, isPlayer = true)
+    )
+}
+
+/** 解除附属聊天流程（SectDiplomacyDialog 拆分，原 onDissolveVassalClick 内联逻辑） */
+private suspend fun performDissolveVassalFlow(
+    interactionViewModel: WorldMapInteractionViewModel,
+    sectId: String
+): List<ChatMessage> {
+    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+        interactionViewModel.dissolveVassalContract(sectId)
+    }
+    return listOf(
+        ChatMessage(text = buildPlayerVassalDissolveText(), isPlayer = true),
+        ChatMessage(text = getVassalAiDissolveText(), isPlayer = false),
+        ChatMessage(text = "好自为之。", isPlayer = true)
+    )
 }
 
 @Composable
@@ -323,6 +451,8 @@ private fun LeftPanel(
     }
 }
 
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
 @Composable
 private fun RightPanel(
     initialDialogueText: String,
@@ -330,6 +460,7 @@ private fun RightPanel(
     playerPortraitRes: String,
     sectName: String,
     isAlly: Boolean,
+    modifier: Modifier = Modifier,
     isPlayerVassal: Boolean = false,
     canVassal: Boolean = true,
     hasGiftedThisYear: Boolean,
@@ -348,67 +479,21 @@ private fun RightPanel(
     onSkipClick: () -> Unit,
     onGiftClick: () -> Unit,
     onGiftTierClick: (Int) -> Unit,
-    onCancelGiftClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onCancelGiftClick: () -> Unit
 ) {
-    val scrollState = rememberScrollState()
-
     Column(
         modifier = modifier.padding(8.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         // ═══════════ 对话区域（问候 + 追加消息） ═══════════
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .verticalScroll(scrollState)
-                .padding(top = 24.dp, bottom = 8.dp)
-        ) {
-            // 初始问候（始终显示）
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                AIAvatar(portraitRes = portraitRes, sectName = sectName)
-                DialogueBubble(text = initialDialogueText, isLeft = true)
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // 追加的聊天消息
-            chatMessages.take(visibleCount).forEach { msg ->
-                if (msg.isPlayer) {
-                    // 玩家消息 — 气泡(右) + 头像
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        DialogueBubble(text = msg.text, isLeft = false)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        PlayerAvatar(portraitRes = playerPortraitRes)
-                    }
-                } else {
-                    // AI消息 — 头像 + 气泡(左)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        AIAvatar(portraitRes = portraitRes, sectName = sectName)
-                        DialogueBubble(text = msg.text, isLeft = true)
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            // 触发自动滚动到底部的占位
-            if (visibleCount > 0) {
-                LaunchedEffect(visibleCount) {
-                    scrollState.animateScrollTo(scrollState.maxValue)
-                }
-            }
-        }
+        DiplomacyChatArea(
+            portraitRes = portraitRes,
+            playerPortraitRes = playerPortraitRes,
+            sectName = sectName,
+            initialDialogueText = initialDialogueText,
+            chatMessages = chatMessages,
+            visibleCount = visibleCount
+        )
 
         // ═══════════ 底部按钮区 ═══════════
         if (showGiftOptions && !isChatting) {
@@ -420,57 +505,160 @@ private fun RightPanel(
             )
         } else if (isChatting && !isChatDone) {
             // 聊天动画中 → 跳过按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                GameButton(
-                    text = "跳过",
-                    onClick = onSkipClick,
-                    modifier = Modifier.width(ButtonSizes.StandardWidth)
-                )
-            }
+            ChatSkipButton(onSkipClick = onSkipClick)
         } else {
             // 初始状态或聊天完成 → 操作按钮
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-            ) {
-                if (isAlly) {
-                    GameButton(
-                        text = "散盟",
-                        onClick = onDissolveClick,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                } else {
-                    GameButton(
-                        text = "结盟",
-                        onClick = onAllianceClick,
-                        enabled = true,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                    if (isPlayerVassal) {
-                        GameButton(
-                            text = "解除附属",
-                            onClick = onDissolveVassalClick,
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    } else if (canVassal) {
-                        GameButton(
-                            text = "附属",
-                            onClick = onVassalClick,
-                            modifier = Modifier.width(ButtonSizes.StandardWidth)
-                        )
-                    }
+            DiplomacyActionButtons(
+                isAlly = isAlly,
+                isPlayerVassal = isPlayerVassal,
+                canVassal = canVassal,
+                hasGiftedThisYear = hasGiftedThisYear,
+                callbacks = DiplomacyActionCallbacks(
+                    onAllianceClick = onAllianceClick,
+                    onDissolveClick = onDissolveClick,
+                    onVassalClick = onVassalClick,
+                    onDissolveVassalClick = onDissolveVassalClick,
+                    onGiftClick = onGiftClick
+                )
+            )
+        }
+    }
+}
+
+/** 对话区域（RightPanel 拆分）：问候 + 消息流 + 自动滚动 */
+@Composable
+private fun ColumnScope.DiplomacyChatArea(
+    portraitRes: String,
+    playerPortraitRes: String,
+    sectName: String,
+    initialDialogueText: String,
+    chatMessages: List<ChatMessage>,
+    visibleCount: Int
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()
+            .verticalScroll(scrollState)
+            .padding(top = 24.dp, bottom = 8.dp)
+    ) {
+        // 初始问候（始终显示）
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            AIAvatar(portraitRes = portraitRes, sectName = sectName)
+            DialogueBubble(text = initialDialogueText, isLeft = true)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // 追加的聊天消息
+        chatMessages.take(visibleCount).forEach { msg ->
+            if (msg.isPlayer) {
+                // 玩家消息 — 气泡(右) + 头像
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    DialogueBubble(text = msg.text, isLeft = false)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    PlayerAvatar(portraitRes = playerPortraitRes)
                 }
+            } else {
+                // AI消息 — 头像 + 气泡(左)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    AIAvatar(portraitRes = portraitRes, sectName = sectName)
+                    DialogueBubble(text = msg.text, isLeft = true)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // 触发自动滚动到底部的占位
+        if (visibleCount > 0) {
+            LaunchedEffect(visibleCount) {
+                scrollState.animateScrollTo(scrollState.maxValue)
+            }
+        }
+    }
+}
+
+/** 操作按钮回调（RightPanel 拆分） */
+private data class DiplomacyActionCallbacks(
+    val onAllianceClick: () -> Unit,
+    val onDissolveClick: () -> Unit,
+    val onVassalClick: () -> Unit,
+    val onDissolveVassalClick: () -> Unit,
+    val onGiftClick: () -> Unit
+)
+
+/** 操作按钮行（RightPanel 拆分）：结盟/散盟/附属/送礼 */
+@Composable
+private fun DiplomacyActionButtons(
+    isAlly: Boolean,
+    isPlayerVassal: Boolean,
+    canVassal: Boolean,
+    hasGiftedThisYear: Boolean,
+    callbacks: DiplomacyActionCallbacks
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+    ) {
+        if (isAlly) {
+            GameButton(
+                text = "散盟",
+                onClick = callbacks.onDissolveClick,
+                modifier = Modifier.width(ButtonSizes.StandardWidth)
+            )
+        } else {
+            GameButton(
+                text = "结盟",
+                onClick = callbacks.onAllianceClick,
+                enabled = true,
+                modifier = Modifier.width(ButtonSizes.StandardWidth)
+            )
+            if (isPlayerVassal) {
                 GameButton(
-                    text = if (hasGiftedThisYear) "已送礼" else "送礼",
-                    onClick = onGiftClick,
-                    enabled = !hasGiftedThisYear,
+                    text = "解除附属",
+                    onClick = callbacks.onDissolveVassalClick,
+                    modifier = Modifier.width(ButtonSizes.StandardWidth)
+                )
+            } else if (canVassal) {
+                GameButton(
+                    text = "附属",
+                    onClick = callbacks.onVassalClick,
                     modifier = Modifier.width(ButtonSizes.StandardWidth)
                 )
             }
         }
+        GameButton(
+            text = if (hasGiftedThisYear) "已送礼" else "送礼",
+            onClick = callbacks.onGiftClick,
+            enabled = !hasGiftedThisYear,
+            modifier = Modifier.width(ButtonSizes.StandardWidth)
+        )
+    }
+}
+
+/** 聊天动画中的跳过按钮（RightPanel 拆分） */
+@Composable
+private fun ChatSkipButton(onSkipClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        GameButton(
+            text = "跳过",
+            onClick = onSkipClick,
+            modifier = Modifier.width(ButtonSizes.StandardWidth)
+        )
     }
 }
 
@@ -544,7 +732,8 @@ private fun DialogueBubble(
     ) ?: if (isLeft) R.drawable.dialogue_bubble_left
     else R.drawable.dialogue_bubble_right
 
-    val bubbleMaxWidth = (LocalConfiguration.current.screenWidthDp * 0.65f).dp
+    // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
+    val bubbleMaxWidth = (LocalWindowInfo.current.containerSize.width * 0.65f).dp
 
     Box(
         modifier = modifier

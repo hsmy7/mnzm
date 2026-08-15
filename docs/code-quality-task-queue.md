@@ -1,6 +1,18 @@
-# 超长函数拆分任务队列（P3）
+# 超长函数拆分任务队列（P3）——已清空归档
 
-> 来源：各模块 detekt-baseline.xml 中冻结的 LongMethod 违规。拆分一个函数后从对应模块 baseline 摘除一条（baseline 只缩不增）。
+> 2026-08 债务根治批次：全队列 245 条 LongMethod（实测 baseline：app 14 / data 16 /
+> domain 12 / engine 58 / ui 6 / game 139）已全量拆分并逐条从各模块 detekt-baseline.xml
+> 摘除（含 10 余条陈旧条目——对应函数已随历史批次拆分/文件迁移/平台重构而不复存在）。
+> 验证：compileReleaseKotlin + 串行全量 testReleaseUnitTest + detekt 全模块通过。
+> 拆分方法：提取私有辅助函数/`@Composable` 子组件（ColumnScope/BoxScope 接收者按需声明），
+> 公共签名与行为逐字节等价。历史队列清单见 CHANGELOG「债务根治（2026-08）」与各模块
+> detekt-baseline.xml 提交前版本。detekt.yml LongMethod 注释已同步实测数据。
+>
+> **本队列自此退役**：新违规必须直接修复（baseline 只缩不增，见 CLAUDE.md 13.2），
+> 不再重新登记队列。
+
+<details>
+<summary>历史队列（拆分前快照，供追溯）</summary>
 
 | 模块 | 文件 | 类/函数 |
 |---|---|---|

@@ -66,66 +66,91 @@ fun BuildingConstructionBar(
                 val cost = buildingCosts[name] ?: 1000L
                 val canAfford = spiritStones >= cost
                 val meetsLevel = currentSectLevel >= (BuildingFeatureRegistry.findByDisplayName(name)?.requiredSectLevel ?: 0)
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .width(64.dp)
-                            .height(60.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                            .clickable {
-                                when {
-                                    !meetsLevel && !built -> onSelectBuildingLevelRequirement?.invoke(name)
-                                    !built && canAfford -> onSelectBuilding(name)
-                                }
-                            }
-                    ) {
-                        Text(
-                            text = name,
-                            fontSize = 8.sp,
-                            lineHeight = 8.sp,
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
-                        Image(
-                            painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal),
-                            contentDescription = name,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth(),
-                            contentScale = ContentScale.Fit,
-                            alpha = if (built || !canAfford || !meetsLevel) 0.4f else 1f
-                        )
-                        Text(
-                            text = "${cost}灵石",
-                            fontSize = 7.sp,
-                            lineHeight = 7.sp,
-                            color = Color.Black,
-                            maxLines = 1,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color.White.copy(alpha = 0.7f))
-                        )
+                BuildingConstructionItem(
+                    name = name,
+                    built = built,
+                    cost = cost,
+                    canAfford = canAfford,
+                    meetsLevel = meetsLevel,
+                    builtCount = getBuildingCount(name),
+                    maxCount = getBuildingMaxCount(name),
+                    onClick = {
+                        when {
+                            !meetsLevel && !built -> onSelectBuildingLevelRequirement?.invoke(name)
+                            !built && canAfford -> onSelectBuilding(name)
+                        }
                     }
-                    val maxCount = getBuildingMaxCount(name)
-                    if (maxCount < Int.MAX_VALUE) {
-                        Text(
-                            text = "${getBuildingCount(name)}/$maxCount",
-                            fontSize = 9.sp,
-                            color = Color.Black,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
+                )
             }
+        }
+    }
+}
+
+/** 单个建筑构造卡片（BuildingConstructionBar 拆分）：图标 + 名称 + 造价 + 建造数量 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun BuildingConstructionItem(
+    name: String,
+    built: Boolean,
+    cost: Long,
+    canAfford: Boolean,
+    meetsLevel: Boolean,
+    builtCount: Int,
+    maxCount: Int,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Column(
+            modifier = Modifier
+                .width(64.dp)
+                .height(60.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
+                .clickable(onClick = onClick)
+        ) {
+            Text(
+                text = name,
+                fontSize = 8.sp,
+                lineHeight = 8.sp,
+                color = Color.Black,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.7f))
+            )
+            Image(
+                painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal),
+                contentDescription = name,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentScale = ContentScale.Fit,
+                alpha = if (built || !canAfford || !meetsLevel) 0.4f else 1f
+            )
+            Text(
+                text = "${cost}灵石",
+                fontSize = 7.sp,
+                lineHeight = 7.sp,
+                color = Color.Black,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.7f))
+            )
+        }
+        if (maxCount < Int.MAX_VALUE) {
+            Text(
+                text = "${builtCount}/$maxCount",
+                fontSize = 9.sp,
+                color = Color.Black,
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

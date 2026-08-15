@@ -13,6 +13,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.facade.StorageFacade
+import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.game.SaveLoadViewModelConstants
 import kotlinx.coroutines.*
@@ -51,65 +52,17 @@ class SaveLoadLoadDelegate(
         }
 
         return try {
-            if (stateStore.runState.value == RunState.PLAYING) {
-                Log.i(TAG, "Game already loaded, will reload from slot ${saveSlot.slot}")
-                // 玉符防回退（2026-08-10）：等待旧循环 finally 彻底完成（与
-                // SaveLoadViewModel.performLoadToSlot 同因），非等待 stop 会让
-                // checkpointNow 晚于快照替换、用旧运行时值覆盖新档玉符
-                val stopped = gameEngineCore.stopGameLoopAndWait(
-                    SaveLoadViewModelConstants.GAME_LOOP_STOP_TIMEOUT_MS
-                )
-                if (!stopped) {
-                    uiCallbacks?.showError("无法停止游戏循环，请重试")
-                    return false
-                }
+            if (!stopLoopIfRunning(slot = saveSlot.slot)) {
+                return false
             }
 
-            val saveData = withTimeoutOrNull(60_000L) {
-                try {
-                    storageFacade.load(saveSlot.slot).getOrNull()
-                } catch (e: CancellationException) { throw e }
-                  catch (e: Exception) {
-                    Log.e(TAG, "Error loading save data: ${e.message}", e)
-                    null
-                }
-            }
-
+            val saveData = loadSaveData(slot = saveSlot.slot)
             if (saveData == null) {
                 uiCallbacks?.showError("读档超时或存档为空，请重试")
                 return false
             }
 
-            val effectiveSlot = saveSlot.slot
-            storageFacade.setCurrentSlot(effectiveSlot)
-            gameEngine.loadData(
-                gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
-                disciples = saveData.disciples,
-                equipmentStacks = saveData.equipmentStacks,
-                equipmentInstances = saveData.equipmentInstances,
-                manualStacks = saveData.manualStacks,
-                manualInstances = saveData.manualInstances,
-                pills = saveData.pills,
-                materials = saveData.materials,
-                herbs = saveData.herbs,
-                seeds = saveData.seeds,
-                storageBags = saveData.storageBags,
-                battleLogs = saveData.battleLogs,
-                alliances = saveData.alliances,
-                productionSlots = saveData.productionSlots
-            )
-            gameEngine.ensureHeavyDataLoaded()
-
-            // 修正建筑尺寸（×2 后兼容旧存档）
-            gameEngine.updateGameData { data ->
-                if (data.placedBuildings.isEmpty() && data.residenceSlots.isNotEmpty()) {
-                    Log.wtf(TAG, "DATA INTEGRITY: placedBuildings empty but residenceSlots " +
-                        "has ${data.residenceSlots.size} entries!")
-                }
-                val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
-                val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
-                if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
-            }
+            applyLoadedSave(saveData = saveData, effectiveSlot = saveSlot.slot)
 
             // 溢出迁移已归位 BootSequenceController Step 3.5（2026-08-06，
             // 须在 fixup/归一化之后；本 loadGame 为死代码，仅测试引用）
@@ -126,6 +79,71 @@ class SaveLoadLoadDelegate(
             false
         } finally {
             uiCallbacks?.setLoadingState(isLoading = false, slot = saveSlot.slot, action = null)
+        }
+    }
+
+    /** 已加载场景下先停止旧游戏循环（loadGame 拆分）：玉符防回退 + 超时守卫 */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private suspend fun stopLoopIfRunning(slot: Int): Boolean {
+        if (stateStore.runState.value != RunState.PLAYING) return true
+        Log.i(TAG, "Game already loaded, will reload from slot $slot")
+        // 玉符防回退（2026-08-10）：等待旧循环 finally 彻底完成（与
+        // SaveLoadViewModel.performLoadToSlot 同因），非等待 stop 会让
+        // checkpointNow 晚于快照替换、用旧运行时值覆盖新档玉符
+        val stopped = gameEngineCore.stopGameLoopAndWait(
+            SaveLoadViewModelConstants.GAME_LOOP_STOP_TIMEOUT_MS
+        )
+        if (!stopped) {
+            uiCallbacks?.showError("无法停止游戏循环，请重试")
+            return false
+        }
+        return true
+    }
+
+    /** 读档数据加载（loadGame 拆分）：超时保护 + 空档守卫 */
+    private suspend fun loadSaveData(slot: Int): SaveData? {
+        return withTimeoutOrNull(60_000L) {
+            try {
+                storageFacade.load(slot).getOrNull()
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.e(TAG, "Error loading save data: ${e.message}", e)
+                null
+            }
+        }
+    }
+
+    /** 读档数据应用（loadGame 拆分）：setCurrentSlot + loadData + 重数据加载 + 建筑尺寸修正 */
+    private suspend fun applyLoadedSave(saveData: SaveData, effectiveSlot: Int) {
+        storageFacade.setCurrentSlot(effectiveSlot)
+        gameEngine.loadData(
+            gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
+            disciples = saveData.disciples,
+            equipmentStacks = saveData.equipmentStacks,
+            equipmentInstances = saveData.equipmentInstances,
+            manualStacks = saveData.manualStacks,
+            manualInstances = saveData.manualInstances,
+            pills = saveData.pills,
+            materials = saveData.materials,
+            herbs = saveData.herbs,
+            seeds = saveData.seeds,
+            storageBags = saveData.storageBags,
+            battleLogs = saveData.battleLogs,
+            alliances = saveData.alliances,
+            productionSlots = saveData.productionSlots
+        )
+        gameEngine.ensureHeavyDataLoaded()
+
+        // 修正建筑尺寸（×2 后兼容旧存档）
+        gameEngine.updateGameData { data ->
+            if (data.placedBuildings.isEmpty() && data.residenceSlots.isNotEmpty()) {
+                Log.wtf(TAG, "DATA INTEGRITY: placedBuildings empty but residenceSlots " +
+                    "has ${data.residenceSlots.size} entries!")
+            }
+            val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
+            val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
+            if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
         }
     }
 

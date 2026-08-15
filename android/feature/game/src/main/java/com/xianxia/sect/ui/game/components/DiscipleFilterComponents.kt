@@ -102,133 +102,227 @@ internal fun SpiritRootAttributeFilterBar(
             .padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+        FilterBarTopRow(
+            selectedSpiritRootFilter = selectedSpiritRootFilter,
+            selectedAttributeSort = selectedAttributeSort,
+            selectedRealmFilter = selectedRealmFilter,
+            realmFilterOptions = realmFilterOptions,
+            spiritRootExpanded = spiritRootExpanded,
+            attributeExpanded = attributeExpanded,
+            realmExpanded = realmExpanded,
+            isCompact = isCompact,
+            showAllCheckboxVisible = showAllCheckboxVisible,
+            showAllEnabled = showAllEnabled,
+            onSpiritRootExpandToggle = onSpiritRootExpandToggle,
+            onAttributeExpandToggle = onAttributeExpandToggle,
+            onRealmExpandToggle = onRealmExpandToggle,
+            onShowAllToggle = onShowAllToggle
+        )
+        SpiritRootFilterSection(
+            spiritRootExpanded = spiritRootExpanded,
+            selectedSpiritRootFilter = selectedSpiritRootFilter,
+            spiritRootCounts = spiritRootCounts,
+            isCompact = isCompact,
+            onSpiritRootFilterSelected = onSpiritRootFilterSelected,
+            onSpiritRootFilterRemoved = onSpiritRootFilterRemoved
+        )
+        AttributeFilterSection(
+            attributeExpanded = attributeExpanded,
+            selectedAttributeSort = selectedAttributeSort,
+            isCompact = isCompact,
+            onAttributeSortSelected = onAttributeSortSelected
+        )
+        RealmFilterSection(
+            realmExpanded = realmExpanded,
+            selectedRealmFilter = selectedRealmFilter,
+            realmFilterOptions = realmFilterOptions,
+            realmCounts = realmCounts,
+            isCompact = isCompact,
+            onRealmFilterSelected = onRealmFilterSelected,
+            onRealmFilterRemoved = onRealmFilterRemoved
+        )
+    }
+}
+
+/** 过滤条按钮行（SpiritRootAttributeFilterBar 拆分）：灵根/属性/境界按钮 + 显示全部勾选 */
+// 拆分聚合:平铺参数搬移自原公共函数
+@Suppress("LongParameterList")
+@Composable
+private fun FilterBarTopRow(
+    selectedSpiritRootFilter: Set<Int>,
+    selectedAttributeSort: String?,
+    selectedRealmFilter: Set<Int>,
+    realmFilterOptions: List<Pair<Int, String>>,
+    spiritRootExpanded: Boolean,
+    attributeExpanded: Boolean,
+    realmExpanded: Boolean,
+    isCompact: Boolean,
+    showAllCheckboxVisible: Boolean,
+    showAllEnabled: Boolean,
+    onSpiritRootExpandToggle: () -> Unit,
+    onAttributeExpandToggle: () -> Unit,
+    onRealmExpandToggle: () -> Unit,
+    onShowAllToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        DropdownFilterButton(
+            displayText = "灵根",
+            hasSelection = selectedSpiritRootFilter.isNotEmpty(),
+            isExpanded = spiritRootExpanded,
+            onClick = onSpiritRootExpandToggle,
+            isCompact = isCompact,
+        )
+        DropdownFilterButton(
+            displayText = "属性",
+            hasSelection = selectedAttributeSort != null,
+            isExpanded = attributeExpanded,
+            onClick = onAttributeExpandToggle,
+            isCompact = isCompact,
+        )
+        if (realmFilterOptions.isNotEmpty()) {
             DropdownFilterButton(
-                displayText = "灵根",
-                hasSelection = selectedSpiritRootFilter.isNotEmpty(),
-                isExpanded = spiritRootExpanded,
-                onClick = onSpiritRootExpandToggle,
+                displayText = "境界",
+                hasSelection = selectedRealmFilter.isNotEmpty(),
+                isExpanded = realmExpanded,
+                onClick = onRealmExpandToggle,
                 isCompact = isCompact,
             )
-            DropdownFilterButton(
-                displayText = "属性",
-                hasSelection = selectedAttributeSort != null,
-                isExpanded = attributeExpanded,
-                onClick = onAttributeExpandToggle,
-                isCompact = isCompact,
-            )
-            if (realmFilterOptions.isNotEmpty()) {
-                DropdownFilterButton(
-                    displayText = "境界",
-                    hasSelection = selectedRealmFilter.isNotEmpty(),
-                    isExpanded = realmExpanded,
-                    onClick = onRealmExpandToggle,
-                    isCompact = isCompact,
+        }
+        if (showAllCheckboxVisible) {
+            Spacer(modifier = Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "显示所有可用弟子",
+                    fontSize = if (isCompact) 9.sp else 11.sp,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+                CircularCheckbox(
+                    checked = showAllEnabled,
+                    onToggle = onShowAllToggle
                 )
             }
-            if (showAllCheckboxVisible) {
-                Spacer(modifier = Modifier.weight(1f))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "显示所有可用弟子",
-                        fontSize = if (isCompact) 9.sp else 11.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.width(2.dp))
-                    CircularCheckbox(
-                        checked = showAllEnabled,
-                        onToggle = onShowAllToggle
-                    )
-                }
+        }
+    }
+}
+
+/** 灵根过滤区（SpiritRootAttributeFilterBar 拆分）：展开后显示灵根数过滤芯片 */
+@Composable
+private fun SpiritRootFilterSection(
+    spiritRootExpanded: Boolean,
+    selectedSpiritRootFilter: Set<Int>,
+    spiritRootCounts: Map<Int, Int>,
+    isCompact: Boolean,
+    onSpiritRootFilterSelected: (Int) -> Unit,
+    onSpiritRootFilterRemoved: (Int) -> Unit
+) {
+    AnimatedVisibility(
+        visible = spiritRootExpanded,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            SPIRIT_ROOT_FILTER_OPTIONS.forEach { (count, name) ->
+                val isSelected = count in selectedSpiritRootFilter
+                val cnt = spiritRootCounts[count] ?: 0
+                FilterChip(
+                    text = "$name $cnt",
+                    isSelected = isSelected,
+                    onClick = {
+                        if (isSelected) onSpiritRootFilterRemoved(count)
+                        else onSpiritRootFilterSelected(count)
+                    },
+                    isCompact = isCompact
+                )
             }
         }
+    }
+}
 
-        AnimatedVisibility(
-            visible = spiritRootExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
+/** 属性过滤区（SpiritRootAttributeFilterBar 拆分）：展开后按 5 列分行的属性排序芯片 */
+@Composable
+private fun AttributeFilterSection(
+    attributeExpanded: Boolean,
+    selectedAttributeSort: String?,
+    isCompact: Boolean,
+    onAttributeSortSelected: (String?) -> Unit
+) {
+    AnimatedVisibility(
+        visible = attributeExpanded,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                SPIRIT_ROOT_FILTER_OPTIONS.forEach { (count, name) ->
-                    val isSelected = count in selectedSpiritRootFilter
-                    val cnt = spiritRootCounts[count] ?: 0
-                    FilterChip(
-                        text = "$name $cnt",
-                        isSelected = isSelected,
-                        onClick = {
-                            if (isSelected) onSpiritRootFilterRemoved(count)
-                            else onSpiritRootFilterSelected(count)
-                        },
-                        isCompact = isCompact
-                    )
-                }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = attributeExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ATTRIBUTE_FILTER_OPTIONS.chunked(5).forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        row.forEach { option ->
-                            val isSelected = option.key == selectedAttributeSort
-                            FilterChip(
-                                text = option.name,
-                                isSelected = isSelected,
-                                onClick = {
-                                    if (isSelected) onAttributeSortSelected(null)
-                                    else onAttributeSortSelected(option.key)
-                                },
-                                isCompact = isCompact
-                            )
-                        }
-                        if (row.size < 5) {
-                            repeat(5 - row.size) {
-                            }
+            ATTRIBUTE_FILTER_OPTIONS.chunked(5).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    row.forEach { option ->
+                        val isSelected = option.key == selectedAttributeSort
+                        FilterChip(
+                            text = option.name,
+                            isSelected = isSelected,
+                            onClick = {
+                                if (isSelected) onAttributeSortSelected(null)
+                                else onAttributeSortSelected(option.key)
+                            },
+                            isCompact = isCompact
+                        )
+                    }
+                    if (row.size < 5) {
+                        repeat(5 - row.size) {
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        AnimatedVisibility(
-            visible = realmExpanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut()
+/** 境界过滤区（SpiritRootAttributeFilterBar 拆分）：展开后显示境界过滤芯片流式布局 */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun RealmFilterSection(
+    realmExpanded: Boolean,
+    selectedRealmFilter: Set<Int>,
+    realmFilterOptions: List<Pair<Int, String>>,
+    realmCounts: Map<Int, Int>,
+    isCompact: Boolean,
+    onRealmFilterSelected: (Int) -> Unit,
+    onRealmFilterRemoved: (Int) -> Unit
+) {
+    AnimatedVisibility(
+        visible = realmExpanded,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+    ) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                realmFilterOptions.forEach { (realm, name) ->
-                    val isSelected = realm in selectedRealmFilter
-                    val cnt = realmCounts[realm] ?: 0
-                    FilterChip(
-                        text = "$name $cnt",
-                        isSelected = isSelected,
-                        onClick = {
-                            if (isSelected) onRealmFilterRemoved(realm)
-                            else onRealmFilterSelected(realm)
-                        },
-                        isCompact = isCompact
-                    )
-                }
+            realmFilterOptions.forEach { (realm, name) ->
+                val isSelected = realm in selectedRealmFilter
+                val cnt = realmCounts[realm] ?: 0
+                FilterChip(
+                    text = "$name $cnt",
+                    isSelected = isSelected,
+                    onClick = {
+                        if (isSelected) onRealmFilterRemoved(realm)
+                        else onRealmFilterSelected(realm)
+                    },
+                    isCompact = isCompact
+                )
             }
         }
     }

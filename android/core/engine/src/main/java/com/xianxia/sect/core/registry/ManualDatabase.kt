@@ -191,71 +191,10 @@ object ManualDatabase {
         
         manuals.forEach { (id, template) ->
             try {
-                // 转换为 Proto message 进行结构化校验
-                val protoBuilder = ManualTemplateProto.newBuilder()
-                    .setId(template.id)
-                    .setName(template.name)
-                    .setRarity(template.rarity)
-                    .setDescription(template.description)
-                    .setPrice(template.price.toLong())
-                    .setMinRealm(template.minRealm)
-                
-                protoBuilder.type = template.type.toProtoType()
-                
-                // 设置属性 map
-                template.stats.forEach { (key, value) ->
-                    protoBuilder.putStats(key, value)
-                }
-                
-                // 设置技能信息
-                if (template.skillName != null) {
-                    val skillBuilder = SkillTemplateProto.newBuilder()
-                        .setName(template.skillName ?: "")
-                        .setDescription(template.skillDescription ?: "")
-                        .setType(template.skillType)
-                        .setDamageType(template.skillDamageType)
-                        .setHits(template.skillHits)
-                        .setDamageMultiplier(template.skillDamageMultiplier)
-                        .setCooldown(template.skillCooldown)
-                        .setMpCost(template.skillMpCost)
-                        .setHealPercent(template.skillHealPercent)
-                        .setHealFixed(template.skillHealFixed)
-                        .setHealType(template.skillHealType)
-                        .setShieldPercent(template.skillShieldPercent)
-                        .setTurnAdvancePercent(template.skillTurnAdvancePercent)
-                        .setDamageSharePercent(template.skillDamageSharePercent)
-                        .setDamageLinkPercent(template.skillDamageLinkPercent)
-
-                    if (template.skillBuffType != null) {
-                        skillBuilder.buffType = template.skillBuffType
-                        skillBuilder.buffValue = template.skillBuffValue
-                        skillBuilder.buffDuration = template.skillBuffDuration
-                    }
-                    
-                    // 添加多 buff 列表
-                    template.skillBuffs.forEach { buff ->
-                        skillBuilder.addBuffs(BuffInfoProto.newBuilder()
-                            .setType(buff.type)
-                            .setValue(buff.value)
-                            .setDuration(buff.duration)
-                            .build())
-                    }
-                    
-                    protoBuilder.skill = skillBuilder.build()
-                }
-                
-                // 尝试构建并序列化（触发所有字段校验）
-                val proto = protoBuilder.build()
-                val bytes = proto.toByteArray()
-                
-                // 反序列化验证（确保数据完整）
-                ManualTemplateProto.parseFrom(bytes)
-                
+                // 转换为 Proto message 进行结构化校验 + 额外业务规则校验
+                validateSingleTemplate(template = template)
                 validCount++
-                
-                // 额外的业务规则校验
                 validateBusinessRules(id, template, warnings)
-                
             } catch (e: Exception) {
                 warnings.add(ValidationWarning(
                     manualId = id,
@@ -275,6 +214,79 @@ object ManualDatabase {
             warnings = warnings,
             validationTimeMs = elapsed
         )
+    }
+    
+    /** 单个功法模板的 Proto 结构化校验（validateWithProto 拆分）：构建 → 序列化 → 反序列化验证 */
+    private fun validateSingleTemplate(template: ManualTemplate) {
+        val protoBuilder = buildTemplateProtoBuilder(template = template)
+        // 尝试构建并序列化（触发所有字段校验）
+        val proto = protoBuilder.build()
+        val bytes = proto.toByteArray()
+        // 反序列化验证（确保数据完整）
+        ManualTemplateProto.parseFrom(bytes)
+    }
+    
+    /** 功法模板 → Proto Builder 转换（validateWithProto 拆分）：基础字段 + 属性 map + 技能信息 */
+    private fun buildTemplateProtoBuilder(template: ManualTemplate): ManualTemplateProto.Builder {
+        val protoBuilder = ManualTemplateProto.newBuilder()
+            .setId(template.id)
+            .setName(template.name)
+            .setRarity(template.rarity)
+            .setDescription(template.description)
+            .setPrice(template.price.toLong())
+            .setMinRealm(template.minRealm)
+        
+        protoBuilder.type = template.type.toProtoType()
+        
+        // 设置属性 map
+        template.stats.forEach { (key, value) ->
+            protoBuilder.putStats(key, value)
+        }
+        
+        // 设置技能信息
+        if (template.skillName != null) {
+            val skillBuilder = buildSkillProtoBuilder(template = template)
+            protoBuilder.skill = skillBuilder.build()
+        }
+        
+        return protoBuilder
+    }
+    
+    /** 技能字段 → Proto Builder 转换（validateWithProto 拆分）：技能基础字段 + 单 buff + 多 buff 列表 */
+    private fun buildSkillProtoBuilder(template: ManualTemplate): SkillTemplateProto.Builder {
+        val skillBuilder = SkillTemplateProto.newBuilder()
+            .setName(template.skillName ?: "")
+            .setDescription(template.skillDescription ?: "")
+            .setType(template.skillType)
+            .setDamageType(template.skillDamageType)
+            .setHits(template.skillHits)
+            .setDamageMultiplier(template.skillDamageMultiplier)
+            .setCooldown(template.skillCooldown)
+            .setMpCost(template.skillMpCost)
+            .setHealPercent(template.skillHealPercent)
+            .setHealFixed(template.skillHealFixed)
+            .setHealType(template.skillHealType)
+            .setShieldPercent(template.skillShieldPercent)
+            .setTurnAdvancePercent(template.skillTurnAdvancePercent)
+            .setDamageSharePercent(template.skillDamageSharePercent)
+            .setDamageLinkPercent(template.skillDamageLinkPercent)
+
+        if (template.skillBuffType != null) {
+            skillBuilder.buffType = template.skillBuffType
+            skillBuilder.buffValue = template.skillBuffValue
+            skillBuilder.buffDuration = template.skillBuffDuration
+        }
+        
+        // 添加多 buff 列表
+        template.skillBuffs.forEach { buff ->
+            skillBuilder.addBuffs(BuffInfoProto.newBuilder()
+                .setType(buff.type)
+                .setValue(buff.value)
+                .setDuration(buff.duration)
+                .build())
+        }
+        
+        return skillBuilder
     }
     
     /**

@@ -20,6 +20,7 @@ import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -69,7 +70,6 @@ class CombatService @Inject constructor(
         val equipIdsToUnequip = collected.equipIdsToUnequip
         val manualIdsToUnlearn = collected.manualIdsToUnlearn
         val disciplesToKill = collected.disciplesToKill
-
         // slot/HP/年份更新已移入 stateStore.update 内部（锁内读取最新状态）
 
         // ── 阶段 2：单事务原子写入 ──
@@ -85,101 +85,160 @@ class CombatService @Inject constructor(
                 val liveLibrarySlots = gameData.librarySlots.map { slot ->
                     if (slot.discipleId in deadMemberIds) slot.copy(discipleId = "", discipleName = "") else slot
                 }
-                val liveSurvivorUpdates = survivorHpMap.mapNotNull { (memberId, hp) ->
-                    val id = memberId.toIntOrNull() ?: return@mapNotNull null
-                    if (!discipleTables.ids.contains(id) || memberId in deadMemberIds) return@mapNotNull null
-                    // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
-                    val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
-                        this, discipleTables.assemble(id)
-                    )
-                    val mp = survivorMpMap[memberId] ?: discipleTables.currentMps[id]
-                    val currentStatus = discipleTables.statuses[id]
-                    val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus
-                    SurvivorUpdate(id, hp.coerceIn(0, finalMaxHp), mp.coerceIn(0, finalMaxMp), updatedStatus)
-                }
+                val liveSurvivorUpdates = computeSurvivorUpdates(
+                    state = this, survivorHpMap = survivorHpMap,
+                    survivorMpMap = survivorMpMap, deadMemberIds = deadMemberIds
+                )
                 // A. 悲痛期
-                for ((id, griefEndYear) in griefUpdates) {
-                    if (id in discipleTables.ids) {
-                        val wasGrieving = discipleTables.griefEndYears
-                            .getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL) > 0
-                        discipleTables.griefEndYears[id] = griefEndYear
-                        // 记录丧亲日志（仅新陷入悲痛时）
-                        if (!wasGrieving) {
-                            val grievingAge = discipleTables.ages[id]
-                            // 查找致悲的死亡弟子
-                            val deadDisciple = deadDisciples.firstOrNull { dead ->
-                                val deadId = dead.id.toIntOrNull() ?: return@firstOrNull false
-                                val grievingDisciple = discipleTables.assemble(id)
-                                DiscipleStatCalculator.areRelatives(
-                                    grievingDisciple, dead
-                                )
-                            }
-                            if (deadDisciple != null) {
-                                val relationship = when {
-                                    discipleTables.partnerIds.getOrNull(id) == deadDisciple.id -> "道侣"
-                                    deadDisciple.id == discipleTables.partnerIds.getOrNull(id) -> "道侣"
-                                    listOfNotNull(
-                                        discipleTables.parentId1s.getOrNull(id),
-                                        discipleTables.parentId2s.getOrNull(id)
-                                    ).contains(deadDisciple.id) -> "父/母"
-                                    deadDisciple.id == discipleTables.parentId1s.getOrNull(id) ||
-                                    deadDisciple.id == discipleTables.parentId2s.getOrNull(id) -> "子女"
-                                    else -> "亲属"
-                                }
-                                val currentEvents = discipleTables.lifeEvents
-                                    .getOrDefault(id, emptyList())
-                                discipleTables.lifeEvents[id] = currentEvents +
-                                    "${grievingAge}岁：因${relationship}${deadDisciple.name}离世陷入悲痛，修炼速度降低50%"
-                            }
-                        }
-                    }
-                }
-
+                applyGriefUpdatesToTables(state = this, griefUpdates = griefUpdates, deadDisciples = deadDisciples)
                 // B. 标记死亡（D-03：统一入口——袋物品物化回仓库 + 清袋 + markDead）
-                for ((id, _) in disciplesToKill) {
-                    inventorySystem.materializeDiscipleBagAndMarkDead(this, id, battleCurrentYear, "battle")
-                }
-
+                markCasualtiesDead(
+                    state = this, disciplesToKill = disciplesToKill,
+                    battleCurrentYear = battleCurrentYear
+                )
                 // C. 装备/功法/熟练度
-                if (proficiencyRemoveIds.isNotEmpty()) {
-                    val mutable = gameData.manualProficiencies.toMutableMap()
-                    proficiencyRemoveIds.forEach { mutable.remove(it) }
-                    gameData = gameData.copy(manualProficiencies = mutable)
-                }
-                if (equipIdsToUnequip.isNotEmpty()) {
-                    equipmentInstances = equipmentInstances.filter { it.id !in equipIdsToUnequip }
-                }
-                if (manualIdsToUnlearn.isNotEmpty()) {
-                    manualInstances = manualInstances.filter { it.id !in manualIdsToUnlearn }
-                }
-
+                removeCasualtyItems(
+                    state = this, proficiencyRemoveIds = proficiencyRemoveIds,
+                    equipIdsToUnequip = equipIdsToUnequip, manualIdsToUnlearn = manualIdsToUnlearn
+                )
                 // D. 槽位清理
                 gameData = gameData.copy(
                     elderSlots = liveElderSlots,
                     spiritMineSlots = liveSpiritMineSlots,
                     librarySlots = liveLibrarySlots,
-                    // 2026-08-10：生产槽镜像清理（原实现漏 productionSlots 镜像——
-                    // 阶段 3 只清 Repository，镜像残留会在读档重建/自愈时把死弟子
-                    // 重新挂回生产界面；WORKING 槽无工人后 ProductionProcessor
-                    // 跳过结算，不产出不崩溃——"战斗死亡中断生产"语义）
+                    // 2026-08-10：生产槽镜像清理（原实现漏 productionSlots 镜像，镜像残留会让死弟子在读档重建/自愈时重新挂回生产界面）
                     productionSlots = gameData.productionSlots.map {
                         if (it.assignedDiscipleId in deadMemberIds)
                             it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                         else it
                     }
                 )
-
                 // E. 幸存者HP/MP
-                for (su in liveSurvivorUpdates) {
-                    if (su.id in discipleTables.ids) {
-                        discipleTables.currentHps[su.id] = su.hp
-                        discipleTables.currentMps[su.id] = su.mp
-                    }
-                }
+                applySurvivorHpMpUpdates(state = this, liveSurvivorUpdates = liveSurvivorUpdates)
             }
         }
 
         // ── 阶段 3：跨 Repository 写入（无法纳入 stateStore 事务） ──
+        clearDeadFromProductionRepository(deadMemberIds)
+    }
+
+    /** 幸存者 HP/MP 更新计算（processBattleCasualties 拆分，锁内读取最新状态） */
+    private fun computeSurvivorUpdates(
+        state: MutableGameState,
+        survivorHpMap: Map<String, Int>,
+        survivorMpMap: Map<String, Int>,
+        deadMemberIds: Set<String>
+    ): List<SurvivorUpdate> {
+        return survivorHpMap.mapNotNull { (memberId, hp) ->
+            val id = memberId.toIntOrNull() ?: return@mapNotNull null
+            if (!state.discipleTables.ids.contains(id) || memberId in deadMemberIds) return@mapNotNull null
+            // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
+            val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
+                state, state.discipleTables.assemble(id)
+            )
+            val mp = survivorMpMap[memberId] ?: state.discipleTables.currentMps[id]
+            val currentStatus = state.discipleTables.statuses[id]
+            val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus
+            SurvivorUpdate(id, hp.coerceIn(0, finalMaxHp), mp.coerceIn(0, finalMaxMp), updatedStatus)
+        }
+    }
+
+    /** 悲痛期写入（processBattleCasualties 拆分）：GriefEndYear + 丧亲日志 */
+    // 拆分搬移:嵌套/条件结构与原函数一致
+    @Suppress("NestedBlockDepth")
+    private fun applyGriefUpdatesToTables(
+        state: MutableGameState,
+        griefUpdates: List<Pair<Int, Int>>,
+        deadDisciples: List<Disciple>
+    ) {
+        // A. 悲痛期
+        for ((id, griefEndYear) in griefUpdates) {
+            if (id in state.discipleTables.ids) {
+                val wasGrieving = state.discipleTables.griefEndYears
+                    .getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL) > 0
+                state.discipleTables.griefEndYears[id] = griefEndYear
+                // 记录丧亲日志（仅新陷入悲痛时）
+                if (!wasGrieving) {
+                    val grievingAge = state.discipleTables.ages[id]
+                    // 查找致悲的死亡弟子
+                    val deadDisciple = deadDisciples.firstOrNull { dead ->
+                        val deadId = dead.id.toIntOrNull() ?: return@firstOrNull false
+                        val grievingDisciple = state.discipleTables.assemble(id)
+                        DiscipleStatCalculator.areRelatives(
+                            grievingDisciple, dead
+                        )
+                    }
+                    if (deadDisciple != null) {
+                        val relationship = when {
+                            state.discipleTables.partnerIds.getOrNull(id) == deadDisciple.id -> "道侣"
+                            deadDisciple.id == state.discipleTables.partnerIds.getOrNull(id) -> "道侣"
+                            listOfNotNull(
+                                state.discipleTables.parentId1s.getOrNull(id),
+                                state.discipleTables.parentId2s.getOrNull(id)
+                            ).contains(deadDisciple.id) -> "父/母"
+                            deadDisciple.id == state.discipleTables.parentId1s.getOrNull(id) ||
+                            deadDisciple.id == state.discipleTables.parentId2s.getOrNull(id) -> "子女"
+                            else -> "亲属"
+                        }
+                        val currentEvents = state.discipleTables.lifeEvents
+                            .getOrDefault(id, emptyList())
+                        state.discipleTables.lifeEvents[id] = currentEvents +
+                            "${grievingAge}岁：因${relationship}${deadDisciple.name}离世陷入悲痛，修炼速度降低50%"
+                    }
+                }
+            }
+        }
+    }
+
+    /** 阵亡标记（processBattleCasualties 拆分）：D-03 统一入口（袋物品物化回仓库 + 清袋 + markDead） */
+    private fun markCasualtiesDead(
+        state: MutableGameState,
+        disciplesToKill: Map<Int, Disciple>,
+        battleCurrentYear: Int
+    ) {
+        // B. 标记死亡（D-03：统一入口——袋物品物化回仓库 + 清袋 + markDead）
+        for ((id, _) in disciplesToKill) {
+            inventorySystem.materializeDiscipleBagAndMarkDead(state, id, battleCurrentYear, "battle")
+        }
+    }
+
+    /** 阵亡装备/功法/熟练度清理（processBattleCasualties 拆分） */
+    private fun removeCasualtyItems(
+        state: MutableGameState,
+        proficiencyRemoveIds: Set<String>,
+        equipIdsToUnequip: Set<String>,
+        manualIdsToUnlearn: Set<String>
+    ) {
+        // C. 装备/功法/熟练度
+        if (proficiencyRemoveIds.isNotEmpty()) {
+            val mutable = state.gameData.manualProficiencies.toMutableMap()
+            proficiencyRemoveIds.forEach { mutable.remove(it) }
+            state.gameData = state.gameData.copy(manualProficiencies = mutable)
+        }
+        if (equipIdsToUnequip.isNotEmpty()) {
+            state.equipmentInstances = state.equipmentInstances.filter { it.id !in equipIdsToUnequip }
+        }
+        if (manualIdsToUnlearn.isNotEmpty()) {
+            state.manualInstances = state.manualInstances.filter { it.id !in manualIdsToUnlearn }
+        }
+    }
+
+    /** 幸存者 HP/MP 回写（processBattleCasualties 拆分） */
+    private fun applySurvivorHpMpUpdates(
+        state: MutableGameState,
+        liveSurvivorUpdates: List<SurvivorUpdate>
+    ) {
+        // E. 幸存者HP/MP
+        for (su in liveSurvivorUpdates) {
+            if (su.id in state.discipleTables.ids) {
+                state.discipleTables.currentHps[su.id] = su.hp
+                state.discipleTables.currentMps[su.id] = su.mp
+            }
+        }
+    }
+
+    /** 阶段 3 — 跨 Repository 清理（processBattleCasualties 拆分）：全建筑生产槽移除阵亡弟子 */
+    private suspend fun clearDeadFromProductionRepository(deadMemberIds: Set<String>) {
         // 2026-08-10：原实现只清锻造槽且跳过 isWorking——isWorking 跳过 = 战斗阵亡
         // 弟子继续占位生产（死亡中断不了生产），forge-only = 炼丹/灵田槽残留（双槽
         // 分叉根因）。改为全建筑清理（含进行中工作槽：弟子已阵亡，生产中段）。

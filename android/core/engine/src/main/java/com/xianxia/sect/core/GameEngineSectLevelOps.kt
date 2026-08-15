@@ -48,18 +48,14 @@ private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
  */
 suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = engineContextDispatcher.withEngineContext {
     val nowMs = System.currentTimeMillis()
-    val snapshot = stateStore.gameDataSnapshot
 
     // 检查是否在冷却中
-    val lastClaim = snapshot.sectLevelClaimRecords
-        .find { it.level == level }
-    if (lastClaim != null) {
-        val elapsed = nowMs - lastClaim.claimedAtEpochMs
-        if (elapsed < WEEK_MS) {
-            val nextClaimable = lastClaim.claimedAtEpochMs + WEEK_MS
-            DomainLog.d(TAG, "claimSectLevelReward: level=$level cooldown, nextClaimable=$nextClaimable")
-            return@withEngineContext SectLevelClaimResult.AlreadyClaimed(nextClaimable)
-        }
+    val cooldownResult = findSectLevelCooldownResult(
+        level = level,
+        nowMs = nowMs
+    )
+    if (cooldownResult != null) {
+        return@withEngineContext cooldownResult
     }
 
     val rewardCards = com.xianxia.sect.core.config.SectLevelRewardConfig.getRewardCards(level)
@@ -70,145 +66,27 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
 
     try {
         // 1. 预生成所有物品并收集飞行卡片（精灵图能正确匹配具体物品名）
-        val flyCards = mutableListOf<RewardCardItem>()
-        val beastBloodRarities = mutableMapOf<Int, Int>()
-        val storageBagRarities = mutableMapOf<Int, Int>()
-        var totalSpiritStones = 0L
-
-        rewardCards.forEach { card ->
-            when (card.itemType) {
-                "beastMaterial" -> {
-                    val existing = beastBloodRarities[card.rarity] ?: 0
-                    beastBloodRarities[card.rarity] = existing + card.quantity
-                }
-                "storageBag" -> {
-                    val existing = storageBagRarities[card.rarity] ?: 0
-                    storageBagRarities[card.rarity] = existing + card.quantity
-                }
-                "spiritStones" -> {
-                    totalSpiritStones += card.quantity.toLong()
-                }
-            }
-        }
-
-        // 预生成兽血材料（汇总到 Map<name, Pair<rarity, count>>）
-        val generatedBeastBlood = mutableMapOf<String, Pair<Int, Int>>()
-        beastBloodRarities.forEach { (rarity, count) ->
-            val bloodMaterials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
-                .filter { it.category == "blood" }
-            if (bloodMaterials.isNotEmpty()) {
-                repeat(count) {
-                    val template = bloodMaterials.random()
-                    val existing = generatedBeastBlood[template.name]
-                    if (existing != null) {
-                        generatedBeastBlood[template.name] = Pair(rarity, existing.second + 1)
-                    } else {
-                        generatedBeastBlood[template.name] = Pair(rarity, 1)
-                    }
-                }
-            }
-        }
-
-        // 生成兽血飞行卡片
-        generatedBeastBlood.forEach { (name, pair) ->
-            flyCards.add(RewardCardItem(
-                itemName = name,
-                itemType = "beastMaterial",
-                rarity = pair.first,
-                quantity = pair.second
-            ))
-        }
-
-        // 储物袋飞行卡片
-        storageBagRarities.forEach { (rarity, count) ->
-            val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-            flyCards.add(RewardCardItem(
-                itemName = bagName,
-                itemType = "storageBag",
-                rarity = rarity,
-                quantity = count
-            ))
-        }
-
-        // 灵石飞行卡片
-        if (totalSpiritStones > 0) {
-            flyCards.add(RewardCardItem(
-                itemName = ItemNames.SPIRIT_STONE,
-                itemType = "spiritStones",
-                rarity = 1,
-                quantity = totalSpiritStones.toInt().coerceAtMost(Int.MAX_VALUE)
-            ))
-        }
-
+        val prepared = buildSectLevelRewardCards(rewardCards)
         // 2. 写入 state（发放物品 + 记录领取时间戳）
         // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不写领取记录，
         // 玩家清理仓库后可重新领取，奖励不会永久消耗（凭据类路径：抑制溢出转邮件，
         // 溢出部分由重试补齐，避免"邮件 + 重试"重复发放）
-        var allSucceeded = true
-        stateStore.update {
-            inventorySystem.withOverflowMailSuppressed {
-            inventorySystem.withTrackingSource("sect_level") {
-            generatedBeastBlood.forEach { (name, pair) ->
-                val template = BeastMaterialDatabase.getMaterialsByRarity(pair.first)
-                    .find { it.name == name && it.category == "blood" }
-                if (template != null) {
-                    val material = Material(
-                        id = UUID.randomUUID().toString(),
-                        name = template.name,
-                        rarity = template.rarity,
-                        category = template.materialCategory,
-                        quantity = pair.second
-                    )
-                    // 对抗性审查 H2 修复：Partial/Failure 抛异常整体回滚（物品/灵石/记录均未写），
-                    // 凭据保留 → 玩家清理后重试全量，避免"部分入仓 + 凭据保留"重复发放
-                    when (val r = inventorySystem.addMaterial(material)) {
-                        is DomainResult.Success -> {}
-                        is DomainResult.Partial -> throw IllegalStateException("材料 ${material.name} 仓库空间不足，溢出 ${r.overflow} 个")
-                        is DomainResult.Failure -> throw IllegalStateException("材料 ${material.name} 添加失败: ${r.error}")
-                    }
-                }
-            }
-
-            storageBagRarities.forEach { (rarity, count) ->
-                val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
-                val r = inventorySystem.addStorageBag(
-                    StorageBag(
-                        id = UUID.randomUUID().toString(),
-                        name = bagName,
-                        rarity = rarity,
-                        quantity = count
-                    )
-                )
-                if (r !is DomainResult.Success) {
-                    throw IllegalStateException("储物袋 $bagName 发放失败: ${(r as? DomainResult.Failure)?.error}")
-                }
-            }
-
-            if (totalSpiritStones > 0) {
-                spiritStoneWallet.add(this, totalSpiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.SectLevelReward)
-            }
-
-            if (allSucceeded) {
-                val newRecord = SectLevelClaimRecord(
-                    level = level,
-                    claimedAtEpochMs = nowMs
-                )
-                val updatedRecords = gameData.sectLevelClaimRecords
-                    .filter { it.level != level } + newRecord
-                gameData = gameData.copy(sectLevelClaimRecords = updatedRecords)
-            }
-            }
-            }
-        }
+        writeSectLevelRewards(
+            level = level,
+            nowMs = nowMs,
+            prepared = prepared
+        )
 
         // 3. 入队飞行卡片（具体物品名，精灵图可正确解析）
         // 卡片仅在全部成功时入队（对抗性审查 M2 修复：失败时无幻影卡片）
-        if (flyCards.isNotEmpty()) {
-            stateStore.enqueueRewardCards(flyCards)
+        if (prepared.flyCards.isNotEmpty()) {
+            stateStore.enqueueRewardCards(prepared.flyCards)
         }
 
-        DomainLog.d(TAG, "claimSectLevelReward: level=$level success, claimedAt=$nowMs, flyCards=${flyCards.size}")
+        DomainLog.d(
+            TAG,
+            "claimSectLevelReward: level=$level success, claimedAt=$nowMs, flyCards=${prepared.flyCards.size}"
+        )
         return@withEngineContext SectLevelClaimResult.Success
     } catch (e: IllegalStateException) {
         // 容量不足/发放失败 → 事务整体回滚（物品/灵石/记录均未写），凭据保留可重试
@@ -219,6 +97,203 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
     } catch (e: Exception) {
         DomainLog.e(TAG, "claimSectLevelReward failed: level=$level", e)
         return@withEngineContext SectLevelClaimResult.Error("领取失败: ${e.message}")
+    }
+}
+
+/** 领取冷却检查（claimSectLevelReward 拆分）：距上次领取不足 7 天返回 AlreadyClaimed，否则 null */
+private suspend fun GameEngine.findSectLevelCooldownResult(
+    level: Int,
+    nowMs: Long
+): SectLevelClaimResult? {
+    val snapshot = stateStore.gameDataSnapshot
+
+    // 检查是否在冷却中
+    val lastClaim = snapshot.sectLevelClaimRecords
+        .find { it.level == level }
+    if (lastClaim != null) {
+        val elapsed = nowMs - lastClaim.claimedAtEpochMs
+        if (elapsed < WEEK_MS) {
+            val nextClaimable = lastClaim.claimedAtEpochMs + WEEK_MS
+            DomainLog.d(TAG, "claimSectLevelReward: level=$level cooldown, nextClaimable=$nextClaimable")
+            return SectLevelClaimResult.AlreadyClaimed(nextClaimable)
+        }
+    }
+    return null
+}
+
+/** 宗门等级奖励数量汇总（claimSectLevelReward 拆分） */
+private data class SectLevelRewardAggregate(
+    val beastBloodRarities: Map<Int, Int>,
+    val storageBagRarities: Map<Int, Int>,
+    val totalSpiritStones: Long
+)
+
+/** 宗门等级奖励预生成结果（claimSectLevelReward 拆分） */
+private data class SectLevelRewardPrepared(
+    val flyCards: List<RewardCardItem>,
+    val generatedBeastBlood: Map<String, Pair<Int, Int>>,
+    val storageBagRarities: Map<Int, Int>,
+    val totalSpiritStones: Long
+)
+
+/** 奖励卡片数量汇总（claimSectLevelReward 拆分）：按 itemType 聚合兽血/储物袋/灵石 */
+private fun GameEngine.aggregateSectLevelRewards(
+    rewardCards: List<RewardCardItem>
+): SectLevelRewardAggregate {
+    val beastBloodRarities = mutableMapOf<Int, Int>()
+    val storageBagRarities = mutableMapOf<Int, Int>()
+    var totalSpiritStones = 0L
+
+    rewardCards.forEach { card ->
+        when (card.itemType) {
+            "beastMaterial" -> {
+                val existing = beastBloodRarities[card.rarity] ?: 0
+                beastBloodRarities[card.rarity] = existing + card.quantity
+            }
+            "storageBag" -> {
+                val existing = storageBagRarities[card.rarity] ?: 0
+                storageBagRarities[card.rarity] = existing + card.quantity
+            }
+            "spiritStones" -> {
+                totalSpiritStones += card.quantity.toLong()
+            }
+        }
+    }
+    return SectLevelRewardAggregate(
+        beastBloodRarities = beastBloodRarities,
+        storageBagRarities = storageBagRarities,
+        totalSpiritStones = totalSpiritStones
+    )
+}
+
+/** 奖励预生成（claimSectLevelReward 拆分）：预生成兽血材料并构建全部飞行卡片 */
+private fun GameEngine.buildSectLevelRewardCards(
+    rewardCards: List<RewardCardItem>
+): SectLevelRewardPrepared {
+    val aggregate = aggregateSectLevelRewards(rewardCards)
+    val flyCards = mutableListOf<RewardCardItem>()
+
+    // 预生成兽血材料（汇总到 Map<name, Pair<rarity, count>>）
+    val generatedBeastBlood = mutableMapOf<String, Pair<Int, Int>>()
+    aggregate.beastBloodRarities.forEach { (rarity, count) ->
+        val bloodMaterials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
+            .filter { it.category == "blood" }
+        if (bloodMaterials.isNotEmpty()) {
+            repeat(count) {
+                val template = bloodMaterials.random()
+                val existing = generatedBeastBlood[template.name]
+                if (existing != null) {
+                    generatedBeastBlood[template.name] = Pair(rarity, existing.second + 1)
+                } else {
+                    generatedBeastBlood[template.name] = Pair(rarity, 1)
+                }
+            }
+        }
+    }
+
+    // 生成兽血飞行卡片
+    generatedBeastBlood.forEach { (name, pair) ->
+        flyCards.add(RewardCardItem(
+            itemName = name,
+            itemType = "beastMaterial",
+            rarity = pair.first,
+            quantity = pair.second
+        ))
+    }
+
+    // 储物袋飞行卡片
+    aggregate.storageBagRarities.forEach { (rarity, count) ->
+        val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+        flyCards.add(RewardCardItem(
+            itemName = bagName,
+            itemType = "storageBag",
+            rarity = rarity,
+            quantity = count
+        ))
+    }
+
+    // 灵石飞行卡片
+    if (aggregate.totalSpiritStones > 0) {
+        flyCards.add(RewardCardItem(
+            itemName = ItemNames.SPIRIT_STONE,
+            itemType = "spiritStones",
+            rarity = 1,
+            quantity = aggregate.totalSpiritStones.toInt().coerceAtMost(Int.MAX_VALUE)
+        ))
+    }
+
+    return SectLevelRewardPrepared(
+        flyCards = flyCards,
+        generatedBeastBlood = generatedBeastBlood,
+        storageBagRarities = aggregate.storageBagRarities,
+        totalSpiritStones = aggregate.totalSpiritStones
+    )
+}
+
+/** 奖励发放入账（claimSectLevelReward 拆分）：兽血/储物袋/灵石发放 + 领取记录写入（凭据类抑制溢出转邮件） */
+// 拆分搬移:多出口与原函数一致
+@Suppress("ThrowsCount")
+private fun GameEngine.writeSectLevelRewards(
+    level: Int,
+    nowMs: Long,
+    prepared: SectLevelRewardPrepared
+) {
+    // 2. 写入 state（发放物品 + 记录领取时间戳）：任一物品发放失败/溢出（仓库满）时不写领取记录，
+    // 凭据类路径抑制溢出转邮件，溢出部分由重试补齐，避免"邮件 + 重试"重复发放
+    var allSucceeded = true
+    stateStore.update {
+        inventorySystem.withOverflowMailSuppressed {
+        inventorySystem.withTrackingSource("sect_level") {
+        prepared.generatedBeastBlood.forEach { (name, pair) ->
+            val template = BeastMaterialDatabase.getMaterialsByRarity(pair.first)
+                .find { it.name == name && it.category == "blood" }
+            if (template != null) {
+                val material = Material(
+                    id = UUID.randomUUID().toString(),
+                    name = template.name,
+                    rarity = template.rarity,
+                    category = template.materialCategory,
+                    quantity = pair.second
+                )
+                // 对抗性审查 H2 修复：Partial/Failure 抛异常整体回滚（物品/灵石/记录均未写），
+                // 凭据保留 → 玩家清理后重试全量，避免"部分入仓 + 凭据保留"重复发放
+                when (val r = inventorySystem.addMaterial(material)) {
+                    is DomainResult.Success -> {}
+                    is DomainResult.Partial -> throw IllegalStateException("材料 ${material.name} 仓库空间不足，溢出 ${r.overflow} 个")
+                    is DomainResult.Failure -> throw IllegalStateException("材料 ${material.name} 添加失败: ${r.error}")
+                }
+            }
+        }
+        prepared.storageBagRarities.forEach { (rarity, count) ->
+            val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+            // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
+            val r = inventorySystem.addStorageBag(
+                StorageBag(
+                    id = UUID.randomUUID().toString(),
+                    name = bagName,
+                    rarity = rarity,
+                    quantity = count
+                )
+            )
+            if (r !is DomainResult.Success) {
+                throw IllegalStateException("储物袋 $bagName 发放失败: ${(r as? DomainResult.Failure)?.error}")
+            }
+        }
+        if (prepared.totalSpiritStones > 0) {
+            spiritStoneWallet.add(this, prepared.totalSpiritStones, SpiritStoneGrade.LOW,
+                SpiritStoneSource.SectLevelReward)
+        }
+        if (allSucceeded) {
+            val newRecord = SectLevelClaimRecord(
+                level = level,
+                claimedAtEpochMs = nowMs
+            )
+            val updatedRecords = gameData.sectLevelClaimRecords
+                .filter { it.level != level } + newRecord
+            gameData = gameData.copy(sectLevelClaimRecords = updatedRecords)
+        }
+        }
+        }
     }
 }
 

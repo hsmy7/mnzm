@@ -1,0 +1,41 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+// xianxia.android —— Android 库模块 convention plugin
+// 2026-08 债务根治（docs/build-perf/stage3-config-cache.md 技术债汇总）：
+// 7 模块重复的 SDK 配置（compileSdk 35 / minSdk 24 / targetSdk 35 / Java 17 /
+// UTF-8 / jvmTarget 17 / Xjsr305=strict）收编到本脚本，模块再增长或 KMP 迁移时
+// 只需改一处。原根 build.gradle afterEvaluate 全局注入已移除（配置缓存前置）。
+
+plugins {
+    id 'com.android.library'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    compileSdk = 35
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        encoding = 'UTF-8'
+    }
+
+    defaultConfig {
+        minSdk = 24
+        targetSdk = 35
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:-deprecation']
+}
+
+
+tasks.withType(KotlinCompile).configureEach {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_17
+        freeCompilerArgs.add('-Xjsr305=strict')
+    }
+}

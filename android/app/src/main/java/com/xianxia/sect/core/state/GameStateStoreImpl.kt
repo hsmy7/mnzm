@@ -860,13 +860,42 @@ class GameStateStoreImpl @Inject constructor(
             }
         }
 
-        var disciplesNeedReassemble = false
-        // D-01 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
-        // committed 标记事务是否成功提交——异常/取消传播到锁外时 finally 据此
-        // fireRollback（草稿丢弃，防复制）；成功则在锁外 fireCommitted（草稿落盘）。
+        // D-01：锁内事务主体（重入检测 + COW 提交 + 提交/回滚钩子）拆分到辅助函数
+        val outcome = executeUpdateTransaction(block = block)
+
+        // D-01：提交成功（锁外、事务线程）——提交钩子同步落盘（草稿持久化；
+        // 观察者异常由 fireCommitted 内部捕获，不得破坏状态提交）
+        if (outcome.committed && outcome.txGen > 0L) fireCommitted(outcome.txGen)
+
+        // 在锁外执行增量 assemble，减少 transactionMutex 持有时间。
+        // 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
+        // 只重新组装有变化的弟子，与全量缓存合并。
+        // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+        // ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
+        //   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
+        if (outcome.disciplesNeedReassemble) {
+            dispatchAssemble()
+        }
+    }
+
+    /** update 事务结果（update 拆分）：锁外阶段（fireCommitted/dispatchAssemble）所需状态 */
+    private data class TransactionOutcome(
+        val txGen: Long,
+        val committed: Boolean,
+        val disciplesNeedReassemble: Boolean
+    )
+
+    /**
+     * update 拆分：锁内事务主体（重入检测 + COW 提交 + 提交/回滚钩子）。
+     *
+     * D-01 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
+     * committed 标记事务是否成功提交——异常/取消传播到锁外时 finally 据此
+     * fireRollback（草稿丢弃，防复制）；成功则在锁外 fireCommitted（草稿落盘）。
+     */
+    private fun executeUpdateTransaction(block: MutableGameState.() -> Unit): TransactionOutcome {
         var txGen = 0L
         var committed = false
-
+        var disciplesNeedReassemble = false
         try {
             transactionLock.withLock {
                 val lockStartNs = System.nanoTime()
@@ -883,68 +912,25 @@ class GameStateStoreImpl @Inject constructor(
                     // D-01：分配本事务世代号（嵌套事务重入路径不达此处，归外层事务）
                     txGen = committedGeneration.incrementAndGet()
                     pendingGeneration = txGen
-                reentrantBuffer.set(reusableMutableState)
-                val baseline = captureBaseline()
-                initReusableState(baseline)
-                val notificationBeforeBlock = reusableMutableState.pendingNotification
-                val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
-                executeBlockWithRngGuard(block)
-                // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
-                freezeStores()
-                val flags = resolveCommitFlags(
-                    baseline,
-                    reusableMutableState.pendingNotification !== notificationBeforeBlock,
-                    reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
-                )
-                // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
-                // ★ 已移除自动批量发射模式：该模式在 ≥3 字段变化时抑制个体发射，
-                // 导致时间和仓库显示冻结，而修炼流（锁外异步组装）继续更新。
-                emitStateFlows(baseline, flags)
-                // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
-                // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
-                // 用 isDirty 判定"本次事务是否真的改了弟子数据"：
-                // 纯 UI 事务（无弟子数据变更）不再触发全量 assembleAll。
-                // 所有生产写路径（列级写入/insert/update/remove/replaceAll/
-                // markDead/clear）均伴随列级 onWrite → dirtyTracker 标记。
-                disciplesNeedReassemble = reusableMutableState.discipleTables.dirtyTracker.isDirty
-                if (disciplesNeedReassemble) {
-                    // 锁内仅标记，实际 assembleAll() 在锁外执行
-                    // 减少 transactionMutex 持有时间，降低游戏循环锁争用
-                    _discipleDirty = true
-                }
-                markDirtyFor(baseline, disciplesNeedReassemble)
-                // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
-                if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
-                    _updateVersion.value++
-                    _stateDirty = true
-                }
-                // P-5：血炼百分比变化（不触发弟子组装）时同步重算战力——
-                // 指纹缓存使仅血炼弟子重算、其余命中（O(D) 引用比较 + 缓存查找，微秒级）；
-                // 弟子同时变化时由锁外 assemble 写回点（updateAggregates）统一重算。
-                // S3 修复（对抗性审查）：cachedAggregates 为空（load/reset 窗口）时跳过——
-                // 空缓存重算战力=0 会闪 0，且此时全量冷算在锁内（load 已清指纹缓存）；
-                // 由随后的 assemble 写回点用最新血炼补算。
-                if (reusableMutableState.gameData.bloodRefinementPctTotals
-                    !== baseline.gameData.bloodRefinementPctTotals &&
-                    !disciplesNeedReassemble && cachedAggregates.isNotEmpty()
-                ) {
-                    _combatPowerFlow.value = computeCombatPower(
-                        cachedAggregates, reusableMutableState.gameData.bloodRefinementPctTotals
+                    reentrantBuffer.set(reusableMutableState)
+                    val baseline = captureBaseline()
+                    initReusableState(baseline)
+                    val notificationBeforeBlock = reusableMutableState.pendingNotification
+                    val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
+                    executeBlockWithRngGuard(block)
+                    // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
+                    freezeStores()
+                    val flags = resolveCommitFlags(
+                        baseline = baseline,
+                        notificationChanged = reusableMutableState.pendingNotification !== notificationBeforeBlock,
+                        proposalsChanged = reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
                     )
-                }
-                _discipleTables = reusableMutableState.discipleTables
-                _discipleTables.writeAllowed = false  // ★ 出厂后锁定，防止绕过 update{} 直接写
-                // P-3：捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
-                // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
-                lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
-
-                // ANR 诊断：记录锁内耗时超过阈值的 update 调用
-                val lockElapsedMs = (System.nanoTime() - lockStartNs) / 1_000_000
-                if (lockElapsedMs > UPDATE_WARN_THRESHOLD_MS) {
-                    com.xianxia.sect.core.util.DomainLog.w(
-                        TAG, "update() 锁内耗时 ${lockElapsedMs}ms（阈值=${UPDATE_WARN_THRESHOLD_MS}ms）"
-                    )
-                }
+                    // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
+                    // ★ 已移除自动批量发射模式：该模式在 ≥3 字段变化时抑制个体发射，
+                    // 导致时间和仓库显示冻结，而修炼流（锁外异步组装）继续更新。
+                    emitStateFlows(baseline = baseline, flags = flags)
+                    disciplesNeedReassemble = commitUpdateState(baseline = baseline, flags = flags)
+                    logSlowLockTime(lockStartNs = lockStartNs)
                 } finally {
                     reusableMutableState.discipleTables.writeAllowed = false
                     reentrantCount.set(0)
@@ -954,27 +940,72 @@ class GameStateStoreImpl @Inject constructor(
             committed = true
         } finally {
             // D-01：世代号复位 + 回滚钩子（异常/取消传播路径；草稿丢弃防复制）。
-            // fireRollback 在 pendingGeneration 复位后执行（观察者读到 0）。
             // ★ 嵌套（重入）update 不分配世代号（txGen=0），不得清零 pendingGeneration——
-            // 否则外层事务尚未提交，草稿入队读 gen=0 走立即落盘路径，回滚时草稿已持久化
-            // （复制）；嵌套事务归外层，世代号由外层事务统一提交/回滚。
+            // 否则外层事务尚未提交，草稿入队读 gen=0 走立即落盘路径，回滚时草稿已持久化（复制）。
             if (txGen > 0L) pendingGeneration = 0
             if (!committed && txGen > 0L) fireRollback(txGen)
         }
-        // D-01：提交成功（锁外、事务线程）——提交钩子同步落盘（草稿持久化；
-        // 观察者异常由 fireCommitted 内部捕获，不得破坏状态提交）
-        if (committed && txGen > 0L) fireCommitted(txGen)
+        return TransactionOutcome(
+            txGen = txGen,
+            committed = committed,
+            disciplesNeedReassemble = disciplesNeedReassemble
+        )
+    }
 
-        // 在锁外执行增量 assemble，减少 transactionMutex 持有时间。
-        // 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
-        // 只重新组装有变化的弟子，与全量缓存合并。
-        // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
-        // ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
-        //   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
+    /**
+     * update 拆分：提交阶段——脏标记/版本号/血炼战力重算/表切换。
+     *
+     * @return 本次事务是否真的改了弟子数据（决定锁外是否触发全量 assemble）
+     */
+    private fun commitUpdateState(baseline: UpdateBaseline, flags: CommitFlags): Boolean {
+        // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
+        // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
+        // 用 isDirty 判定"本次事务是否真的改了弟子数据"：
+        // 纯 UI 事务（无弟子数据变更）不再触发全量 assembleAll。
+        // 所有生产写路径（列级写入/insert/update/remove/replaceAll/
+        // markDead/clear）均伴随列级 onWrite → dirtyTracker 标记。
+        val disciplesNeedReassemble = reusableMutableState.discipleTables.dirtyTracker.isDirty
         if (disciplesNeedReassemble) {
-            dispatchAssemble()
+            // 锁内仅标记，实际 assembleAll() 在锁外执行
+            // 减少 transactionMutex 持有时间，降低游戏循环锁争用
+            _discipleDirty = true
         }
+        markDirtyFor(baseline, disciplesNeedReassemble)
+        // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
+        if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
+            _updateVersion.value++
+            _stateDirty = true
+        }
+        // P-5：血炼百分比变化（不触发弟子组装）时同步重算战力——
+        // 指纹缓存使仅血炼弟子重算、其余命中（O(D) 引用比较 + 缓存查找，微秒级）；
+        // 弟子同时变化时由锁外 assemble 写回点（updateAggregates）统一重算。
+        // S3 修复（对抗性审查）：cachedAggregates 为空（load/reset 窗口）时跳过——
+        // 空缓存重算战力=0 会闪 0，且此时全量冷算在锁内（load 已清指纹缓存）；
+        // 由随后的 assemble 写回点用最新血炼补算。
+        if (reusableMutableState.gameData.bloodRefinementPctTotals
+            !== baseline.gameData.bloodRefinementPctTotals &&
+            !disciplesNeedReassemble && cachedAggregates.isNotEmpty()
+        ) {
+            _combatPowerFlow.value = computeCombatPower(
+                cachedAggregates, reusableMutableState.gameData.bloodRefinementPctTotals
+            )
+        }
+        _discipleTables = reusableMutableState.discipleTables
+        _discipleTables.writeAllowed = false  // ★ 出厂后锁定，防止绕过 update{} 直接写
+        // P-3：捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
+        // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
+        lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
+        return disciplesNeedReassemble
+    }
 
+    /** ANR 诊断（update 拆分）：记录锁内耗时超过阈值的 update 调用 */
+    private fun logSlowLockTime(lockStartNs: Long) {
+        val lockElapsedMs = (System.nanoTime() - lockStartNs) / 1_000_000
+        if (lockElapsedMs > UPDATE_WARN_THRESHOLD_MS) {
+            com.xianxia.sect.core.util.DomainLog.w(
+                TAG, "update() 锁内耗时 ${lockElapsedMs}ms（阈值=${UPDATE_WARN_THRESHOLD_MS}ms）"
+            )
+        }
     }
 
     /**
@@ -1275,97 +1306,182 @@ class GameStateStoreImpl @Inject constructor(
             // 2026-08-01 修复：版本号递增必须**最先**执行（clear 之前）——
             // 排队中的增量组装若在 load 获取锁前通过 gen 检查，会与 clear+insert 并发
             discipleVersion.incrementAndGet()
-            // 缓存清除在所有写入之前执行
+            // 缓存清除在所有写入之前执行；聚合缓存同时失效——load 整体替换
+            // 弟子列表，否则增量 diff 会用旧缓存与新列表错误合并
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
-            // 2026-08-01：聚合缓存失效——load 整体替换弟子列表，
-            // 否则增量 diff 会用旧缓存与新列表错误合并
             cachedAggregates = emptyList()
 
             // 保存旧值用于失败回滚（C-8 拆分：LoadBaseline 聚合）
-            val baseline = LoadBaseline(
-                gameData = _gameDataFlow.value,
-                // ★ 2026-08-09 修复：disciples 必须用同步组装而非 _disciplesFlow.value——
-                // flow 由 assembleDispatcher 异步发布，update{} 刚提交后立即读档时
-                // flow 可能仍是旧值/空（GameStateStoreRollbackTest 偶发失败根因），
-                // 回滚会重建出空弟子列表 → 读档失败即丢全部弟子。表状态同步可读。
-                disciples = _discipleTables.assembleAll(),
-                equipmentStacks = _equipmentStacksFlow.value,
-                equipmentInstances = _equipmentInstancesFlow.value,
-                manualStacks = _manualStacksFlow.value,
-                manualInstances = _manualInstancesFlow.value,
-                pills = _pillsFlow.value,
-                materials = _materialsFlow.value,
-                herbs = _herbsFlow.value,
-                seeds = _seedsFlow.value,
-                storageBags = _storageBagsFlow.value,
-                battleLogs = _battleLogsFlow.value,
-                isPaused = _isPaused.value,
-                isLoading = _isLoading.value,
-                isSaving = _isSaving.value,
-                // clear() 现会清空 _deathRecords——回滚时需恢复
-                deathRecords = _discipleTables.deathRecords.toList()
-            )
+            val baseline = captureLoadBaseline()
 
             try {
-                // P-9：旧档事件 sequenceId 一次性回填（旧档全 0 → 按列表序分配，
-                // 保证消息列表稳定 key；新档无 0 序号时零成本跳过）
-                _gameDataFlow.value = backfillEventSequenceIds(gameData)
-                _disciplesFlow.value = disciples
-                _discipleTables.apply { writeAllowed = true }.clear()
-                disciples.forEach { _discipleTables.insert(it) }
-
-                // 血炼旧绝对值 → 新百分比乘区 一次性迁移
-                migrateBloodRefinementFromAbsoluteToPct()
-
-                _equipmentStacksFlow.value = equipmentStacks
-                _equipmentInstancesFlow.value = equipmentInstances
-                _manualStacksFlow.value = manualStacks
-                _manualInstancesFlow.value = manualInstances
-                _pillsFlow.value = pills
-                _materialsFlow.value = materials
-                _herbsFlow.value = herbs
-                _seedsFlow.value = seeds
-                _storageBagsFlow.value = storageBags
-                _battleLogsFlow.value = battleLogs
-                _isPaused.value = isPaused
-                _isLoading.value = isLoading
-                _isSaving.value = isSaving
-                repository.setActiveSlot(gameData.slotId)
-                repository.markAllDirty()
-                _updateVersion.value++
-                _stateDirty = false
-                _discipleDirty = false
-                // P0-1：状态 + RNG 锁内原子切换——读档成功后用存档内的 rngStates
-                // 覆盖当前 PRNG 状态（原在 SaveLoadViewModel 的 UI 协程中 restoreStates，
-                // 位置在 loadData 之后：load 成功但其后失败会错过恢复 → 状态/RNG 错配）
-                if (gameData.rngStates.isNotEmpty()) {
-                    rngSnapshotPort.restore(gameData.rngStates)
-                }
+                applyLoadedCore(gameData = gameData, disciples = disciples)
+                applyLoadedEntities(
+                    entities = LoadedEntities(
+                        equipmentStacks = equipmentStacks,
+                        equipmentInstances = equipmentInstances,
+                        manualStacks = manualStacks,
+                        manualInstances = manualInstances,
+                        pills = pills,
+                        materials = materials,
+                        herbs = herbs,
+                        seeds = seeds,
+                        storageBags = storageBags,
+                        battleLogs = battleLogs
+                    )
+                )
+                finalizeLoadedState(
+                    gameData = gameData,
+                    isPaused = isPaused,
+                    isLoading = isLoading,
+                    isSaving = isSaving
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                rollbackLoad(baseline, e, rngBaseline)
+                rollbackLoad(baseline = baseline, e = e, rngBaseline = rngBaseline)
                 throw e
             } catch (e: OutOfMemoryError) {
-                // C3-c（2026-08-05）：OOM 是 Error 非 Exception，原 catch 接不住——
-                // crafted 大 id 弟子扩容千万级平铺表（≈7GB）直接崩溃且重试即崩溃循环。
-                // 状态已撕裂必须先回滚（内存耗尽时尽力而为），再转 IllegalStateException
-                // 使外层统一走失败处理（StorageEngine / performLoadToSlot）
-                try {
-                    rollbackLoad(baseline, IllegalStateException("读档内存不足", e), rngBaseline)
-                } catch (@Suppress("TooGenericExceptionCaught") rollbackFailure: Exception) {
-                    // 内存耗尽时回滚失败类型不可预期（赋值/扩容均可能抛），必须全吞尽力而为
-                    DomainLog.e(TAG, "OOM 回滚失败（内存已耗尽）", rollbackFailure)
-                }
-                throw IllegalStateException("读档内存不足，存档可能异常过大", e)
+                rollbackLoadOnOom(
+                    baseline = baseline,
+                    e = e,
+                    rngBaseline = rngBaseline
+                )
             } finally {
                 _discipleTables.writeAllowed = false
             }
         }
-        // ★ 锁外投递组装（版本号已在锁内最先递增——2026-08-01 修复）：
-        // 递增版本号作废 assembleDispatcher 队列中基于旧数据的排队任务，
-        // 并将本组装投递到同一单线程调度器——避免与增量组装协程并发交错
+        // ★ 锁外投递组装（版本号已在锁内最先递增——2026-08-01 修复）
+        dispatchAssembleAfterLoad()
+    }
+
+    /** loadFromSnapshot 拆分：事务前旧值快照（失败回滚基线） */
+    private fun captureLoadBaseline(): LoadBaseline {
+        return LoadBaseline(
+            gameData = _gameDataFlow.value,
+            // ★ 2026-08-09 修复：disciples 必须用同步组装而非 _disciplesFlow.value——
+            // flow 由 assembleDispatcher 异步发布，update{} 刚提交后立即读档时
+            // flow 可能仍是旧值/空（GameStateStoreRollbackTest 偶发失败根因），
+            // 回滚会重建出空弟子列表 → 读档失败即丢全部弟子。表状态同步可读。
+            disciples = _discipleTables.assembleAll(),
+            equipmentStacks = _equipmentStacksFlow.value,
+            equipmentInstances = _equipmentInstancesFlow.value,
+            manualStacks = _manualStacksFlow.value,
+            manualInstances = _manualInstancesFlow.value,
+            pills = _pillsFlow.value,
+            materials = _materialsFlow.value,
+            herbs = _herbsFlow.value,
+            seeds = _seedsFlow.value,
+            storageBags = _storageBagsFlow.value,
+            battleLogs = _battleLogsFlow.value,
+            isPaused = _isPaused.value,
+            isLoading = _isLoading.value,
+            isSaving = _isSaving.value,
+            // clear() 现会清空 _deathRecords——回滚时需恢复
+            deathRecords = _discipleTables.deathRecords.toList()
+        )
+    }
+
+    /** loadFromSnapshot 拆分：游戏数据 + 弟子表应用（含血炼旧绝对值→百分比迁移） */
+    private fun applyLoadedCore(gameData: GameData, disciples: List<Disciple>) {
+        // P-9：旧档事件 sequenceId 一次性回填（旧档全 0 → 按列表序分配，
+        // 保证消息列表稳定 key；新档无 0 序号时零成本跳过）
+        _gameDataFlow.value = backfillEventSequenceIds(gameData)
+        _disciplesFlow.value = disciples
+        _discipleTables.apply { writeAllowed = true }.clear()
+        disciples.forEach { _discipleTables.insert(it) }
+
+        // 血炼旧绝对值 → 新百分比乘区 一次性迁移
+        migrateBloodRefinementFromAbsoluteToPct()
+    }
+
+    /** loadFromSnapshot 拆分：10 个仓库实体流应用（实体数据经 [LoadedEntities] 聚合，避免超长参数列表） */
+    private fun applyLoadedEntities(entities: LoadedEntities) {
+        _equipmentStacksFlow.value = entities.equipmentStacks
+        _equipmentInstancesFlow.value = entities.equipmentInstances
+        _manualStacksFlow.value = entities.manualStacks
+        _manualInstancesFlow.value = entities.manualInstances
+        _pillsFlow.value = entities.pills
+        _materialsFlow.value = entities.materials
+        _herbsFlow.value = entities.herbs
+        _seedsFlow.value = entities.seeds
+        _storageBagsFlow.value = entities.storageBags
+        _battleLogsFlow.value = entities.battleLogs
+    }
+
+    /** loadFromSnapshot 拆分：读档实体数据聚合 */
+    private data class LoadedEntities(
+        val equipmentStacks: List<EquipmentStack>,
+        val equipmentInstances: List<EquipmentInstance>,
+        val manualStacks: List<ManualStack>,
+        val manualInstances: List<ManualInstance>,
+        val pills: List<Pill>,
+        val materials: List<Material>,
+        val herbs: List<Herb>,
+        val seeds: List<Seed>,
+        val storageBags: List<StorageBag>,
+        val battleLogs: List<BattleLog>
+    )
+
+    /**
+     * loadFromSnapshot 拆分：加载收尾——状态三连/仓库激活/脏标记/版本号/RNG 恢复。
+     *
+     * P0-1：状态 + RNG 锁内原子切换——读档成功后用存档内的 rngStates 覆盖当前
+     * PRNG 状态（原在 SaveLoadViewModel 的 UI 协程中 restoreStates，位置在 loadData
+     * 之后：load 成功但其后失败会错过恢复 → 状态/RNG 错配）
+     */
+    private fun finalizeLoadedState(
+        gameData: GameData,
+        isPaused: Boolean,
+        isLoading: Boolean,
+        isSaving: Boolean
+    ) {
+        _isPaused.value = isPaused
+        _isLoading.value = isLoading
+        _isSaving.value = isSaving
+        repository.setActiveSlot(gameData.slotId)
+        repository.markAllDirty()
+        _updateVersion.value++
+        _stateDirty = false
+        _discipleDirty = false
+        if (gameData.rngStates.isNotEmpty()) {
+            rngSnapshotPort.restore(gameData.rngStates)
+        }
+    }
+
+    /**
+     * loadFromSnapshot 拆分：OOM 失败路径——尽力回滚后转 IllegalStateException。
+     *
+     * C3-c（2026-08-05）：OOM 是 Error 非 Exception，原 catch 接不住——crafted 大 id
+     * 弟子扩容千万级平铺表（≈7GB）直接崩溃且重试即崩溃循环。状态已撕裂必须先回滚
+     * （内存耗尽时尽力而为），再转 IllegalStateException 使外层统一走失败处理。
+     */
+    private fun rollbackLoadOnOom(
+        baseline: LoadBaseline,
+        e: OutOfMemoryError,
+        rngBaseline: Map<Int, Long>
+    ) {
+        try {
+            rollbackLoad(
+                baseline = baseline,
+                e = IllegalStateException("读档内存不足", e),
+                rngBaseline = rngBaseline
+            )
+        } catch (@Suppress("TooGenericExceptionCaught") rollbackFailure: Exception) {
+            // 内存耗尽时回滚失败类型不可预期（赋值/扩容均可能抛），必须全吞尽力而为
+            DomainLog.e(TAG, "OOM 回滚失败（内存已耗尽）", rollbackFailure)
+        }
+        throw IllegalStateException("读档内存不足，存档可能异常过大", e)
+    }
+
+    /**
+     * loadFromSnapshot 拆分：锁外全量组装投递。
+     *
+     * ★ 递增版本号作废 assembleDispatcher 队列中基于旧数据的排队任务，并将本组装
+     * 投递到同一单线程调度器——避免与增量组装协程并发交错（2026-08-01 修复）。
+     */
+    private fun dispatchAssembleAfterLoad() {
         val gen = discipleVersion.get()
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch

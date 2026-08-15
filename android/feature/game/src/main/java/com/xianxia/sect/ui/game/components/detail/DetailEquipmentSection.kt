@@ -130,43 +130,21 @@ fun EquipmentSelectionDialog(
     onDismiss: () -> Unit,
     viewModel: GameViewModel? = null
 ) {
-    val slotTypeText = when (slotType) {
-        "weapon" -> "武器"
-        "armor" -> "护甲"
-        "boots" -> "靴子"
-        "accessory" -> "饰品"
-        else -> "装备"
-    }
+    val slotTypeText = equipmentSelectionSlotText(slotType = slotType)
 
-    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
-        ?: emptySet()
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
 
-    val availableItems = remember(allEquipment, equipmentStacks, slotType, currentEquipmentId, currentDiscipleId, discipleRealm, watchedKeys) {
-        val slotEnum = try {
-            EquipmentSlot.valueOf(slotType.uppercase(Locale.getDefault()))
-        } catch (_: Exception) {
-            EquipmentSlot.WEAPON
-        }
-
-        val stacks = equipmentStacks.filter { stack ->
-            stack.slot == slotEnum &&
-            GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
-        }.map { stack -> EquipmentSelectionItem(stack.id, stack.name, stack.rarity, stack.quantity, stack.isLocked, true) }
-
-        val instances = allEquipment.filter {
-            it.slot == slotEnum &&
-            it.id != currentEquipmentId &&
-            (it.ownerId == null || it.ownerId == currentDiscipleId) &&
-            GameConfig.Realm.meetsRealmRequirement(discipleRealm, it.minRealm)
-        }.map { inst -> EquipmentSelectionItem(inst.id, inst.name, inst.rarity, 1, false, false) }
-
-        (stacks + instances).sortedByWatchedThenRarity(
-            watchedKeys,
-            keyOf = { watchKey("equipment", it.name) },
-            rarityOf = { it.rarity },
-            nameOf = { it.name }
+    val availableItems = rememberAvailableEquipment(
+        params = EquipmentSelectionParams(
+            allEquipment = allEquipment,
+            equipmentStacks = equipmentStacks,
+            slotType = slotType,
+            currentEquipmentId = currentEquipmentId,
+            currentDiscipleId = currentDiscipleId,
+            discipleRealm = discipleRealm,
+            watchedKeys = watchedKeys
         )
-    }
+    )
 
     var showDetailItem by remember { mutableStateOf<Any?>(null) }
 
@@ -181,54 +159,25 @@ fun EquipmentSelectionDialog(
             Spacer(modifier = Modifier.height(12.dp))
 
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (availableItems.isEmpty()) {
-                    Text(
-                        text = "暂无可用的$slotTypeText",
-                        fontSize = 12.sp,
-                        color = Color.Black,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                    )
-                } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(60.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 400.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        items(availableItems, key = { it.id }, contentType = { "equipment_selection_item" }) { item ->
-                            UnifiedItemCard(
-                                data = ItemCardData(
-                                    id = item.id,
-                                    name = item.name,
-                                    rarity = item.rarity,
-                                    quantity = item.quantity,
-                                    isLocked = item.isLocked
-                                ),
-                                isSelected = selectedEquipmentId == item.id,
-                                isFollowed = watchKey("equipment", item.name) in watchedKeys,
-                                onClick = {
-                                    onSelect(item.id)
-                                },
-                                onLongPress = {
-                                    if (item.isStack) {
-                                        equipmentStacks.find { it.id == item.id }?.let { showDetailItem = it }
-                                    } else {
-                                        allEquipment.find { it.id == item.id }?.let { showDetailItem = it }
-                                    }
-                                }
-                            )
+                EquipmentGridContent(
+                    availableItems = availableItems,
+                    slotTypeText = slotTypeText,
+                    selectedEquipmentId = selectedEquipmentId,
+                    watchedKeys = watchedKeys,
+                    onItemClick = onSelect,
+                    onItemLongPress = { item ->
+                        if (item.isStack) {
+                            equipmentStacks.find { it.id == item.id }?.let { showDetailItem = it }
+                        } else {
+                            allEquipment.find { it.id == item.id }?.let { showDetailItem = it }
                         }
                     }
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 GameButton(
                     text = "取消",
                     onClick = onDismiss
@@ -242,12 +191,136 @@ fun EquipmentSelectionDialog(
         }
     }
 
-    showDetailItem?.let { item ->
+    EquipmentDetailDialog(
+        item = showDetailItem,
+        viewModel = viewModel,
+        onDismiss = { showDetailItem = null }
+    )
+}
+
+/** 装备详情弹窗（EquipmentSelectionDialog 拆分） */
+@Composable
+private fun EquipmentDetailDialog(
+    item: Any?,
+    viewModel: GameViewModel?,
+    onDismiss: () -> Unit
+) {
+    if (item != null) {
         ItemDetailDialog(
             item = item,
-            onDismiss = { showDetailItem = null },
+            onDismiss = onDismiss,
             viewModel = viewModel
         )
+    }
+}
+
+/** 装备槽位中文名（EquipmentSelectionDialog 拆分） */
+private fun equipmentSelectionSlotText(slotType: String): String = when (slotType) {
+    "weapon" -> "武器"
+    "armor" -> "护甲"
+    "boots" -> "靴子"
+    "accessory" -> "饰品"
+    else -> "装备"
+}
+
+/** 装备选择参数打包（EquipmentSelectionDialog 拆分，参数 >6 规避 LongParameterList） */
+private data class EquipmentSelectionParams(
+    val allEquipment: List<EquipmentInstance>,
+    val equipmentStacks: List<EquipmentStack>,
+    val slotType: String,
+    val currentEquipmentId: String?,
+    val currentDiscipleId: String,
+    val discipleRealm: Int,
+    val watchedKeys: Set<String>
+)
+
+/** 可选装备列表计算（EquipmentSelectionDialog 拆分）：栈装备 + 实例装备合并排序 */
+@Composable
+private fun rememberAvailableEquipment(
+    params: EquipmentSelectionParams
+): List<EquipmentSelectionItem> {
+    return remember(
+        params.allEquipment,
+        params.equipmentStacks,
+        params.slotType,
+        params.currentEquipmentId,
+        params.currentDiscipleId,
+        params.discipleRealm,
+        params.watchedKeys
+    ) {
+        val slotEnum = try {
+            EquipmentSlot.valueOf(params.slotType.uppercase(Locale.getDefault()))
+        } catch (_: Exception) {
+            EquipmentSlot.WEAPON
+        }
+
+        val stacks = params.equipmentStacks.filter { stack ->
+            stack.slot == slotEnum &&
+            GameConfig.Realm.meetsRealmRequirement(params.discipleRealm, stack.minRealm)
+        }.map { stack -> EquipmentSelectionItem(stack.id, stack.name, stack.rarity, stack.quantity, stack.isLocked, true) }
+
+        val instances = params.allEquipment.filter {
+            it.slot == slotEnum &&
+            it.id != params.currentEquipmentId &&
+            (it.ownerId == null || it.ownerId == params.currentDiscipleId) &&
+            GameConfig.Realm.meetsRealmRequirement(params.discipleRealm, it.minRealm)
+        }.map { inst -> EquipmentSelectionItem(inst.id, inst.name, inst.rarity, 1, false, false) }
+
+        (stacks + instances).sortedByWatchedThenRarity(
+            params.watchedKeys,
+            keyOf = { watchKey("equipment", it.name) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
+    }
+}
+
+/** 装备选择网格区（EquipmentSelectionDialog 拆分）：空态提示 + 装备网格 */
+@Composable
+private fun EquipmentGridContent(
+    availableItems: List<EquipmentSelectionItem>,
+    slotTypeText: String,
+    selectedEquipmentId: String?,
+    watchedKeys: Set<String>,
+    onItemClick: (String) -> Unit,
+    onItemLongPress: (EquipmentSelectionItem) -> Unit
+) {
+    if (availableItems.isEmpty()) {
+        Text(
+            text = "暂无可用的$slotTypeText",
+            fontSize = 12.sp,
+            color = Color.Black,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+        )
+    } else {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(60.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 400.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(availableItems, key = { it.id }, contentType = { "equipment_selection_item" }) { item ->
+                UnifiedItemCard(
+                    data = ItemCardData(
+                        id = item.id,
+                        name = item.name,
+                        rarity = item.rarity,
+                        quantity = item.quantity,
+                        isLocked = item.isLocked
+                    ),
+                    isSelected = selectedEquipmentId == item.id,
+                    isFollowed = watchKey("equipment", item.name) in watchedKeys,
+                    onClick = {
+                        onItemClick(item.id)
+                    },
+                    onLongPress = {
+                        onItemLongPress(item)
+                    }
+                )
+            }
+        }
     }
 }
 

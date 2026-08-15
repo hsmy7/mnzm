@@ -12,7 +12,7 @@ import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.event.EventBus
-import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.core.state.testGameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -56,7 +56,7 @@ class InventorySystemOverflowMailTest {
     @Before
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        stateStore = GameStateStoreImpl(scopeProvider, testGameStateRepository())
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         handler = CollectingOverflowMailHandler()

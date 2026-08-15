@@ -1,3 +1,4 @@
+@file:Suppress("FileLength") // 拆分聚合:提取的私有辅助函数集中在原文件,文件级复杂度为拆分代价
 package com.xianxia.sect.ui.game
 
 import android.util.Log
@@ -44,6 +45,7 @@ import com.xianxia.sect.ui.game.saveload.PersistenceFacade
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlin.coroutines.resume
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
@@ -179,14 +181,14 @@ class SaveLoadViewModel @Inject constructor(
     /** 玩家确认覆盖目标槽位后继续云读档 */
     fun confirmCloudOverwrite() {
         _cloudOverwriteRequest.value = null
-        cloudOverwriteContinuation?.resume(true, null)
+        cloudOverwriteContinuation?.resume(true)
         cloudOverwriteContinuation = null
     }
 
     /** 玩家拒绝覆盖，中止云读档（不落盘不读档） */
     fun cancelCloudOverwrite() {
         _cloudOverwriteRequest.value = null
-        cloudOverwriteContinuation?.resume(false, null)
+        cloudOverwriteContinuation?.resume(false)
         cloudOverwriteContinuation = null
         pendingCloudLoadData = null
     }
@@ -435,92 +437,106 @@ class SaveLoadViewModel @Inject constructor(
      * 创建新游戏 → RNG 播种 → 首存（失败重试一次）→ BootSequenceController 启动。
      */
     private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long) {
-            var needSlotRefresh = false
-            var gameStarted = false
-            try {
-                setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "newgame")
+        var needSlotRefresh = false
+        var gameStarted = false
+        try {
+            setSaveLoadState(isLoading = true, pendingSlot = slot, pendingAction = "newgame")
 
+            _loadingProgress.value = PROGRESS_START
+
+            Log.d(TAG, "startNewGame: Calling gameEngine.createNewGame(sectName=$sectName, slot=$slot)")
+            gameEngine.createNewGame(sectName, slot)
+            Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")
+
+            // RNG 播种已收敛到 GameEngine.createNewGame 内部（引擎线程）：
+            // initSystemSeed（8 分区）与 AISectDiscipleManager.initForSlot 均在引擎侧完成，
+            // 避免 UI 协程与引擎线程 RNG 消费/播种并发竞争（P0-1b）
+            Log.d(TAG, "startNewGame: RNG seeded with mapSeed=${gameEngine.gameData.value.mapSeed}")
+
+            persistenceFacade.storageFacade.setCurrentSlot(slot)
+            Log.d(TAG, "Active slot set to $slot")
+
+            var saveSuccess = performInitialSaveForNewGame(slot = slot)
+            needSlotRefresh = true
+            if (!saveSuccess) {
+                return
+            }
+
+            gameStarted = performNewGameBoot(slot = slot, startTime = startTime)
+        } catch (e: CancellationException) {
+            Log.w(TAG, "startNewGame cancelled")
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
+            showError(e.message ?: "开始新游戏失败")
+        } finally {
+            // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
+            // C4（2026-08-05）：归属化复位（被取代的协程不复位标志/不清理）
+            resetOwnedLoadState("startNewGame")
+            if (!gameStarted) {
                 _loadingProgress.value = PROGRESS_START
-
-                Log.d(TAG, "startNewGame: Calling gameEngine.createNewGame(sectName=$sectName, slot=$slot)")
-                gameEngine.createNewGame(sectName, slot)
-                Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")
-
-                // RNG 播种已收敛到 GameEngine.createNewGame 内部（引擎线程）：
-                // initSystemSeed（8 分区）与 AISectDiscipleManager.initForSlot 均在引擎侧完成，
-                // 避免 UI 协程与引擎线程 RNG 消费/播种并发竞争（P0-1b）
-                Log.d(TAG, "startNewGame: RNG seeded with mapSeed=${gameEngine.gameData.value.mapSeed}")
-
-                persistenceFacade.storageFacade.setCurrentSlot(slot)
-                Log.d(TAG, "Active slot set to $slot")
-
-                _loadingProgress.value = PROGRESS_SAVE_COMPLETE
-                var saveSuccess = performSynchronousSave(slot)
-                if (!saveSuccess) {
-                    Log.w(TAG, "startNewGame: First save attempt failed, retrying once for slot $slot")
-                    delay(500)
-                    saveSuccess = performSynchronousSave(slot)
-                }
-                needSlotRefresh = true
-                if (!saveSuccess) {
-                    Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
-                    showError("保存失败，无法启动游戏。请检查存储空间后重试。")
-                    return
-                }
-
-                // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
-                // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
-                val bootResult = persistenceFacade.bootSequenceController.boot(
-                    slot = slot,
-                    onPreloadResources = { preloadGameResources() },
-                    onProgress = { progress ->
-                        _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
-                    },
-                    onMapReady = { mapData -> _mapPreloadData.value = mapData }
-                )
-
-                if (bootResult.isSuccess) {
-                    gameStarted = true
-                    _loadingProgress.value = PROGRESS_COMPLETE
-
-                    // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
-                    gameEngine.sendWhitelistBonus(slot)
-
-                    // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
-                    //（2026-09-04 截止，每档一次，非目标用户自动跳过）
-                    gameEngine.sendExclusiveBonus(slot)
-
-                    val gd = gameEngine.gameData.value
-                    Log.i(TAG, "=== startNewGame SUCCESS === " +
-                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
-                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                        "totalElapsed=${System.currentTimeMillis() - startTime}ms")
-                } else {
-                    val errorMsg = bootResult.exceptionOrNull()?.message ?: "启动失败"
-                    showError(errorMsg)
-                }
-            } catch (e: CancellationException) {
-                Log.w(TAG, "startNewGame cancelled")
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
-                showError(e.message ?: "开始新游戏失败")
-            } finally {
-                // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
-                // C4（2026-08-05）：归属化复位（被取代的协程不复位标志/不清理）
-                resetOwnedLoadState("startNewGame")
-                if (!gameStarted) {
-                    _loadingProgress.value = PROGRESS_START
-                }
-                if (needSlotRefresh) {
-                    try {
-                        _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.w(TAG, "startNewGame: Failed to refresh save slots after completion: ${e.message}")
-                    }
+            }
+            if (needSlotRefresh) {
+                try {
+                    _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    Log.w(TAG, "startNewGame: Failed to refresh save slots after completion: ${e.message}")
                 }
             }
+        }
+    }
+
+    /** C-8：新游戏首存（performStartNewGame 拆分）：保存进度置位 + 首次保存（失败重试一次） */
+    private suspend fun performInitialSaveForNewGame(slot: Int): Boolean {
+        _loadingProgress.value = PROGRESS_SAVE_COMPLETE
+        var saveSuccess = performSynchronousSave(slot)
+        if (!saveSuccess) {
+            Log.w(TAG, "startNewGame: First save attempt failed, retrying once for slot $slot")
+            delay(500)
+            saveSuccess = performSynchronousSave(slot)
+        }
+        if (!saveSuccess) {
+            Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
+            showError("保存失败，无法启动游戏。请检查存储空间后重试。")
+        }
+        return saveSuccess
+    }
+
+    /** C-8：新游戏启动序列（performStartNewGame 拆分）：BootSequenceController.boot + 福利注入 */
+    private suspend fun performNewGameBoot(slot: Int, startTime: Long): Boolean {
+        // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
+        // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
+        val bootResult = persistenceFacade.bootSequenceController.boot(
+            slot = slot,
+            onPreloadResources = { preloadGameResources() },
+            onProgress = { progress ->
+                _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+            },
+            onMapReady = { mapData -> _mapPreloadData.value = mapData }
+        )
+
+        if (bootResult.isSuccess) {
+            _loadingProgress.value = PROGRESS_COMPLETE
+
+            // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
+            gameEngine.sendWhitelistBonus(slot)
+
+            // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
+            //（2026-09-04 截止，每档一次，非目标用户自动跳过）
+            gameEngine.sendExclusiveBonus(slot)
+
+            val gd = gameEngine.gameData.value
+            Log.i(TAG, "=== startNewGame SUCCESS === " +
+                "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
+                "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                "totalElapsed=${System.currentTimeMillis() - startTime}ms")
+            return true
+        } else {
+            val errorMsg = bootResult.exceptionOrNull()?.message ?: "启动失败"
+            showError(errorMsg)
+            return false
+        }
     }
 
     private suspend fun performSynchronousSave(slot: Int): Boolean {
@@ -646,130 +662,150 @@ class SaveLoadViewModel @Inject constructor(
      * 读取存档 → 引擎加载 → RNG 恢复 → BootSequenceController 启动。
      */
     private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long) {
-            try {
-                setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
+        try {
+            setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
 
-                // 玉符防回退（2026-08-10）：loadData 前必须等待旧循环彻底停止——
-                // boot Step 1 的 stopGameLoop 为非等待取消，旧循环 finally 的
-                // JadeSymbolService.onLoopStop()（checkpointNow 绝对值覆盖写）在引擎线程
-                // 异步执行，晚于 loadFromSnapshot 替换 gameData → 读档前的旧运行时值
-                // 覆盖新档玉符四字段（玩家反馈"玉符读档后重置"）。
-                // stopGameLoopAndWait 返回时 finally 已执行完毕（signal 完成于
-                // onLoopStop 之后），此后引擎线程无任何玉符写，onLoopStart 从新档锚定。
-                // 主菜单读档（循环未运行）立即返回，零开销。
-                val stopped = gameEngineCore.stopGameLoopAndWait(GAME_LOOP_STOP_TIMEOUT_MS)
-                if (!stopped) {
-                    Log.e(TAG, "=== loadGame FAILED === cannot stop game loop within timeout")
-                    showError("无法停止游戏循环，请重试")
-                    return
-                }
-                _isTimeRunning.value = false
-                Log.d(TAG, "Game loop stopped for load operation")
-
-                performGarbageCollection()
-
-                Log.d(TAG, "Starting to load save data for slot ${saveSlot.slot}")
-                val loadStartTime = System.currentTimeMillis()
-
-                val saveData = withTimeoutOrNull(60_000L) {
-                    try {
-                        val data = persistenceFacade.storageFacade.load(saveSlot.slot).getOrNull()
-                        Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
-                        data
-                    } catch (e: CancellationException) { throw e }
-                      catch (e: Exception) {
-                        Log.e(TAG, "Error loading save data: ${e.message}", e)
-                        null
-                    }
-                }
-                if (saveData == null) {
-                    val elapsed = System.currentTimeMillis() - loadStartTime
-                    Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")
-                    showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
-                    return
-                }
-
-                val effectiveSlot = saveSlot.slot
-                persistenceFacade.storageFacade.setCurrentSlot(effectiveSlot)
-                gameEngine.loadData(
-                    gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
-                    disciples = saveData.disciples,
-                    equipmentStacks = saveData.equipmentStacks,
-                    equipmentInstances = saveData.equipmentInstances,
-                    manualStacks = saveData.manualStacks,
-                    manualInstances = saveData.manualInstances,
-                    pills = saveData.pills,
-                    materials = saveData.materials,
-                    herbs = saveData.herbs,
-                    seeds = saveData.seeds,
-                    storageBags = saveData.storageBags,
-                    battleLogs = saveData.battleLogs,
-                    alliances = saveData.alliances,
-                    productionSlots = saveData.productionSlots
-                )
-
-                // RNG 分区恢复已收敛到 GameStateStoreImpl.loadFromSnapshot 锁内
-                // （状态 + RNG 原子切换，P0-1），此处不再重复 restoreStates
-                val loadedGd = gameEngine.gameData.value
-                // 初始化 AI 宗门 RNG（基于地图种子确保确定性）
-                AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
-
-                // 建筑占地重叠/越界迁移已归位 BootSequenceController Step 3.5
-                // （2026-08-06：须在 Step 3 归一化+fixup 之后、云端路径同样生效）
-
-                // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
-                // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
-                val bootResult = persistenceFacade.bootSequenceController.boot(
-                    slot = effectiveSlot,
-                    onPreloadResources = { preloadGameResources() },
-                    onProgress = { progress ->
-                        _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
-                    },
-                    onMapReady = { mapData -> _mapPreloadData.value = mapData },
-                    onSuccess = { showSuccess("读档成功") }
-                )
-
-                if (bootResult.isSuccess) {
-                    // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
-                    gameEngine.sendWhitelistBonus(effectiveSlot)
-
-                    // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
-                    //（2026-09-04 截止，每档一次，非目标用户自动跳过）
-                    gameEngine.sendExclusiveBonus(effectiveSlot)
-
-                    val gd = gameEngine.gameData.value
-                    Log.i(TAG, "=== loadGame SUCCESS === " +
-                        "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
-                        "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
-                        "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
-                        "elapsed=${System.currentTimeMillis() - startTime}ms")
-                } else {
-                    val errorMsg = bootResult.exceptionOrNull()?.message ?: "读档失败"
-                    showError(errorMsg)
-                    // 2026-08-04 对抗性审查修复（B4）：boot 失败后清空地图预加载数据——
-                    // 游戏内读档失败路径若残留旧 mapPreloadData，Crossfade 仍显示
-                    // MainGameScreen（引擎已停、runState=IDLE）→ "冻结的游戏画面"
-                    _mapPreloadData.value = null
-                }
-            } catch (e: CancellationException) {
-                Log.w(TAG, "loadGame cancelled")
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
-                showError("加载游戏失败: ${e.message}")
-            } catch (e: OutOfMemoryError) {
-                // C3-c（2026-08-05）：OOM 是 Error 非 Exception——crafted 大 id 弟子
-                // 扩容平铺表直接崩溃。统一走用户可感知的失败提示，finally 复位不受影响
-                Log.e(TAG, "=== loadGame FAILED === OutOfMemoryError: ${e.message}", e)
-                showError("内存不足，读档失败。请关闭其他应用后重试。")
-            } finally {
-                // S1 修复：finally 复位必须用 NonCancellable——setSaveLoadFlags 是挂起函数，
-                // 看门狗取消协程后挂起调用立即抛 CancellationException 截断 finally，
-                // 导致 loadLock 泄漏（读档永久拒绝）与 isSaving/isLoading 永不复位。
-                // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）；loadLock 为操作私有无条件释放
-                resetOwnedLoadState("loadGame")
-                loadLock.set(false)
+            // 玉符防回退（2026-08-10）：loadData 前必须等待旧循环彻底停止——
+            // boot Step 1 的 stopGameLoop 为非等待取消，旧循环 finally 的
+            // JadeSymbolService.onLoopStop()（checkpointNow 绝对值覆盖写）在引擎线程
+            // 异步执行，晚于 loadFromSnapshot 替换 gameData → 读档前的旧运行时值
+            // 覆盖新档玉符四字段（玩家反馈"玉符读档后重置"）。
+            // stopGameLoopAndWait 返回时 finally 已执行完毕（signal 完成于
+            // onLoopStop 之后），此后引擎线程无任何玉符写，onLoopStart 从新档锚定。
+            // 主菜单读档（循环未运行）立即返回，零开销。
+            val stopped = gameEngineCore.stopGameLoopAndWait(GAME_LOOP_STOP_TIMEOUT_MS)
+            if (!stopped) {
+                Log.e(TAG, "=== loadGame FAILED === cannot stop game loop within timeout")
+                showError("无法停止游戏循环，请重试")
+                return
             }
+            _isTimeRunning.value = false
+            Log.d(TAG, "Game loop stopped for load operation")
+
+            performGarbageCollection()
+
+            Log.d(TAG, "Starting to load save data for slot ${saveSlot.slot}")
+            val loadStartTime = System.currentTimeMillis()
+
+            val saveData = loadSaveDataForSlot(saveSlot = saveSlot, loadStartTime = loadStartTime)
+            if (saveData == null) {
+                return
+            }
+
+            val effectiveSlot = saveSlot.slot
+            applyLoadedSaveToEngine(saveData = saveData, effectiveSlot = effectiveSlot)
+
+            // 建筑占地重叠/越界迁移已归位 BootSequenceController Step 3.5
+            // （2026-08-06：须在 Step 3 归一化+fixup 之后、云端路径同样生效）
+
+            performLoadBoot(effectiveSlot = effectiveSlot, startTime = startTime)
+        } catch (e: CancellationException) {
+            Log.w(TAG, "loadGame cancelled")
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
+            showError("加载游戏失败: ${e.message}")
+        } catch (e: OutOfMemoryError) {
+            // C3-c（2026-08-05）：OOM 是 Error 非 Exception——crafted 大 id 弟子
+            // 扩容平铺表直接崩溃。统一走用户可感知的失败提示，finally 复位不受影响
+            Log.e(TAG, "=== loadGame FAILED === OutOfMemoryError: ${e.message}", e)
+            showError("内存不足，读档失败。请关闭其他应用后重试。")
+        } finally {
+            // S1 修复：finally 复位必须用 NonCancellable——setSaveLoadFlags 是挂起函数，
+            // 看门狗取消协程后挂起调用立即抛 CancellationException 截断 finally，
+            // 导致 loadLock 泄漏（读档永久拒绝）与 isSaving/isLoading 永不复位。
+            // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）；loadLock 为操作私有无条件释放
+            resetOwnedLoadState("loadGame")
+            loadLock.set(false)
+        }
+    }
+
+    /** C-8：读档数据加载（performLoadToSlot 拆分）：超时保护 + 空档守卫 */
+    private suspend fun loadSaveDataForSlot(saveSlot: SaveSlot, loadStartTime: Long): SaveData? {
+        val saveData = withTimeoutOrNull(60_000L) {
+            try {
+                val data = persistenceFacade.storageFacade.load(saveSlot.slot).getOrNull()
+                Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
+                data
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.e(TAG, "Error loading save data: ${e.message}", e)
+                null
+            }
+        }
+        if (saveData == null) {
+            val elapsed = System.currentTimeMillis() - loadStartTime
+            Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")
+            showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
+        }
+        return saveData
+    }
+
+    /** C-8：读档数据应用（performLoadToSlot 拆分）：setCurrentSlot + loadData + AI 宗门 RNG 初始化 */
+    private suspend fun applyLoadedSaveToEngine(saveData: SaveData, effectiveSlot: Int) {
+        persistenceFacade.storageFacade.setCurrentSlot(effectiveSlot)
+        gameEngine.loadData(
+            gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
+            disciples = saveData.disciples,
+            equipmentStacks = saveData.equipmentStacks,
+            equipmentInstances = saveData.equipmentInstances,
+            manualStacks = saveData.manualStacks,
+            manualInstances = saveData.manualInstances,
+            pills = saveData.pills,
+            materials = saveData.materials,
+            herbs = saveData.herbs,
+            seeds = saveData.seeds,
+            storageBags = saveData.storageBags,
+            battleLogs = saveData.battleLogs,
+            alliances = saveData.alliances,
+            productionSlots = saveData.productionSlots
+        )
+
+        // RNG 分区恢复已收敛到 GameStateStoreImpl.loadFromSnapshot 锁内
+        // （状态 + RNG 原子切换，P0-1），此处不再重复 restoreStates
+        val loadedGd = gameEngine.gameData.value
+        // 初始化 AI 宗门 RNG（基于地图种子确保确定性）
+        AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
+    }
+
+    /** C-8：读档启动序列（performLoadToSlot 拆分）：BootSequenceController.boot + 福利注入 */
+    private suspend fun performLoadBoot(effectiveSlot: Int, startTime: Long): Boolean {
+        // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
+        // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
+        val bootResult = persistenceFacade.bootSequenceController.boot(
+            slot = effectiveSlot,
+            onPreloadResources = { preloadGameResources() },
+            onProgress = { progress ->
+                _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+            },
+            onMapReady = { mapData -> _mapPreloadData.value = mapData },
+            onSuccess = { showSuccess("读档成功") }
+        )
+
+        if (bootResult.isSuccess) {
+            // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
+            gameEngine.sendWhitelistBonus(effectiveSlot)
+
+            // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
+            //（2026-09-04 截止，每档一次，非目标用户自动跳过）
+            gameEngine.sendExclusiveBonus(effectiveSlot)
+
+            val gd = gameEngine.gameData.value
+            Log.i(TAG, "=== loadGame SUCCESS === " +
+                "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
+                "spiritStones=${gd.spiritStones}, disciples=${gameEngine.disciples.value.size}, " +
+                "equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, " +
+                "elapsed=${System.currentTimeMillis() - startTime}ms")
+            return true
+        } else {
+            val errorMsg = bootResult.exceptionOrNull()?.message ?: "读档失败"
+            showError(errorMsg)
+            // 2026-08-04 对抗性审查修复（B4）：boot 失败后清空地图预加载数据——
+            // 游戏内读档失败路径若残留旧 mapPreloadData，Crossfade 仍显示
+            // MainGameScreen（引擎已停、runState=IDLE）→ "冻结的游戏画面"
+            _mapPreloadData.value = null
+            return false
+        }
     }
 
     fun loadGameFromSlot(slot: Int, fromCloudLoad: Boolean = false) {
@@ -958,82 +994,87 @@ class SaveLoadViewModel @Inject constructor(
      * 快照 → 校验 → 保存 → 结果反馈 → 失败回滚 currentSlot。
      */
     private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long) {
-            setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
+        setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
+
+        try {
+            if (!waitForSaveLock(timeoutMs = 5000)) {
+                Log.e(TAG, "=== saveGame FAILED === saveLock busy after timeout")
+                showError("保存操作繁忙，请稍后重试")
+                return
+            }
+
+            val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
+            persistenceFacade.storageFacade.setCurrentSlot(slot)
 
             try {
-                if (!waitForSaveLock(timeoutMs = 5000)) {
-                    Log.e(TAG, "=== saveGame FAILED === saveLock busy after timeout")
-                    showError("保存操作繁忙，请稍后重试")
-                    return
-                }
-
-                val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-                persistenceFacade.storageFacade.setCurrentSlot(slot)
-
-                try {
-                    performGarbageCollection()
-
-                    val snapshot = gameEngine.getStateSnapshot()
-                    Log.d(TAG, "saveGame snapshot: productionSlots=${snapshot.productionSlots.size}, " +
-                        "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
-                        "disciples=${snapshot.disciples.size}, equipment=${snapshot.equipmentInstances.size}")
-                    if (snapshot.gameData.sectName.isBlank()) {
-                        Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
-                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                        showError("游戏数据未初始化")
-                        return
-                    }
-                    val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
-                    val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
-
-                    val saveResult = withTimeoutOrNull(30_000L) {
-                        persistenceFacade.storageFacade.save(slot, saveData)
-                    }
-
-                    if (saveResult != null && saveResult.isSuccess) {
-                        try {
-                            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
-                        } catch (e: CancellationException) { throw e }
-                          catch (e: Exception) {
-                            Log.e(TAG, "Failed to refresh slots after successful save: ${e.message}", e)
-                        }
-                        showSuccess("游戏保存成功")
-
-                        Log.i(TAG, "=== saveGame SUCCESS === " +
-                            "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
-                            "month=${snapshot.gameData.gameMonth}, phase=${snapshot.gameData.gamePhase}, " +
-                            "spiritStones=${snapshot.gameData.spiritStones}, " +
-                            "disciples=${saveData.disciples.size}, equipment=${saveData.equipmentInstances.size}, " +
-                            "manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
-                    } else {
-                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                        val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
-                        showError(errorMsg)
-                        Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")
-                        try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
-                    }
-                } catch (e: OutOfMemoryError) {
-                    Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
-                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                    showError("内存不足，保存失败。请关闭其他应用后重试。")
-                    try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
-                } catch (e: CancellationException) {
-                    Log.w(TAG, "saveGame cancelled")
-                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
-                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                    showError("保存失败: ${e.message}")
-                    try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
-                } finally {
-                    saveLock.set(false)
-                }
+                performSaveOperation(slot = slot, previousSlot = previousSlot, startTime = startTime)
+            } catch (e: OutOfMemoryError) {
+                Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+                showError("内存不足，保存失败。请关闭其他应用后重试。")
+                try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
+            } catch (e: CancellationException) {
+                Log.w(TAG, "saveGame cancelled")
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+                showError("保存失败: ${e.message}")
+                try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
             } finally {
-                // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
-                // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）
-                resetOwnedLoadState("saveGame")
+                saveLock.set(false)
             }
+        } finally {
+            // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
+            // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）
+            resetOwnedLoadState("saveGame")
+        }
+    }
+
+    /** C-8：本地保存核心（performLocalSaveToSlot 拆分）：快照 → 校验 → 落盘 → 结果反馈 */
+    private suspend fun performSaveOperation(slot: Int, previousSlot: Int, startTime: Long) {
+        performGarbageCollection()
+
+        val snapshot = gameEngine.getStateSnapshot()
+        Log.d(TAG, "saveGame snapshot: productionSlots=${snapshot.productionSlots.size}, " +
+            "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
+            "disciples=${snapshot.disciples.size}, equipment=${snapshot.equipmentInstances.size}")
+        if (snapshot.gameData.sectName.isBlank()) {
+            Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
+            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+            showError("游戏数据未初始化")
+            return
+        }
+        val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
+        val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
+
+        val saveResult = withTimeoutOrNull(30_000L) {
+            persistenceFacade.storageFacade.save(slot, saveData)
+        }
+
+        if (saveResult != null && saveResult.isSuccess) {
+            try {
+                _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh slots after successful save: ${e.message}", e)
+            }
+            showSuccess("游戏保存成功")
+
+            Log.i(TAG, "=== saveGame SUCCESS === " +
+                "sectName=${snapshot.gameData.sectName}, year=${snapshot.gameData.gameYear}, " +
+                "month=${snapshot.gameData.gameMonth}, phase=${snapshot.gameData.gamePhase}, " +
+                "spiritStones=${snapshot.gameData.spiritStones}, " +
+                "disciples=${saveData.disciples.size}, equipment=${saveData.equipmentInstances.size}, " +
+                "manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
+        } else {
+            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+            val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
+            showError(errorMsg)
+            Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")
+            try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
+        }
     }
 
     /**
@@ -1164,103 +1205,129 @@ class SaveLoadViewModel @Inject constructor(
      * 停止循环 → 重置引擎 → RNG 重新播种 → 重启存档 → BootSequenceController 启动。
      */
     private suspend fun performRestartGame(wasRunning: Boolean) {
-            var previousSlot = 1
-            try {
-                _isRestarting.value = true
+        var previousSlot = 1
+        try {
+            _isRestarting.value = true
 
-                if (wasRunning) {
-                    val stopped = gameEngineCore.stopGameLoopAndWait(5000)
-                    if (!stopped) {
-                        Log.e(TAG, "Failed to stop game loop within timeout")
-                        showError("无法停止游戏循环，请重试")
-                        return
-                    }
-                    _isTimeRunning.value = false
-                    Log.d(TAG, "Game loop stopped for restart operation")
-                }
-
-                performGarbageCollection()
-
-                val currentData = gameEngine.gameData.value
-                val sectName = currentData.sectName.ifBlank { "QingYunSect" }
-                val currentSlot = currentData.currentSlot.let { if (it >= 0) it else 1 }
-                previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-
-                Log.i(TAG, "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")
-
-                persistenceFacade.storageFacade.setCurrentSlot(currentSlot)
-
-                gameEngine.restartGameSuspend(sectName, currentSlot)
-
-                // 重置 RNG 系统种子（重启即新世界，初始化确定性随机序列）
-                persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
-                AISectDiscipleManager.initForSlot(gameEngine.gameData.value.mapSeed.toLong())
-                Log.d(TAG, "restartGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
-
-                setSaveLoadState(isSaving = true, pendingSlot = currentSlot, pendingAction = "save")
-
-                val saveSuccess = performRestartSave(currentSlot, previousSlot)
-
-                setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-
-                if (saveSuccess) {
-                    Log.i(TAG, "=== restartGame SAVE SUCCESS === slot=$currentSlot")
-                    _restartVersion.value++
-                    showSuccess("游戏已重置")
-                } else {
-                    Log.e(TAG, "=== restartGame SAVE FAILED === slot=$currentSlot")
-                    showError("游戏已重置，但保存失败，请手动保存")
-                }
-
-                // BootSequenceController 统一处理生命周期、游戏循环重启、地图生成
-                val bootResult = persistenceFacade.bootSequenceController.boot(
-                    slot = currentSlot,
-                    onPreloadResources = { preloadGameResources() },
-                    onProgress = { progress ->
-                        _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
-                    },
-                    onMapReady = { mapData -> _mapPreloadData.value = mapData }
-                )
-
-                if (bootResult.isSuccess) {
-                    _isTimeRunning.value = true
-                    // 重开即新档：与主菜单新游戏路径一致，注入白名单福利
-                    gameEngine.sendWhitelistBonus(currentSlot)
-
-                    // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
-                    gameEngine.sendExclusiveBonus(currentSlot)
-                } else {
-                    Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")
-                }
-            } catch (e: CancellationException) {
-                Log.w(TAG, "restartGame cancelled")
-                throw e
-            } catch (e: OutOfMemoryError) {
-                Log.e(TAG, "=== restartGame FAILED === OutOfMemoryError", e)
-                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                showError("内存不足，重置失败。请关闭其他应用后重试。")
-                setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-            } catch (e: Exception) {
-                Log.e(TAG, "=== restartGame FAILED === error=${e.message}", e)
-                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                showError(e.message ?: "重置游戏失败")
-                setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-            } finally {
-                _isRestarting.value = false
-                // T2（2026-08-05）：loadLock 与 saveLock 成对复位（入口同步抢锁，
-                // 协程结束/取消统一释放，防泄漏）
-                loadLock.set(false)
-                // C4 修复（2026-08-05）：restart 补上归属化清理 + 标志复位——
-                // 原实现漏调 clearActiveLoadJob，且取消路径（isSaving=true 后
-                // CancellationException）不复位标志导致 isSaving 泄漏
-                resetOwnedLoadState("restartGame")
-                saveLock.set(false)
-                // 兜底：若 boot() 未执行（提前 return），则仅记录日志
-                // BootSequenceController.boot() 在内部已处理游戏循环恢复
-                if (wasRunning && !_isTimeRunning.value) {
-                    Log.w(TAG, "restartGame: game loop not running after restart finally, boot() may have failed")
-                }
+            if (!stopLoopForRestart(wasRunning = wasRunning)) {
+                return
             }
+
+            performGarbageCollection()
+
+            val currentData = gameEngine.gameData.value
+            val sectName = currentData.sectName.ifBlank { "QingYunSect" }
+            val currentSlot = currentData.currentSlot.let { if (it >= 0) it else 1 }
+            previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
+
+            Log.i(TAG, "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")
+
+            persistenceFacade.storageFacade.setCurrentSlot(currentSlot)
+
+            restartEngineAndReseed(sectName = sectName, currentSlot = currentSlot)
+
+            setSaveLoadState(isSaving = true, pendingSlot = currentSlot, pendingAction = "save")
+
+            val saveSuccess = performRestartSave(slot = currentSlot, previousSlot = previousSlot)
+
+            setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+
+            if (saveSuccess) {
+                Log.i(TAG, "=== restartGame SAVE SUCCESS === slot=$currentSlot")
+                _restartVersion.value++
+                showSuccess("游戏已重置")
+            } else {
+                Log.e(TAG, "=== restartGame SAVE FAILED === slot=$currentSlot")
+                showError("游戏已重置，但保存失败，请手动保存")
+            }
+
+            performRestartBoot(currentSlot = currentSlot)
+        } catch (e: CancellationException) {
+            Log.w(TAG, "restartGame cancelled")
+            throw e
+        } catch (e: OutOfMemoryError) {
+            Log.e(TAG, "=== restartGame FAILED === OutOfMemoryError", e)
+            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+            showError("内存不足，重置失败。请关闭其他应用后重试。")
+            setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+        } catch (e: Exception) {
+            Log.e(TAG, "=== restartGame FAILED === error=${e.message}", e)
+            persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+            showError(e.message ?: "重置游戏失败")
+            setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+        } finally {
+            resetRestartState(wasRunning = wasRunning)
+        }
+    }
+
+    /** C-8：重启前停止游戏循环（performRestartGame 拆分）：超时守卫 + 状态复位 */
+    // 拆分搬移:多出口与原函数一致
+    @Suppress("ReturnCount")
+    private suspend fun stopLoopForRestart(wasRunning: Boolean): Boolean {
+        if (!wasRunning) return true
+        val stopped = gameEngineCore.stopGameLoopAndWait(5000)
+        if (!stopped) {
+            Log.e(TAG, "Failed to stop game loop within timeout")
+            showError("无法停止游戏循环，请重试")
+            return false
+        }
+        _isTimeRunning.value = false
+        Log.d(TAG, "Game loop stopped for restart operation")
+        return true
+    }
+
+    /** C-8：引擎重置 + RNG 重新播种（performRestartGame 拆分） */
+    private suspend fun restartEngineAndReseed(sectName: String, currentSlot: Int) {
+        gameEngine.restartGameSuspend(sectName, currentSlot)
+
+        // 重置 RNG 系统种子（重启即新世界，初始化确定性随机序列）
+        persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+        AISectDiscipleManager.initForSlot(gameEngine.gameData.value.mapSeed.toLong())
+        Log.d(TAG, "restartGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
+    }
+
+    /** C-8：重启后启动序列（performRestartGame 拆分）：BootSequenceController.boot + 福利注入 */
+    private suspend fun performRestartBoot(currentSlot: Int): Boolean {
+        // BootSequenceController 统一处理生命周期、游戏循环重启、地图生成
+        val bootResult = persistenceFacade.bootSequenceController.boot(
+            slot = currentSlot,
+            onPreloadResources = { preloadGameResources() },
+            onProgress = { progress ->
+                _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+            },
+            onMapReady = { mapData -> _mapPreloadData.value = mapData }
+        )
+
+        if (bootResult.isSuccess) {
+            _isTimeRunning.value = true
+            // 重开即新档：与主菜单新游戏路径一致，注入白名单福利
+            gameEngine.sendWhitelistBonus(currentSlot)
+
+            // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
+            gameEngine.sendExclusiveBonus(currentSlot)
+            return true
+        } else {
+            Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")
+            return false
+        }
+    }
+
+    /** C-8：重启收尾复位（performRestartGame 拆分）：锁成对释放 + 归属化清理 + 兜底日志 */
+    private suspend fun resetRestartState(wasRunning: Boolean) {
+        _isRestarting.value = false
+        // T2（2026-08-05）：loadLock 与 saveLock 成对复位（入口同步抢锁，
+        // 协程结束/取消统一释放，防泄漏）
+        loadLock.set(false)
+        // C4 修复（2026-08-05）：restart 补上归属化清理 + 标志复位——
+        // 原实现漏调 clearActiveLoadJob，且取消路径（isSaving=true 后
+        // CancellationException）不复位标志导致 isSaving 泄漏
+        resetOwnedLoadState("restartGame")
+        saveLock.set(false)
+        // 兜底：若 boot() 未执行（提前 return），则仅记录日志
+        // BootSequenceController.boot() 在内部已处理游戏循环恢复
+        if (wasRunning && !_isTimeRunning.value) {
+            Log.w(TAG, "restartGame: game loop not running after restart finally, boot() may have failed")
+        }
     }
 
     private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean {
@@ -1277,56 +1344,8 @@ class SaveLoadViewModel @Inject constructor(
                     "gameData.productionSlots=${snapshot.gameData.productionSlots.size}, " +
                     "disciples=${snapshot.disciples.size}")
 
-                val saveData = SaveData(
-                    gameData = snapshot.gameData,
-                    disciples = snapshot.disciples,
-                    equipmentStacks = snapshot.equipmentStacks,
-                    equipmentInstances = snapshot.equipmentInstances,
-                    manualStacks = snapshot.manualStacks,
-                    manualInstances = snapshot.manualInstances,
-                    pills = snapshot.pills,
-                    materials = snapshot.materials,
-                    herbs = snapshot.herbs,
-                    seeds = snapshot.seeds,
-                    battleLogs = snapshot.battleLogs,
-                    alliances = snapshot.alliances,
-                    productionSlots = snapshot.productionSlots,
-                    storageBags = snapshot.storageBags,
-                    // 2026-08-01 对抗性审查修复：restart 保存缺该标志会使删表守卫失效，
-                    // 旧世界堆叠残留泄漏进新世界
-                    stacksSerialized = true
-                )
-
-                val success = withTimeoutOrNull(30_000L) {
-                    persistenceFacade.storageFacade.save(slot, saveData).isSuccess
-                }
-
-                when (success) {
-                    true -> {
-                        try {
-                            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
-                        } catch (e: CancellationException) { throw e }
-                          catch (e: Exception) {
-                            Log.e(TAG, "Failed to refresh slots after restart save: ${e.message}", e)
-                        }
-                        Log.i(TAG, "performRestartSave success for slot $slot")
-                        true
-                    }
-                    null -> {
-                        Log.e(TAG, "performRestartSave timeout for slot $slot")
-                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                        if (persistenceFacade.storageFacade.isSaveCorruptedSuspend(slot)) {
-                            persistenceFacade.storageFacade.restoreFromBackupIfCorrupted(slot)
-                            Log.w(TAG, "Save may be corrupted, attempted to restore from backup")
-                        }
-                        false
-                    }
-                    false -> {
-                        Log.e(TAG, "performRestartSave failed for slot $slot")
-                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
-                        false
-                    }
-                }
+                val saveData = buildRestartSaveData(snapshot = snapshot)
+                persistRestartSave(slot = slot, previousSlot = previousSlot, saveData = saveData)
             } catch (e: OutOfMemoryError) {
                 Log.e(TAG, "performRestartSave OutOfMemoryError for slot $slot", e)
                 persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
@@ -1334,6 +1353,63 @@ class SaveLoadViewModel @Inject constructor(
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 Log.e(TAG, "performRestartSave error for slot $slot", e)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+                false
+            }
+        }
+    }
+
+    /** C-8：重启存档数据组装（performRestartSave 拆分）：快照 → SaveData（stacksSerialized 防旧堆叠泄漏） */
+    private fun buildRestartSaveData(snapshot: GameStateSnapshot): SaveData {
+        return SaveData(
+            gameData = snapshot.gameData,
+            disciples = snapshot.disciples,
+            equipmentStacks = snapshot.equipmentStacks,
+            equipmentInstances = snapshot.equipmentInstances,
+            manualStacks = snapshot.manualStacks,
+            manualInstances = snapshot.manualInstances,
+            pills = snapshot.pills,
+            materials = snapshot.materials,
+            herbs = snapshot.herbs,
+            seeds = snapshot.seeds,
+            battleLogs = snapshot.battleLogs,
+            alliances = snapshot.alliances,
+            productionSlots = snapshot.productionSlots,
+            storageBags = snapshot.storageBags,
+            // 2026-08-01 对抗性审查修复：restart 保存缺该标志会使删表守卫失效，
+            // 旧世界堆叠残留泄漏进新世界
+            stacksSerialized = true
+        )
+    }
+
+    /** C-8：重启存档落盘（performRestartSave 拆分）：超时保护 + 结果分派 + 损坏自愈 */
+    private suspend fun persistRestartSave(slot: Int, previousSlot: Int, saveData: SaveData): Boolean {
+        val success = withTimeoutOrNull(30_000L) {
+            persistenceFacade.storageFacade.save(slot, saveData).isSuccess
+        }
+
+        return when (success) {
+            true -> {
+                try {
+                    _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    Log.e(TAG, "Failed to refresh slots after restart save: ${e.message}", e)
+                }
+                Log.i(TAG, "performRestartSave success for slot $slot")
+                true
+            }
+            null -> {
+                Log.e(TAG, "performRestartSave timeout for slot $slot")
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+                if (persistenceFacade.storageFacade.isSaveCorruptedSuspend(slot)) {
+                    persistenceFacade.storageFacade.restoreFromBackupIfCorrupted(slot)
+                    Log.w(TAG, "Save may be corrupted, attempted to restore from backup")
+                }
+                false
+            }
+            false -> {
+                Log.e(TAG, "performRestartSave failed for slot $slot")
                 persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                 false
             }

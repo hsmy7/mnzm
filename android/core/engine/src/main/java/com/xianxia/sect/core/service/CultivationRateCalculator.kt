@@ -154,46 +154,15 @@ class CultivationRateCalculator @Inject constructor(
         val parentCultivationBonus = calculateParentBonusColumn(
             tables.parentId1s.getOrNull(id), tables.parentId2s.getOrNull(id), tables
         )
-
-        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
-        val masterDiscipleBonus = tables.masterIds.getOrNull(id)?.let { mid ->
-            val midInt = mid.toIntOrNull() ?: return@let 0.0
-            if (tables.names.contains(midInt) && tables.isAlive[midInt] == 1) {
-                val masterRealm = tables.realms[midInt]
-                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(realm, masterRealm)
-            } else 0.0
-        } ?: 0.0
-
-        // 显式过滤哨兵值 -1（GRIEF_YEAR_NULL_SENTINEL）→ null，
-        // 与 assemble 路径的 takeIf 过滤严格一致（防篡改负年份时两入口分歧）
-        val griefEndYear = tables.griefEndYears.getOrNull(id)
-            ?.takeIf { it != DiscipleTables.GRIEF_YEAR_NULL_SENTINEL }
-        val griefPenalty = if (
-            DiscipleStatCalculator.isGrieving(griefEndYear, data.gameYear)
-        ) {
-            DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
-        } else {
-            0.0
-        }
+        val masterDiscipleBonus = calculateMasterDiscipleBonusColumn(
+            realm = realm, id = id, tables = tables
+        )
+        val griefPenalty = calculateGriefPenaltyColumn(
+            id = id, data = data, tables = tables
+        )
 
         return DiscipleStatCalculator.calculateCultivationPerPhaseColumn(
-            input = DiscipleStatCalculator.CultivationRateColumnInput(
-                realm = realm,
-                spiritRootCount = tables.spiritRootTypes.getOrNull(id)?.split(",")?.size ?: 1,
-                talentIds = tables.talentIds.getOrDefault(id, emptyList()),
-                physiqueIds = tables.physiqueIds.getOrDefault(id, emptyList()),
-                affixIds = tables.affixIds.getOrDefault(id, emptyList()),
-                manualIds = tables.manualIds.getOrDefault(id, emptyList()),
-                // 默认值与 assemble 路径一致（:723-724），防半幽灵数据两入口分歧
-                age = tables.ages.getOrDefault(id, 16),
-                lifespan = tables.lifespans.getOrDefault(id, 80),
-                cultivationSpeedDuration = tables.cultivationSpeedDurations.getOrDefault(id, 0),
-                cultivationSpeedBonus = tables.cultivationSpeedBonuses.getOrDefault(id, 0.0),
-                pillEffectDuration = tables.pillEffectDurations.getOrDefault(id, 0),
-                pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
-                // 默认值与 assemble 路径统一（资质=50 为自愈哨兵），防两入口分歧
-                aptitude = tables.aptitudes.getOrDefault(id, DiscipleTables.DEFAULT_APTITUDE)
-            ),
+            input = buildColumnRateInput(id = id, tables = tables, realm = realm),
             manuals = manualInstanceMap,
             manualProficiencies = discipleProficiencies,
             buildingBonus = buildingBonus,
@@ -204,6 +173,66 @@ class CultivationRateCalculator @Inject constructor(
             griefCultivationSpeedPenalty = griefPenalty,
             masterDiscipleBonus = masterDiscipleBonus
         ).coerceAtLeast(1.0)
+    }
+
+    /** 列直读版师徒加成（calculateCultivationPerPhaseById 拆分）：师父存活时按大境界差提供修炼速度加成 */
+    private fun calculateMasterDiscipleBonusColumn(
+        realm: Int,
+        id: Int,
+        tables: DiscipleTables
+    ): Double {
+        // 师徒加成：徒弟有师父且师父存活时，按大境界差提供修炼速度加成
+        return tables.masterIds.getOrNull(id)?.let { mid ->
+            val midInt = mid.toIntOrNull() ?: return@let 0.0
+            if (tables.names.contains(midInt) && tables.isAlive[midInt] == 1) {
+                val masterRealm = tables.realms[midInt]
+                DiscipleStatCalculator.getMasterDiscipleCultivationBonus(realm, masterRealm)
+            } else 0.0
+        } ?: 0.0
+    }
+
+    /** 列直读版丧期惩罚（calculateCultivationPerPhaseById 拆分）：显式过滤哨兵值 -1 与 assemble 路径严格一致 */
+    private fun calculateGriefPenaltyColumn(
+        id: Int,
+        data: GameData,
+        tables: DiscipleTables
+    ): Double {
+        // 显式过滤哨兵值 -1（GRIEF_YEAR_NULL_SENTINEL）→ null，
+        // 与 assemble 路径的 takeIf 过滤严格一致（防篡改负年份时两入口分歧）
+        val griefEndYear = tables.griefEndYears.getOrNull(id)
+            ?.takeIf { it != DiscipleTables.GRIEF_YEAR_NULL_SENTINEL }
+        return if (
+            DiscipleStatCalculator.isGrieving(griefEndYear, data.gameYear)
+        ) {
+            DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
+        } else {
+            0.0
+        }
+    }
+
+    /** 列直读版乘区输入构建（calculateCultivationPerPhaseById 拆分）：默认值与 assemble 路径一致，防半幽灵数据两入口分歧 */
+    private fun buildColumnRateInput(
+        id: Int,
+        tables: DiscipleTables,
+        realm: Int
+    ): DiscipleStatCalculator.CultivationRateColumnInput {
+        return DiscipleStatCalculator.CultivationRateColumnInput(
+            realm = realm,
+            spiritRootCount = tables.spiritRootTypes.getOrNull(id)?.split(",")?.size ?: 1,
+            talentIds = tables.talentIds.getOrDefault(id, emptyList()),
+            physiqueIds = tables.physiqueIds.getOrDefault(id, emptyList()),
+            affixIds = tables.affixIds.getOrDefault(id, emptyList()),
+            manualIds = tables.manualIds.getOrDefault(id, emptyList()),
+            // 默认值与 assemble 路径一致（:723-724），防半幽灵数据两入口分歧
+            age = tables.ages.getOrDefault(id, 16),
+            lifespan = tables.lifespans.getOrDefault(id, 80),
+            cultivationSpeedDuration = tables.cultivationSpeedDurations.getOrDefault(id, 0),
+            cultivationSpeedBonus = tables.cultivationSpeedBonuses.getOrDefault(id, 0.0),
+            pillEffectDuration = tables.pillEffectDurations.getOrDefault(id, 0),
+            pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
+            // 默认值与 assemble 路径统一（资质=50 为自愈哨兵），防两入口分歧
+            aptitude = tables.aptitudes.getOrDefault(id, DiscipleTables.DEFAULT_APTITUDE)
+        )
     }
 
     /**

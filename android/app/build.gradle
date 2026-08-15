@@ -1,6 +1,5 @@
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    id 'xianxia.android.application'
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -42,19 +41,9 @@ def versionProps = providers.fileContents(rootProject.layout.projectDirectory.fi
 android {
     namespace = 'com.xianxia.sect'
 
-    // 2026-08-14：SDK 配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
-    compileSdk = 35
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-        encoding = 'UTF-8'
-    }
-
     ndkVersion = "27.0.12077973"  // NDK r27 (2025 stable, Vulkan 1.1+ 支持)
 
     defaultConfig {
-        minSdk = 24
-        targetSdk = 35
         applicationId = "com.xianxia.sect"
         versionCode = versionProps.getProperty('versionCode', '1').toInteger()
         versionName = versionProps.getProperty('versionName', '0.0.00')
@@ -215,7 +204,6 @@ dependencies {
     ksp libs.room.compiler
 
     // DataStore
-    implementation libs.datastore.preferences
 
     // Hilt
     implementation libs.hilt.android
@@ -242,7 +230,6 @@ dependencies {
     implementation libs.taptap.cloudsave
 
     // Network
-    implementation libs.retrofit
     implementation libs.okhttp
     implementation libs.okhttp.logging
 
@@ -461,10 +448,13 @@ tasks.register('generateFootprintHeader') {
     dependsOn ':core:engine:generateSpriteAtlasDef'
     // 2026-08-14：inputs/outputs 声明（上游生成物未变则跳过 Groovy 解析）
     inputs.file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
-    outputs.file("$projectDir/src/main/cpp/footprint_table.h")
+    // 2026-08 债务根治（docs/build-perf/stage3-config-cache.md）：输出迁移 build/generated/sprite/
+    // （不再写源码树 src/main/cpp/）——与 TextureAtlas.h 同目录，CMake 经既有
+    // SPRITE_GENERATED_DIR include 路径解析，源码树不再产生生成物
+    outputs.file("$buildDir/generated/sprite/footprint_table.h")
     // 2026-08-14：配置缓存前置——配置期捕获文件引用（doLast 内禁止脚本对象）
     def srcFile = file("${rootProject.projectDir}/core/engine/build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
-    def outFile = file('src/main/cpp/footprint_table.h')
+    def outFile = file("$buildDir/generated/sprite/footprint_table.h")
     doLast {
         def lines = srcFile.readLines()
         // 行级锚定：仅提取 FOOTPRINT_BY_NAME_INDEX 声明块内的 "N to N"，
@@ -630,14 +620,9 @@ tasks.register('generateAstcAtlas') {
     }
 }
 
-// 2026-08-14：Java/Kotlin 编译配置显式化（原根 build.gradle afterEvaluate 全局注入已移除——配置缓存前置）
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
-    options.compilerArgs += ['-Xlint:-deprecation']
-}
+// 2026-08 债务根治：模块特有编译器参数（SDK/Java/Kotlin 公共配置已收编 xianxia.android convention）
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
     kotlinOptions {
-        jvmTarget = '17'
-        freeCompilerArgs += ['-Xjsr305=strict', '-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+        freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
     }
 }
