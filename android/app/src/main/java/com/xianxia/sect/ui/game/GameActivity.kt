@@ -181,6 +181,11 @@ class GameActivity : ComponentActivity() {
      */
     private var actionModeTracker: ActionModeSafeCallback? = null
 
+    // 新档埋点一次性标记：由 onCreate 启动参数写入，PLAYING 首次上报 #game_new_save 后消费置 false
+    private var launchIsNewGame = false
+    private var launchSectName = ""
+    private var launchSlot = -1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // P-2 拆分：渲染安全模式检测（必须在 super.onCreate() 前）
         applySafeModeThemeIfNeeded()
@@ -199,6 +204,9 @@ class GameActivity : ComponentActivity() {
         val sectName = launch.sectName
         val isCloudSaveLoad = launch.isCloudSaveLoad
         val isSoftwareRendering = launch.isSoftwareRendering
+        launchIsNewGame = isNewGame
+        launchSectName = sectName
+        launchSlot = slot
 
         Log.d(
             TAG,
@@ -279,6 +287,17 @@ class GameActivity : ComponentActivity() {
                                         "game_version" to com.xianxia.sect.BuildConfig.VERSION_NAME
                                     )
                                 )
+                                // 新档创建（FTUE 漏斗）：仅本次新档启动上报一次（首次消费后不再重复）
+                                if (launchIsNewGame) {
+                                    launchIsNewGame = false
+                                    com.xianxia.sect.taptap.TapDBManager.trackEvent(
+                                        com.xianxia.sect.core.util.AnalyticsEvents.GAME_NEW_SAVE,
+                                        mapOf(
+                                            com.xianxia.sect.core.util.AnalyticsEvents.PROP_SLOT to launchSlot,
+                                            com.xianxia.sect.core.util.AnalyticsEvents.PROP_SECT_NAME to launchSectName
+                                        )
+                                    )
+                                }
 
                                 // Vulkan 预热：后台发射，不阻塞地图显示
                                 if (!isSoftwareRendering) {

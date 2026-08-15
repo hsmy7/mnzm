@@ -1,5 +1,17 @@
 ## [4.00.99] - 2026-08-15
 
+### 新增（2026-08-15 TapDB 数据分析全量接入 + 广告变现收入上报）
+
+> 背景：用户要求按 TapTap 官方 5 份 TapDB 文档（功能介绍 / User-Event 模型 / 数据规范 / 客户端接入 / 服务端接入）全部接入，尤其是广告收入。TapTap SDK 4.10.5 已内置 tap-db，事件上报链路已存在，本次补齐广告收入与 FTUE 漏斗埋点、事件字典、服务端接入契约。
+
+- **广告变现收入 `#ad_show`** — 激励视频广告每次展示（`onAdShow`）上报 TapDB「变现收入」事件：`AdRevenueEventBuilder`（纯函数构建 JSON）+ `AdRevenueReporter`（模式开关门面，默认客户端上报，防客户端/服务端重复统计）+ `AdRevenueConfig`（广告位配置：spaceId/adType/unionType/eCPM 估算分/货币）。eCPM 为「预估价格、单位分」——Dirichlet(TapADN) SDK 5.1.2.3 经反编译核实**无客户端 eCPM 回调**，配置化供给（默认 0，运营从 ADN 数据报表更新，未来 RemoteConfig 化，见 docs/architecture.md D-47）；TapDB 后台需开启「工具 → 扩展功能 → 变现收入」
+- **FTUE 漏斗事件 + 事件字典** — `core/domain/.../core/util/AnalyticsEvents.kt` 事件字典唯一真相源（新增事件三处同步：常量 + 知识库字典 + TapDB 后台事件管理，守卫测试 `AnalyticsEventsDictionaryTest` 拦截漏登记）；`#game_new_save`（新档创建）、`#battle_first_win`/`#breakthrough_first`（引擎 `battle_end`(win)/`breakthrough_success` 派生 + `FirstEventTracker` 按用户首次去重）、`#ad_reward_claim`（广告奖励发放）；`DiscipleBreakthroughHandler` 注入 `AnalyticsTracker` 在突破成功路径上报 `#breakthrough_success`
+- **埋点健壮性** — `TapDBManager.trackEvent`/`reportAdShow` 升级 Throwable 兜底（埋点失败静默降级，禁止抛异常进游戏主链路，rules/data-analytics.md 1.3）+ 总开关 `TapDBConfig.analyticsEnabled`（运行时关闭，未来 RemoteConfig 化）；账号/设备属性 API 与 OAID 手动模式按 YAGNI 登记为待办（docs/architecture.md D-48/D-49）
+- **服务端接入（契约交付）** — 游戏无自建后端/无 IAP，服务端 REST 能力（charge/refund/`#ad_show`/online）按 YAGNI 不建 HTTP 客户端，接口契约（端点/请求体/去重规则/二选一防重复统计/在线人数 5 分钟单次限制）登记 `docs/knowledge-base.md#服务端接入契约` + docs/architecture.md D-46/D-47/D-48
+- **隐私合规** — 隐私政策双入口更新：游戏内 `PrivacyConsentScreen.kt` + 网站版 `docs/index.html` 新增 tap-db（4.10.5）数据分析收集说明（设备 ID、游戏行为事件、游玩时长），TapTap SDK 版本号 4.10.0 → 4.10.5
+- **测试** — 新增 `AdRevenueEventBuilderTest`（字段/省略规则）、`AdRevenueReporterTest`（开关/模式路由）、`FirstEventTrackerTest`（首次去重/换账号隔离/持久化）、`TapDBAnalyticsTrackerTest`（first 派生）、`AnalyticsEventsDictionaryTest`（字典守卫）共 5 类 + `TapDBManagerInitGuardTest` 补 2 用例（SDK 不可用静默降级/总开关）+ `DiscipleBreakthroughHandlerTest` 补 2 用例（成功上报/失败不误报）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无新权限（INTERNET/ACCESS_NETWORK_STATE 已声明）；无渲染/经济影响（纯观测）；iOS 直接复用（TapDB 跨平台 SDK + 纯 Kotlin 构建器）
+
 ### 修复（2026-08 荣耀 GT 系列键盘反复弹出收起根治——API<35 传统 flags 路径 + Dialog 窗口键盘盲区）
 
 > 背景：荣耀 X70（Android 15）根治后真机实测仍有部分机型复现，机型集中在荣耀 GT 系列（荣耀 GT AMG-AN00 / 80 GT / 90 GT，Android 12-14 / API 32-34 + MagicOS 7.x）。根因证据链：X70 根治提交已自述"API 35 走纯 WindowInsetsControllerCompat 路径，与已修复的小米/OPPO/Vivo API<35 传统 flags 路径不同"——GT 三款正是 MagicOS 7 + API<35 传统 flags 路径 + 平台 Dialog 窗口输入的组合，既往四轮修复从未覆盖。残留三环放大器：① `ImeVisibilityTracker` 单窗口盲区——键盘在平台 Dialog 窗口内弹出时 IME insets 只派发给**获得输入焦点**的窗口（Dialog 窗口），Activity 收不到，`isImeVisible` 恒 false，双守卫第二条件失效；② `DialogSystemBarGuard` 对 Dialog 窗口无条件应用 legacy `HIDE_NAVIGATION`（API<35 被 SystemUI 完整执行、API 35 为 no-op——这正是 X70 不复发而 GT 复发的原因），键盘弹出期间与 IME 所需导航栏区域冲突引发 insets 翻转，冻结机制只管宿主 Activity、管不到 Dialog 窗口自身标志；③ 解冻恢复立即 `hideSystemBars()`——键盘收起动画期间 hide() + 传统 flags 真执行，与 IME 对抗叠加 MagicOS 焦点抖动（荣耀 MagicOS 共性，X70 提交已记载）形成振荡回路。

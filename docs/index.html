@@ -247,10 +247,11 @@
     <p><strong>初始化时机：</strong>TapTap SDK 仅在您同意本隐私政策后进行初始化，不会在您同意前调用任何系统隐私敏感接口。</p>
     <table>
         <tr><th>SDK 模块</th><th>功能</th><th>可能收集的信息</th></tr>
-        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
-        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备信息、网络信息</td></tr>
-        <tr><td>tap-common（4.10.0）</td><td>SDK 公共组件</td><td>设备基础信息、<strong>GAID</strong>（Google 广告标识符）</td></tr>
-        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-core（4.10.5）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
+        <tr><td>tap-login（4.10.5）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-common（4.10.5）</td><td>SDK 公共组件</td><td>设备基础信息、<strong>GAID</strong>（Google 广告标识符）</td></tr>
+        <tr><td>tap-compliance（4.10.5）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-db（4.10.5）</td><td>数据分析（TapDB）</td><td>设备 ID、游戏行为数据（游戏内事件统计：新档创建、战斗、突破、广告观看等）、游玩时长，用于留存分析与产品优化；仅在您登录并进入游戏后上报</td></tr>
         <tr><td>tap-leaderboard-androidx（4.10.5）</td><td>玩家间宗门战斗力排行榜</td><td>TapTap 账户标识（OpenID、UnionID）、游戏成绩（宗门战斗力）、设备信息、网络信息</td></tr>
     </table>
     <p>TapTap SDK 隐私政策：<a href="https://developer.taptap.cn/docs/sdk/start/agreement/" target="_blank">https://developer.taptap.cn/docs/sdk/start/agreement/</a></p>
@@ -288,6 +289,7 @@
 <ul>
     <li><strong>提供游戏核心功能</strong>：存档管理、TapTap 登录、防沉迷合规、玩家排行榜</li>
     <li><strong>广告变现</strong>：通过激励视频广告为玩家提供游戏内奖励</li>
+    <li><strong>数据分析与产品优化</strong>：通过 TapDB（TapTap SDK 数据分析模块）统计游戏行为数据与游玩时长，用于留存分析和优化游戏体验；数据不含个人身份信息</li>
     <li><strong>保障本地数据安全</strong>：加密密钥派生、通信请求签名和完整性验证</li>
     <li><strong>崩溃恢复和数据保护</strong>：异常退出后的游戏数据恢复</li>
     <li><strong>安全防护</strong>：兑换码防刷、请求防伪造和防重放</li>

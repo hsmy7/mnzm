@@ -574,8 +574,8 @@ ViewModel → adService.watchAd(AdPurpose.XXX) { 发放奖励 }
 ### 新增广告类型的标准流程
 
 ```kotlin
-// 1. AdPurpose 加枚举值
-enum class AdPurpose { BREAKTHROUGH_BONUS, MERCHANT_REFRESH, NEW_FEATURE }
+// 1. AdPurpose 加枚举值（现状仅 JADE_SYMBOL_BONUS 一个）
+enum class AdPurpose { JADE_SYMBOL_BONUS, NEW_FEATURE }
 
 // 2. ViewModel 加方法（不需要任何白名单判断）
 fun watchAdForNewFeature() {
@@ -602,7 +602,7 @@ fun watchAdForNewFeature() {
 
 | 维度 | 现状 | 代码位置 |
 |------|------|---------|
-| 激励视频广告位 | 仅 2 个：`BREAKTHROUGH_BONUS`（突破奖励）/ `MERCHANT_REFRESH`（商人刷新） | `AdPurpose` 枚举：`core/engine/.../service/AdService.kt` |
+| 激励视频广告位 | 仅 1 个：`JADE_SYMBOL_BONUS`（观看广告获得玉符） | `AdPurpose` 枚举：`core/engine/.../service/AdService.kt` |
 | 广告调用链 | `AdService`（接口）→ `AdServiceImpl`（app 层，白名单守卫集中检查）→ `RewardVideoAdManager`（TapTap SDK 封装，冷却+每日次数限制） | `:app/.../taptap/AdServiceImpl.kt`、`AdsDelegate.kt` |
 | IAP/内购 | **0 个付费点**（无月卡/战令/礼包/直购） | 无代码 |
 | 运营邮件 | 全部客户端内置 `BuiltinMailConfig`（节日 14 天限时/`minVersion` 门槛/白名单专属/QQ 群引导）；管理员可经 `GameEngineAdminOps` 注入补偿邮件 | `core/engine/.../config/BuiltinMailConfig.kt` |
@@ -624,9 +624,44 @@ fun watchAdForNewFeature() {
 
 | 维度 | 现状 | 代码位置 |
 |------|------|---------|
-| 事件埋点 | **无**（无 D1/D7/D30 漏斗、无关键事件采集） | 无代码 |
+| 事件埋点 | **已实现（2026-08-15）**：TapDB 客户端接入完成——FTUE 漏斗事件（`#game_new_save`/`#battle_first_win`/`#breakthrough_first`）、广告收入 `#ad_show`、广告奖励 `#ad_reward_claim`；事件字典见下方「事件字典」章节 | `:app/.../analytics/`、`core/domain/.../util/AnalyticsEvents.kt` |
+| 广告收入 | **已实现（客户端模式）**：激励视频 onAdShow 上报 `#ad_show`（eCPM 为配置化估算分，运营从 ADN 数据报表更新）；TapDB 后台需开启「变现收入」扩展功能 | `:app/.../analytics/AdRevenueReporter.kt`、`AdRevenueConfig.kt` |
 | A/B 测试 | **无** | 无代码 |
-| 远程统计 | TapTap SDK 自带上报（登录/合规/分析），未做游戏内事件埋点 | `:app/.../taptap/` |
+| 远程统计 | TapTap SDK 自带上报（登录/合规/时长）+ 游戏内事件埋点（TapDB，含总开关 `TapDBConfig.analyticsEnabled`） | `:app/.../taptap/`、`:app/.../analytics/` |
+
+### 事件字典（TapDB 埋点，2026-08-15 建立）
+
+> 唯一真相源 = `core/domain/.../core/util/AnalyticsEvents.kt` 常量。**新增事件必须同步三处**：
+> ① 常量登记 ② 本字典登记 ③ TapDB 后台「事件管理」录入。守卫测试 `AnalyticsEventsDictionaryTest` 拦截漏登记。
+> 自定义事件名以 `#` 开头（TapDB 规范）；`game_start`/`battle_end` 为历史兼容事件保持旧名。
+
+| 事件名 | 触发点 | 属性 | 状态 |
+|--------|--------|------|------|
+| `#ad_show` | 激励视频 onAdShow（广告展示） | `#ad_union_type`/`#ad_placement_id`/`#ad_type`/`#ecpm`（分）/`currency_type` | TapDB 预置特殊事件（变现收入） |
+| `#game_new_save` | GameActivity 新档首次进入 PLAYING | slot, sect_name | 自定义 |
+| `#battle_first_win` | 引擎 `battle_end`(win) 首次（app 层 `FirstEventTracker` 去重） | enemy_type, turns, team_size | 自定义 |
+| `#breakthrough_success` | 引擎 `DiscipleBreakthroughHandler` 突破成功 | realm, realm_layer, disciple_name | 自定义 |
+| `#breakthrough_first` | 突破成功首次（`FirstEventTracker` 去重） | realm | 自定义 |
+| `#ad_reward_claim` | 广告奖励验证通过（AdServiceImpl.onRewardVerify） | purpose, reward_name, reward_amount | 自定义 |
+| `game_start` | GameActivity PLAYING（兼容旧事件） | sect_name, game_version | 兼容 |
+| `battle_end` | 引擎 `CaveExplorationProcessor`（兼容旧事件） | outcome, enemy_type, turns, team_size | 兼容 |
+
+**TapDB 预置事件（SDK 自动上报，无需代码）**：`device_login`（启动）、`user_login`（登录 setUser）、`play_game`（游玩时长，`TapDBManager.startGameDurationTracking`）、`charge`（充值，内购接入后自动生效）。
+
+### 服务端接入契约（TapDB REST，2026-08-15 登记）
+
+> 当前游戏**无自建后端**，服务端通道按 YAGNI 不建 HTTP 客户端（见 docs/architecture.md 待办 D-46）。
+> 未来接入后端/IAP 时按本契约实现 `TapDBServerReporter`（接口要点：OkHttp POST、注入式 HttpClient 便于测试、`runCatching` 静默降级）。
+
+- **上报事件**：`POST https://e.tapdb.net/v2/event`，Content-Type: application/json
+  - 请求体：`{"client_id": "<ClientID>", "device_id": "<TapTapEvent.getDeviceId()>", "user_id": "<与 setUser 相同的 userId>", "type": "track", "name": "<事件名>", "properties": {...}}`
+  - `charge`（真实收入，按 `order_id` 去重）：`properties` 含 `amount`（单位分，映射 `charge_amount`）、`virtual_currency_amount`、`currency_type`、`product`、`#product_sku`、`#sub_payment`、`payment`、`ip`
+  - `refund`：`properties` 含 `order_id`（去重）、`amount`、`virtual_currency_amount`、`currency_type`、`product`
+  - `#ad_show`（广告变现收入，服务端模式）：`properties` 含 `#ad_union_type`/`#ad_placement_id`/`#ad_source_id`/`#ad_type`/`#ad_network`/`#ecpm`（必需，分）/`currency_type`（必需）
+  - 响应码 200 = 接收成功；`client_id` 在 TapTap 开发者中心获取
+- **在线人数**：`POST https://se.tapdb.net/tapdb/online`，请求体 `{"client_id": "<ClientID>", "onlines": [{"server": "s1", "online": 123, "timestamp": 秒级时间戳}]}`
+  - ⚠️ TapDB 对同一服务器每个自然 5 分钟**仅接受一次**数据 → 必须由真后端聚合活跃设备后推送，**禁止客户端直报**（会覆盖为 1）
+- **客户端/服务端二选一**：`#ad_show` 与 `charge` 客户端与服务端同时上报会重复统计；切换模式改 `TapDBConfig.adRevenueMode`（默认 CLIENT_ONLY）
 
 ### 留存手段清单
 

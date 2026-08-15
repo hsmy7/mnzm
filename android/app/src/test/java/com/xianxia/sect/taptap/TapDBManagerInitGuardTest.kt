@@ -2,7 +2,10 @@ package com.xianxia.sect.taptap
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.xianxia.sect.analytics.AdRevenueConfig
+import com.xianxia.sect.analytics.TapDBConfig
 import org.junit.After
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -40,11 +43,13 @@ class TapDBManagerInitGuardTest {
     @Before
     fun setUp() {
         TapDBManager.stopGameDurationTracking()
+        TapDBConfig.analyticsEnabled = true
     }
 
     @After
     fun tearDown() {
         TapDBManager.stopGameDurationTracking()
+        TapDBConfig.analyticsEnabled = true
     }
 
     @Test
@@ -67,5 +72,22 @@ class TapDBManagerInitGuardTest {
             "停止复位后再次启动应进入 SDK 构建体（计数递增）",
             TapDBManager.durationTrackingStartCount >= 2
         )
+    }
+
+    @Test
+    fun `trackEvent - SDK 不可用环境静默降级且受总开关控制`() {
+        // Robolectric 下 TapDB SDK 不可用：调用不崩溃（Throwable 兜底，埋点静默降级）
+        TapDBManager.trackEvent("test_event", mapOf("k" to "v"))
+        // 总开关关闭后直接跳过（不进入 SDK 调用）
+        TapDBConfig.analyticsEnabled = false
+        TapDBManager.trackEvent("test_event_off")
+        TapDBConfig.analyticsEnabled = true
+    }
+
+    @Test
+    fun `reportAdShow - SDK 不可用环境静默降级`() {
+        val config = AdRevenueConfig.forSpaceId(1061442L)
+        assertNotNull("已登记广告位应能取到上报配置", config)
+        TapDBManager.reportAdShow(config!!)
     }
 }

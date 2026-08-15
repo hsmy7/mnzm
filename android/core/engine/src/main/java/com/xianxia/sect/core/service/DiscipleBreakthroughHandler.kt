@@ -21,6 +21,8 @@ import com.xianxia.sect.core.engine.domain.disciple.TYPE_INNER
 import com.xianxia.sect.core.engine.domain.disciple.TYPE_OUTER
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.util.AnalyticsEvents
+import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -39,7 +41,8 @@ class DiscipleBreakthroughHandler @Inject constructor(
     private val cultivationCore: CultivationCore,
     private val scopeProvider: CoroutineScopeProvider,
     private val relativeGiftHandler: RelativeGiftHandler,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val analyticsTracker: AnalyticsTracker
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -71,6 +74,15 @@ class DiscipleBreakthroughHandler @Inject constructor(
             if (success) {
                 breakthroughCount++
                 d = applyBreakthroughSuccess(d)
+                // 数据埋点：突破成功（TapDB 事件字典，见 AnalyticsEvents）
+                analyticsTracker.trackEvent(
+                    AnalyticsEvents.BREAKTHROUGH_SUCCESS,
+                    mapOf(
+                        AnalyticsEvents.PROP_REALM to d.realm,
+                        AnalyticsEvents.PROP_REALM_LAYER to d.realmLayer,
+                        AnalyticsEvents.PROP_DISCIPLE_NAME to d.name
+                    )
+                )
                 // 引导系统：累计突破次数
                 val prevB = state.gameData.guideCounters[GuideCounterKeys.BREAKTHROUGHS] ?: 0L
                 state.gameData = state.gameData.copy(

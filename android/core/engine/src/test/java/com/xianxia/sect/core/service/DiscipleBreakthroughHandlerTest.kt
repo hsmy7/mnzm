@@ -22,7 +22,11 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
+import com.xianxia.sect.core.util.AnalyticsEvents
+import com.xianxia.sect.core.util.AnalyticsTracker
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -30,6 +34,7 @@ import org.junit.runner.RunWith
 import org.junit.Rule
 import org.mockito.Mockito
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.robolectric.RobolectricTestRunner
 
 
@@ -44,6 +49,7 @@ class DiscipleBreakthroughHandlerTest {
     private lateinit var stateStore: FakeAtomicStateStore
     private lateinit var cultivationCore: CultivationCore
     private lateinit var handler: DiscipleBreakthroughHandler
+    private lateinit var analyticsTracker: AnalyticsTracker
 
     @Before
     fun setUp() {
@@ -70,12 +76,14 @@ class DiscipleBreakthroughHandlerTest {
 
         val rngManager = GameRngManager()
         rngManager.initSystemSeed(12345L)
+        analyticsTracker = mockSmart()
         handler = DiscipleBreakthroughHandler(
             stateStore = stateStore,
             cultivationCore = cultivationCore,
             scopeProvider = mockSmart(),
             relativeGiftHandler = mockSmart(),
-            rngManager = rngManager
+            rngManager = rngManager,
+            analyticsTracker = analyticsTracker
         )
     }
 
@@ -389,6 +397,61 @@ class DiscipleBreakthroughHandlerTest {
         val success = handler.tryBreakthrough(original, state = state)
 
         assertNotNull("tryBreakthrough should return a result", success)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — 数据埋点（breakthrough_success）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - 突破成功上报 breakthrough_success 埋点`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 8)
+        val successHandler = createSuccessForcedHandler()
+        val original = tables.assemble(1)
+
+        val result = successHandler.performBreakthrough(original, state, GameData())
+
+        assertTrue("成功构造下应突破（realmLayer 应提升）", result.realmLayer > original.realmLayer)
+        Mockito.verify(analyticsTracker).trackEvent(
+            eq(AnalyticsEvents.BREAKTHROUGH_SUCCESS),
+            any()
+        )
+    }
+
+    @Test
+    fun `performBreakthrough - 突破失败不误报 breakthrough_success 埋点`() {
+        // 必败构造：境界7层5 + 五灵根 → BREAKTHROUGH_CHANCES[7][5]=0.00 → chance=0 必然失败
+        insertDiscipleForBreakthrough(
+            id = 1, realm = 7, realmLayer = 5,
+            spiritRootType = "metal,wood,water,fire,earth",
+            currentHp = 1000, currentMp = 500
+        )
+
+        val original = tables.assemble(1)
+        handler.performBreakthrough(original, state, GameData())
+
+        val failCount = tables.breakthroughFailCounts[1] ?: 0
+        assertTrue("必败构造下 failCount 应 > 0，实际 $failCount", failCount > 0)
+        Mockito.verify(analyticsTracker, Mockito.never()).trackEvent(
+            eq(AnalyticsEvents.BREAKTHROUGH_SUCCESS),
+            any()
+        )
+    }
+
+    /** 构造 RNG 恒返回 0.0 的 handler：任意 chance>0 必成功（确定性突破成功测试） */
+    private fun createSuccessForcedHandler(): DiscipleBreakthroughHandler {
+        val rng = mockSmart(DeterministicRng::class.java)
+        Mockito.`when`(rng.nextDouble()).thenReturn(0.0)
+        val rngManager = mockSmart(GameRngManager::class.java)
+        Mockito.`when`(rngManager.getRng(RngPartition.BREAKTHROUGH)).thenReturn(rng)
+        return DiscipleBreakthroughHandler(
+            stateStore = stateStore,
+            cultivationCore = cultivationCore,
+            scopeProvider = mockSmart(),
+            relativeGiftHandler = mockSmart(),
+            rngManager = rngManager,
+            analyticsTracker = analyticsTracker
+        )
     }
 }
 

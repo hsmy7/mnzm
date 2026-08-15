@@ -325,13 +325,16 @@ private fun PrivacySummaryContent(
 
     val tapTapAnnotatedString = buildAnnotatedString {
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("TapTap SDK（v4.10.0）") }
+            withStyle(
+                SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)
+            ) { append("TapTap SDK（v4.10.5）") }
             append("\n")
             withStyle(bodyStyle) {
                 append(
                     "仅在您同意本隐私政策后初始化。可能收集：设备信息（型号、系统版本、Android ID、OAID、" +
                         "GAID（Google广告标识符，在支持Google Play服务的设备上收集）、CPU信息、内存信息）、网络信息、" +
-                        "TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据。"
+                        "TapTap账户标识、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、实名认证数据、" +
+                        "游戏行为数据（游戏内事件统计、游玩时长，用于数据分析与产品优化）。"
                 )
             }
             append("\n")
@@ -766,7 +769,7 @@ fun FullPrivacyPolicyScreen(
                 }
 
                 FullPolicySection("二、第三方 SDK 数据收集") {
-                    FullPolicySubSection("2.1 TapTap SDK（v4.10.0）") {
+                    FullPolicySubSection("2.1 TapTap SDK（v4.10.5）") {
                         Text(
                             text = "由易玩（上海）网络科技有限公司提供。仅在您同意本隐私政策后初始化。\n\n" +
                                 "• tap-core：SDK核心功能 — 可能收集设备信息（设备型号、操作系统版本、Android ID、CPU信息、内存信息）、" +
@@ -774,7 +777,9 @@ fun FullPrivacyPolicyScreen(
                                 "• tap-login：账户登录 — 收集TapTap账户标识、昵称、头像、电话号码（TapTap账户注册信息）、邮箱（TapTap账户注册信息）、" +
                                 "Android ID、设备信息、网络信息、广告标识符（OAID、GAID）\n" +
                                 "• tap-common：公共组件 — 收集设备基础信息、广告标识符（OAID、GAID）\n" +
-                                "• tap-compliance：防沉迷和实名认证 — 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息、广告标识符（OAID、GAID）",
+                                "• tap-compliance：防沉迷和实名认证 — 收集实名认证数据、年龄信息、Android ID、设备信息、网络信息、广告标识符（OAID、GAID）\n" +
+                                "• tap-db：数据分析（TapDB）— 收集设备ID、游戏行为数据（游戏内事件统计：新档创建、战斗、突破、广告观看等）与游玩时长，" +
+                                "用于留存分析与产品优化；仅在您登录并进入游戏后上报",
                             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))

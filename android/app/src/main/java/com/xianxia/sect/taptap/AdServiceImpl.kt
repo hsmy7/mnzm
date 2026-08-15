@@ -6,9 +6,11 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.tapsdk.tapad.constants.Constants
 import com.tapsdk.tapad.group.DirichletSdk
+import com.xianxia.sect.analytics.AdRevenueReporter
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.service.AdPurpose
 import com.xianxia.sect.core.engine.service.AdService
+import com.xianxia.sect.core.util.AnalyticsEvents
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -27,7 +29,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class AdServiceImpl @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val adRevenueReporter: AdRevenueReporter
 ) : AdService {
 
     companion object {
@@ -88,7 +91,21 @@ class AdServiceImpl @Inject constructor(
                 ) {
                     if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
                     if (!rewardClaimed.compareAndSet(false, true)) return
+                    // 广告奖励发放埋点（广告价值分析；#ad_show 收入事件在 onAdShow 上报）
+                    TapDBManager.trackEvent(
+                        AnalyticsEvents.AD_REWARD_CLAIM,
+                        mapOf(
+                            AnalyticsEvents.PROP_PURPOSE to purpose.name,
+                            AnalyticsEvents.PROP_REWARD_NAME to rewardName,
+                            AnalyticsEvents.PROP_REWARD_AMOUNT to rewardAmount
+                        )
+                    )
                     onReward()
+                }
+
+                override fun onAdShow() {
+                    // 广告变现收入上报（TapDB #ad_show，客户端模式）
+                    adRevenueReporter.onAdShown(spaceId)
                 }
 
                 override fun onAdError(code: Int, message: String) {

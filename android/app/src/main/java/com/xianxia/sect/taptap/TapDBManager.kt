@@ -11,6 +11,10 @@ import com.taptap.sdk.db.biz.gameplay.GameDurationService
 import com.taptap.sdk.db.biz.gameplay.reporter.DefaultGameDurationReporter
 import com.taptap.sdk.db.biz.gameplay.storage.PrefsGameDurationStorage
 import com.taptap.sdk.db.biz.gameplay.tracker.DefaultGameDurationTracker
+import com.xianxia.sect.analytics.AdRevenueConfig
+import com.xianxia.sect.analytics.AdRevenueEventBuilder
+import com.xianxia.sect.analytics.TapDBConfig
+import com.xianxia.sect.core.util.AnalyticsEvents
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import org.json.JSONObject
@@ -121,13 +125,42 @@ object TapDBManager {
     }
 
     fun trackEvent(eventName: String, properties: Map<String, Any> = emptyMap()) {
+        // 埋点总开关（TapDBConfig）：运营事故/合规要求时可整体关闭事件上报，
+        // 账号登录/游玩时长等 TapDB 基础 BI 不受影响
+        if (!TapDBConfig.analyticsEnabled) return
         try {
             val json = JSONObject()
             properties.forEach { (key, value) -> json.put(key, value) }
             TapTapEvent.logEvent(eventName, json)
             Log.d(TAG, "trackEvent: $eventName, properties=$properties")
-        } catch (e: Exception) {
-            Log.e(TAG, "trackEvent $eventName failed: ${e.message}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            // 埋点属于非关键后台操作：SDK 异常静默降级，禁止抛入游戏主链路
+            // （rules/data-analytics.md 1.3；与 startGameDurationTracking 的 Throwable 兜底一致）
+            Log.e(TAG, "trackEvent $eventName failed: ${e.message}", e)
+        }
+    }
+
+    /**
+     * 上报广告变现收入（TapDB 预置特殊事件 `#ad_show`，需后台开启「变现收入」扩展功能）。
+     *
+     * eCPM 为「预估价格、单位分」：Dirichlet(TapADN) SDK 无客户端 eCPM 回调，
+     * 由 [AdRevenueConfig] 配置供给（运营从 ADN 数据报表更新估算值）。
+     */
+    fun reportAdShow(config: AdRevenueConfig) {
+        if (!TapDBConfig.analyticsEnabled) return
+        try {
+            TapTapEvent.logEvent(AnalyticsEvents.AD_SHOW, AdRevenueEventBuilder.build(config))
+            Log.d(
+                TAG,
+                "reportAdShow: placement=${config.spaceId}, ecpmFen=${config.estimatedEcpmFen}, " +
+                    "currency=${config.currency}"
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(TAG, "reportAdShow failed: ${e.message}", e)
         }
     }
 
@@ -151,14 +184,6 @@ object TapDBManager {
             Log.d(TAG, "onCharge: orderId=$orderId, product=$productId, amount=$amount")
         } catch (e: Exception) {
             Log.e(TAG, "onCharge failed: ${e.message}")
-        }
-    }
-
-    fun registerStaticProperties(properties: Map<String, Any>) {
-        try {
-            dbInstance?.addCommon(properties)
-        } catch (e: Exception) {
-            Log.e(TAG, "registerStaticProperties failed: ${e.message}")
         }
     }
 }

@@ -41,6 +41,7 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.engine.domain.exploration.CaveRewardItem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.util.AnalyticsEvents
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
@@ -669,12 +670,12 @@ class CaveExplorationProcessor @Inject constructor(
         cave: CultivatorCave
     ) {
         analyticsTracker.trackEvent(
-            "battle_end",
+            AnalyticsEvents.BATTLE_END,
             mapOf(
-                "outcome" to if (battleResult.victory) "win" else "lose",
-                "enemy_type" to cave.name,
-                "turns" to battleResult.turnCount,
-                "team_size" to battleResult.log.teamMembers.size
+                AnalyticsEvents.PROP_OUTCOME to if (battleResult.victory) "win" else "lose",
+                AnalyticsEvents.PROP_ENEMY_TYPE to cave.name,
+                AnalyticsEvents.PROP_TURNS to battleResult.turnCount,
+                AnalyticsEvents.PROP_TEAM_SIZE to battleResult.log.teamMembers.size
             )
         )
     }

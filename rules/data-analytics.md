@@ -1,6 +1,10 @@
 # 规则：数据埋点与留存运营规范
 
-> ⚠️ **预留规范（未实现，约束未来设计）**：本文约束未来数据埋点体系。现状基线：无事件埋点、无留存漏斗、无 A/B 测试（TapTap SDK 仅有登录/合规/分析自带上报）。见 `docs/knowledge-base.md#扩展性现状盘点`。
+> **已实现基线（2026-08-15 TapDB 接入）**：埋点体系基于 TapDB（TapTap SDK 数据分析模块）落地——
+> 客户端接入完成（事件上报/首次去重/广告收入 `#ad_show`），服务端 REST 通道按 YAGNI 登记为接入点。
+> 事件字典唯一真相源 = `core/domain/.../core/util/AnalyticsEvents.kt`，登记见 `docs/knowledge-base.md#事件字典`；
+> 总开关 `TapDBConfig.analyticsEnabled`（运行时关闭，未来 RemoteConfig 化）。
+> 现状基线：无 A/B 测试（RemoteConfig 未绑定）。
 
 ## 1. 埋点原则（🔴）
 
@@ -8,14 +12,14 @@
 
 对应行业留存基准（D1 中位数 22%、超 50% 用户首日流失），以下事件**必须**埋点：
 
-| 漏斗阶段 | 事件 | 用途 |
-|---------|------|------|
-| 安装/首启 | `app_first_launch` | 渠道归因 |
-| 新档创建 | `game_new_save` | 首日转化 |
-| 首次战斗 | `battle_first_win` | FTUE 完成度 |
-| 首次突破 | `breakthrough_first` | Aha Moment 验证 |
-| 首日回访 | `session_d1_return` | D1 留存 |
-| D7/D30 回访 | `session_d7_return` / `session_d30_return` | 周/月留存 |
+| 漏斗阶段 | 事件 | 用途 | 现状（2026-08-15） |
+|---------|------|------|------|
+| 安装/首启 | `app_first_launch` | 渠道归因 | TapDB 预置 `device_login` 覆盖（自动） |
+| 新档创建 | `game_new_save` | 首日转化 | ✅ `#game_new_save`（GameActivity） |
+| 首次战斗 | `battle_first_win` | FTUE 完成度 | ✅ `#battle_first_win`（`battle_end`(win) 派生 + 首次去重） |
+| 首次突破 | `breakthrough_first` | Aha Moment 验证 | ✅ `#breakthrough_first`（`#breakthrough_success` 派生 + 首次去重） |
+| 首日回访 | `session_d1_return` | D1 留存 | TapDB 预置 DAU/WAU/MAU 衍生事件覆盖（`device_login`/`user_login` 自动） |
+| D7/D30 回访 | `session_d7_return` / `session_d30_return` | 周/月留存 | 同上 |
 
 行业数据支撑：完成引导 + 首战 + 首次成长反馈的用户 D7 留存 41.2%（未完成用户 3.6 倍）；教程 >10 分钟强制引导流失 35%。
 
@@ -23,7 +27,7 @@
 
 - **snake_case 事件名** + **属性白名单**（事件属性必须是预注册键，禁止自由键）
 - **禁止埋点 PII**：昵称/设备号明文/真实身份一律禁止；用户标识去标识化（ID 哈希）
-- **事件字典维护**：事件名 + 属性定义登记到 `docs/knowledge-base.md`（事件字典章节），新增事件必须登记
+- **事件字典维护**：唯一真相源 = `core/domain/.../core/util/AnalyticsEvents.kt` 常量；登记到 `docs/knowledge-base.md#事件字典`；新增事件必须三处同步（常量 + 字典 + TapDB 后台事件管理），守卫测试 `AnalyticsEventsDictionaryTest` 拦截漏登记
 
 ### 1.3 非阻塞（🔴 性能）
 

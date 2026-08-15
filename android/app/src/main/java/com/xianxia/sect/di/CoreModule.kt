@@ -23,7 +23,6 @@ import com.xianxia.sect.core.util.MemoryMonitor
 import com.xianxia.sect.core.util.MemoryMonitorProvider
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.network.SecureHttpClient
-import com.xianxia.sect.taptap.TapDBManager
 import kotlinx.coroutines.CoroutineScope
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -236,11 +235,5 @@ object CoreModule {
 
     @Provides
     @Singleton
-    fun provideAnalyticsTracker(): AnalyticsTracker {
-        return object : AnalyticsTracker {
-            override fun trackEvent(eventName: String, properties: Map<String, Any>) {
-                TapDBManager.trackEvent(eventName, properties)
-            }
-        }
-    }
+    fun provideAnalyticsTracker(impl: com.xianxia.sect.analytics.TapDBAnalyticsTracker): AnalyticsTracker = impl
 }
