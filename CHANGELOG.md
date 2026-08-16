@@ -1,5 +1,14 @@
 ## [4.01.00] - 2026-08-16
 
+### 修复（2026-08-17 进入宗门转场动画左右留空：全屏铺满）
+
+> 背景：进入宗门时的转场动画在部分设备上不是全屏，左右两侧出现大片空隙。根因：转场视频由 `VideoView`（内部 SurfaceView）+ `MediaPlayer.setVideoScalingMode(WITH_CROPPING)` center-crop 铺满，该组合在部分 OEM ROM 上存在两个失效点——MediaPlayer 缩放模式被忽略、SurfaceView 的 surface 尺寸与视图尺寸不同步，导致视频以原始宽高比 fit 显示，横屏下左右留空（与素材宽高比 4:3/16:9 无关，两种素材均复现）。
+
+- **换用 16:9 素材** — `sect_enter_transition.mp4` 由 1440×1080（4:3）替换为 1920×1080（16:9），更贴合横屏设备
+- **渲染机制重构** — 转场视频由 `VideoView` 改为 **TextureView + MediaPlayer + 手动 cover 等比变换**：TextureView 铺满 Dialog 窗口，视频尺寸就绪后按纯函数 `computeCoverScale(容器/视频宽高)` 计算放大倍率，对 TextureView 施加 `scaleX/scaleY`（中心为轴）使视频内容必然撑满容器，父层 `clipToBounds` 裁掉溢出——纯视图层数学变换，与 SurfaceView 尺寸同步、MediaPlayer 缩放模式实现均无关
+- **测试** — 新增 `computeCoverScale` 纯函数 4 用例（横屏 16:9 / 4:3、竖屏、宽高一致、非法尺寸）+ 视图层铺满断言，`SectTransitionOverlayTest` 共 7 用例全绿；detekt 全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）
+
 ### 优化（2026-08-16 种植界面左右比例调整：种子 6 列 → 5 列，扩大右侧灵田空间）
 
 > 背景：种植对话框左右比例为 6:4，宽屏下左侧种子网格自适应出 6 列，右侧灵田面板仅占 40%，已种植列表与底部操作栏空间局促。需求：左侧种子改为最多 5 列，让出宽度给右侧。
