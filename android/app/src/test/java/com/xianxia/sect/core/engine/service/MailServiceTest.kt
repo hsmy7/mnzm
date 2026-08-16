@@ -4,6 +4,7 @@ import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.MailClaimRecord
 import com.xianxia.sect.core.model.MailEntity
+import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
@@ -845,5 +846,62 @@ class MailServiceTest {
 
         // Assert: 已读未领取的邮件绝不被自动删除——删除入口只有玩家手动"删除已读"
         verify(mailRepo, never()).deleteAllReadAndClaimed(testSlotId)
+    }
+
+    @Test
+    fun `claimAttachment - 上品灵石 attachment distributes HIGH grade matching name`() = runBlocking {
+        // Arrange: 附件名"上品灵石"，发放品阶必须与名称一致（与邮件附件卡片
+        // 精灵图品阶解析一致，杜绝显示品阶与到账品阶不一致的错图）
+        `when`(spiritStoneWallet.add(any(), any(), any(), any(), any())).thenAnswer { inv ->
+            val state = inv.getArgument<com.xianxia.sect.core.state.MutableGameState>(0)
+            val amount = inv.getArgument<Long>(1)
+            state.gameData = state.gameData.copy(spiritStones = state.gameData.spiritStones + amount)
+            state.gameData.spiritStones
+        }
+        val mail = createUnclaimedMail().copy(
+            attachments = """[{"type":"spiritStones","name":"上品灵石","quantity":5,"rarity":3}]"""
+        )
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+
+        // Act
+        val result = service.claimAttachment(testMailId, testSlotId)
+
+        // Assert: 成功领取且按上品灵石入账
+        assertTrue("上品灵石邮件应领取成功", result is ClaimResult.Success)
+        verify(spiritStoneWallet).add(
+            any(),
+            eq(5L),
+            eq(SpiritStoneGrade.HIGH),
+            any(),
+            any()
+        )
+        Unit
+    }
+
+    @Test
+    fun `claimAttachment - plain 灵石 attachment distributes LOW grade`() = runBlocking {
+        // Arrange: 默认名称"灵石"（无品阶词）→ LOW，保持既有行为
+        `when`(spiritStoneWallet.add(any(), any(), any(), any(), any())).thenAnswer { inv ->
+            val state = inv.getArgument<com.xianxia.sect.core.state.MutableGameState>(0)
+            val amount = inv.getArgument<Long>(1)
+            state.gameData = state.gameData.copy(spiritStones = state.gameData.spiritStones + amount)
+            state.gameData.spiritStones
+        }
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId)))
+            .thenReturn(createUnclaimedMail())
+
+        // Act
+        val result = service.claimAttachment(testMailId, testSlotId)
+
+        // Assert: 成功领取且按下品灵石入账（名称无品阶词默认 LOW）
+        assertTrue("普通灵石邮件应领取成功", result is ClaimResult.Success)
+        verify(spiritStoneWallet).add(
+            any(),
+            eq(100L),
+            eq(SpiritStoneGrade.LOW),
+            any(),
+            any()
+        )
+        Unit
     }
 }

@@ -46,7 +46,8 @@ data class ItemCardData(
     val spiritStoneGrade: SpiritStoneGrade? = null,
     val isBag: Boolean = false,
     val isHerb: Boolean = false,
-    val isSeed: Boolean = false
+    val isSeed: Boolean = false,
+    val isDisciple: Boolean = false
 )
 
 @Composable
@@ -108,8 +109,11 @@ private fun itemCardSpriteRes(data: ItemCardData): Int? = when {
     data.isManual -> manualSpriteRes(data.rarity)
     data.isPill -> pillSpriteRes(data.rarity)
     data.isMaterial -> materialSpriteRes(data.name)
-    data.isHerb -> herbSpriteRes(data.name)
+    // 草药名解析失败（如 spiritHerbs 灵草资源无专属名）时回退丹药图占位，
+    // 与 getRewardSprite 的 herb 兜底模式一致，避免显示"敬请期待"
+    data.isHerb -> herbSpriteRes(data.name) ?: pillSpriteRes(data.rarity)
     data.isSeed -> seedSpriteRes(data.name)
+    data.isDisciple -> SpriteResRegistry.resolve("disciple_portrait")
     else -> equipmentSpriteRes(data.name)
 }
 

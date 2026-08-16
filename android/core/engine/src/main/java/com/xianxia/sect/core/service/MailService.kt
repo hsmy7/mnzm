@@ -492,10 +492,13 @@ class MailService @Inject constructor(
             for (attachment in attachments) {
                 when (attachment.type) {
                     "spiritStones" -> {
+                        // 按附件名称解析品阶（"上品灵石"→HIGH 等），与邮件附件卡片的
+                        // 精灵图品阶解析保持一致，杜绝显示品阶与到账品阶不一致
                         spiritStoneWallet.add(
                             state = state,
                             amount = attachment.quantity.toLong(),
-                            grade = SpiritStoneGrade.LOW,
+                            grade = SpiritStoneGrade.fromDisplayName(attachment.name)
+                                ?: SpiritStoneGrade.LOW,
                             source = SpiritStoneSource.Mail
                         )
                     }

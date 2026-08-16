@@ -83,11 +83,23 @@ object SpriteResRegistry {
 fun equipmentSpriteRes(name: String): Int? =
     SpriteResRegistry.categoryResId(SpriteCategory.EQUIPMENT, name)
 
+/**
+ * 功法精灵图：按稀有度 key（manual_1..6）查找，无效稀有度回退到 1 品图
+ * （与 [storageBagSpriteRes] 回退模式一致，防御邮件附件 rarity 缺失等边界）。
+ */
 fun manualSpriteRes(rarity: Int): Int? =
     SpriteResRegistry.categoryResId(SpriteCategory.MANUAL, "manual_$rarity")
+        ?: SpriteResRegistry.categoryResId(SpriteCategory.MANUAL, "manual_1")
+            ?.takeIf { it != 0 }
 
+/**
+ * 丹药精灵图：按稀有度 key（pill_1..6）查找，无效稀有度回退到 1 品图
+ * （与 [storageBagSpriteRes] 回退模式一致，防御邮件附件 rarity 缺失等边界）。
+ */
 fun pillSpriteRes(rarity: Int): Int? =
     SpriteResRegistry.categoryResId(SpriteCategory.PILL, "pill_$rarity")
+        ?: SpriteResRegistry.categoryResId(SpriteCategory.PILL, "pill_1")
+            ?.takeIf { it != 0 }
 
 fun spiritStoneSpriteRes(grade: SpiritStoneGrade = SpiritStoneGrade.LOW): Int? =
     SpriteResRegistry.categoryResId(SpriteCategory.SPIRIT_STONE, "spirit_stone_${grade.name.lowercase()}")
@@ -217,14 +229,10 @@ fun getRewardSprite(itemType: String, itemName: String, rarity: Int): Int? {
         "herb" -> herbSpriteRes(itemName) ?: pillSpriteRes(rarity)
         "seed" -> seedSpriteRes(itemName)
             ?: SpriteResRegistry.categoryResIds(SpriteCategory.MATERIAL).firstOrNull()
-        "spiritStones" -> {
-            val grade = when {
-                itemName.contains("上品") -> SpiritStoneGrade.HIGH
-                itemName.contains("中品") -> SpiritStoneGrade.MID
-                else -> SpiritStoneGrade.LOW
-            }
-            spiritStoneSpriteRes(grade)
-        }
+        "spiritStones" ->
+            spiritStoneSpriteRes(
+                SpiritStoneGrade.fromDisplayName(itemName) ?: SpiritStoneGrade.LOW
+            )
         "storageBag" -> storageBagSpriteRes(rarity)
         "beastMaterial" -> materialSpriteRes(itemName)
             ?: SpriteResRegistry.categoryResIds(SpriteCategory.MATERIAL).firstOrNull()

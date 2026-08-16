@@ -508,24 +508,44 @@ private fun MailAttachmentItemCard(
     onLongPress: () -> Unit
 ) {
     UnifiedItemCard(
-        data = ItemCardData(
-            id = attachment.itemId ?: "",
-            name = attachment.name,
-            rarity = attachment.rarity,
-            quantity = attachment.quantity,
-            type = attachment.type,
-            spiritStoneGrade = if (attachment.type == "spiritStones") SpiritStoneGrade.LOW else null,
-            isPill = attachment.type == "pill",
-            isHerb = attachment.type == "herb",
-            isSeed = attachment.type == "seed",
-            isMaterial = attachment.type in listOf("material", "beastMaterial"),
-            isBag = attachment.type == "storageBag"
-        ),
+        data = mailAttachmentToItemCardData(attachment),
         showQuantity = true,
         isFollowed = watchKeyOf(attachment)?.let { it in watchedKeys } ?: false,
         onLongPress = onLongPress
     )
 }
+
+/**
+ * 邮件附件 → 物品卡片数据转换（纯函数，便于单元测试）。
+ *
+ * 类型标志必须与 [ItemCardData] 的精灵解析分支一一对应（参照
+ * RewardCardItem.toItemCardData / WarehouseGridCard）：
+ * - 功法（manual）→ isManual=true，解析 manual_$rarity 精灵图（修复：此前遗漏
+ *   该标志导致功法落 equipment 分支查不到 → 显示"敬请期待"）
+ * - 弟子（disciple）→ isDisciple=true，解析通用弟子头像 disciple_portrait
+ * - 灵石（spiritStones）→ 按名称解析品阶（"上品灵石"→HIGH 等，名称不含品阶
+ *   词时默认 LOW），与发放侧 MailService 的品阶解析保持一致，杜绝显示与
+ *   到账品阶不一致的错图
+ * - 灵草资源（spiritHerbs）→ isHerb=true（语义归入草药类；无专属精灵图时
+ *   由 ItemCard 的 herb 分支回退丹药图，不再显示"敬请期待"）
+ */
+internal fun mailAttachmentToItemCardData(attachment: MailAttachment): ItemCardData = ItemCardData(
+    id = attachment.itemId ?: "",
+    name = attachment.name,
+    rarity = attachment.rarity,
+    quantity = attachment.quantity,
+    type = attachment.type,
+    spiritStoneGrade = if (attachment.type == "spiritStones") {
+        SpiritStoneGrade.fromDisplayName(attachment.name) ?: SpiritStoneGrade.LOW
+    } else null,
+    isPill = attachment.type == "pill",
+    isHerb = attachment.type in listOf("herb", "spiritHerbs"),
+    isSeed = attachment.type == "seed",
+    isMaterial = attachment.type in listOf("material", "beastMaterial"),
+    isBag = attachment.type == "storageBag",
+    isManual = attachment.type == "manual",
+    isDisciple = attachment.type == "disciple"
+)
 
 /** 领取按钮区（MailDetailPanel 拆分） */
 @Composable

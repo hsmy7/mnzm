@@ -6,7 +6,8 @@
 
 - **修复** — 邮件附件转换抽为纯函数 `mailAttachmentToItemCardData`（可测），补 `isManual = attachment.type == "manual"`；`ItemCardData` 新增 `isDisciple` 标志 + `itemCardSpriteRes` 分支，弟子附件复用通用头像 `disciple_portrait`（同属"有注册精灵图却显示敬请期待"的同类遗漏）
 - **防御** — `manualSpriteRes`/`pillSpriteRes` 对无效 rarity（如运营邮件附件缺省 0）回退 1 品图，与 `storageBagSpriteRes` 既有回退模式对齐，防止 rarity 缺失仍显示"敬请期待"
-- **测试** — 新增 `MailAttachmentToItemCardDataTest` 9 用例（全类型标志映射 + 字段透传守卫）、`EquipmentSpriteRarityFallbackTest` 7 用例（rarity 0/越界回退 + 未注册 null）
+- **顺带根治（可改进项）** — ① 灵石品级硬编码 LOW 改为按附件名称解析（`SpiritStoneGrade.fromDisplayName`，显示侧 `mailAttachmentToItemCardData` 与发放侧 `MailService` 统一，杜绝"显示上品图、到账下品"的错图）；`getRewardSprite` 复用同一解析消除重复的模糊匹配 ② `spiritHerbs` 灵草资源附件映射为 `isHerb` 语义 + `itemCardSpriteRes` 的 herb 分支补丹药图兜底（与 `getRewardSprite` 兜底模式对齐），无专属名的草药不再显示"敬请期待"
+- **测试** — 新增 `MailAttachmentToItemCardDataTest` 12 用例（全类型标志映射 + 灵石品级解析 + 字段透传守卫）、`EquipmentSpriteRarityFallbackTest` 7 用例（rarity 0/越界回退 + 未注册 null）、`GetRewardSpriteTest` 5 用例（herb 兜底 + 灵石品级解析）、`MailServiceTest` 新增 2 用例（上品灵石按 HIGH 发放 / 普通灵石按 LOW 发放）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 精灵解析修复，未注册精灵图的未知类型仍走"敬请期待"降级
 
 ### 修复（2026-08-16 进入宗门转场未全屏根治）
