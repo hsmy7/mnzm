@@ -2,21 +2,28 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
@@ -62,6 +69,7 @@ private class PlantingDialogState {
     var selectedSeedId by mutableStateOf<String?>(null)
     var seedPage by mutableIntStateOf(1)
     var plantQuantity by mutableIntStateOf(1)
+    var qtyInput by mutableStateOf("1")
     var removeDialogGroup by mutableStateOf<FieldGroup?>(null)
     var removeQuantity by mutableIntStateOf(1)
     var showSeedDetail by mutableStateOf(false)
@@ -374,6 +382,7 @@ private fun ColumnScope.PlantingSeedGrid(
                         state.selectedSeedId =
                             if (state.selectedSeedId == seed.id) null else seed.id
                         state.plantQuantity = 1
+                        state.qtyInput = "1"
                     },
                     onLongPress = {
                         state.detailSeed = seed
@@ -606,7 +615,7 @@ private fun UnknownSeedFallbackBox(
     }
 }
 
-/** 种植数量器紧凑尺寸（26dp 按钮：灵田面板仅占屏宽 40%，竖屏需更小尺寸防溢出） */
+/** 铲除确认弹窗数量器紧凑尺寸（26dp 按钮，匹配小弹窗布局） */
 private val plantingQuantitySizes = QuantitySelectorSizes(
     buttonSize = 26.dp,
     numberBoxWidth = 48.dp,
@@ -615,7 +624,9 @@ private val plantingQuantitySizes = QuantitySelectorSizes(
     buttonFontSize = 13.sp,
 )
 
-/** 种植数量控制区 + 种植按钮（PlantingDialog 拆分）：数量器行 + 种植按钮行 */
+/** 种植数量控制行 + 种植按钮（PlantingDialog 拆分）：-10/-1/输入框/+1/+10 + 种植 */
+// 拆分残余:函数体略超 60 行(原函数拆分后聚合，最小/最大替换为 -10/+10 后保持原一行结构)
+@Suppress("LongMethod")
 @Composable
 private fun PlantingQuantityControl(
     state: PlantingDialogState,
@@ -635,31 +646,105 @@ private fun PlantingQuantityControl(
         }
         state.selectedSeedId = null
         state.plantQuantity = 1
+        state.qtyInput = "1"
     }
 
-    Column(
+    val dec10Interaction = remember { MutableInteractionSource() }
+    val decInteraction = remember { MutableInteractionSource() }
+    val incInteraction = remember { MutableInteractionSource() }
+    val inc10Interaction = remember { MutableInteractionSource() }
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        // 统一数量选择器：-10/-1/输入/+1/+10（与商人/宗门交易一致）；
-        // key 种子切换重建，清空编辑态残留的输入串与焦点
-        key(derived.selectedSeed?.id) {
-            QuantitySelector(
-                quantity = state.plantQuantity,
-                maxQuantity = derived.maxPlantable.coerceAtLeast(1),
-                onQuantityChange = { state.plantQuantity = it },
-                sizes = plantingQuantitySizes
-            )
-        }
-        Spacer(modifier = Modifier.height(6.dp))
+        PlantingStepText(
+            text = "-10", fontSize = 12.sp, enabled = true, interactionSource = dec10Interaction, onClick = {
+                state.plantQuantity = (state.plantQuantity - 10).coerceAtLeast(1)
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
+        PlantingStepText(
+            text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, enabled = state.plantQuantity > 1,
+            interactionSource = decInteraction, onClick = {
+                state.plantQuantity--
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
+        // 数量显示 — 始终可见的输入框
+        val displayText = state.qtyInput.ifEmpty { state.plantQuantity.toString() }
+        BasicTextField(
+            value = displayText,
+            onValueChange = { newValue ->
+                val filtered = newValue.filter { it.isDigit() }
+                val num = filtered.toIntOrNull()
+                state.qtyInput = if (num != null) {
+                    num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1)).toString()
+                } else {
+                    filtered
+                }
+                if (num != null) state.plantQuantity = num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1))
+            },
+            modifier = Modifier.width(40.dp)
+                .background(Color.White, RoundedCornerShape(4.dp))
+                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+            singleLine = true,
+            textStyle = TextStyle(
+                fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = Color.Black, textAlign = TextAlign.Center
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
+        PlantingStepText(
+            text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            enabled = state.plantQuantity < derived.maxPlantable,
+            interactionSource = incInteraction, onClick = {
+                state.plantQuantity++
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
+        PlantingStepText(
+            text = "+10", fontSize = 12.sp, enabled = true, interactionSource = inc10Interaction, onClick = {
+                state.plantQuantity = (state.plantQuantity + 10).coerceAtMost(derived.maxPlantable.coerceAtLeast(1))
+                state.qtyInput = state.plantQuantity.toString()
+            }
+        )
         GameButton(
             text = "种植",
             enabled = derived.selectedSeed != null && derived.unplantedCount > 0,
             onClick = { performPlanting() }
         )
     }
+}
+
+/** 种植数量步进文本按钮（PlantingDialog 拆分） */
+@Composable
+private fun PlantingStepText(
+    text: String,
+    fontSize: TextUnit,
+    fontWeight: FontWeight = FontWeight.Normal,
+    enabled: Boolean,
+    interactionSource: MutableInteractionSource,
+    onClick: () -> Unit
+) {
+    Text(
+        text = text,
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        color = Color.Black,
+        modifier = Modifier
+            .alpha(if (enabled) 1f else 0.3f)
+            .clickableWithSound(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled
+            ) {
+                onClick()
+            }
+    )
 }
 
 /** P-2：种子详情弹窗（从 PlantingDialog 提取）。 */

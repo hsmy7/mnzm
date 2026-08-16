@@ -6,7 +6,7 @@
 
 - **宗门交易** — `SectTradeDialog` 删除私有 `SectTradeQuantityStepper`，购买面板改接 `QuantitySelector`（上限传 `item.quantity` 与旧 `coerceAtMost` 语义一致）；`key(item.id)` 切换商品重建组件清空编辑态；`UnifiedGameDialog` 补 `freezeSystemBars = true`（与商人主对话框一致，荣耀 X70 键盘频闪根治三件套）
 - **赏赐道具** — `DetailPillSection.RewardQuantityStepper` 替换为 `QuantitySelector`（保留 `/ 上限` 展示；赏赐进行中显示静态数量，与旧"按钮禁用"行为等价，防编辑态残留）
-- **灵田种植** — `PlantingQuantityControl` 手写 `BasicTextField` + 手写数字过滤钳制（与 `sanitizeQuantityInput` 逻辑重复）替换为 `QuantitySelector`（去掉原"最小/最大"文本按钮，统一使用 -10/+10 步进 + 键盘输入，与商人/宗门交易一致）；底部操作栏由单行改为两行（灵田面板仅占屏宽 40%，原单行 6 元素在竖屏必然溢出，两行同时修复竖屏布局溢出）；`RemoveConfirmationDialog` 铲除数量同样接入；删除 `qtyInput`/`removeQtyInput` 状态、`PlantingStepText` 与死代码 `isEditingQty`/`isEditingRemoveQty`
+- **灵田种植** — 保留原单行布局，仅把"最小/最大"两个快捷按钮替换为 -10/+10（步进钳制下限 1 / 上限可种数量），-1/输入框/+1/种植按钮均保持原样；`RemoveConfirmationDialog` 铲除数量同样接入统一 `QuantitySelector`（-10/+10 + 键盘输入）；清理死代码 `isEditingQty`/`isEditingRemoveQty`
 - **测试** — 新增 `SectTradeQuantitySelectorTest` 2 用例：±10 按钮存在且点击步进生效（1→11）、上限钳制到商品库存（库存 5 时 +10 钳制为 5 且按钮禁用）；组件内部逻辑复用既有 `QuantitySelectorFlowTest`（输入净化/编辑态/键盘）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 交互收敛，经济逻辑（`DiplomacyService.buyFromSectTradeSync` 等）不动
 

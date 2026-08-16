@@ -162,8 +162,15 @@ private fun sectTradeRelationInfo(
     val relationLevel = FavorDomain.getLevel(relation)
     val maxAllowedRarity = relationLevel.maxAllowedRarity
 
-    val priceMultiplier = if (playerSect != null && gameData != null && sect != null) {
-        FavorDomain.calculateTradePriceMultiplier(gameData.sectRelations, gameData.alliances, sect.id, playerSect.id)
+    // playerSect 来自 gameData 的空安全链，playerSect 非空即蕴含 gameData 非空
+    // （旧写法在此追加 gameData != null 被编译器判定恒真，产生警告）
+    val priceMultiplier = if (playerSect != null && sect != null) {
+        FavorDomain.calculateTradePriceMultiplier(
+            sectRelations = gameData?.sectRelations ?: emptyList(),
+            alliances = gameData?.alliances ?: emptyList(),
+            sectId = sect.id,
+            playerSectId = playerSect.id
+        )
     } else 1.0
 
     val relationColor = Color(relationLevel.colorHex)
