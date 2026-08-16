@@ -50,6 +50,9 @@ import com.xianxia.sect.ui.theme.GameColors
 import kotlin.math.ceil
 import com.xianxia.sect.ui.components.clickableWithSound
 
+/** 种子网格最大列数（限制列数让出宽度给右侧灵田面板；窄屏仍可自适应少于该值） */
+private const val SEED_GRID_MAX_COLS = 5
+
 
 
 /**
@@ -306,7 +309,7 @@ private fun RowScope.SeedGridPanel(
 ) {
     Column(
         modifier = Modifier
-            .weight(0.6f)
+            .weight(0.5f)
             .fillMaxHeight()
             .padding(start = 12.dp, top = 4.dp, end = 8.dp)
     ) {
@@ -352,14 +355,15 @@ private fun ColumnScope.PlantingSeedGrid(
     ) {
         val itemW = 60.dp
         val gap = 6.dp
-        val cols = maxOf(1, ((maxWidth - gap) / (itemW + gap)).toInt())
+        // 上限 5 列：让出宽度给右侧灵田面板；窄屏按实际宽度自适应更少列
+        val cols = maxOf(1, minOf(SEED_GRID_MAX_COLS, ((maxWidth - gap) / (itemW + gap)).toInt()))
         val rows = maxOf(2, ((maxHeight - gap) / (itemW + 20.dp + gap)).toInt())
         val calcSize = cols * rows
         if (calcSize != state.dynPageSize && calcSize > 0) {
             LaunchedEffect(Unit) { state.dynPageSize = calcSize }
         }
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(60.dp),
+            columns = GridCells.Fixed(cols),
             modifier = Modifier
                 .fillMaxSize(),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -405,7 +409,7 @@ private fun RowScope.PlantingFieldPanel(
 ) {
     Column(
         modifier = Modifier
-            .weight(0.4f)
+            .weight(0.5f)
             .fillMaxHeight()
     ) {
         // 灵田统计行固定第一行
