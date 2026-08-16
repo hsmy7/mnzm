@@ -25,7 +25,7 @@
 
 - **每宗独立地图** — 新增 `SectMapController`：`sectMapData` 随 `activeSectId` 惰性生成底图（主宗=`mapSeed` 与 boot 图一致，被占宗门=`(mapSeed×31) xor sectId.hashCode()` 确定性种子），按种子缓存；`SectMapState(sectId, map)` 携带对应宗门杜绝 stale value；`GameActivity` 传给 `MainGameScreen` 的底图改为 `sectMapData?.map ?: boot图`（未加载时以 `mapSeed==0` 判定回退）
 - **HUD 显示当前宗门** — `SectInfoCard` 标题/等级按 `activeSectId` 从 `worldMapSects` 解析（被占宗门显示其名与等级），改名/等级详情仅主宗可点
-- **进入宗门转场** — `SectMapController.beginSectTransition` 触发全屏转场：播放 `sect_enter_transition.mp4`（循环、静音，`SectTransitionOverlay` 独立文件），**平台 Dialog 窗口承载**（置于世界地图平台 Dialog 之上，消除进入瞬间"先闪地图再出转场"）+ 视频 `VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING` center-crop 全屏（4:3 源去除黑边），中央转圈 + 12sp「加载资源中…」，目标宗门地图就绪且至少播放 1 秒后自动关闭（不依赖 13.85s 全片播完；5s 超时兜底；代数计数防并发误关）；`DisposableEffect` 显式停播防 MediaPlayer 残留；从世界地图进入任意宗门（含主宗）均播放
+- **进入宗门转场** — `SectMapController.beginSectTransition` 触发全屏转场：播放 `sect_enter_transition.mp4`（循环、静音，`SectTransitionOverlay` 独立文件），**平台 Dialog 窗口承载**（置于世界地图平台 Dialog 之上，消除进入瞬间"先闪地图再出转场"）+ 视频 `VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING` center-crop 全屏（4:3 源去除黑边），中央转圈 + 12sp「加载资源中…」，**引擎切换 `activeSectId` 即关 + 至少播放 0.8s**（不等待瓦片种子生成/Default 线程，避免转场拖到 3~4s；3s 超时兜底；代数计数防并发误关）；`DisposableEffect` 显式停播防 MediaPlayer 残留；从世界地图进入任意宗门（含主宗）均播放
 - **重构收敛** — 每宗地图/转场状态机抽为 `SectMapController`（独立可测），转场 UI 独立文件，删除 4 条临时诊断日志（`[enterSect-ui]`/`[enterSect-diag]`/`[bus-scope]`/`[sect-scope]`），保留 `R2 疑似 sectId 失配` 一次性告警
 - **测试** — 新增 `GameViewModelSectMapTest` 6 用例（种子派生确定性/各宗不同、地图确定性、未加载为 null、切宗门换底图、转场触发且地图就绪后自动关闭）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；每宗地图为确定性种子惰性生成，不持久化、不改变 `placedBuildings`/`sectId` 数据语义；APK 因转场视频 +14.7MB（H.264 1440×1080 13.85s）

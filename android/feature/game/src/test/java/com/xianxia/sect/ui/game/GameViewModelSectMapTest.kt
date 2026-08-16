@@ -214,25 +214,25 @@ class GameViewModelSectMapTest {
     }
 
     @Test
-    fun `enterSect - 触发转场且目标地图就绪后自动关闭`() = runTest(testDispatcher) {
+    fun `enterSect - 触发转场且引擎切换 activeSectId 后自动关闭`() = runTest(testDispatcher) {
         gameDataFlow.value = GameData(sectName = "青云宗", mapSeed = 42, activeSectId = "")
         awaitSectMap("")
 
         viewModel.enterSect("sect_a")
         assertTrue("进入宗门应立即触发转场", viewModel.sectTransitionActive.value)
 
-        // 模拟引擎 enterSect 完成：activeSectId 切到目标 + 该宗地图就绪
+        // 模拟引擎 enterSect 完成：activeSectId 切到目标（转场关闭条件）
         gameDataFlow.value = GameData(sectName = "青云宗", mapSeed = 42, activeSectId = "sect_a")
         awaitSectMap("sect_a")
 
-        // 推进 viewModelScope(Main=testDispatcher) 上的转场协程（等地图就绪 + 1 秒最小时长）
+        // 推进 viewModelScope(Main=testDispatcher) 上的转场协程（activeSectId 切换 + 0.8s 最小时长）
         advanceUntilIdle()
 
-        // 轮询等待转场协程关闭（first{} 满足后切回主线程可能还需极短真实时间）
+        // 轮询等待转场协程关闭（切换后切回主线程可能还需极短真实时间）
         val deadline = System.currentTimeMillis() + 5_000
         while (viewModel.sectTransitionActive.value && System.currentTimeMillis() < deadline) {
             Thread.sleep(5)
         }
-        assertFalse("目标地图就绪且超过最小 1 秒后转场必须自动关闭", viewModel.sectTransitionActive.value)
+        assertFalse("activeSectId 已切换且超过最小时长后转场必须自动关闭", viewModel.sectTransitionActive.value)
     }
 }

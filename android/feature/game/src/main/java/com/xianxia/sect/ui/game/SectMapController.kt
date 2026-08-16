@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -31,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *   宗门地图就绪且至少播放 1 秒再关闭（不依赖视频播完；5s 超时兜底；代数计数防并发误关）。
  */
 class SectMapController(
-    gameData: StateFlow<GameData>,
+    private val gameData: StateFlow<GameData>,
     private val scope: CoroutineScope
 ) {
     private val sectMapCache = ConcurrentHashMap<Int, MapPreloadData>()
@@ -56,18 +55,21 @@ class SectMapController(
 
     /**
      * 开始进入宗门转场。调用方随后需执行引擎 enterSect（本类只负责转场 UI 状态机）。
-     * 转场在目标宗门地图就绪且至少播放 1 秒后自动关闭。
+     *
+     * 关闭条件 = 引擎已将 activeSectId 切到目标（地图/点击作用域就绪）且至少播放 0.8s。
+     * 不等待 sectMapData 生成目标宗地图：瓦片种子生成 <10ms、由最小播放时长兜底覆盖，
+     * 避免把 Default 线程/stateIn 链路延迟计入转场时长（实测曾达 3~4s）。
      */
     fun beginSectTransition(sectId: String) {
         val gen = sectTransitionGen.incrementAndGet()
         _sectTransitionActive.value = true
         scope.launch {
             val startNs = System.nanoTime()
-            withTimeoutOrNull(5_000L) {
-                sectMapData.first { it != null && it.sectId == sectId }
+            withTimeoutOrNull(3_000L) {
+                while (gameData.value.activeSectId != sectId) delay(16)
             }
             val elapsedMs = (System.nanoTime() - startNs) / 1_000_000L
-            if (elapsedMs < 1_000L) delay(1_000L - elapsedMs)
+            if (elapsedMs < 800L) delay(800L - elapsedMs)
             if (sectTransitionGen.get() == gen) _sectTransitionActive.value = false
         }
     }
