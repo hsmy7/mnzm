@@ -2,28 +2,21 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
@@ -44,6 +37,8 @@ import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.core.util.watchKey
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.QuantitySelector
+import com.xianxia.sect.ui.game.components.QuantitySelectorSizes
 import com.xianxia.sect.ui.theme.GameColors
 import kotlin.math.ceil
 import com.xianxia.sect.ui.components.clickableWithSound
@@ -67,10 +62,8 @@ private class PlantingDialogState {
     var selectedSeedId by mutableStateOf<String?>(null)
     var seedPage by mutableIntStateOf(1)
     var plantQuantity by mutableIntStateOf(1)
-    var qtyInput by mutableStateOf("1")
     var removeDialogGroup by mutableStateOf<FieldGroup?>(null)
     var removeQuantity by mutableIntStateOf(1)
-    var removeQtyInput by mutableStateOf("1")
     var showSeedDetail by mutableStateOf(false)
     var detailSeed by mutableStateOf<Seed?>(null)
     var dynPageSize by mutableIntStateOf(12)
@@ -122,8 +115,6 @@ fun PlantingDialog(
 
     // ── 本地状态 ───────────────────────────────────────────
     val state = remember { PlantingDialogState() }
-    var isEditingQty by remember { mutableStateOf(false) }
-    var isEditingRemoveQty by remember { mutableStateOf(false) }
 
     // ── 派生数据 ───────────────────────────────────────────
     val derived = rememberPlantingDerivedData(
@@ -176,9 +167,9 @@ fun PlantingDialog(
     // P-2：铲除确认弹窗提取（行为逐行一致）
     RemoveConfirmationDialog(
         group = state.removeDialogGroup,
-        removeQuantity = state.removeQuantity, removeQtyInput = state.removeQtyInput,
-        onQuantityChange = { qty -> state.removeQuantity = qty; state.removeQtyInput = qty.toString() },
-        onConfirm = { state.removeDialogGroup = null; state.removeQuantity = 1; state.removeQtyInput = "1" },
+        removeQuantity = state.removeQuantity,
+        onQuantityChange = { qty -> state.removeQuantity = qty },
+        onConfirm = { state.removeDialogGroup = null; state.removeQuantity = 1 },
         onDismiss = { state.removeDialogGroup = null },
         onRemove = { ids -> viewModel.planting.removePlantsFromSpiritFields(ids) }
     )
@@ -383,7 +374,6 @@ private fun ColumnScope.PlantingSeedGrid(
                         state.selectedSeedId =
                             if (state.selectedSeedId == seed.id) null else seed.id
                         state.plantQuantity = 1
-                        state.qtyInput = "1"
                     },
                     onLongPress = {
                         state.detailSeed = seed
@@ -509,7 +499,6 @@ private fun ColumnScope.PlantedGroupsList(
                             text = "铲除",
                             onClick = {
                                 state.removeQuantity = 1
-                                state.removeQtyInput = "1"
                                 state.removeDialogGroup = group
                             }
                         )
@@ -617,9 +606,16 @@ private fun UnknownSeedFallbackBox(
     }
 }
 
-/** 种植数量控制行 + 种植按钮（PlantingDialog 拆分） */
-// 拆分残余:函数体略超 60 行(原函数拆分后聚合)
-@Suppress("LongMethod")
+/** 种植数量器紧凑尺寸（26dp 按钮：灵田面板仅占屏宽 40%，竖屏需更小尺寸防溢出） */
+private val plantingQuantitySizes = QuantitySelectorSizes(
+    buttonSize = 26.dp,
+    numberBoxWidth = 48.dp,
+    numberBoxHeight = 26.dp,
+    buttonCornerRadius = 4.dp,
+    buttonFontSize = 13.sp,
+)
+
+/** 种植数量控制区 + 种植按钮（PlantingDialog 拆分）：数量器行 + 种植按钮行 */
 @Composable
 private fun PlantingQuantityControl(
     state: PlantingDialogState,
@@ -639,105 +635,31 @@ private fun PlantingQuantityControl(
         }
         state.selectedSeedId = null
         state.plantQuantity = 1
-        state.qtyInput = "1"
     }
 
-    val minInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val decInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val incInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val maxInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        PlantingStepText(
-            text = "最小", fontSize = 12.sp, enabled = true, interactionSource = minInteraction, onClick = {
-                state.plantQuantity = 1
-                state.qtyInput = "1"
-            }
-        )
-        PlantingStepText(
-            text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, enabled = state.plantQuantity > 1,
-            interactionSource = decInteraction, onClick = {
-                state.plantQuantity--
-                state.qtyInput = state.plantQuantity.toString()
-            }
-        )
-        // 数量显示 — 始终可见的输入框
-        val displayText = state.qtyInput.ifEmpty { state.plantQuantity.toString() }
-        BasicTextField(
-            value = displayText,
-            onValueChange = { newValue ->
-                val filtered = newValue.filter { it.isDigit() }
-                val num = filtered.toIntOrNull()
-                state.qtyInput = if (num != null) {
-                    num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1)).toString()
-                } else {
-                    filtered
-                }
-                if (num != null) state.plantQuantity = num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1))
-            },
-            modifier = Modifier.width(40.dp)
-                .background(Color.White, RoundedCornerShape(4.dp))
-                .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-                .padding(horizontal = 4.dp, vertical = 2.dp),
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = Color.Black, textAlign = TextAlign.Center
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-        )
-        PlantingStepText(
-            text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-            enabled = state.plantQuantity < derived.maxPlantable,
-            interactionSource = incInteraction, onClick = {
-                state.plantQuantity++
-                state.qtyInput = state.plantQuantity.toString()
-            }
-        )
-        PlantingStepText(
-            text = "最大", fontSize = 12.sp, enabled = true, interactionSource = maxInteraction, onClick = {
-                state.plantQuantity = derived.maxPlantable.coerceAtLeast(1)
-                state.qtyInput = state.plantQuantity.toString()
-            }
-        )
+        // 统一数量选择器：-10/-1/输入/+1/+10（与商人/宗门交易一致）；
+        // key 种子切换重建，清空编辑态残留的输入串与焦点
+        key(derived.selectedSeed?.id) {
+            QuantitySelector(
+                quantity = state.plantQuantity,
+                maxQuantity = derived.maxPlantable.coerceAtLeast(1),
+                onQuantityChange = { state.plantQuantity = it },
+                sizes = plantingQuantitySizes
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
         GameButton(
             text = "种植",
             enabled = derived.selectedSeed != null && derived.unplantedCount > 0,
             onClick = { performPlanting() }
         )
     }
-}
-
-/** 种植数量步进文本按钮（PlantingDialog 拆分） */
-@Composable
-private fun PlantingStepText(
-    text: String,
-    fontSize: TextUnit,
-    fontWeight: FontWeight = FontWeight.Normal,
-    enabled: Boolean,
-    interactionSource: MutableInteractionSource,
-    onClick: () -> Unit
-) {
-    Text(
-        text = text,
-        fontSize = fontSize,
-        fontWeight = fontWeight,
-        color = Color.Black,
-        modifier = Modifier
-            .alpha(if (enabled) 1f else 0.3f)
-            .clickableWithSound(
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled
-            ) {
-                onClick()
-            }
-    )
 }
 
 /** P-2：种子详情弹窗（从 PlantingDialog 提取）。 */
@@ -762,7 +684,6 @@ private fun SeedDetailDialog(
 private fun RemoveConfirmationDialog(
     group: FieldGroup?,
     removeQuantity: Int,
-    removeQtyInput: String,
     onQuantityChange: (Int) -> Unit,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
@@ -798,26 +719,15 @@ private fun RemoveConfirmationDialog(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text("铲除数量:", fontSize = 12.sp, color = Color.Black)
-                    val ri = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    Text(
-                        text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
-                        modifier = Modifier.alpha(if (removeQuantity > 1) 1f else 0.3f)
-                            .clickableWithSound(interactionSource = ri, indication = null, enabled = removeQuantity > 1) {
-                                onQuantityChange(removeQuantity - 1)
-                            }
-                    )
-                    Text(
-                        text = "$removeQuantity", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black
-                    )
-                    val ri2 = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    val maxQty = it.fields.size.coerceAtLeast(1)
-                    Text(
-                        text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
-                        modifier = Modifier.alpha(if (removeQuantity < maxQty) 1f else 0.3f)
-                            .clickableWithSound(interactionSource = ri2, indication = null, enabled = removeQuantity < maxQty) {
-                                onQuantityChange(removeQuantity + 1)
-                            }
-                    )
+                    // key(seedId)：切换铲除分组时重建组件，清空编辑态残留的输入串与焦点
+                    key(it.seedId) {
+                        QuantitySelector(
+                            quantity = removeQuantity,
+                            maxQuantity = it.fields.size.coerceAtLeast(1),
+                            onQuantityChange = onQuantityChange,
+                            sizes = plantingQuantitySizes
+                        )
+                    }
                 }
             }
         }

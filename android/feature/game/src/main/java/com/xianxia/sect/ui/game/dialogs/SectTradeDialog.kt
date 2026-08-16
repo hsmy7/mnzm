@@ -31,10 +31,12 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.ItemCardData
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.QuantitySelector
+import com.xianxia.sect.ui.game.components.QuantitySelectorSizes
 import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
-import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import androidx.compose.ui.platform.LocalLocale
 
@@ -47,6 +49,15 @@ private class SectTradeDialogState {
     var lockedItemName by mutableStateOf("")
     var lockedItemRarity by mutableIntStateOf(1)
 }
+
+/** 宗门交易紧凑布局尺寸（28dp 按钮，与商人界面视觉统一） */
+private val sectTradeQuantitySizes = QuantitySelectorSizes(
+    buttonSize = 28.dp,
+    numberBoxWidth = 56.dp,
+    numberBoxHeight = 28.dp,
+    buttonCornerRadius = 4.dp,
+    buttonFontSize = 14.sp,
+)
 
 /** 宗门关系信息（SectTradeDialog 拆分） */
 private data class SectTradeRelationInfo(
@@ -96,7 +107,10 @@ fun SectTradeDialog(
         interactionViewModel = interactionViewModel
     )
 
-    UnifiedGameDialog(onDismissRequest = onDismiss, title = "宗门交易", mode = DialogMode.Full, scrollableContent = false) {
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss, title = "宗门交易", mode = DialogMode.Full,
+        scrollableContent = false, freezeSystemBars = true // 含购买数量常驻输入框：冻结宿主窗口系统栏（键盘频闪根治）
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
                 SectTradeRelationHeader(relationInfo = relationInfo)
@@ -360,11 +374,16 @@ private fun SectTradePurchasePanel(
 
                 SectTradeSelectedItemInfo(item = item, adjustedPrice = adjustedPrice)
 
-                SectTradeQuantityStepper(
-                    buyQuantity = state.buyQuantity,
-                    onDecrease = { state.buyQuantity = (state.buyQuantity - 1).coerceAtLeast(1) },
-                    onIncrease = { state.buyQuantity = (state.buyQuantity + 1).coerceAtMost(item.quantity) }
-                )
+                // key(item.id)：切换商品时重建组件，清空编辑态残留的输入串与焦点
+                // （与 MerchantDialog 同款对抗性审查防护）
+                key(item.id) {
+                    QuantitySelector(
+                        quantity = state.buyQuantity,
+                        maxQuantity = item.quantity,
+                        onQuantityChange = { state.buyQuantity = it },
+                        sizes = sectTradeQuantitySizes
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -415,56 +434,6 @@ private fun SectTradeSelectedItemInfo(
                 fontSize = 10.sp,
                 color = GameColors.TextSecondary
             )
-        }
-    }
-}
-
-/** 购买数量步进器（SectTradeDialog 拆分）：- 数量 + */
-@Composable
-private fun SectTradeQuantityStepper(
-    buyQuantity: Int,
-    onDecrease: () -> Unit,
-    onIncrease: () -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "购买数量:",
-            fontSize = 11.sp,
-            color = GameColors.TextSecondary
-        )
-
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.Background)
-                .clickable(onClick = onDecrease),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
-        }
-
-        Text(
-            text = "$buyQuantity",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = GameColors.TextPrimary,
-            modifier = Modifier.widthIn(min = 24.dp),
-            textAlign = TextAlign.Center
-        )
-
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(GameColors.Background)
-                .clickable(onClick = onIncrease),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
         }
     }
 }

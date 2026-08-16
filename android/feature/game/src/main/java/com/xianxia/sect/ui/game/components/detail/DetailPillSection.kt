@@ -38,8 +38,10 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.QuantitySelector
+import com.xianxia.sect.ui.game.components.QuantitySelectorSizes
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.clickableWithSound
@@ -688,7 +690,16 @@ private fun RewardBottomPanel(
     }
 }
 
-/** 赏赐数量调节器（RewardBottomPanel 拆分）：减号/数量/加号/上限 */
+/** 赏赐数量器紧凑尺寸（28dp 按钮，与商人/宗门交易视觉统一） */
+private val rewardQuantitySizes = QuantitySelectorSizes(
+    buttonSize = 28.dp,
+    numberBoxWidth = 56.dp,
+    numberBoxHeight = 28.dp,
+    buttonCornerRadius = 4.dp,
+    buttonFontSize = 14.sp,
+)
+
+/** 赏赐数量调节器（RewardBottomPanel 拆分）：统一数量选择器 + 上限展示 */
 @Composable
 private fun RewardQuantityStepper(
     selectedItem: RewardSelectedItem?,
@@ -697,60 +708,42 @@ private fun RewardQuantityStepper(
     isRewarding: Boolean,
     onQuantityChange: (Int) -> Unit
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (selectedItem != null) {
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (rewardQuantity > 1 && !isRewarding) GameColors.Success else GameColors.Border)
-                    .clickableWithSound(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
-                contentAlignment = Alignment.Center
-            ) {
+    if (selectedItem != null) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (isRewarding) {
+                // 赏赐进行中：静态展示数量（与既有"按钮禁用"行为等价，防编辑态残留）
                 Text(
-                    text = "-",
-                    fontSize = 16.sp,
-                    color = if (rewardQuantity > 1 && !isRewarding) Color.White else Color.Black
+                    text = "$rewardQuantity",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = GameColors.TextSecondary
                 )
+            } else {
+                // key(id)：切换物品时重建组件，清空编辑态残留的输入串与焦点
+                key(selectedItem.id) {
+                    QuantitySelector(
+                        quantity = rewardQuantity,
+                        maxQuantity = maxQuantity,
+                        onQuantityChange = onQuantityChange,
+                        sizes = rewardQuantitySizes
+                    )
+                }
             }
-
-            Text(
-                text = "$rewardQuantity",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isRewarding) GameColors.TextSecondary else Color.Black
-            )
-
-            Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(if (rewardQuantity < maxQuantity && !isRewarding) GameColors.Success else GameColors.Border)
-                    .clickableWithSound(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "+",
-                    fontSize = 16.sp,
-                    color = if (rewardQuantity < maxQuantity && !isRewarding) Color.White else Color.Black
-                )
-            }
-
             Text(
                 text = "/ $maxQuantity",
                 fontSize = 12.sp,
                 color = GameColors.TextSecondary
             )
-        } else {
-            Text(
-                text = "请选择要赏赐的道具",
-                fontSize = 12.sp,
-                color = GameColors.TextSecondary
-            )
         }
+    } else {
+        Text(
+            text = "请选择要赏赐的道具",
+            fontSize = 12.sp,
+            color = GameColors.TextSecondary
+        )
     }
 }
 

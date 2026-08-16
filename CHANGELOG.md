@@ -1,5 +1,15 @@
 ## [4.01.00] - 2026-08-16
 
+### 修复（2026-08-16 宗门交易/赏赐/种植数量选择器统一接入 QuantitySelector）
+
+> 背景：宗门交易购买面板的数量选择器是自建的残缺步进器（仅 `-`/`+` 单步、数字不可点击不可输入），而商人界面早已接入统一组件 `QuantitySelector`（`[-10][−][常驻输入框][+][+10]` 四向步进 + 点击数字弹键盘 + 超上限自动截断）。全库排查发现共 3 处自建步进器（同类模式问题），本次全部收敛到统一组件。
+
+- **宗门交易** — `SectTradeDialog` 删除私有 `SectTradeQuantityStepper`，购买面板改接 `QuantitySelector`（上限传 `item.quantity` 与旧 `coerceAtMost` 语义一致）；`key(item.id)` 切换商品重建组件清空编辑态；`UnifiedGameDialog` 补 `freezeSystemBars = true`（与商人主对话框一致，荣耀 X70 键盘频闪根治三件套）
+- **赏赐道具** — `DetailPillSection.RewardQuantityStepper` 替换为 `QuantitySelector`（保留 `/ 上限` 展示；赏赐进行中显示静态数量，与旧"按钮禁用"行为等价，防编辑态残留）
+- **灵田种植** — `PlantingQuantityControl` 手写 `BasicTextField` + 手写数字过滤钳制（与 `sanitizeQuantityInput` 逻辑重复）替换为 `QuantitySelector`（去掉原"最小/最大"文本按钮，统一使用 -10/+10 步进 + 键盘输入，与商人/宗门交易一致）；底部操作栏由单行改为两行（灵田面板仅占屏宽 40%，原单行 6 元素在竖屏必然溢出，两行同时修复竖屏布局溢出）；`RemoveConfirmationDialog` 铲除数量同样接入；删除 `qtyInput`/`removeQtyInput` 状态、`PlantingStepText` 与死代码 `isEditingQty`/`isEditingRemoveQty`
+- **测试** — 新增 `SectTradeQuantitySelectorTest` 2 用例：±10 按钮存在且点击步进生效（1→11）、上限钳制到商品库存（库存 5 时 +10 钳制为 5 且按钮禁用）；组件内部逻辑复用既有 `QuantitySelectorFlowTest`（输入净化/编辑态/键盘）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 交互收敛，经济逻辑（`DiplomacyService.buyFromSectTradeSync` 等）不动
+
 ### 修复（2026-08-16 奖励卡片同名物品未聚合，多个相同物品逐张飞出）
 
 > 背景：获得多个相同物品（战斗奖励同名材料/丹药、邮件附件、兑换码、储物袋开启、天道试炼等）时，奖励卡片动画逐张飞出——每个相同物品各生成一张独立卡片（各自独立 UUID），错峰动画依次上飘，而非合并为一张"xN"卡片一次飞出。根因：卡片链路三段均无同名合并——① 入队侧各奖励路径（`buildBattleRewardCards`/`buildRewardCardsFromAttachments`/`enqueueRewardCardsFromApiRewards`/`openStorageBag`/`HeavenlyTrialService` 等）逐条目构造 `RewardCardItem`；② 队列侧 `GameStateStoreImpl.enqueueRewardCards` 纯追加；③ 渲染侧 `RewardCardHost` 对每张卡片独立播放动画。
