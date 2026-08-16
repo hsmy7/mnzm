@@ -29,11 +29,11 @@ class MailRepositoryImpl @Inject constructor(
         private const val TAG = "MailRepository"
     }
 
-    override fun getActiveMails(slotId: Int, nowMs: Long): Flow<List<MailEntity>> =
-        mailDao.getActiveMails(slotId, nowMs)
+    override fun getActiveMails(slotId: Int): Flow<List<MailEntity>> =
+        mailDao.getActiveMails(slotId)
 
-    override fun getUnreadCount(slotId: Int, nowMs: Long): Flow<Int> =
-        mailDao.getUnreadCount(slotId, nowMs)
+    override fun getUnreadCount(slotId: Int): Flow<Int> =
+        mailDao.getUnreadCount(slotId)
 
     override suspend fun getById(slotId: Int, mailId: String): MailEntity? =
         mailDao.getById(slotId, mailId)
@@ -58,12 +58,6 @@ class MailRepositoryImpl @Inject constructor(
 
     override suspend fun deleteAllReadAndClaimed(slotId: Int) =
         mailDao.deleteAllReadAndClaimed(slotId)
-
-    override suspend fun deleteExpired(slotId: Int, nowMs: Long) =
-        mailDao.deleteExpired(slotId, nowMs)
-
-    override suspend fun deleteMailsWithoutAttachments(slotId: Int) =
-        mailDao.deleteMailsWithoutAttachments(slotId)
 
     // === 草稿持久化（D-01 事务化根治） ===
     // 非挂起（阻塞）方法：供 GameStateStore 事务提交钩子（锁外、事务线程，禁 suspend）

@@ -125,8 +125,7 @@ class MailService @Inject constructor(
 
     private suspend fun refreshActiveMails(slotId: Int) {
         currentSlot = slotId
-        val now = System.currentTimeMillis()
-        _activeMails.value = mailRepo.getActiveMails(slotId, now).first()
+        _activeMails.value = mailRepo.getActiveMails(slotId).first()
         _unreadCount.value = _activeMails.value.count { !it.isRead }
     }
 
@@ -138,8 +137,7 @@ class MailService @Inject constructor(
         mailFlowJob?.cancel()
         currentSlot = slotId
         mailFlowJob = scopeProvider.scope.launch {
-            val now = System.currentTimeMillis()
-            mailRepo.getActiveMails(slotId, now).collect { mails ->
+            mailRepo.getActiveMails(slotId).collect { mails ->
                 _activeMails.value = mails
                 _unreadCount.value = mails.count { !it.isRead }
             }
@@ -170,7 +168,6 @@ class MailService @Inject constructor(
             // 非关键邮件操作，异步执行不阻塞游戏线程
             scopeProvider.scope.launch {
                 fetchOnlineMails(slotId)
-                cleanExpired(slotId)
             }
         } catch (e: CancellationException) {
             throw e
@@ -230,7 +227,7 @@ class MailService @Inject constructor(
                 DomainLog.i(TAG, "Builtin mail ${builtinMail.id} deadline passed, skipping (now=$now, deadline=${builtinMail.deadlineMs})")
                 return@forEach
             }
-            val existingMails = mailRepo.getActiveMails(slotId, now).first()
+            val existingMails = mailRepo.getActiveMails(slotId).first()
             val alreadyInserted = existingMails.any { it.source == "builtin" && it.id == builtinMail.id }
             if (!alreadyInserted) {
                 val entity = MailEntity(
@@ -353,7 +350,7 @@ class MailService @Inject constructor(
     suspend fun markAllAsRead(slotId: Int): MarkAllReadResult {
         return getMutex(slotId).withLock {
             val now = System.currentTimeMillis()
-            val mails = mailRepo.getActiveMails(slotId, now).first()
+            val mails = mailRepo.getActiveMails(slotId).first()
 
             var claimedCount = 0
             var skippedCount = 0
@@ -443,10 +440,8 @@ class MailService @Inject constructor(
     }
 
     /**
-     * 确保有足够容量领取附件。容量不足时尝试级联清理邮件腾空间：
-     * 1) 删除已读已领邮件
-     * 2) 删除无附件邮件（无物品损失）
-     * 仍不足则返回错误消息。
+     * 确保有足够容量领取附件。容量不足时直接返回错误——不自动删除任何邮件
+     * （邮件只保留，仅玩家手动"删除已读"清理），由玩家清理仓库后重试。
      */
     private suspend fun ensureCapacity(attachments: List<MailAttachment>, slotId: Int): String? {
         val data = stateStore.gameData.value
@@ -455,7 +450,7 @@ class MailService @Inject constructor(
             when (attachment.type) {
                 "spiritStones", "spiritHerbs", "storageBag" -> {}
                 "equipment", "manual", "pill", "material", "beastMaterial", "herb", "seed" -> {
-                    var totalItems = stateStore.equipmentStacks.value.size +
+                    val totalItems = stateStore.equipmentStacks.value.size +
                             stateStore.manualStacks.value.size +
                             stateStore.pills.value.size +
                             stateStore.materials.value.size +
@@ -466,27 +461,7 @@ class MailService @Inject constructor(
                             warehouseCount * gameConfigProvider.warehouse.capacityPerBuilding
 
                     if (totalItems >= maxCap) {
-                        // 级联清理：先删已读已领邮件
-                        mailRepo.deleteAllReadAndClaimed(slotId)
-                        totalItems = stateStore.equipmentStacks.value.size +
-                                stateStore.manualStacks.value.size +
-                                stateStore.pills.value.size +
-                                stateStore.materials.value.size +
-                                stateStore.herbs.value.size +
-                                stateStore.seeds.value.size
-                        if (totalItems >= maxCap) {
-                            // 仍不足：删无附件邮件（无物品损失）
-                            mailRepo.deleteMailsWithoutAttachments(slotId)
-                            totalItems = stateStore.equipmentStacks.value.size +
-                                    stateStore.manualStacks.value.size +
-                                    stateStore.pills.value.size +
-                                    stateStore.materials.value.size +
-                                    stateStore.herbs.value.size +
-                                    stateStore.seeds.value.size
-                            if (totalItems >= maxCap) {
-                                return "仓库空间不足，请清理后再领取"
-                            }
-                        }
+                        return "仓库空间不足，请清理后再领取"
                     }
                 }
                 "disciple" -> {
@@ -823,12 +798,8 @@ class MailService @Inject constructor(
     }
 
     suspend fun deleteAllReadAndClaimed(slotId: Int) {
+        // 邮件唯一删除入口：玩家手动点击"删除已读"（已读且已领取，无资产丢失）
         mailRepo.deleteAllReadAndClaimed(slotId)
-    }
-
-    suspend fun cleanExpired(slotId: Int) {
-        val now = System.currentTimeMillis()
-        mailRepo.deleteExpired(slotId, now)
     }
 
     /**
@@ -840,30 +811,31 @@ class MailService @Inject constructor(
     }
 
     fun getActiveMails(slotId: Int): Flow<List<MailEntity>> {
-        return mailRepo.getActiveMails(slotId, System.currentTimeMillis())
+        return mailRepo.getActiveMails(slotId)
     }
 
     fun getUnreadCount(slotId: Int): Flow<Int> {
-        return mailRepo.getUnreadCount(slotId, System.currentTimeMillis())
+        return mailRepo.getUnreadCount(slotId)
     }
 
     /**
-     * 重置并初始化指定存档的邮件（清除旧邮件 → 重新拉取在线+加载内置）。
-     * 用于新游戏/读档/重开场景，确保邮件状态与当前存档一致。
+     * 重置并初始化指定存档的邮件（拉取在线+加载内置，恢复已领取状态）。
+     * 用于新游戏/读档/重开场景。
+     *
+     * **不删除任何已有邮件**——邮件永久保留，仅玩家手动"删除已读"清理；
+     * 在线/内置邮件的拉取是幂等插入（已存在则跳过），溢出/直发邮件继续保留，
+     * 未领取附件绝不因读档/切档/重开而丢失。
      */
     suspend fun resetAndInitSlot(slotId: Int) {
         getMutex(slotId).withLock {
             DomainLog.i(TAG, "resetAndInitSlot for slot $slotId")
             try {
-                mailRepo.deleteAllForSlot(slotId)
                 fetchOnlineMails(slotId)
                 loadBuiltinMails(slotId)
-                cleanExpired(slotId)
                 // 根据存档数据恢复已领取状态
                 val claimedIds = stateStore.gameData.value.mailRecords.map { it.mailId }.toSet()
                 if (claimedIds.isNotEmpty()) {
-                    val now = System.currentTimeMillis()
-                    val mails = mailRepo.getActiveMails(slotId, now).first()
+                    val mails = mailRepo.getActiveMails(slotId).first()
                     mails.filter { it.id in claimedIds }.forEach { mail ->
                         mailRepo.update(mail.copy(attachmentClaimed = true, isRead = true))
                     }
@@ -883,7 +855,6 @@ class MailService @Inject constructor(
         try {
             fetchOnlineMails(slotId)
             loadBuiltinMails(slotId)
-            cleanExpired(slotId)
             DomainLog.i(TAG, "initializeForSlot DONE for slot $slotId")
         } catch (e: Exception) {
             DomainLog.e(TAG, "Error initializing mail for slot $slotId", e)

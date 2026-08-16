@@ -10,9 +10,9 @@ import kotlinx.coroutines.flow.Flow
  */
 interface MailRepository {
 
-    fun getActiveMails(slotId: Int, nowMs: Long): Flow<List<MailEntity>>
+    fun getActiveMails(slotId: Int): Flow<List<MailEntity>>
 
-    fun getUnreadCount(slotId: Int, nowMs: Long): Flow<Int>
+    fun getUnreadCount(slotId: Int): Flow<Int>
 
     suspend fun getById(slotId: Int, mailId: String): MailEntity?
 
@@ -29,11 +29,8 @@ interface MailRepository {
 
     suspend fun deleteAllForSlot(slotId: Int)
 
+    /** 玩家手动"删除已读"：仅删已读且已领取的邮件（邮件唯一删除入口） */
     suspend fun deleteAllReadAndClaimed(slotId: Int)
-
-    suspend fun deleteExpired(slotId: Int, nowMs: Long)
-
-    suspend fun deleteMailsWithoutAttachments(slotId: Int)
 
     // === 草稿持久化（D-01 事务化根治） ===
     // 非挂起（阻塞）方法：供 GameStateStore 事务提交钩子（锁外、事务线程）同步调用。

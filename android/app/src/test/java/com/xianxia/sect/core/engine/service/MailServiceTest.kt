@@ -44,6 +44,7 @@ class MailServiceTest {
     private lateinit var inventoryConfig: InventoryConfig
     private lateinit var httpClient: HttpClientProvider
     private lateinit var scopeProvider: ApplicationScopeProvider
+    private lateinit var serviceScopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider
     private val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
 
     // 测试常量
@@ -96,7 +97,7 @@ class MailServiceTest {
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
 
         // 设置默认 mock 行为
-        `when`(mailRepo.getActiveMails(any(), any())).thenReturn(flowOf(emptyList()))
+        `when`(mailRepo.getActiveMails(any())).thenReturn(flowOf(emptyList()))
         val gameRngManager = mock(com.xianxia.sect.core.util.GameRngManager::class.java)
         `when`(gameRngManager.getRng(any())).thenReturn(DeterministicRng(42))
 
@@ -106,12 +107,13 @@ class MailServiceTest {
             spiritStoneWallet,
             mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
         )
+        serviceScopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java)
         service = MailService(
             mailRepo = mailRepo,
             stateStore = stateStore,
             httpClient = httpClient,
             spiritStoneWallet = spiritStoneWallet,
-            scopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java),
+            scopeProvider = serviceScopeProvider,
             gameRngManager = gameRngManager,
             gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java),
             inventorySystem = inventorySystem
@@ -808,5 +810,40 @@ class MailServiceTest {
             "领取后 mailRecords 应包含补偿邮件",
             stateStore.gameData.value.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }
         )
+    }
+
+    @Test
+    fun `resetAndInitSlot - never deletes any mail (mails retained forever)`() = runBlocking {
+        // Arrange: startMailFlowCollector 需要真实 scope；在线接口返回空列表
+        `when`(serviceScopeProvider.scope).thenReturn(
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+        )
+        `when`(httpClient.get(any())).thenReturn("{}")
+
+        // Act: 读档/切档/重开路径
+        service.resetAndInitSlot(testSlotId)
+
+        // Assert: 邮件永久保留——reset 绝不删除任何邮件（全量清空或按源删除都不发生），
+        // 否则未领取的溢出/直发邮件（草稿已被 drain 消费、无处重建）会被静默清掉
+        verify(mailRepo, never()).deleteAllForSlot(testSlotId)
+        verify(mailRepo, never()).deleteAllReadAndClaimed(testSlotId)
+        verify(mailRepo, never()).deleteIfClaimed(any(), any())
+    }
+
+    @Test
+    fun `markAllAsRead - never deletes unclaimed mails`() = runBlocking {
+        // Arrange: 一封已读未领取、一封已读已领取
+        val now = System.currentTimeMillis()
+        val unclaimed = createUnclaimedMail(id = "unclaimed_1", hasAttachments = true).copy(isRead = true)
+        val claimed = createUnclaimedMail(id = "claimed_1", hasAttachments = true).copy(
+            isRead = true, attachmentClaimed = true
+        )
+        `when`(mailRepo.getActiveMails(any())).thenReturn(flowOf(listOf(unclaimed, claimed)))
+
+        // Act: 一键已读（会对未领取附件尝试领取；容量充足）
+        service.markAllAsRead(testSlotId)
+
+        // Assert: 已读未领取的邮件绝不被自动删除——删除入口只有玩家手动"删除已读"
+        verify(mailRepo, never()).deleteAllReadAndClaimed(testSlotId)
     }
 }

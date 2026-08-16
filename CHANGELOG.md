@@ -1,5 +1,17 @@
 ## [4.01.00] - 2026-08-16
 
+### 修复（2026-08-16 邮件永久保留，仅"删除已读"可删）
+
+> 背景：溢出转邮件的邮件不持久——查看但不领取的溢出邮件在下次读档后消失。根因：`MailService.resetAndInitSlot` 每次读档都先 `deleteAllForSlot` 清空全槽邮件，随后只重建在线/内置邮件；溢出/直发邮件仅存于 Room（草稿已被 drain 消费、无处重建），未领取附件被静默丢失。需求：邮件永久保留，只能被玩家手动点击"删除已读"删除。
+
+- **读档/切档/重开不再删邮件** — `resetAndInitSlot` 移除全量清空与按源删除，只幂等补拉在线/内置邮件 + 按 `mailRecords` 恢复已领状态；溢出/直发邮件跨读档保留，未领取附件不再丢失
+- **列表不过滤过期** — `getActiveMails`/`getUnreadCount` 移除 `expireTime > :now`，过期邮件仍可见可读（不再"看似消失"）
+- **关闭全部自动删除** — 容量淘汰（`insertWithEnforceLimit` 删最旧已读已领）、月度/初始化过期清理（`cleanExpired`）、领取时仓库满级联删邮件（`ensureCapacity` 删已读已领/无附件）全部移除；仓库满领取附件仅提示"仓库空间不足"，不再误删邮件
+- **唯一删除入口** — `deleteAllReadAndClaimed`（"删除已读"按钮），仅删已读且已领取邮件，无资产丢失
+- **清理** — 移除失效 API `deleteExpired`/`deleteMailsWithoutAttachments`/`deleteRefetchableForSlot`/`deleteOldestReadAndClaimed`/`getMailCount`/DAO `markAllAsRead`（接口/实现/DAO 三层）
+- **测试** — `MailServiceTest` 新增/重写 3 用例：`resetAndInitSlot` 不删任何邮件、一键已读不删未领取邮件
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；`deleteAllForSlot` 仍保留给存档删除（StorageEngine）与 `clearForSlot` 槽位生命周期
+
 ### 新增（2026-08-16 灵田收获附带收获同种种子 0~4 各 20% + 溢出转邮件）
 
 > 背景：灵田收获目前只产出灵草，种子需另行购买/探索获取，缺种时成熟田无法续种。需求：收获成熟灵植时一并收获该植株的同种种子（数量 0~4 各 20% 均匀分布），自动进宗门仓库，仓库容量不足时溢出转邮件；续种只消耗宗门仓库内的种子，进邮件的部分不参与同一轮续种。

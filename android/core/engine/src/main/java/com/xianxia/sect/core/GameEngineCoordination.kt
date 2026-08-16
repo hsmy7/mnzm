@@ -384,6 +384,7 @@ suspend fun GameEngine.loadData(
         // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
         // 修复 P1-1：检测到 0 且游戏已有进度时，初始化为当前月份
         initSpiritMineLastSettledMonth()
+        // 邮件永久保留：resetAndInitSlot 不删除任何邮件，未领取的溢出/直发邮件跨读档保留
         try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
     }
 }
