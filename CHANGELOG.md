@@ -1,5 +1,14 @@
 ## [4.01.00] - 2026-08-16
 
+### 修复（2026-08-16 奖励卡片同名物品未聚合，多个相同物品逐张飞出）
+
+> 背景：获得多个相同物品（战斗奖励同名材料/丹药、邮件附件、兑换码、储物袋开启、天道试炼等）时，奖励卡片动画逐张飞出——每个相同物品各生成一张独立卡片（各自独立 UUID），错峰动画依次上飘，而非合并为一张"xN"卡片一次飞出。根因：卡片链路三段均无同名合并——① 入队侧各奖励路径（`buildBattleRewardCards`/`buildRewardCardsFromAttachments`/`enqueueRewardCardsFromApiRewards`/`openStorageBag`/`HeavenlyTrialService` 等）逐条目构造 `RewardCardItem`；② 队列侧 `GameStateStoreImpl.enqueueRewardCards` 纯追加；③ 渲染侧 `RewardCardHost` 对每张卡片独立播放动画。
+
+- **修复** — 新增纯函数 `RewardCardItem.mergeRewardCards()`（core:domain，可单测）：按 `(itemType/itemName/rarity)` 聚合数量，相同物品只保留一张卡片；**保留组内首条 id** 保证 Compose `key(id)` 稳定，动画播放中追加同物品不重建、不打断动画；保持首次出现顺序；数量求和做 Int 溢出饱和保护
+- **单点覆盖全部路径** — `GameStateStoreImpl.enqueueRewardCards` 入队前与队列已有内容一并聚合（战斗/邮件/兑换码/储物袋/天道试炼/引导/商人/宗门等级全部入队路径自动受益，跨批次同名同样合并）；`RewardDisplayDialog` 确认前展示同步聚合，小屏界面与飞出动画一致
+- **测试** — 新增 `RewardCardMergeTest` 10 用例：同名同品阶合并数量并保留首条 id、保持首次出现顺序、不同名/同名不同品阶/同名不同类型不合并、空列表、单张原样、幂等、Int 溢出饱和、跨批次入队保留队列已有卡片 id 并累加数量
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯展示层聚合，物品实际发放数量不受影响；卡片数减少后 `RewardCardHost` 动画总时长（size×300+2500ms）自动缩短
+
 ### 修复（2026-08-16 邮件附件功法/弟子不显示精灵图）
 
 > 背景：邮件详情附件列表中，功法附件显示"敬请期待"而非功法精灵图；弟子附件（单灵根弟子×10 运营邮件）同样显示"敬请期待"。根因：`MailAttachmentItemCard` 构造 `ItemCardData` 时漏传 `isManual` 标志（全项目 20+ 处 ItemCardData 构造点中唯一遗漏，其余如 `RewardCardItem.toItemCardData`/`WarehouseGridCard` 均已设置），功法落 `equipmentSpriteRes(功法名)` 分支——功法精灵图按 `manual_$rarity` 注册于 MANUAL 分类，功法名不在 EQUIPMENT 分类，解析失败回退占位文本。

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.mergeRewardCards
 
 /**
  * 通用奖励展示小屏界面 — 先展示物品卡片，玩家确认后播放入队动效。
@@ -38,7 +39,8 @@ fun RewardDisplayDialog(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
-            cards.forEach { card ->
+            // 展示前聚合：多个相同物品堆叠为一张 xN 卡片，与飞出动画保持一致
+            cards.mergeRewardCards().forEach { card ->
                 UnifiedItemCard(
                     data = card.toItemCardData(),
                     showQuantity = true

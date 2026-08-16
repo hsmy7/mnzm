@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.mergeRewardCards
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.spiritStones
 import android.os.Looper
@@ -792,7 +793,9 @@ class GameStateStoreImpl @Inject constructor(
     }
 
     override fun enqueueRewardCards(items: List<RewardCardItem>) {
-        _rewardCardQueueFlow.value = _rewardCardQueueFlow.value + items
+        // 入队前聚合：按 (itemType/itemName/rarity) 合并同名卡片，相同物品堆叠为一张 xN 卡片
+        // （与队列已有内容一并聚合，保留已有卡片 id 保证动画 key 稳定，播放中追加不重建）
+        _rewardCardQueueFlow.value = (_rewardCardQueueFlow.value + items).mergeRewardCards()
     }
 
     override fun clearRewardCardQueue(count: Int) {
