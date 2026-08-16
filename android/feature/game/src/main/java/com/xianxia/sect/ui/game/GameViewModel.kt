@@ -402,9 +402,11 @@ class GameViewModel @Inject constructor(
             }
                 .distinctUntilChanged()
                 .collect { (activeSectId, allBuildings, movingId) ->
-                    val buildings = allBuildings.filter {
-                        it.sectId == activeSectId && it.instanceId != movingId
-                    }
+                    // 2026-08-16：与 MainGameScreen 点击/瓦片/渲染帧使用同一同源谓词
+                    // buildingsInSectScope（只保留 activeSectId 作用域建筑），
+                    // 移动中建筑额外排除（与 effectivePlacedBuildings 语义一致）
+                    val buildings = buildingsInSectScope(allBuildings, activeSectId)
+                        .filter { it.instanceId != movingId }
                     // B2 一次性诊断：activeSectId 非空但该宗门建筑 0 且存在本宗(sectId="")建筑 →
                     // R2 会话内 sectId 失配（boot 归一化曾在 worldSects 为空时跳过）
                     if (!sectMismatchWarned && activeSectId.isNotEmpty() && buildings.isEmpty()) {
@@ -537,6 +539,11 @@ class GameViewModel @Inject constructor(
     ).distinctUntilChanged()
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value)
+
+    // 2026-08-16 每宗独立地图 + 进入宗门转场：收敛到 SectMapController（降低本类职责）
+    private val sectMapController = SectMapController(gameData, viewModelScope)
+    val sectMapData: StateFlow<SectMapState?> get() = sectMapController.sectMapData
+    val sectTransitionActive: StateFlow<Boolean> get() = sectMapController.sectTransitionActive
 
     val placedBuildings: StateFlow<List<GridBuildingData>> = gameData
         .map { it.placedBuildings }.distinctUntilChanged()
@@ -771,7 +778,12 @@ class GameViewModel @Inject constructor(
 
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { gameEngine.clearRewardCardQueue(count) }
 
-    fun enterSect(sectId: String) { gameEngine.launchOnEngine { gameEngine.enterSect(sectId) } }
+    fun enterSect(sectId: String) {
+        // 2026-08-16 进入宗门转场：开启（目标宗门地图就绪且至少播放 1 秒后自动关闭），
+        // 随后引擎切换 activeSectId；最小播放时长保证转场不闪断，界面就绪即关（不依赖视频播完）
+        sectMapController.beginSectTransition(sectId)
+        gameEngine.launchOnEngine { gameEngine.enterSect(sectId) }
+    }
 
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
     fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)

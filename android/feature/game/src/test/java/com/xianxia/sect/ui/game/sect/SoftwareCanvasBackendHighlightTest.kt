@@ -211,4 +211,41 @@ class SoftwareCanvasBackendHighlightTest {
         val result = backend.renderFrame(frame, atlas, 200, 200)
         assertNotNull("越界选中索引不应 crash", result)
     }
+
+    // ════════════════════════════════════════════════════════════════
+    // 2026-08-16 回归：进入无建筑宗门后旧宗门建筑必须清除
+    // 根因：总线推空数组（FloatArray(0) 非 null）→ invalidateChunksForChanges
+    // 旧实现循环 0 次不失效任何 chunk → 上一宗门建筑残留在 chunk 位图
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `renderFrame - empty building array clears previous sect buildings`() {
+        val td = createFlatTileData(10, 10)
+        val spriteAtlas = createSpriteAtlas()
+
+        // 帧1：主宗建筑（灵田精灵 (0,0)-(64,64) 白 255；(8,8) 在精灵内、阴影外）
+        val withBuilding = backend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+        val beforePx = withBuilding.getPixel(8, 8)
+        assertNear(248, Color.red(beforePx), 8) // 白 → RGB_565 ≈ 248
+
+        // 帧2：进入空宗门 → 总线推「空数组」而非 null（与真实渲染路径一致）
+        val emptyFrame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = td,
+            cols = 10, rows = 10,
+            buildingData = FloatArray(0), // 关键：非 null 空数组
+            buildingCount = 0,
+            buildingVisible = true
+        )
+        val after = backend.renderFrame(emptyFrame, spriteAtlas, 200, 200)!!
+        val afterPx = after.getPixel(8, 8)
+
+        // 修复前红：chunk 未失效 → (8,8) 仍为白精灵；修复后应为地面灰 ≈96
+        assertTrue(
+            "进入空宗门后旧建筑必须清除: before=#%06X after=#%06X"
+                .format(beforePx and 0xFFFFFF, afterPx and 0xFFFFFF),
+            Color.red(afterPx) < Color.red(beforePx) - 40
+        )
+        assertNear(96, Color.red(afterPx), 8) // 地面灰 100 → RGB_565 ≈ 96
+    }
 }

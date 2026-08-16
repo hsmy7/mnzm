@@ -273,6 +273,9 @@ class GameActivity : ComponentActivity() {
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()
                     
                     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
+                    // 2026-08-16 每宗独立地图：sectMapData 随 activeSectId 惰性生成（主宗=boot 种子，
+                    // 被占宗门=派生种子）；游戏未加载时保持 null，由 boot 图兜底
+                    val sectMapData by viewModel.sectMapData.collectAsStateWithLifecycle()
 
                     // 贴图加载在 LaunchedEffect 中完成，但 MainGameScreen 只在加载完成后才进入组合树
                     // 从根本上杜绝 "LoadingScreen 消失但贴图未就绪" 的中间帧
@@ -397,7 +400,9 @@ class GameActivity : ComponentActivity() {
                             adServiceImpl.attachActivity(this@GameActivity)
 
                             MainGameScreen(
-                                mapPreloadData = preloadData,
+                                // 2026-08-16：主宗用 sectMapData.map（= boot 同种子图），
+                                // 进入被占宗门时 sectMapData 已换为该宗派生种子底图；null 兜底 boot 图
+                                mapPreloadData = sectMapData?.map ?: preloadData,
                                 viewModel = viewModel,
                                 saveLoadViewModel = saveLoadViewModel,
                                 productionViewModel = productionViewModel,

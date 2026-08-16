@@ -274,15 +274,20 @@ private class MainGameScreenState {
 private class MainGameScreenDerived(
     private val state: MainGameScreenState,
     private val gameDataState: State<GameData>,
-    private val disciplesState: State<List<DiscipleAggregate>>,
-    private val placedBuildingsState: State<List<GridBuildingData>>
+    private val disciplesState: State<List<DiscipleAggregate>>
 ) {
     val gameData: GameData get() = gameDataState.value
     val aliveDisciples by derivedStateOf { disciplesState.value.filter { it.isAlive } }
     // 移动中临时从网格排除正在移动的建筑，避免自身重叠检测
+    // 2026-08-16 修复：建筑作用域必须与渲染总线（GameViewModel：gameEngine.gameData 原始
+    // StateFlow）同源——activeSectId 与 placedBuildings 都从同一份 gameData 快照读取。
+    // 此前 activeSectId 读 gameDataUi、placedBuildings 读 placedBuildings（两条
+    // flowOn(Default)+stateIn(WhileSubscribed) 异步管线），enterSect 切换宗门后
+    // 点击索引/瓦片标记/渲染帧与总线存在作用域分叉窗口：进入被占宗门 → 总线已切新作用域
+    //（或被净化回 ""）而索引仍按旧作用域 → 主宗建筑被渲染出来但点不中、新建建筑叠在旧建筑上。
     val activeSectBuildings by derivedStateOf {
-        val sid = gameDataState.value.activeSectId
-        placedBuildingsState.value.filter { it.sectId == sid }
+        val gd = gameDataState.value
+        buildingsInSectScope(gd.placedBuildings, gd.activeSectId)
     }
     val effectivePlacedBuildings by derivedStateOf {
         val mb = state.movingBuilding
@@ -352,11 +357,14 @@ private fun rememberMainGameScreenDerived(
     state: MainGameScreenState,
     viewModel: GameViewModel
 ): MainGameScreenDerived {
-    val gameDataState = viewModel.gameDataUi.collectAsStateWithLifecycle()
+    // 2026-08-16 修复：建筑作用域必须与渲染总线同源——总线读 gameEngine.gameData（原始
+    // StateFlow），此处也必须读 gameData（原始），不得走 gameDataUi/placedBuildings 的
+    // flowOn(Default)+stateIn(WhileSubscribed) 异步管线，否则 enterSect 切换后渲染与
+    // 点击索引作用域分叉（进入被占宗门显示主宗建筑但点不中）。
+    val gameDataState = viewModel.gameData.collectAsStateWithLifecycle()
     val disciplesState = viewModel.discipleAggregates.collectAsStateWithLifecycle()
-    val placedBuildingsState = viewModel.placedBuildings.collectAsStateWithLifecycle()
     return remember {
-        MainGameScreenDerived(state, gameDataState, disciplesState, placedBuildingsState)
+        MainGameScreenDerived(state, gameDataState, disciplesState)
     }
 }
 
@@ -1289,6 +1297,11 @@ private fun MainGameScreenContent(
                 onAnimationComplete = { viewModel.clearRewardCardQueue(batchSize) }
             )
         }
+
+        // 2026-08-16 进入宗门转场 — 全屏覆盖层（最高层）：播放转场视频 + 中央"加载资源中…"，
+        // 由 SectMapController 在目标宗门地图就绪且至少播放 1 秒后关闭（实现见 SectTransitionOverlay.kt）
+        val sectTransitionActive by viewModel.sectTransitionActive.collectAsStateWithLifecycle()
+        SectTransitionOverlay(active = sectTransitionActive)
     }
 }
 
@@ -1542,8 +1555,12 @@ private fun BoxScope.MainGameScreenTopBar(
             val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
             val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
             val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
+            // 2026-08-16 修复：卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
+            // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
+            val activeSect = data.derived.gameData?.worldMapSects
+                ?.find { it.id == data.derived.gameData.activeSectId }
             SectInfoCard(
-                sectName = data.derived.gameData?.sectName ?: "青云宗",
+                sectName = activeSect?.name ?: data.derived.gameData?.sectName ?: "青云宗",
                 gameYear = data.derived.gameData?.gameYear ?: 1,
                 gameMonth = data.derived.gameData?.gameMonth ?: 1,
                 gamePhase = data.derived.gameData?.gamePhase ?: 0,
@@ -1552,10 +1569,17 @@ private fun BoxScope.MainGameScreenTopBar(
                 highStones = data.derived.gameData?.highGradeSpiritStones ?: 0L,
                 discipleCount = data.derived.aliveDisciples.size,
                 combatPower = sectCombatPower,
-                sectLevel = currentSectLevel,
+                sectLevel = activeSect?.level ?: currentSectLevel,
                 showRewardBadge = showRewardBadge,
-                onSectIconClick = { viewModel.navigateToSectLevelDetail() },
-                onSectNameClick = { viewModel.navigateToDialog(DialogType.RenameSect) }
+                onSectIconClick = {
+                    if (data.derived.gameData.activeSectId.isEmpty()) viewModel.navigateToSectLevelDetail()
+                },
+                onSectNameClick = {
+                    // 仅在主宗门（activeSectId=""）时允许改名，被占宗门不可改名
+                    if (data.derived.gameData.activeSectId.isEmpty()) {
+                        viewModel.navigateToDialog(DialogType.RenameSect)
+                    }
+                }
             )
             Spacer(modifier = Modifier.width(8.dp))
         }
@@ -1757,6 +1781,16 @@ private fun MainGameScreenDemolishControls(
     }
 }
 
+
+/**
+ * 建筑作用域过滤唯一同源谓词（2026-08-16 修复）：
+ * 渲染总线（GameViewModel）与点击/瓦片/渲染帧（MainGameScreen）必须使用同一谓词，
+ * 只保留 `activeSectId` 作用域内的建筑，杜绝进入被占宗门后渲染主宗建筑但点不中的分叉。
+ */
+internal fun buildingsInSectScope(
+    placedBuildings: List<GridBuildingData>,
+    activeSectId: String
+): List<GridBuildingData> = placedBuildings.filter { it.sectId == activeSectId }
 
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。

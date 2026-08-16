@@ -425,9 +425,6 @@ class SoftwareCanvasBackend(
         }
     }
 
-    /** BooleanArray 替代 mutableSetOf 追踪建筑变化需要失效的 chunk（P1.2 优化） */
-    private val chunkInvalidationFlags = BooleanArray(NUM_CHUNKS_COL * NUM_CHUNKS_ROW)
-
     /** decorationsDisabled 版本号，变化时失效所有 chunk */
     private var chunkDecorVersion: Int = 0
     /** 上一次记录的 decorationsDisabled 值 */
@@ -581,7 +578,7 @@ class SoftwareCanvasBackend(
         // ═══════════════════════════════════════════════════════
 
         // Chunk 失效检查 + 重建（WP5：装饰判定用 LOD 合并值——档位内浮点微动不触发重建防抖动）
-        if (invalidateChunksForChanges(tileHash, buildingHash, decorSkip, buildingArray, frame.buildingCount)) {
+        if (invalidateChunksForChanges(tileHash, buildingHash, decorSkip)) {
             rebuildInvalidChunks(atlas, frame, decorSkip)
         }
 
@@ -647,9 +644,7 @@ class SoftwareCanvasBackend(
     private fun invalidateChunksForChanges(
         tileHash: Int,
         buildingHash: Int,
-        decorSkip: Boolean,
-        buildingArray: FloatArray?,
-        buildingCount: Int
+        decorSkip: Boolean
     ): Boolean {
         val chunkTileChanged = tileHash != chunkTileHash
         val chunkBuildingChanged = buildingHash != chunkBuildingHash
@@ -664,49 +659,15 @@ class SoftwareCanvasBackend(
         }
         if (chunkBuildingChanged) {
             chunkBuildingHash = buildingHash
-            if (buildingArray != null) {
-                val count = buildingCount.coerceAtMost(buildingArray.size / 5)
-                for (i in 0 until count) {
-                    val idx = i * 5
-                    val gx = buildingArray[idx].toInt()
-                    val gy = buildingArray[idx + 1].toInt()
-                    val nameIdx = buildingArray[idx + 4].toInt()
-                    // 使用占地尺寸（footprint）计算建筑覆盖的 chunk 范围
-                    val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX
-                        .getOrElse(nameIdx) { 2 to 2 }
-                    markBuildingChunk(gx, gy, fpW, fpH)
-                }
-                consumeInvalidationFlags()
-            } else {
-                invalidateAllChunks()
-            }
+            // 2026-08-16 修复（软件渲染残留根因）：建筑数据变化必须失效全部 chunk。
+            // 旧实现只失效「新建筑覆盖」的 chunk——进入无建筑宗门时总线推空数组
+            //（FloatArray(0)，非 null）：循环 0 次、不失效任何 chunk，上一宗门（主宗）
+            // 建筑残留在 chunk 位图里 → 屏幕显示主宗建筑但点击索引已空 → 点不中；
+            // 同理跨宗门切换时旧位置 chunk 不失效 → 旧建筑残留。空数组/非空列表统一
+            // 失效全部 chunk（4×4 网格 16 块，建筑变化低频，重建成本可接受）。
+            invalidateAllChunks()
         }
         return chunkTileChanged || chunkBuildingChanged || chunkDecorChanged
-    }
-
-    /** 消费建筑失效标记：flagged chunk 置无效并复位标记（建筑变更专用） */
-    private fun consumeInvalidationFlags() {
-        for (col in 0 until NUM_CHUNKS_COL) {
-            for (row in 0 until NUM_CHUNKS_ROW) {
-                if (chunkInvalidationFlags[row * NUM_CHUNKS_COL + col]) {
-                    chunkCaches[col][row].isValid = false
-                    chunkInvalidationFlags[row * NUM_CHUNKS_COL + col] = false
-                }
-            }
-        }
-    }
-
-    /** 标记建筑覆盖的 chunk 范围失效（footprint 可能跨 chunk 边界） */
-    private fun markBuildingChunk(gx: Int, gy: Int, fpW: Int, fpH: Int) {
-        val firstCol = (gx / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_COL - 1)
-        val lastCol = ((gx + fpW - 1) / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_COL - 1)
-        val firstRow = (gy / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_ROW - 1)
-        val lastRow = ((gy + fpH - 1) / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_ROW - 1)
-        for (c in firstCol..lastCol) {
-            for (r in firstRow..lastRow) {
-                chunkInvalidationFlags[r * NUM_CHUNKS_COL + c] = true
-            }
-        }
     }
 
     /** 重建全部失效 chunk（失效检查完成后统一执行，防半失效窗口） */

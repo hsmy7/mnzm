@@ -1,5 +1,24 @@
 ## [4.01.00] - 2026-08-16
 
+### 修复（2026-08-16 进入被占宗门显示主宗建筑且点不中根治）
+
+> 背景：进入玩家占领的 AI 宗门后，地图持续显示主宗门的全部建筑但点击无效、新建建筑叠在旧建筑上。日志坐实数据层正确（`activeSectId` 已切、渲染总线/点击作用域均为 0 栋），画面残留来自软件渲染器 chunk 缓存失效漏洞 + 渲染/点击作用域双源分叉。
+
+- **渲染/点击作用域单源** — 抽出唯一同源谓词 `buildingsInSectScope`（只保留 `sectId == activeSectId` 建筑），渲染总线（`GameViewModel`）与点击/瓦片/渲染帧（`MainGameScreen`）统一使用；`MainGameScreenDerived` 的 `activeSectId` 与 `placedBuildings` 改从同一份 `gameEngine.gameData` 快照读取，消除 `gameDataUi`/`placedBuildings` 两条 `flowOn(Default)+stateIn(WhileSubscribed)` 异步管线与总线的作用域分叉窗口
+- **软件渲染 chunk 缓存残留根治** — `SoftwareCanvasBackend.invalidateChunksForChanges` 建筑数据变化一律失效全部 chunk：旧实现只失效「新建筑覆盖」的 chunk，进入无建筑宗门时总线推 `FloatArray(0)`（非 null）→ 循环 0 次不失效任何 chunk，上一宗门建筑残留在 chunk 位图；同时修复跨宗门切换/拖拽旧位置残留
+- **测试** — 新增 `buildingsInSectScope` 4 用例（主宗/被占宗门作用域互斥、移动排除后作用域不变）、软件渲染 `empty building array clears previous sect buildings` 像素回归（白色建筑精灵 → 空数组 → 恢复地面灰）
+
+### 新增（2026-08-16 每宗独立地图 + HUD 当前宗门 + 进入宗门转场）
+
+> 背景：所有宗门共用同一 `mapSeed` 底图，进入被占宗门后地图与主宗完全相同，玩家难以分辨身在哪个宗门；进入宗门无过渡。按「每宗独立地图种子 + HUD 显示当前宗门 + 进入宗门转场视频」落地（MIGRATION_FREE）。
+
+- **每宗独立地图** — 新增 `SectMapController`：`sectMapData` 随 `activeSectId` 惰性生成底图（主宗=`mapSeed` 与 boot 图一致，被占宗门=`(mapSeed×31) xor sectId.hashCode()` 确定性种子），按种子缓存；`SectMapState(sectId, map)` 携带对应宗门杜绝 stale value；`GameActivity` 传给 `MainGameScreen` 的底图改为 `sectMapData?.map ?: boot图`（未加载时以 `mapSeed==0` 判定回退）
+- **HUD 显示当前宗门** — `SectInfoCard` 标题/等级按 `activeSectId` 从 `worldMapSects` 解析（被占宗门显示其名与等级），改名/等级详情仅主宗可点
+- **进入宗门转场** — `SectMapController.beginSectTransition` 触发全屏转场：播放 `sect_enter_transition.mp4`（循环、静音，`SectTransitionOverlay` 独立文件，中央转圈 + 12sp「加载资源中…」），目标宗门地图就绪且至少播放 1 秒后自动关闭（不依赖 13.85s 全片播完；5s 超时兜底；代数计数防并发误关）；`DisposableEffect` 显式停播防 MediaPlayer 残留；从世界地图进入任意宗门（含主宗）均播放
+- **重构收敛** — 每宗地图/转场状态机抽为 `SectMapController`（独立可测），转场 UI 独立文件，删除 4 条临时诊断日志（`[enterSect-ui]`/`[enterSect-diag]`/`[bus-scope]`/`[sect-scope]`），保留 `R2 疑似 sectId 失配` 一次性告警
+- **测试** — 新增 `GameViewModelSectMapTest` 6 用例（种子派生确定性/各宗不同、地图确定性、未加载为 null、切宗门换底图、转场触发且地图就绪后自动关闭）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；每宗地图为确定性种子惰性生成，不持久化、不改变 `placedBuildings`/`sectId` 数据语义；APK 因转场视频 +14.7MB（H.264 1440×1080 13.85s）
+
 ### 修复（2026-08-16 本地兑换弟子双发根治）
 
 > 背景：排查兑换码新码需求时发现本地兑换路径存在**弟子双发**预存缺陷：`RedeemCodeManager.addDiscipleRewards` 生成弟子时既写入 `result.disciples` 又为每名弟子写入一条 `type="disciple"` 的 rewards 条目；`RedeemCodeService.applyLocalRedeemState` 的奖励循环对非 spiritStones 条目统一走 `applyRedeemReward` → `applyDiscipleRedeemReward`（用 null 配置重新生成弟子，境界错乱成炼气期），随后 `result.disciples`（携带正确境界配置）又插入一次 → 数量双倍且一半境界错误。原设计意图（d067b3ae 初版 localRedeem）即无 disciple 分支、弟子仅经 result.disciples 插入，本修复还原该语义。

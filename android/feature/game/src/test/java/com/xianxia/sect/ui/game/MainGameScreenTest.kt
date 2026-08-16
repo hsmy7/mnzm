@@ -9,6 +9,7 @@ import com.xianxia.sect.ui.game.building.registerDefaults
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -347,5 +348,55 @@ class MainGameScreenTest {
         val markers = buildDemolishHighlightData(emptyList(), emptySet())
         assertNotNull("结果不应为null", markers)
         assertEquals("空列表应返回长度0的数组", 0, markers.size)
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 建筑作用域同源谓词 buildingsInSectScope（2026-08-16 修复）
+    // 渲染总线与点击/瓦片/渲染帧共用同一谓词——进入被占宗门后渲染与点击作用域不可能分叉
+    // ════════════════════════════════════════════════════════════════
+
+    private fun b(name: String, sectId: String, instanceId: String) =
+        GridBuildingData(displayName = name, sectId = sectId, instanceId = instanceId)
+
+    /** 主宗门（activeSectId=""）→ 只保留 sectId="" 建筑，被占宗门建筑被排除 */
+    @Test
+    fun `buildingsInSectScope 主宗门只显示本宗建筑`() {
+        val all = listOf(
+            b("灵矿场", "", "m1"),
+            b("炼丹炉", "sect_captured", "f1")
+        )
+        val result = buildingsInSectScope(all, "")
+        assertEquals("主宗门应只保留本宗建筑", listOf("m1"), result.map { it.instanceId })
+    }
+
+    /** 进入被占宗门（activeSectId=sect_captured）→ 只保留该宗门建筑，主宗建筑绝不外泄 */
+    @Test
+    fun `buildingsInSectScope 被占宗门不渲染主宗建筑`() {
+        val all = listOf(
+            b("灵矿场", "", "m1"),
+            b("炼丹炉", "sect_captured", "f1"),
+            b("仓库", "sect_captured", "w1")
+        )
+        val result = buildingsInSectScope(all, "sect_captured")
+        assertEquals("应只返回被占宗门建筑", listOf("f1", "w1"), result.map { it.instanceId })
+    }
+
+    /** 同一作用域谓词下，总线与点击索引输入同源：移动中建筑排除后仍只含当前作用域 */
+    @Test
+    fun `buildingsInSectScope 排除移动中建筑后作用域不变`() {
+        val all = listOf(
+            b("灵矿场", "", "m1"),
+            b("炼丹炉", "sect_captured", "f1")
+        )
+        val scope = buildingsInSectScope(all, "sect_captured").filter { it.instanceId != "f1" }
+        assertEquals("排除移动中的被占宗门建筑后应只剩空列表", emptyList<String>(), scope.map { it.instanceId })
+        // 主宗建筑绝不应进入被占宗门作用域（无论是否移动中）
+        assertTrue("被占宗门作用域不得包含主宗建筑", scope.none { it.sectId.isEmpty() })
+    }
+
+    /** 空 activeSectId 恒返回空列表（无宗门作用域） */
+    @Test
+    fun `buildingsInSectScope 空作用域返回空列表`() {
+        assertTrue("空 activeSectId 不应返回任何建筑", buildingsInSectScope(emptyList(), "").isEmpty())
     }
 }
