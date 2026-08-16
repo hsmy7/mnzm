@@ -273,7 +273,7 @@ class MailService @Inject constructor(
 
             // 容量检查
             if (attachments.isNotEmpty()) {
-                val capacityCheck = ensureCapacity(attachments, slotId)
+                val capacityCheck = ensureCapacity(attachments)
                 if (capacityCheck != null) {
                     return ClaimResult.CapacityInsufficient(capacityCheck)
                 }
@@ -401,7 +401,7 @@ class MailService @Inject constructor(
         }
 
         if (attachments.isNotEmpty()) {
-            val capacityCheck = ensureCapacity(attachments, slotId)
+            val capacityCheck = ensureCapacity(attachments)
             if (capacityCheck != null) {
                 return ClaimResult.CapacityInsufficient(capacityCheck)
             }
@@ -443,7 +443,7 @@ class MailService @Inject constructor(
      * 确保有足够容量领取附件。容量不足时直接返回错误——不自动删除任何邮件
      * （邮件只保留，仅玩家手动"删除已读"清理），由玩家清理仓库后重试。
      */
-    private suspend fun ensureCapacity(attachments: List<MailAttachment>, slotId: Int): String? {
+    private suspend fun ensureCapacity(attachments: List<MailAttachment>): String? {
         val data = stateStore.gameData.value
 
         for (attachment in attachments) {
