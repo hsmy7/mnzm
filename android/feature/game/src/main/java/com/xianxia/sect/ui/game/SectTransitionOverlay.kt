@@ -24,6 +24,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
 
 /**
  * 进入宗门转场覆盖层（2026-08-16 独立文件抽取）。
@@ -32,6 +33,9 @@ import com.xianxia.sect.feature.game.R
  * - 平台窗口创建于所有游戏窗口（含世界地图平台 Dialog、宗门地图 SurfaceView）之上，
  *   进入宗门时世界地图关闭不再露出底层地图（消除"先闪地图再出转场"）；
  * - `usePlatformDefaultWidth=false` + `decorFitsSystemWindows=false` 保证边到边全屏；
+ * - [DialogSystemBarGuard] 隐藏 Dialog 窗口自身的系统栏（Dialog Window 不继承
+ *   GameActivity 的 hideSystemBars()，不挂守卫则转场时状态栏/导航栏重新出现，
+ *   覆盖层不是真全屏——2026-08-16 修复）；
  * - 视频 4:3 源经 `VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING` center-crop 填满全屏。
  *
  * 中央为转圈 + 「加载资源中…」（转圈在文本上方、字号 12sp）。关闭时机由
@@ -71,6 +75,10 @@ internal fun SectTransitionOverlay(
             dismissOnClickOutside = false
         )
     ) {
+        // Dialog 是独立平台 Window，不继承 GameActivity 的 hideSystemBars()：
+        // 必须独立隐藏本窗口系统栏，否则转场时状态栏/导航栏重新出现，覆盖层非全屏
+        DialogSystemBarGuard()
+
         Box(
             modifier = Modifier
                 .fillMaxSize()

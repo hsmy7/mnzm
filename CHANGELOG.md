@@ -1,5 +1,22 @@
 ## [4.01.00] - 2026-08-16
 
+### 修复（2026-08-16 邮件附件功法/弟子不显示精灵图）
+
+> 背景：邮件详情附件列表中，功法附件显示"敬请期待"而非功法精灵图；弟子附件（单灵根弟子×10 运营邮件）同样显示"敬请期待"。根因：`MailAttachmentItemCard` 构造 `ItemCardData` 时漏传 `isManual` 标志（全项目 20+ 处 ItemCardData 构造点中唯一遗漏，其余如 `RewardCardItem.toItemCardData`/`WarehouseGridCard` 均已设置），功法落 `equipmentSpriteRes(功法名)` 分支——功法精灵图按 `manual_$rarity` 注册于 MANUAL 分类，功法名不在 EQUIPMENT 分类，解析失败回退占位文本。
+
+- **修复** — 邮件附件转换抽为纯函数 `mailAttachmentToItemCardData`（可测），补 `isManual = attachment.type == "manual"`；`ItemCardData` 新增 `isDisciple` 标志 + `itemCardSpriteRes` 分支，弟子附件复用通用头像 `disciple_portrait`（同属"有注册精灵图却显示敬请期待"的同类遗漏）
+- **防御** — `manualSpriteRes`/`pillSpriteRes` 对无效 rarity（如运营邮件附件缺省 0）回退 1 品图，与 `storageBagSpriteRes` 既有回退模式对齐，防止 rarity 缺失仍显示"敬请期待"
+- **测试** — 新增 `MailAttachmentToItemCardDataTest` 9 用例（全类型标志映射 + 字段透传守卫）、`EquipmentSpriteRarityFallbackTest` 7 用例（rarity 0/越界回退 + 未注册 null）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 精灵解析修复，未注册精灵图的未知类型仍走"敬请期待"降级
+
+### 修复（2026-08-16 进入宗门转场未全屏根治）
+
+> 背景：进入宗门转场覆盖层 `SectTransitionOverlay` 用平台 Dialog 窗口承载，但漏挂 `DialogSystemBarGuard()`——Compose Dialog 创建独立平台 Window，**不继承 GameActivity 的 `hideSystemBars()`**（GameActivity 沉浸式全屏），导致转场窗口弹出时状态栏/导航栏重新出现，覆盖层"没有全屏"。全项目 9 处生产 Dialog/AlertDialog 中唯一漏挂（其余 8 处全部已挂），违反审查清单 13.3「Dialog 组件必须添加 `DialogSystemBarGuard()`」条目。
+
+- **修复** — `SectTransitionOverlay` Dialog 内容顶部挂 `DialogSystemBarGuard()`（双路径：WindowInsetsControllerCompat + 传统 SYSTEM_UI_FLAG_*，与 GameActivity.hideSystemBars 对齐；IME 感知防键盘频闪对抗）；KDoc 补充成因说明
+- **测试** — 新增 `SectTransitionOverlayTest` 2 用例：挂载后转场窗口含 `FULLSCREEN`+`HIDE_NAVIGATION`（全屏回归守卫）、转场结束后窗口销毁
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 窗口标志行为
+
 ### 修复（2026-08-16 邮件永久保留，仅"删除已读"可删）
 
 > 背景：溢出转邮件的邮件不持久——查看但不领取的溢出邮件在下次读档后消失。根因：`MailService.resetAndInitSlot` 每次读档都先 `deleteAllForSlot` 清空全槽邮件，随后只重建在线/内置邮件；溢出/直发邮件仅存于 Room（草稿已被 drain 消费、无处重建），未领取附件被静默丢失。需求：邮件永久保留，只能被玩家手动点击"删除已读"删除。
