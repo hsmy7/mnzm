@@ -1,3 +1,13 @@
+## [4.01.00] - 2026-08-16
+
+### 修复（2026-08-16 本地兑换弟子双发根治）
+
+> 背景：排查兑换码新码需求时发现本地兑换路径存在**弟子双发**预存缺陷：`RedeemCodeManager.addDiscipleRewards` 生成弟子时既写入 `result.disciples` 又为每名弟子写入一条 `type="disciple"` 的 rewards 条目；`RedeemCodeService.applyLocalRedeemState` 的奖励循环对非 spiritStones 条目统一走 `applyRedeemReward` → `applyDiscipleRedeemReward`（用 null 配置重新生成弟子，境界错乱成炼气期），随后 `result.disciples`（携带正确境界配置）又插入一次 → 数量双倍且一半境界错误。原设计意图（d067b3ae 初版 localRedeem）即无 disciple 分支、弟子仅经 result.disciples 插入，本修复还原该语义。
+
+- **本地兑换弟子双发根治** — `applyLocalRedeemState` 奖励循环过滤条件由 `type != "spiritStones"` 改为 `type != "spiritStones" && type != "disciple"`：disciple 条目仅作兑换成功文案展示，弟子统一经 `result.disciples` 插入（携带正确 realm）；API 路径（`applyApiRewardsAndMarkUsed`，服务器下发无预生成弟子）不受影响仍走 `applyDiscipleRedeemReward`。修复前既有码 8982（10 名弟子）实际双发 20 名
+- **测试** — 新增 `RedeemCodeServiceTest`（Robolectric）：8982 兑换恰好 10 名弟子（含年报计数 10）、重复落地两批恰好 20 名（守卫无双发）、灵石入账与已用记录断言
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（`usedRedeemCodes` 仅存码字符串）；兑换码走既有 `withOverflowMailSuppressed`（凭据类）+ `withTrackingSource("redeem")` 语义；无渲染/隐私合规影响
+
 ## [4.00.99] - 2026-08-15
 
 ### 债务根治（2026-08 架构文档债务全量根治批次）

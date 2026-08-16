@@ -396,6 +396,7 @@ class RedeemCodeService @Inject constructor(
         var allSucceeded = true
         stateStore.update {
             allSucceeded = applyLocalRedeemState(
+                state = this,
                 result = result,
                 code = code,
                 defaultRarity = redeemCodeData.rarity,
@@ -431,25 +432,37 @@ class RedeemCodeService @Inject constructor(
     /**
      * 本地兑换奖励落地（localRedeem 拆分）：物品发放 + 灵石/弟子 + 标记已用，单事务原子写入。
      *
+     * 注意：disciple 类型的 rewards 条目**不在此处发放**——本地兑换的弟子
+     * 已由 [RedeemCodeManager.generateReward] 预生成并放入 [RedeemResult.disciples]，
+     * 下方统一经 `result.disciples` 插入（携带正确境界配置）。若在此循环内再次
+     * 处理 disciple 条目会触发 [applyDiscipleRedeemReward] 用 null 配置重复生成
+     * 弟子（境界错乱 + 数量双倍）。disciple 条目保留在 rewards 中仅用于
+     * 兑换成功文案展示（"弟子XXX"）。API 路径（服务器下发）不走此函数，
+     * 由 [applyApiRewardsAndMarkUsed] 单独处理。
+     *
+     * @param state 事务中的 [MutableGameState]（调用方 stateStore.update 块内传入）
      * @return true=全部成功；false=任一物品发放失败/溢出（兑换码不标记已用，可清理后重试）
      */
-    private fun MutableGameState.applyLocalRedeemState(
+    internal fun applyLocalRedeemState(
+        state: MutableGameState,
         result: RedeemResult,
         code: String,
         defaultRarity: Int,
         mailRng: kotlin.random.Random
-    ): Boolean {
+    ): Boolean = state.run {
         // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
         // 玩家清理仓库后可重新兑换，奖励不丢失
         val allSucceeded = inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("redeem") {
-                result.rewards.filter { it.type != "spiritStones" }.all { reward ->
+                result.rewards.filter {
+                    it.type != "spiritStones" && it.type != "disciple"
+                }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, defaultRarity, mailRng)
                 }
             }
         }
 
-        if (!allSucceeded) return false
+        if (!allSucceeded) return@run false
 
         // 物品全部成功后才发放灵石与弟子（对抗性审查 C3 修复：
         // 失败时灵石/弟子不入账，避免"已入账 + 凭据保留"重试时双发）
@@ -469,7 +482,7 @@ class RedeemCodeService @Inject constructor(
             // 年报新增弟子计数（2026-08-11 修复：本地兑换码赠弟子漏计）
             annualNewDisciples = gameData.annualNewDisciples + result.disciples.size
         )
-        return true
+        true
     }
 
     private fun enqueueRewardCardsFromApiRewards(rewards: List<RedeemApiReward>) {
