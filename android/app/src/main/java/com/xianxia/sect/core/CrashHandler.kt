@@ -92,6 +92,14 @@ class CrashHandler @Inject constructor(
     private val handlingCrash = java.util.concurrent.atomic.AtomicBoolean(false)
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
+        // ★ TapTap lateinit 已知无害崩溃（SDK 未同意前内部 Toast）：
+        //   在记录/落盘/上报/进程退出之前直接吞掉——即使守卫已被 Bugly 覆盖、
+        //   CrashHandler 成为默认处理器，也不得上报或导致进程退出（Bugly #17002）。
+        if (TapTapCrashGuard.isSuppressible(throwable)) {
+            Log.w(TAG, "Suppressed TapTap lateinit crash (SDK not yet consented)", throwable)
+            return
+        }
+
         if (!handlingCrash.compareAndSet(false, true)) {
             Process.killProcess(Process.myPid())
             return

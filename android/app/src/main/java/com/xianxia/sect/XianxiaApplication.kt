@@ -20,6 +20,7 @@ import com.xianxia.sect.ui.util.FontPreloader
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
 import com.xianxia.sect.core.CrashRecoveryEngine
+import com.xianxia.sect.core.TapTapCrashGuard
 import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.data.crypto.SaveCrypto
 import com.xianxia.sect.data.facade.StorageFacade
@@ -140,23 +141,13 @@ class XianxiaApplication : Application() {
      *
      * 合规：TapTap SDK 必须在用户同意隐私政策后才能初始化。但在同意前，
      * TapTap 内部可能触发 Toast 等操作访问 lateinit context 导致崩溃。
-     * 此处拦截 TapTap SDK 内部的 lateinit 异常（含混淆后变体）。
+     * 此守卫拦截 TapTap SDK 内部的 lateinit 异常（含混淆后变体）。
+     *
+     * 注意：Bugly 初始化会在内部覆盖默认崩溃处理器，因此必须在 Bugly
+     * 初始化完成后重新安装（见 [initBuglyAndMmkv]），否则守卫失效。
      */
     private fun installTapTapCrashGuard() {
-        val originalHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            val isTapTapLateinit = throwable.stackTrace.any {
-                it.className?.contains("taptap", ignoreCase = true) == true
-            } && (
-                throwable is kotlin.UninitializedPropertyAccessException ||
-                throwable.message?.contains("lateinit", ignoreCase = true) == true
-            )
-            if (isTapTapLateinit) {
-                Log.w(TAG, "Suppressed TapTap lateinit crash (SDK not yet consented)", throwable)
-                return@setDefaultUncaughtExceptionHandler
-            }
-            originalHandler?.uncaughtException(thread, throwable)
-        }
+        TapTapCrashGuard.install()
     }
 
     /** 注入跨模块实现（日志 / 账号绑定 / 弟子属性计算） */
@@ -356,6 +347,9 @@ class XianxiaApplication : Application() {
             } catch (e: Exception) {
                 Log.w(TAG, "Crash reporter initialization failed, self-built CrashHandler will be fallback", e)
             }
+            // ★ Bugly 内部会覆盖默认崩溃处理器——必须在其后重新安装 TapTap 守卫，
+            //   使守卫位于 Bugly 之外层（Bugly #17002：守卫被覆盖后崩溃直达 Bugly）。
+            installTapTapCrashGuard()
         }
     }
 
