@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import android.media.MediaPlayer
 import android.net.Uri
 import android.widget.VideoView
 import androidx.compose.foundation.background
@@ -20,22 +21,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.feature.game.R
 
 /**
  * 进入宗门转场覆盖层（2026-08-16 独立文件抽取）。
  *
- * 全屏播放转场动画（循环、静音），中央为转圈 + 「加载资源中…」（转圈在文本上方、
- * 字号 12sp，与加载界面一致的白色系提示）。关闭时机由 [SectMapController] 控制——
- * 目标宗门地图就绪且至少播放 1 秒，不依赖视频播放完毕（避免 13.85s 全片卡死玩家）。
+ * 用**平台 Dialog 窗口**承载，而非 MainGameScreen 组合内的 Box：
+ * - 平台窗口创建于所有游戏窗口（含世界地图平台 Dialog、宗门地图 SurfaceView）之上，
+ *   进入宗门时世界地图关闭不再露出底层地图（消除"先闪地图再出转场"）；
+ * - `usePlatformDefaultWidth=false` + `decorFitsSystemWindows=false` 保证边到边全屏；
+ * - 视频 4:3 源经 `VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING` center-crop 填满全屏。
+ *
+ * 中央为转圈 + 「加载资源中…」（转圈在文本上方、字号 12sp）。关闭时机由
+ * [SectMapController] 控制——目标宗门地图就绪且至少播放 1 秒，不依赖视频播放完毕。
  */
 @Composable
 internal fun SectTransitionOverlay(
-    active: Boolean,
-    modifier: Modifier = Modifier
+    active: Boolean
 ) {
     if (!active) return
-    // remember 持实例 + DisposableEffect：覆盖层移出组合时显式停播，防 MediaPlayer 资源残留
+    // remember 持实例 + DisposableEffect：窗口关闭时显式停播，防 MediaPlayer 资源残留
     val context = LocalContext.current
     val videoView = remember {
         VideoView(context).apply {
@@ -45,6 +52,8 @@ internal fun SectTransitionOverlay(
             setOnPreparedListener { mp ->
                 mp.isLooping = true
                 mp.setVolume(0f, 0f) // 转场静音，避免与游戏 BGM/音效冲突
+                // 4:3 源 center-crop 填满屏幕（去除黑边，全屏显示）
+                mp.setVideoScalingMode(MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
                 mp.start()
             }
         }
@@ -53,29 +62,39 @@ internal fun SectTransitionOverlay(
         onDispose { videoView.stopPlayback() }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        AndroidView(
-            factory = { videoView },
-            modifier = Modifier.fillMaxSize()
+    Dialog(
+        onDismissRequest = { },
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
         )
-
-        // 中央：转圈在文本上方 + 「加载资源中…」（字号 12sp）
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator(color = Color.White)
-            Text(
-                text = "加载资源中…",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+            AndroidView(
+                factory = { videoView },
+                modifier = Modifier.fillMaxSize()
             )
+
+            // 中央：转圈在文本上方 + 「加载资源中…」（字号 12sp）
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CircularProgressIndicator(color = Color.White)
+                Text(
+                    text = "加载资源中…",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
 }
