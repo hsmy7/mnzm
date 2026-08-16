@@ -14,6 +14,7 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.comprehension
@@ -93,6 +94,9 @@ class ProductionProcessor @Inject constructor(
         private const val PILL_GRADE_MEDIUM_THRESHOLD = 0.40
         private const val SINGLE_RESIDENCE_SLOTS = 1
         private const val MULTI_RESIDENCE_SLOTS = 4
+
+        /** 灵田收获附带种子数量上限：0..HARVEST_SEED_MAX_GAIN 各 20%（均匀分布，nextInt(n+1)） */
+        private const val HARVEST_SEED_MAX_GAIN = 4
     }
 
     // ── 建筑生产 ──────────────────────────────────────────────────────
@@ -306,14 +310,14 @@ class ProductionProcessor @Inject constructor(
         val plants = data.spiritFieldPlants
         if (plants.isEmpty()) return
 
-        // 全局加成/光环索引/草药仓库/地块列表副本均只构建一次（O(d+b+h+n) 总量，
+        // 全局加成/光环索引/灵草+种子仓库/地块列表副本均只构建一次（O(d+b+h+n) 总量，
         // 原实现每块地重复 O(d)+O(b)+O(n)+O(h)，地块多时引擎线程持锁阻塞 UI 导致卡死）
         val context = buildHarvestMaturityContext(data, state.discipleTables)
-        val herbStore = buildHarvestHerbStore(state)
+        val stores = buildHarvestStores(state)
         val newPlants = plants.toMutableList()
         var hasChanges = false
 
-        // 防御（对抗性审查发现 2）：循环中途异常时已完成地块的草药仍随事务提交
+        // 防御（对抗性审查发现 2）：循环中途异常时已完成地块的草药/种子仍随事务提交
         // （replaceAll 在循环后统一执行），未处理地块保持成熟待下月再收，
         // 避免"田已清空但草药整轮丢失"的语义退化；CancellationException/Error 照常抛出
         runCatching {
@@ -337,14 +341,17 @@ class ProductionProcessor @Inject constructor(
                             "${plant.seedName} 对应的灵草定义，跳过收获")
                         return@forEachIndexed
                     }
-                    addHarvestedHerb(plant, dbHerb, herbStore, state)
+                    addHarvestedHerb(plant, dbHerb, stores.herbs, state)
+                    addHarvestedSeed(plant, stores.seeds)
                     // 引导系统：累计收获灵植（annualHerbBySource 由 addHarvestedHerb 内部按实际收获量累加）
                     val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
                     state.gameData = state.gameData.copy(
                         guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1),
                         annualHerbCount = state.gameData.annualHerbCount + 1
                     )
-                    updateSlotAfterHarvest(index, plant, state, currentYear, currentMonth, newPlants)
+                    updateSlotAfterHarvest(
+                        index, plant, currentYear, currentMonth, newPlants, stores.seeds
+                    )
                     hasChanges = true
                 }
             }
@@ -355,7 +362,8 @@ class ProductionProcessor @Inject constructor(
 
         if (hasChanges) {
             // 整轮只 replaceAll 一次（原每块地一次 O(h) 重建）
-            state.herbs.replaceAll(herbStore.all())
+            state.herbs.replaceAll(stores.herbs.all())
+            state.seeds.replaceAll(stores.seeds.all())
             // Bug A 修复：基于循环期间最新 gameData（含 guideCounters/annualHerbCount/
             // annualHerbBySource），原实现用函数开头捕获的旧 data 引用覆盖写回导致统计字段丢失
             state.gameData = state.gameData.copy(spiritFieldPlants = newPlants)
@@ -371,7 +379,7 @@ class ProductionProcessor @Inject constructor(
      * 仓库满时溢出部分通过 [InventorySystem.sendOverflowMail] 转为邮件通知玩家
      * （自动类路径物品不丢失），年度报告按实际入库量累加。
      *
-     * @param herbStore 整轮收获共享的草药合并仓库（由 [buildHarvestHerbStore] 构建一次，
+     * @param herbStore 整轮收获共享的草药合并仓库（由 [buildHarvestStores] 构建一次，
      *        替代原实现每块地重建 O(h)）
      * @return 实际入库数量
      */
@@ -418,43 +426,114 @@ class ProductionProcessor @Inject constructor(
     }
 
     /**
-     * 构建整轮收获共享的草药合并仓库（原实现每块地重建 O(h)，此处一次 O(h)）。
+     * 收获成熟灵植时一并获得同种种子（数量 0~4，各 20% 均匀分布——[HARVEST_SEED_MAX_GAIN]）。
      *
-     * maxSlots 惰性求值保留"种子消耗释放槽位"的动态语义——轮内只有 seeds.size 会变化
-     * （续种消耗），其余类型槽位（装备/功法/丹药/材料）与 computeMaxSlots
-     * （只依赖 placedBuildings）在轮内固定，故提取为固定值 maxSlotsBase 只计算一次。
+     * 种子直接合并进整轮共享的种子仓库（[StackableItemStore]，与 InventorySystem 主路径同一实现）；
+     * 仓库容量不足时溢出部分通过 [InventorySystem.sendOverflowMail] 转为邮件通知玩家
+     * （自动类路径物品不丢失）。溢出部分不进入 seedStore——续种只消耗"宗门仓库内"的种子
+     * （见 [updateSlotAfterHarvest]），进邮件的种子不可被同一轮续种消耗。
      */
-    private fun buildHarvestHerbStore(state: MutableGameState): StackableItemStore<Herb> {
+    private fun addHarvestedSeed(
+        plant: SpiritFieldPlant,
+        seedStore: StackableItemStore<Seed>
+    ) {
+        val roll = rngManager.getRng(RngPartition.SYSTEM).nextInt(HARVEST_SEED_MAX_GAIN + 1)
+        if (roll <= 0) return
+        val template = HerbDatabase.getSeedByName(plant.seedName)
+        if (template == null) {
+            DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子模板 " +
+                "${plant.seedName}，跳过种子奖励")
+            return
+        }
+        val newSeed = Seed(
+            id = java.util.UUID.randomUUID().toString(),
+            name = template.name,
+            rarity = template.rarity,
+            description = template.description,
+            growTime = template.growTime,
+            yield = template.yield,
+            quantity = roll
+        )
+        when (val result = seedStore.add(newSeed)) {
+            is DomainResult.Success -> Unit
+            is DomainResult.Partial -> {
+                inventorySystem.sendOverflowMail(
+                    "spirit_field", "seed", template.name, template.rarity, result.overflow
+                )
+                DomainLog.w(
+                    TAG, "灵田收获 ${template.name} 仓库空间不足，" +
+                        "实际入库 ${roll - result.overflow}/$roll（溢出 ${result.overflow} 已转邮件）"
+                )
+            }
+            is DomainResult.Failure -> {
+                inventorySystem.sendOverflowMail(
+                    "spirit_field", "seed", template.name, template.rarity, roll
+                )
+                DomainLog.w(
+                    TAG, "灵田收获 ${template.name} 仓库空间不足，$roll 颗种子全部转邮件"
+                )
+            }
+        }
+    }
+
+    /**
+     * 构建整轮收获共享的灵草/种子合并仓库（原实现仅草药每块地重建 O(h)，此处一次 O(h)）。
+     *
+     * 灵草与种子共用同一仓库槽位预算（[computeMaxSlots]），两 store 的 maxSlots 惰性求值并
+     * 互相引用对方实时堆叠数（lateinit 前置声明解决 Kotlin 局部变量前向引用）：轮内草药/种子
+     * 堆叠数的增减（含续种消耗、收获种子入仓）即时反映到对方的槽位上限，与
+     * InventorySystem.addXxx 的"otherTypes 实时统计"语义一致。
+     */
+    private fun buildHarvestStores(state: MutableGameState): HarvestStoreContext {
         val fixedOtherTypes = state.equipmentStacks.size + state.manualStacks.size +
             state.pills.size + state.materials.size
         val maxSlotsBase = state.computeMaxSlots() - fixedOtherTypes
-        return StackableItemStore(
+        lateinit var seeds: StackableItemStore<Seed>
+        val herbs = StackableItemStore(
             initialItems = state.herbs.all(),
             stackKeyOf = StackKeys::herb,
             maxStack = inventoryConfig.getMaxStackSize("herb"),
-            maxSlots = { maxSlotsBase - state.seeds.size },
+            maxSlots = { maxSlotsBase - seeds.all().size },
             notFound = { AppError.Domain.Inventory.NotFound(it) }
         )
+        seeds = StackableItemStore(
+            initialItems = state.seeds.all(),
+            stackKeyOf = StackKeys::seed,
+            maxStack = inventoryConfig.getMaxStackSize("seed"),
+            maxSlots = { maxSlotsBase - herbs.all().size },
+            notFound = { AppError.Domain.Inventory.NotFound(it) }
+        )
+        return HarvestStoreContext(herbs, seeds)
     }
+
+    /** 灵田收获整轮共享的灵草/种子合并仓库（service 包内数据载体，命名遵守守卫后缀约定） */
+    private class HarvestStoreContext(
+        val herbs: StackableItemStore<Herb>,
+        val seeds: StackableItemStore<Seed>
+    )
 
     /**
      * 收获后处理灵田槽位：消耗种子重新种植或清空槽位（下标直写，O(1)）。
      *
+     * 续种只消耗"宗门仓库内"的种子——从本轮共享的 [seedStore]（权威镜像，含本轮
+     * 收获入仓种子、已扣减续种消耗）中查找并扣减，**溢出转邮件的种子不在其中，不可续种**。
+     *
      * @param index 与 newPlants 一一对应的下标（收获循环 forEachIndexed 提供，
      *        替代原 indexOfFirst + 每块地 toMutableList 的 O(n²) 复制）
+     * @param seedStore 整轮共享的种子合并仓库（由 [buildHarvestStores] 构建）
      */
     private fun updateSlotAfterHarvest(
         index: Int,
         plant: SpiritFieldPlant,
-        state: MutableGameState,
         currentYear: Int,
         currentMonth: Int,
-        newPlants: MutableList<SpiritFieldPlant>
+        newPlants: MutableList<SpiritFieldPlant>,
+        seedStore: StackableItemStore<Seed>
     ) {
         val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
         // isLocked 排除：全系统"锁定=不可消耗"语义（种植/丢弃/卖出/炼丹均检查），
         // 自动续种不可绕过锁定保护（对抗性审查发现 1）
-        val existingSeed = state.seeds.all().find { s ->
+        val existingSeed = seedStore.all().find { s ->
             s.name == plant.seedName &&
                 s.rarity == (matchingSeed?.rarity ?: 1) &&
                 s.growTime == plant.growTime && s.quantity > 0 && !s.isLocked
@@ -462,12 +541,7 @@ class ProductionProcessor @Inject constructor(
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             currentYear, currentMonth)
         if (existingSeed != null) {
-            val newQty = existingSeed.quantity - 1
-            if (newQty <= 0) {
-                state.seeds.remove(existingSeed.id)
-            } else {
-                state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
-            }
+            seedStore.remove(existingSeed.id, 1)
             newPlants[index] = plant.copy(
                 // seedId 指向实际消耗的种子堆叠：原实现保留旧 seedId，
                 // 其堆叠已被扣尽移除后悬空导致 UI 误显示存量 0（对抗性审查 F2）

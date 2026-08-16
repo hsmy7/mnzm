@@ -1,5 +1,16 @@
 ## [4.01.00] - 2026-08-16
 
+### 新增（2026-08-16 灵田收获附带收获同种种子 0~4 各 20% + 溢出转邮件）
+
+> 背景：灵田收获目前只产出灵草，种子需另行购买/探索获取，缺种时成熟田无法续种。需求：收获成熟灵植时一并收获该植株的同种种子（数量 0~4 各 20% 均匀分布），自动进宗门仓库，仓库容量不足时溢出转邮件；续种只消耗宗门仓库内的种子，进邮件的部分不参与同一轮续种。
+
+- **收获附带种子** — `ProductionProcessor.processSpiritFieldHarvest`（月度自动 + 读档/影子路径共用）每株成熟田以 `RngPartition.SYSTEM` `nextInt(5)` 均匀 roll 0~4，按 `plant.seedName` 生成同种种子（品阶/生长时间一致，`StackKeys::seed` 合并）并入仓；新增 `addHarvestedSeed`
+- **溢出转邮件** — 种子与灵草共用仓库槽位预算（`buildHarvestStores` 双仓 `maxSlots` 互相引用对方实时堆叠数，保持 `InventorySystem.addXxx` 的 otherTypes 实时统计语义），容量不足时经 `InventorySystem.sendOverflowMail("spirit_field","seed",…)` 转邮件（复用既有溢出邮件链路，邮件附件按名称+品阶解析，零新增依赖）
+- **续种只消耗仓库内种子** — `updateSlotAfterHarvest` 改从整轮共享 `seedStore`（仓库权威镜像）消耗：收获入仓部分可立即参与续种（0 库存也能自给自足），**溢出转邮件的种子不在 store 中天然不可续种**；锁定种子豁免、seedId 指向实际消耗堆叠等既有语义保留；轮末 `state.seeds.replaceAll` 一次性提交
+- **跨宗门隔离** — 种子收获与续种沿用既有 `sectId != activeSectId` 整块跳过守卫：AI 宗门田在匹配 activeSectId 下与主宗同构处理，不匹配则连同灵草一并跳过（不串宗不扣本宗种子续种异宗田）
+- **测试** — `ProductionProcessorTest` 新增 6 用例：入仓合并+续种、roll=0/4 边界、多块田独立 roll（`verify nextInt(5)` 每株恰一次，佐证均匀概率）、种子仓满溢出转邮件且邮件部分不续种、影子 `batchSpiritFieldHarvest` 路径等价；既有收获用例默认 `seedRoll=0` 断言零改动；新增嵌套类命名遵循 `.service` 包服务类注解守卫后缀约定（`HarvestStoreContext`）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；新增 SYSTEM 分区 RNG 消耗（分区快照保证重放确定性）；种子邮件领取走既有 `getSeedByName` 附件解析
+
 ### 新增（2026-08-16 宗门地图双指缩放 + 初始视角缩放中值 + 缩小不看到地图外）
 
 > 背景：宗门地图（玩家宗门与 AI 宗门共用同一地图 UI）无缩放能力；且相机最小缩放硬编码 `MIN_ZOOM=0.3`，在手机竖屏/大屏横屏下缩小到 0.3 会看到地图外空白。需求：新增双指捏合缩放，缩小视角时不得看到地图外，初始视角取缩放区间中值使放大/缩小倍数一致。

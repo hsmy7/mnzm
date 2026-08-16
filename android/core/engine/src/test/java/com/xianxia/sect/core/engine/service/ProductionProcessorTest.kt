@@ -28,6 +28,7 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.ZoneCalculator
 import com.xianxia.sect.core.config.InventoryConfig
@@ -47,6 +48,7 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
@@ -564,15 +566,22 @@ class ProductionProcessorTest {
     // ═══════════════════════════════════════════════════════════════
 
     private fun createProcessor(
-        inventorySystem: InventorySystem = mock()
+        inventorySystem: InventorySystem = mock(),
+        seedRoll: Int = 0
     ): ProductionProcessor {
+        // 灵田收获种子奖励 roll（nextInt(5)）：默认 0（不获得种子，保持既有收获断言）；
+        // 专项测试传入指定值验证 0~4 各档行为
+        val rng = mock<DeterministicRng>()
+        whenever(rng.nextInt(5)).thenReturn(seedRoll)
+        val rngManager = mock<GameRngManager>()
+        whenever(rngManager.getRng(any())).thenReturn(rng)
         return ProductionProcessor(
             stateStore = mock(),
             inventorySystem = inventorySystem,
             productionCoordinator = mock(),
             productionSlotRepository = mock(),
             formulaService = mock(),
-            rngManager = mock(),
+            rngManager = rngManager,
             scopeProvider = mock(),
             ioDispatcher = IoDispatcher(),
             inventoryConfig = com.xianxia.sect.core.config.InventoryConfig()
@@ -989,6 +998,113 @@ class ProductionProcessorTest {
         assertEquals("跨宗门田不收获", 0, state.herbs.all().size)
         assertEquals("种子不被消耗", 3, state.seeds.all().first().quantity)
         assertEquals("田保持原样", "p1", state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 灵田收获附带同种种子（0~4 各 20%）— 入库合并 + 溢出转邮件 + 续种交互
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `processSpiritFieldHarvest - 收获附带同种种子入仓合并并参与续种`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val existing = Seed(id = "s0", slotId = 1, name = "聚灵草种",
+            rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 3)
+        val state = createState(plants = listOf(plant), seeds = listOf(existing), gameYear = 4, gameMonth = 1)
+        createProcessor(seedRoll = 2).processSpiritFieldHarvest(state)
+
+        // 3（原有）+ 2（收获入仓）= 5 → 续种消耗 1 = 4；同种合并为单堆叠
+        assertEquals("收获种子应与同种堆叠合并", 1, state.seeds.all().size)
+        assertEquals("种子名称为同种", "聚灵草种", state.seeds.all().first().name)
+        assertEquals("3+2-1=4", 4, state.seeds.all().first().quantity)
+        assertEquals("续种消耗后 seedId 指向仓库堆叠", "s0",
+            state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 种子 roll=0 不获得种子且无种清田`() = runTest {
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), gameYear = 4, gameMonth = 1)
+        createProcessor(seedRoll = 0).processSpiritFieldHarvest(state)
+
+        assertEquals("roll=0 不获得种子", 0, state.seeds.all().size)
+        assertEquals("无种可续 → 田清空", "", state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - roll=4 收获种子自给自足续种仓净存3`() = runTest {
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), gameYear = 4, gameMonth = 1)
+        createProcessor(seedRoll = 4).processSpiritFieldHarvest(state)
+
+        assertEquals("4 收获入仓 - 1 续种消耗 = 3", 3, state.seeds.all().first().quantity)
+        val updated = state.gameData.spiritFieldPlants.first()
+        assertEquals("田续种", "聚灵草种", updated.seedName)
+        assertTrue("seedId 指向新收获的种子堆叠", updated.seedId.isNotEmpty())
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 多块田各自独立 roll 每株恰一次`() = runTest {
+        val plants = (1..3).map { i ->
+            SpiritFieldPlant(buildingInstanceId = "field$i", seedId = "p$i",
+                seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        }
+        val state = createState(plants = plants, gameYear = 4, gameMonth = 1)
+        val rng = mock<DeterministicRng>()
+        whenever(rng.nextInt(5)).thenReturn(2)
+        val rngManager = mock<GameRngManager>()
+        whenever(rngManager.getRng(any())).thenReturn(rng)
+        val processor = ProductionProcessor(
+            stateStore = mock(), inventorySystem = mock(),
+            productionCoordinator = mock(), productionSlotRepository = mock(),
+            formulaService = mock(), rngManager = rngManager,
+            scopeProvider = mock(), ioDispatcher = IoDispatcher(),
+            inventoryConfig = com.xianxia.sect.core.config.InventoryConfig()
+        )
+        processor.processSpiritFieldHarvest(state)
+
+        // 每株成熟田恰 roll 一次（均匀 0~4 概率实现的来源）；3 株各 2 颗入仓、各续种消耗 1
+        verify(rng, times(3)).nextInt(5)
+        assertEquals("同种合并单堆叠 = 3×2 - 3×1", 3, state.seeds.all().first().quantity)
+        assertEquals("3 块田全部续种", 3,
+            state.gameData.spiritFieldPlants.count { it.seedId.isNotEmpty() })
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 种子仓库满溢出转邮件且邮件部分不续种`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        // 用满 50 个"云雾花种"堆叠占满种子槽位（与收获田非同种 → 无仓库种可续；
+        // 溢出转邮件的聚灵草种也不在 seedStore 中 → 田应清空）
+        val maxStack = InventoryConfig().getMaxStackSize("seed")
+        val fullStacks = (1..50).map { i ->
+            Seed(id = "fs$i", slotId = 1, name = "云雾花种", rarity = 1,
+                growTime = 36, yield = 4, quantity = maxStack)
+        }
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "p1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), seeds = fullStacks, gameYear = 4, gameMonth = 1)
+        val inventorySystem = mock<InventorySystem>()
+        createProcessor(inventorySystem = inventorySystem, seedRoll = 2).processSpiritFieldHarvest(state)
+
+        verify(inventorySystem).sendOverflowMail("spirit_field", "seed", "聚灵草种", dbSeed.rarity, 2)
+        assertEquals("溢出的种子不入仓", 50, state.seeds.all().size)
+        assertTrue("仓库无聚灵草种", state.seeds.all().none { it.name == "聚灵草种" })
+        assertEquals("邮件部分不参与续种 → 田清空", "",
+            state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    @Test
+    fun `batchSpiritFieldHarvest - 影子读档路径同样收获种子`() = runTest {
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "s1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), gameYear = 4, gameMonth = 1)
+        createProcessor(seedRoll = 2).batchSpiritFieldHarvest(mutableListOf(), state)
+
+        assertEquals("2 入仓 - 1 续种消耗 = 1", 1, state.seeds.all().first().quantity)
+        assertEquals("田续种", "聚灵草种", state.gameData.spiritFieldPlants.first().seedName)
     }
 
     // ═══════════════════════════════════════════════════════════════
