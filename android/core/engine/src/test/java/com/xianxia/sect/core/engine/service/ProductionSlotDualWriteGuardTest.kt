@@ -22,6 +22,7 @@ import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmState
+import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.production.BuildingType
@@ -338,6 +339,77 @@ class ProductionSlotDualWriteGuardTest {
         )
     }
 
+    // ── 测试 5：超额候选回流（2026-08 修复）─────────────────────────
+    // 背景：高优先级类型（灵植）槽满时，原 takeCandidates 会将该类型全部合格
+    // 候选从池中移除——即使空槽装不下，导致低优先级类型（灵矿/炼丹/炼器）
+    // 空槽被吞掉、无人可安排。修复后每类型只消耗"空槽数"上限，超额候选回流。
+
+    @Test
+    fun `processAutoAssign - 灵植槽满时灵植合格弟子回流到灵矿空槽`() = runTest {
+        val processor = newProcessor()
+        // 灵植槽已满（occupied）+ 灵矿 2 空槽；两政策同筛双灵根
+        store.update {
+            gameData = gameData.copy(
+                sectPolicies = gameData.sectPolicies.copy(
+                    autoPlantRootCounts = listOf(2),
+                    autoMineRootCounts = listOf(2)
+                ),
+                productionSlots = listOf(
+                    ProductionSlot(
+                        slotIndex = 0, buildingType = BuildingType.HERB_GARDEN,
+                        buildingId = BuildingNames.HERB_GARDEN,
+                        status = ProductionSlotStatus.IDLE,
+                        assignedDiscipleId = "99", assignedDiscipleName = "已占用"
+                    )
+                ),
+                spiritMineSlots = listOf(
+                    SpiritMineSlot(index = 0), SpiritMineSlot(index = 1)
+                )
+            )
+        }
+        writeIdleDualRootDisciple(id = 1, name = "弟子A", planting = 50, mining = 50)
+        writeIdleDualRootDisciple(id = 2, name = "弟子B", planting = 40, mining = 40)
+
+        store.update { processor.processAutoAssign(this) }
+
+        val mineIds = store.latestGameData.spiritMineSlots
+            .map { it.discipleId }.filter { it.isNotEmpty() }.toSet()
+        assertEquals("灵植槽满时 2 名灵植合格弟子应全部回流到灵矿空槽", setOf("1", "2"), mineIds)
+        val herbSlot = store.latestGameData.productionSlots
+            .find { it.buildingType == BuildingType.HERB_GARDEN }
+        assertEquals("已占用的灵植槽不得被覆盖", "99", herbSlot?.assignedDiscipleId)
+    }
+
+    @Test
+    fun `processAutoAssign - 灵植空槽有限时超额灵植候选回流填满灵矿空槽`() = runTest {
+        val processor = newProcessorWithHerbSlot()
+        // 灵植 1 空槽 + 灵矿 2 空槽；3 名弟子同时满足灵植/灵矿（双灵根）
+        store.update {
+            gameData = gameData.copy(
+                sectPolicies = gameData.sectPolicies.copy(
+                    autoPlantRootCounts = listOf(2),
+                    autoMineRootCounts = listOf(2)
+                ),
+                productionSlots = listOf(emptyHerbSlot()),
+                spiritMineSlots = listOf(
+                    SpiritMineSlot(index = 0), SpiritMineSlot(index = 1)
+                )
+            )
+        }
+        writeIdleDualRootDisciple(id = 1, name = "弟子A", planting = 50, mining = 50)
+        writeIdleDualRootDisciple(id = 2, name = "弟子B", planting = 40, mining = 40)
+        writeIdleDualRootDisciple(id = 3, name = "弟子C", planting = 30, mining = 30)
+
+        store.update { processor.processAutoAssign(this) }
+
+        val herbSlot = store.latestGameData.productionSlots
+            .find { it.buildingType == BuildingType.HERB_GARDEN }
+        assertEquals("灵植空槽应分到最优灵植弟子", "1", herbSlot?.assignedDiscipleId)
+        val mineIds = store.latestGameData.spiritMineSlots
+            .map { it.discipleId }.filter { it.isNotEmpty() }.toSet()
+        assertEquals("超额灵植候选应回流填满灵矿空槽", setOf("2", "3"), mineIds)
+    }
+
     // ── 测试 3：processAutoAlchemySlot 镜像一致性检查（清残留 + 不重启） ──
 
     @Test
@@ -376,7 +448,7 @@ class ProductionSlotDualWriteGuardTest {
      * status=IDLE 是有意为之：模拟"分配后尚未 syncAllDiscipleStatuses"的
      * 陈旧状态窗口（防线第二层必须拦截的场景）。
      */
-    private fun writeIdleDualRootDisciple(id: Int, name: String, planting: Int) {
+    private fun writeIdleDualRootDisciple(id: Int, name: String, planting: Int, mining: Int = 0) {
         store.update {
             discipleTables.addId(id)
             discipleTables.names[id] = name
@@ -386,6 +458,7 @@ class ProductionSlotDualWriteGuardTest {
             discipleTables.realmLayers[id] = 1
             discipleTables.spiritRootTypes[id] = "金,木"
             discipleTables.spiritPlantings[id] = planting
+            discipleTables.minings[id] = mining
         }
     }
 

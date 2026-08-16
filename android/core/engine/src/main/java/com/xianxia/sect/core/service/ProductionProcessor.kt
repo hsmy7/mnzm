@@ -923,23 +923,41 @@ class ProductionProcessor @Inject constructor(
             .map { it.discipleId }
             .toSet()
         val allAssignments = computeResidenceAssignments(state, data, policies, occupiedResidentIds)
-        idleDisciples.removeAll { it.id in allAssignments.values.map { it.first }.toSet() }
+        val assignedResidentIds = allAssignments.values.map { it.first }.toSet()
+        idleDisciples.removeAll { it.id in assignedResidentIds }
 
         // ── 生产槽位候选预计算（按优先级逐级筛选，候选从 idleDisciples 移除） ──
+        // 每类型仅取"空槽数"上限的候选：超出上限的合格弟子保留在池中，回流给
+        // 低优先级类型继续分配——否则高优先级类型槽满时会吞掉全部合格候选，
+        // 导致低优先级空槽永远无人（无法"一次性安排所有符合条件的弟子"）。
+        val emptyHerbSlots = data.productionSlots.count {
+            it.buildingType == BuildingType.HERB_GARDEN &&
+                it.assignedDiscipleId.isNullOrEmpty() && it.status == ProductionSlotStatus.IDLE
+        }
+        val emptyMineSlots = data.spiritMineSlots.count { it.discipleId.isEmpty() }
+        val emptyAlchemySlots = data.productionSlots.count {
+            it.buildingType == BuildingType.ALCHEMY &&
+                it.assignedDiscipleId.isNullOrEmpty() && it.status == ProductionSlotStatus.IDLE
+        }
+        val emptyForgeSlots = data.productionSlots.count {
+            it.buildingType == BuildingType.FORGE &&
+                it.assignedDiscipleId.isNullOrEmpty() && it.status == ProductionSlotStatus.IDLE
+        }
+
         val herbCandidates = takeCandidates(
-            idleDisciples, policies.autoPlantFocused, policies.autoPlantRootCounts,
+            idleDisciples, emptyHerbSlots, policies.autoPlantFocused, policies.autoPlantRootCounts,
             policies.autoPlantThreshold
         ) { it.spiritPlanting }
         val mineCandidates = takeCandidates(
-            idleDisciples, policies.autoMineFocused, policies.autoMineRootCounts,
+            idleDisciples, emptyMineSlots, policies.autoMineFocused, policies.autoMineRootCounts,
             policies.autoMineThreshold
         ) { it.mining }
         val alchemyCandidates = takeCandidates(
-            idleDisciples, policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
+            idleDisciples, emptyAlchemySlots, policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
             policies.autoAlchemyThreshold
         ) { it.pillRefining }
         val forgeCandidates = takeCandidates(
-            idleDisciples, policies.autoForgeFocused, policies.autoForgeRootCounts,
+            idleDisciples, emptyForgeSlots, policies.autoForgeFocused, policies.autoForgeRootCounts,
             policies.autoForgeThreshold
         ) { it.artifactRefining }
 
@@ -1709,11 +1727,15 @@ class ProductionProcessor @Inject constructor(
     }
 
     /**
-     * 生产槽位候选提取：预排序候选弟子并从池中移除（按优先级逐级筛选）。
+     * 生产槽位候选提取：预排序候选弟子并**仅移除可容纳数量**（[maxCount]）后从池中
+     * 弹出。移除数受空槽数上限约束，超出的合格候选保留在池中，供低优先级类型继续分配。
      * 政策未启用时返回空列表。
+     *
+     * @param maxCount 该类型当前空槽数上限（超出部分不消耗池）
      */
     private fun takeCandidates(
         pool: MutableList<Disciple>,
+        maxCount: Int,
         focused: Boolean,
         rootCounts: List<Int>,
         threshold: Int,
@@ -1721,8 +1743,9 @@ class ProductionProcessor @Inject constructor(
     ): List<Disciple> {
         if (!focused && rootCounts.isEmpty()) return emptyList()
         val sorted = precomputeCandidates(pool, focused, rootCounts, threshold, attr)
-        sorted.forEach { pool.remove(it) }
-        return sorted
+        val taken = sorted.take(maxCount.coerceAtLeast(0))
+        taken.forEach { pool.remove(it) }
+        return taken
     }
 
     /**
