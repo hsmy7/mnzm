@@ -142,4 +142,60 @@ class TapCloudSaveManagerTest {
         assertTrue(TapCloudSaveManager.compareVersions("4.0.89 ", "4.0.88") > 0)
         assertTrue(TapCloudSaveManager.compareVersions(" 4.0.9 ", "4.0.13") < 0)
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // B-云存档（2026-08-16）：resolveCloudSaveInfo 防陈旧元数据清零
+    // ──────────────────────────────────────────────────────────────────
+
+    private fun realInfo(lastModifiedTime: Long, year: Int = 3, sect: String = "青云宗") = CloudSaveInfo(
+        hasSaveData = true,
+        lastModifiedTime = lastModifiedTime,
+        gameYear = year,
+        gameMonth = 5,
+        sectName = sect,
+        discipleCount = 7,
+        spiritStones = 1000L
+    )
+
+    @Test
+    fun `hasMeaningfulSummary - empty game fields means stale summary`() {
+        assertFalse(CloudSaveInfo(true).hasMeaningfulSummary())
+        assertTrue(realInfo(1L).hasMeaningfulSummary())
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - stale empty API summary does not zero out cached real data`() {
+        // 上传后立刻重查 TapTap，API 返回"有存档但摘要全空"的陈旧 extra（全 0 根因）
+        val cached = realInfo(lastModifiedTime = 2000L)
+        val staleApi = CloudSaveInfo(hasSaveData = true, lastModifiedTime = 1000L)
+        assertEquals(cached, TapCloudSaveManager.resolveCloudSaveInfo(cached, staleApi))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - newer cached data preferred over stale-but-meaningful API`() {
+        // API 返回旧但非空的摘要（metadata 未同步）→ 不得把更新的本地数据降级
+        val cached = realInfo(lastModifiedTime = 5000L, year = 12, sect = "青云宗")
+        val staleApi = realInfo(lastModifiedTime = 4000L, year = 3, sect = "青云宗")
+        assertEquals(cached, TapCloudSaveManager.resolveCloudSaveInfo(cached, staleApi))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - newer meaningful API summary is adopted`() {
+        // 跨设备/较新的 API 摘要（更新时间晚于缓存）→ 采用 API 并用于更新缓存
+        val cached = realInfo(lastModifiedTime = 1000L, year = 3)
+        val api = realInfo(lastModifiedTime = 3000L, year = 5, sect = "新宗门")
+        assertEquals(api, TapCloudSaveManager.resolveCloudSaveInfo(cached, api))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - API no save falls back to cache`() {
+        val cached = realInfo(lastModifiedTime = 2000L)
+        assertEquals(cached, TapCloudSaveManager.resolveCloudSaveInfo(cached, CloudSaveInfo(false)))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - no cache adopts API result`() {
+        val api = realInfo(lastModifiedTime = 2000L)
+        assertEquals(api, TapCloudSaveManager.resolveCloudSaveInfo(null, api))
+    }
 }

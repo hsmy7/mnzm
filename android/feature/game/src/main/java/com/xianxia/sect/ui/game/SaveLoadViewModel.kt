@@ -32,6 +32,7 @@ import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.migration.MigrationResult
 import com.xianxia.sect.data.migration.SaveDataVersionMigrator
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.data.model.SaveSlot
@@ -152,7 +153,6 @@ class SaveLoadViewModel @Inject constructor(
     val bootPhase: StateFlow<BootPhase> get() = stateStore.bootPhase
 
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
-    val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
 
     private val _pendingSlot = MutableStateFlow<Int?>(null)
     val pendingSlot: StateFlow<Int?> = _pendingSlot.asStateFlow()
@@ -163,10 +163,54 @@ class SaveLoadViewModel @Inject constructor(
     // ── 云存档状态 ──
     private val _cloudSaveInfo = MutableStateFlow(TapCloudSaveManager.CloudSaveInfo(false))
     val cloudSaveInfo: StateFlow<TapCloudSaveManager.CloudSaveInfo> = _cloudSaveInfo.asStateFlow()
+
+    /**
+     * 存档槽位列表（slot 0 云存档槽位合并真实云存档信息）。
+     *
+     * StorageEngine.getSaveSlots() 的 slot 0 是硬编码全 0 占位（游戏内存档
+     * 对话框直接渲染会显示"第0年0月/弟子 0/灵石 0"）；此处用 [_cloudSaveInfo]
+     * （checkCloudSave/上传/下载维护的真实云端摘要）覆盖占位字段，使游戏内
+     * 展示与主菜单选择存档界面的云存档入口数据一致。
+     */
+    val saveSlots: StateFlow<List<SaveSlot>> =
+        combine(_saveSlots, _cloudSaveInfo) { slots, cloudInfo ->
+            mergeCloudSlot(slots, cloudInfo)
+        }.stateIn(viewModelScope, sharingStarted, emptyList())
     private val cloudSaveInfoVersion = java.util.concurrent.atomic.AtomicInteger(0)
 
     private val _cloudSaveOperationState = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
     val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = _cloudSaveOperationState.asStateFlow()
+
+    /**
+     * 用真实云存档摘要覆盖 slot 0（云存档槽位）的硬编码占位字段。
+     *
+     * 无云存档时标记为空槽位（isEmpty=true），语义与主菜单选择存档界面的
+     * "暂无云存档数据"一致；有云存档时展示宗门/年/月/弟子/灵石/保存时间。
+     */
+    private fun mergeCloudSlot(
+        slots: List<SaveSlot>,
+        cloudInfo: TapCloudSaveManager.CloudSaveInfo
+    ): List<SaveSlot> = slots.map { slot ->
+        if (slot.slot != StorageConstants.CLOUD_SAVE_SLOT) {
+            slot
+        } else {
+            SaveSlot(
+                slot = StorageConstants.CLOUD_SAVE_SLOT,
+                name = "云存档",
+                timestamp = cloudInfo.lastModifiedTime,
+                gameYear = cloudInfo.gameYear,
+                gameMonth = cloudInfo.gameMonth,
+                sectName = if (cloudInfo.hasSaveData && cloudInfo.sectName.isNotBlank()) {
+                    cloudInfo.sectName
+                } else {
+                    "云存档"
+                },
+                discipleCount = cloudInfo.discipleCount,
+                spiritStones = cloudInfo.spiritStones,
+                isEmpty = !cloudInfo.hasSaveData
+            )
+        }
+    }
 
     // ── A6（2026-08-05）：主菜单云读档覆盖确认 ──
     // 目标槽位已有本地存档时不静默覆盖，挂起等待玩家确认

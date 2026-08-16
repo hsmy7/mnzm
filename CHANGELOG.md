@@ -1,3 +1,22 @@
+## [4.01.01] - 2026-08-16
+
+### 修复（2026-08-16 游戏内存档卡片云存档数据全 0）
+
+> 背景：游戏内「存档信息」对话框的云存档槽位卡片在保存云存档后仍显示"第0年0月 / 弟子 0 / 灵石 0"全 0，而主菜单选择存档界面的云存档入口显示正常。根因有二：① 游戏内对话框渲染的是 `StorageEngine.getSaveSlots()` 返回的 slot 0 硬编码全 0 占位（timestamp=0/gameYear=0…），从不读取云端摘要；② 打开对话框时重查 TapTap 云存档（`checkCloudSave()`）会无条件用 API 返回的摘要覆盖内存与本地缓存，而 TapTap metadata 存在最终一致性延迟——上传后立刻查询会拿到"有存档但摘要全空"的旧 extra，把刚写入的真实摘要清零。
+
+- **显示层** — `SaveLoadViewModel.saveSlots` 改为 `combine(_saveSlots, _cloudSaveInfo)` 派生，slot 0（云存档槽位）用 `_cloudSaveInfo`（上传/下载/查询维护的真实云端摘要）合并覆盖硬编码占位，与主菜单显示一致；`SaveSlotDialog` 打开时刷新云端摘要
+- **数据源防清零（根因）** — `TapCloudSaveManager.checkCloudSave()` 新增纯函数 `resolveCloudSaveInfo` 合并本地缓存与 API 摘要：API 确认无存档或摘要为空时保留本地缓存真实摘要，两者都有值时按 `lastModifiedTime` 取较新者，且只持久化含真实游戏字段的结果（`CloudSaveInfo.hasMeaningfulSummary()` 守卫）——上传后立即重查不再把真实数据清零
+- **测试** — `SaveLoadViewModelLoadTest` 新增 3 用例（有云存档显示真实摘要 / 无云存档标记空槽 / 上传后立即反映上传数据）并修复新增用例编译；`TapCloudSaveManagerTest` 新增 6 用例（陈旧空摘要不清零缓存 / 更新的缓存优先于旧而有值的 API / 较新 API 采纳 / 无存档回退缓存 / 无缓存采纳 API / hasMeaningfulSummary）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）
+
+### 修复（2026-08-16 多个非全屏界面遮罩叠加变黑）
+
+> 背景：v4.0.81 遮罩收敛为 `GameOverlayHost` 单例 `GameOverlayScrim`（0x99000000）后，多数路由对话框仍默认 `scrimEnabled=true` 在各自 Dialog 窗口自画全屏遮罩，多层半透明黑 α 复合叠加使界面外近黑（单对话框 2 层约 84%，叠子对话框约 93.6%）。
+
+- **宿主下强制禁自画遮罩** — `GameDialog` / `StandardPromptDialog` / `InlineStandardPromptDialog` 新增 `LocalDialogScrimHosted` 标记，宿主下强制禁用自画遮罩；`GameOverlayHost` 提供 `LocalDialogScrimHosted=true`（复用 `LocalOnUserInteraction` 透传机制，覆盖全部 Dialog 窗口含嵌套子对话框）
+- **测试** — scrim 增加 testTag + 2 个回归测试
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 遮罩行为
+
 ## [4.01.00] - 2026-08-16
 
 ### 修复（2026-08-17 进入宗门转场动画左右留空：全屏铺满）

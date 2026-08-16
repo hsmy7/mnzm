@@ -2,7 +2,9 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.GameStateSnapshot
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.engine.getStateSnapshot
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.GameStateStore
@@ -11,6 +13,7 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.taptap.TapCloudSaveManager
@@ -30,7 +33,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
@@ -96,6 +102,15 @@ class SaveLoadViewModelLoadTest {
         // 返回 null 导致 NPE，显式 stub 为"当前无存档"
         coEvery { storageFacade.load(any()) } returns
             SaveResult.failure(SaveError.SLOT_EMPTY, "no current save")
+        // 存档槽位列表 stub：与 StorageEngine.getSaveSlots() 一致，slot 0 为
+        // 全 0 占位（saveSlots 的 combine 派生会消费该列表，relaxed mock 的
+        // null 会让合并逻辑 NPE）
+        coEvery { storageFacade.getSaveSlotsSuspend() } returns listOf(
+            SaveSlot(
+                slot = 0, name = "云存档", timestamp = 0L, gameYear = 0, gameMonth = 0,
+                sectName = "云存档", discipleCount = 0, spiritStones = 0L, isEmpty = false
+            )
+        )
         every { stateStore.isLoading } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)
         // T12（2026-08-05）：init 会收集 stuckResetEvents——stub 为真实 SharedFlow
@@ -657,5 +672,93 @@ class SaveLoadViewModelLoadTest {
 
         // 中止：不读档（showError 为 protected 无法直接断言，行为间接验证）
         coVerify(exactly = 0) { storageFacade.load(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 云存档槽位（slot 0）合并：游戏内存档对话框显示真实云存档信息
+    // ──────────────────────────────────────────────────────────────────
+
+    /** 订阅 saveSlots 驱动 stateIn(WhileSubscribed) 生效，否则 value 停留在初始值 */
+    private fun TestScope.startCollectingSaveSlots() {
+        backgroundScope.launch(UnconfinedTestDispatcher(testDispatcher.scheduler)) {
+            viewModel.saveSlots.collect { }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `saveSlots - cloud save exists shows real data on slot 0`() = runTest(testDispatcher) {
+        startCollectingSaveSlots()
+        // 云端有存档：checkCloudSave 返回真实摘要（TapTap API extra 解析结果）
+        coEvery { tapCloudSaveManager.checkCloudSave() } returns TapCloudSaveManager.CloudSaveInfo(
+            hasSaveData = true,
+            lastModifiedTime = 123456789L,
+            description = "第3年5月 青云宗",
+            gameYear = 3,
+            gameMonth = 5,
+            sectName = "青云宗",
+            discipleCount = 7,
+            spiritStones = 1000L,
+            appVersion = "4.00.86"
+        )
+
+        viewModel.checkCloudSave()
+        advanceUntilIdle()
+
+        val cloudSlot = viewModel.saveSlots.value.first { it.slot == 0 }
+        assertEquals("云存档槽位应显示宗门名", "青云宗", cloudSlot.sectName)
+        assertEquals("云存档槽位应显示游戏年份", 3, cloudSlot.gameYear)
+        assertEquals("云存档槽位应显示游戏月份", 5, cloudSlot.gameMonth)
+        assertEquals("云存档槽位应显示弟子数", 7, cloudSlot.discipleCount)
+        assertEquals("云存档槽位应显示灵石数", 1000L, cloudSlot.spiritStones)
+        assertEquals("云存档槽位应显示上次保存时间", 123456789L, cloudSlot.timestamp)
+        assertTrue("有云存档时槽位不应标记为空", !cloudSlot.isEmpty)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `saveSlots - no cloud save marks slot 0 empty`() = runTest(testDispatcher) {
+        startCollectingSaveSlots()
+        coEvery { tapCloudSaveManager.checkCloudSave() } returns TapCloudSaveManager.CloudSaveInfo(false)
+
+        viewModel.checkCloudSave()
+        advanceUntilIdle()
+
+        val cloudSlot = viewModel.saveSlots.value.first { it.slot == 0 }
+        assertTrue("无云存档时 slot 0 应标记为空", cloudSlot.isEmpty)
+        assertEquals("无云存档时槽位名保持云存档", "云存档", cloudSlot.sectName)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `saveSlots - after upload to cloud slot 0 shows uploaded data`() = runTest(testDispatcher) {
+        startCollectingSaveSlots()
+        // 游戏快照：有真实游戏数据（上传后 slot 0 应立即反映，而非硬编码全 0 占位）
+        val snapshot = GameStateSnapshot(
+            gameData = GameData(sectName = "青云宗", saveVersion = 2, gameYear = 3, gameMonth = 5, spiritStones = 888L),
+            disciples = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
+            pills = emptyList(),
+            materials = emptyList(),
+            herbs = emptyList(),
+            seeds = emptyList(),
+            battleLogs = emptyList(),
+            alliances = emptyList()
+        )
+        coEvery { gameEngine.getStateSnapshot() } returns snapshot
+        coEvery { tapCloudSaveManager.uploadSave(any()) } returns TapCloudSaveManager.CloudSaveResult.Success()
+
+        viewModel.uploadToCloudSave()
+        advanceUntilIdle()
+
+        val cloudSlot = viewModel.saveSlots.value.first { it.slot == 0 }
+        assertEquals("上传后云存档槽位应显示宗门名", "青云宗", cloudSlot.sectName)
+        assertEquals("上传后云存档槽位应显示年份", 3, cloudSlot.gameYear)
+        assertEquals("上传后云存档槽位应显示月份", 5, cloudSlot.gameMonth)
+        assertEquals("上传后云存档槽位应显示灵石数", 888L, cloudSlot.spiritStones)
+        assertTrue("上传后云存档槽位不应标记为空", !cloudSlot.isEmpty)
     }
 }

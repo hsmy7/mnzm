@@ -86,6 +86,32 @@ class TapCloudSaveManager @Inject constructor(
             }
             return 0
         }
+
+        /**
+         * 合并本地缓存与 API 摘要，返回应对外暴露的云存档摘要。
+         *
+         * B-云存档（2026-08-16）：TapTap metadata 最终一致性延迟——上传后立刻查询
+         * 可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段清零
+         *（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地数据降级。
+         *
+         * 规则：
+         * 1. API 确认云端无存档 → 有缓存用缓存，无缓存返回空
+         * 2. 本地无缓存 → 只能采用 API 结果
+         * 3. API 摘要为空（陈旧 extra）→ 保留本地缓存真实摘要
+         * 4. 缓存无真实摘要但 API 有 → 采用 API
+         * 5. 两者都有真实摘要 → 取更新时间较新者（lastModifiedTime）
+         */
+        internal fun resolveCloudSaveInfo(
+            cached: CloudSaveInfo?,
+            api: CloudSaveInfo
+        ): CloudSaveInfo = when {
+            !api.hasSaveData -> cached ?: api
+            cached == null -> api
+            !api.hasMeaningfulSummary() -> cached
+            !cached.hasMeaningfulSummary() -> api
+            api.lastModifiedTime >= cached.lastModifiedTime -> api
+            else -> cached
+        }
     }
 
 /**
@@ -142,7 +168,18 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
         val spiritStones: Long = 0L,
         /** 上传存档时的游戏版本号（用于跨版本兼容检查） */
         val appVersion: String = ""
-    )
+    ) {
+        /**
+         * 摘要是否包含真实游戏数据（宗门/年/月/弟子/灵石任一非空）。
+         *
+         * TapTap 云存档 metadata 存在最终一致性延迟：上传后立刻查询可能返回
+         * 旧 extra（游戏字段全空）；若把这种"有存档但摘要全空"的结果当真实数据
+         * 持久化，会把本地缓存/内存中的真实摘要清零（游戏内卡片显示全 0 的根因）。
+         */
+        fun hasMeaningfulSummary(): Boolean =
+            sectName.isNotBlank() || gameYear > 0 || gameMonth > 0 ||
+                discipleCount > 0 || spiritStones > 0L
+    }
 
     /** 云存档操作结果 */
     sealed class CloudSaveResult {
@@ -329,6 +366,7 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
     suspend fun checkCloudSave(): CloudSaveInfo {
         // 先尝试 API 查询
         return try {
+            val cached = loadCloudSaveInfoFromLocal()
             val info = performTapTapQuery()
             val extraData = info?.extra?.let { e ->
                 try { JSONObject(e) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { null }
@@ -345,11 +383,16 @@ class CloudSaveOperationTimeoutException(message: String) : Exception(message)
                 spiritStones = extraData?.optLong("stones", 0L) ?: 0L,
                 appVersion = extraData?.optString("version", "") ?: ""
             )
-            // API 查询成功且有数据时更新本地缓存
-            if (apiResult.hasSaveData) {
-                saveCloudSaveInfoToLocal(apiResult)
+            // B-云存档（2026-08-16）：防止 TapTap metadata 最终一致性延迟——上传后
+            // 立刻查询可能返回"有存档但摘要全空"的旧 extra，直接采用会把真实游戏字段
+            // 清零（游戏内存档卡片显示全 0）；也可能返回旧但非空的摘要，把更新的本地
+            // 数据降级。合并策略见 [resolveCloudSaveInfo]。
+            val result = resolveCloudSaveInfo(cached, apiResult)
+            // 仅持久化含真实摘要的结果，避免把陈旧空摘要写死进本地缓存
+            if (result.hasSaveData && result.hasMeaningfulSummary()) {
+                saveCloudSaveInfoToLocal(result)
             }
-            apiResult
+            result
         } catch (e: Exception) {
             DomainLog.w(TAG, "Failed to check cloud save from API, falling back to cache", e)
             // API 失败时降级到本地缓存

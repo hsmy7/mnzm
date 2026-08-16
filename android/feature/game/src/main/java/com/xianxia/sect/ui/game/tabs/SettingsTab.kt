@@ -857,6 +857,12 @@ internal fun SaveSlotDialog(
     var animationStartTime by remember { mutableLongStateOf(0L) }
     var operationLabel by remember { mutableStateOf("") }
 
+    // 打开对话框即刷新云存档摘要，slot 0（云存档槽位）才能显示真实数据
+    //（而非 StorageEngine 的硬编码全 0 占位）
+    LaunchedEffect(Unit) {
+        saveLoadViewModel.checkCloudSave()
+    }
+
     LaunchedEffect(isBusy) {
         if (isBusy) {
             animationStartTime = System.currentTimeMillis()
