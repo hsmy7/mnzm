@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 
 import androidx.compose.ui.unit.Dp
@@ -55,6 +56,17 @@ enum class DialogMode { Half, Large, Full, Auto }
  * CompositionLocal 经 Dialog 组合子树继承，宿主一处提供即可覆盖全部对话框。
  */
 val LocalOnUserInteraction = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/**
+ * 宿主已绘制单例遮罩标记（GameOverlayHost 提供 true）。
+ *
+ * v4.0.81 后遮罩收敛为 GameOverlayHost 根节点单例（GameOverlayScrim），所有
+ * 对话框窗口应保持透明、不自画遮罩，否则多层 0x99000000 半透明黑 α 复合叠加
+ * （1-(1-0.6)^n）会令界面外近黑。本标记经 CompositionLocal 透传进 Dialog 组合
+ * 子树（与 LocalOnUserInteraction 同机制），宿主下任意对话框（含嵌套子对话框）
+ * 自动禁用自画遮罩；宿主外独立界面不受影响，仍默认自画。
+ */
+val LocalDialogScrimHosted = androidx.compose.runtime.staticCompositionLocalOf<Boolean> { false }
 
 @Composable
 fun UnifiedGameDialog(
@@ -92,6 +104,9 @@ fun UnifiedGameDialog(
     // Activity.onUserInteraction）。由宿主 CompositionLocal 提供
     // （GameOverlayHost 统一接线），防对话框内挂机误触发动态帧率降档。
     val onDialogTouch = LocalOnUserInteraction.current
+    // 宿主（GameOverlayHost）已画单例遮罩时强制禁用自画遮罩，防多窗口遮罩 α 叠加变黑
+    val scrimHosted = LocalDialogScrimHosted.current
+    val scrimActuallyEnabled = scrimEnabled && !scrimHosted
     if (dismissOnBackPress) {
         BackHandler(onBack = onDismissRequest)
     }
@@ -118,7 +133,7 @@ fun UnifiedGameDialog(
 
         DialogScrim(
             onDismissRequest = onDismissRequest,
-            scrimEnabled = scrimEnabled,
+            scrimEnabled = scrimActuallyEnabled,
             dismissOnClickOutside = dismissOnClickOutside,
             onDialogTouch = onDialogTouch
         ) {
@@ -250,7 +265,7 @@ private fun DialogScrim(
         modifier = Modifier
             .fillMaxSize()
             .then(
-                if (scrimEnabled) Modifier.background(Color(0x99000000))
+                if (scrimEnabled) Modifier.background(Color(0x99000000)).testTag("scrim")
                 else Modifier
             )
             .then(

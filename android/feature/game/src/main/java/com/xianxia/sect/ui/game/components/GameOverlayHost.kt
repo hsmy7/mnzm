@@ -44,6 +44,7 @@ import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
 import com.xianxia.sect.ui.game.dialogs.BeastAttackWarningDialog
 import com.xianxia.sect.ui.game.dialogs.MarriageApprovalDialog
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
+import com.xianxia.sect.ui.components.LocalDialogScrimHosted
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.canRenderDialogs
@@ -85,7 +86,10 @@ fun GameOverlayHost(
     // 一处提供覆盖全部对话框，防对话框内挂机误触发动态帧率降档）
     val dialogTouchReporter = vms.game::onUserInteraction
     androidx.compose.runtime.CompositionLocalProvider(
-        com.xianxia.sect.ui.components.LocalOnUserInteraction provides dialogTouchReporter
+        com.xianxia.sect.ui.components.LocalOnUserInteraction provides dialogTouchReporter,
+        // 单例遮罩守卫：本宿主已绘制 GameOverlayScrim，宿主下所有对话框
+        // （含嵌套子对话框）强制不自画遮罩，防多层半透明黑 α 叠加使界面外一片黑
+        LocalDialogScrimHosted provides true
     ) {
     val viewModel = vms.game
     val saveLoadViewModel = vms.saveLoad

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -435,5 +436,42 @@ class StandardPromptDialogTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithText("兑换码").assertIsDisplayed()
         composeRule.onNodeWithText("请输入兑换码").assertIsDisplayed()
+    }
+
+    // ── 宿主单例遮罩守卫（2026-08 多界面遮罩叠加变黑根治）──
+    // GameOverlayHost 已绘制 GameOverlayScrim（0x99000000），宿主下所有对话框
+    // 必须不自画遮罩，否则多层半透明黑 α 复合叠加使界面外一片黑。
+    // LocalDialogScrimHosted=true 时强制禁用自画遮罩（scrim 节点不存在）。
+
+    @Test
+    fun `宿主标记生效 - LocalDialogScrimHosted true 时对话框不自画遮罩`() {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalDialogScrimHosted provides true) {
+                InlineStandardPromptDialog(
+                    onDismissRequest = {},
+                    title = "提示",
+                    confirmLabel = "确定"
+                ) {
+                    Text("内容")
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("scrim").assertDoesNotExist()
+    }
+
+    @Test
+    fun `宿主标记缺失 - 默认仍自画遮罩`() {
+        composeRule.setContent {
+            InlineStandardPromptDialog(
+                onDismissRequest = {},
+                title = "提示",
+                confirmLabel = "确定"
+            ) {
+                Text("内容")
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("scrim").assertExists()
     }
 }

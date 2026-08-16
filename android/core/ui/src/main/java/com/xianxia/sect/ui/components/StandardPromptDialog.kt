@@ -262,6 +262,8 @@ fun StandardPromptDialog(
     val density = LocalDensity.current
     val dialogWidth = with(density) { (windowSize.width / 2).toDp() }
     val dialogHeight = with(density) { (windowSize.height * 0.55f).toDp() }
+    // 宿主（GameOverlayHost）已画单例遮罩时强制禁用自画遮罩，防多窗口遮罩 α 叠加变黑
+    val scrimActuallyEnabled = scrimEnabled && !LocalDialogScrimHosted.current
 
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -282,7 +284,7 @@ fun StandardPromptDialog(
 
         PromptDialogScrim(
             onDismissRequest = onDismissRequest,
-            scrimEnabled = scrimEnabled,
+            scrimEnabled = scrimActuallyEnabled,
             dismissOnClickOutside = dismissOnClickOutside,
             applyImePadding = false
         ) {
@@ -373,6 +375,8 @@ fun InlineStandardPromptDialog(
     val density = LocalDensity.current
     val dialogWidth = remember { with(density) { (windowSize.width / 2).toDp() } }
     val dialogHeight = remember { with(density) { (windowSize.height * 0.55f).toDp() } }
+    // 宿主（GameOverlayHost）已画单例遮罩时强制禁用自画遮罩，防多窗口遮罩 α 叠加变黑
+    val scrimActuallyEnabled = scrimEnabled && !LocalDialogScrimHosted.current
 
     if (dismissOnBackPress) {
         BackHandler { onDismissRequest() }
@@ -391,7 +395,7 @@ fun InlineStandardPromptDialog(
 
     PromptDialogScrim(
         onDismissRequest = onDismissRequest,
-        scrimEnabled = scrimEnabled,
+        scrimEnabled = scrimActuallyEnabled,
         dismissOnClickOutside = dismissOnClickOutside,
         applyImePadding = !insideDialogWindow
     ) {
@@ -455,7 +459,7 @@ private fun PromptDialogScrim(
                 else Modifier
             )
             .then(
-                if (scrimEnabled) Modifier.background(Color(0x99000000))
+                if (scrimEnabled) Modifier.background(Color(0x99000000)).testTag("scrim")
                 else Modifier
             )
             .then(
