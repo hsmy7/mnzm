@@ -912,24 +912,10 @@ class NativeSurfaceView(
 
     // D-39 豁免：ClickableViewAccessibility lint——本视图是原生游戏画布，必须直接
     // 拦截触摸流转换为跨平台 TouchData（Compose pointerInput 无法与 Vulkan 帧循环解耦）
-    // 拆分搬移:多出口与原函数一致
-    @Suppress("ReturnCount", "ClickableViewAccessibility")
+    @Suppress("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val engine = touchEngine ?: return false
-
-        val touchData = TouchData(
-            x = event.x,
-            y = event.y,
-            action = when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> TouchAction.DOWN
-                MotionEvent.ACTION_MOVE -> TouchAction.MOVE
-                MotionEvent.ACTION_UP -> TouchAction.UP
-                MotionEvent.ACTION_CANCEL -> TouchAction.CANCEL
-                else -> return false
-            },
-            timestamp = event.eventTime.toLong() * 1_000_000L,
-            pointerId = event.getPointerId(event.actionIndex)
-        )
+        val engine = touchEngine
+        val touchData = engine?.let { toTouchData(event) } ?: return false
         engine.onTouch(touchData)
         return true
     }
@@ -1275,3 +1261,96 @@ private data class FramePacing(
     val step: Int,
     val intervalNs: Long
 )
+
+/**
+ * MotionEvent → 跨平台 [TouchData] 映射（含双指缩放多点触控）。
+ * 仅支持 DOWN/POINTER_DOWN/MOVE/POINTER_UP/UP/CANCEL，其余动作返回 null。
+ */
+private fun toTouchData(event: MotionEvent): TouchData? {
+    val pointerCount = event.pointerCount
+    val timestamp = event.eventTime.toLong() * 1_000_000L
+    return when (event.actionMasked) {
+        MotionEvent.ACTION_DOWN -> TouchData(
+            x = event.x,
+            y = event.y,
+            action = TouchAction.DOWN,
+            timestamp = timestamp,
+            pointerId = event.getPointerId(0),
+            pointerCount = pointerCount
+        )
+
+        // 第二根手指按下 → 进入双指缩放：x/y 为已按下主指针，x2/y2 为新增指针
+        MotionEvent.ACTION_POINTER_DOWN -> TouchData(
+            x = event.getX(0),
+            y = event.getY(0),
+            action = TouchAction.DOWN,
+            timestamp = timestamp,
+            pointerId = event.getPointerId(0),
+            pointerCount = pointerCount,
+            pointer2X = event.getX(event.actionIndex),
+            pointer2Y = event.getY(event.actionIndex)
+        )
+
+        MotionEvent.ACTION_MOVE -> toMoveTouchData(event, pointerCount, timestamp)
+
+        // 一根手指抬起：x/y 传剩余仍在屏幕上的手指位置，供引擎恢复平移不跳变
+        MotionEvent.ACTION_POINTER_UP -> toPointerUpTouchData(event, pointerCount, timestamp)
+
+        MotionEvent.ACTION_UP -> TouchData(
+            x = event.x,
+            y = event.y,
+            action = TouchAction.UP,
+            timestamp = timestamp,
+            pointerId = event.getPointerId(0),
+            pointerCount = pointerCount
+        )
+
+        MotionEvent.ACTION_CANCEL -> TouchData(
+            x = event.x,
+            y = event.y,
+            action = TouchAction.CANCEL,
+            timestamp = timestamp,
+            pointerId = event.getPointerId(0),
+            pointerCount = pointerCount
+        )
+
+        else -> null
+    }
+}
+
+/** MOVE 事件映射：双指时携带第二指坐标，单指保持原逻辑 */
+private fun toMoveTouchData(event: MotionEvent, pointerCount: Int, timestamp: Long): TouchData =
+    if (pointerCount >= 2) {
+        TouchData(
+            x = event.getX(0),
+            y = event.getY(0),
+            action = TouchAction.MOVE,
+            timestamp = timestamp,
+            pointerId = event.getPointerId(0),
+            pointerCount = pointerCount,
+            pointer2X = event.getX(1),
+            pointer2Y = event.getY(1)
+        )
+    } else {
+        TouchData(
+            x = event.x,
+            y = event.y,
+            action = TouchAction.MOVE,
+            timestamp = timestamp,
+            pointerId = event.getPointerId(event.actionIndex),
+            pointerCount = pointerCount
+        )
+    }
+
+/** POINTER_UP 事件映射：上报仍在屏幕上的剩余手指位置（引擎据此恢复平移不跳变） */
+private fun toPointerUpTouchData(event: MotionEvent, pointerCount: Int, timestamp: Long): TouchData {
+    val remainingIndex = if (event.actionIndex == 0) 1 else 0
+    return TouchData(
+        x = event.getX(remainingIndex),
+        y = event.getY(remainingIndex),
+        action = TouchAction.UP,
+        timestamp = timestamp,
+        pointerId = event.getPointerId(remainingIndex),
+        pointerCount = pointerCount
+    )
+}

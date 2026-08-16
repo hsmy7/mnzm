@@ -28,6 +28,11 @@ import kotlin.coroutines.cancellation.CancellationException
  *                   └──→ [TAP] ← UP(短触无移动)                   │
  *                                                                  │
  *             Flinging ──新DOWN──→ Down (中断惯性) ←───────────────┘
+ *
+ * Down/Scrolling/... ──第二指DOWN──→ Pinching ──MOVE(间距变化)──→ onPinchZoom
+ *                                       │
+ *                        UP(剩一指) ────→ Down (抑制下次 tap，可继续平移)
+ *                        UP(全部抬起) ───→ Idle
  * ```
  *
  * 参考来源：
@@ -75,6 +80,23 @@ class SectMapTouchEngine(
         maxPanSpeed = config.maxEdgePanSpeed
     )
 
+    /** 双指缩放：上一帧两指间距（像素） */
+    private var lastPinchDist = 0f
+
+    /**
+     * 当前屏幕上的手指数量（引擎内部跟踪）。
+     * 平台层对 UP 事件上报的 pointerCount 是「抬起后剩余手指数」，
+     * 无法据此区分「剩一指」与「全部抬起」，故由引擎按 DOWN(+1)/UP(-1) 维护。
+     */
+    private var activePointers = 0
+
+    /**
+     * 双指缩放结束后剩余单指抬起时抑制误触 tap。
+     * 缩放结束（剩一指）→ Down → 松手时若位移未超 slop 会走 tap 分支，
+     * 需跳过以避免缩放后误点建筑/空地。
+     */
+    private var suppressTapAfterPinch = false
+
     /** 协程 Jobs */
     private var longPressJob: Job? = null
     private var flingJob: Job? = null
@@ -98,6 +120,9 @@ class SectMapTouchEngine(
         hasBuildingTarget = false
         velocityTracker.clear()
         flingPhysics.stop()
+        lastPinchDist = 0f
+        suppressTapAfterPinch = false
+        activePointers = 0
     }
 
     /** 触摸事件入口 */
@@ -118,6 +143,14 @@ class SectMapTouchEngine(
         // 中断 Fling
         interruptFlingIfActive()
 
+        // 双指（第二根手指按下）→ 进入双指缩放，优先于长按/拖拽判决
+        if (data.pointerCount >= 2) {
+            activePointers = data.pointerCount
+            enterPinch(data)
+            return
+        }
+
+        activePointers = 1
         downX = data.x
         downY = data.y
         lastX = data.x
@@ -142,6 +175,28 @@ class SectMapTouchEngine(
             flingJob?.cancel(); flingJob = null
             callbacks.onFlingEnd()
         }
+    }
+
+    /**
+     * 进入双指缩放状态。
+     * 取消长按/拖拽判决，记录两指初始间距，并保持高帧率渲染（onDragStart）。
+     */
+    private fun enterPinch(data: TouchData) {
+        longPressJob?.cancel(); longPressJob = null
+        hasBuildingTarget = false
+        // 从既有手势退出并通知 UI 层结束
+        when (state) {
+            is GestureState.Scrolling -> callbacks.onDragEnd()
+            is GestureState.BuildingDrag -> callbacks.onBuildingDragEnd()
+            is GestureState.Flinging -> { /* fling 已在 handleDown 头部中断 */ }
+            else -> {}
+        }
+        state = GestureState.Pinching
+        lastPinchDist = distanceBetween(data)
+        velocityTracker.clear()
+        flingPhysics.stop()
+        suppressTapAfterPinch = false
+        callbacks.onDragStart()
     }
 
     /** 编辑模式按下处理（handleDown 拆分）：建筑/预览上等待 MOVE 或超时，金手指立即拖拽，空地保持 Down */
@@ -271,13 +326,37 @@ class SectMapTouchEngine(
                 callbacks.onGoldFingerUpdate(data.x, data.y)
             }
 
+            is GestureState.Pinching -> handlePinchMove(data)
+
             else -> {} // Idle / Flinging 忽略 Move
         }
+    }
+
+    /**
+     * 双指缩放移动（handleMove 拆分）。
+     * 按「两指间距比」调用 [TouchEngineCallbacks.onPinchZoom]，焦点为两指中点。
+     * 事件流丢失双指信息时防御性回退 Idle。
+     */
+    private fun handlePinchMove(data: TouchData) {
+        if (data.pointerCount < 2 || data.pointer2X.isNaN() || data.pointer2Y.isNaN()) {
+            state = GestureState.Idle
+            return
+        }
+        val dist = distance(data.x, data.y, data.pointer2X, data.pointer2Y)
+        val minDist = config.pinchMinDistPx
+        if (lastPinchDist >= minDist && dist >= minDist) {
+            val ratio = dist / lastPinchDist
+            val midX = (data.x + data.pointer2X) / 2f
+            val midY = (data.y + data.pointer2Y) / 2f
+            callbacks.onPinchZoom(ratio, midX, midY)
+        }
+        lastPinchDist = dist
     }
 
     private fun handleUp(data: TouchData) {
         longPressJob?.cancel(); longPressJob = null
         hasBuildingTarget = false
+        if (activePointers > 0) activePointers--
 
         when (state) {
             is GestureState.Down -> {
@@ -286,8 +365,11 @@ class SectMapTouchEngine(
                 val movedPastSlop = dx * dx + dy * dy > config.touchSlopSq
                 state = GestureState.Idle
                 // 防御：DOWN→UP 间无 MOVE 事件（事件合并/极快 flick）时，
-                // 位移超 slop 不视为 tap；tap 命中一律锚定按下点
-                if (!movedPastSlop) {
+                // 位移超 slop 不视为 tap；tap 命中一律锚定按下点。
+                // 双指缩放后剩一指抬起：位移未超 slop 也不触发 tap（避免缩放后误点）。
+                val suppressTap = suppressTapAfterPinch
+                suppressTapAfterPinch = false
+                if (!movedPastSlop && !suppressTap) {
                     callbacks.onTap(downX, downY)
                 }
             }
@@ -316,7 +398,30 @@ class SectMapTouchEngine(
                 state = GestureState.Idle
             }
 
+            is GestureState.Pinching -> handlePinchUp(data)
+
             else -> state = GestureState.Idle
+        }
+    }
+
+    /**
+     * 双指缩放结束（handleUp 拆分）。
+     * 剩一根手指（[activePointers] 仍 >= 1）→ 恢复 Down（后续移动即平移），
+     * 并抑制紧随其后的误触 tap；全部抬起 → 回到 Idle。
+     */
+    private fun handlePinchUp(data: TouchData) {
+        callbacks.onDragEnd()
+        if (activePointers >= 1) {
+            // 一根手指抬起，另一根仍在屏幕上：重新锚定剩余手指位置，恢复平移
+            downX = data.x
+            downY = data.y
+            lastX = data.x
+            lastY = data.y
+            velocityTracker.clear()
+            suppressTapAfterPinch = true
+            state = GestureState.Down
+        } else {
+            state = GestureState.Idle
         }
     }
 
@@ -324,16 +429,32 @@ class SectMapTouchEngine(
         longPressJob?.cancel(); longPressJob = null
         flingJob?.cancel(); flingJob = null
         hasBuildingTarget = false
+        activePointers = 0
         when (state) {
             is GestureState.Scrolling -> callbacks.onDragEnd()
             is GestureState.BuildingDrag -> callbacks.onBuildingDragEnd()
             is GestureState.Flinging -> callbacks.onFlingEnd()
+            is GestureState.Pinching -> callbacks.onDragEnd()
             else -> {}
         }
         state = GestureState.Idle
+        suppressTapAfterPinch = false
     }
 
     // ==================== Fling ====================
+
+    /** 两指间距（像素） */
+    private fun distanceBetween(data: TouchData): Float {
+        if (data.pointer2X.isNaN() || data.pointer2Y.isNaN()) return 0f
+        return distance(data.x, data.y, data.pointer2X, data.pointer2Y)
+    }
+
+    /** 两点欧氏距离（像素） */
+    private fun distance(x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val dx = x1 - x2
+        val dy = y1 - y2
+        return kotlin.math.sqrt(dx * dx + dy * dy)
+    }
 
     private fun startFling(vx: Float, vy: Float) {
         flingPhysics.start(vx, vy)

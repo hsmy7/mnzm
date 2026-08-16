@@ -826,6 +826,11 @@ private fun buildMainGameScreenTouchCallbacks(
         viewportData.cancelCameraAnim()
         viewModel.onUserInteraction()
     }
+    override fun onPinchZoom(scaleFactor: Float, focusX: Float, focusY: Float) {
+        viewportData.cameraState.zoom(scaleFactor, focusX, focusY)
+        viewportData.cancelCameraAnim()
+        viewModel.onUserInteraction()
+    }
     override fun onTap(screenX: Float, screenY: Float) {
         handleMainGameScreenTap(
             state = state, derived = derived, mapData = mapData,
@@ -1538,6 +1543,7 @@ private fun MainGameScreenUiOverlay(
 
 /** 顶部 UI（MainGameScreen 拆分）：宗门信息卡 + 隐藏 UI/玉符/暂停列 */
 @Composable
+/** 顶部栏（MainGameScreen 拆分）：宗门信息卡片 + 右侧操作列（隐藏UI/玉符/暂停） */
 private fun BoxScope.MainGameScreenTopBar(
     state: MainGameScreenState,
     data: MainGameScreenData,
@@ -1551,38 +1557,7 @@ private fun BoxScope.MainGameScreenTopBar(
             .padding(start = 32.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (state.isUiVisible) {
-            val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
-            val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
-            val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
-            // 2026-08-16 修复：卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
-            // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
-            val activeSect = data.derived.gameData?.worldMapSects
-                ?.find { it.id == data.derived.gameData.activeSectId }
-            SectInfoCard(
-                sectName = activeSect?.name ?: data.derived.gameData?.sectName ?: "青云宗",
-                gameYear = data.derived.gameData?.gameYear ?: 1,
-                gameMonth = data.derived.gameData?.gameMonth ?: 1,
-                gamePhase = data.derived.gameData?.gamePhase ?: 0,
-                lowStones = data.derived.gameData?.spiritStones ?: 0L,
-                midStones = data.derived.gameData?.midGradeSpiritStones ?: 0L,
-                highStones = data.derived.gameData?.highGradeSpiritStones ?: 0L,
-                discipleCount = data.derived.aliveDisciples.size,
-                combatPower = sectCombatPower,
-                sectLevel = activeSect?.level ?: currentSectLevel,
-                showRewardBadge = showRewardBadge,
-                onSectIconClick = {
-                    if (data.derived.gameData.activeSectId.isEmpty()) viewModel.navigateToSectLevelDetail()
-                },
-                onSectNameClick = {
-                    // 仅在主宗门（activeSectId=""）时允许改名，被占宗门不可改名
-                    if (data.derived.gameData.activeSectId.isEmpty()) {
-                        viewModel.navigateToDialog(DialogType.RenameSect)
-                    }
-                }
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-        }
+        MainGameScreenSectInfoSection(state = state, data = data, viewModel = viewModel)
         Column(
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1611,6 +1586,47 @@ private fun BoxScope.MainGameScreenTopBar(
             // 暂停/继续按钮（根据 isPaused 切换精灵图）
             PauseResumeButton(saveLoadViewModel = saveLoadViewModel)
         }
+    }
+}
+
+/** 宗门信息卡片区（MainGameScreenTopBar 拆分）：仅 UI 可见时显示卡片与右侧间隔 */
+@Composable
+private fun MainGameScreenSectInfoSection(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    if (state.isUiVisible) {
+        val currentSectLevel = viewModel.playerSectLevel.collectAsStateWithLifecycle().value
+        val showRewardBadge = viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle().value
+        val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
+        // 2026-08-16 修复：卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
+        // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
+        val activeSect = data.derived.gameData?.worldMapSects
+            ?.find { it.id == data.derived.gameData.activeSectId }
+        SectInfoCard(
+            sectName = activeSect?.name ?: data.derived.gameData?.sectName ?: "青云宗",
+            gameYear = data.derived.gameData?.gameYear ?: 1,
+            gameMonth = data.derived.gameData?.gameMonth ?: 1,
+            gamePhase = data.derived.gameData?.gamePhase ?: 0,
+            lowStones = data.derived.gameData?.spiritStones ?: 0L,
+            midStones = data.derived.gameData?.midGradeSpiritStones ?: 0L,
+            highStones = data.derived.gameData?.highGradeSpiritStones ?: 0L,
+            discipleCount = data.derived.aliveDisciples.size,
+            combatPower = sectCombatPower,
+            sectLevel = activeSect?.level ?: currentSectLevel,
+            showRewardBadge = showRewardBadge,
+            onSectIconClick = {
+                if (data.derived.gameData.activeSectId.isEmpty()) viewModel.navigateToSectLevelDetail()
+            },
+            onSectNameClick = {
+                // 仅在主宗门（activeSectId=""）时允许改名，被占宗门不可改名
+                if (data.derived.gameData.activeSectId.isEmpty()) {
+                    viewModel.navigateToDialog(DialogType.RenameSect)
+                }
+            }
+        )
+        Spacer(modifier = Modifier.width(8.dp))
     }
 }
 

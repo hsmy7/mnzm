@@ -52,6 +52,13 @@ abstract class BaseCameraState(
      */
     protected open fun computeDefaultScale(vpW: Int, vpH: Int): Float = 1f
 
+    /**
+     * 用户缩放允许的最小缩放下界。
+     * 默认使用全局 [CameraState.MIN_ZOOM]；子类可覆盖收紧，
+     * 例如宗门地图要求缩小视角时视口不超出世界边界（不看到地图外）。
+     */
+    protected open fun minScaleBound(): Float = CameraState.MIN_ZOOM
+
     // ── 坐标转换 ──
 
     override fun worldToScreenX(wx: Float): Float = (wx - cameraX) * scale
@@ -109,7 +116,7 @@ abstract class BaseCameraState(
         if (delta.isNaN() || delta <= 0f) return
         val worldBeforeX = screenToWorldX(focusX)
         val worldBeforeY = screenToWorldY(focusY)
-        val newScale = (scale * delta).coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
+        val newScale = (scale * delta).coerceIn(minScaleBound(), CameraState.MAX_ZOOM)
         if (newScale == scale) return
         userScale = true
         scale = newScale
@@ -150,7 +157,7 @@ abstract class BaseCameraState(
      */
     override fun applyScale(newScale: Float) {
         if (newScale.isNaN() || newScale <= 0f) return
-        scale = newScale.coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
+        scale = newScale.coerceIn(minScaleBound(), CameraState.MAX_ZOOM)
         userScale = true
         clamp()
     }
@@ -187,7 +194,7 @@ abstract class BaseCameraState(
      */
     protected fun clamp() {
         // 防御性 scale 钳制 — 兜底保护所有 scale 写入路径
-        scale = scale.coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
+        scale = scale.coerceIn(minScaleBound(), CameraState.MAX_ZOOM)
         if (scale <= 0f || scale.isNaN()) return
         // NaN/Infinity 净化：coerceIn 不处理 NaN，NaN 会传播到渲染线程
         if (cameraX.isNaN() || cameraX.isInfinite()) cameraX = 0f

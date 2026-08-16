@@ -19,11 +19,17 @@ enum class TouchAction {
  * @property action 触摸动作类型
  * @property timestamp 时间戳（nanoTime），用于速度计算
  * @property pointerId 触摸点 ID，多点触摸预留
+ * @property pointerCount 当前屏幕上的手指数量（>=2 表示双指缩放手势）
+ * @property pointer2X 第二根手指的屏幕 X（pointerCount >= 2 时有效，否则 NaN）
+ * @property pointer2Y 第二根手指的屏幕 Y（pointerCount >= 2 时有效，否则 NaN）
  */
 data class TouchData(
     val x: Float,
     val y: Float,
     val action: TouchAction,
     val timestamp: Long = System.nanoTime(),
-    val pointerId: Int = 0
+    val pointerId: Int = 0,
+    val pointerCount: Int = 1,
+    val pointer2X: Float = Float.NaN,
+    val pointer2Y: Float = Float.NaN
 )

@@ -13,6 +13,14 @@ interface TouchEngineCallbacks {
     /** 相机平移（SCROLLING / FLINGING）。dx/dy 为屏幕像素偏移。 */
     fun onPanCamera(dx: Float, dy: Float) = Unit
 
+    /**
+     * 双指缩放。
+     * @param scaleFactor 本次缩放倍数（>1 放大，<1 缩小）
+     * @param focusX 缩放焦点屏幕 X（两指中点）
+     * @param focusY 缩放焦点屏幕 Y（两指中点）
+     */
+    fun onPinchZoom(scaleFactor: Float, focusX: Float, focusY: Float) = Unit
+
     /** 短触点击。screenX/screenY 为按下时刻坐标（tap 仅在位移 ≤ touchSlop 时触发，命中以按下点为准）。 */
     fun onTap(screenX: Float, screenY: Float) = Unit
 

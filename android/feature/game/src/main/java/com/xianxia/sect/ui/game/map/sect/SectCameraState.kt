@@ -8,21 +8,25 @@ import com.xianxia.sect.core.animation.CameraTarget
 import com.xianxia.sect.core.camera.CameraState
 import com.xianxia.sect.ui.game.map.BaseCameraState
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.sqrt
 
 /**
  * 宗门地图相机状态。
  *
  * 继承 [BaseCameraState] 获得平移/缩放/边界钳制等公共实现，
  * 在此添加宗门地图特有的 [tryCenterOn] 智能居中、[CameraAnimator] 动画支持、
- * 以及恒定可见格数缩放策略（Clash of Clans `visible_columns` 模式）。
+ * 以及「缩放中值」初始视角策略。
  *
- * 核心缩放策略：所有设备水平显示恒定 [VISIBLE_COLS] 个地图格，
- * 垂直方向随设备屏占比自然变化。
+ * 核心缩放策略：
+ * - 缩放范围 [minScaleBound, MAX_ZOOM]：下界取安全值，保证缩小视角时视口
+ *   不超出世界边界（不看到地图外）；上界为全局 [CameraState.MAX_ZOOM]
+ * - 初始视角 = 缩放范围上下界的几何中值 √(minScaleBound × MAX_ZOOM)，
+ *   保证从初始视角向放大/缩小两端可缩放的倍数一致
  *
- * 支持动态缩放（scale），v4.0.45+ 新增用户缩放：
- * - 默认缩放自适应设备视口尺寸，保证各设备看到相同水平视野
+ * 支持动态缩放（scale），v4.0.45+ 新增用户缩放（双指捏合 / 双击）：
+ * - 默认缩放为缩放区间几何中值，各设备可缩放倍数一致
  * - 用户可通过 [zoom] / 缩放按钮 +/- / 双击缩放调整
- * - 缩放范围 [MIN_ZOOM, MAX_ZOOM] = [0.3, 3.0]
  *
  * @param worldWidth 世界像素宽度
  * @param worldHeight 世界像素高度
@@ -32,7 +36,7 @@ import kotlin.math.abs
 class SectCameraState(
     worldWidth: Float,
     worldHeight: Float,
-    private val worldWidthCells: Int = 128
+    val worldWidthCells: Int = 128
 ) : BaseCameraState(worldWidth, worldHeight) {
 
     /** 初始居中标记 */
@@ -53,12 +57,9 @@ class SectCameraState(
         animator = anim
     }
 
-    /** 缩放范围与阈值常量 */
-    companion object {
-        /** 水平可见格数 — 所有设备固定显示相同列数（对标 Clash of Clans visible_columns） */
-        const val VISIBLE_COLS = 52
-        /** 自动居中触发阈值（世界像素），避免反复居中打断用户操作 */
-        private const val CENTER_THRESHOLD = 100f
+    /** 自动居中触发阈值（世界像素），避免反复居中打断用户操作 */
+    private companion object {
+        const val CENTER_THRESHOLD = 100f
     }
 
     /**
@@ -80,43 +81,44 @@ class SectCameraState(
     }
 
     /**
-     * 计算恒定可见格数缩放值（Clash of Clans `visible_columns` 模式）。
+     * 计算初始缩放值 — 缩放范围上下界的几何中值。
      *
-     * 所有设备水平显示相同数量 [VISIBLE_COLS] 个地图格，确保：
-     * - 同一布局在所有手机上看到同一水平范围（公平性）
-     * - 垂直方向自然适配各设备屏占比
-     * - 不超出世界边界（防溢出保护）
+     * 缩放范围 = [safeMinScale, MAX_ZOOM]：
+     * - 下界 [safeMinScale]：保证缩小视角时视口不超出世界边界（不看到地图外）
+     * - 上界 [CameraState.MAX_ZOOM]：全局最大放大
+     * - 初始视角取几何中值 √(下界 × 上界)，使「可缩小倍数」与「可放大倍数」一致
      *
      * ```
-     * tileSize = worldWidth / worldWidthCells
-     * targetScale = vpW / (VISIBLE_COLS × tileSize)
-     * finalScale = maxOf(targetScale, vpW/worldWidth, vpH/worldHeight)
+     * minScale = max(MIN_ZOOM, vpW/worldWidth, vpH/worldHeight)
+     * defaultScale = sqrt(minScale × MAX_ZOOM)
      * ```
-     *
-     * 参考行业做法（27 条来源）：
-     * - Supercell EP2444134: `visible_columns` 抽象缩放单位
-     * - UPC Thesis: Zoom 以"可见行列数"为单位而非像素
-     * - Clash of Clans: 所有设备看到相同数量格子的设计哲学
      *
      * @param vpW 视口宽度（像素）
      * @param vpH 视口高度（像素）
      */
     override fun computeDefaultScale(vpW: Int, vpH: Int): Float {
         if (vpW <= 0 || vpH <= 0) {
-            return scale.coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
+            return scale.coerceIn(minScaleBound(), CameraState.MAX_ZOOM)
         }
-        // tileSize = worldWidth / worldWidthCells
-        val tileSize = worldWidth / worldWidthCells.toFloat()
-        // 目标缩放：水平显示 VISIBLE_COLS 个地图格
-        val targetScale = vpW.toFloat() / (VISIBLE_COLS * tileSize)
-        // 防溢出保护：视口不超出世界边界
-        val minSafeScale = maxOf(
-            vpW.toFloat() / worldWidth,
-            vpH.toFloat() / worldHeight
-        )
-        return maxOf(targetScale, minSafeScale)
-            .coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
+        val minScale = safeMinScale(vpW, vpH)
+        return sqrt(minScale * CameraState.MAX_ZOOM)
     }
+
+    /**
+     * 用户缩放最小下界 — 保证缩小视角时视口不超出世界边界（不看到地图外）。
+     * 取 max(全局 MIN_ZOOM, 视口宽/世界宽, 视口高/世界高)：缩放不低于该值即可
+     * 保证横向/纵向至少一个维度的视口不超出世界。
+     */
+    override fun minScaleBound(): Float {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return CameraState.MIN_ZOOM
+        return safeMinScale(viewportWidth, viewportHeight)
+    }
+
+    /** 安全最小缩放：视口尺寸与最小下界的最大值 */
+    private fun safeMinScale(vpW: Int, vpH: Int): Float = max(
+        CameraState.MIN_ZOOM,
+        max(vpW.toFloat() / worldWidth, vpH.toFloat() / worldHeight)
+    )
 
     /**
      * 尝试居中到指定坐标，带初始化保护和距离阈值。

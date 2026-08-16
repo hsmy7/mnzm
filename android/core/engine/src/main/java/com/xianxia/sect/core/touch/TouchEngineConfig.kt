@@ -19,6 +19,7 @@ package com.xianxia.sect.core.touch
  *   — 来源: Flutter ClampingScrollSimulation (25px/s)
  * @property edgeThicknessPx 边缘平移触发区宽度 (像素)
  * @property maxEdgePanSpeed 边缘最大平移速度 (px/s)
+ * @property pinchMinDistPx 双指缩放最小间距（像素），低于此距离不计算缩放，防抖
  */
 data class TouchEngineConfig(
     val touchSlopPx: Float = 16f,
@@ -28,7 +29,8 @@ data class TouchEngineConfig(
     val flingDeceleration: Float = 1500f,
     val flingStopThreshold: Float = 25f,
     val edgeThicknessPx: Float = 100f,
-    val maxEdgePanSpeed: Float = 600f
+    val maxEdgePanSpeed: Float = 600f,
+    val pinchMinDistPx: Float = 16f
 ) {
     /** touchSlop 的平方，用于距离比较 */
     val touchSlopSq: Float get() = touchSlopPx * touchSlopPx

@@ -478,11 +478,118 @@ class SectMapTouchEngineTest {
         assertEquals(GestureState.BuildingDrag::class, engine.state::class)
     }
 
+    // ========================
+    // 双指缩放（pinch）
+    // ========================
+
+    @Test
+    fun `双指张开触发 onPinchZoom 放大并锚定两指中点`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(300f, 300f))
+        // 第二指按下：初始间距 100px（(400,300)-(500,300)）
+        engine.onTouch(pinchDown(400f, 300f, 500f, 300f, 10_000_000L))
+        assertTrue("第二指按下应进入 Pinching", engine.state is GestureState.Pinching)
+        // 张开到 200px → ratio = 2.0，焦点为两指中点 (500,300)
+        engine.onTouch(pinchMove(400f, 300f, 600f, 300f, 20_000_000L))
+        assertTrue("双指移动应触发 onPinchZoom", callbacks.pinchZoomCalled)
+        assertEquals(2.0f, callbacks.lastPinchScaleFactor, 0.001f)
+        assertEquals(500f, callbacks.lastPinchFocusX, 0.001f)
+        assertEquals(300f, callbacks.lastPinchFocusY, 0.001f)
+    }
+
+    @Test
+    fun `双指合拢触发 onPinchZoom 缩小`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(300f, 300f))
+        engine.onTouch(pinchDown(300f, 300f, 500f, 300f, 10_000_000L)) // 间距 200px
+        engine.onTouch(pinchMove(300f, 300f, 400f, 300f, 20_000_000L)) // 间距 100px → ratio 0.5
+        assertTrue("双指移动应触发 onPinchZoom", callbacks.pinchZoomCalled)
+        assertEquals(0.5f, callbacks.lastPinchScaleFactor, 0.001f)
+    }
+
+    @Test
+    fun `第二指按下取消长按并进入缩放`() = runTest {
+        val config = defaultConfig.copy(longPressTimeoutMs = 50L)
+        val engine = SectMapTouchEngine(callbacks, this, config)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f)) // 空地按下，启动长按
+        engine.onTouch(pinchDown(200f, 200f, 300f, 200f, 10_000_000L))
+        assertTrue(engine.state is GestureState.Pinching)
+        advanceUntilIdle() // 若长按未被取消会触发 onLongPress
+        assertEquals("第二指按下应取消长按", 0, callbacks.longPressCallCount)
+    }
+
+    @Test
+    fun `双指缩放期间保持高帧率回调 dragStart and dragEnd`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(300f, 300f))
+        engine.onTouch(pinchDown(400f, 300f, 500f, 300f, 10_000_000L))
+        assertTrue("进入缩放应 onDragStart", callbacks.dragStartCalled)
+        engine.onTouch(pinchUpRemaining(400f, 300f, 30_000_000L))
+        assertTrue("缩放结束应 onDragEnd", callbacks.dragEndCalled)
+    }
+
+    @Test
+    fun `双指缩放后剩一指抬起不触发 tap`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(300f, 300f))
+        engine.onTouch(pinchDown(400f, 300f, 500f, 300f, 10_000_000L))
+        engine.onTouch(pinchMove(400f, 300f, 600f, 300f, 20_000_000L))
+        // 一根手指抬起，剩一指在 (400,300)
+        engine.onTouch(pinchUpRemaining(400f, 300f, 30_000_000L))
+        assertTrue("剩一指应回到 Down", engine.state is GestureState.Down)
+        // 剩余手指无位移抬起 → 不应触发 tap（避免缩放后误点）
+        engine.onTouch(touchUp(400f, 300f, 40_000_000L))
+        assertEquals(GestureState.Idle::class, engine.state::class)
+        assertFalse("缩放后不应触发 tap", callbacks.tapCalled)
+    }
+
+    @Test
+    fun `双指缩放剩一指可继续平移`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(300f, 300f))
+        engine.onTouch(pinchDown(400f, 300f, 500f, 300f, 10_000_000L))
+        engine.onTouch(pinchUpRemaining(400f, 300f, 30_000_000L))
+        // 剩余手指移动超过 slop → Scrolling → onPanCamera
+        engine.onTouch(touchMove(450f, 300f, 40_000_000L))
+        assertTrue(engine.state is GestureState.Scrolling)
+        assertTrue("缩放后单指应可平移", callbacks.panCalled)
+    }
+
+    @Test
+    fun `CANCEL during pinch returns to Idle without tap`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(300f, 300f))
+        engine.onTouch(pinchDown(400f, 300f, 500f, 300f, 10_000_000L))
+        assertTrue(engine.state is GestureState.Pinching)
+        engine.onTouch(touchCancel())
+        assertEquals(GestureState.Idle::class, engine.state::class)
+        assertFalse("CANCEL 不应触发 tap", callbacks.tapCalled)
+    }
+
     companion object {
         private fun touchDown(x: Float, y: Float, t: Long = 0L) = TouchData(x, y, TouchAction.DOWN, t)
         private fun touchMove(x: Float, y: Float, t: Long = 1_000_000L) = TouchData(x, y, TouchAction.MOVE, t)
         private fun touchUp(x: Float, y: Float, t: Long = 300_000_000L) = TouchData(x, y, TouchAction.UP, t)
         private fun touchCancel() = TouchData(0f, 0f, TouchAction.CANCEL)
+
+        /** 第二根手指按下（双指缩放入口），x1/y1 为主指针，x2/y2 为新增指针 */
+        private fun pinchDown(x1: Float, y1: Float, x2: Float, y2: Float, t: Long = 0L) =
+            TouchData(x1, y1, TouchAction.DOWN, t, pointerCount = 2, pointer2X = x2, pointer2Y = y2)
+
+        /** 双指移动（缩放更新），返回当前两指位置 */
+        private fun pinchMove(x1: Float, y1: Float, x2: Float, y2: Float, t: Long = 1_000_000L) =
+            TouchData(x1, y1, TouchAction.MOVE, t, pointerCount = 2, pointer2X = x2, pointer2Y = y2)
+
+        /** 一根手指抬起，剩一指在 (x, y) */
+        private fun pinchUpRemaining(x: Float, y: Float, t: Long = 300_000_000L) =
+            TouchData(x, y, TouchAction.UP, t, pointerCount = 1)
     }
 }
 
@@ -506,6 +613,11 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
     var dragStartCalled = false
     var dragEndCalled = false
     var longPressCallCount = 0
+    var pinchZoomCalled = false
+    var pinchZoomCount = 0
+    var lastPinchScaleFactor = 1f
+    var lastPinchFocusX = -1f
+    var lastPinchFocusY = -1f
 
     override fun onTap(screenX: Float, screenY: Float) {
         tapCalled = true
@@ -539,6 +651,14 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
 
     override fun onGoldFingerUpdate(screenX: Float, screenY: Float) {
         goldFingerUpdateCalled = true
+    }
+
+    override fun onPinchZoom(scaleFactor: Float, focusX: Float, focusY: Float) {
+        pinchZoomCalled = true
+        pinchZoomCount++
+        lastPinchScaleFactor = scaleFactor
+        lastPinchFocusX = focusX
+        lastPinchFocusY = focusY
     }
 
     override fun onDragStart() {
@@ -576,5 +696,10 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
         buildingTargetAtDown = false
         inEditMode = false
         goldFingerActive = false
+        pinchZoomCalled = false
+        pinchZoomCount = 0
+        lastPinchScaleFactor = 1f
+        lastPinchFocusX = -1f
+        lastPinchFocusY = -1f
     }
 }

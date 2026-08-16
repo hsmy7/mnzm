@@ -34,4 +34,7 @@ sealed class GestureState {
 
     /** 长按检测到金手指激活区，正在框选批量建造区域。 */
     data object GoldFingerDrag : GestureState()
+
+    /** 双指按下，正在双指缩放（pinch）。 */
+    data object Pinching : GestureState()
 }

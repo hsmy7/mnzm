@@ -4,20 +4,19 @@ import com.xianxia.sect.core.camera.CameraState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.sqrt
 
 /**
  * 宗门地图相机状态测试 — 验证 scale 缩放在各场景下的正确性。
  *
- * v4.0.45+ 默认视角高度改为自适应 Fill 策略（替代固定的 0.5），
- * 确保全面屏设备在任何方向均无空白区域。
+ * v4.0.45+ 默认视角改为「缩放区间几何中值」（√(minScale × MAX_ZOOM)）：
+ * 保证从初始视角向放大/缩小两端可缩放的倍数一致，且缩小不超出世界边界。
  */
 class SectCameraStateTest {
 
     // 宗门地图实际尺寸：128 × 32px = 4096 × 4096
     private val worldWidth = 4096f
     private val worldHeight = 4096f
-    private val worldWidthCells = 128
-    private val visibleCols = SectCameraState.VISIBLE_COLS
 
     // 常见手机分辨率
     private val phoneVpW = 1080
@@ -29,26 +28,39 @@ class SectCameraStateTest {
     private val largeVpW = 3840
     private val largeVpH = 2160
 
-    // 恒定可见格数策略：computeDefaultScale = maxOf(vpW/(24*tileSize), vpW/worldW, vpH/worldH)
+    // 缩放中值策略：computeDefaultScale = sqrt(max(MIN_ZOOM, vpW/worldW, vpH/worldH) × MAX_ZOOM)
     private fun expectedScale(vpW: Int, vpH: Int): Float {
-        val tileSize = worldWidth / worldWidthCells.toFloat()
-        val targetScale = vpW.toFloat() / (visibleCols * tileSize)
         val minSafeScale = maxOf(
+            CameraState.MIN_ZOOM,
             vpW.toFloat() / worldWidth,
             vpH.toFloat() / worldHeight
         )
-        return maxOf(targetScale, minSafeScale)
-            .coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
+        return sqrt(minSafeScale * CameraState.MAX_ZOOM)
     }
 
     // ==================== 自适应缩放（新） ====================
 
     @Test
-    fun `computeDefaultScale - 16-9 phone returns adaptive scale`() {
+    fun `computeDefaultScale - 16-9 phone returns middle scale`() {
         val camera = SectCameraState(worldWidth, worldHeight)
         camera.updateViewport(phoneVpW, phoneVpH)
         val want = expectedScale(phoneVpW, phoneVpH)
-        assertEquals("16:9 手机应使用自适应缩放", want, camera.scale, 0.001f)
+        assertEquals("16:9 手机应使用缩放中值", want, camera.scale, 0.001f)
+    }
+
+    @Test
+    fun `computeDefaultScale - 初始视角为缩放中值，放大与缩小倍数一致`() {
+        val camera = SectCameraState(worldWidth, worldHeight)
+        camera.updateViewport(phoneVpW, phoneVpH)
+        val minBound = maxOf(
+            CameraState.MIN_ZOOM,
+            phoneVpW.toFloat() / worldWidth,
+            phoneVpH.toFloat() / worldHeight
+        )
+        // 从初始视角向两端缩放的倍数应一致：scale/minBound == MAX_ZOOM/scale
+        val zoomOutFactor = camera.scale / minBound
+        val zoomInFactor = CameraState.MAX_ZOOM / camera.scale
+        assertEquals("可缩小倍数与可放大倍数应一致", zoomOutFactor, zoomInFactor, 0.001f)
     }
 
     @Test
@@ -139,34 +151,34 @@ class SectCameraStateTest {
         val camera = SectCameraState(worldWidth, worldHeight)
         // 宽屏：3840 < 4096，但 2160 < 4096
         camera.updateViewport(largeVpW, largeVpH)
-        // fillScale = maxOf(3840/4096, 2160/4096) = maxOf(0.938, 0.527) = 0.938
+        // minScale = maxOf(0.3, 3840/4096, 2160/4096) = 0.938；defaultScale = √(0.938×3) ≈ 1.68
         val want = expectedScale(largeVpW, largeVpH)
-        assertEquals("大屏横屏 scale 应大于 0.5", want, camera.scale, 0.001f)
+        assertEquals("大屏横屏 scale 应为缩放中值", want, camera.scale, 0.001f)
     }
 
     @Test
     fun `updateViewport - viewport equal to world - caps at computed scale`() {
         val camera = SectCameraState(worldWidth, worldHeight)
         camera.updateViewport(4096, 4096)
-        // targetScale = 4096 / (VISIBLE_COLS * 32), capped by safety + MIN_ZOOM/MAX_ZOOM
+        // minScale = maxOf(0.3, 1, 1) = 1.0；defaultScale = √(1×3) ≈ 1.73
         val want = expectedScale(4096, 4096)
         assertEquals("视口等于世界时应使用预期缩放", want, camera.scale, 0.001f)
     }
 
     @Test
-    fun `updateViewport - viewport smaller than world - uses fill scale not fixed`() {
+    fun `updateViewport - viewport smaller than world - uses middle scale`() {
         val camera = SectCameraState(worldWidth, worldHeight)
         camera.updateViewport(phoneVpW, phoneVpH)
-        // fillScale = maxOf(1080/4096, 1920/4096) = 0.469
+        // minScale = maxOf(0.3, 1080/4096, 1920/4096) = 0.469；defaultScale = √(0.469×3) ≈ 1.186
         val want = expectedScale(phoneVpW, phoneVpH)
-        assertEquals("手机竖屏 scale 应为自适应缩放", want, camera.scale, 0.001f)
+        assertEquals("手机竖屏 scale 应为缩放中值", want, camera.scale, 0.001f)
     }
 
     @Test
     fun `updateViewport - second call does not reset user scale`() {
         val camera = SectCameraState(worldWidth, worldHeight)
-        camera.updateViewport(phoneVpW, phoneVpH) // first: scale = adaptive
-        camera.zoom(2.0f, phoneVpW / 2f, phoneVpH / 2f) // user zoom → scale ≈ 0.938
+        camera.updateViewport(phoneVpW, phoneVpH) // first: scale = 中值 ≈ 1.186
+        camera.zoom(2.0f, phoneVpW / 2f, phoneVpH / 2f) // user zoom → scale ≈ 2.37
         camera.updateViewport(phoneVpW, phoneVpH) // second call → should NOT reset
         val expectedAfterZoom = expectedScale(phoneVpW, phoneVpH) * 2.0f
             .coerceIn(CameraState.MIN_ZOOM, CameraState.MAX_ZOOM)
@@ -194,7 +206,7 @@ class SectCameraStateTest {
         }
         val sx = camera.worldToScreenX(100f)
         val sy = camera.worldToScreenY(50f)
-        // scale = 0.469, cameraX/Y = 0 → sx = 100*0.469 = 46.9
+        // scale = 缩放中值 ≈ 1.186，cameraX/Y = 0 → sx = 100*scale
         assertEquals(100f * camera.scale, sx, 0.001f)
         assertEquals(50f * camera.scale, sy, 0.001f)
     }
@@ -336,6 +348,55 @@ class SectCameraStateTest {
         }
         camera.zoom(0.01f, phoneVpW / 2f, phoneVpH / 2f)
         assertTrue("zoom 缩小不应低于 MIN_ZOOM", camera.scale >= CameraState.MIN_ZOOM)
+    }
+
+    @Test
+    fun `zoom - 缩小受限安全下界，视口不看到地图外`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        val minBound = maxOf(
+            CameraState.MIN_ZOOM,
+            phoneVpW.toFloat() / worldWidth,
+            phoneVpH.toFloat() / worldHeight
+        )
+        // 极端缩小 → scale 恰好被钳制到安全下界
+        camera.zoom(0.001f, phoneVpW / 2f, phoneVpH / 2f)
+        assertEquals("缩小下界应等于安全下界", minBound, camera.scale, 0.001f)
+        // 视口世界尺寸不得超出世界尺寸（不看到地图外）
+        val ew = phoneVpW / camera.scale
+        val eh = phoneVpH / camera.scale
+        assertTrue("缩小后视口世界宽度不应超过世界宽度", ew <= worldWidth + 0.1f)
+        assertTrue("缩小后视口世界高度不应超过世界高度", eh <= worldHeight + 0.1f)
+        // 至少一个维度正好填满视口（无空白）
+        assertTrue(
+            "缩小到极限时应无空白",
+            worldWidth * camera.scale >= phoneVpW - 0.5f ||
+                worldHeight * camera.scale >= phoneVpH - 0.5f
+        )
+    }
+
+    @Test
+    fun `zoom - 从初始视角放大缩小倍数一致`() {
+        val camera = SectCameraState(worldWidth, worldHeight).apply {
+            updateViewport(phoneVpW, phoneVpH)
+        }
+        val initial = camera.scale
+        val minBound = maxOf(
+            CameraState.MIN_ZOOM,
+            phoneVpW.toFloat() / worldWidth,
+            phoneVpH.toFloat() / worldHeight
+        )
+        // 以同样倍数放大后再缩小，应回到初始视角附近
+        val factor = 1.5f
+        camera.zoom(factor, phoneVpW / 2f, phoneVpH / 2f)
+        val zoomedIn = camera.scale
+        camera.zoom(1f / factor, phoneVpW / 2f, phoneVpH / 2f)
+        assertEquals("放大后再缩小应回到初始视角", initial, camera.scale, 0.001f)
+        // 且初始视角到上下界的倍数一致
+        assertEquals("可缩小倍数与可放大倍数应一致",
+            initial / minBound, CameraState.MAX_ZOOM / initial, 0.001f)
+        assertTrue("放大后 scale 应大于初始", zoomedIn > initial)
     }
 
     @Test

@@ -1,5 +1,16 @@
 ## [4.01.00] - 2026-08-16
 
+### 新增（2026-08-16 宗门地图双指缩放 + 初始视角缩放中值 + 缩小不看到地图外）
+
+> 背景：宗门地图（玩家宗门与 AI 宗门共用同一地图 UI）无缩放能力；且相机最小缩放硬编码 `MIN_ZOOM=0.3`，在手机竖屏/大屏横屏下缩小到 0.3 会看到地图外空白。需求：新增双指捏合缩放，缩小视角时不得看到地图外，初始视角取缩放区间中值使放大/缩小倍数一致。
+
+- **双指缩放手势** — `SectMapTouchEngine` 新增 `Pinching` 状态：第二指按下进入（取消长按/打断 fling），MOVE 按两指间距比回调 `onPinchZoom`（锚定两指中点），抬指剩一指恢复平移并抑制缩放后误触 tap，全抬/CANCEL 回 Idle；引擎内部维护手指数（平台 UP 上报手指数无法区分「剩一指/全抬」）；`TouchData` 增加 `pointerCount/pointer2X/Y`；`NativeSurfaceView.onTouchEvent` 补映射 `ACTION_POINTER_DOWN/POINTER_UP/MOVE`（多指），事件映射抽为顶层纯函数（LongMethod 守卫）；`MainGameScreen` 接入 `cameraState.zoom(ratio, midX, midY)`
+- **缩小防出界** — `BaseCameraState` 新增 `minScaleBound()`（默认 MIN_ZOOM，世界地图行为不变），`zoom/applyScale/clamp` 统一使用；`SectCameraState` 覆写为 `max(MIN_ZOOM, 视口宽/世界宽, 视口高/世界高)`——任何缩放级别视口不超出世界边界
+- **初始视角缩放中值** — 默认缩放改为 `√(minScaleBound × MAX_ZOOM)` 几何中值，从初始视角向放大/缩小两端可缩放倍数一致（替代原恒定可见格数策略）
+- **清理** — 顺带拆分 `MainGameScreenTopBar`（复杂度 15/15 + 长方法 61/60 → 两函数 13/3，文件 1997 行回归 FileLength 限制内）、删除 `GameViewModelSectMapTest` 冗余 import（两模块 detekt 零违规）
+- **测试** — `SectMapTouchEngineTest` 新增 7 用例（张开/合拢缩放倍数与中点、第二指取消长按、缩放期间高帧率回调、剩一指不误触 tap、剩一指可平移、CANCEL）；`SectCameraStateTest` 更新缩放中值公式 + 新增 3 用例（初始视角放大/缩小倍数一致、缩小受限安全下界不看到地图外、放大缩小往返回到初始视角）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯相机/手势层行为变化，不改变放置数据语义；世界地图相机（`WorldCameraState`）不覆写 `minScaleBound`，行为不变
+
 ### 修复（2026-08-16 进入被占宗门显示主宗建筑且点不中根治）
 
 > 背景：进入玩家占领的 AI 宗门后，地图持续显示主宗门的全部建筑但点击无效、新建建筑叠在旧建筑上。日志坐实数据层正确（`activeSectId` 已切、渲染总线/点击作用域均为 0 栋），画面残留来自软件渲染器 chunk 缓存失效漏洞 + 渲染/点击作用域双源分叉。
