@@ -66,22 +66,23 @@ object SectMapTileGenerator {
     }
 
     /**
-     * 宗门入口固定结构区域清理：把底部中央门楼精灵包围盒及其左右紧邻各 1 列
-     * （x=60、x=67）的边界硬装饰树清为地面，门楼精灵由建筑层固定条目渲染（FixedSectGateway）。
-     * 确定性、与 seed 无关、每宗地图一致。小地图（测试）尺寸不足时跳过。
+     * 宗门入口固定结构区域清理：把底部中央门楼精灵包围盒及其左右紧邻各 1 列清为地面，
+     * 并清掉右列外侧的树格（2×2 树精灵向左越界会盖住右侧空白列）。门楼精灵由建筑层
+     * 固定条目渲染（FixedSectGateway）。确定性、与 seed 无关、每宗地图一致。
+     * 小地图（测试）尺寸不足时跳过。
      */
     private fun placeSectGateway(data: Array<IntArray>, w: Int, h: Int) {
         val cfg = GameConfig.SectMap
         val maxX = cfg.GATE_X + cfg.GATE_WIDTH
         val maxY = cfg.GATE_Y + cfg.GATE_HEIGHT
-        if (w < maxX + 1 || h < maxY) return
+        // 清空范围：门楼 + 左右各 1 空白列 + 右侧越界树列（x = GATE_X-1 .. maxX+1，含）
+        val clearFrom = (cfg.GATE_X - 1).coerceAtLeast(0)
+        val clearTo = (maxX + 2).coerceAtMost(w)
+        if (clearFrom >= clearTo || h < maxY) return
         for (y in cfg.GATE_SPRITE_Y until maxY) {
-            for (x in cfg.GATE_X until maxX) {
+            for (x in clearFrom until clearTo) {
                 data[y][x] = TILE_GROUND
             }
-            // 门楼左右紧邻各 1 列移除硬装饰（树），形成开阔入口
-            if (cfg.GATE_X - 1 >= 0) data[y][cfg.GATE_X - 1] = TILE_GROUND
-            if (maxX < w) data[y][maxX] = TILE_GROUND
         }
     }
 

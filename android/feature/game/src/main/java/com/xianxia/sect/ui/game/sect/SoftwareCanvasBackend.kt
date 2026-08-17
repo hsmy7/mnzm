@@ -97,6 +97,7 @@ class SoftwareCanvasBackend(
         // ── 图集索引常量 ──
         private const val SPIRIT_FIELD_ATLAS_INDEX = 2
         private const val SPIRIT_MINE_ATLAS_INDEX = 0
+        private const val SPIRIT_MINE_GROUND_FT_INDEX = 4
 
     }
 
@@ -420,8 +421,10 @@ class SoftwareCanvasBackend(
                 // 视锥剔除（提取纯函数，主循环复杂度收敛）
                 if (isOffScreen(bDstLeft, bDstTop, bDstRight, bDstBottom, view)) continue
 
-                // 地砖（灵田/灵矿场除外直接坐草地；门楼 6×2 画 3×2 地砖拉伸作基座）
-                val ftIdx = if (nameIdx != SPIRIT_MINE_ATLAS_INDEX && nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
+                // 地砖（灵田专属地皮 / 通用占地地砖；门楼 6×2 画 3×2 地砖拉伸作基座）
+                val ftIdx = if (nameIdx == SPIRIT_MINE_ATLAS_INDEX) {
+                    SPIRIT_MINE_GROUND_FT_INDEX
+                } else if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
                     SpriteAtlasDef.floorTileIndex(fpW, fpH)
                 } else {
                     -1

@@ -114,8 +114,8 @@ class SoftwareCanvasBackendAtlasTest {
     }
 
     @Test
-    fun `renderFrame - spirit mine has no floor tile`() {
-        // 灵矿场 nameIdx=0，直接坐落在草地——不画任何地砖/地皮
+    fun `renderFrame - spirit mine uses custom ground cover`() {
+        // 灵矿场 nameIdx=0，应使用专属地皮覆盖（ftIdx=4）而非通用地砖
         val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
@@ -127,7 +127,7 @@ class SoftwareCanvasBackendAtlasTest {
             buildingVisible = true
         )
         val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("灵矿场无地砖不应 crash", result)
+        assertNotNull("灵矿场地皮覆盖不应 crash", result)
     }
 
     @Test

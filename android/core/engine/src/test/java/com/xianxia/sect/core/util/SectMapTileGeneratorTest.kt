@@ -248,10 +248,11 @@ class SectMapTileGeneratorTest {
                     )
                 }
             }
-            // 门楼左右紧邻两列（x=60、x=67）应清空硬装饰
+            // 门楼左右紧邻各 1 列 + 右侧越界树列（x=60、x=67、x=68）应清空硬装饰
             for (y in minY until maxY) {
                 assertEquals("门楼左列应清空", SectMapTileGenerator.TILE_GROUND, seedData[y][cfg.GATE_X - 1])
-                assertEquals("门楼右列应清空", SectMapTileGenerator.TILE_GROUND, seedData[y][maxX])
+                assertEquals("门楼右空白列应清空", SectMapTileGenerator.TILE_GROUND, seedData[y][maxX])
+                assertEquals("门楼右越界树列应清空", SectMapTileGenerator.TILE_GROUND, seedData[y][maxX + 1])
             }
             // 其余两侧底部 3 行（BORDER_TREE_RING）保留边界硬装饰树
             val border = com.xianxia.sect.core.GameConfig.SectMap.BORDER_TREE_RING
@@ -259,7 +260,7 @@ class SectMapTileGeneratorTest {
                 for (x in 0 until minX - 1) {
                     assertTrue("门楼左侧底部应有硬装饰树 ($x,$y)", seedData[y][x] in decorValues)
                 }
-                for (x in maxX + 1 until 128) {
+                for (x in maxX + 2 until 128) {
                     assertTrue("门楼右侧底部应有硬装饰树 ($x,$y)", seedData[y][x] in decorValues)
                 }
             }

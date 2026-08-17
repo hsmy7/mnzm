@@ -638,11 +638,13 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 对抗性审查 M3/M4：负 nameIdx 直接负索引越界读（原条件只防上界）
             if (buvIdx < 0 || buvIdx >= (int)buvCount) buvIdx = 0;
 
-            // (A) 地砖底座（灵田/灵矿场除外，直接坐落在草地），按占地尺寸绘制。
-            //    门楼（固定结构，占地 6×2）画地砖作基座；其余建筑用通用地砖。
+            // (A) 地砖底座（灵田除外），按占地尺寸绘制。
+            //    灵矿场使用专属地皮覆盖纹理，其他建筑（含门楼固定结构）用通用地砖。
             if (ftuvs != nullptr) {
                 int ftIdx = -1;
-                if (nameIdx != SPIRIT_MINE_NAME_INDEX && nameIdx != SPIRIT_FIELD_NAME_INDEX) {
+                if (nameIdx == SPIRIT_MINE_NAME_INDEX) {
+                    ftIdx = SPIRIT_MINE_GROUND_UV_INDEX;
+                } else if (nameIdx != SPIRIT_FIELD_NAME_INDEX) {
                     // 地砖索引由占地尺寸决定
                     int ftW = fpW, ftH = fpH;
                     if      (ftW == 2 && ftH == 2) ftIdx = 0;
