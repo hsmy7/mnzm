@@ -1,18 +1,3 @@
-## [4.01.02] - 2026-08-17
-
-### 新增（2026-08-17 宗门地图 6 种草皮 + 宗门入口门楼/阶梯）
-
-> 需求：`D:\模拟宗门美术素材` 提供草皮（草皮1/2、草皮浅1）替换原有 2 种地面草皮；宗门阶梯（6 高×2 宽）置于地图正下方替换边界硬装饰；宗门门楼（占地 2 高×6 宽、精灵 6 宽×4 高）置于阶梯上方。门楼/阶梯为固定建筑：随地图生成、不可移动/不可拆除、不可点击弹窗，禁建范围=占地。
-
-- **单一草皮** — `convert-grass-tiles.mjs` 无损转 64×64 webp（`map_grass_1`，源 `草皮.png`）到双模块 drawable-nodpi，删除其余草皮与旧 `map_tile/map_tile_v2`；`build-atlas.mjs LAYOUT` 移除地面变体瓦片（仅 `GROUND`）；双后端地面索引统一走 `GROUND_VARIANTS={0}`
-- **地面整图铺（消除一切逐格接缝，行业主流做法）** — ① 草皮纹理无缝化（偏移平均法：4 个半偏移副本逐像素平均，数学保证周期无缝 + 4× 工作分辨率降采样平滑环绕）；② 地面改为**独立 REPEAT 纹理单 quad 整图铺**：C++ `VulkanBackend::uploadRepeatTexture`（REPEAT + LINEAR 采样，环绕点插值过渡消除暗接缝）+ `NativeBridge.uploadGroundTexture`，drawAllTiles 移除逐格地面、改绘可见区单 quad；Canvas `SoftwareCanvasBackend` 改用 `BitmapShader(REPEAT)` 双线性整块填充；③ 新增像素级用例证明固定结构精灵真实上屏
-- **宗门入口固定结构** — `LAYOUT.structures`（门楼 384×256 / 阶梯 128×384，图集 640,128 / 640,384）→ 生成 `SpriteAtlasDef.STRUCTURES`（含 key/rect/footprint/spriteSize）+ `STRUCTURE_UV_MAP` 追加进 `BUILDING_UV_MAP` 尾部；C++ `TextureAtlas.h` 生成 `STRUCTURE_NAME_BASE/STRUCTURE_FP_W/H/GROUND_VARIANTS`；`FixedSectGateway`（core/engine）提供渲染条目与禁建格
-- **渲染走建筑层 + 强制置顶** — `MainGameScreen` 与 `GameViewModel` 渲染命令总线都把结构条目追加在 `buildingDataArray` 尾部（nameIdx = BUILDING_NAMES.size + index）⇒ 建筑层恒最后绘制 ⇒ 不被上方/两侧建筑遮挡；真机实测修复：此前仅 MainGameScreen 注入结构、被 GameViewModel 总线数据（不含结构）覆盖导致阶梯/门楼不显示；门楼精灵底部对齐占地自动上伸 2 格（画到 y=118）；结构与建筑的排序/拆除高亮/点击天然互不影响（结构不在建筑列表）
-- **禁建 + 旧档自愈** — 门楼 6×2 + 阶梯 2×6 占地接入 `GridSystem.blockedCells` / `BuildingDelegate.isInsideBuildableArea` / `BuildingFacadeImpl.moveBuildingDirect`；`BuildingLoadSelfHeal.canPlaceAt` 将重叠结构区域的旧档建筑迁移拆除退款
-- **渲染顺序保证** — 结构不画地砖、不画投影（防阴影压到阶梯/地图底边外）；地面变体格用自身纹理
-- **测试** — `SpriteAtlasDefGeneratedTest`（7 TileType / STRUCTURES / GROUND_VARIANT_INDICES）、`SectMapTileGeneratorTest`（单一地面 + 入口区域清理 + 小地图跳过）、`GridSystemTest`（禁建格 + FixedSectGateway 一致性）、`SpriteCodegenSyncTest`（MAP_SPRITES 34→35）、`AtlasLayoutSyncTest`（结构双向一致）、`AtlasManifestSyncTest`（结构条目复现）、`SoftwareCanvasBackendAtlasTest`（结构渲染像素级可见 + BUILDING_UV_MAP 尺寸）；单测全绿 + detekt + lint + C++ 编译通过
-- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；KTX 图集与 atlas-manifest 重新生成
-
 ## [4.01.01] - 2026-08-16
 
 ### 修复（2026-08-16 游戏内存档卡片云存档数据全 0）
