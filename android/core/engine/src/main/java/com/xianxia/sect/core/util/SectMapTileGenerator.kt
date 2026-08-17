@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.util
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.render.SpriteAtlasDef
 
 /**
@@ -19,7 +20,6 @@ object SectMapTileGenerator {
     val TILE_TREE1 = SpriteAtlasDef.TileType.TREE1.index
     val TILE_TREE2 = SpriteAtlasDef.TileType.TREE2.index
     val TILE_BUILDING = SpriteAtlasDef.TileType.TILE_BUILDING.index
-    val TILE_GROUND_V2 = SpriteAtlasDef.TileType.GROUND_V2.index   // 地面变体2（与 TILE_GROUND 随机混用）
 
     /**
      * 基于位置哈希的宗门地图瓦片数据生成（确定性）。
@@ -41,10 +41,10 @@ object SectMapTileGenerator {
         }
         placeGrassPatches(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
         placeTreeClusters(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
-        mixGroundVariants(data, worldWidthCells, worldHeightCells, worldSeed)
         if (borderTreeRing > 0) {
             placeBorderTrees(data, worldWidthCells, worldHeightCells, borderTreeRing)
         }
+        placeSectGateway(data, worldWidthCells, worldHeightCells)
         return data
     }
 
@@ -62,6 +62,26 @@ object SectMapTileGenerator {
                     data[y][x] = if ((x + y) % 2 == 0) TILE_TREE1 else TILE_TREE2
                 }
             }
+        }
+    }
+
+    /**
+     * 宗门入口固定结构区域清理：把底部中央门楼精灵包围盒及其左右紧邻各 1 列
+     * （x=60、x=67）的边界硬装饰树清为地面，门楼精灵由建筑层固定条目渲染（FixedSectGateway）。
+     * 确定性、与 seed 无关、每宗地图一致。小地图（测试）尺寸不足时跳过。
+     */
+    private fun placeSectGateway(data: Array<IntArray>, w: Int, h: Int) {
+        val cfg = GameConfig.SectMap
+        val maxX = cfg.GATE_X + cfg.GATE_WIDTH
+        val maxY = cfg.GATE_Y + cfg.GATE_HEIGHT
+        if (w < maxX + 1 || h < maxY) return
+        for (y in cfg.GATE_SPRITE_Y until maxY) {
+            for (x in cfg.GATE_X until maxX) {
+                data[y][x] = TILE_GROUND
+            }
+            // 门楼左右紧邻各 1 列移除硬装饰（树），形成开阔入口
+            if (cfg.GATE_X - 1 >= 0) data[y][cfg.GATE_X - 1] = TILE_GROUND
+            if (maxX < w) data[y][maxX] = TILE_GROUND
         }
     }
 
@@ -104,21 +124,6 @@ object SectMapTileGenerator {
                 if (cellHash(gx, gy, 45 xor worldSeed) >= 0.35f) continue
                 data[gy][gx] = if (cellHash(gx, gy, 46 xor worldSeed) < 0.5f)
                     TILE_TREE1 else TILE_TREE2
-            }
-        }
-    }
-
-    /**
-     * 地面变体混合：约 30% 的 TILE_GROUND 改为 TILE_GROUND_V2。
-     * 双线性插值平滑噪声，产生自然地块而非噪点。
-     */
-    private fun mixGroundVariants(data: Array<IntArray>, w: Int, h: Int, worldSeed: Int = 0) {
-        for (gx in 0 until w) {
-            for (gy in 0 until h) {
-                if (data[gy][gx] == TILE_GROUND &&
-                    smoothNoise(gx, gy, 6, 999 xor worldSeed) < 0.3f) {
-                    data[gy][gx] = TILE_GROUND_V2
-                }
             }
         }
     }

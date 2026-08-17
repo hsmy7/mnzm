@@ -3,8 +3,8 @@
   "format": "ASTC_4x4_LDR",
   "width": 2048,
   "height": 2048,
-  "layoutHash": "22f7c7919a7de84d",
-  "generatedAt": "2026-08-10T04:48:20.553Z",
+  "layoutHash": "02506727370bc5df",
+  "generatedAt": "2026-08-17T17:17:20.748Z",
   "spriteCount": 35,
   "sprites": [
     {
@@ -13,7 +13,7 @@
       "y": 0,
       "w": 64,
       "h": 64,
-      "drawable": "map_tile"
+      "drawable": "map_grass_1"
     },
     {
       "name": "GRASS_SMALL",
@@ -64,20 +64,12 @@
       "drawable": null
     },
     {
-      "name": "GROUND_V2",
-      "x": 512,
-      "y": 0,
-      "w": 64,
-      "h": 64,
-      "drawable": "map_tile_v2"
-    },
-    {
       "name": "灵矿场",
       "x": 0,
       "y": 128,
       "w": 128,
       "h": 128,
-      "drawable": "building_spirit_mine"
+      "drawable": null
     },
     {
       "name": "灵植阁",
@@ -85,7 +77,7 @@
       "y": 128,
       "w": 128,
       "h": 128,
-      "drawable": "building_herb_garden"
+      "drawable": null
     },
     {
       "name": "灵田",
@@ -93,7 +85,7 @@
       "y": 128,
       "w": 128,
       "h": 128,
-      "drawable": "building_spirit_field"
+      "drawable": null
     },
     {
       "name": "炼丹炉",
@@ -101,7 +93,7 @@
       "y": 128,
       "w": 128,
       "h": 128,
-      "drawable": "building_alchemy"
+      "drawable": null
     },
     {
       "name": "锻造坊",
@@ -109,7 +101,7 @@
       "y": 128,
       "w": 128,
       "h": 128,
-      "drawable": "building_forge"
+      "drawable": null
     },
     {
       "name": "仓库",
@@ -117,7 +109,7 @@
       "y": 256,
       "w": 128,
       "h": 128,
-      "drawable": "building_warehouse"
+      "drawable": null
     },
     {
       "name": "藏经阁",
@@ -125,7 +117,7 @@
       "y": 256,
       "w": 128,
       "h": 128,
-      "drawable": "building_library"
+      "drawable": null
     },
     {
       "name": "问道塔",
@@ -133,7 +125,7 @@
       "y": 256,
       "w": 128,
       "h": 128,
-      "drawable": "building_wen_dao_peak"
+      "drawable": null
     },
     {
       "name": "青云塔",
@@ -141,7 +133,7 @@
       "y": 256,
       "w": 128,
       "h": 128,
-      "drawable": "building_qingyun_peak"
+      "drawable": null
     },
     {
       "name": "天枢殿",
@@ -149,7 +141,7 @@
       "y": 256,
       "w": 128,
       "h": 128,
-      "drawable": "building_tianshu_hall"
+      "drawable": null
     },
     {
       "name": "执法堂",
@@ -157,7 +149,7 @@
       "y": 384,
       "w": 128,
       "h": 128,
-      "drawable": "building_law_enforcement"
+      "drawable": null
     },
     {
       "name": "任务阁",
@@ -165,7 +157,7 @@
       "y": 384,
       "w": 128,
       "h": 128,
-      "drawable": "building_mission_hall"
+      "drawable": null
     },
     {
       "name": "巡视楼",
@@ -173,7 +165,7 @@
       "y": 384,
       "w": 128,
       "h": 128,
-      "drawable": "building_patrol_tower"
+      "drawable": null
     },
     {
       "name": "监牢",
@@ -181,7 +173,7 @@
       "y": 384,
       "w": 128,
       "h": 128,
-      "drawable": "building_reflection_cliff"
+      "drawable": null
     },
     {
       "name": "单人住所",
@@ -189,7 +181,7 @@
       "y": 384,
       "w": 128,
       "h": 128,
-      "drawable": "building_single_residence"
+      "drawable": null
     },
     {
       "name": "中级单人住所",
@@ -197,7 +189,7 @@
       "y": 512,
       "w": 128,
       "h": 128,
-      "drawable": "building_single_residence_upgraded"
+      "drawable": null
     },
     {
       "name": "多人住所",
@@ -205,7 +197,7 @@
       "y": 512,
       "w": 128,
       "h": 128,
-      "drawable": "building_multi_residence"
+      "drawable": null
     },
     {
       "name": "血炼池",
@@ -213,7 +205,7 @@
       "y": 512,
       "w": 128,
       "h": 128,
-      "drawable": "blood_refining_pool"
+      "drawable": null
     },
     {
       "name": "中级多人住所",
@@ -221,7 +213,7 @@
       "y": 512,
       "w": 128,
       "h": 128,
-      "drawable": "building_multi_residence_upgraded"
+      "drawable": null
     },
     {
       "name": "TILE_2x2",
@@ -286,6 +278,14 @@
       "w": 64,
       "h": 64,
       "drawable": "growing_spiritgrass9"
+    },
+    {
+      "name": "sect_gate",
+      "x": 640,
+      "y": 128,
+      "w": 384,
+      "h": 256,
+      "drawable": "sect_gate"
     }
   ]
 }

@@ -23,6 +23,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.perf.GpuTierDetector
+import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.data.SessionManager
@@ -156,13 +157,14 @@ class GameViewModelMovingBuildingBusTest {
             width = 5, height = 3, sectId = "", instanceId = "f1")
         gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(mine, forge))
         advanceUntilIdle()
-        assertEquals("初始 2 栋建筑", 2, viewModel.getRenderCommandBus().buildingCount)
+        assertEquals("初始 2 栋建筑 + 固定结构", 2 + FixedSectGateway.count,
+            viewModel.getRenderCommandBus().buildingCount)
 
         // 长按拖拽 forge（Compose 侧将其从交互索引排除）→ 总线同步排除，消除双渲染
         viewModel.setMovingBuildingInstanceId("f1")
         advanceUntilIdle()
         val bus = viewModel.getRenderCommandBus()
-        assertEquals("拖拽中总线应排除该建筑", 1, bus.buildingCount)
+        assertEquals("拖拽中总线应排除该建筑", 1 + FixedSectGateway.count, bus.buildingCount)
         assertEquals("剩余推送应为矿场（gridX=10）", 10f, bus.buildingData!![0])
     }
 
@@ -175,13 +177,14 @@ class GameViewModelMovingBuildingBusTest {
 
         viewModel.setMovingBuildingInstanceId("m1")
         advanceUntilIdle()
-        assertEquals("拖拽中排除", 0, viewModel.getRenderCommandBus().buildingCount)
+        assertEquals("拖拽中排除（仅固定结构）", FixedSectGateway.count,
+            viewModel.getRenderCommandBus().buildingCount)
 
         // 确认/取消移动 → 通道清空 → 总线恢复
         viewModel.setMovingBuildingInstanceId(null)
         advanceUntilIdle()
         val bus = viewModel.getRenderCommandBus()
-        assertEquals("清空后恢复推送", 1, bus.buildingCount)
+        assertEquals("清空后恢复推送", 1 + FixedSectGateway.count, bus.buildingCount)
         assertEquals(10f, bus.buildingData!![0])
     }
 
@@ -200,6 +203,7 @@ class GameViewModelMovingBuildingBusTest {
         advanceUntilIdle()
 
         val bus = viewModel.getRenderCommandBus()
-        assertEquals("切宗门后重推 AI 宗门建筑，且拖拽中的 f1 被排除", 0, bus.buildingCount)
+        assertEquals("切宗门后重推 AI 宗门建筑，且拖拽中的 f1 被排除（仅固定结构）",
+            FixedSectGateway.count, bus.buildingCount)
     }
 }

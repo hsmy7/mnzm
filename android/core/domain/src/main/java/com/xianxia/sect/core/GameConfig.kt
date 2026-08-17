@@ -997,9 +997,26 @@ object GameConfig {
         /** 地图边界不可建造区域厚度（格数）。必须 < 地图半宽。 */
         const val BORDER_TREE_RING = 3
 
+        // ── 宗门入口固定结构（门楼，位于地图底部中央）──
+        // 门楼：占地 6×2，精灵 6×4（底部对齐、向上延伸 2 格），置于地图正下方；
+        // 左右两侧保留 3 行边界硬装饰树（BORDER_TREE_RING）。禁建范围 = 占地。
+        const val GATE_WIDTH = 6
+        const val GATE_HEIGHT = 2
+        const val GATE_SPRITE_WIDTH = 6
+        const val GATE_SPRITE_HEIGHT = 4
+        val GATE_X: Int = (WORLD_WIDTH_CELLS - GATE_WIDTH) / 2
+        val GATE_Y: Int = WORLD_HEIGHT_CELLS - GATE_HEIGHT
+        val GATE_SPRITE_Y: Int = GATE_Y - (GATE_SPRITE_HEIGHT - GATE_HEIGHT)
+
         init {
             require(BORDER_TREE_RING >= 0 && BORDER_TREE_RING < WORLD_WIDTH_CELLS / 2) {
                 "BORDER_TREE_RING($BORDER_TREE_RING) 必须在 [0, ${WORLD_WIDTH_CELLS / 2}) 范围内"
+            }
+            require(GATE_X >= BORDER_TREE_RING) {
+                "门楼必须位于可建边界内：GATE_X=$GATE_X BORDER=$BORDER_TREE_RING"
+            }
+            require(GATE_Y + GATE_HEIGHT == WORLD_HEIGHT_CELLS) {
+                "门楼必须贴地图底边：GATE_Y=$GATE_Y HEIGHT=$GATE_HEIGHT WORLD=$WORLD_HEIGHT_CELLS"
             }
         }
     }

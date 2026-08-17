@@ -140,6 +140,11 @@ class AtlasManifestSyncTest {
             val r = crop.rect
             list += SpriteEntry(crop.name, r.x, r.y, r.w, r.h)
         }
+        // 固定结构（build-atlas.mjs buildSpriteList 在 crops 之后追加）
+        for (s in SpriteAtlasDef.STRUCTURES) {
+            val r = s.rect
+            list += SpriteEntry(s.key, r.x, r.y, r.w, r.h)
+        }
         return list
     }
 

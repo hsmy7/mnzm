@@ -150,6 +150,47 @@ class GridSystemTest {
     }
 
     @Test
+    fun `validatePlacement with blockedCells blocks fixed structure region`() {
+        // 固定结构（宗门入口）占地格 (4,4)-(5,5)，8x8 网格
+        val blocked = setOf(
+            GridSystem.packCell(4, 4), GridSystem.packCell(5, 4),
+            GridSystem.packCell(4, 5), GridSystem.packCell(5, 5),
+        )
+        val gs = GridSystem(64, 8, 8, buildableBorder = 0, blockedCells = blocked)
+
+        // 未触及禁建格 → Valid
+        assertEquals(GridSnapHelper.PlacementValidity.Valid,
+            gs.validatePlacement(0, 0, 2, 2))
+        // 部分重叠禁建格 → Overlap(宗门入口)
+        val result = gs.validatePlacement(3, 3, 2, 2)
+        assertTrue(result is GridSnapHelper.PlacementValidity.Overlap)
+        assertTrue((result as GridSnapHelper.PlacementValidity.Overlap).names.contains(GridSystem.BLOCKED_REGION_LABEL))
+        // 完全覆盖禁建格 → Overlap
+        assertTrue(gs.validatePlacement(4, 4, 2, 2) is GridSnapHelper.PlacementValidity.Overlap)
+        // placeBuilding 同样被禁
+        val b = GridBuildingData(buildingId = "b1", displayName = "Hall", gridX = 3, gridY = 3, width = 2, height = 2)
+        assertFalse(gs.placeBuilding(b))
+        assertTrue(gs.buildings.isEmpty())
+    }
+
+    @Test
+    fun `FixedSectGateway renderEntries and blockedCells consistency`() {
+        val entries = FixedSectGateway.renderEntries()
+        assertEquals(FixedSectGateway.count * 5, entries.size)
+        assertEquals(
+            com.xianxia.sect.core.render.SpriteAtlasDef.BUILDING_NAMES.size.toFloat(),
+            entries[4]
+        )
+        // 每个渲染条目占地格都在禁建集合内
+        val blocked = FixedSectGateway.blockedCells
+        for (i in 0 until FixedSectGateway.count) {
+            val gx = entries[i * 5].toInt()
+            val gy = entries[i * 5 + 1].toInt()
+            assertTrue("结构 $i 左上格应禁建", GridSystem.packCell(gx, gy) in blocked)
+        }
+    }
+
+    @Test
     fun `placeBuilding with buildableBorder respects border`() {
         val bordered = GridSystem(64, 10, 10, buildableBorder = 3)
         val borderBuilding = GridBuildingData(

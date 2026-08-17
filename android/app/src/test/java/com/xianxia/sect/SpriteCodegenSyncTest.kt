@@ -132,7 +132,6 @@ class SpriteCodegenSyncTest {
             "SPIRIT_MINE_GROUND_UV_INDEX" to SpriteAtlasDef.SPIRIT_MINE_GROUND_UV_INDEX.toString(),
             "TILE_GROUND" to SpriteAtlasDef.TILE_GROUND_INDEX.toString(),
             "TILE_BUILDING" to SpriteAtlasDef.TILE_BUILDING_INDEX.toString(),
-            "TILE_GROUND_V2" to SpriteAtlasDef.TILE_GROUND_V2_INDEX.toString(),
         )) {
             val match = Regex("""#define $define ([0-9.]+)f?""").find(src)
             assertTrue("TextureAtlas.h 缺少双端共享常量: $define", match != null)
@@ -144,7 +143,7 @@ class SpriteCodegenSyncTest {
     }
 
     @Test
-    fun `TextureAtlas 头 - MAP_SPRITES 34 条与期望全等`() {
+    fun `TextureAtlas 头 - MAP_SPRITES 35 条与期望全等`() {
         val src = headerSource()
         val spriteRegex = Regex("""\{ "([^"]+)",\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\},\s*""")
         val sprites = spriteRegex.findAll(src).map { m ->
@@ -155,7 +154,7 @@ class SpriteCodegenSyncTest {
             )
         }.toList()
         assertEquals(
-            "MAP_SPRITES 条目数与期望不一致（7 瓦片 + 3 作物 + 19 建筑 + 5 地砖 = 34）",
+            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 5 地砖 + 1 结构 = 34）",
             34, sprites.size
         )
         // 抽查关键条目（数据与 Kotlin LAYOUT 同源，见 build-atlas.mjs）
@@ -166,6 +165,7 @@ class SpriteCodegenSyncTest {
         assertContains(sprites, SpriteEntry("中级多人住所", 384, 512, 128, 128))
         assertContains(sprites, SpriteEntry("floor_tile_3x3", 192, 960, 192, 192))
         assertContains(sprites, SpriteEntry("spirit_mine_ground", 0, 1152, 256, 256))
+        assertContains(sprites, SpriteEntry("sect_gate", 640, 128, 384, 256))
         assertTrue(
             "MAP_SPRITE_COUNT 计算式必须存在（C++ 侧依赖）",
             src.contains("MAP_SPRITE_COUNT") && src.contains("sizeof(MAP_SPRITES)")

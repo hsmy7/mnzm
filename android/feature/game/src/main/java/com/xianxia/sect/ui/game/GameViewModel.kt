@@ -11,6 +11,7 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -423,8 +424,11 @@ class GameViewModel @Inject constructor(
                     // 2026-08-06 对抗性审查 F2 修复：空宗门也推空数组而非 null——
                     // 渲染端 `busSnapshot?.data ?: frame.buildingData` 在总线为 null 时
                     // 回退帧率门控的旧 frame，进入无建筑宗门会闪现/残留前宗门建筑
-                    val dataArray = buildBuildingDataArray(buildings, _buildingSpriteSizesCache)
-                    _renderCommandBus.postBuildingData(dataArray, buildings.size)
+                    // 固定结构（宗门入口门楼/阶梯）追加尾部：与 MainGameScreen buildingDataArray 同源，
+                    // 否则总线数据覆盖帧数据时结构丢失（真机实测阶梯/门楼不显示）
+                    val dataArray = buildBuildingDataArray(buildings, _buildingSpriteSizesCache) +
+                        FixedSectGateway.renderEntries()
+                    _renderCommandBus.postBuildingData(dataArray, buildings.size + FixedSectGateway.count)
                 }
         }
     }

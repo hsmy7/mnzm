@@ -48,6 +48,11 @@ public:
      */
     uint32_t uploadCompressedTexture(const uint8_t* data, size_t dataSize,
                                      int width, int height);
+    /**
+     * 上传 REPEAT 采样地面纹理（宗门地图单一无缝地面整图铺）。
+     * 与 uploadTexture 同 staging 上传，仅采样器地址模式为 REPEAT（UV 可超 [0,1] 循环平铺）。
+     */
+    uint32_t uploadRepeatTexture(const void* pixels, int width, int height);
     void setProjection(const float mat[16]) override;
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
     void submitFrame() override;
@@ -161,6 +166,10 @@ private:
 
     // 将描述符集指向指定的纹理（shader 中 binding=0 的 sampler2D）
     void bindTextureToDescriptor(const Texture& tex);
+
+    // 纹理上传共享实现（CLAMP/REPEAT 由 addressMode 参数化；uploadTexture/uploadRepeatTexture 复用）
+    uint32_t uploadTextureImpl(const void* pixels, int width, int height,
+                               VkSamplerAddressMode addressMode);
 
     // 创建 1×1 白色纹理（供纯色矩形绘制），在 init 中调用
     bool createWhiteTexture();

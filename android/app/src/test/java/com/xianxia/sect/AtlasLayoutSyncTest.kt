@@ -32,7 +32,11 @@ class AtlasLayoutSyncTest {
         "grass_large" to SpriteAtlasDef.TileType.GRASS_LARGE,
         "tree1" to SpriteAtlasDef.TileType.TREE1,
         "tree2" to SpriteAtlasDef.TileType.TREE2,
-        "ground_tile_v2" to SpriteAtlasDef.TileType.GROUND_V2
+    )
+
+    // 固定结构名称映射（C++ 名称 → Kotlin STRUCTURES，与 LAYOUT.structures 顺序一致）
+    private val structureNameMap: Map<String, SpriteAtlasDef.StructureDef> = mapOf(
+        "sect_gate" to SpriteAtlasDef.STRUCTURES[0],
     )
 
     // 地砖名称映射（C++ 名称 → Kotlin FloorTileType）
@@ -74,10 +78,11 @@ class AtlasLayoutSyncTest {
             )
         }
 
-        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物）必须是 BUILDING_NAMES 中的成员（无孤儿）
+        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构）必须是 BUILDING_NAMES 中的成员（无孤儿）
         val kotlinBuildingNames = SpriteAtlasDef.BUILDING_NAMES.toSet()
+        val knownNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys + structureNameMap.keys
         val orphanBuildings = cpp
-            .filter { it.name !in tileNameMap && it.name !in floorNameMap && it.name !in cropNameMap }
+            .filter { it.name !in knownNames }
             .filter { it.name !in kotlinBuildingNames }
         assertTrue(
             "TextureAtlas.h MAP_SPRITES 存在孤儿建筑条目: ${orphanBuildings.map { it.name }}——" +
@@ -146,13 +151,41 @@ class AtlasLayoutSyncTest {
     }
 
     @Test
+    fun `MAP_SPRITES 固定结构与 STRUCTURES rect 一致`() {
+        val cppByName = parseMapSprites().associateBy { it.name }
+
+        for ((cppName, structure) in structureNameMap) {
+            val entry = cppByName[cppName]
+                ?: throw AssertionError("固定结构 '$cppName' 未在 TextureAtlas.h MAP_SPRITES 中注册——" +
+                    "新增固定结构必须同步 SpriteAtlasDef.STRUCTURES 与 C++ MAP_SPRITES")
+            assertEquals(
+                "固定结构 '$cppName' (${structure.name}) 图集位置 C++=(${entry.x},${entry.y},${entry.w},${entry.h}) " +
+                    "≠ Kotlin=(${structure.rect.x},${structure.rect.y},${structure.rect.w},${structure.rect.h})——" +
+                    "修改图集布局必须两端同步",
+                structure.rect,
+                cppEntryToRect(entry)
+            )
+        }
+
+        // 反向覆盖：Kotlin 全部固定结构都应在 C++ 有映射
+        val uncoveredStructures = SpriteAtlasDef.STRUCTURES
+            .filter { it !in structureNameMap.values }
+        assertTrue(
+            "SpriteAtlasDef.STRUCTURES 存在未在 C++ MAP_SPRITES 覆盖的结构: $uncoveredStructures——" +
+                "新增固定结构必须同步 TextureAtlas.h",
+            uncoveredStructures.isEmpty()
+        )
+    }
+
+    @Test
     fun `MAP_SPRITES 无孤儿条目且 TileType 全部覆盖`() {
         val cpp = parseMapSprites()
-        val coveredNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys + SpriteAtlasDef.BUILDING_NAMES
+        val coveredNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
+            structureNameMap.keys + SpriteAtlasDef.BUILDING_NAMES
         val orphans = cpp.filter { it.name !in coveredNames }
         assertTrue(
             "TextureAtlas.h MAP_SPRITES 存在无法映射的孤儿条目: ${orphans.map { it.name }}——" +
-                "每条 C++ 图集条目都必须能在 SpriteAtlasDef 中找到对应（瓦片/建筑/地砖/作物）",
+                "每条 C++ 图集条目都必须能在 SpriteAtlasDef 中找到对应（瓦片/建筑/地砖/作物/结构）",
             orphans.isEmpty()
         )
 

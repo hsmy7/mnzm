@@ -77,6 +77,17 @@ object NativeBridge {
     external fun uploadTexture(pixelData: ByteArray, width: Int, height: Int): Int
 
     /**
+     * 上传宗门地图单一无缝地面纹理（REPEAT 采样，整图铺）。
+     *
+     * 与 [uploadTexture] 同 staging 上传，仅采样器地址模式为 REPEAT（UV 可超 [0,1] 循环平铺）。
+     * C++ 侧记录该纹理 ID，drawAllTiles 以单 quad 覆盖可见地面区域。
+     *
+     * @param pixelData RGBA 像素字节（与 uploadTexture 同布局）
+     * @return 纹理 ID；0 = 后端不可用
+     */
+    external fun uploadGroundTexture(pixelData: ByteArray, width: Int, height: Int): Int
+
+    /**
      * 上传 KTX1 封装的 ASTC 4×4 LDR 压缩图集（WP7）。
      *
      * C++ 侧 KtxLoader 全字段校验（magic/endianness/glType/glFormat/glInternalFormat/

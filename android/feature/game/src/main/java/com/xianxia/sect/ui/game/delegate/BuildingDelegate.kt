@@ -18,6 +18,8 @@ import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.FixedSectGateway
+import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -112,8 +114,17 @@ class BuildingDelegate(
         return currentLevel >= feature.requiredSectLevel
     }
 
-    /** 第二层防御：验证网格位置不在边界树木区域内。 */
+    /** 第二层防御：验证网格位置不在边界树木区域、不重叠固定结构（宗门入口）占地。 */
     private fun isInsideBuildableArea(gridX: Int, gridY: Int, gridW: Int, gridH: Int): Boolean {
+        if (!insideBorder(gridX, gridY, gridW, gridH)) return false
+        val blocked = FixedSectGateway.blockedCells
+        return (gridY until gridY + gridH).none { cy ->
+            (gridX until gridX + gridW).any { cx -> GridSystem.packCell(cx, cy) in blocked }
+        }
+    }
+
+    /** 网格位置是否位于边界树木区域之内。 */
+    private fun insideBorder(gridX: Int, gridY: Int, gridW: Int, gridH: Int): Boolean {
         val border = GameConfig.SectMap.BORDER_TREE_RING
         return gridX >= border && gridY >= border &&
             gridX + gridW <= GameConfig.SectMap.WORLD_WIDTH_CELLS - border &&

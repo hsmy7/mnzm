@@ -25,6 +25,37 @@ object SectAtlasAssembler {
     /** 图集拼装日志标签 */
     private const val TAG = "SectAtlasAssembler"
 
+    /** 瓦片/装饰精灵 R.drawable 预建映射（替代 getIdentifier 运行时查找）。 */
+    private val TILE_DRAWABLE_MAP = mapOf(
+        "map_grass_1" to R.drawable.map_grass_1,
+        "decoration_grass_small" to R.drawable.decoration_grass_small,
+        "decoration_grass_medium" to R.drawable.decoration_grass_medium,
+        "decoration_grass_large" to R.drawable.decoration_grass_large,
+        "decoration_tree1" to R.drawable.decoration_tree1,
+        "decoration_tree2" to R.drawable.decoration_tree2,
+    )
+
+    /** 固定结构（宗门入口门楼）drawable 映射。 */
+    private val STRUCTURE_DRAWABLE_MAP = mapOf(
+        "sect_gate" to R.drawable.sect_gate,
+    )
+
+    /** 地砖 drawable 映射。 */
+    private val FLOOR_TILE_DRAWABLE_MAP = mapOf(
+        "floor_tile_2x2" to R.drawable.floor_tile_2x2,
+        "floor_tile_2x3" to R.drawable.floor_tile_2x3,
+        "floor_tile_3x2" to R.drawable.floor_tile_3x2,
+        "floor_tile_3x3" to R.drawable.floor_tile_3x3,
+        "spirit_mine_ground" to R.drawable.spirit_mine_ground,
+    )
+
+    /** 灵田作物三阶段 drawable（按 CropStage ordinal）。 */
+    private val CROP_DRAWABLE = listOf(
+        R.drawable.growing_spiritgrass7,
+        R.drawable.growing_spiritgrass8,
+        R.drawable.growing_spiritgrass9,
+    )
+
     /**
      * 构建地图图集位图（2048×2048 ARGB_8888）。
      *
@@ -52,77 +83,67 @@ object SectAtlasAssembler {
     }
 
     /**
-     * 构建全部图集精灵槽位（瓦片/建筑/地砖/作物——布局数值全部来自
+     * 构建全部图集精灵槽位（瓦片/建筑/地砖/作物/固定结构——布局数值全部来自
      * SpriteAtlasDef 生成物，本函数只消费布局不定义布局）。
      */
     private fun buildSpriteSlots(): List<SpriteSlot> {
-        // 瓦片/装饰精灵 R.drawable 预建映射（替代 getIdentifier 运行时查找，
-        // 避免华为 HarmonyOS 资源表分片返回 0 导致精灵图加载为空白）
-        val tileDrawableMap = mapOf(
-            "map_tile" to R.drawable.map_tile,
-            "map_tile_v2" to R.drawable.map_tile_v2,
-            "decoration_grass_small" to R.drawable.decoration_grass_small,
-            "decoration_grass_medium" to R.drawable.decoration_grass_medium,
-            "decoration_grass_large" to R.drawable.decoration_grass_large,
-            "decoration_tree1" to R.drawable.decoration_tree1,
-            "decoration_tree2" to R.drawable.decoration_tree2,
-        )
-        val floorTileDrawableMap = mapOf(
-            "floor_tile_2x2" to R.drawable.floor_tile_2x2,
-            "floor_tile_2x3" to R.drawable.floor_tile_2x3,
-            "floor_tile_3x2" to R.drawable.floor_tile_3x2,
-            "floor_tile_3x3" to R.drawable.floor_tile_3x3,
-            "spirit_mine_ground" to R.drawable.spirit_mine_ground,
-        )
         val buildingMap = BuildingFeatureRegistry.all.associate { it.displayName to it.drawableRes }
+        return buildTileSlots() + buildBuildingSlots(buildingMap) +
+            buildFloorSlots() + buildCropSlots() + buildStructureSlots()
+    }
 
-        // 瓦片精灵：来自 SpriteAtlasDef.TileType
-        val tileSlots = SpriteAtlasDef.TileType.values().map { tile ->
-            val name = when (tile) {
-                SpriteAtlasDef.TileType.GROUND -> "map_tile"
-                SpriteAtlasDef.TileType.GRASS_SMALL -> "decoration_grass_small"
-                SpriteAtlasDef.TileType.GRASS_MEDIUM -> "decoration_grass_medium"
-                SpriteAtlasDef.TileType.GRASS_LARGE -> "decoration_grass_large"
-                SpriteAtlasDef.TileType.TREE1 -> "decoration_tree1"
-                SpriteAtlasDef.TileType.TREE2 -> "decoration_tree2"
-                SpriteAtlasDef.TileType.TILE_BUILDING -> ""
-                SpriteAtlasDef.TileType.GROUND_V2 -> "map_tile_v2"
-            }
+    /** 瓦片/装饰精灵槽位（含 6 种草皮地面变体）。 */
+    private fun buildTileSlots(): List<SpriteSlot> =
+        SpriteAtlasDef.TileType.values().map { tile ->
+            val name = tileDrawableName(tile)
             val sr = tile.rect
-            val id = if (name.isEmpty()) 0 else tileDrawableMap[name] ?: 0
-            SpriteSlot(name, sr.x, sr.y, sr.w, sr.h, id)
+            SpriteSlot(name, sr.x, sr.y, sr.w, sr.h, if (name.isEmpty()) 0 else TILE_DRAWABLE_MAP[name] ?: 0)
         }
 
-        // 建筑精灵：来自 SpriteAtlasDef.BUILDING_NAMES
-        val buildingSlots = SpriteAtlasDef.BUILDING_NAMES.indices.map { idx ->
+    /** 瓦片 → drawable 名（R.drawable 预建映射，避免运行时 getIdentifier）。 */
+    private fun tileDrawableName(tile: SpriteAtlasDef.TileType): String = when (tile) {
+        SpriteAtlasDef.TileType.GROUND -> "map_grass_1"
+        SpriteAtlasDef.TileType.GRASS_SMALL -> "decoration_grass_small"
+        SpriteAtlasDef.TileType.GRASS_MEDIUM -> "decoration_grass_medium"
+        SpriteAtlasDef.TileType.GRASS_LARGE -> "decoration_grass_large"
+        SpriteAtlasDef.TileType.TREE1 -> "decoration_tree1"
+        SpriteAtlasDef.TileType.TREE2 -> "decoration_tree2"
+        SpriteAtlasDef.TileType.TILE_BUILDING -> ""
+    }
+
+    /** 建筑精灵槽位。 */
+    private fun buildBuildingSlots(buildingMap: Map<String, Int>): List<SpriteSlot> =
+        SpriteAtlasDef.BUILDING_NAMES.indices.map { idx ->
             val name = SpriteAtlasDef.BUILDING_NAMES[idx]
             val sr = SpriteAtlasDef.buildingRect(idx)
             SpriteSlot(name, sr.x, sr.y, sr.w, sr.h, buildingMap[name] ?: 0)
         }
 
-        // 地砖精灵：来自 SpriteAtlasDef.FloorTileType
-        val floorTileSlots = SpriteAtlasDef.FloorTileType.values().map { ft ->
+    /** 地砖精灵槽位。 */
+    private fun buildFloorSlots(): List<SpriteSlot> =
+        SpriteAtlasDef.FloorTileType.values().map { ft ->
             val r = ft.pixelRect
-            SpriteSlot(ft.key, r.x, r.y, r.w, r.h, floorTileDrawableMap[ft.key] ?: 0)
+            SpriteSlot(ft.key, r.x, r.y, r.w, r.h, FLOOR_TILE_DRAWABLE_MAP[ft.key] ?: 0)
         }
 
-        // 灵田作物精灵：来自 SpriteAtlasDef.CropStage（WP6 生长动画——
-        // 图集 y=0 行 832/896/960 空槽，与 C++ crop_seedling/growing/mature 同步）
-        val cropDrawableMap = listOf(
-            R.drawable.growing_spiritgrass7,
-            R.drawable.growing_spiritgrass8,
-            R.drawable.growing_spiritgrass9,
-        )
-        val cropSlots = SpriteAtlasDef.CropStage.values().map { stage ->
+    /** 灵田作物精灵槽位（WP6 生长动画三阶段）。 */
+    private fun buildCropSlots(): List<SpriteSlot> =
+        SpriteAtlasDef.CropStage.values().map { stage ->
             val r = stage.rect
             SpriteSlot(
                 stage.name, r.x, r.y, r.w, r.h,
-                cropDrawableMap.getOrNull(stage.ordinal) ?: 0
+                CROP_DRAWABLE.getOrNull(stage.ordinal) ?: 0
             )
         }
 
-        return tileSlots + buildingSlots + floorTileSlots + cropSlots
-    }
+    /** 固定结构精灵槽位（宗门入口门楼/阶梯，渲染走建筑层）。 */
+    private fun buildStructureSlots(): List<SpriteSlot> =
+        SpriteAtlasDef.STRUCTURES.map { s ->
+            SpriteSlot(
+                s.name, s.rect.x, s.rect.y, s.rect.w, s.rect.h,
+                STRUCTURE_DRAWABLE_MAP[s.key] ?: 0
+            )
+        }
 
     /**
      * 逐个解码绘制精灵到位图图集。

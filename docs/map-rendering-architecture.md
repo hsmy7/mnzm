@@ -115,7 +115,7 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 | 树 (TREE1/TREE2) | 12×12 | ~6%（0.18 密度时） | ~35% | `smoothNoise(scale=12)` 确定树丛区域，区域内稀疏分布 |
 
 - **原理**：`smoothNoise()` 在粗网格上采样 `cellHash`，经双线性插值 + smoothstep 产生连续平滑值，相邻格值变化平缓 → 自然地块而非噪点
-- **地面变体**：两个地面纹理（地面1/地面2）使用同一方案以 6×6 尺度混合，地面1≈70%、地面2≈30%
+- **地面**：单一草皮 `map_grass_1`（`草皮.png` 经 2×2 平铺无缝化处理）作为**独立 REPEAT 纹理**，以单 quad/单 shader 整图铺（C++ 专用 `uploadRepeatTexture`；Canvas `BitmapShader REPEAT`），无逐格拼贴、无任何接缝
 - **确定性 + 随机种子**：same seed + same input = same output。`worldSeed` 参数（默认 0）通过 XOR 混入 7 个内部种子点，使不同存档的地图分布不同。`worldSeed=0` 保持向后兼容
 - **种子持久化**：新游戏时 `GameEngine.createNewGame()` 生成 `Random.nextInt()` → 存入 `GameData.mapSeed`。读档时从 DB 读出，保证同一存档地图不变
 - **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.18
@@ -360,11 +360,18 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 
 | 文件名 | 用途 | 原始素材 |
 |--------|------|---------|
-| `map_tile.webp` | 单格地面纹理 | `地图格.png` |
+| `map_grass_1.webp` | 草皮（单一地面纹理，无缝平铺，独立 REPEAT 纹理整图铺） | `草皮.png` |
+| `sect_gate.webp` | 宗门门楼（固定结构，渲染走建筑层） | `宗门门楼.png` |
+| `sect_stairs.webp` | 宗门阶梯（固定结构，渲染走建筑层） | `宗门阶梯.png` |
 | `decoration_grass_small.webp` | 小草丛装饰 | `小草丛.png` |
 | `decoration_grass_medium.webp` | 中草丛装饰 | `中草丛.png` |
 | `decoration_grass_large.webp` | 大草丛装饰 | `大草丛.png` |
 | `decoration_tree1.webp` | 树变体 1 | `树木1.png` |
 | `decoration_tree2.webp` | 树变体 2 | `树木2.png` |
+
+> 草皮由 `convert-grass-tiles.mjs` 无损转 webp（64×64，已做无缝平铺处理）；门楼转 2× 分辨率
+> （门楼 384×256 = 6×4 格）。其余已删除/替换的草皮与阶梯资源均已清理。
+> 宗门入口固定结构（门楼）渲染走建筑层（见 `FixedSectGateway`），随瓦片生成、置于地图正下方，
+> 左右两侧保留 3 行边界硬装饰树；不可移动/拆除、占地禁建、不画地砖/地基。
 
 这些资源不走 `SpriteResRegistry` 注册，而是通过 `NativeSurfaceView.buildAtlas()` 直接解码后上传到 GPU 纹理图集。

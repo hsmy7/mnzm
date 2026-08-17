@@ -313,6 +313,7 @@ class NativeSurfaceView(
                 "NativeSurfaceView",
                 "buildAtlas: ASTC compressed atlas uploaded (id=$compressedId)"
             )
+            uploadGroundTexture(context)
             return compressedId
         }
 
@@ -335,15 +336,8 @@ class NativeSurfaceView(
         // Vulkan 回退路径：上传到 GPU
         val pixels = IntArray(atlas.width * atlas.height)
         atlas.getPixels(pixels, 0, atlas.width, 0, 0, atlas.width, atlas.height)
-        val buffer = ByteArray(pixels.size * 4)
-        for (i in pixels.indices) {
-            val p = pixels[i]
-            buffer[i * 4] = ((p shr 16) and 0xFF).toByte()
-            buffer[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
-            buffer[i * 4 + 2] = (p and 0xFF).toByte()
-            buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
-        }
-        val texId = NativeBridge.uploadTexture(buffer, atlas.width, atlas.height)
+        val texId = NativeBridge.uploadTexture(toRgbaByteArray(pixels), atlas.width, atlas.height)
+        uploadGroundTexture(context)
         // ★ 不调 recycle()：atlas 仍在 atlasBitmap 字段引用，调 recycle()
         //   会导致国产 ROM (#11008) double-free。Vulkan 模式下 atlasBitmap
         //   不会被 SOFTWARE 路径读取（renderMode 非 SOFTWARE），置 null 即可
@@ -1353,4 +1347,41 @@ private fun toPointerUpTouchData(event: MotionEvent, pointerCount: Int, timestam
         pointerId = event.getPointerId(remainingIndex),
         pointerCount = pointerCount
     )
+}
+
+/**
+ * ARGB IntArray → RGBA 字节数组（上传 GPU 纹理用，Alpha 置 255 兜底）。
+ */
+private fun toRgbaByteArray(pixels: IntArray): ByteArray {
+    val buffer = ByteArray(pixels.size * 4)
+    for (i in pixels.indices) {
+        val p = pixels[i]
+        buffer[i * 4] = ((p shr 16) and 0xFF).toByte()
+        buffer[i * 4 + 1] = ((p shr 8) and 0xFF).toByte()
+        buffer[i * 4 + 2] = (p and 0xFF).toByte()
+        buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
+    }
+    return buffer
+}
+
+/**
+ * 上传宗门地图单一无缝地面纹理（REPEAT 采样，整图铺）。
+ * 独立于图集（KTX/ RGBA 两路径共用），从 map_grass_1.webp 解码 64×64 上传。
+ * 解码失败模式无稳定异常契约（资源损坏/ROM 差异），全捕获按非关键路径处理。
+ */
+@Suppress("TooGenericExceptionCaught")
+private fun uploadGroundTexture(context: android.content.Context) {
+    try {
+        val opts = android.graphics.BitmapFactory.Options().apply { inScaled = false }
+        val bmp = android.graphics.BitmapFactory.decodeResource(
+            context.resources, com.xianxia.sect.feature.game.R.drawable.map_grass_1, opts
+        ) ?: return
+        val w = bmp.width
+        val h = bmp.height
+        val pixels = IntArray(w * h)
+        bmp.getPixels(pixels, 0, w, 0, 0, w, h)
+        NativeBridge.uploadGroundTexture(toRgbaByteArray(pixels), w, h)
+    } catch (t: Throwable) {
+        android.util.Log.e("NativeSurfaceView", "uploadGroundTexture failed", t)
+    }
 }

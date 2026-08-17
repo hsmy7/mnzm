@@ -22,6 +22,8 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.FixedSectGateway
+import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -99,14 +101,20 @@ class BuildingFacadeImpl @Inject constructor(
 
     override suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
-        // 第二层防御：验证新位置不在边界树木区域内
-        val border = GameConfig.SectMap.BORDER_TREE_RING
+        // 第二层防御：验证新位置不在边界树木区域、不重叠固定结构（宗门入口）占地
         val building = stateStore.gameDataSnapshot.placedBuildings
             .find { it.instanceId == instanceId && it.sectId == sectId } ?: return
-        if (newGridX < border || newGridY < border ||
+        val border = GameConfig.SectMap.BORDER_TREE_RING
+        val outOfBounds = newGridX < border || newGridY < border ||
             newGridX + building.width > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
             newGridY + building.height > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
-        ) return
+        val blocked = FixedSectGateway.blockedCells
+        val overlapsBlocked = (newGridY until newGridY + building.height).any { cy ->
+            (newGridX until newGridX + building.width).any { cx ->
+                GridSystem.packCell(cx, cy) in blocked
+            }
+        }
+        if (outOfBounds || overlapsBlocked) return
 
         stateStore.update {
             gameData = gameData.copy(

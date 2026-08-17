@@ -7,7 +7,9 @@ class GridSystem(
     val gridWidthCells: Int,
     val gridHeightCells: Int,
     /** 距离地图边界不可建造的格数（0 = 无限制）。 */
-    val buildableBorder: Int = 0
+    val buildableBorder: Int = 0,
+    /** 固定结构禁建格（packed cell，如宗门入口门楼/阶梯占地）。 */
+    val blockedCells: Set<Long> = emptySet()
 ) {
     private var _buildings: List<GridBuildingData> = emptyList()
     val buildings: List<GridBuildingData> get() = _buildings
@@ -34,7 +36,8 @@ class GridSystem(
         }
         for (cx in gridX until gridX + width) {
             for (cy in gridY until gridY + height) {
-                if (packCell(cx, cy) in _occupiedCells) {
+                val cell = packCell(cx, cy)
+                if (cell in _occupiedCells) {
                     val overlapped = _buildings.filter { b ->
                         gridX < b.gridX + b.width &&
                         gridX + width > b.gridX &&
@@ -42,6 +45,9 @@ class GridSystem(
                         gridY + height > b.gridY
                     }.map { it.displayName }
                     return GridSnapHelper.PlacementValidity.Overlap(overlapped)
+                }
+                if (cell in blockedCells) {
+                    return GridSnapHelper.PlacementValidity.Overlap(listOf(BLOCKED_REGION_LABEL))
                 }
             }
         }
@@ -72,6 +78,9 @@ class GridSystem(
     companion object {
         const val DEFAULT_WORLD_WIDTH_CELLS = 28
         const val DEFAULT_WORLD_HEIGHT_CELLS = 28
+
+        /** 固定结构禁建区域的 UI 展示名（重叠提示用）。 */
+        const val BLOCKED_REGION_LABEL = "宗门入口"
 
         fun packCell(x: Int, y: Int): Long =
             (x.toLong() shl 32) or (y.toLong() and 0xFFFF_FFFF)

@@ -97,8 +97,6 @@ class SoftwareCanvasBackend(
         // ── 图集索引常量 ──
         private const val SPIRIT_FIELD_ATLAS_INDEX = 2
         private const val SPIRIT_MINE_ATLAS_INDEX = 0
-        private const val SPIRIT_MINE_GROUND_FT_INDEX = 4
-        private const val GROUND_V2_SRC_INDEX = 7
 
     }
 
@@ -253,11 +251,12 @@ class SoftwareCanvasBackend(
         }
 
         /**
-         * 绘制地面 + 装饰层（A1 地面底图 + A2 装饰叠加）。
+         * 绘制地面 + 装饰层（A0 整图无缝地面 + A2 装饰叠加）。
          *
+         * A0：单一草皮纹理以 REPEAT BitmapShader 铺满本 chunk 有效区——整图连续无逐格接缝，
+         * 与 C++ drawAllTiles 单 ground quad 双端对齐。
          * A2 的 LOD 合并判定（scale/热控/显式关闭）在 renderFrame 层经
-         * [RenderLodPolicy] 收敛为 decorSkip——此处只消费最终布尔值，
-         * 与 C++ drawAllTiles skipDecor 同语义双端对齐。
+         * [RenderLodPolicy] 收敛为 decorSkip——此处只消费最终布尔值。
          */
         private fun drawGroundAndDecor(
             canvas: Canvas,
@@ -271,6 +270,9 @@ class SoftwareCanvasBackend(
             val startRow = row * CHUNK_SIZE_TILES
             val endCol = (startCol + CHUNK_SIZE_TILES).coerceAtMost(cols)
             val endRow = (startRow + CHUNK_SIZE_TILES).coerceAtMost(rows)
+            if (endCol > startCol && endRow > startRow) {
+                drawGroundFill(canvas, atlas, startCol, startRow, endCol, endRow)
+            }
             for (r in startRow until endRow) {
                 drawGroundRow(
                     canvas, atlas, tileData, cols, decorSkip,
@@ -280,8 +282,44 @@ class SoftwareCanvasBackend(
         }
 
         /**
-         * 单行地面 + 装饰（从 drawGroundAndDecor 提取，消除嵌套深度 4 → 3）。
-         * A1/A2 两段为兄弟 if，同深不叠加。
+         * A0：整图无缝地面（BitmapShader REPEAT）。
+         * 地面源 = 图集 GROUND rect（64×64）；shader 矩阵把 chunk 局部坐标映射到世界坐标，
+         * scale = 地面宽/格宽（64/tileSize），使每个地面纹理恰好铺满一格，跨 chunk 连续。
+         */
+        private fun drawGroundFill(
+            canvas: Canvas,
+            atlas: Bitmap,
+            startCol: Int,
+            startRow: Int,
+            endCol: Int,
+            endRow: Int
+        ) {
+            val tileSize = kit.tileSize
+            val gRect = SpriteAtlasDef.TileType.GROUND.rect
+            val groundBmp = Bitmap.createBitmap(atlas, gRect.x, gRect.y, gRect.w, gRect.h)
+            val shader = BitmapShader(groundBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            val scale = gRect.w.toFloat() / tileSize
+            val worldX = (startCol * tileSize).toFloat()
+            val worldY = (startRow * tileSize).toFloat()
+            shader.setLocalMatrix(Matrix().apply {
+                setScale(scale, scale)
+                postTranslate(worldX * scale, worldY * scale)
+            })
+            val paint = Paint().apply {
+                this.shader = shader
+                isFilterBitmap = true  // 双线性：环绕点插值过渡，消除暗接缝（与 Vulkan LINEAR 对齐）
+            }
+            canvas.drawRect(
+                0f, 0f,
+                ((endCol - startCol) * tileSize).toFloat(),
+                ((endRow - startRow) * tileSize).toFloat(),
+                paint
+            )
+        }
+
+        /**
+         * 单行装饰叠加（从 drawGroundAndDecor 提取，消除嵌套深度 4 → 3）。
+         * 地面已由 A0 整图铺覆盖，此处仅绘制草/树装饰。
          */
         private fun drawGroundRow(
             canvas: Canvas,
@@ -298,12 +336,6 @@ class SoftwareCanvasBackend(
                 val tile = tileData[rowBase + c]
                 val chunkOffX = c * tileSize - range.startCol * tileSize
                 val chunkOffY = range.r * tileSize - range.startRow * tileSize
-
-                // A1: 地面底图
-                val gIdx = if (tile == GROUND_V2_SRC_INDEX) GROUND_V2_SRC_INDEX else 0
-                val groundSrc = kit.tileSrcRects.getOrNull(gIdx) ?: continue
-                reuseRect.set(chunkOffX, chunkOffY, chunkOffX + tileSize, chunkOffY + tileSize)
-                canvas.drawBitmap(atlas, groundSrc, reuseRect, rebuildPaint)
 
                 // A2: 装饰叠加（树 2×2 格、草 1×1 格——if 表达式替代 if/else 嵌套）
                 if (!decorSkip && tile in 1..5) {
@@ -322,6 +354,18 @@ class SoftwareCanvasBackend(
             val pastRightOrBottom = left >= view.vpW || bottom <= 0
             val beforeLeftOrTop = right <= 0 || top >= view.vpH
             return pastRightOrBottom || beforeLeftOrTop
+        }
+
+        /**
+         * 建筑/固定结构占地尺寸解析：结构（nameIdx ≥ BUILDING_NAMES.size）走
+         * SpriteAtlasDef.STRUCTURES，建筑走 FOOTPRINT_BY_NAME_INDEX，越界兜底 2×2。
+         */
+        private fun footprintOf(nameIdx: Int): Pair<Int, Int> {
+            if (nameIdx >= SpriteAtlasDef.BUILDING_NAMES.size) {
+                val s = SpriteAtlasDef.STRUCTURES.getOrNull(nameIdx - SpriteAtlasDef.BUILDING_NAMES.size)
+                return (s?.footprintW ?: 2) to (s?.footprintH ?: 2)
+            }
+            return SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }
         }
 
         /**
@@ -349,7 +393,10 @@ class SoftwareCanvasBackend(
                 val bh = buildingArray[idx + 3].toInt()
                 val nameIdx = buildingArray[idx + 4].toInt()
 
-                val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }
+                // 固定结构（宗门入口门楼/阶梯）nameIdx ≥ BUILDING_NAMES.size，占地走 STRUCTURES 表；
+                // 建筑走 FOOTPRINT_BY_NAME_INDEX
+                val isStructure = nameIdx >= SpriteAtlasDef.BUILDING_NAMES.size
+                val (fpW, fpH) = footprintOf(nameIdx)
                 val offsetX = (fpW - bw) * tileSize * 0.5f
                 val offsetY = (fpH - bh) * tileSize.toFloat()
                 val bWorldX = gx * tileSize + offsetX
@@ -373,10 +420,8 @@ class SoftwareCanvasBackend(
                 // 视锥剔除（提取纯函数，主循环复杂度收敛）
                 if (isOffScreen(bDstLeft, bDstTop, bDstRight, bDstBottom, view)) continue
 
-                // 地砖（灵田专属地皮 / 通用占地地砖）——if/else 链收敛为表达式，消除深嵌套
-                val ftIdx = if (nameIdx == SPIRIT_MINE_ATLAS_INDEX) {
-                    SPIRIT_MINE_GROUND_FT_INDEX
-                } else if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
+                // 地砖（灵田/灵矿场除外直接坐草地；门楼 6×2 画 3×2 地砖拉伸作基座）
+                val ftIdx = if (nameIdx != SPIRIT_MINE_ATLAS_INDEX && nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
                     SpriteAtlasDef.floorTileIndex(fpW, fpH)
                 } else {
                     -1
@@ -388,7 +433,8 @@ class SoftwareCanvasBackend(
                 }
 
                 // ★ 建筑投影阴影（地砖之上、精灵之下；与 C++ drawAllTiles (A2) 段同数学）
-                if (buildingShadows) {
+                // 固定结构（门楼/阶梯）不投影——避免阴影压到阶梯/地图底边外
+                if (buildingShadows && !isStructure) {
                     val offset = tileSize * BuildingRenderGeometry.SHADOW_OFFSET_TILES
                     drawShadowRect(canvas, shadowPaint,
                         ((gx * tileSize + offset - view.camX) * view.scale).roundToInt(),
@@ -495,10 +541,16 @@ class SoftwareCanvasBackend(
     }
 
     private val buildingSrcRects: Array<Rect> by lazy {
-        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.BUILDING_NAMES.size)
-        for (i in rects.indices) {
+        // 建筑 + 固定结构（结构 nameIdx = BUILDING_NAMES.size + index，尾部追加）
+        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.BUILDING_NAMES.size + SpriteAtlasDef.STRUCTURES.size)
+        for (i in SpriteAtlasDef.BUILDING_NAMES.indices) {
             val sr = SpriteAtlasDef.buildingRect(i)
             rects[i] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
+        }
+        SpriteAtlasDef.STRUCTURES.forEachIndexed { i, s ->
+            val idx = SpriteAtlasDef.BUILDING_NAMES.size + i
+            val sr = s.rect
+            rects[idx] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
         }
         @Suppress("UNCHECKED_CAST")
         rects as Array<Rect>

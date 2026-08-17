@@ -68,7 +68,6 @@ const LAYOUT = {
     { name: 'TREE1', index: 4, rect: [256, 0, 128, 128] },
     { name: 'TREE2', index: 5, rect: [384, 0, 128, 128] },
     { name: 'TILE_BUILDING', index: 6, rect: [0, 0, 64, 64] }, // 占位（与 GROUND 重叠）
-    { name: 'GROUND_V2', index: 7, rect: [512, 0, 64, 64] },
   ],
   // 建筑（BUILDING_NAMES，按图集排列顺序）
   buildingNames: [
@@ -98,6 +97,10 @@ const LAYOUT = {
     { name: 'TILE_3x3', key: 'floor_tile_3x3', gridW: 3, gridH: 3, rect: [192, 960, 192, 192] },
     { name: 'SPIRIT_MINE_GROUND', key: 'spirit_mine_ground', gridW: 4, gridH: 4, rect: [0, 1152, 256, 256] },
   ],
+  // 固定结构（宗门入口门楼——渲染走建筑层，nameIdx = BUILDING_NAMES.size + index）
+  structures: [
+    { name: '宗门门楼', key: 'sect_gate', rect: [640, 128, 384, 256], footprint: [6, 2], spriteSize: [6, 4] },
+  ],
   // 双端共享渲染常量（原 NativeBridge.cpp / RenderLodPolicy.kt / BuildingRenderGeometry.kt
   // 三处同值手工同步——2026-08-13 收敛为单一数据源，Kotlin/C++ 双产物自动一致）
   lodThreshold: 0.6,
@@ -111,7 +114,6 @@ const LAYOUT = {
     { name: 'grass_large', rect: [192, 0, 64, 64] },
     { name: 'tree1', rect: [256, 0, 128, 128] },
     { name: 'tree2', rect: [384, 0, 128, 128] },
-    { name: 'ground_tile_v2', rect: [512, 0, 64, 64] },
     { name: 'crop_seedling', rect: [832, 0, 64, 64] },
     { name: 'crop_growing', rect: [896, 0, 64, 64] },
     { name: 'crop_mature', rect: [960, 0, 64, 64] },
@@ -139,19 +141,19 @@ const LAYOUT = {
     { name: 'floor_tile_3x2', rect: [0, 960, 192, 128] },
     { name: 'floor_tile_3x3', rect: [192, 960, 192, 192] },
     { name: 'spirit_mine_ground', rect: [0, 1152, 256, 256] },
+    { name: 'sect_gate', rect: [640, 128, 384, 256] },
   ],
 };
 
 /** 瓦片资源名映射（与 NativeSurfaceView.buildAtlasBitmap 的 when 分支一致） */
 const TILE_DRAWABLE = {
-  GROUND: 'map_tile',
+  GROUND: 'map_grass_1',
   GRASS_SMALL: 'decoration_grass_small',
   GRASS_MEDIUM: 'decoration_grass_medium',
   GRASS_LARGE: 'decoration_grass_large',
   TREE1: 'decoration_tree1',
   TREE2: 'decoration_tree2',
   TILE_BUILDING: null, // 占位（与 GROUND 重叠，buildAtlasBitmap 同样跳过）
-  GROUND_V2: 'map_tile_v2',
 };
 
 /** 地砖资源名映射（与 buildAtlasBitmap floorTileDrawableMap 一致） */
@@ -175,13 +177,19 @@ function semanticIndices(layout) {
   };
   const tileNames = layout.tiles.map((t) => t.name);
   const floorNames = layout.floors.map((f) => f.name);
+  // 地面草皮变体：TileType 名以 GROUND 开头的瓦片（渲染器按此把变体格映射到自身地面纹理）
+  const groundVariants = layout.tiles
+    .filter((t) => t.name.startsWith('GROUND'))
+    .map((t) => t.index)
+    .sort((a, b) => a - b);
   return {
     spiritMine: idx(layout.buildingNames, '灵矿场'),
     spiritField: idx(layout.buildingNames, '灵田'),
     spiritMineGround: idx(floorNames, 'SPIRIT_MINE_GROUND'),
     tileGround: idx(tileNames, 'GROUND'),
     tileBuilding: idx(tileNames, 'TILE_BUILDING'),
-    tileGroundV2: idx(tileNames, 'GROUND_V2'),
+    structureNameBase: layout.buildingNames.length,
+    groundVariants,
   };
 }
 
@@ -258,6 +266,10 @@ function generateSpriteAtlasDef(layout) {
   const floorLines = layout.floors
     .map((f) => `        ${f.name}(${JSON.stringify(f.key)}, ${f.gridW}, ${f.gridH}, SpriteRect(${f.rect.join(', ')}))`)
     .join(',\n');
+  const structureDefLines = layout.structures
+    .map((s) => `        StructureDef(${JSON.stringify(s.name)}, ${JSON.stringify(s.key)}, SpriteRect(${s.rect.join(', ')}), ${s.footprint[0]}, ${s.footprint[1]}, ${s.spriteSize[0]}, ${s.spriteSize[1]})`)
+    .join(',\n');
+  const groundVariantLines = si.groundVariants.join(', ');
 
   return [
     'package com.xianxia.sect.core.render',
@@ -298,7 +310,6 @@ function generateSpriteAtlasDef(layout) {
     `    const val SPIRIT_MINE_GROUND_UV_INDEX = ${si.spiritMineGround}`,
     `    const val TILE_GROUND_INDEX = ${si.tileGround}`,
     `    const val TILE_BUILDING_INDEX = ${si.tileBuilding}`,
-    `    const val TILE_GROUND_V2_INDEX = ${si.tileGroundV2}`,
     '',
     '    // ============================================================',
     '    // 瓦片类型定义',
@@ -335,6 +346,43 @@ function generateSpriteAtlasDef(layout) {
     '    }',
     '',
     '    // ============================================================',
+    '    // 宗门入口固定结构（门楼/阶梯）——渲染走建筑层',
+    '    // 须在 BUILDING_UV_MAP 之前声明（BUILDING_UV_MAP 尾部追加结构 UV）',
+    '    // ============================================================',
+    '',
+    '    /** 固定结构定义（渲染走建筑层，nameIdx = BUILDING_NAMES.size + index） */',
+    '    data class StructureDef(',
+    '        val name: String,',
+    '        val key: String,',
+    '        val rect: SpriteRect,',
+    '        val footprintW: Int,',
+    '        val footprintH: Int,',
+    '        val spriteW: Int,',
+    '        val spriteH: Int',
+    '    )',
+    '',
+    '    val STRUCTURES = listOf(',
+    structureDefLines,
+    '    )',
+    '',
+    '    /** 结构 UV 映射（归一化 0-1，追加于 BUILDING_UV_MAP 尾部） */',
+    '    val STRUCTURE_UV_MAP: FloatArray by lazy {',
+    '        val uv = FloatArray(STRUCTURES.size * 4)',
+    '        for ((i, s) in STRUCTURES.withIndex()) {',
+    '            val r = s.rect',
+    '            val j = i * 4',
+    '            uv[j] = r.x.toFloat() / ATLAS_W',
+    '            uv[j + 1] = r.y.toFloat() / ATLAS_H',
+    '            uv[j + 2] = (r.x + r.w).toFloat() / ATLAS_W',
+    '            uv[j + 3] = (r.y + r.h).toFloat() / ATLAS_H',
+    '        }',
+    '        uv',
+    '    }',
+    '',
+    '    /** 地面草皮变体瓦片索引（渲染器按此把变体格映射到自身地面纹理） */',
+    `    val GROUND_VARIANT_INDICES = intArrayOf(${groundVariantLines})`,
+    '',
+    '    // ============================================================',
     '    // 建筑定义',
     '    // ============================================================',
     '',
@@ -365,7 +413,7 @@ function generateSpriteAtlasDef(layout) {
     '     * buildingUVMap 参数一致）。',
     '     */',
     '    val BUILDING_UV_MAP: FloatArray by lazy {',
-    '        val uvs = FloatArray(BUILDING_NAMES.size * 4)',
+    '        val uvs = FloatArray((BUILDING_NAMES.size + STRUCTURES.size) * 4)',
     '        var idx = 0',
     '        for (rowIndex in BUILDING_COLS_PER_ROW.indices) {',
     '            for (col in 0 until BUILDING_COLS_PER_ROW[rowIndex]) {',
@@ -378,6 +426,15 @@ function generateSpriteAtlasDef(layout) {
     '                uvs[i + 3] = (py + BUILDING_SIZE).toFloat() / ATLAS_H',
     '                idx++',
     '            }',
+    '        }',
+    '        // 固定结构 UV 追加在建筑 UV 尾部（nameIdx = BUILDING_NAMES.size + index）',
+    '        for ((si, s) in STRUCTURES.withIndex()) {',
+    '            val r = s.rect',
+    '            val i = (BUILDING_NAMES.size + si) * 4',
+    '            uvs[i] = r.x.toFloat() / ATLAS_W',
+    '            uvs[i + 1] = r.y.toFloat() / ATLAS_H',
+    '            uvs[i + 2] = (r.x + r.w).toFloat() / ATLAS_W',
+    '            uvs[i + 3] = (r.y + r.h).toFloat() / ATLAS_H',
     '        }',
     '        uvs',
     '    }',
@@ -483,6 +540,7 @@ function generateSpriteAtlasDef(layout) {
     '        gw == 2 && gh == 4 -> 1  // 窄高 → 2x3 地砖',
     '        gw == 4 && gh == 3 -> 2  // 宽扁 → 3x2 地砖',
     '        gw == 6 && gh == 5 -> 2  // 宽扁 → 3x2 地砖',
+    '        gw == 6 && gh == 2 -> 2  // 门楼占地 6x2 → 3x2 地砖（拉伸）',
     '        else -> -1',
     '    }',
     '',
@@ -652,7 +710,14 @@ function generateTextureAtlasH(layout) {
     '// 瓦片类型索引（与 SpriteAtlasDef.TileType.index 同源）',
     `#define TILE_GROUND ${si.tileGround}`,
     `#define TILE_BUILDING ${si.tileBuilding}`,
-    `#define TILE_GROUND_V2 ${si.tileGroundV2}`,
+    '',
+    '// 固定结构（渲染走建筑层；nameIdx = STRUCTURE_NAME_BASE + index；占地表供底部对齐）',
+    `#define STRUCTURE_NAME_BASE ${si.structureNameBase}`,
+    `static const int STRUCTURE_FP_W[] = {${layout.structures.map((s) => s.footprint[0]).join(', ')}};`,
+    `static const int STRUCTURE_FP_H[] = {${layout.structures.map((s) => s.footprint[1]).join(', ')}};`,
+    '// 地面草皮变体索引（渲染器把变体格映射到自身地面纹理）',
+    `static const int GROUND_VARIANT_COUNT = ${si.groundVariants.length};`,
+    `static const int GROUND_VARIANTS[] = {${si.groundVariants.join(', ')}};`,
     '',
     'static const SpriteDef MAP_SPRITES[] = {',
     spriteLines,
@@ -711,6 +776,14 @@ function buildSpriteList() {
     sprites.push({
       name: crop.name, x: crop.rect[0], y: crop.rect[1], w: crop.rect[2], h: crop.rect[3],
       drawable: CROP_DRAWABLE[idx] ?? null,
+    });
+  });
+
+  // 固定结构（宗门入口：门楼/阶梯；drawable = key）
+  LAYOUT.structures.forEach((st) => {
+    sprites.push({
+      name: st.key, x: st.rect[0], y: st.rect[1], w: st.rect[2], h: st.rect[3],
+      drawable: st.key,
     });
   });
 

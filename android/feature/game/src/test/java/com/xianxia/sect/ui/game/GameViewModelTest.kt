@@ -25,6 +25,7 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.util.FixedSectGateway
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleCore
 import com.xianxia.sect.core.model.EquipmentStack
@@ -793,7 +794,8 @@ class GameViewModelTest {
         advanceUntilIdle()
 
         val bus = viewModel.getRenderCommandBus()
-        assertEquals("应只推送 1 栋本宗建筑（AI 宗门建筑不可渲染）", 1, bus.buildingCount)
+        assertEquals("应只推送 1 栋本宗建筑 + 固定结构（AI 宗门建筑不可渲染）",
+            1 + FixedSectGateway.count, bus.buildingCount)
         assertEquals("应推送本宗矿场（gridX=10）", 10f, bus.buildingData!![0])
     }
 
@@ -805,14 +807,14 @@ class GameViewModelTest {
             width = 5, height = 3, sectId = "ai-1", instanceId = "f1")
         gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(homeMine, aiForge))
         advanceUntilIdle()
-        assertEquals(1, viewModel.getRenderCommandBus().buildingCount)
+        assertEquals(1 + FixedSectGateway.count, viewModel.getRenderCommandBus().buildingCount)
 
         // enterSect 只改 activeSectId，placedBuildings 不变 —— 推送键必须包含 activeSectId 才会重推
         gameDataFlow.value = GameData(activeSectId = "ai-1", placedBuildings = listOf(homeMine, aiForge))
         advanceUntilIdle()
 
         val bus = viewModel.getRenderCommandBus()
-        assertEquals("切换宗门后应重推新宗门建筑", 1, bus.buildingCount)
+        assertEquals("切换宗门后应重推新宗门建筑", 1 + FixedSectGateway.count, bus.buildingCount)
         assertEquals("应推送 AI 宗门锻造坊（gridX=20）", 20f, bus.buildingData!![0])
     }
 
@@ -827,9 +829,12 @@ class GameViewModelTest {
         advanceUntilIdle()
 
         val bus = viewModel.getRenderCommandBus()
-        assertNotNull("空宗门应推送空数组（非 null），防止渲染回退旧 frame", bus.buildingData)
-        assertEquals("空数组长度为 0", 0, bus.buildingData!!.size)
-        assertEquals(0, bus.buildingCount)
+        assertNotNull("空宗门也应推送数组（固定结构常驻），防止渲染回退旧 frame", bus.buildingData)
+        assertEquals(
+            "空宗门推送 = 固定结构渲染条目",
+            FixedSectGateway.renderEntries().size, bus.buildingData!!.size
+        )
+        assertEquals(FixedSectGateway.count, bus.buildingCount)
     }
 
     @Test
@@ -840,11 +845,11 @@ class GameViewModelTest {
             width = 5, height = 3, sectId = "", instanceId = "f1")
         gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(mine))
         advanceUntilIdle()
-        assertEquals("初始 1 栋建筑", 1, viewModel.getRenderCommandBus().buildingCount)
+        assertEquals("初始 1 栋建筑", 1 + FixedSectGateway.count, viewModel.getRenderCommandBus().buildingCount)
 
         gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(mine, forge))
         advanceUntilIdle()
-        assertEquals("同宗门新增建筑应重推", 2, viewModel.getRenderCommandBus().buildingCount)
+        assertEquals("同宗门新增建筑应重推", 2 + FixedSectGateway.count, viewModel.getRenderCommandBus().buildingCount)
     }
 
     // ════════════════════════════════════════════════════════════════

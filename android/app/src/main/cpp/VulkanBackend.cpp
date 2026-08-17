@@ -1603,7 +1603,8 @@ static bool submitOneTimeCommands(
     return true;
 }
 
-uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height) {
+uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int height,
+                                          VkSamplerAddressMode addressMode) {
     if (!m_device || !pixels) return 0;
 
     Texture tex;
@@ -1767,14 +1768,16 @@ uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height)
         }
     }
 
-    // ---- Step 5: Sampler（CLAMP_TO_EDGE — 图集 UV 始终在 [0,1] 内） ----
+    // ---- Step 5: Sampler（图集 CLAMP_TO_EDGE + NEAREST；地面 REPEAT + LINEAR 平滑环绕） ----
     {
         VkSamplerCreateInfo sampInfo{};
         sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        sampInfo.magFilter = VK_FILTER_NEAREST;
-        sampInfo.minFilter = VK_FILTER_NEAREST;
-        sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        // 地面整图铺用 LINEAR：环绕点插值过渡，消除 NEAREST 在纹理边界跳变产生的暗接缝
+        const VkBool32 linear = (addressMode == VK_SAMPLER_ADDRESS_MODE_REPEAT) ? VK_TRUE : VK_FALSE;
+        sampInfo.magFilter = linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        sampInfo.minFilter = linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        sampInfo.addressModeU = addressMode;
+        sampInfo.addressModeV = addressMode;
         sampInfo.anisotropyEnable = VK_FALSE;
         sampInfo.maxLod = 1.0f;
 
@@ -1799,6 +1802,14 @@ fail:
     if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
     tex = {};
     return 0;
+}
+
+uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height) {
+    return uploadTextureImpl(pixels, width, height, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+}
+
+uint32_t VulkanBackend::uploadRepeatTexture(const void* pixels, int width, int height) {
+    return uploadTextureImpl(pixels, width, height, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 }
 
 // ============================================================

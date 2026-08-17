@@ -51,6 +51,7 @@ import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
+import com.xianxia.sect.core.util.FixedSectGateway
 
 import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.NativeRenderConfig
@@ -465,12 +466,12 @@ private fun rememberMainGameScreenMapTiles(
     val flatTileData = remember(tileData) {
         tileData.flatMap { it.toList() }.toIntArray()
     }
-    // ★ 优化：缓存 buildingData FloatArray，仅在建筑列表变化时重建
-    // 拖拽时 cameraState 变化触发的重组不重新分配
+    // ★ 缓存 buildingData：固定结构（门楼/阶梯）追加尾部 ⇒ 建筑层恒最后绘制置顶
     val buildingDataArray = remember(derived.effectivePlacedBuildings, mapData.buildingSpriteSizes) {
-        if (derived.effectivePlacedBuildings.isNotEmpty()) {
+        val real = if (derived.effectivePlacedBuildings.isNotEmpty())
             buildBuildingDataArray(derived.effectivePlacedBuildings, mapData.buildingSpriteSizes)
-        } else null
+        else FloatArray(0)
+        real + FixedSectGateway.renderEntries()
     }
     // ★ 灵田作物数据（WP6）：灵田建筑 ↔ 种植记录按 buildingInstanceId 映射，
     // progress01 = 游戏时间进度（TimeProgressUtil，与生产结算同源）；低频变化走帧率门控 RenderFrame
@@ -525,7 +526,8 @@ private fun rememberMainGameScreenRenderData(
     // 网格系统（管理建筑放置与占用格查询）
     val gridSystem = remember(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells) {
         GridSystem(mapData.tileSize, mapData.worldWidthCells, mapData.worldHeightCells,
-            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING)
+            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+            blockedCells = FixedSectGateway.blockedCells)
     }
 
     // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
@@ -588,7 +590,7 @@ private fun rememberMainGameScreenViewportData(
             SectMapViewportParams(
                 nativeConfig = renderData.nativeConfig, cameraState = cameraState,
                 flatTileData = renderData.flatTileData, buildingDataArray = renderData.buildingDataArray,
-                buildingCount = derived.effectivePlacedBuildings.size,
+                buildingCount = derived.effectivePlacedBuildings.size + FixedSectGateway.count,
                 tileSize = mapData.tileSize, worldWidthCells = mapData.worldWidthCells,
                 worldHeightCells = mapData.worldHeightCells,
                 forceSoftwareRendering = forceSoftwareRendering, vulkanInitListener = vulkanInitListener,

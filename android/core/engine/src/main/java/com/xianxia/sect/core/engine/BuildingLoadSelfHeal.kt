@@ -8,6 +8,7 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.FixedSectGateway
 
 /**
  * 建筑读档自愈（D-11~D-14 批次，2026-08-06）— 全部纯函数，无状态无 IO。
@@ -151,7 +152,7 @@ fun computeBuildingOverflowMigration(
 /** 灵田显示名（占地尺寸不变，迁移中优先保留） */
 private const val SPIRIT_FIELD_NAME = "灵田"
 
-/** 检查建筑是否在地图内且不与其他建筑重叠（迁移自 SaveLoadLoadDelegate，条件拆分过 detekt） */
+/** 检查建筑是否在地图内、不与其他建筑/固定结构重叠（迁移自 SaveLoadLoadDelegate，条件拆分过 detekt） */
 private fun canPlaceAt(
     b: GridBuildingData,
     gridW: Int,
@@ -160,7 +161,14 @@ private fun canPlaceAt(
 ): Boolean {
     // 零/负尺寸建筑无法占格，视为不可放置
     if (b.width <= 0 || b.height <= 0 || !isInsideWorld(b, gridW, gridH)) return false
-    return cellsAreFree(b, occupied)
+    // 不与既有建筑重叠 + 不重叠固定结构（宗门入口门楼/阶梯）占地
+    val blocked = FixedSectGateway.blockedCells
+    return cellsAreFree(b, occupied) &&
+        (b.gridX until b.gridX + b.width).all { cx ->
+            (b.gridY until b.gridY + b.height).all { cy ->
+                packCell(cx, cy) !in blocked
+            }
+        }
 }
 
 /** 建筑是否完整位于世界地图内 */

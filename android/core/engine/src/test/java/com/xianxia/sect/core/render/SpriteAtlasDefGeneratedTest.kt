@@ -38,7 +38,7 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
-    fun `TileType 8 个枚举值及 rect 与期望全等`() {
+    fun `TileType 7 个枚举值及 rect 与期望全等`() {
         val expected = listOf(
             Triple("GROUND", 0, intArrayOf(0, 0, 64, 64)),
             Triple("GRASS_SMALL", 1, intArrayOf(64, 0, 64, 64)),
@@ -47,7 +47,6 @@ class SpriteAtlasDefGeneratedTest {
             Triple("TREE1", 4, intArrayOf(256, 0, 128, 128)),
             Triple("TREE2", 5, intArrayOf(384, 0, 128, 128)),
             Triple("TILE_BUILDING", 6, intArrayOf(0, 0, 64, 64)),
-            Triple("GROUND_V2", 7, intArrayOf(512, 0, 64, 64)),
         )
         val actual = parseTileTypes(source())
         assertEquals(
@@ -62,6 +61,49 @@ class SpriteAtlasDefGeneratedTest {
                 expected[i].third.toList(), actual[i].third.toList()
             )
         }
+    }
+
+    @Test
+    fun `STRUCTURES 固定结构与期望全等`() {
+        val expected = listOf(
+            StructureDef(
+                "宗门门楼", "sect_gate", intArrayOf(640, 128, 384, 256), 6, 2, 6, 4
+            ),
+        )
+        val actual = parseStructures(source())
+        assertEquals(
+            "STRUCTURES 数量与期望不一致——修改 LAYOUT.structures 后需同步本测试期望",
+            expected.size, actual.size
+        )
+        for (i in expected.indices) {
+            assertEquals("STRUCTURES[$i] 名称", expected[i].name, actual[i].name)
+            assertEquals("STRUCTURES[${expected[i].name}] key", expected[i].key, actual[i].key)
+            assertEquals(
+                "STRUCTURES[${expected[i].name}] rect",
+                expected[i].rect.toList(), actual[i].rect.toList()
+            )
+            assertEquals(
+                "STRUCTURES[${expected[i].name}] footprint",
+                listOf(expected[i].fpW, expected[i].fpH),
+                listOf(actual[i].fpW, actual[i].fpH)
+            )
+            assertEquals(
+                "STRUCTURES[${expected[i].name}] sprite",
+                listOf(expected[i].sw, expected[i].sh),
+                listOf(actual[i].sw, actual[i].sh)
+            )
+        }
+    }
+
+    @Test
+    fun `GROUND_VARIANT_INDICES 与期望全等`() {
+        val src = source()
+        assertTrue("生成物缺少 GROUND_VARIANT_INDICES", src.contains("GROUND_VARIANT_INDICES"))
+        assertEquals(
+            "GROUND_VARIANT_INDICES 与期望不一致",
+            listOf(0),
+            parseGroundVariantIndices(src)
+        )
     }
 
     @Test
@@ -225,11 +267,50 @@ class SpriteAtlasDefGeneratedTest {
         }.toList()
     }
 
+    private fun parseStructures(src: String): List<StructureDef> {
+        val regex = Regex(
+            """^\s{8}StructureDef\("([^"]+)", "([^"]+)", SpriteRect\(""" +
+                """(\d+), (\d+), (\d+), (\d+)\), (\d+), (\d+), (\d+), (\d+)\)[,]?$""",
+            RegexOption.MULTILINE
+        )
+        return regex.findAll(src).map { m ->
+            StructureDef(
+                name = m.groupValues[1],
+                key = m.groupValues[2],
+                rect = intArrayOf(
+                    m.groupValues[3].toInt(), m.groupValues[4].toInt(),
+                    m.groupValues[5].toInt(), m.groupValues[6].toInt()
+                ),
+                fpW = m.groupValues[7].toInt(),
+                fpH = m.groupValues[8].toInt(),
+                sw = m.groupValues[9].toInt(),
+                sh = m.groupValues[10].toInt()
+            )
+        }.toList()
+    }
+
+    private fun parseGroundVariantIndices(src: String): List<Int> {
+        val regex = Regex("""GROUND_VARIANT_INDICES = intArrayOf\(([^)]*)\)""")
+        val body = regex.find(src)?.groupValues?.get(1)
+            ?: throw AssertionError("生成物中未找到 GROUND_VARIANT_INDICES")
+        return body.split(",").map { it.trim().toInt() }
+    }
+
     private data class Array5(
         val name: String,
         val key: String,
         val gridW: Int,
         val gridH: Int,
         val rect: IntArray,
+    )
+
+    private data class StructureDef(
+        val name: String,
+        val key: String,
+        val rect: IntArray,
+        val fpW: Int,
+        val fpH: Int,
+        val sw: Int,
+        val sh: Int,
     )
 }

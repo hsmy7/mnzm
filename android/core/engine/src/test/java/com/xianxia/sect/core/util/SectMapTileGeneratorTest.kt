@@ -39,7 +39,6 @@ class SectMapTileGeneratorTest {
         val result = SectMapTileGenerator.generateTileData(28, 28, 1.0f)
         val validValues = setOf(
             SectMapTileGenerator.TILE_GROUND,
-            SectMapTileGenerator.TILE_GROUND_V2,
             SectMapTileGenerator.TILE_GRASS_SMALL,
             SectMapTileGenerator.TILE_GRASS_MEDIUM,
             SectMapTileGenerator.TILE_GRASS_LARGE,
@@ -54,28 +53,11 @@ class SectMapTileGeneratorTest {
     }
 
     @Test
-    fun `generateTileData - has both ground variants`() {
-        val result = SectMapTileGenerator.generateTileData(28, 28, 0.0f)
-        var hasV1 = false
-        var hasV2 = false
-        for (row in result) {
-            for (value in row) {
-                if (value == SectMapTileGenerator.TILE_GROUND) hasV1 = true
-                if (value == SectMapTileGenerator.TILE_GROUND_V2) hasV2 = true
-            }
-        }
-        assertTrue("Expected TILE_GROUND", hasV1)
-        assertTrue("Expected TILE_GROUND_V2", hasV2)
-    }
-
-    @Test
-    fun `generateTileData - zero density produces only ground variants`() {
+    fun `generateTileData - zero density produces only ground`() {
         val result = SectMapTileGenerator.generateTileData(28, 28, 0.0f)
         for (row in result) {
             for (value in row) {
-                assertTrue("Expected ground variant, got $value",
-                    value == SectMapTileGenerator.TILE_GROUND ||
-                    value == SectMapTileGenerator.TILE_GROUND_V2)
+                assertEquals("期望单一地面草皮", SectMapTileGenerator.TILE_GROUND, value)
             }
         }
     }
@@ -236,5 +218,59 @@ class SectMapTileGeneratorTest {
         // All tiles are tree, which is skipped → mask stays 0
         // Edge tiles might not be computed due to boundary check
         assertEquals(0, mask[2][2].toInt())
+    }
+
+    @Test
+    fun `generateTileData - 128x128 宗门入口区域无装饰且与 seed 无关`() {
+        val cfg = com.xianxia.sect.core.GameConfig.SectMap
+        val result1 = SectMapTileGenerator.generateTileData(128, 128, 1.0f, 1, borderTreeRing = 3)
+        val result2 = SectMapTileGenerator.generateTileData(128, 128, 1.0f, 99999, borderTreeRing = 3)
+
+        // 门楼精灵包围盒（x∈[61,67), y∈[GATE_SPRITE_Y,128)）不得有树/装饰；
+        // 门楼左右两侧应保留边界硬装饰树（3 行）
+        val minX = cfg.GATE_X
+        val maxX = cfg.GATE_X + cfg.GATE_WIDTH
+        val minY = cfg.GATE_SPRITE_Y
+        val maxY = cfg.GATE_Y + cfg.GATE_HEIGHT
+        val decorValues = setOf(
+            SectMapTileGenerator.TILE_GRASS_SMALL,
+            SectMapTileGenerator.TILE_GRASS_MEDIUM,
+            SectMapTileGenerator.TILE_GRASS_LARGE,
+            SectMapTileGenerator.TILE_TREE1,
+            SectMapTileGenerator.TILE_TREE2
+        )
+        for (seedData in listOf(result1, result2)) {
+            for (y in minY until maxY) {
+                for (x in minX until maxX) {
+                    assertFalse(
+                        "宗门入口区域不应有装饰 ($x,$y)=${seedData[y][x]}",
+                        seedData[y][x] in decorValues
+                    )
+                }
+            }
+            // 门楼左右紧邻两列（x=60、x=67）应清空硬装饰
+            for (y in minY until maxY) {
+                assertEquals("门楼左列应清空", SectMapTileGenerator.TILE_GROUND, seedData[y][cfg.GATE_X - 1])
+                assertEquals("门楼右列应清空", SectMapTileGenerator.TILE_GROUND, seedData[y][maxX])
+            }
+            // 其余两侧底部 3 行（BORDER_TREE_RING）保留边界硬装饰树
+            val border = com.xianxia.sect.core.GameConfig.SectMap.BORDER_TREE_RING
+            for (y in 128 - border until 128) {
+                for (x in 0 until minX - 1) {
+                    assertTrue("门楼左侧底部应有硬装饰树 ($x,$y)", seedData[y][x] in decorValues)
+                }
+                for (x in maxX + 1 until 128) {
+                    assertTrue("门楼右侧底部应有硬装饰树 ($x,$y)", seedData[y][x] in decorValues)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `generateTileData - 小地图跳过宗门入口结构`() {
+        // 28x28 测试地图尺寸不足，不进入结构区域（不越界）
+        val result = SectMapTileGenerator.generateTileData(28, 28, 1.0f, 0, borderTreeRing = 3)
+        assertEquals(28, result.size)
+        assertEquals(28, result[0].size)
     }
 }

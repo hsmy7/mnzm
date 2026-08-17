@@ -39,6 +39,9 @@ static Renderer2D* g_renderer = nullptr;
 static TextureAtlas* g_atlas = nullptr;
 static float g_projMatrix[16]{};
 
+// 宗门地图单一无缝地面纹理（REPEAT 采样，整图铺）。0 = 未上传（回退逐格地面）
+static uint32_t g_groundTexId = 0;
+
 // 视口世界坐标范围（由 setCamera 更新，用于 drawAllTiles 的可见性检测）
 static float g_viewLeft   = 0.0f;
 static float g_viewTop    = 0.0f;
@@ -112,7 +115,7 @@ static inline bool isRectVisible(float x, float y, float w, float h) {
              y + h <= g_viewTop || y >= g_viewBottom);
 }
 
-// 瓷砖类型常量（TILE_GROUND / TILE_BUILDING / TILE_GROUND_V2）
+// 瓷砖类型常量（TILE_GROUND / TILE_BUILDING）
 // 由生成 TextureAtlas.h 提供（与 SpriteAtlasDef.TileType.index 同源，2026-08-13 收敛）
 
 // ============================================================
@@ -245,6 +248,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     memset(g_projMatrix, 0, sizeof(g_projMatrix));
     g_viewLeft = g_viewTop = g_viewRight = g_viewBottom = 0.0f;
     g_worldPixelsW = g_worldPixelsH = 0;
+    g_groundTexId = 0;  // 地面纹理随渲染器释放重置
     // 重置热控状态为默认全质量——新 surface 初始化后由 NativeSurfaceView
     // pushRenderQuality 重放当前值，此处仅防旧 surface 残留状态泄漏
     g_qualityFactor.store(1.0f);
@@ -284,6 +288,29 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadTexture(
     jbyte* pixels = env->GetByteArrayElements(pixelData, nullptr);
     uint32_t id = g_renderer->uploadTexture(pixels, width, height);
     env->ReleaseByteArrayElements(pixelData, pixels, JNI_ABORT);
+    return static_cast<jint>(id);
+}
+
+// ============================================================
+// 宗门地图单一无缝地面纹理上传（REPEAT 采样，整图铺）
+// ============================================================
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadGroundTexture(
+    JNIEnv* env, jobject /*thiz*/,
+    jbyteArray pixelData, jint width, jint height) {
+
+    if (!g_renderer) return 0;
+
+    jbyte* pixels = env->GetByteArrayElements(pixelData, nullptr);
+    uint32_t id = 0;
+    if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
+        id = vk->uploadRepeatTexture(pixels, width, height);
+    } else {
+        LOGE("uploadGroundTexture: 后端不支持（非 VulkanBackend）");
+    }
+    env->ReleaseByteArrayElements(pixelData, pixels, JNI_ABORT);
+    if (id != 0) g_groundTexId = id;
     return static_cast<jint>(id);
 }
 
@@ -445,16 +472,29 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     batcher.begin(g_projMatrix);
 
     // ---- 1. 瓦片层 ----
-    // 每格先画地面，再装饰叠加上方（建筑格的地面由建筑精灵覆盖）
-    // 同一 batcher 中先 add 的先画 → 地面最先画，装饰浮在地面上
-    // 地面纹理：默认格用 uvMap[TILE_GROUND]，TILE_GROUND_V2 用 uvMap[7]
-    //（TILE_GROUND_V2 / SPIRIT_* 索引全部由生成 TextureAtlas.h 提供，2026-08-13 收敛）
+    // 地面：单张无缝纹理整图铺（REPEAT 采样，UV=世界坐标/tileSize）。
+    // 1 UV 单位 = 1 格 = 32 世界像素 → 地面纹理 64×64 每格 2× 降采样，与逐格绘制同分辨率；
+    // 整图单 quad 消除逐格接缝。g_groundTexId==0（未上传）时回退逐格地面保证可见。
+    const float tileSizeF = (float)tileSize;
+
+    if (g_groundTexId != 0) {
+        float gx0 = std::max(0.0f, g_viewLeft);
+        float gy0 = std::max(0.0f, g_viewTop);
+        float gx1 = std::min((float)(cols * tileSize), g_viewRight);
+        float gy1 = std::min((float)(rows * tileSize), g_viewBottom);
+        if (gx1 > gx0 && gy1 > gy0) {
+            batcher.add(g_groundTexId,
+                gx0, gy0, gx1 - gx0, gy1 - gy0,
+                gx0 / tileSizeF, gy0 / tileSizeF,
+                gx1 / tileSizeF, gy1 / tileSizeF,
+                1.0f, 1.0f, 1.0f, fadeAlpha);
+        }
+    }
 
     // 可见范围钳制迭代（2026-08-14 平板省电优化）：此前双重循环遍历全部
     // rows×cols（128×128=16384 格）后逐格剔除，平板默认视口仅可见 ~1700 格。
     // 按 g_view* 世界坐标钳制行列区间（setCamera 同帧先写，天然可用）；
     // 树装饰为 2×2 格且向左上偏移 1 格，边界扩展 ±1 格保证边缘装饰不闪断。
-    const float tileSizeF = (float)tileSize;
     const int minCol = std::max(0, (int)std::floor(g_viewLeft / tileSizeF) - 1);
     const int maxCol = std::min(cols - 1, (int)std::ceil(g_viewRight / tileSizeF) + 1);
     const int minRow = std::max(0, (int)std::floor(g_viewTop / tileSizeF) - 1);
@@ -471,20 +511,24 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 可见性检测（钳制区间内仍保留——钳制边界含装饰溢出 1 格，地面格用精确检测）
             if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 
-            // (A) 地面底图（所有格子都有）
-            // 地面变体格(7)用自身纹理，其他格(0/装饰/建筑)用默认地面纹理uvMap[0]
-            int gIdx = (tile == TILE_GROUND_V2) ? 7 : 0;
-            // uvCount 是条目数（每组 4 个 float = 1 组 UV），gIdx 直接比较
-            if (gIdx < (int)uvCount) {
-                batcher.add(atlasTexId,
-                    wx - GAP_EPSILON, wy - GAP_EPSILON,
-                    (float)tileSize + 2.0f * GAP_EPSILON,
-                    (float)tileSize + 2.0f * GAP_EPSILON,
-                    uvs[gIdx * 4] + UV_EPSILON,
-                    uvs[gIdx * 4 + 1] + UV_EPSILON,
-                    uvs[gIdx * 4 + 2] - UV_EPSILON,
-                    uvs[gIdx * 4 + 3] - UV_EPSILON,
-                    1.0f, 1.0f, 1.0f, fadeAlpha);
+            // (A) 地面底图：上方整图地面 quad 已覆盖全部可见格；
+            //     g_groundTexId==0（未上传）时逐格回退绘制保证地面可见
+            if (g_groundTexId == 0) {
+                int gIdx = 0;
+                for (int gv = 0; gv < GROUND_VARIANT_COUNT; gv++) {
+                    if (tile == GROUND_VARIANTS[gv]) { gIdx = tile; break; }
+                }
+                if (gIdx < (int)uvCount) {
+                    batcher.add(atlasTexId,
+                        wx - GAP_EPSILON, wy - GAP_EPSILON,
+                        (float)tileSize + 2.0f * GAP_EPSILON,
+                        (float)tileSize + 2.0f * GAP_EPSILON,
+                        uvs[gIdx * 4] + UV_EPSILON,
+                        uvs[gIdx * 4 + 1] + UV_EPSILON,
+                        uvs[gIdx * 4 + 2] - UV_EPSILON,
+                        uvs[gIdx * 4 + 3] - UV_EPSILON,
+                        1.0f, 1.0f, 1.0f, fadeAlpha);
+                }
             }
 
             // (B) 装饰叠加层（草/树）
@@ -557,8 +601,21 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             float sh = buildings[idx + 3];   // 精灵高度
             int nameIdx = static_cast<int>(buildings[idx + 4]);
 
-            int fpW = (nameIdx >= 0 && nameIdx < FP_COUNT) ? FP_W[nameIdx] : 2;
-            int fpH = (nameIdx >= 0 && nameIdx < FP_COUNT) ? FP_H[nameIdx] : 2;
+            // 固定结构（宗门入口门楼/阶梯）nameIdx ≥ STRUCTURE_NAME_BASE：
+            // 占地来自 STRUCTURE_FP_W/H 表（供精灵底部对齐）；建筑走 FP_W/H
+            const bool isStructure = nameIdx >= STRUCTURE_NAME_BASE;
+            int fpW, fpH;
+            if (isStructure) {
+                const int si = nameIdx - STRUCTURE_NAME_BASE;
+                const int sfpCount = (int)(sizeof(STRUCTURE_FP_W) / sizeof(STRUCTURE_FP_W[0]));
+                if (si >= 0 && si < sfpCount) { fpW = STRUCTURE_FP_W[si]; fpH = STRUCTURE_FP_H[si]; }
+                else { fpW = 2; fpH = 2; }
+            } else if (nameIdx >= 0 && nameIdx < FP_COUNT) {
+                fpW = FP_W[nameIdx];
+                fpH = FP_H[nameIdx];
+            } else {
+                fpW = 2; fpH = 2;
+            }
 
             // 精灵底部对齐于占地网格：offsetX 居中，offsetY 底部对齐
             float offsetX = (fpW - sw) * tileSize * 0.5f;
@@ -581,13 +638,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 对抗性审查 M3/M4：负 nameIdx 直接负索引越界读（原条件只防上界）
             if (buvIdx < 0 || buvIdx >= (int)buvCount) buvIdx = 0;
 
-            // (A) 地砖底座（灵田除外），按占地尺寸绘制。
-            //    灵矿场使用专属地皮覆盖纹理，其他建筑使用通用地砖。
+            // (A) 地砖底座（灵田/灵矿场除外，直接坐落在草地），按占地尺寸绘制。
+            //    门楼（固定结构，占地 6×2）画地砖作基座；其余建筑用通用地砖。
             if (ftuvs != nullptr) {
                 int ftIdx = -1;
-                if (nameIdx == SPIRIT_MINE_NAME_INDEX) {
-                    ftIdx = SPIRIT_MINE_GROUND_UV_INDEX;
-                } else if (nameIdx != SPIRIT_FIELD_NAME_INDEX) {
+                if (nameIdx != SPIRIT_MINE_NAME_INDEX && nameIdx != SPIRIT_FIELD_NAME_INDEX) {
                     // 地砖索引由占地尺寸决定
                     int ftW = fpW, ftH = fpH;
                     if      (ftW == 2 && ftH == 2) ftIdx = 0;
@@ -605,6 +660,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     else if (ftW == 6 && ftH == 5) ftIdx = 2;  // 宽扁 → 3x2
                     else if (ftW == 6 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
                     else if (ftW == 5 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
+                    else if (ftW == 6 && ftH == 2) ftIdx = 2;  // 门楼 6x2 → 3x2（拉伸）
                 }
 
                 if (ftIdx >= 0 && ftIdx < (int)ftuvCount) {
@@ -620,7 +676,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // (A2) 建筑投影阴影（地砖之上、精灵之下，绘制顺序保证阴影被精灵覆盖）
             // 半透明黑 quad + 右下偏移 0.25 格（textureId=0 = 白色纹理 × 顶点色）
             // 坐标/常量与 BuildingRenderGeometry.shadowRect 同数学（双端一致）
-            if (g_buildingShadows.load()) {
+            // 固定结构（门楼/阶梯）不投影——避免阴影压到阶梯/地图底边外
+            if (g_buildingShadows.load() && !isStructure) {
                 float shx = ftPx + tileSize * SHADOW_OFFSET_TILES;
                 float shy = ftPy + tileSize * SHADOW_OFFSET_TILES;
                 batcher.add(0, shx, shy, ftPw, ftPh,

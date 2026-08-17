@@ -1,6 +1,9 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import androidx.core.graphics.createBitmap
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.SpriteAtlasDef
@@ -66,7 +69,11 @@ class SoftwareCanvasBackendAtlasTest {
 
     @Test
     fun `spriteAtlasDef - BUILDING_UV_MAP has correct size`() {
-        assertEquals(SpriteAtlasDef.BUILDING_NAMES.size * 4, SpriteAtlasDef.BUILDING_UV_MAP.size)
+        // 建筑 UV + 固定结构 UV（结构追加在尾部，nameIdx = BUILDING_NAMES.size + index）
+        assertEquals(
+            (SpriteAtlasDef.BUILDING_NAMES.size + SpriteAtlasDef.STRUCTURES.size) * 4,
+            SpriteAtlasDef.BUILDING_UV_MAP.size
+        )
     }
 
     // ============================================================
@@ -107,8 +114,8 @@ class SoftwareCanvasBackendAtlasTest {
     }
 
     @Test
-    fun `renderFrame - spirit mine uses custom ground cover`() {
-        // 灵矿场 nameIdx=0，应使用专属地皮覆盖（ftIdx=4）而非通用地砖
+    fun `renderFrame - spirit mine has no floor tile`() {
+        // 灵矿场 nameIdx=0，直接坐落在草地——不画任何地砖/地皮
         val frame = RenderFrame(
             camX = 0f, camY = 0f, scale = 1f,
             tileData = createFlatTileData(10, 10),
@@ -120,7 +127,7 @@ class SoftwareCanvasBackendAtlasTest {
             buildingVisible = true
         )
         val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("灵矿场地皮覆盖不应 crash", result)
+        assertNotNull("灵矿场无地砖不应 crash", result)
     }
 
     @Test
@@ -178,6 +185,7 @@ class SoftwareCanvasBackendAtlasTest {
         assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 4))  // 窄高 → 2x3
         assertEquals(2, SpriteAtlasDef.floorTileIndex(4, 3))  // 宽扁 → 3x2
         assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 5))  // 宽扁 → 3x2
+        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 2))  // 门楼占地 6x2 → 3x2
     }
 
     @Test
@@ -185,6 +193,61 @@ class SoftwareCanvasBackendAtlasTest {
         assertEquals(
             SpriteAtlasDef.BUILDING_NAMES.size,
             SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.size
+        )
+    }
+
+    @Test
+    fun `renderFrame - 固定结构门楼阶梯绘制不 crash`() {
+        // 结构条目（nameIdx = BUILDING_NAMES.size + index），渲染走建筑层
+        val base = SpriteAtlasDef.BUILDING_NAMES.size
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(20, 20),
+            cols = 20, rows = 20,
+            buildingData = createBuildingDataArray(
+                gridX = 2, gridY = 16, width = 6, height = 4, nameIdx = base
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        assertNotNull("固定结构（建筑层渲染）不应 crash", result)
+    }
+
+    @Test
+    fun `renderFrame - 固定结构精灵实际可见（像素级）`() {
+        // 全尺寸图集：全灰地面 + 门楼源矩形涂白（STRUCTURES[0].rect）
+        val fullAtlas = createBitmap(2048, 2048, Bitmap.Config.ARGB_8888)
+        val c = Canvas(fullAtlas)
+        c.drawRect(0f, 0f, 2048f, 2048f, Paint().apply { color = Color.rgb(100, 100, 100) })
+        val gateRect = SpriteAtlasDef.STRUCTURES[0].rect
+        c.drawRect(
+            gateRect.x.toFloat(), gateRect.y.toFloat(),
+            (gateRect.x + gateRect.w).toFloat(), (gateRect.y + gateRect.h).toFloat(),
+            Paint().apply { color = Color.WHITE }
+        )
+
+        // 门楼精灵 6×4 底部对齐占地 6×2，位于 (0,2) → 世界 y = 2*64 - (4-2)*64 = 0..256
+        val base = SpriteAtlasDef.BUILDING_NAMES.size
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(20, 20),
+            cols = 20, rows = 20,
+            buildingData = createBuildingDataArray(
+                gridX = 0, gridY = 2, width = 6, height = 4, nameIdx = base
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val result = backend.renderFrame(frame, fullAtlas, vpW = 400, vpH = 200)
+        assertNotNull(result)
+        val fb = result!!
+        // (200,100) 在门楼精灵内 → 白；(395,190) 在门楼外 → 地面灰
+        val gatePx = fb.getPixel(200, 100)
+        val groundPx = fb.getPixel(395, 190)
+        assertTrue(
+            "门楼精灵应真实上屏（gate=${Color.red(gatePx)}, ground=${Color.red(groundPx)}）",
+            Color.red(gatePx) > Color.red(groundPx) + 100
         )
     }
 
