@@ -1,4 +1,4 @@
-## [4.01.04] - 2026-08-18
+## [4.01.02] - 2026-08-18
 
 ### 优化（2026-08-18 血炼池材料选择界面：仓库全量妖血 + "使用"按钮 + 数量门槛 200→100）
 
@@ -10,8 +10,6 @@
 - **布局修复** — 材料列表改为内部滚动（`weight(1f)` + `verticalScroll`），「使用」按钮固定在底部常驻可见——此前列表直接铺在半屏非滚动内容区，18 张卡会溢出裁剪且按钮不可达
 - **门槛调整** — `BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT` 200→100，血炼消耗/校验/提示文案全部走该常量（含 `startBloodRefinementAtomic` 的 `materialCount`）
 - **验证** — `:feature:game:compileDebugKotlin` 通过
-
-## [4.01.03] - 2026-08-18
 
 ### 修复（2026-08-18 仓库容量不足时获得物品导致仓库内相同物品消失）
 
@@ -27,8 +25,6 @@
 - **治本** — 溢出草稿链路（`OverflowMailDraft`/`PersistedOverflowDraft`/Room 表 `overflow_mail_drafts` 新增 `itemId` 列，DB v47→v48 + `MIGRATION_47_48`）透传物品模板 id；`InventorySystem` 新增 `resolveOverflowItemId` 按模板属性（名称/稀有度/品阶/分类/生长时间等）反查精确模板 id，灵田直传路径直接透传模板 id——溢出邮件领取即精确还原原物品
 - **兼容性** — 旧草稿 `itemId` 为空串时领取方回退原随机生成逻辑（仅不精确、不丢资产）；新增 `RoomMigrationV47To48Test` + 溢出邮件模板 id 回归测试
 - **验证** — `:core:domain` / `:core:data`（含全迁移链）/ `:core:engine` / `:app` 仓库与邮件相关测试套件全绿
-
-## [4.01.02] - 2026-08-18
 
 ### 修复（2026-08-18 TapTap 快捷登录卡在登录界面：实名认证弹窗静默失败可恢复）
 
