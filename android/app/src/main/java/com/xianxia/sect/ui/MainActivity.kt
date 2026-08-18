@@ -29,7 +29,9 @@ import androidx.compose.ui.unit.sp
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.components.ImeVisibilityTracker
 import com.xianxia.sect.ui.components.SystemBarFreezeScope
@@ -185,6 +187,25 @@ class MainActivity : ComponentActivity() {
 
     /** 防沉迷验证超时兜底任务（验证成功回调后自动失效） */
     private var complianceTimeoutJob: Job? = null
+
+    /**
+     * 防沉迷验证单飞守卫。
+     *
+     * tap-compliance 4.10.5 的 isRunning 静态标记（进程内不重置）只在其内部
+     * `notifyMessageInternal` 终端回调处复位；若一次 startup 静默失败（实名认证
+     * DialogFragment 展示失败/无回调），isRunning 会永久为 true，导致同进程内后续
+     * `TapTapCompliance.startup()` 直接静默返回（"try startup failed, cause another
+     * check is running"）。本标记在终端回调/超时恢复处复位，保证：
+     * 1) 同一时刻只发起一次 startup（避免 SDK isRunning 竞争）；2) 静默失败后
+     * 允许在稳定状态重试（配合 [ComplianceManager.resetSdkRunningState] 反射复位）。
+     */
+    private var complianceCheckInFlight = false
+
+    /**
+     * 登录成功路径的延迟启动已触发标记（一次性语义）。
+     * 防止 repeatOnLifecycle 在 Activity 后台→前台切换时重复触发合规检查。
+     */
+    private var complianceCheckDeferredStarted = false
 
     /** D-42：合规回调窗口端口（登录窗口适配器，宿主按接口转发） */
     private val complianceWindowPort = object : com.xianxia.sect.taptap.ComplianceCallbackHost.WindowPort {
@@ -714,15 +735,22 @@ class MainActivity : ComponentActivity() {
 
     /** 合规验证成功（登录窗口回调）：标记已验证 + 进入模式选择 */
     internal fun onComplianceLoginSuccess() {
+        complianceCheckInFlight = false
+        Log.i(TAG, "防沉迷验证成功（CODE_LOGIN_SUCCESS），进入模式选择")
         sessionManager.markComplianceVerified()
         showModeSelectionScreen()
     }
 
     /** SDK 要求退出（退出/切换账号/实名停止统一入口，登录窗口回调） */
-    internal fun onComplianceExited() = handleUserExit()
+    internal fun onComplianceExited() {
+        complianceCheckInFlight = false
+        handleUserExit()
+    }
 
     /** 合规网络异常（登录窗口回调）：提示 + 回主界面 */
     internal fun onComplianceNetworkError() {
+        complianceCheckInFlight = false
+        Log.w(TAG, "防沉迷验证网络异常（CODE_NETWORK_ERROR）")
         Toast.makeText(this, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show()
         showMainScreen()
     }
@@ -737,15 +765,48 @@ class MainActivity : ComponentActivity() {
         complianceDialogState.value = ComplianceDialogState.AgeLimit
     }
     
+    /**
+     * 登录成功路径：延迟到 Activity 稳定进入 RESUMED 后再启动防沉迷验证。
+     *
+     * 根因（tap-compliance 4.10.5 反编译证据）：登录成功回调常落在 TapTap 授权页
+     * 关闭的转场窗口期（onActivityResult → onResume 之间），此时立即调用
+     * `TapTapCompliance.startup()` 会导致其实名认证 DialogFragment（经
+     * `activity.getFragmentManager().show()`）展示失败且无任何回调，用户卡死在
+     * 登录界面（会话已存为"已登录+未验证"）。重进后从稳定 RESUMED 状态再次
+     * startup 即恢复正常——"等 resumed 再启动"即修复。
+     */
+    internal fun startComplianceCheckWhenResumed(unionId: String) {
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                if (!complianceCheckDeferredStarted) {
+                    complianceCheckDeferredStarted = true
+                    startComplianceCheck(unionId)
+                }
+            }
+        }
+    }
+
+    /**
+     * 发起防沉迷验证（单飞守卫）。
+     *
+     * [complianceCheckInFlight] 保证同一时刻只发起一次 startup，避免与 SDK
+     * `isRunning` 静态标记竞争（后续 startup 会静默 no-op）；静默失败后的进程内
+     * 重试由 [recoverComplianceStuckState] 复位后再次发起。
+     */
     internal fun startComplianceCheck(unionId: String) {
+        if (complianceCheckInFlight) {
+            Log.w(TAG, "防沉迷验证已在执行，忽略重复启动（避免 SDK isRunning 竞争）")
+            return
+        }
+        complianceCheckInFlight = true
         Log.d(TAG, "开始合规认证检查，unionId: $unionId")
         ComplianceManager.startup(this, unionId)
         scheduleComplianceTimeoutHint()
     }
 
     /**
-     * 防沉迷验证超时兜底：SDK 静默失败（startup 后无任何回调，如残留会话
-     * 场景）时弹提示引导重新登录，避免用户无反馈地卡在登录界面。
+     * 防沉迷验证超时兜底：SDK 静默失败（startup 后无任何回调）时进入进程内
+     * 可恢复流程，避免用户无反馈地卡在登录界面。
      * 验证成功（[SessionManager.complianceVerified] 置位）后自动失效。
      */
     private fun scheduleComplianceTimeoutHint() {
@@ -753,12 +814,39 @@ class MainActivity : ComponentActivity() {
         complianceTimeoutJob = lifecycleScope.launch {
             delay(COMPLIANCE_TIMEOUT_MS)
             if (!sessionManager.complianceVerified && !isFinishing && !isDestroyed) {
+                Log.w(TAG, "防沉迷验证超时（SDK 静默失败无回调），进入可恢复流程")
                 Toast.makeText(
                     this@MainActivity,
-                    "实名认证无响应，请退出后重新登录",
+                    "实名认证无响应，请点击重新认证",
                     Toast.LENGTH_LONG
                 ).show()
+                recoverComplianceStuckState()
             }
+        }
+    }
+
+    /**
+     * SDK 静默失败后的进程内恢复（替代"只能杀进程重进"）：
+     *
+     * 1. `ComplianceManager.exit()` 解绑用户（清 SDK 会话残留）；
+     * 2. 反射复位 `TapComplianceInternal.isRunning`——该静态标记只在 SDK 内部
+     *    `notifyMessageInternal` 终端回调处复位，静默失败路径不会走到，且
+     *    `exit()` 也不复位；不复位则同进程内后续 startup 必静默失败（与
+     *    "杀进程重进后才弹实名认证"的用户反馈自证一致）；
+     * 3. 复位单飞守卫；
+     * 4. 路由到 app 自有实名认证界面（重进路径已被证明有效），用户在稳定状态
+     *    点击「开始认证」手动重试。
+     */
+    private fun recoverComplianceStuckState() {
+        runCatching { ComplianceManager.exit() }
+        runCatching { ComplianceManager.resetSdkRunningState() }
+        complianceCheckInFlight = false
+        val savedUnionId = sessionManager.unionId
+        if (!savedUnionId.isNullOrEmpty()) {
+            showComplianceVerificationScreen(savedUnionId)
+        } else {
+            Log.w(TAG, "恢复流程缺少 unionId，回主界面")
+            showMainScreen()
         }
     }
     
@@ -1161,7 +1249,11 @@ private fun TapTapLoginButton(
                             onInitFailed = { e ->
                                 Log.e("MainActivity", "SDK 服务初始化异常（不影响登录流程）", e)
                             },
-                            block = { act.startComplianceCheck(unionId) }
+                            // 延迟到 Activity 稳定 RESUMED 后再启动防沉迷验证：
+                            // 登录回调落在授权页转场窗口期，立即 startup 会因宿主
+                            // Activity 未稳定导致实名认证弹窗展示失败（SDK 静默 no-op，
+                            // 无回调无 UI）→ 用户卡在登录界面
+                            block = { act.startComplianceCheckWhenResumed(unionId) }
                         )
                     }
                 }

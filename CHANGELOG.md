@@ -1,3 +1,16 @@
+## [4.01.02] - 2026-08-18
+
+### 修复（2026-08-18 TapTap 快捷登录卡在登录界面：实名认证弹窗静默失败可恢复）
+
+> 背景：部分用户首次 TapTap 登录后卡在登录界面进不去，杀掉重进后才弹出实名认证界面。根因（tap-compliance 4.10.5 反编译证据）：① 登录成功回调常落在 TapTap 授权页关闭的转场窗口期（onActivityResult → onResume 之间），此时立即调用 `TapTapCompliance.startup()` 会导致其实名认证 DialogFragment（经 `activity.getFragmentManager().show()` 展示）失败且无任何回调——SDK 静默 no-op，但会话已存为"已登录+未验证"，用户被卡死；② SDK 的 `isRunning` 静态标记（进程内不重置）只在内部 `notifyMessageInternal` 终端回调处复位，静默失败路径不会走到（`exit()` 也不复位），导致同进程内后续 startup 全部静默返回——只有杀进程重启能复位，与"重进后才弹实名认证"的用户反馈自证一致。
+
+- **治本：修正启动时机** — 登录成功回调不再立即启动防沉迷验证，改为 `lifecycle.repeatOnLifecycle(RESUMED)` 等 Activity 稳定进入 RESUMED 后再 `TapTapCompliance.startup()`（`startComplianceCheckWhenResumed`），避开转场窗口期弹窗展示失败
+- **兜底：静默失败进程内可恢复** — 30s 无回调超时后不再只弹 toast，改为 `ComplianceManager.exit()` 解绑 + 反射复位 SDK 卡死的 `TapComplianceInternal.isRunning` + 路由到 app 自有「实名认证」界面（重进路径已被证明有效）手动重试，替代"只能杀进程重进"；该界面「开始认证」在稳定状态再次 startup 即恢复
+- **防重入单飞** — `complianceCheckInFlight` 守卫保证同一时刻只发起一次 startup（防 SDK `isRunning` 竞争）；终端回调（成功/退出/网络异常）处复位
+- **可观测性** — `ComplianceManager.startup()` 日志增强（activity 类名 / isFinishing / isDestroyed）；新增 `resetSdkRunningState()`；复现排查关键词：`try startup failed, cause another check is running`（isRunning 卡死）/ `当前应用未初始化`（checkInitialize 未通过）/ `go tap fast auth`（进入正常流程但弹窗展示阶段失败）
+- **验证** — `compileDebugKotlin` + taptap/SafeRunAfterSdkInit 单测 + `:app:detekt` 全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）
+
 ## [4.01.01] - 2026-08-16
 
 ### 新增（宗门地图无缝草皮整图铺 + 宗门入口门楼）

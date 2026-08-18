@@ -100,12 +100,39 @@ object ComplianceManager {
     }
 
     fun startup(activity: Activity, userIdentifier: String) {
-        Log.d(TAG, "启动合规认证，userIdentifier: $userIdentifier")
+        Log.d(
+            TAG,
+            "启动合规认证，userIdentifier: $userIdentifier, " +
+                "activity=${activity.javaClass.simpleName}, " +
+                "finishing=${activity.isFinishing}, destroyed=${activity.isDestroyed}"
+        )
         try {
             TapTapCompliance.startup(activity, userIdentifier)
         } catch (e: Exception) {
             Log.e(TAG, "启动合规认证失败: ${e.message}", e)
             callback?.onNetworkError()
+        }
+    }
+
+    /**
+     * 复位 tap-compliance 卡死的运行状态（静默失败后的进程内恢复用）。
+     *
+     * tap-compliance 4.10.5 的 `TapComplianceInternal.isRunning` 静态标记仅在内部
+     * `notifyMessageInternal` 终端回调处复位；若一次 startup 静默失败（实名认证
+     * DialogFragment 展示失败 / 无任何回调），该标记保持 true，同进程内后续
+     * `TapTapCompliance.startup()` 直接静默返回（日志 "try startup failed, cause
+     * another check is running"），且 `exit()` 不复位它。反射复位与
+     * [TapTapAuthManager.ensureTapTapKitContext] 兜底同模式。
+     */
+    fun resetSdkRunningState() {
+        try {
+            val clazz = Class.forName("com.taptap.sdk.compliance.internal.TapComplianceInternal")
+            val field = clazz.getDeclaredField("isRunning")
+            field.isAccessible = true
+            field.setBoolean(null, false)
+            Log.d(TAG, "已复位 TapComplianceInternal.isRunning（防沉迷验证可重新启动）")
+        } catch (e: Exception) {
+            Log.e(TAG, "复位 TapComplianceInternal.isRunning 失败: ${e.message}", e)
         }
     }
 
