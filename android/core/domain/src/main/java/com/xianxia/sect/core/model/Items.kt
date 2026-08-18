@@ -87,6 +87,8 @@ data class EquipmentStack(
 
     override fun withQuantity(newQuantity: Int): EquipmentStack = copy(quantity = newQuantity)
 
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
+
     val basePrice: Int get() = EquipmentDatabase.getTemplateByName(name)?.price
         ?: GameConfig.Rarity.get(rarity).basePrice
 
@@ -426,6 +428,8 @@ data class ManualStack(
 ) : GameItem(), StackableItem {
 
     override fun withQuantity(newQuantity: Int): ManualStack = copy(quantity = newQuantity)
+
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
 
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).basePrice
 
@@ -780,6 +784,8 @@ data class Pill(
 
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
 
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
+
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).pillBasePrice * grade.priceMultiplier).roundToInt()
 
     val breakthroughChance: Double get() = effects.breakthroughChance
@@ -959,6 +965,8 @@ data class Material(
 
     override fun withQuantity(newQuantity: Int): Material = copy(quantity = newQuantity)
 
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
+
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).materialBasePrice
 }
 
@@ -1033,6 +1041,8 @@ data class Herb(
 
     override fun withQuantity(newQuantity: Int): Herb = copy(quantity = newQuantity)
 
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
+
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).herbPrice
 }
 
@@ -1075,6 +1085,8 @@ data class Seed(
 ) : GameItem(), StackableItem {
 
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
+
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
 
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).seedPrice
 }
@@ -1142,6 +1154,8 @@ data class StorageBag(
 ) : HasId, StackableItem {
 
     override fun withQuantity(newQuantity: Int): StorageBag = copy(quantity = newQuantity)
+
+    override fun withNewId(newId: String): StackableItem = copy(id = newId)
 
     companion object {
         val TIER_NAMES = listOf("凡品储物袋", "灵品储物袋", "宝品储物袋", "玄品储物袋", "地品储物袋", "天品储物袋")

@@ -24,6 +24,7 @@ data class OverflowMailDraftEntity(
     val source: String,
     val itemType: String,
     val itemName: String,
+    val itemId: String = "",
     val rarity: Int,
     val quantity: Int,
     val createdAt: Long
@@ -61,7 +62,7 @@ interface MailDraftDao {
 
     /** 读取全量溢出草稿行（按 createdAt 升序——先入先转邮件） */
     @Query(
-        "SELECT id, slotId, source, itemType, itemName, rarity, quantity, createdAt " +
+        "SELECT id, slotId, source, itemType, itemName, itemId, rarity, quantity, createdAt " +
             "FROM overflow_mail_drafts ORDER BY createdAt ASC"
     )
     fun getPersistedOverflowDrafts(): List<PersistedOverflowDraft>

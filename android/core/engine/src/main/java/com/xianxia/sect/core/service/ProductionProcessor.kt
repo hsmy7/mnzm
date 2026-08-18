@@ -401,13 +401,15 @@ class ProductionProcessor @Inject constructor(
             is DomainResult.Success -> finalYield
             is DomainResult.Partial -> {
                 inventorySystem.sendOverflowMail(
-                    "spirit_field", "herb", dbHerb.name, dbHerb.rarity, result.overflow
+                    "spirit_field", "herb", dbHerb.name, dbHerb.rarity, result.overflow,
+                    itemId = dbHerb.id
                 )
                 finalYield - result.overflow
             }
             is DomainResult.Failure -> {
                 inventorySystem.sendOverflowMail(
-                    "spirit_field", "herb", dbHerb.name, dbHerb.rarity, finalYield
+                    "spirit_field", "herb", dbHerb.name, dbHerb.rarity, finalYield,
+                    itemId = dbHerb.id
                 )
                 0
             }
@@ -458,7 +460,8 @@ class ProductionProcessor @Inject constructor(
             is DomainResult.Success -> Unit
             is DomainResult.Partial -> {
                 inventorySystem.sendOverflowMail(
-                    "spirit_field", "seed", template.name, template.rarity, result.overflow
+                    "spirit_field", "seed", template.name, template.rarity, result.overflow,
+                    itemId = template.id
                 )
                 DomainLog.w(
                     TAG, "灵田收获 ${template.name} 仓库空间不足，" +
@@ -467,7 +470,8 @@ class ProductionProcessor @Inject constructor(
             }
             is DomainResult.Failure -> {
                 inventorySystem.sendOverflowMail(
-                    "spirit_field", "seed", template.name, template.rarity, roll
+                    "spirit_field", "seed", template.name, template.rarity, roll,
+                    itemId = template.id
                 )
                 DomainLog.w(
                     TAG, "灵田收获 ${template.name} 仓库空间不足，$roll 颗种子全部转邮件"

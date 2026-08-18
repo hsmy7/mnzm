@@ -12,6 +12,8 @@ package com.xianxia.sect.core.overflow
  * @param itemName 物品名称
  * @param rarity 稀有度
  * @param quantity 溢出数量（未入仓数量）
+ * @param itemId 物品模板 id（如丹药模板 "breakthrough_2_low"）——邮件领取时据此
+ *   精确还原物品；缺省/未命中时由领取方回退随机生成（仅防丢失，不保证精确）
  */
 data class OverflowMailDraft(
     val slotId: Int,
@@ -19,7 +21,8 @@ data class OverflowMailDraft(
     val itemType: String,
     val itemName: String,
     val rarity: Int,
-    val quantity: Int
+    val quantity: Int,
+    val itemId: String = ""
 )
 
 /**
@@ -40,7 +43,8 @@ data class PersistedOverflowDraft(
     val itemName: String,
     val rarity: Int,
     val quantity: Int,
-    val createdAt: Long
+    val createdAt: Long,
+    val itemId: String = ""
 )
 
 /**

@@ -5,6 +5,10 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb
@@ -114,7 +118,48 @@ class InventorySystem @Inject constructor(
             }
             else -> return
         }
-        sendOverflowMail(trackingSource, itemType, stackable.name, stackable.rarity, overflowQty)
+        sendOverflowMail(
+            trackingSource, itemType, stackable.name, stackable.rarity, overflowQty,
+            itemId = resolveOverflowItemId(itemType, stackable)
+        )
+    }
+
+    /**
+     * 解析溢出物品的**模板 id**（非实例 UUID），供溢出邮件领取时精确还原物品——
+     * 否则领取方只能按稀有度随机生成（"回气丹"溢出邮件可能领到同稀有度的其它丹药）。
+     *
+     * 各类型按模板属性（名称/稀有度/品阶/分类等）反查数据库模板；未命中返回空串，
+     * 领取方回退既有随机生成逻辑（仅不精确，不丢失资产）。
+     */
+    private fun resolveOverflowItemId(itemType: String, item: StackableItem): String = when (itemType) {
+        "pill" -> (item as? Pill)?.let {
+            ItemDatabase.allPills.values.firstOrNull { p ->
+                p.name == it.name && p.rarity == it.rarity &&
+                    p.category == it.category && p.grade == it.grade
+            }?.id ?: ""
+        } ?: ""
+        "material" -> (item as? Material)?.let {
+            ItemDatabase.allMaterials.values.firstOrNull { m ->
+                m.name == it.name && m.rarity == it.rarity && m.category == it.category
+            }?.id ?: ""
+        } ?: ""
+        "herb" -> (item as? Herb)?.let {
+            HerbDatabase.getHerbsByTier(it.rarity).firstOrNull { h ->
+                h.name == it.name && h.category == it.category
+            }?.id ?: ""
+        } ?: ""
+        "seed" -> (item as? Seed)?.let {
+            HerbDatabase.getAllSeeds().firstOrNull { s ->
+                s.name == it.name && s.rarity == it.rarity && s.growTime == it.growTime
+            }?.id ?: ""
+        } ?: ""
+        "equipment" -> (item as? EquipmentStack)?.let {
+            EquipmentDatabase.getTemplateByName(it.name)?.id ?: ""
+        } ?: ""
+        "manual" -> (item as? ManualStack)?.let {
+            ManualDatabase.getByName(it.name)?.id ?: ""
+        } ?: ""
+        else -> ""
     }
 
     /**
@@ -126,8 +171,16 @@ class InventorySystem @Inject constructor(
      * @param itemName 物品名称
      * @param rarity 稀有度
      * @param quantity 溢出数量（>0 才发送）
+     * @param itemId 物品模板 id（精确还原用；调用方有模板时传，缺省空串）
      */
-    fun sendOverflowMail(source: String, itemType: String, itemName: String, rarity: Int, quantity: Int) {
+    fun sendOverflowMail(
+        source: String,
+        itemType: String,
+        itemName: String,
+        rarity: Int,
+        quantity: Int,
+        itemId: String = ""
+    ) {
         if (overflowMailSuppressed) return
         if (quantity <= 0) return
         overflowMailHandler.sendOverflowMails(listOf(
@@ -136,6 +189,7 @@ class InventorySystem @Inject constructor(
                 source = source,
                 itemType = itemType,
                 itemName = itemName,
+                itemId = itemId,
                 rarity = rarity,
                 quantity = quantity
             )

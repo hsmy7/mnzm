@@ -236,6 +236,7 @@ class OverflowMailSender @Inject constructor(
                 source = d.source,
                 itemType = d.itemType,
                 itemName = d.itemName,
+                itemId = d.itemId,
                 rarity = d.rarity,
                 quantity = d.quantity,
                 createdAt = now
@@ -336,7 +337,8 @@ class OverflowMailSender @Inject constructor(
                         type = draft.itemType,
                         name = draft.itemName,
                         quantity = draft.quantity,
-                        rarity = draft.rarity
+                        rarity = draft.rarity,
+                        itemId = draft.itemId.ifBlank { null }
                     )
                 }
                 val mail = buildOverflowMail(

@@ -21,6 +21,7 @@ class StackableItemStoreTest {
         val category: String = ""
     ) : HasId, StackableItem {
         override fun withQuantity(newQuantity: Int) = copy(quantity = newQuantity)
+        override fun withNewId(newId: String) = copy(id = newId)
     }
 
     @Before

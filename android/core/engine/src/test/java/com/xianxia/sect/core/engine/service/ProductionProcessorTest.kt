@@ -827,7 +827,7 @@ class ProductionProcessorTest {
             state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED])
         assertEquals("年度收获数累计 +300", 300, state.gameData.annualHerbCount)
         assertEquals("年度来源统计累计 1500", 1500, state.gameData.annualHerbBySource["spirit_field"])
-        verify(inventorySystem, never()).sendOverflowMail(any(), any(), any(), any(), any())
+        verify(inventorySystem, never()).sendOverflowMail(any(), any(), any(), any(), any(), any())
     }
 
     @Test
@@ -911,7 +911,7 @@ class ProductionProcessorTest {
         val processor = createProcessor(inventorySystem = inventorySystem)
         processor.processSpiritFieldHarvest(state)
         // 溢出全量 5 株转邮件（满堆叠零合并且无空槽 → Failure 分支，与 Partial 同为溢出转邮件路径）
-        verify(inventorySystem).sendOverflowMail("spirit_field", "herb", dbHerb.name, dbHerb.rarity, 5)
+        verify(inventorySystem).sendOverflowMail("spirit_field", "herb", dbHerb.name, dbHerb.rarity, 5, dbHerb.id)
         assertEquals("年度来源统计按实际入库 0", 0, state.gameData.annualHerbBySource["spirit_field"])
         assertEquals("仓库记录数不变（无新堆叠）", 50, state.herbs.all().size)
         assertEquals("引导计数仍累计（收获行为本身成功）", 1L,
@@ -956,7 +956,7 @@ class ProductionProcessorTest {
         val state = createState(plants = listOf(plant), herbs = fullStacks, gameYear = 4, gameMonth = 1)
         val inventorySystem = mock<InventorySystem>()
         // 仓库满 → 溢出转邮件 → 邮件系统异常（模拟故障）
-        whenever(inventorySystem.sendOverflowMail(any(), any(), any(), any(), any()))
+        whenever(inventorySystem.sendOverflowMail(any(), any(), any(), any(), any(), any()))
             .thenThrow(RuntimeException("邮件系统故障"))
         createProcessor(inventorySystem = inventorySystem).processSpiritFieldHarvest(state)
 
@@ -1089,7 +1089,7 @@ class ProductionProcessorTest {
         val inventorySystem = mock<InventorySystem>()
         createProcessor(inventorySystem = inventorySystem, seedRoll = 2).processSpiritFieldHarvest(state)
 
-        verify(inventorySystem).sendOverflowMail("spirit_field", "seed", "聚灵草种", dbSeed.rarity, 2)
+        verify(inventorySystem).sendOverflowMail("spirit_field", "seed", "聚灵草种", dbSeed.rarity, 2, dbSeed.id)
         assertEquals("溢出的种子不入仓", 50, state.seeds.all().size)
         assertTrue("仓库无聚灵草种", state.seeds.all().none { it.name == "聚灵草种" })
         assertEquals("邮件部分不参与续种 → 田清空", "",

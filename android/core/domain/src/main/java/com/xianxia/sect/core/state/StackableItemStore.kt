@@ -56,6 +56,9 @@ class StackableItemStore<T>(
 
     init { rebuildKeyIndex() }
 
+    /** 生成新堆叠唯一 id（分块创建时避免同 id 多堆叠破坏唯一性）。 */
+    private fun newId(): String = java.util.UUID.randomUUID().toString()
+
     // === 读取 ===
 
     /** O(1) ID 查找 */
@@ -147,12 +150,24 @@ class StackableItemStore<T>(
             }
 
             // 分块创建：单次添加数量可能超过 maxStack，逐块生成不超过上限的堆叠
+            // ★ 修复（仓库满时获得物品导致仓库内相同物品消失）：
+            //   多分块若复用同一 item.id 会破坏 id 唯一性——EntityStore 按 id 索引
+            //   只保留一条、DB 主键 (id, slot) REPLACE 去重，导致堆叠在保存/重载后
+            //   静默丢失。因此仅首个分块保留物品原 id（兼容既有语义），后续分块
+            //   必须生成新 id。
+            var chunkIndex = 0
             while (remaining > 0 && store.size < maxSlots()) {
                 val chunk = minOf(remaining, maxStack)
-                val newItem = item.withQuantity(chunk) as T
+                val base = item.withQuantity(chunk) as T
+                val newItem = if (chunkIndex == 0 && store.get(base.id) == null) {
+                    base
+                } else {
+                    base.withNewId(newId()) as T
+                }
                 store.add(newItem)
                 keyIndex.getOrPut(key) { mutableListOf() }.add(newItem.id)
                 remaining -= chunk
+                chunkIndex++
             }
             if (remaining > 0) {
                 // 槽位中途耗尽：返回 Partial（溢出量=剩余）

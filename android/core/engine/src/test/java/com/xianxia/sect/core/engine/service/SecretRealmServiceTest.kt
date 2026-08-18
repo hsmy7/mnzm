@@ -563,7 +563,8 @@ class SecretRealmServiceTest {
             org.mockito.kotlin.eq("material"),
             org.mockito.kotlin.eq("非法材料"),
             org.mockito.ArgumentMatchers.anyInt(),
-            org.mockito.ArgumentMatchers.anyInt()
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyString()
         )
     }
 
@@ -599,7 +600,8 @@ class SecretRealmServiceTest {
             org.mockito.kotlin.eq("material"),
             org.mockito.kotlin.eq("虎骨"),
             org.mockito.ArgumentMatchers.anyInt(),
-            org.mockito.ArgumentMatchers.anyInt()
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyString()
         )
     }
 }

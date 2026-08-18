@@ -14,15 +14,15 @@ import org.robolectric.annotation.Config
 import java.io.File
 
 /**
- * 迁移 46→47 测试（game_data 新增"新增天赋/体质/词条"待确认产物列 pending_trait_adds）。
+ * 迁移 47→48 测试（overflow_mail_drafts 新增 item_id 列）。
  *
- * 背景（2026-08-15 玉符消耗玩法扩展）：新增天赋/体质/词条的刷新产物必须持久化——
- * 刷新（消耗 1 玉符）后不确认直接关闭界面，下次打开仍显示该产物并可直接确认新增。
- * 产物为 List[PendingTraitAdd]，经 ProtobufConverters 序列化为 Base64 存 TEXT 列。
+ * 背景（溢出邮件领取发放错误物品）：溢出邮件附件此前只携带 name/rarity，
+ * 领取时按稀有度随机生成物品。新增 item_id 列持久化物品模板 id，
+ * drain 构建附件时透传，领取方据此精确还原原物品。
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
-class RoomMigrationV46To47Test {
+class RoomMigrationV47To48Test {
 
     companion object {
         /** Schema 文件所在目录（相对于模块根目录） */
@@ -31,23 +31,22 @@ class RoomMigrationV46To47Test {
             "com.xianxia.sect.data.local.GameDatabase"
         )
 
-        private val M46_47 = MIGRATION_46_47
         private val M47_48 = MIGRATION_47_48
     }
 
     /**
-     * 真实 Room 校验：v46 库升级到 v47，触发 onValidateSchema——
-     * 任何列定义与实体注解不一致都会在此崩溃。47.json 由 ksp 自动导出。
+     * 真实 Room 校验：v47 库升级到 v48，触发 onValidateSchema——
+     * 任何列定义与实体注解不一致都会在此崩溃。48.json 由 ksp 自动导出。
      */
     @Test
-    fun `MIGRATION_46_TO_47 passes real Room schema validation`() {
+    fun `MIGRATION_47_TO_48 passes real Room schema validation`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "m_46_47_room_validate"
+        val dbName = "m_47_48_room_validate"
         context.deleteDatabase(dbName)
         try {
-            createDatabaseFromSchema(context, dbName, 46).close()
+            createDatabaseFromSchema(context, dbName, 47).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M46_47, M47_48)
+                .addMigrations(M47_48)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -57,28 +56,27 @@ class RoomMigrationV46To47Test {
     }
 
     @Test
-    fun `MIGRATION_46_TO_47 adds pending_trait_adds column default empty keeps other data`() {
+    fun `MIGRATION_47_TO_48 adds itemId column default empty keeps other data`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "m_46_47_columns"
+        val dbName = "m_47_48_columns"
         context.deleteDatabase(dbName)
         try {
-            val db = createDatabaseFromSchema(context, dbName, 46)
-            // v46 库 seed 一行 game_data（动态构建 INSERT：按 PRAGMA table_info 全部列填默认值）
-            insertMinimalGameDataRow(db, "gd_46", 1)
-            listOf(M46_47).forEach { it.migrate(db) }
+            val db = createDatabaseFromSchema(context, dbName, 47)
+            // v47 库 seed 一行溢出草稿（动态按列填默认值）
+            insertMinimalOverflowDraftRow(db, "draft_47")
+            listOf(M47_48).forEach { it.migrate(db) }
 
-            // 新列存在且旧行默认空字符串（空列表编码）
-            assertTrue("pending_trait_adds 列应存在", columnExists(db, "game_data", "pending_trait_adds"))
-            val pendingValue = db.query(
-                "SELECT pending_trait_adds FROM game_data WHERE id = 'gd_46'"
+            assertTrue("itemId 列应存在", columnExists(db, "overflow_mail_drafts", "itemId"))
+            val itemId = db.query(
+                "SELECT itemId FROM overflow_mail_drafts WHERE id = 'draft_47'"
             ).use { c -> c.moveToFirst(); c.getString(0) }
-            assertEquals("旧行 pending_trait_adds 默认空字符串", "", pendingValue)
+            assertEquals("旧行 itemId 默认空字符串", "", itemId)
 
             // 旧数据保留
-            val sectName = db.query(
-                "SELECT sectName FROM game_data WHERE id = 'gd_46'"
+            val itemName = db.query(
+                "SELECT itemName FROM overflow_mail_drafts WHERE id = 'draft_47'"
             ).use { c -> c.moveToFirst(); c.getString(0) }
-            assertEquals("旧 game_data 数据保留", "TestSect", sectName)
+            assertEquals("旧草稿数据保留", "回气丹", itemName)
             db.close()
         } finally {
             context.deleteDatabase(dbName)
@@ -101,14 +99,11 @@ class RoomMigrationV46To47Test {
                         val json = JsonParser.parseString(schemaFile.readText()).asJsonObject
                         val database = json.getAsJsonObject("database")
                         val entities = database.getAsJsonArray("entities")
-
                         for (i in 0 until entities.size()) {
                             val entity = entities[i].asJsonObject
                             val createSql = entity.get("createSql").asString
                             val tableName = entity.get("tableName").asString
                             db.execSQL(createSql.replace("\${TABLE_NAME}", tableName))
-
-                            // 创建索引（部分实体可能没有索引）
                             val indices = entity.getAsJsonArray("indices")
                             if (indices != null) {
                                 for (j in 0 until indices.size()) {
@@ -125,7 +120,6 @@ class RoomMigrationV46To47Test {
                         oldVersion: Int,
                         newVersion: Int
                     ) {
-                        // schema 直开只触发 onValidateSchema 校验迁移链；onUpgrade 不应被调用
                         error("schema-only open should not upgrade")
                     }
                 })
@@ -134,15 +128,14 @@ class RoomMigrationV46To47Test {
         return helper.writableDatabase
     }
 
-    /** 插入最小 game_data 行（动态按列填默认值，适配任意版本列清单） */
-    private fun insertMinimalGameDataRow(
+    /** 插入最小 overflow_mail_drafts 行（动态按列填默认值，适配任意版本列清单） */
+    private fun insertMinimalOverflowDraftRow(
         db: SupportSQLiteDatabase,
-        id: String,
-        slotId: Int
+        id: String
     ) {
         val columns = mutableListOf<String>()
         val values = mutableListOf<String>()
-        val colInfo = db.query("PRAGMA table_info(game_data)", emptyArray())
+        val colInfo = db.query("PRAGMA table_info(overflow_mail_drafts)", emptyArray())
         colInfo.use {
             while (it.moveToNext()) {
                 val colName = it.getString(it.getColumnIndexOrThrow("name"))
@@ -150,17 +143,15 @@ class RoomMigrationV46To47Test {
                 columns.add(colName)
                 values.add(when {
                     colType?.uppercase()?.contains("INT") == true -> "0"
-                    colType?.uppercase()?.contains("REAL") == true -> "0.0"
                     else -> "''"
                 })
             }
         }
         val idIdx = columns.indexOf("id"); if (idIdx >= 0) values[idIdx] = "'$id'"
-        val sidIdx = columns.indexOf("slot_id"); if (sidIdx >= 0) values[sidIdx] = "$slotId"
-        val snIdx = columns.indexOf("sectName"); if (snIdx >= 0) values[snIdx] = "'TestSect'"
+        val itemNameIdx = columns.indexOf("itemName"); if (itemNameIdx >= 0) values[itemNameIdx] = "'回气丹'"
 
         db.execSQL(
-            "INSERT INTO game_data (${columns.joinToString(",")}) VALUES (${values.joinToString(",")})"
+            "INSERT INTO overflow_mail_drafts (${columns.joinToString(",")}) VALUES (${values.joinToString(",")})"
         )
     }
 
