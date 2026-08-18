@@ -44,7 +44,7 @@ class BloodRefiningViewModel @Inject constructor(
     val uiState: StateFlow<BloodRefiningUiState> = _uiState.asStateFlow()
 
     companion object {
-        const val REQUIRED_MATERIAL_COUNT = 200
+        const val REQUIRED_MATERIAL_COUNT = 100
         const val REQUIRED_SPIRIT_STONES = 1_000_000L
     }
 
@@ -97,7 +97,7 @@ class BloodRefiningViewModel @Inject constructor(
         }
 
         if (state.selectedMaterialQuantity < REQUIRED_MATERIAL_COUNT) {
-            showError("材料不足200个")
+            showError("材料不足${REQUIRED_MATERIAL_COUNT}个")
             return
         }
 

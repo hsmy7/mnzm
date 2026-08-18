@@ -1,5 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +28,7 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
@@ -105,16 +108,16 @@ fun BloodRefiningPoolDialog(
     }
 }
 
-/** 血炼材料库存收集（BloodRefiningPoolDialog 拆分） */
+/** 血炼材料库存收集（BloodRefiningPoolDialog 拆分）：仓库全部妖血材料（含不足门槛，全量显示） */
 @Composable
 private fun rememberBloodMaterials(materials: List<Material>): List<Pair<BeastMaterialDatabase.BeastMaterial, Int>> {
     return remember(materials) {
         val bloodBeastMaterials = BeastMaterialDatabase.getBloodMaterials()
-        bloodBeastMaterials.mapNotNull { beastMat ->
+        bloodBeastMaterials.map { beastMat ->
             val totalQty = materials
                 .filter { it.name == beastMat.name && it.rarity == beastMat.rarity }
                 .sumOf { it.quantity }
-            if (totalQty >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) beastMat to totalQty else null
+            beastMat to totalQty
         }
     }
 }
@@ -430,6 +433,8 @@ private fun MaterialSelectorDialog(
     ) {
         var showDetail by remember { mutableStateOf(false) }
         var detailMaterial by remember { mutableStateOf<BeastMaterialDatabase.BeastMaterial?>(null) }
+        var selectedMaterialId by remember { mutableStateOf<String?>(null) }
+        var showInsufficientPrompt by remember { mutableStateOf(false) }
 
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -440,16 +445,60 @@ private fun MaterialSelectorDialog(
                     Text("无符合条件的材料", fontSize = 14.sp, color = Color.Black)
                 }
             } else {
-                BloodMaterialList(
-                    bloodMaterials = bloodMaterials,
-                    viewModel = viewModel,
-                    onSelect = onSelect,
-                    onShowDetail = { mat ->
-                        detailMaterial = mat
-                        showDetail = true
-                    }
+                // 列表区内部滚动：按钮固定在底部始终可见，无需滚动找按钮
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    BloodMaterialList(
+                        bloodMaterials = bloodMaterials,
+                        viewModel = viewModel,
+                        selectedMaterialId = selectedMaterialId,
+                        onMaterialClick = { mat ->
+                            selectedMaterialId = if (selectedMaterialId == mat.id) null else mat.id
+                        },
+                        onShowDetail = { mat ->
+                            detailMaterial = mat
+                            showDetail = true
+                        }
+                    )
+                }
+            }
+
+            // 底部"使用"按钮：选中材料数量不足门槛时弹提示，充足则放入材料槽并关闭弹窗
+            val selectedEntry = bloodMaterials.firstOrNull { it.first.id == selectedMaterialId }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                GameButton(
+                    text = "使用",
+                    onClick = {
+                        val entry = selectedEntry
+                        if (entry != null && entry.second >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) {
+                            onSelect(entry.first, entry.second)
+                            onDismiss()
+                        } else if (entry != null) {
+                            showInsufficientPrompt = true
+                        }
+                    },
+                    enabled = selectedEntry != null,
+                    modifier = Modifier
+                        .width(ButtonSizes.StandardWidth)
+                        .height(ButtonSizes.StandardHeight)
                 )
             }
+        }
+
+        if (showInsufficientPrompt) {
+            StandardPromptDialog(
+                onDismissRequest = { showInsufficientPrompt = false },
+                title = "材料不足",
+                text = "材料需要${BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT}个，" +
+                        "不足${BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT}不可使用"
+            )
         }
 
         if (showDetail && detailMaterial != null) {
@@ -476,7 +525,8 @@ private fun MaterialSelectorDialog(
 private fun BloodMaterialList(
     bloodMaterials: List<Pair<BeastMaterialDatabase.BeastMaterial, Int>>,
     viewModel: GameViewModel?,
-    onSelect: (BeastMaterialDatabase.BeastMaterial, Int) -> Unit,
+    selectedMaterialId: String?,
+    onMaterialClick: (BeastMaterialDatabase.BeastMaterial) -> Unit,
     onShowDetail: (BeastMaterialDatabase.BeastMaterial) -> Unit
 ) {
     val bloodOrder = listOf("tiger", "snake", "turtle")
@@ -500,10 +550,10 @@ private fun BloodMaterialList(
                     description = beastMat.description,
                     isMaterial = true
                 ),
-                isSelected = false,
+                isSelected = beastMat.id == selectedMaterialId,
                 isFollowed = watchKey("material", beastMat.name) in watchedKeys,
                 showQuantity = true,
-                onClick = { onSelect(beastMat, qty) },
+                onClick = { onMaterialClick(beastMat) },
                 onLongPress = {
                     onShowDetail(beastMat)
                 }
