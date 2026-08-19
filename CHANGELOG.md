@@ -1,6 +1,6 @@
-## [4.01.02] - 2026-08-18
+## [4.01.03] - 2026-08-19
 
-### 更新（2026-08-19 弟子肖像全量换新 + 登录界面「进入游戏」一键登录）
+### 更新（弟子肖像全量换新 + 登录界面「进入游戏」一键登录）
 
 > 背景：美术素材库（D:\模拟宗门美术素材）更换了全部弟子肖像；登录界面按钮由「使用 TapTap 登录」改为美术提供的「进入游戏」按钮，点击即自动登录。
 
@@ -9,6 +9,8 @@
 - **资源管线** — `btn_enter_game.webp` 入库 app 模块 drawable-nodpi，`sprite-uid-map.json` 追加 UID（build-atlas 自动登记）
 - **验证** — `compileReleaseKotlin` 通过；`PortraitPoolTest` / `SpriteCodegenSyncTest` / `AtlasManifestSyncTest` 全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；登录会话 `loginType` 仍为 "taptap"
+
+## [4.01.02] - 2026-08-18
 
 ### 优化（2026-08-18 血炼池材料选择界面：仓库全量妖血 + "使用"按钮 + 数量门槛 200→100）
 
