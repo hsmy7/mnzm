@@ -10,6 +10,15 @@
 - **验证** — `compileReleaseKotlin` 通过；`PortraitPoolTest` / `SpriteCodegenSyncTest` / `AtlasManifestSyncTest` 全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；登录会话 `loginType` 仍为 "taptap"
 
+### 优化（2026-08-19 宗门仓库交互：移除点击选中 + 长按改点击 + 储物袋单独开启）
+
+> 背景：宗门仓库此前「点击=选中（高亮边框）、长按=查看详情」，储物袋需先点击选中再点右上角「开启」小按钮，交互层级多、发现成本高。
+
+- **点击直接查看详情** — `WarehouseTab` 移除点击选中态（`onItemSelect`/`isSelected` 参数链全删），`onItemLongPress` 更名为 `onItemClick`，点击任意物品（含灵石）直接弹 `ItemDetailDialog`；`UnifiedItemCard` 不再传 `isSelected`/`onLongPress`
+- **移除储物袋覆盖「开启」按钮** — 删除卡片选中态右上角「开启」overlay（`overlayButtonText`/`onOverlayButtonClick` 分支），`WarehouseActions.onOpenBag` 回调一并删除
+- **储物袋详情新增「单独开启」** — `WarehouseDetailActionRow` 储物袋分支新增 `GameButton`「单独开启」（调 `viewModel.openStorageBag`，单次开启 1 个，复用引擎既有扣减/入仓/邮件兜底链路），「全部开启」保留并存；按钮复用 `GameButton` 默认规格（72×38dp，符合按钮规范）
+- **验证** — `compileReleaseKotlin` + `lintRelease` 全绿；引擎/存档/经济逻辑零改动，无新增测试（纯 Compose 交互参数重组）
+
 ## [4.01.02] - 2026-08-18
 
 ### 优化（2026-08-18 血炼池材料选择界面：仓库全量妖血 + "使用"按钮 + 数量门槛 200→100）

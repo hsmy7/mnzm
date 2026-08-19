@@ -108,9 +108,7 @@ private data class WarehouseActions(
     val onFilterSelected: (WarehouseFilter) -> Unit,
     val onPageChange: (Int) -> Unit,
     val onPageClamp: (Int) -> Unit,
-    val onItemSelect: (String) -> Unit,
-    val onItemLongPress: (String) -> Unit,
-    val onOpenBag: (String) -> Unit
+    val onItemClick: (String) -> Unit
 )
 
 /** 仓库排序物品打包（WarehouseTab 拆分，参数 >6 规避 LongParameterList） */
@@ -155,14 +153,12 @@ internal fun WarehouseTab(
     var showDetailDialog by remember { mutableStateOf(false) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
     var currentPage by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
     val state = rememberWarehouseState(flows = flows)
 
     WarehouseContent(
         state = state,
         selectedFilter = selectedFilter,
         currentPage = currentPage,
-        selectedItemId = selectedItemId,
         actions = WarehouseActions(
             onFilterSelected = { filter ->
                 if (selectedFilter != filter) {
@@ -176,15 +172,9 @@ internal fun WarehouseTab(
                 selectedItemId = null
             },
             onPageClamp = { currentPage = it },
-            onItemSelect = { id ->
-                selectedItemId = if (selectedItemId == id) null else id
-            },
-            onItemLongPress = { id ->
+            onItemClick = { id ->
                 selectedItemId = id
                 showDetailDialog = true
-            },
-            onOpenBag = { id ->
-                scope.launch { viewModel.openStorageBag(id) }
             }
         )
     )
@@ -350,7 +340,6 @@ private fun WarehouseContent(
     state: WarehouseState,
     selectedFilter: WarehouseFilter,
     currentPage: Int,
-    selectedItemId: String?,
     actions: WarehouseActions
 ) {
     Column(
@@ -376,7 +365,6 @@ private fun WarehouseContent(
                 state = state,
                 currentFilterItems = currentFilterItems,
                 currentPage = currentPage,
-                selectedItemId = selectedItemId,
                 actions = actions
             )
         }
@@ -445,7 +433,6 @@ private fun ColumnScope.WarehouseGrid(
     state: WarehouseState,
     currentFilterItems: List<WarehouseItemData>,
     currentPage: Int,
-    selectedItemId: String?,
     actions: WarehouseActions
 ) {
     BoxWithConstraints(
@@ -484,10 +471,7 @@ private fun ColumnScope.WarehouseGrid(
                     cellSize = cellSize
                 ),
                 state = state,
-                selectedItemId = selectedItemId,
-                onItemSelect = actions.onItemSelect,
-                onItemLongPress = actions.onItemLongPress,
-                onOpenBag = actions.onOpenBag
+                onItemClick = actions.onItemClick
             )
             Spacer(modifier = Modifier.height(8.dp))
             WarehousePagination(
@@ -511,10 +495,7 @@ private fun ColumnScope.WarehouseGrid(
 private fun ColumnScope.WarehouseGridRows(
     config: WarehouseGridConfig,
     state: WarehouseState,
-    selectedItemId: String?,
-    onItemSelect: (String) -> Unit,
-    onItemLongPress: (String) -> Unit,
-    onOpenBag: (String) -> Unit
+    onItemClick: (String) -> Unit
 ) {
     Column(
         modifier = Modifier.weight(1f),
@@ -528,11 +509,8 @@ private fun ColumnScope.WarehouseGridRows(
                 rowItems.forEach { warehouseItem ->
                     WarehouseGridCard(
                         warehouseItem = warehouseItem,
-                        selectedItemId = selectedItemId,
                         watchedKeys = state.watchedKeys,
-                        onSelect = onItemSelect,
-                        onLongPress = onItemLongPress,
-                        onOpenBag = onOpenBag
+                        onItemClick = onItemClick
                     )
                 }
                 repeat(config.columns - rowItems.size) {
@@ -547,11 +525,8 @@ private fun ColumnScope.WarehouseGridRows(
 @Composable
 private fun WarehouseGridCard(
     warehouseItem: WarehouseItemData,
-    selectedItemId: String?,
     watchedKeys: Set<String>,
-    onSelect: (String) -> Unit,
-    onLongPress: (String) -> Unit,
-    onOpenBag: (String) -> Unit
+    onItemClick: (String) -> Unit
 ) {
     UnifiedItemCard(
         data = ItemCardData(
@@ -579,19 +554,9 @@ private fun WarehouseGridCard(
             spiritStoneGrade = (warehouseItem.item as? SpiritStoneInfo)?.grade,
             isBag = warehouseItem.item is StorageBag
         ),
-        isSelected = selectedItemId == warehouseItem.id,
         isFollowed = watchKeyOf(warehouseItem.item)
             ?.let { it in watchedKeys } ?: false,
-        onLongPress = {
-            onLongPress(warehouseItem.id)
-        },
-        overlayButtonText = if (warehouseItem.item is StorageBag) "开启" else null,
-        onOverlayButtonClick = if (warehouseItem.item is StorageBag) {
-            {
-                onOpenBag(warehouseItem.id)
-            }
-        } else null,
-        onClick = { onSelect(warehouseItem.id) }
+        onClick = { onItemClick(warehouseItem.id) }
     )
 }
 
@@ -756,15 +721,25 @@ private fun WarehouseDetailActionRow(
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
-            // 储物袋详情：仅保留全部开启
-            item is StorageBag -> GameButton(
-                text = "全部开启",
-                onClick = {
-                    scope.launch {
-                        viewModel.openAllStorageBags(item.id)
+            // 储物袋详情：单独开启 1 个 + 全部开启
+            item is StorageBag -> {
+                GameButton(
+                    text = "单独开启",
+                    onClick = {
+                        scope.launch {
+                            viewModel.openStorageBag(item.id)
+                        }
                     }
-                }
-            )
+                )
+                GameButton(
+                    text = "全部开启",
+                    onClick = {
+                        scope.launch {
+                            viewModel.openAllStorageBags(item.id)
+                        }
+                    }
+                )
+            }
             else -> {
                 if (!detail.isLocked) {
                     GameButton(
