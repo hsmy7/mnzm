@@ -54,3 +54,24 @@ data class FrameSkipInputs(
     /** 渲染缩放/画质因子变化（需强制重渲染应用） */
     val scaleChanged: Boolean
 )
+
+/**
+ * 淡入完成兜底帧判定（2026-08-18 修复"进入游戏全屏半透明白色覆盖"）。
+ *
+ * 背景：地图淡入（WP4）期间瓦片/地面以 `fadeAlpha`（0→1）半透明绘制，背后是
+ * 双后端每帧清屏的米白色 #F2EDE4——淡入早期画面 = "半透明白色"。若脏帧跳过
+ * 在淡入结束后把画面定格在**淡入早期提交的帧**（fadeAlpha < 1），用户会看到
+ * 全屏半透明白色持续，直到操作（拖动视角触发 cameraDirty）强制重绘才恢复。
+ *
+ * 本函数在淡入结束后（currentFadeAlpha ≥ 1）且**最后一帧仍以淡入中 alpha 渲染**
+ * （lastRenderedFadeAlpha < 1）时返回 true，渲染循环据此强制补渲一帧完整
+ * 不透明地图，保证定格帧永远是正常画面。
+ *
+ * @param lastRenderedFadeAlpha 最近一次实际渲染帧的 fadeAlpha（1 = 已渲染完整帧）
+ * @param currentFadeAlpha 当前时钟驱动的 fadeAlpha（≥1 表示淡入已结束）
+ * @return true = 必须强制渲染一帧完整 alpha（消除半透明帧定格）
+ */
+fun needsFadeCompletionFrame(
+    lastRenderedFadeAlpha: Float,
+    currentFadeAlpha: Float
+): Boolean = lastRenderedFadeAlpha < 1f && currentFadeAlpha >= 1f

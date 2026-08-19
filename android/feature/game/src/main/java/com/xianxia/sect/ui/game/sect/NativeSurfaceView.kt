@@ -549,6 +549,12 @@ class NativeSurfaceView(
         if (!canInit) return
         initInProgress = true
 
+        // ★ 初始化窗口期 Surface 黑色兜底（2026-08-18）：surfaceCreated 的清屏可能
+        // 早于 surface 物理就绪（lockCanvas 失败被吞），此处（尺寸就绪、初始化开始）
+        // 再清一次——Vulkan 异步初始化（0.5~3s）期间 surface 必须为纯黑，
+        // 否则 RGBA_8888 半透明 surface 透出白色窗口背景（"进入游戏白屏"来源之一）
+        surfaceProvider.clearSurface(android.graphics.Color.BLACK)
+
         // 对抗性审查修复：新 surface 重置帧率声明与 EWMA 状态——
         // 旋转/重建后 lastDeclaredFrameRate 残留会阻止新 surface 降频声明，
         // 旧 EWMA 残留会导致新渲染线程首帧即被误判低帧率
@@ -930,6 +936,18 @@ class NativeSurfaceView(
         /** 能力帧率上报限频时间戳（[reportObservedFps]） */
         private var lastFpsReportNs = 0L
 
+        /** 淡入完成后兜底帧已提交标记（2026-08-18 修复"进入游戏半透明白色定格"） */
+        private var lastRenderedFadeAlpha = 1f
+
+        /** 渲染健康诊断日志限频时间戳（每秒一条，渲染线程常驻可观测性） */
+        private var lastDiagLogNs = 0L
+
+        /** 诊断日志窗口内渲染帧数 */
+        private var diagRenderCount = 0
+
+        /** 诊断日志窗口内跳帧数 */
+        private var diagSkipCount = 0
+
         override fun run() {
             // ★ 地图淡入：渲染线程每次启动（= 每次 surface 初始化：首次进入/
             // 重入/降级路径）触发——覆盖所有初始化路径，天然幂等。
@@ -943,6 +961,16 @@ class NativeSurfaceView(
             if (renderMode == RenderMode.SOFTWARE) {
                 surfaceProvider.clearSurface(android.graphics.Color.BLACK)
             }
+
+            // ★ Vulkan 路径兜底：渲染线程启动时同步清除 Surface 为纯黑——
+            // surfaceCreated 的清屏可能早于 surface 物理就绪（lockCanvas 失败被吞），
+            // 未清除的 RGBA_8888 半透明 surface 会透出白色窗口背景（"进入游戏白屏"）
+            surfaceProvider.clearSurface(android.graphics.Color.BLACK)
+
+            android.util.Log.i(
+                "NativeSurfaceView",
+                "RenderThread started: mode=${renderMode} fadeStart set"
+            )
 
             // ★ WP5 vsync 帧节奏：Canvas 路径用 VsyncGate 对齐显示刷新率；
             // 初始化失败时 awaitTick 恒超时 → 循环回退 sleep 节拍（行为 = 现状）。
@@ -988,6 +1016,9 @@ class NativeSurfaceView(
                 // 每次迭代重算帧节奏——热控升降帧即时生效，无状态累积
                 val pacing = computeFramePacing(vsyncPacing, effectiveFps)
 
+                // 渲染健康诊断（限频每秒一条，跳帧/定格时日志停更即诊断信号）
+                maybeLogRenderHealth(now)
+
                 if (elapsedNs < pacing.intervalNs) {
                     if (!waitForNextTick(pacing.intervalNs - elapsedNs, pacing.step, vsyncGate)) return
                     continue
@@ -1005,14 +1036,25 @@ class NativeSurfaceView(
                 //   ObservedFps（防 EWMA 虚高误降级）；相机脏标记不消费（保持 true
                 //   直至真实渲染，防相机移动丢失）
                 val frame = currentFrame
-                if (shouldSkipFrame(frame, lastRenderedFrame)) continue
+                val fade = fadeAlpha
+                // 淡入完成兜底（2026-08-18）：淡入已结束但最后一帧仍以淡入中 alpha
+                // 渲染时强制补渲一帧完整不透明地图——防脏帧跳过把"半透明瓦片 +
+                // 米白清屏色 #F2EDE4"帧永久定格（"进入游戏全屏半透明白色覆盖"根因）
+                if (shouldSkipFrame(frame, lastRenderedFrame) &&
+                    !needsFadeCompletionFrame(lastRenderedFadeAlpha, fade)
+                ) {
+                    diagSkipCount++
+                    continue
+                }
 
                 // ★ 统一渲染入口：RenderBackend 抽象（VULKAN/SOFTWARE 分支已收敛到
                 //   surface 初始化创建处），渲染循环只面向接口——iOS Metal 后端
                 //   实现同一接口即可接入，循环零改动
                 val renderElapsedNs = renderTick()
                 lastRenderedFrame = frame
+                lastRenderedFadeAlpha = fade
                 lastRenderedScaleVersion = softwareRenderScaleVersion
+                diagRenderCount++
 
                 // ★ 统一 EWMA 渲染能力追踪（VULKAN/SOFTWARE 双路径一致）。
                 // 关键设计：**不写回 targetFps**——渲染线程内部维护 effectiveFps =
@@ -1041,6 +1083,25 @@ class NativeSurfaceView(
                     scaleChanged = softwareRenderScaleVersion != lastRenderedScaleVersion
                 )
             )
+        }
+
+        /**
+         * 渲染健康诊断日志（限频每秒一条）。
+         *
+         * 输出渲染/跳帧计数与当前淡入 alpha——排查"进入游戏全屏半透明白色覆盖"时，
+         * 若日志显示 fade 长期 < 1 或 rendered 停更（画面定格），即确认对应机制。
+         * 跳帧/定格时本方法仍在循环顶部执行，日志不会因无渲染而消失。
+         */
+        private fun maybeLogRenderHealth(nowNs: Long) {
+            if (nowNs - lastDiagLogNs < NANOS_PER_SECOND) return
+            lastDiagLogNs = nowNs
+            android.util.Log.i(
+                "NativeSurfaceView",
+                "RenderHealth: rendered=$diagRenderCount skipped=$diagSkipCount " +
+                    "fade=$fadeAlpha mode=$renderMode"
+            )
+            diagRenderCount = 0
+            diagSkipCount = 0
         }
 
         /** 渲染线程消费 pending 渲染缩放（Vulkan：setRenderScale 重建离屏目标，仅渲染线程调用） */

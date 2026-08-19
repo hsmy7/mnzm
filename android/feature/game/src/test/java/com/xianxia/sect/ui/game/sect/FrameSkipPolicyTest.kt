@@ -68,4 +68,30 @@ class FrameSkipPolicyTest {
         val input = idleInputs().copy(fadeActive = true)
         assertFalse(FrameSkipPolicy.shouldSkipFrame(input))
     }
+
+    // ============================================================
+    // 淡入完成兜底帧（2026-08-18 修复"进入游戏全屏半透明白色覆盖"）
+    // ============================================================
+
+    @Test
+    fun `fade just completed but last frame semi-transparent - must render completion frame`() {
+        // 淡入已结束（当前 alpha=1）但最后一帧仍以淡入中 alpha（0.5）渲染——
+        // 必须强制补渲一帧完整不透明地图，防止脏帧跳过定格"半透明白色"帧
+        assertTrue(needsFadeCompletionFrame(lastRenderedFadeAlpha = 0.5f, currentFadeAlpha = 1f))
+    }
+
+    @Test
+    fun `fade in progress - no completion frame needed yet`() {
+        // 淡入进行中（当前 alpha < 1）：由 fadeActive 守卫保证持续渲染，
+        // 兜底帧判定不应干扰淡入本身
+        assertFalse(needsFadeCompletionFrame(lastRenderedFadeAlpha = 0.3f, currentFadeAlpha = 0.6f))
+    }
+
+    @Test
+    fun `last frame already full alpha - no completion frame needed`() {
+        // 最后一帧已以完整 alpha 渲染（定格帧是正常地图）→ 无需兜底
+        assertFalse(needsFadeCompletionFrame(lastRenderedFadeAlpha = 1f, currentFadeAlpha = 1f))
+        // 淡入进行中但上一帧已完整渲染（场景切换后重入淡入）→ 同样无需兜底
+        assertFalse(needsFadeCompletionFrame(lastRenderedFadeAlpha = 1f, currentFadeAlpha = 0.5f))
+    }
 }

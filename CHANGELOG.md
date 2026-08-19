@@ -19,6 +19,17 @@
 - **储物袋详情新增「单独开启」** — `WarehouseDetailActionRow` 储物袋分支新增 `GameButton`「单独开启」（调 `viewModel.openStorageBag`，单次开启 1 个，复用引擎既有扣减/入仓/邮件兜底链路），「全部开启」保留并存；按钮复用 `GameButton` 默认规格（72×38dp，符合按钮规范）
 - **验证** — `compileReleaseKotlin` + `lintRelease` 全绿；引擎/存档/经济逻辑零改动，无新增测试（纯 Compose 交互参数重组）
 
+### 修复（2026-08-19 进入游戏后全屏半透明白色覆盖，操作后消失）
+
+> 背景：进入游戏（宗门地图）后，屏幕被一层"半透明白色"覆盖；任意操作（如拖动视角）后消失。用户描述与地图渲染的淡入（WP4）画面特征完全吻合。
+
+- **根因（因果链）** — 宗门地图双渲染后端（Vulkan/Canvas）每帧清屏色为米白色 #F2EDE4（`VulkanBackend.cpp` `VkClearValue{0.95,0.93,0.89}` / `SoftwareCanvasBackend` `drawColor(0xFFF2EDE4)`）；地图淡入期间（`fadeAlpha` 0→1，300ms）瓦片/地面以半透明绘制，背后透出清屏色 → 淡入早期画面即"半透明白色"。若脏帧跳过（2026-08-14 平板省电 `FrameSkipPolicy`）把画面定格在淡入早期提交的帧（`fadeAlpha`<1），白雾将持续存在；操作触发 `cameraDirty` 强制重绘（此时 `fadeAlpha` 已=1）才恢复
+- **修复 A（根治）** — `FrameSkipPolicy` 新增纯函数 `needsFadeCompletionFrame(lastRenderedFadeAlpha, currentFadeAlpha)`：淡入结束（当前 alpha≥1）但最后一帧仍以淡入中 alpha 渲染时强制补渲一帧完整不透明地图，保证脏帧跳过定格的永远是正常画面；`RenderThread.renderLoop` 记录 `lastRenderedFadeAlpha` 并接入兜底判定
+- **修复 B（防御）** — `handleSurfaceAvailable`（尺寸就绪、初始化开始）与 `RenderThread.run`（渲染线程启动）补 `clearSurface(BLACK)`：surfaceCreated 的清屏可能早于 surface 物理就绪（lockCanvas 失败被吞），未清除的 RGBA_8888 半透明 surface 会透出白色窗口背景——Vulkan 异步初始化窗口期（0.5~3s）保证 surface 恒为纯黑
+- **修复 C（可观测性）** — 渲染线程新增限频健康日志 `RenderHealth: rendered=/skipped=/fade=/mode=`（每秒一条）：白雾复现时据此确认淡入是否完成、是否跳帧定格
+- **验证** — `:feature:game:compileReleaseKotlin` 通过；`FrameSkipPolicyTest` 新增 4 用例（淡入刚完成需兜底 / 淡入中不干扰 / 最后帧已完整 alpha 不需兜底 / 组合）共 12 用例全绿；本机仅 JDK 24，detekt 1.23.7 最高支持 jvm-target 22 无法运行（环境限制，非代码问题）；Robolectric 用例在 JDK 24 下框架级失败（`NoClassDefFoundError: RoboCookieManager`），已在未修改代码上复现确认与本次改动无关
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染线程逻辑变更不影响 Vulkan/Canvas 双后端接口
+
 ## [4.01.02] - 2026-08-18
 
 ### 优化（2026-08-18 血炼池材料选择界面：仓库全量妖血 + "使用"按钮 + 数量门槛 200→100）
