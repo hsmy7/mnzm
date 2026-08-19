@@ -13,7 +13,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -1086,7 +1085,7 @@ private fun VersionAndAudioOverlay(
     }
 }
 
-/** 登录列内容：加载指示 / TapTap 登录按钮 / 错误提示 / 隐私勾选 */
+/** 登录列内容：加载指示 / 进入游戏按钮 / 错误提示 / 隐私勾选 */
 @Composable
 @Suppress("LongParameterList") // 登录状态与回调聚合，分组会破坏状态编排可读性
 private fun LoginColumnContent(
@@ -1114,12 +1113,11 @@ private fun LoginColumnContent(
             Spacer(modifier = Modifier.height(16.dp))
             Text("正在登录...", color = Color.Black)
         } else {
-            TapTapLoginButton(
+            EnterGameButton(
                 context = context,
                 sessionManager = sessionManager,
                 privacyChecked = privacyChecked,
                 tapTapReady = tapTapReady,
-                isLoading = isLoading,
                 onLoadingChange = onLoadingChange,
                 onLoginError = onLoginError
             )
@@ -1177,118 +1175,100 @@ private fun MainComplianceDialogs(
     )
 }
 
-/** TapTap 登录按钮：隐私校验 + SDK 登录 + 会话保存 + 合规检查触发 */
+/** 进入游戏按钮：隐私校验 + 平台自动登录 + 会话保存 + 合规检查触发 */
 @Composable
-private fun TapTapLoginButton(
+private fun EnterGameButton(
     context: Context,
     sessionManager: SessionManager,
     privacyChecked: Boolean,
     tapTapReady: Boolean,
-    isLoading: Boolean,
     onLoadingChange: (Boolean) -> Unit,
     onLoginError: (String?) -> Unit
 ) {
-    Button(
-        onClick = {
-            if (!privacyChecked) {
-                Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
-                return@Button
-            }
-
-            if (!tapTapReady) {
-                Toast.makeText(context, "TapTap SDK 正在初始化，请稍后再试", Toast.LENGTH_SHORT).show()
-                return@Button
-            }
-
-            onLoadingChange(true)
-            onLoginError(null)
-
-            val activity = context as? MainActivity
-            if (activity == null) {
-                onLoadingChange(false)
-                Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()
-                return@Button
-            }
-
-            TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
-                override fun onSuccess(data: LoginData) {
-                    Log.d("MainScreen", "登录成功: ${data.name}")
-
-                    val unionId = data.unionid
-                    if (unionId.isNullOrEmpty()) {
-                        Log.e("MainScreen", "unionId为空，登录失败")
-                        onLoadingChange(false)
-                        Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
-                        return
-                    }
-
-                    sessionManager.saveLoginSession(
-                        userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                        userName = data.name ?: "TapTap用户",
-                        loginType = "taptap",
-                        unionId = unionId,
-                        avatar = data.avatar
-                    )
-
-                    com.xianxia.sect.taptap.TapDBManager.setUser(
-                        userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                        name = data.name
-                    )
-
-                    Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
-
-                    onLoadingChange(false)
-                    val act = context as? MainActivity
-                    act?.runOnUiThread {
-                        // 登录成功回调：一次性初始化广告/统计/合规服务（进程级幂等）。
-                        // 解耦契约（safeRunAfterSdkInit）：初始化异常只记日志，
-                        // 不得阻断防沉迷验证；合规回调必须先于 startComplianceCheck
-                        // 注册（防验证结果回调丢失）
-                        safeRunAfterSdkInit(
-                            initSdkServices = { act.ensureSdkServicesInitialized() },
-                            onInitFailed = { e ->
-                                Log.e("MainActivity", "SDK 服务初始化异常（不影响登录流程）", e)
-                            },
-                            // 延迟到 Activity 稳定 RESUMED 后再启动防沉迷验证：
-                            // 登录回调落在授权页转场窗口期，立即 startup 会因宿主
-                            // Activity 未稳定导致实名认证弹窗展示失败（SDK 静默 no-op，
-                            // 无回调无 UI）→ 用户卡在登录界面
-                            block = { act.startComplianceCheckWhenResumed(unionId) }
-                        )
-                    }
-                }
-
-                override fun onFailure(error: Exception) {
-                    Log.e("MainScreen", "登录失败: ${error.message}")
-                    onLoadingChange(false)
-                    onLoginError(error.message)
-                    Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()
-                }
-            })
-        },
+    Image(
+        painter = painterResource(id = R.drawable.btn_enter_game),
+        contentDescription = "进入游戏",
         modifier = Modifier
-            .wrapContentWidth()
-            .height(56.dp),
-        shape = RoundedCornerShape(28.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (privacyChecked) Color(0xFF00D26A) else GameColors.DividerGray,
-            contentColor = Color.White
-        ),
-        enabled = !isLoading
-    ) {
-        Icon(
-            painter = painterResource(id = R.drawable.ic_taptap),
-            contentDescription = "TapTap",
-            modifier = Modifier.size(24.dp),
-            tint = Color.White
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            "使用 TapTap 登录",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium
-        )
-    }
+            .width(320.dp)
+            .clickableWithSound {
+                if (!privacyChecked) {
+                    Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
+                    return@clickableWithSound
+                }
+
+                if (!tapTapReady) {
+                    Toast.makeText(context, "TapTap SDK 正在初始化，请稍后再试", Toast.LENGTH_SHORT).show()
+                    return@clickableWithSound
+                }
+
+                onLoadingChange(true)
+                onLoginError(null)
+
+                val activity = context as? MainActivity
+                if (activity == null) {
+                    onLoadingChange(false)
+                    Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()
+                    return@clickableWithSound
+                }
+
+                TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
+                    override fun onSuccess(data: LoginData) {
+                        Log.d("MainScreen", "登录成功: ${data.name}")
+
+                        val unionId = data.unionid
+                        if (unionId.isNullOrEmpty()) {
+                            Log.e("MainScreen", "unionId为空，登录失败")
+                            onLoadingChange(false)
+                            Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+
+                        sessionManager.saveLoginSession(
+                            userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                            userName = data.name ?: "TapTap用户",
+                            loginType = "taptap",
+                            unionId = unionId,
+                            avatar = data.avatar
+                        )
+
+                        com.xianxia.sect.taptap.TapDBManager.setUser(
+                            userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                            name = data.name
+                        )
+
+                        Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
+
+                        onLoadingChange(false)
+                        val act = context as? MainActivity
+                        act?.runOnUiThread {
+                            // 登录成功回调：一次性初始化广告/统计/合规服务（进程级幂等）。
+                            // 解耦契约（safeRunAfterSdkInit）：初始化异常只记日志，
+                            // 不得阻断防沉迷验证；合规回调必须先于 startComplianceCheck
+                            // 注册（防验证结果回调丢失）
+                            safeRunAfterSdkInit(
+                                initSdkServices = { act.ensureSdkServicesInitialized() },
+                                onInitFailed = { e ->
+                                    Log.e("MainActivity", "SDK 服务初始化异常（不影响登录流程）", e)
+                                },
+                                // 延迟到 Activity 稳定 RESUMED 后再启动防沉迷验证：
+                                // 登录回调落在授权页转场窗口期，立即 startup 会因宿主
+                                // Activity 未稳定导致实名认证弹窗展示失败（SDK 静默 no-op，
+                                // 无回调无 UI）→ 用户卡在登录界面
+                                block = { act.startComplianceCheckWhenResumed(unionId) }
+                            )
+                        }
+                    }
+
+                    override fun onFailure(error: Exception) {
+                        Log.e("MainScreen", "登录失败: ${error.message}")
+                        onLoadingChange(false)
+                        onLoginError(error.message)
+                        Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()
+                    }
+                })
+            },
+        contentScale = ContentScale.Fit
+    )
 }
 
 /** 隐私政策勾选行 */
