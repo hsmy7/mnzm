@@ -8,6 +8,8 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.core.engine.domain.building.UpgradeResult
+import com.xianxia.sect.core.engine.domain.building.rectsOverlap
 import com.xianxia.sect.core.engine.addProductionSlot
 import com.xianxia.sect.core.engine.assignToResidenceAtomic
 import com.xianxia.sect.core.engine.moveBuildingDirect
@@ -15,6 +17,8 @@ import com.xianxia.sect.core.engine.removeBuilding
 import com.xianxia.sect.core.engine.removeBuildings
 import com.xianxia.sect.core.engine.removeFromResidenceAtomic
 import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.upgradeBuilding
+import com.xianxia.sect.core.engine.upgradeBuildings
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.DomainResult
@@ -37,7 +41,9 @@ class BuildingDelegate(
     private val buildingFacade: BuildingFacade,
     private val buildingConfigService: BuildingConfigService,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val onDemolishSuccess: (String) -> Unit = {}
+    private val onDemolishSuccess: (String) -> Unit = {},
+    private val onUpgradeSuccess: (String) -> Unit = {},
+    private val onUpgradeError: (String) -> Unit = {}
 ) {
     private companion object {
         private const val TAG = "BuildingDelegate"
@@ -271,6 +277,61 @@ class BuildingDelegate(
         }
     }
 
+    /**
+     * 单座住所升级（住所弹窗升级按钮）。
+     * 成功后提示升级目标名称；失败时逐条列出未满足条件（灵石/宗门等级/空间）。
+     */
+    fun upgradeResidence(instanceId: String) {
+        gameEngine.launchOnEngine {
+            when (val result = gameEngine.upgradeBuilding(instanceId)) {
+                is UpgradeResult.Failure -> onUpgradeError(result.reasons.joinToString("；"))
+                is UpgradeResult.Success -> {
+                    val targetName = gameEngine.gameDataSnapshot
+                        .placedBuildings.find { it.instanceId == instanceId }?.displayName ?: "中级住所"
+                    onUpgradeSuccess("已升级为$targetName")
+                }
+            }
+        }
+    }
+
+    /** 一键升级对话框行内「升级」按钮：升级对应建筑 1 座（取空间允许的第一座实例）。 */
+    fun upgradeBuildingOne(sourceKey: String) {
+        gameEngine.launchOnEngine {
+            handleUpgradeResult(gameEngine.upgradeBuildings(gameEngine.currentActiveSectId(), sourceKey, 1), sourceKey)
+        }
+    }
+
+    /** 一键升级对话框行内「一键升级」按钮：升级对应建筑全部（灵石不足时按可负担数升级）。 */
+    fun upgradeBuildingsOfType(sourceKey: String) {
+        gameEngine.launchOnEngine {
+            handleUpgradeResult(
+                gameEngine.upgradeBuildings(gameEngine.currentActiveSectId(), sourceKey, Int.MAX_VALUE),
+                sourceKey
+            )
+        }
+    }
+
+    /** 升级结果 → 成功/失败消息（BuildingDelegate 拆分）。 */
+    private fun handleUpgradeResult(result: UpgradeResult, sourceKey: String) {
+        val sourceName = BuildingFeatureRegistry.findByKey(sourceKey)?.displayName ?: sourceKey
+        when (result) {
+            is UpgradeResult.Failure -> onUpgradeError(result.reasons.joinToString("；"))
+            is UpgradeResult.Success -> when {
+                result.upgradedCount > 0 -> onUpgradeSuccess(
+                    if (result.spaceBlockedCount > 0) {
+                        "已升级${result.upgradedCount}座$sourceName" +
+                            "（${result.spaceBlockedCount}座因空间不足未升级）"
+                    } else {
+                        "已升级${result.upgradedCount}座$sourceName"
+                    }
+                )
+                result.spaceBlockedCount > 0 ->
+                    onUpgradeError("${sourceName}升级后占地扩大，空间不足，无法升级")
+                else -> onUpgradeError("升级失败")
+            }
+        }
+    }
+
     /** 分配弟子到住宅（原子操作）。
      *
      * 使用 [withContext(dispatcher)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
@@ -318,9 +379,9 @@ internal fun overlapsExisting(
 ): Boolean {
     return buildings.any { other ->
         other.sectId == sectId &&
-            gridX < other.gridX + other.width &&
-            gridX + width > other.gridX &&
-            gridY < other.gridY + other.height &&
-            gridY + height > other.gridY
+            rectsOverlap(
+                gridX, gridY, width, height,
+                other.gridX, other.gridY, other.width, other.height
+            )
     }
 }

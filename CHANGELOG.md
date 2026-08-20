@@ -1,5 +1,19 @@
 ## [4.01.04] - 2026-08-19
 
+### 新增（2026-08-19 弟子住所升级 + 一键升级）
+
+> 背景：初级住所（单人住所/多人住所）升级为中级住所（中级单人住所/中级多人住所），差价 = 目标造价 - 源造价（单人 30000 / 多人 50000），要求宗门等级达到中型；提供住所弹窗单座升级与建造栏一键升级（半屏四列批量界面）。
+
+- **升级关系配置** — 新增 `BuildingUpgradeRegistry`（core:engine，单一事实源）：`single_residence→single_residence_upgraded`、`multi_residence→multi_residence_upgraded`；差价从注册表造价动态计算，未来升级链扩展只需加一行配置
+- **升级纯逻辑** — 新增 `BuildingUpgradeCalculator`：资格判定（宗门等级/灵石差价/升级后占地空间）、可负担数量、矩形重叠校验 `rectsOverlap`（上提自 feature:game `BuildingDelegate.overlapsExisting`，两处共用消除重复）；升级后占地按目标建筑尺寸变化（单人 4×4→6×6 / 多人 6×4→6×5），空间不足明确拒绝
+- **引擎升级操作** — `BuildingFacade.upgradeBuilding`（单座，失败零变更原子性）/ `upgradeBuildings`（批量，按 gridX/gridY 稳定序逐座以"升级中间态"增量校验空间，防相邻建筑同时扩地互斥；灵石不足按可负担数升级，不足一座返回失败）；`GameEngineBuildingOps` 新增扩展委托
+- **住所弹窗升级区** — `ResidenceDialog` 槽位下方新增升级区：条件文本「消耗xx灵石」「需要宗门等级达到中型」（满足=白色、不满足=红色，需求指定白字优先于项目黑字规范，无新增深色面板），升级按钮按两条件门控（GameButton 72×38dp）
+- **一键升级** — 建造栏「一键拆除」上方新增「一键升级」入口；新增 `DialogType.BuildingUpgrade` + `BuildingUpgradeDialog`（半屏四列等距列表：建筑/数量/升级/一键升级，表头与数据行间 1dp 灰色横线）；行内「升级」升级 1 座、行内「一键升级」升级全部（灵石不足按可负担数）；条件不满足统一经 `showError` 提示框逐条告知
+- **升级语义** — 原地变换 `GridBuildingData`（buildingId/displayName/width/height），保留 instanceId/gridX/gridY/sectId：住所槽位按 instanceId 关联故弟子入住关系零影响；修炼加成由 displayName 实时派生，无 checkpoint 需求；升级后建筑与直建中级住所全生命周期行为一致
+- **测试** — `BuildingUpgradeCalculatorTest`（差价/资格/空间边界/rectsOverlap）、`BuildingUpgradeTest`（单座原子性/槽位保留/批量可负担数/空间跳过/相邻扩地互斥/等级门槛整批判定/他宗门隔离）、`BuildingUpgradeCoverageTest`（守卫：所有住所要么是升级源要么是目标，配置行源/目标已注册、目标要求中型、造价递增）、`BuildingUpgradeRowsTest`（一键升级行派生：作用域统计/差价 30000/50000/顺序）、`DialogTypeRenderCoverageTest` 登记新类型
+- **验证** — `compileReleaseKotlin` + 新增测试类（串行 `--max-workers=1`）全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；零新增精灵/字段；`iOS` 标签：升级逻辑全为纯 Kotlin 零 Android 依赖
+
 ### 优化（2026-08-19 宗门仓库交互：移除点击选中 + 长按改点击 + 储物袋单独开启）
 
 > 背景：宗门仓库此前「点击=选中（高亮边框）、长按=查看详情」，储物袋需先点击选中再点右上角「开启」小按钮，交互层级多、发现成本高。

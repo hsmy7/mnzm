@@ -693,6 +693,7 @@ fun watchAdForNewFeature() {
 | 产（源） | 运营发放 | 兑换码/节日邮件/白名单 1000 万灵石邮件（每日签到已移除 2026-08-07） | `RedeemCodeService`、`BuiltinMailConfig` |
 | 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
 | **耗（汇）** | 建造/拆除 | 建造扣灵石、一键拆除返还 50% | `PlaceBuildingUseCase.kt`、`GameEngineBuildingOps.kt` |
+| 耗（汇） | 住所升级 | 初级住所→中级住所差价（单人 30000/多人 50000，目标造价-源造价动态计算，要求中型宗门） | `BuildingFacadeImpl.upgradeBuildings`、`BuildingUpgradeRegistry` |
 | 耗（汇） | 生产投入 | 炼丹/锻造/种植/血炼材料 | `ProductionProcessor`、`AlchemySystem` |
 | 耗（汇） | 突破/功法 | 突破消耗、藏经阁 | `DiscipleBreakthroughHandler`、`ManualDatabase` |
 | 耗（汇） | 外交送礼 | 灵石档位 + 年份限制 | `GameEngineDiplomacyOps.kt`、`FavorConfig` |

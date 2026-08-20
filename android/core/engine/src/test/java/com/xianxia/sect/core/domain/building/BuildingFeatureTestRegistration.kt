@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.domain.building
 
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.domain.building.BuildingFeature
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.building.SlotGroup
@@ -55,6 +56,7 @@ private fun residenceFeatures(): List<BuildingFeature> = listOf(
         residenceSpeedBonus = "修炼速度+20%"),
     BuildingFeature("single_residence_upgraded", "中级单人住所", BuildingType.SINGLE_RESIDENCE,
         listOf(SlotGroup.Residence(1)), isResidence = true, isConstructible = true, unlimitedBuild = true,
+        requiredSectLevel = SectLevel.MEDIUM,
         cost = 50000, gridWidth = 6, gridHeight = 6,
         residenceSpeedBonus = "修炼速度+40%"),
     BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE,
@@ -63,6 +65,7 @@ private fun residenceFeatures(): List<BuildingFeature> = listOf(
         residenceSpeedBonus = "修炼速度+10%"),
     BuildingFeature("multi_residence_upgraded", "中级多人住所", BuildingType.MULTI_RESIDENCE,
         listOf(SlotGroup.Residence(4)), isResidence = true, isConstructible = true, unlimitedBuild = true,
+        requiredSectLevel = SectLevel.MEDIUM,
         cost = 80000, gridWidth = 6, gridHeight = 5,
         residenceSpeedBonus = "修炼速度+15%"),
 )

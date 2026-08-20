@@ -201,7 +201,9 @@ class GameViewModel @Inject constructor(
     val buildingDelegate = BuildingDelegate(
         gameEngine, delegateServices.buildingFacade, delegateServices.buildingConfigService,
         dispatcher = delegateServices.ioDispatcher.dispatcher,
-        onDemolishSuccess = { msg -> showSuccess(msg) }
+        onDemolishSuccess = { msg -> showSuccess(msg) },
+        onUpgradeSuccess = { msg -> showSuccess(msg) },
+        onUpgradeError = { msg -> showError(msg) }
     )
     val sectDelegate = SectDelegate(
         gameEngine,
@@ -531,6 +533,9 @@ class GameViewModel @Inject constructor(
         buildingDelegate.moveBuilding(instanceId, newGridX, newGridY)
     fun demolishBuilding(instanceId: String) = buildingDelegate.demolishBuilding(instanceId)
     fun demolishBuildings(instanceIds: List<String>) = buildingDelegate.demolishBuildings(instanceIds)
+    fun upgradeResidence(instanceId: String) = buildingDelegate.upgradeResidence(instanceId)
+    fun upgradeBuildingOne(sourceKey: String) = buildingDelegate.upgradeBuildingOne(sourceKey)
+    fun upgradeBuildingsOfType(sourceKey: String) = buildingDelegate.upgradeBuildingsOfType(sourceKey)
     fun fixupBuildingSizesIfNeeded() = buildingDelegate.fixupBuildingSizesIfNeeded()
 
     // ── 核心状态流 ──

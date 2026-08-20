@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
@@ -47,6 +49,16 @@ fun ResidenceDialog(
     val bonusText = feature?.residenceSpeedBonus ?: ""
     val discipleMap = disciples.associateBy { it.id }
 
+    // ── 住所升级区（仅初级住所可升级：单人住所 / 多人住所）──
+    val upgradeDef = com.xianxia.sect.core.engine.domain.building.BuildingUpgradeRegistry
+        .findUpgrade(building.buildingId)
+    val upgradeCost = upgradeDef?.let {
+        com.xianxia.sect.core.engine.domain.building.BuildingUpgradeRegistry.upgradeCost(it)
+    } ?: 0L
+    val playerSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
+    val hasSectLevel = playerSectLevel >= com.xianxia.sect.core.SectLevel.MEDIUM
+    val hasEnoughStones = gameData.spiritStones >= upgradeCost
+
     var showDiscipleSelector by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableIntStateOf(0) }
     var isSwapping by remember { mutableStateOf(false) }
@@ -67,7 +79,12 @@ fun ResidenceDialog(
                     viewModel.removeFromResidence(buildingInstanceId, index)
                 }
             },
-            onSwap = { selectedSlotIndex = it; isSwapping = true; showDiscipleSelector = true }
+            onSwap = { selectedSlotIndex = it; isSwapping = true; showDiscipleSelector = true },
+            upgradeDef = upgradeDef,
+            upgradeCost = upgradeCost,
+            hasEnoughStones = hasEnoughStones,
+            hasSectLevel = hasSectLevel,
+            onUpgrade = { scope.launch { viewModel.upgradeResidence(buildingInstanceId) } }
         )
     }
     if (showDiscipleSelector) {
@@ -83,7 +100,7 @@ fun ResidenceDialog(
     }
 }
 
-/** 弟子住所主内容区（ResidenceDialog 拆分）：加成文案 + 槽位行 */
+/** 弟子住所主内容区（ResidenceDialog 拆分）：加成文案 + 槽位行 + 升级区 */
 @Composable
 private fun ResidenceDialogContent(
     slots: List<ResidenceSlot>,
@@ -91,7 +108,12 @@ private fun ResidenceDialogContent(
     bonusText: String,
     onEmptySlotClick: (Int) -> Unit,
     onMoveOut: (Int) -> Unit,
-    onSwap: (Int) -> Unit
+    onSwap: (Int) -> Unit,
+    upgradeDef: com.xianxia.sect.core.engine.domain.building.BuildingUpgradeDef?,
+    upgradeCost: Long,
+    hasEnoughStones: Boolean,
+    hasSectLevel: Boolean,
+    onUpgrade: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
@@ -139,7 +161,49 @@ private fun ResidenceDialogContent(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 住所升级区（仅初级住所显示）：条件文本（满足=白 / 不满足=红）+ 升级按钮
+        if (upgradeDef != null) {
+            ResidenceUpgradeSection(
+                upgradeCost = upgradeCost,
+                hasEnoughStones = hasEnoughStones,
+                hasSectLevel = hasSectLevel,
+                onUpgrade = onUpgrade
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+/** 住所升级区（ResidenceDialog 拆分）：条件文本 + 升级按钮（白=满足 / 红=不满足）。 */
+@Composable
+private fun ResidenceUpgradeSection(
+    upgradeCost: Long,
+    hasEnoughStones: Boolean,
+    hasSectLevel: Boolean,
+    onUpgrade: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = "消耗${upgradeCost}灵石",
+            fontSize = 12.sp,
+            color = if (hasEnoughStones) Color.White else Color(0xFFE53935)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        GameButton(
+            text = "升级",
+            enabled = hasEnoughStones && hasSectLevel,
+            onClick = onUpgrade
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "需要宗门等级达到中型",
+            fontSize = 12.sp,
+            color = if (hasSectLevel) Color.White else Color(0xFFE53935)
+        )
     }
 }
 

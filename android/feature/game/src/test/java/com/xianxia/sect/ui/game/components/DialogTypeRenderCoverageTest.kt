@@ -59,7 +59,8 @@ class DialogTypeRenderCoverageTest {
         DialogType.CloudSave,
         DialogType.JadeSymbol,
         DialogType.JadeSymbolAd,
-        DialogType.BuildingSectLevelRequirement("")
+        DialogType.BuildingSectLevelRequirement(""),
+        DialogType.BuildingUpgrade
     )
 
     /** 故意排除项：无对话框占位，不渲染任何内容 */

@@ -1791,10 +1791,17 @@ private fun MainGameScreenDemolishControls(
                 }
             )
         } else {
-            GameButton(
-                text = "一键拆除",
-                onClick = { state.enterDemolishMode() }
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                GameButton(
+                    text = "一键升级",
+                    onClick = { viewModel.navigateToDialog(DialogType.BuildingUpgrade) }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                GameButton(
+                    text = "一键拆除",
+                    onClick = { state.enterDemolishMode() }
+                )
+            }
         }
     }
 }

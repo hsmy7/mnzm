@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.system.InventorySystem
@@ -596,6 +597,96 @@ class BuildingFacadeImpl @Inject constructor(
 
     override suspend fun removeBuildings(refunds: Map<String, Long>) {
         removeBuildingsInternal(refunds)
+    }
+
+    override suspend fun upgradeBuilding(instanceId: String): UpgradeResult =
+        withContext(ioDispatcher.dispatcher) {
+            val snapshot = stateStore.gameDataSnapshot
+            val building = snapshot.placedBuildings.find { it.instanceId == instanceId }
+                ?: return@withContext UpgradeResult.Failure(listOf("建筑不存在"))
+            val def = BuildingUpgradeRegistry.findUpgrade(building.buildingId)
+                ?: return@withContext UpgradeResult.Failure(listOf("该建筑不可升级"))
+            when (val check = BuildingUpgradeCalculator.checkUpgrade(snapshot, instanceId)) {
+                is UpgradeCheckResult.ConditionsUnmet -> UpgradeResult.Failure(check.reasons)
+                UpgradeCheckResult.NotUpgradeable -> UpgradeResult.Failure(listOf("该建筑不可升级"))
+                UpgradeCheckResult.Upgradeable ->
+                    upgradeBuildings(building.sectId, building.buildingId, 1)
+            }
+        }
+
+    override suspend fun upgradeBuildings(
+        sectId: String,
+        sourceKey: String,
+        maxCount: Int
+    ): UpgradeResult = withContext(ioDispatcher.dispatcher) {
+        val def = BuildingUpgradeRegistry.findUpgrade(sourceKey)
+            ?: return@withContext UpgradeResult.Failure(listOf("该建筑不可升级"))
+        if (maxCount <= 0) {
+            return@withContext UpgradeResult.Failure(listOf("灵石不足，无法升级"))
+        }
+        val target = BuildingFeatureRegistry.findByKey(def.targetKey)
+            ?: return@withContext UpgradeResult.Failure(listOf("升级目标配置缺失：${def.targetKey}"))
+        val cost = BuildingUpgradeRegistry.upgradeCost(def)
+        val sourceName = BuildingFeatureRegistry.findByKey(def.sourceKey)?.displayName ?: sourceKey
+        var outcome: UpgradeResult = UpgradeResult.Failure(listOf("未知错误"))
+        stateStore.update {
+            // 宗门等级门槛整批判定（需求：灵石以外条件不满足 → 明确告知）
+            val currentLevel = gameData.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
+            if (currentLevel < SectLevel.MEDIUM) {
+                outcome = UpgradeResult.Failure(
+                    listOf("需要宗门等级达到中型（当前${SectLevel.levelName(currentLevel)}），无法升级")
+                )
+                return@update
+            }
+
+            val candidates = gameData.placedBuildings
+                .filter { it.sectId == sectId && it.buildingId == sourceKey }
+                .sortedWith(compareBy({ it.gridX }, { it.gridY }, { it.instanceId }))
+            if (candidates.isEmpty()) {
+                outcome = UpgradeResult.Failure(listOf("没有可升级的$sourceName"))
+                return@update
+            }
+
+            // 灵石可负担上限（需求：灵石不足以全部升级时按可负担数量升级）
+            val affordable = (gameData.spiritStones / cost).coerceAtMost(maxCount.toLong()).toInt()
+            if (affordable <= 0) {
+                outcome = UpgradeResult.Failure(
+                    listOf("灵石不足（升级需$cost 灵石/座，当前${gameData.spiritStones}），无法升级")
+                )
+                return@update
+            }
+
+            val working = gameData.placedBuildings.toMutableList()
+            var remainingStones = gameData.spiritStones
+            var upgraded = 0
+            var spaceBlocked = 0
+            for (candidate in candidates) {
+                if (upgraded >= affordable) break
+                // 以「升级中间态」增量校验空间，防相邻建筑同时扩占地互相重叠
+                if (!BuildingUpgradeCalculator.canFitUpgrade(working, candidate, def)) {
+                    spaceBlocked++
+                    continue
+                }
+                val index = working.indexOfFirst { it.instanceId == candidate.instanceId }
+                if (index < 0) continue
+                working[index] = working[index].copy(
+                    buildingId = target.key,
+                    displayName = target.displayName,
+                    width = target.gridWidth,
+                    height = target.gridHeight
+                )
+                upgraded++
+                remainingStones -= cost
+            }
+            if (upgraded > 0) {
+                gameData = gameData.copy(
+                    spiritStones = remainingStones,
+                    placedBuildings = working
+                )
+            }
+            outcome = UpgradeResult.Success(upgraded, spaceBlocked)
+        }
+        outcome
     }
 
     /**

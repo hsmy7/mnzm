@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.guide.GuideTaskRegistry
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
+import com.xianxia.sect.ui.game.dialogs.BuildingUpgradeDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.GuideDialog
 import com.xianxia.sect.ui.game.dialogs.LeaderboardDialog
@@ -48,6 +49,7 @@ internal fun DialogType.renderFeatureRoutes(
         DialogType.Mail -> renderMail(viewModel, onDismiss)
         DialogType.Lizhan -> renderLizhan(viewModel, onDismiss)
         DialogType.Leaderboard -> renderLeaderboard(onDismiss)
+        DialogType.BuildingUpgrade -> renderBuildingUpgrade(viewModel, gameData, onDismiss)
         else -> Unit
     }
 }
@@ -169,6 +171,15 @@ private fun renderLeaderboard(onDismiss: () -> Unit) {
     val leaderboardViewModel = hiltViewModel<LeaderboardViewModel>()
     LeaderboardDialog(
         viewModel = leaderboardViewModel,
+        onDismiss = onDismiss
+    )
+}
+
+@Composable
+private fun renderBuildingUpgrade(viewModel: GameViewModel, gameData: GameData, onDismiss: () -> Unit) {
+    BuildingUpgradeDialog(
+        viewModel = viewModel,
+        gameData = gameData,
         onDismiss = onDismiss
     )
 }

@@ -31,11 +31,11 @@ internal fun OverlayDialogRoute(
         is DialogType.Settings, is DialogType.Buildings -> {
             type.renderMainTabRoutes(vms, callbacks, onDismiss)
         }
-        // 玩法功能（Recruit/Guide/Diplomacy/Planting/Merchant/WorldMap/BattleLog/Mail/Lizhan/Leaderboard）
+        // 玩法功能（Recruit/Guide/Diplomacy/Planting/Merchant/WorldMap/BattleLog/Mail/Lizhan/Leaderboard/BuildingUpgrade）
         is DialogType.Recruit, is DialogType.Guide, is DialogType.Diplomacy,
         is DialogType.Planting, is DialogType.Merchant, is DialogType.WorldMap,
         is DialogType.BattleLog, is DialogType.Mail,
-        is DialogType.Lizhan, is DialogType.Leaderboard -> {
+        is DialogType.Lizhan, is DialogType.Leaderboard, is DialogType.BuildingUpgrade -> {
             type.renderFeatureRoutes(vms, gameData, onDismiss)
         }
         // 生产建筑（SpiritMine/HerbGarden/Alchemy/Forge/PatrolTower/BloodRefiningPool/Residence/WarehouseBuilding）
