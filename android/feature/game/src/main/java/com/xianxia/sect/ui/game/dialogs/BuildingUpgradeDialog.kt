@@ -40,9 +40,10 @@ private val UpgradeHeaderDividerColor = Color(0xFF9E9E9E)
 /**
  * 一键升级半屏对话框：四列列表（建筑/数量/升级/一键升级）。
  *
- * 布局约定（2026-08-19 真机反馈）：标题行四列等距排布（建筑/数量等宽列 +
- * 升级/一键升级标准宽度列），数据行与标题行共用同一列模板——每列数据对准
- * 对应标题正下方；按钮保持 GameButton 标准宽度不变。
+ * 布局遵循行业惯例（2026-08-19 调研 Material Design 数据表 + 放置类手游
+ * 批量操作界面）：**列内容对齐而非强制等宽**——建筑列左对齐、数量列居中、
+ * 操作按钮固定标准宽度（GameButton 72×38dp）成组排布；表头与数据行共用
+ * 同一列模板，每列数据对准对应标题正下方，表头与数据行之间 1dp 灰色横线分隔。
  *
  * 数据行由 [buildUpgradeRows] 派生（仅列出玩家已建造、有升级目标的源建筑），
  * 升级操作经 [GameViewModel] 走引擎门面；条件不满足时由统一错误提示框逐条告知。
@@ -61,12 +62,16 @@ fun BuildingUpgradeDialog(
         scrollableContent = true
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 16.dp)) {
-            // 表头行：建筑 / 数量 / 升级 / 一键升级（与数据行共用列模板，保证列对齐）
+            // 表头行：建筑（左对齐）/ 数量（居中）/ 升级 / 一键升级（与数据行共用列模板）
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(UpgradeColumnGap)
             ) {
-                UpgradeHeaderCell(text = "建筑", modifier = Modifier.weight(1f))
+                UpgradeHeaderCell(
+                    text = "建筑",
+                    modifier = Modifier.weight(1f),
+                    contentAlignment = Alignment.CenterStart
+                )
                 UpgradeHeaderCell(text = "数量", modifier = Modifier.weight(1f))
                 UpgradeHeaderCell(text = "升级", modifier = Modifier.width(ButtonSizes.StandardWidth))
                 UpgradeHeaderCell(text = "一键升级", modifier = Modifier.width(ButtonSizes.StandardWidth))
@@ -105,13 +110,14 @@ fun BuildingUpgradeDialog(
     }
 }
 
-/** 表头单元格（BuildingUpgradeDialog 拆分）：居中标题文本。 */
+/** 表头单元格（BuildingUpgradeDialog 拆分）：标题文本。 */
 @Composable
 private fun UpgradeHeaderCell(
     text: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentAlignment: Alignment = Alignment.Center
 ) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(modifier = modifier, contentAlignment = contentAlignment) {
         Text(
             text = text,
             fontSize = 13.sp,
@@ -139,7 +145,7 @@ private fun BuildingUpgradeRowItem(
             color = Color.Black,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
+            textAlign = TextAlign.Start,
             modifier = Modifier
                 .weight(1f)
                 .align(Alignment.CenterVertically)
