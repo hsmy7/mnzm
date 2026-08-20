@@ -1,14 +1,4 @@
-## [4.01.03] - 2026-08-19
-
-### 更新（弟子肖像全量换新 + 登录界面「进入游戏」一键登录）
-
-> 背景：美术素材库（D:\模拟宗门美术素材）更换了全部弟子肖像；登录界面按钮由「使用 TapTap 登录」改为美术提供的「进入游戏」按钮，点击即自动登录。
-
-- **弟子肖像全量替换** — 37 张肖像（male_disciple_1..20 / female_disciple_1..17）按美术素材库最新 PNG 无损重编码为 WebP（lossless, effort 6）并替换 `feature/game/src/main/res/drawable-nodpi/`，文件名/注册名不变，旧档 `portraitRes` 引用零迁移
-- **登录按钮改为「进入游戏」** — `MainActivity.TapTapLoginButton`（Material Button + 文案）→ `EnterGameButton`（`btn_enter_game.webp` 图片按钮，320dp 宽 + `clickableWithSound`），点击逻辑不变：隐私校验 → TapTap SDK 就绪校验 → `TapTapAuthManager.login()` 自动登录 → 防沉迷验证；移除 `ic_taptap`/`RoundedCornerShape` 使用
-- **资源管线** — `btn_enter_game.webp` 入库 app 模块 drawable-nodpi，`sprite-uid-map.json` 追加 UID（build-atlas 自动登记）
-- **验证** — `compileReleaseKotlin` 通过；`PortraitPoolTest` / `SpriteCodegenSyncTest` / `AtlasManifestSyncTest` 全绿
-- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；登录会话 `loginType` 仍为 "taptap"
+## [4.01.04] - 2026-08-19
 
 ### 优化（2026-08-19 宗门仓库交互：移除点击选中 + 长按改点击 + 储物袋单独开启）
 
@@ -53,6 +43,18 @@
 - **验证** — `compileReleaseKotlin` + 相关测试类（串行 `--max-workers=1`）全绿
 - **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；`Disciple` 模型/组件表/Proto 字段全部保留（旧档残留数据不再读取、写入路径清零自愈）
 - **玩家可见变化** — 修炼速度显示值变为真实值（如 400→200）；修炼速度丹实际效果降为设计值（原为 bug 双倍）——属平衡性恢复而非新增削弱
+
+## [4.01.03] - 2026-08-19
+
+### 更新（弟子肖像全量换新 + 登录界面「进入游戏」一键登录）
+
+> 背景：美术素材库（D:\模拟宗门美术素材）更换了全部弟子肖像；登录界面按钮由「使用 TapTap 登录」改为美术提供的「进入游戏」按钮，点击即自动登录。
+
+- **弟子肖像全量替换** — 37 张肖像（male_disciple_1..20 / female_disciple_1..17）按美术素材库最新 PNG 无损重编码为 WebP（lossless, effort 6）并替换 `feature/game/src/main/res/drawable-nodpi/`，文件名/注册名不变，旧档 `portraitRes` 引用零迁移
+- **登录按钮改为「进入游戏」** — `MainActivity.TapTapLoginButton`（Material Button + 文案）→ `EnterGameButton`（`btn_enter_game.webp` 图片按钮，320dp 宽 + `clickableWithSound`），点击逻辑不变：隐私校验 → TapTap SDK 就绪校验 → `TapTapAuthManager.login()` 自动登录 → 防沉迷验证；移除 `ic_taptap`/`RoundedCornerShape` 使用
+- **资源管线** — `btn_enter_game.webp` 入库 app 模块 drawable-nodpi，`sprite-uid-map.json` 追加 UID（build-atlas 自动登记）
+- **验证** — `compileReleaseKotlin` 通过；`PortraitPoolTest` / `SpriteCodegenSyncTest` / `AtlasManifestSyncTest` 全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；登录会话 `loginType` 仍为 "taptap"
 
 ## [4.01.02] - 2026-08-18
 

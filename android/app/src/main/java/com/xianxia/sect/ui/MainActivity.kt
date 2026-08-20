@@ -1100,45 +1100,50 @@ private fun LoginColumnContent(
     onLoginError: (String?) -> Unit,
     onShowPrivacy: () -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .padding(bottom = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator()
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("正在登录...", color = Color.Black)
-        } else {
-            EnterGameButton(
-                context = context,
-                sessionManager = sessionManager,
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 底部：加载指示 / 进入游戏按钮 + 隐私勾选行
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Bottom
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("正在登录...", color = Color.Black)
+            } else {
+                EnterGameButton(
+                    context = context,
+                    sessionManager = sessionManager,
+                    privacyChecked = privacyChecked,
+                    tapTapReady = tapTapReady,
+                    onLoadingChange = onLoadingChange,
+                    onLoginError = onLoginError
+                )
+            }
+
+            PrivacyAgreementRow(
                 privacyChecked = privacyChecked,
-                tapTapReady = tapTapReady,
-                onLoadingChange = onLoadingChange,
-                onLoginError = onLoginError
+                onCheckedChange = onPrivacyCheckedChange,
+                onShowPrivacy = onShowPrivacy
             )
         }
 
+        // 屏幕中央：登录错误提示
         loginResult?.let { error ->
-            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = error,
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
             )
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        PrivacyAgreementRow(
-            privacyChecked = privacyChecked,
-            onCheckedChange = onPrivacyCheckedChange,
-            onShowPrivacy = onShowPrivacy
-        )
     }
 }
 
@@ -1189,7 +1194,7 @@ private fun EnterGameButton(
         painter = painterResource(id = R.drawable.btn_enter_game),
         contentDescription = "进入游戏",
         modifier = Modifier
-            .width(320.dp)
+            .width(310.dp)
             .clickableWithSound {
                 if (!privacyChecked) {
                     Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
@@ -1279,9 +1284,7 @@ private fun PrivacyAgreementRow(
     onShowPrivacy: () -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
