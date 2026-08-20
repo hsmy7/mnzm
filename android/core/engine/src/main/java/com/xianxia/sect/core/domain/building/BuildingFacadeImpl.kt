@@ -19,6 +19,7 @@ import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DomainLog
@@ -58,7 +59,14 @@ class BuildingFacadeImpl @Inject constructor(
 
     override suspend fun placeBuilding(building: GridBuildingData) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
-        stateStore.update { gameData = gameData.copy(placedBuildings = gameData.placedBuildings + building.copy(sectId = sectId)) }
+        val counterKey = GuideCounterKeys.buildingBuiltKey(building.displayName)
+        stateStore.update {
+            gameData = gameData.copy(
+                placedBuildings = gameData.placedBuildings + building.copy(sectId = sectId),
+                guideCounters = gameData.guideCounters +
+                    (counterKey to ((gameData.guideCounters[counterKey] ?: 0L) + 1))
+            )
+        }
         if (BuildingFeatureRegistry.findByDisplayName(building.displayName)?.buildingType == BuildingType.MINING) {
             syncSpiritMineSlotsAfterPlace()
         }

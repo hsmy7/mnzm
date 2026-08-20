@@ -36,15 +36,24 @@ sealed interface GuideCondition {
     /** 目标值 */
     val targetValue: Long
 
-    /** 建造数量 */
+    /**
+     * 建造数量。
+     *
+     * 累计语义（2026-08-19）：当前值 = max(累计建造计数, 当前存量)——
+     * 建筑升级（初级→中级）或拆除不再回退引导进度；旧档无累计计数时回退到当前存量。
+     */
     data class BuildingCount(val buildingDisplayName: String, override val targetValue: Long) : GuideCondition {
         override val label: String get() = "建造${targetValue}座${buildingDisplayName}"
         override fun isMet(gameData: GameData): Boolean =
             currentValue(gameData) >= targetValue
         override fun progressText(gameData: GameData): String =
             "(${currentValue(gameData)}/${targetValue})"
-        override fun currentValue(gameData: GameData): Long =
-            gameData.placedBuildings.count { it.displayName == buildingDisplayName }.toLong()
+        override fun currentValue(gameData: GameData): Long {
+            val cumulative =
+                gameData.guideCounters[GuideCounterKeys.buildingBuiltKey(buildingDisplayName)] ?: 0L
+            val current = gameData.placedBuildings.count { it.displayName == buildingDisplayName }.toLong()
+            return maxOf(cumulative, current)
+        }
     }
 
     /** 长老已任命 */

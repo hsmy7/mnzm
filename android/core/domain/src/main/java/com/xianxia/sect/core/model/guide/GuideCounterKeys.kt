@@ -20,4 +20,12 @@ object GuideCounterKeys {
     const val BREAKTHROUGHS = "breakthroughs"
     const val DISCIPLE_IMPRISONED = "discipleImprisoned"
     const val CULTIVATION_YEARS = "cultivationYears"
+
+    /**
+     * 建筑建造累计计数 key（按建筑显示名）。
+     *
+     * [GuideCondition.BuildingCount] 读取该计数与当前存量取大值：
+     * 建筑升级/拆除不再回退引导进度；旧档无计数时回退到当前存量。
+     */
+    fun buildingBuiltKey(buildingDisplayName: String): String = "buildingBuilt:$buildingDisplayName"
 }

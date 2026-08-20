@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.StorageBag
@@ -99,5 +100,45 @@ fun GameEngine.incrementGuideCounter(key: String, amount: Long = 1) {
         gameData = gameData.copy(
             guideCounters = gameData.guideCounters + (key to currentCount + amount)
         )
+    }
+}
+
+/**
+ * 计算建筑建造累计计数回填（纯函数，可单测）。
+ *
+ * 旧档无累计计数：按当前存量建筑回填（max 语义，不覆盖已有更高计数）。
+ * 此后建筑升级/拆除不再回退引导建造进度。
+ *
+ * @param placedBuildings 当前全部已放置建筑
+ * @param existingCounters 现有引导计数器
+ * @return 回填后的完整计数器 map
+ */
+internal fun computeBuildingCounterBackfill(
+    placedBuildings: List<GridBuildingData>,
+    existingCounters: Map<String, Long>
+): Map<String, Long> {
+    val result = existingCounters.toMutableMap()
+    placedBuildings
+        .map { it.displayName }
+        .distinct()
+        .forEach { name ->
+            val key = GuideCounterKeys.buildingBuiltKey(name)
+            val current = placedBuildings.count { it.displayName == name }.toLong()
+            if (current > (result[key] ?: 0L)) result[key] = current
+        }
+    return result
+}
+
+/**
+ * 回填建筑建造累计计数（读档 Step 3.6，幂等）。
+ *
+ * 旧档无累计计数：按当前存量建筑回填，防升级/拆除回退引导进度。
+ */
+fun GameEngine.backfillBuildingGuideCounters() {
+    stateStore.update {
+        val backfilled = computeBuildingCounterBackfill(gameData.placedBuildings, gameData.guideCounters)
+        if (backfilled != gameData.guideCounters) {
+            gameData = gameData.copy(guideCounters = backfilled)
+        }
     }
 }

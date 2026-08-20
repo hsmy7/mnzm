@@ -143,6 +143,10 @@ class BootSequenceController @Inject constructor(
             // 移除3格边界树木区域内的旧存档建筑（返还一半造价）
             migrateBorderZoneBuildings()
 
+            // ── Step 3.6: 引导累计建造计数回填（旧档无计数，按最终存量回填）──
+            // 回填后建筑升级/拆除不再回退引导建造进度（max 语义幂等，健康档零副作用）
+            gameEngine.backfillBuildingGuideCounters()
+
             stateStore.advanceBootPhase() // → DATA_READY
             onProgress(0.20f)
 

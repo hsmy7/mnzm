@@ -20,6 +20,7 @@ import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.engine.upgradeBuilding
 import com.xianxia.sect.core.engine.upgradeBuildings
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.FixedSectGateway
@@ -93,6 +94,7 @@ class BuildingDelegate(
                 group.createSlots(newBuildingInstanceId, data, activeId, feature)
             }
 
+            val counterKey = GuideCounterKeys.buildingBuiltKey(name)
             newProductionSlots += results.flatMap { it.productionSlots }
             data.copy(
                 spiritStones = data.spiritStones - cost,
@@ -104,7 +106,9 @@ class BuildingDelegate(
                 residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
                 productionSlots = data.productionSlots + newProductionSlots,
                 warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
-                librarySlots = data.librarySlots + results.flatMap { it.librarySlots }
+                librarySlots = data.librarySlots + results.flatMap { it.librarySlots },
+                guideCounters = data.guideCounters +
+                    (counterKey to ((data.guideCounters[counterKey] ?: 0L) + 1))
             )
         }
 
@@ -317,14 +321,12 @@ class BuildingDelegate(
         when (result) {
             is UpgradeResult.Failure -> onUpgradeError(result.reasons.joinToString("；"))
             is UpgradeResult.Success -> when {
-                result.upgradedCount > 0 -> onUpgradeSuccess(
-                    if (result.spaceBlockedCount > 0) {
-                        "已升级${result.upgradedCount}座$sourceName" +
-                            "（${result.spaceBlockedCount}座因空间不足未升级）"
-                    } else {
-                        "已升级${result.upgradedCount}座$sourceName"
-                    }
+                // 先升级有空间且满足条件的建筑，再弹提示框告知剩余空间不足的建筑
+                result.upgradedCount > 0 && result.spaceBlockedCount > 0 -> onUpgradeError(
+                    "已升级${result.upgradedCount}座$sourceName；" +
+                        "剩余${result.spaceBlockedCount}座因升级后占地扩大、空间不足，未能升级"
                 )
+                result.upgradedCount > 0 -> onUpgradeSuccess("已升级${result.upgradedCount}座$sourceName")
                 result.spaceBlockedCount > 0 ->
                     onUpgradeError("${sourceName}升级后占地扩大，空间不足，无法升级")
                 else -> onUpgradeError("升级失败")

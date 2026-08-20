@@ -14,6 +14,18 @@
 - **验证** — `compileReleaseKotlin` + 新增测试类（串行 `--max-workers=1`）全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；零新增精灵/字段；`iOS` 标签：升级逻辑全为纯 Kotlin 零 Android 依赖
 
+### 调整（2026-08-19 一键升级先升可行后提示 + 引导建造计数改累计）
+
+> 背景：①一键升级遇空间不足时应「先升级有空间且满足条件的建筑，再弹提示框告知剩余建筑空间不足」；②发现预存问题——住所升级后「单人住所」计数减少会导致引导任务「安顿住所/多人聚居」进度回退（与拆除行为同类）。
+
+- **一键升级提示顺序** — `BuildingDelegate.handleUpgradeResult`：升级数与空间不足跳过数并存时，由成功提示改为统一提示框「已升级X座；剩余Y座因升级后占地扩大、空间不足，未能升级」（引擎本就按稳定序先升可行实例、跳过空间不足实例并计数）
+- **引导建造累计计算** — `GuideCondition.BuildingCount.currentValue` 改为 `max(累计建造计数, 当前存量)`：升级/拆除不再回退引导进度；旧档无计数时回退当前存量（零回归）；`GuideCounterKeys.buildingBuiltKey(name)` 派生计数 key（`buildingBuilt:{显示名}`）
+- **建造计数累加** — 两处真实建造入口事务内累加：`BuildingFacadeImpl.placeBuilding`（引擎门面）+ `BuildingDelegate.doPlaceBuilding`（交互放置/金手指批量，含重叠拒绝不计数）；升级是原地变换不新增计数
+- **读档回填** — `BootSequenceController` Step 3.6 新增 `backfillBuildingGuideCounters()`（纯函数 `computeBuildingCounterBackfill`：max 语义幂等），旧档建筑存量一次性回填计数，此后升级/拆除不回退
+- **测试** — `GuideTaskTest` 新增 5 用例（累计取大/拆除不回落/旧档回退/按名隔离/key 格式）；`GuideCounterBackfillTest` 新增 5 用例（回填/不覆盖更高/取存量/幂等/多建筑隔离）；`BuildingUpgradeTest` 新增 3 用例（门面放置计数+1/叠加/升级不计数）；`BuildingDelegateOverlapTest` 新增 2 用例（成功放置计数/重复叠加）+ 重叠拒绝不计数断言
+- **验证** — `compileReleaseKotlin` + 相关测试类（串行 `--max-workers=1`）全绿
+- **兼容性** — `guideCounters` 为既有字段，仅新增 key，无需 Migration；`BuildingCount` 语义向后兼容（无计数时等价原行为）
+
 ### 优化（2026-08-19 宗门仓库交互：移除点击选中 + 长按改点击 + 储物袋单独开启）
 
 > 背景：宗门仓库此前「点击=选中（高亮边框）、长按=查看详情」，储物袋需先点击选中再点右上角「开启」小按钮，交互层级多、发现成本高。

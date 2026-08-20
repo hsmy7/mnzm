@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.repository.ProductionSlotDataPort
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -355,5 +356,51 @@ class BuildingUpgradeTest {
         assertTrue("应成功，实际：$result", result is UpgradeResult.Success)
         assertEquals("仅本宗门 1 座升级", 1, (result as UpgradeResult.Success).upgradedCount)
         assertEquals("他宗门实例保持初级", "single_residence", upgraded(other).buildingId)
+    }
+
+    // ── 建造累计计数（引导累计计算）────────────────────────────────
+
+    @Test
+    fun `建造 - 成功放置后累计建造计数+1`() = runTest {
+        setupState(stones = 100_000, buildings = emptyList())
+        val b = GridBuildingData(
+            buildingId = "alchemy", displayName = "炼丹炉",
+            gridX = 20, gridY = 20, width = 4, height = 3,
+            instanceId = "n1", sectId = "main"
+        )
+        facade.placeBuilding(b)
+        assertEquals(
+            "累计建造计数应 +1",
+            1L, state.gameData.guideCounters[GuideCounterKeys.buildingBuiltKey("炼丹炉")]
+        )
+        assertEquals("建筑已放置", 1, state.gameData.placedBuildings.size)
+    }
+
+    @Test
+    fun `建造 - 重复放置累计叠加`() = runTest {
+        setupState(stones = 100_000, buildings = emptyList())
+        facade.placeBuilding(
+            GridBuildingData(buildingId = "alchemy", displayName = "炼丹炉",
+                gridX = 20, gridY = 20, width = 4, height = 3, instanceId = "n1", sectId = "main")
+        )
+        facade.placeBuilding(
+            GridBuildingData(buildingId = "alchemy", displayName = "炼丹炉",
+                gridX = 30, gridY = 20, width = 4, height = 3, instanceId = "n2", sectId = "main")
+        )
+        assertEquals(
+            "累计建造计数应叠加为 2",
+            2L, state.gameData.guideCounters[GuideCounterKeys.buildingBuiltKey("炼丹炉")]
+        )
+    }
+
+    @Test
+    fun `升级 - 不改变建造累计计数（升级是原地变换非新建）`() = runTest {
+        val b = singleResidence("s1")
+        setupState(stones = 100_000, buildings = listOf(b))
+        facade.upgradeBuilding("s1")
+        assertEquals(
+            "升级不应新增建造计数",
+            null, state.gameData.guideCounters[GuideCounterKeys.buildingBuiltKey("中级单人住所")]
+        )
     }
 }

@@ -150,6 +150,8 @@ class BuildingDelegateOverlapTest {
 
         assertEquals("重叠放置应被拒绝，不新增建筑", 1, currentData.placedBuildings.size)
         assertEquals("重叠放置不应扣灵石", 100_000L, currentData.spiritStones)
+        assertEquals("重叠拒绝不应累计建造计数", null,
+            currentData.guideCounters[com.xianxia.sect.core.model.guide.GuideCounterKeys.buildingBuiltKey("炼丹炉")])
     }
 
     @Test
@@ -178,6 +180,20 @@ class BuildingDelegateOverlapTest {
         assertEquals("放置应扣灵石", 99_500L, currentData.spiritStones)
         val placed = currentData.placedBuildings.single()
         assertEquals("新建筑应带当前宗门归属", "", placed.sectId)
+        assertEquals("成功放置应累计建造计数 +1", 1L,
+            currentData.guideCounters[com.xianxia.sect.core.model.guide.GuideCounterKeys.buildingBuiltKey("炼丹炉")])
+    }
+
+    @Test
+    fun `doPlaceBuilding_重复放置_累计建造计数叠加`() = runTest(testDispatcher) {
+        delegate.placeBuilding("炼丹炉", 10, 10)
+        delegate.placeBuilding("炼丹炉", 20, 10)
+        runEngineBlocks()
+        advanceUntilIdle()
+
+        assertEquals("应放置 2 座", 2, currentData.placedBuildings.size)
+        assertEquals("累计建造计数应为 2", 2L,
+            currentData.guideCounters[com.xianxia.sect.core.model.guide.GuideCounterKeys.buildingBuiltKey("炼丹炉")])
     }
 
     // ================================================================
