@@ -226,8 +226,8 @@ class CultivationRateCalculator @Inject constructor(
             // 默认值与 assemble 路径一致（:723-724），防半幽灵数据两入口分歧
             age = tables.ages.getOrDefault(id, 16),
             lifespan = tables.lifespans.getOrDefault(id, 80),
-            cultivationSpeedDuration = tables.cultivationSpeedDurations.getOrDefault(id, 0),
-            cultivationSpeedBonus = tables.cultivationSpeedBonuses.getOrDefault(id, 0.0),
+            // 丹药修炼速度加成统一收敛于 pillEffects 体系（2026-08 修复：
+            // 旧 cultivationSpeedBonus 组件列不再读取，防双写双倍生效）
             pillEffectDuration = tables.pillEffectDurations.getOrDefault(id, 0),
             pillCultivationSpeedBonus = tables.pillCultivationSpeedBonuses.getOrDefault(id, 0.0),
             // 默认值与 assemble 路径统一（资质=50 为自愈哨兵），防两入口分歧

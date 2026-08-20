@@ -30,6 +30,30 @@
 - **验证** — `:feature:game:compileReleaseKotlin` 通过；`FrameSkipPolicyTest` 新增 4 用例（淡入刚完成需兜底 / 淡入中不干扰 / 最后帧已完整 alpha 不需兜底 / 组合）共 12 用例全绿；本机仅 JDK 24，detekt 1.23.7 最高支持 jvm-target 22 无法运行（环境限制，非代码问题）；Robolectric 用例在 JDK 24 下框架级失败（`NoClassDefFoundError: RoboCookieManager`），已在未修改代码上复现确认与本次改动无关
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染线程逻辑变更不影响 Vulkan/Canvas 双后端接口
 
+### 调整（2026-08-19 登录界面布局：按钮下移 + 去间距 + 错误提示居中）
+
+> 背景：用户反馈登录界面「进入游戏」按钮与下方「已阅读并同意《隐私政策》」勾选行位置偏高、间距偏大；登录错误提示嵌在按钮与隐私行之间，不够醒目。
+
+- **登录列整体下移** — `MainActivity.LoginColumnContent` 底部间距 `padding(bottom = 24.dp)` → `8.dp`（Column 仍 `Arrangement.Bottom` 底部对齐，「进入游戏」按钮与隐私勾选行整体下移 16dp）
+- **按钮与隐私行去间距** — 移除按钮/错误区与 `PrivacyAgreementRow` 之间的 `Spacer(8.dp)`，并移除隐私行容器 `padding(vertical = 8.dp)`，按钮与隐私勾选行紧贴、视觉零间距
+- **错误提示居中** — `loginResult` 错误文本从底部列流移出，改为 `Box` 覆盖层 `Alignment.Center` 居中显示（`TextAlign.Center` + 左右 24dp 边距防长文本贴边）
+- **按钮宽度微调** — `EnterGameButton` 宽度 `320.dp` → `310.dp`（高度按图片宽高比 1825:523 自动跟随，约 92dp → 89dp）
+- **验证** — `compileReleaseKotlin` 通过（BUILD SUCCESSFUL）
+
+### 修复（2026-08-19 修炼速度显示虚高 2 倍 + 修炼速度丹双倍生效 + 丹药时长衰减死代码）
+
+> 背景：玩家反馈"修炼速度丹无效——进度条右侧显示 400/旬，实际每旬只有 200"。验证后确认差异真实存在且恒为 2 倍，但根因不在丹药，而是 3 个独立 bug 叠加（显示换算 / 字段双写 / 衰减死代码）。
+
+- **显示虚高 2 倍（根因）** — `DetailBasicInfoSection.BasicInfoRealmRow` 将 `calculateCultivationSpeed`（实为每旬值，基准 `REALM_SPEED_PER_PHASE` 即"每旬修为"）误当"每秒值"再 × `MS_PER_PHASE_1X/1000`（=2）换算，显示恒为实际结算值的 2 倍（玩家观测 200 → 400 完全吻合）；修复为直接显示每旬值（`coerceAtLeast(1.0)`，去掉按每秒语义的 1000 上限）
+- **丹药双倍生效** — 修炼速度丹（`cultivationSpeedPercent`）被同时写入两个字段：手动路径 `applyCultivationSpeedEffect`（`cultivationSpeedBonuses`）+ `applyBattleAttrEffects`（`pillCultivationSpeedBonuses`），自动路径 `applySustainedBonus` + `applyBattleAttrAndTemp` 同样双写；乘区 `temporaryBonus` 累加两次 → 实际效果为设计值 2 倍。修复：删除 `applyCultivationSpeedEffect`/`applySustainedBonus`，统一收敛 `pillEffects` 体系；乘区三入口（Disciple/Aggregate/Column）与 `buildColumnRateInput` 移除旧字段读取；手动/自动写入路径清零旧组件列（`cultivationSpeedBonuses/Durations`）自愈双写时代旧档残留；速率变化点 checkpoint 移入 `applyBattleAttrEffects`（2026-08-01 规则不变）
+- **丹药时长衰减死代码** — `HpMpRecoveryService.applyMonthlyDurationDecay` 全代码库无调用点，丹药持续时间从不衰减（"持续 N 旬"机制从未执行）；修复：`GameEngineCore` 月变事务接回新增的 `CultivationService.applyMonthlyDurationDecayAll`（存活弟子每月减 3 旬）
+- **duration 对齐描述** — 修炼/功法/孕养三系速度丹 `duration` 3→9（旬），与描述"持续9旬"一致（配合月结衰减 3 个月耗尽）
+- **KDoc 修正** — `HpMpRecoveryService` "每旬衰减 10、每月衰减 30"注释与实际实现（每月减 3 旬）对齐
+- **测试** — `CultivationRateEquivalenceTest` 新增"旧 `cultivationSpeedBonus` 字段不再影响速率"+"丹药加成单倍生效（19×1.5=28.5，双倍为 38）"回归；`CultivationCoreRealtimeAutoPillsTest` 新增"速度丹只写 pillEffects、旧字段清零"守卫；`CultivationCoreTest` 新增月结衰减 2 用例（9→6 / 到期清零全部丹药加成）
+- **验证** — `compileReleaseKotlin` + 相关测试类（串行 `--max-workers=1`）全绿
+- **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；`Disciple` 模型/组件表/Proto 字段全部保留（旧档残留数据不再读取、写入路径清零自愈）
+- **玩家可见变化** — 修炼速度显示值变为真实值（如 400→200）；修炼速度丹实际效果降为设计值（原为 bug 双倍）——属平衡性恢复而非新增削弱
+
 ## [4.01.02] - 2026-08-18
 
 ### 优化（2026-08-18 血炼池材料选择界面：仓库全量妖血 + "使用"按钮 + 数量门槛 200→100）

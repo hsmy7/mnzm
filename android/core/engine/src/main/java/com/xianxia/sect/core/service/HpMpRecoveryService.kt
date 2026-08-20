@@ -215,30 +215,19 @@ class HpMpRecoveryService @Inject constructor() {
 
     /**
      * 月度持续效果衰减（月结制专用）。
-     * 修炼速度加成和丹药效果每旬衰减 10，每月衰减 30。
+     * 丹药效果（pillEffects 体系）以旬为单位计 duration，每月衰减 3 旬。
      * @param tables 弟子数据表
      * @param id 弟子 ID
-     * @param focusedPhaseCount 本月焦点域已处理的旬数，用于扣除已应用的衰减
+     * @param focusedPhaseCount 本月已按旬结算处理过的旬数，用于扣除已应用的衰减
      */
     fun applyMonthlyDurationDecay(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) {
-        // 扣除已在焦点域旬结算中应用的部分，避免双计
+        // 扣除已在旬结算中应用的部分，避免双计
         // 每月 3 旬，duration 以旬为单位
         val monthlyDecay = (3 - focusedPhaseCount).coerceAtLeast(0)
         if (monthlyDecay <= 0) return
 
-        // 修炼速度加成衰减
-        val speedDuration = tables.cultivationSpeedDurations[id]
-        if (speedDuration > 0) {
-            val newDuration = speedDuration - monthlyDecay
-            if (newDuration <= 0) {
-                tables.cultivationSpeedBonuses[id] = 0.0
-                tables.cultivationSpeedDurations[id] = 0
-            } else {
-                tables.cultivationSpeedDurations[id] = newDuration
-            }
-        }
-
-        // 丹药效果衰减
+        // 丹药效果衰减（2026-08 修复：仅 pillEffects 体系——
+        // 旧 cultivationSpeedBonus 组件列已弃用，不再参与衰减）
         val pillDuration = tables.pillEffectDurations[id]
         if (pillDuration > 0) {
             val newDuration = pillDuration - monthlyDecay

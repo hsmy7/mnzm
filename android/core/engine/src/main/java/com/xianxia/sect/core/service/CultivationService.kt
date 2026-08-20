@@ -269,6 +269,19 @@ class CultivationService @Inject constructor(
         cultivationCore.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
     }
 
+    /**
+     * 月结全量持续效果衰减（2026-08 修复：接回原本无调用点的死代码）。
+     * 对所有存活弟子执行一次月衰减（丹药 duration 以旬为单位，每月减 3 旬）。
+     * 在月变事务内调用，与自动排班等月结操作同事务原子提交。
+     */
+    fun applyMonthlyDurationDecayAll(state: MutableGameState) {
+        val tables = state.discipleTables
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            cultivationCore.applyMonthlyDurationDecay(tables, id)
+        }
+    }
+
     fun processBreakthroughs(state: MutableGameState) {
         val tables = state.discipleTables
         val data = state.gameData

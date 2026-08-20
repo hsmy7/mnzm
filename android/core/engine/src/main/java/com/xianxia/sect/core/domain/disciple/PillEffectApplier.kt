@@ -67,7 +67,6 @@ class PillEffectApplier @Inject constructor() {
 
         var updated = disciple
         updated = applyCultivationEffect(updated, effect)
-        updated = applySustainedBonus(updated, effect)
         updated = applyLifeExtend(updated, effect)
         updated = applyPermanentBaseAttr(updated, effect)
         updated = applyUsageTracking(updated, effect, rule)
@@ -98,18 +97,6 @@ class PillEffectApplier @Inject constructor() {
             )
         }
         return updated
-    }
-
-    /** 持续修炼速度加成（以旬为单位） */
-    private fun applySustainedBonus(
-        disciple: Disciple, effect: ItemEffect
-    ): Disciple {
-        if (effect.cultivationSpeedPercent <= 0) return disciple
-        return disciple.copy(
-            cultivationSpeedBonus = effect.cultivationSpeedPercent,
-            cultivationSpeedDuration = if (effect.duration > 0)
-                effect.duration else disciple.cultivationSpeedDuration
-        )
     }
 
     /** 延寿效果 */

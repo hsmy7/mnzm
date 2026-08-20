@@ -121,8 +121,11 @@ class AutoPillService @Inject constructor(
         tables.storageBagItems[id] = d.equipment.storageBagItems
         tables.cultivations[id] = d.cultivation
         tables.manualMasteries[id] = d.manualMasteries
-        tables.cultivationSpeedBonuses[id] = d.cultivationSpeedBonus
-        tables.cultivationSpeedDurations[id] = d.cultivationSpeedDuration
+        // 2026-08 修复：丹药修炼速度加成统一收敛于 pillEffects 体系——
+        // 清零旧 cultivationSpeedBonus 组件列（双写时代残留数据自愈），
+        // 防止旧档残留加成继续影响速率
+        tables.cultivationSpeedBonuses[id] = 0.0
+        tables.cultivationSpeedDurations[id] = 0
         tables.lifespans[id] = d.lifespan
         // 技能字段（永久属性丹）
         tables.intelligences[id] = d.skills.intelligence

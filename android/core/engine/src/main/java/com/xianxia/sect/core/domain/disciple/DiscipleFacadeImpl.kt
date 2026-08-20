@@ -447,10 +447,6 @@ class DiscipleFacadeImpl @Inject constructor(
             applySkillExpEffect(id = id, effect = effect)
         }
 
-        if (effect.cultivationSpeedPercent > 0) {
-            applyCultivationSpeedEffect(id = id, effect = effect)
-        }
-
         if (effect.extendLife > 0) {
             applyExtendLifeEffect(id = id, effect = effect, pill = pill)
         }
@@ -491,17 +487,6 @@ class DiscipleFacadeImpl @Inject constructor(
         discipleTables.manualMasteries[id] = discipleTables.manualMasteries[id].mapValues { (_, v) ->
             (v + effect.skillExpAdd).coerceAtMost(10000)
         }
-    }
-
-    /** 修炼速度丹药效果（applyPillEffectsToDisciple 拆分）：速率变化点同步 checkpoint */
-    private fun MutableGameState.applyCultivationSpeedEffect(id: Int, effect: PillEffect) {
-        discipleTables.cultivationSpeedBonuses[id] = effect.cultivationSpeedPercent
-        // 以旬为单位，不再 *30
-        discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration
-            else discipleTables.cultivationSpeedDurations[id]
-        // 2026-08-01 修复：速率变化点必须同步 checkpoint——
-        // 缺失会导致 getEffectiveCultivation 投影用旧速率推导（checkpoint 死代码埋雷）
-        discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
     }
 
     /** 延寿丹药效果（applyPillEffectsToDisciple 拆分） */
@@ -562,12 +547,27 @@ class DiscipleFacadeImpl @Inject constructor(
             maxOf(currentDuration, effect.duration)
         else currentDuration
 
+        // 2026-08 修复：丹药修炼速度加成统一收敛于 pillEffects 体系——
+        // 清零旧 cultivationSpeedBonus 组件列（双写时代的残留数据自愈），
+        // 防止旧档残留加成在乘区之外继续影响速率
+        discipleTables.cultivationSpeedBonuses[id] = 0.0
+        discipleTables.cultivationSpeedDurations[id] = 0
+
         // 持续/临时效果记录 pillType
         if (rule == PillRule.SUSTAINED_SPEED || rule == PillRule.TEMPORARY_BATTLE) {
             val activeTypes = discipleTables.activePillTypes[id]
             if (pill.pillType.isNotEmpty()) {
                 discipleTables.activePillTypes[id] = activeTypes + pill.pillType
             }
+        }
+
+        // 速率变化点必须同步 checkpoint（2026-08-01 规则）：
+        // 修炼速度丹修改 pillCultivationSpeedBonuses 影响速率，
+        // 缺失会导致 getEffectiveCultivation 投影用旧速率推导（checkpoint 死代码埋雷）
+        if (effect.cultivationSpeedPercent > 0 || effect.skillExpSpeedPercent > 0 ||
+            effect.nurtureSpeedPercent > 0
+        ) {
+            discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
         }
     }
 

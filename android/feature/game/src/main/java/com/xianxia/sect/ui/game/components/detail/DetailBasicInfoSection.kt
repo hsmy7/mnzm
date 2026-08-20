@@ -318,15 +318,16 @@ private fun BasicInfoRealmRow(
                     disciple, elderSlots, allDisciples,
                     sectPolicies = sectPolicies
                 )
-                // 每秒值 × 每旬秒数 → 每旬值
-                val perSecond = disciple.calculateCultivationSpeed(
+                // calculateCultivationSpeed 直接返回每旬修炼值（乘区基准 REALM_SPEED_PER_PHASE
+                // 即"每旬修为"），无需再按每秒值换算（2026-08 修复：原 ×每旬秒数
+                // MS_PER_PHASE_1X/1000 导致显示值恒为实际结算值的 2 倍）
+                disciple.calculateCultivationSpeed(
                     manualsMap, proficiencyMap,
                     buildingBonus = buildingBonus,
                     preachingElderBonus = preachingElderBonus,
                     preachingMastersBonus = preachingMastersBonus,
                     cultivationSubsidyBonus = cultivationSubsidyBonus
-                ).coerceIn(1.0, 1000.0)
-                perSecond * com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X / 1000.0
+                ).coerceAtLeast(1.0)
             }
 
             CultivationProgressRow(disciple, cultivationSpeed, gameSpeed)

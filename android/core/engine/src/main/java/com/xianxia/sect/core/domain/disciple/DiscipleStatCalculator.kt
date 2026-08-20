@@ -870,10 +870,9 @@ object DiscipleStatCalculator {
         griefCultivationSpeedPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
     ): CultivationSpeedZones {
+        // 丹药修炼速度加成统一收敛于 pillEffects 体系（2026-08 修复：旧
+        // cultivationSpeedBonus 顶层字段不再参与累加，防止同颗丹药双字段双倍生效）
         var temporaryBonus = 0.0
-        if (disciple.cultivationSpeedDuration > 0 && disciple.cultivationSpeedBonus > 0.0) {
-            temporaryBonus += disciple.cultivationSpeedBonus
-        }
         if (disciple.pillEffects.pillEffectDuration > 0 && disciple.pillEffects.pillCultivationSpeedBonus > 0.0) {
             temporaryBonus += disciple.pillEffects.pillCultivationSpeedBonus
         }
@@ -914,11 +913,10 @@ object DiscipleStatCalculator {
         griefCultivationSpeedPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
     ): CultivationSpeedZones {
+        // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
+        // 旧 cultivationSpeedBonus 顶层字段不再参与累加，防双倍生效）
         var temporaryBonus = 0.0
         val ext = aggregate.extended
-        if (ext != null && ext.cultivationSpeedDuration > 0 && ext.cultivationSpeedBonus > 0.0) {
-            temporaryBonus += ext.cultivationSpeedBonus
-        }
         if (ext != null && ext.pillEffectDuration > 0 && ext.pillCultivationSpeedBonus > 0.0) {
             temporaryBonus += ext.pillCultivationSpeedBonus
         }
@@ -961,8 +959,6 @@ object DiscipleStatCalculator {
         val manualIds: List<String>,
         val age: Int,
         val lifespan: Int,
-        val cultivationSpeedDuration: Int,
-        val cultivationSpeedBonus: Double,
         val pillEffectDuration: Int,
         val pillCultivationSpeedBonus: Double,
         val aptitude: Int = DEFAULT_COLUMN_APTITUDE
@@ -987,10 +983,9 @@ object DiscipleStatCalculator {
         griefCultivationSpeedPenalty: Double = 0.0,
         masterDiscipleBonus: Double = 0.0
     ): Double {
+        // 丹药修炼速度加成统一收敛于 pillEffects 体系（同 Disciple 版，
+        // 旧 cultivationSpeedBonus 顶层字段不再参与累加，防双倍生效）
         var temporaryBonus = 0.0
-        if (input.cultivationSpeedDuration > 0 && input.cultivationSpeedBonus > 0.0) {
-            temporaryBonus += input.cultivationSpeedBonus
-        }
         if (input.pillEffectDuration > 0 && input.pillCultivationSpeedBonus > 0.0) {
             temporaryBonus += input.pillCultivationSpeedBonus
         }

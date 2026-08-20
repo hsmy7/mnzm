@@ -751,4 +751,37 @@ class CultivationCoreTest {
         // 仙人境界的修炼进度恒满
         assertEquals("仙人的realms应为0", 0, tables.realms[id]?.toInt())
     }
+
+    // ==================== 月结丹药效果衰减（2026-08 修复） ====================
+
+    @Test
+    fun `applyMonthlyDurationDecay - 丹药效果每月衰减3旬`() {
+        // 修复回归：duration 以旬为单位，月结每次衰减 3 旬（9 旬丹药 → 3 个月耗尽）
+        val tables = DiscipleTables()
+        val id = 1
+        tables.pillEffectDurations[id] = 9
+        tables.pillCultivationSpeedBonuses[id] = 0.5
+
+        core.applyMonthlyDurationDecay(tables, id)
+
+        assertEquals("丹药持续时间应每月衰减3旬（9→6）", 6, tables.pillEffectDurations[id])
+        assertEquals("衰减后加成应保留", 0.5, tables.pillCultivationSpeedBonuses[id], 0.001)
+    }
+
+    @Test
+    fun `applyMonthlyDurationDecay - 到期后清零全部丹药加成`() {
+        val tables = DiscipleTables()
+        val id = 1
+        tables.pillEffectDurations[id] = 2
+        tables.pillCultivationSpeedBonuses[id] = 0.5
+        tables.pillPhysicalAttackBonuses[id] = 10
+        tables.activePillTypes[id] = setOf("cultivationSpeed")
+
+        core.applyMonthlyDurationDecay(tables, id)
+
+        assertEquals("持续时间不足1月应清零", 0, tables.pillEffectDurations[id])
+        assertEquals("修炼速度加成应清零", 0.0, tables.pillCultivationSpeedBonuses[id], 0.001)
+        assertEquals("战斗属性加成应清零", 0, tables.pillPhysicalAttackBonuses[id])
+        assertEquals("activePillTypes 应清空", emptySet<String>(), tables.activePillTypes[id])
+    }
 }

@@ -305,6 +305,36 @@ class CultivationCoreRealtimeAutoPillsTest {
         val items = state.discipleTables.storageBagItems.getOrNull(id) ?: emptyList()
         assertTrue("治疗丹应被消费", items.isEmpty())
     }
+
+    // ── 修炼速度丹：单倍写回 pillEffects（2026-08 修复） ─────────────
+
+    @Test
+    fun `speed pill writes only pillEffects not legacy cultivationSpeedBonus`() {
+        // 修复回归：修炼速度丹应用后只写入 pillEffects 体系，
+        // 旧 cultivationSpeedBonus 组件列必须清零（防双写双倍生效）
+        val speedPill = StorageBagItem(
+            itemId = "pill_speed_1", itemType = "pill", name = "修炼速度丹",
+            rarity = 3, quantity = 1,
+            effect = ItemEffect(
+                pillType = "cultivationSpeed",
+                cultivationSpeedPercent = 0.5,
+                duration = 9
+            )
+        )
+        val state = stateWithDisciple(id = 1, storageBagItems = listOf(speedPill))
+        // 预置旧字段残留（模拟双写时代旧档），服用后应被清零
+        state.discipleTables.cultivationSpeedBonuses[1] = 0.5
+        state.discipleTables.cultivationSpeedDurations[1] = 9
+
+        PillsRealtime.process(state, pillManager, year = 5, month = 3, phase = 1)
+
+        val tables = state.discipleTables
+        assertEquals("旧 cultivationSpeedBonus 字段应清零", 0.0, tables.cultivationSpeedBonuses[1], 0.001)
+        assertEquals("旧 cultivationSpeedDuration 字段应清零", 0, tables.cultivationSpeedDurations[1])
+        assertEquals("丹药修炼速度加成应写入 pillEffects 体系", 0.5, tables.pillCultivationSpeedBonuses[1], 0.001)
+        assertEquals("丹药持续时间应为9旬", 9, tables.pillEffectDurations[1])
+        assertTrue("修炼速度丹应被消费", tables.storageBagItems.getOrNull(1).isNullOrEmpty())
+    }
 }
 
 /**
@@ -377,8 +407,10 @@ private object PillsRealtime {
         tables.storageBagItems[id] = d.equipment.storageBagItems
         tables.cultivations[id] = d.cultivation
         tables.manualMasteries[id] = d.manualMasteries
-        tables.cultivationSpeedBonuses[id] = d.cultivationSpeedBonus
-        tables.cultivationSpeedDurations[id] = d.cultivationSpeedDuration
+        // 2026-08 修复：镜像 AutoPillService.writePillResultToTables——
+        // 旧 cultivationSpeedBonus 组件列清零（丹药加成收敛于 pillEffects 体系）
+        tables.cultivationSpeedBonuses[id] = 0.0
+        tables.cultivationSpeedDurations[id] = 0
         tables.lifespans[id] = d.lifespan
         tables.intelligences[id] = d.skills.intelligence
         tables.charms[id] = d.skills.charm

@@ -111,8 +111,6 @@ class CultivationRateEquivalenceTest {
         result.addAll(griefFixtures(base = base))
         // 7. 丹药临时加速
         result.addAll(pillFixtures(base = base))
-        // 8. 临时加速（cultivationSpeedBonus）
-        result.addAll(speedBonusFixtures(base = base))
         // 9. 功法熟练度（走 ManualDatabase 兜底路径）
         result.addAll(manualProficiencyFixtures(base = base))
         // 10-11. 讲道长老加成（含 teachingFlat 跨阈值回归）
@@ -246,17 +244,6 @@ class CultivationRateEquivalenceTest {
                 makeDisciple(pillEffects = PillEffects(
                     pillEffectDuration = 0, pillCultivationSpeedBonus = 0.5
                 )),
-                base
-            )
-        )
-    }
-
-    /** 临时加速（fixtures 拆分）：cultivationSpeedBonus */
-    private fun speedBonusFixtures(base: GameData): List<Fixture> = buildList {
-        add(
-            Fixture(
-                "temporary speed bonus active",
-                makeDisciple(cultivationSpeedBonus = 0.3, cultivationSpeedDuration = 4),
                 base
             )
         )
@@ -418,5 +405,36 @@ class CultivationRateEquivalenceTest {
             "哨兵 -1 + 负年份：object=$objectRate column=$columnRate",
             objectRate, columnRate, 1e-9
         )
+    }
+
+    @Test
+    fun `legacy cultivationSpeedBonus field no longer affects rate`() {
+        // 2026-08 修复回归：丹药修炼速度加成统一收敛于 pillEffects 体系，
+        // 旧 cultivationSpeedBonus 顶层字段（双写时代产物）写入后不应再产生任何加成
+        val tables = DiscipleTables()
+        tables.insert(makeDisciple(id = "1", cultivationSpeedBonus = 0.3, cultivationSpeedDuration = 4))
+        val baselineTables = DiscipleTables()
+        baselineTables.insert(makeDisciple(id = "1"))
+        val data = GameData(gameYear = 5, gameMonth = 3)
+
+        val withLegacy = calculator.calculateCultivationPerPhaseById(1, data, tables)
+        val baseline = calculator.calculateCultivationPerPhaseById(1, data, baselineTables)
+        assertEquals("旧 cultivationSpeedBonus 字段不应再影响速率", baseline, withLegacy, 1e-9)
+    }
+
+    @Test
+    fun `pill speed bonus applies once not doubled`() {
+        // 2026-08 修复回归：同一颗修炼速度丹只应生效一份加成（单倍），
+        // 防止双字段（cultivationSpeedBonus + pillCultivationSpeedBonus）累加造成双倍
+        val tables = DiscipleTables()
+        tables.insert(makeDisciple(
+            id = "1",
+            pillEffects = PillEffects(pillEffectDuration = 9, pillCultivationSpeedBonus = 0.5)
+        ))
+        val data = GameData(gameYear = 5, gameMonth = 3)
+        val rate = calculator.calculateCultivationPerPhaseById(1, data, tables)
+
+        // 单灵根炼气基准 19 × (1 + 0.5) = 28.5（单倍；双倍应为 19 × 2.0 = 38）
+        assertEquals("丹药加成应只生效一份（28.5）", 19.0 * 1.5, rate, 1e-9)
     }
 }

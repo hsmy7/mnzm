@@ -154,7 +154,8 @@ object ItemDatabase {
                 description = "${tierName}${g}修炼速度丹，提升境界修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 cultivationSpeedPercent = applyGrade(speedPct, grade),
-                duration = 3,
+                // duration 以旬为单位，9 旬与描述"持续9旬"一致（2026-08 修复：原 3 旬描述不符）
+                duration = 9,
                 cannotStack = true,
                 minRealm = tierMinRealm(tier)
             ))
@@ -169,7 +170,7 @@ object ItemDatabase {
                 description = "${tierName}${g}功法速度丹，提升功法熟练度修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 skillExpSpeedPercent = applyGrade(speedPct, grade),
-                duration = 3,
+                duration = 9,
                 cannotStack = true,
                 minRealm = tierMinRealm(tier)
             ))
@@ -184,7 +185,7 @@ object ItemDatabase {
                 description = "${tierName}${g}孕养速度丹，提升装备孕养等级修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬",
                 price = (tierPrice(tier) * grade.priceMultiplier).roundToInt(),
                 nurtureSpeedPercent = applyGrade(speedPct, grade),
-                duration = 3,
+                duration = 9,
                 cannotStack = true,
                 minRealm = tierMinRealm(tier)
             ))

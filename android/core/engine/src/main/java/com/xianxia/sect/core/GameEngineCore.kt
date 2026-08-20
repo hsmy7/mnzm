@@ -1619,6 +1619,9 @@ class GameEngineCore @Inject constructor(
                 processBloodRefinementCompletions()
                 // P0.2: 自动排班 + 住所忠诚度合入同一事务，减少月度独立事务数量
                 cultivationService.processMonthlyAutoAssignments(this)
+                // 月结丹药持续效果衰减（2026-08 修复：原无调用点的死代码，
+                // 接回后丹药 duration 按每月 3 旬衰减，"持续9旬"语义生效）
+                cultivationService.applyMonthlyDurationDecayAll(this)
                 // ★ 月度事件合并到同一事务（单原子提交 policy + 月变 + 重算 checkpoints）
                 cultivationService.processMonthlyEventsOnState(this)
             }
