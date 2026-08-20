@@ -251,6 +251,38 @@ class BuildingUpgradeTest {
         assertTrue("不可升级建筑应失败", result is UpgradeResult.Failure)
     }
 
+    @Test
+    fun `单座升级 - 多座同类型建筑时精确升级指定实例`() = runTest {
+        // 回归（真机反馈）：住所弹窗升级曾升级到同类型的第一座（按 gridX 稳定序），
+        // 而非弹窗对应的实例——单座升级必须精确命中 instanceId
+        val s1 = singleResidence("s1", gridX = 10, gridY = 10)
+        val s2 = singleResidence("s2", gridX = 20, gridY = 20)
+        setupState(stones = 100_000, buildings = listOf(s1, s2))
+        val result = facade.upgradeBuilding("s2")
+        assertTrue("应成功，实际：$result", result is UpgradeResult.Success)
+        assertEquals("s1 应保持初级", "single_residence", upgraded(s1).buildingId)
+        assertEquals("s2 应精确升级为中级", "single_residence_upgraded", upgraded(s2).buildingId)
+    }
+
+    @Test
+    fun `单座升级 - 指定实例空间不足时即使他座可行也失败`() = runTest {
+        // s2 的升级占地（14,10 扩 6×6）被仓库（16,10 6×4）阻挡；他座 s1 自身可升级——
+        // 单座升级应校验"指定实例"的空间而非"任一实例"
+        val s1 = singleResidence("s1", gridX = 10, gridY = 10)
+        val s2 = singleResidence("s2", gridX = 14, gridY = 10)
+        val warehouse = GridBuildingData(
+            buildingId = "warehouse", displayName = "仓库",
+            gridX = 16, gridY = 10, width = 6, height = 4,
+            instanceId = "w1", sectId = "main"
+        )
+        setupState(stones = 100_000, buildings = listOf(s1, s2, warehouse))
+        val result = facade.upgradeBuilding("s2")
+        val failure = result as UpgradeResult.Failure
+        assertTrue("应因空间不足失败，实际：${failure.reasons}", failure.reasons.any { it.contains("空间不足") })
+        assertEquals("s1 保持初级", "single_residence", upgraded(s1).buildingId)
+        assertEquals("s2 保持初级", "single_residence", upgraded(s2).buildingId)
+    }
+
     // ── 批量升级（一键升级）────────────────────────────────────
 
     @Test

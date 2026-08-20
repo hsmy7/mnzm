@@ -26,6 +26,16 @@
 - **验证** — `compileReleaseKotlin` + 相关测试类（串行 `--max-workers=1`）全绿
 - **兼容性** — `guideCounters` 为既有字段，仅新增 key，无需 Migration；`BuildingCount` 语义向后兼容（无计数时等价原行为）
 
+### 修复（2026-08-19 真机反馈：住所弹窗升级错对象 + 一键升级四列间距不均）
+
+> 背景：真机实测两个缺陷——①建筑详情（住所弹窗）点升级后，升级的是同类型的第一座建筑而非弹窗对应的实例；②一键升级界面四列间距视觉不均。
+
+- **升级错对象（根因）** — `BuildingFacadeImpl.upgradeBuilding(instanceId)` 资格校验后委托 `upgradeBuildings(sectId, buildingId, 1)`，批量方法按 gridX/gridY 稳定序取**首个空间可行的同类型实例**——多座同类型建筑时弹窗升级会命中错误实例。修复：单座升级改为在事务内对**指定 instanceId 精确升级**（checkUpgrade 复核 + 原地变换该实例，不再走批量选择路径）；批量（一键升级）语义不变
+- **四列间距不均** — 原布局用 `weight(1.2/0.8)` 文本列 + 固定 72dp 按钮列，居中文本在不同宽列下造成列间距视觉不均。修复：`BuildingUpgradeDialog` 改用 `BoxWithConstraints` 按可用宽度计算列宽 `(宽-3×间距)/4`，表头/数据行/按钮统一等宽等距（`Arrangement.spacedBy(8dp)`），任意屏宽下列间距严格一致；网格 `widthIn(max=360dp)` 居中限宽防平板按钮过宽；按钮高度保持标准 38dp（宽度随列宽，偏离 72dp 标准为满足等距需求的有意取舍）
+- **测试** — `BuildingUpgradeTest` 新增 2 个回归用例：多座同类型时精确升级指定实例（s1 保持初级/s2 升级）、指定实例空间不足时即使他座可行也失败（原子性零变更）
+- **验证** — `compileReleaseKotlin` + `BuildingUpgradeTest`（串行 `--max-workers=1`）全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更
+
 ### 优化（2026-08-19 宗门仓库交互：移除点击选中 + 长按改点击 + 储物袋单独开启）
 
 > 背景：宗门仓库此前「点击=选中（高亮边框）、长按=查看详情」，储物袋需先点击选中再点右上角「开启」小按钮，交互层级多、发现成本高。

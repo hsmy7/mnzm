@@ -614,12 +614,36 @@ class BuildingFacadeImpl @Inject constructor(
                 ?: return@withContext UpgradeResult.Failure(listOf("建筑不存在"))
             val def = BuildingUpgradeRegistry.findUpgrade(building.buildingId)
                 ?: return@withContext UpgradeResult.Failure(listOf("该建筑不可升级"))
-            when (val check = BuildingUpgradeCalculator.checkUpgrade(snapshot, instanceId)) {
-                is UpgradeCheckResult.ConditionsUnmet -> UpgradeResult.Failure(check.reasons)
-                UpgradeCheckResult.NotUpgradeable -> UpgradeResult.Failure(listOf("该建筑不可升级"))
-                UpgradeCheckResult.Upgradeable ->
-                    upgradeBuildings(building.sectId, building.buildingId, 1)
+            val target = BuildingFeatureRegistry.findByKey(def.targetKey)
+                ?: return@withContext UpgradeResult.Failure(listOf("升级目标配置缺失：${def.targetKey}"))
+            val cost = BuildingUpgradeRegistry.upgradeCost(def)
+            var outcome: UpgradeResult = UpgradeResult.Failure(listOf("未知错误"))
+            stateStore.update {
+                when (val check = BuildingUpgradeCalculator.checkUpgrade(gameData, instanceId)) {
+                    is UpgradeCheckResult.ConditionsUnmet -> outcome = UpgradeResult.Failure(check.reasons)
+                    UpgradeCheckResult.NotUpgradeable -> outcome = UpgradeResult.Failure(listOf("该建筑不可升级"))
+                    UpgradeCheckResult.Upgradeable -> {
+                        val index = gameData.placedBuildings.indexOfFirst { it.instanceId == instanceId }
+                        if (index < 0) {
+                            outcome = UpgradeResult.Failure(listOf("建筑不存在"))
+                            return@update
+                        }
+                        val updated = gameData.placedBuildings.toMutableList()
+                        updated[index] = updated[index].copy(
+                            buildingId = target.key,
+                            displayName = target.displayName,
+                            width = target.gridWidth,
+                            height = target.gridHeight
+                        )
+                        gameData = gameData.copy(
+                            spiritStones = gameData.spiritStones - cost,
+                            placedBuildings = updated
+                        )
+                        outcome = UpgradeResult.Success(1)
+                    }
+                }
             }
+            outcome
         }
 
     override suspend fun upgradeBuildings(

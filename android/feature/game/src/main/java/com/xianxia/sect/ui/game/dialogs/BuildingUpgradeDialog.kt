@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
@@ -19,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
@@ -29,7 +32,6 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.theme.ButtonSizes
 
 /** 一键升级列表行间距（等距排布）。 */
 private val UpgradeColumnGap = 8.dp
@@ -37,8 +39,11 @@ private val UpgradeColumnGap = 8.dp
 /** 表头与数据行之间的 1dp 灰色分隔线颜色。 */
 private val UpgradeHeaderDividerColor = Color(0xFF9E9E9E)
 
+/** 一键升级网格最大宽度（平板等宽屏下居中限宽，避免按钮被拉得过宽）。 */
+private val UpgradeGridMaxWidth = 360.dp
+
 /**
- * 一键升级半屏对话框：四列等距列表（建筑/数量/升级/一键升级）。
+ * 一键升级半屏对话框：四列等宽等距列表（建筑/数量/升级/一键升级）。
  *
  * 数据行由 [buildUpgradeRows] 派生（仅列出玩家已建造、有升级目标的源建筑），
  * 升级操作经 [GameViewModel] 走引擎门面；条件不满足时由统一错误提示框逐条告知。
@@ -57,44 +62,57 @@ fun BuildingUpgradeDialog(
         scrollableContent = true
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 16.dp)) {
-            // 表头行：建筑 / 数量 / 升级 / 一键升级（与数据行列对齐）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(UpgradeColumnGap)
-            ) {
-                UpgradeHeaderCell(text = "建筑", modifier = Modifier.weight(1.2f))
-                UpgradeHeaderCell(text = "数量", modifier = Modifier.weight(0.8f))
-                UpgradeHeaderCell(text = "升级", modifier = Modifier.width(ButtonSizes.StandardWidth))
-                UpgradeHeaderCell(text = "一键升级", modifier = Modifier.width(ButtonSizes.StandardWidth))
-            }
-            // 1dp 灰色横线分隔表头与数据行
-            Spacer(modifier = Modifier.height(8.dp))
-            Box(
+            // 四列等宽等距：BoxWithConstraints 按可用宽度计算列宽（(宽-3×间距)/4），
+            // 表头/数据行/按钮统一使用同一列宽，任意屏宽下列间距严格一致
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(1.dp)
-                    .background(UpgradeHeaderDividerColor)
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (rows.isEmpty()) {
-                Text(
-                    text = "暂无可以升级的建筑",
-                    fontSize = 13.sp,
-                    color = Color.Black,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    textAlign = TextAlign.Center
-                )
-            } else {
-                rows.forEach { row ->
-                    BuildingUpgradeRowItem(
-                        row = row,
-                        onUpgradeOne = { viewModel.upgradeBuildingOne(row.def.sourceKey) },
-                        onUpgradeAll = { viewModel.upgradeBuildingsOfType(row.def.sourceKey) }
+                    .widthIn(max = UpgradeGridMaxWidth)
+                    .align(Alignment.CenterHorizontally)
+            ) {
+                val columnWidth = (maxWidth - UpgradeColumnGap * 3f) / 4f
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // 表头行：建筑 / 数量 / 升级 / 一键升级（与数据行列对齐）
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(UpgradeColumnGap)
+                    ) {
+                        UpgradeHeaderCell(text = "建筑", modifier = Modifier.width(columnWidth))
+                        UpgradeHeaderCell(text = "数量", modifier = Modifier.width(columnWidth))
+                        UpgradeHeaderCell(text = "升级", modifier = Modifier.width(columnWidth))
+                        UpgradeHeaderCell(text = "一键升级", modifier = Modifier.width(columnWidth))
+                    }
+                    // 1dp 灰色横线分隔表头与数据行
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(UpgradeHeaderDividerColor)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
+
+                    if (rows.isEmpty()) {
+                        Text(
+                            text = "暂无可以升级的建筑",
+                            fontSize = 13.sp,
+                            color = Color.Black,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        rows.forEach { row ->
+                            BuildingUpgradeRowItem(
+                                row = row,
+                                columnWidth = columnWidth,
+                                onUpgradeOne = { viewModel.upgradeBuildingOne(row.def.sourceKey) },
+                                onUpgradeAll = { viewModel.upgradeBuildingsOfType(row.def.sourceKey) }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
                 }
             }
         }
@@ -118,10 +136,11 @@ private fun UpgradeHeaderCell(
     }
 }
 
-/** 单行升级数据（BuildingUpgradeDialog 拆分）：名称/数量/两个按钮，列间距与表头一致。 */
+/** 单行升级数据（BuildingUpgradeDialog 拆分）：名称/数量/两个按钮，列宽与表头一致。 */
 @Composable
 private fun BuildingUpgradeRowItem(
     row: BuildingUpgradeRow,
+    columnWidth: Dp,
     onUpgradeOne: () -> Unit,
     onUpgradeAll: () -> Unit
 ) {
@@ -137,7 +156,7 @@ private fun BuildingUpgradeRowItem(
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .weight(1.2f)
+                .width(columnWidth)
                 .align(Alignment.CenterVertically)
         )
         Text(
@@ -146,17 +165,19 @@ private fun BuildingUpgradeRowItem(
             color = Color.Black,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .weight(0.8f)
+                .width(columnWidth)
                 .align(Alignment.CenterVertically)
         )
         GameButton(
             text = "升级",
             onClick = onUpgradeOne,
+            width = columnWidth,
             modifier = Modifier.align(Alignment.CenterVertically)
         )
         GameButton(
             text = "一键升级",
             onClick = onUpgradeAll,
+            width = columnWidth,
             modifier = Modifier.align(Alignment.CenterVertically)
         )
     }
