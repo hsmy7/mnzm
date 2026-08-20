@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.FixedSectGateway
 
@@ -33,6 +34,51 @@ data class MigrationResult(
 )
 
 private const val TAG = "BuildingSelfHeal"
+
+/**
+ * 旧版住所显示名（2026-08-19 改名前的存档值）。
+ * 改名：单人住所 → 初级单人住所、多人住所 → 初级多人住所（显示名补全分级前缀）。
+ */
+internal const val LEGACY_SINGLE_RESIDENCE_NAME = "单人住所"
+internal const val LEGACY_MULTI_RESIDENCE_NAME = "多人住所"
+
+/**
+ * 住所显示名分级前缀迁移（2026-08-19）：旧档「单人住所/多人住所」→「初级单人住所/初级多人住所」。
+ *
+ * 显示名补全分级前缀后，旧存档中的 displayName 不再匹配注册表（建筑不可点/不可拆/不可升级），
+ * 读档时须将旧名原地改写为新名；同步迁移引导累计建造计数 key（`buildingBuilt:{旧名}` → `{新名}`，
+ * 计数数值不变）。幂等：已是新名的建筑不动，重复调用结果一致。
+ *
+ * @param buildings 全局建筑列表（跨宗门）
+ * @param guideCounters 引导计数器
+ * @return 改名后的建筑列表与计数器
+ */
+internal fun normalizeResidenceDisplayNames(
+    buildings: List<GridBuildingData>,
+    guideCounters: Map<String, Long>
+): Pair<List<GridBuildingData>, Map<String, Long>> {
+    val renamed = buildings.map { b ->
+        when (b.displayName) {
+            LEGACY_SINGLE_RESIDENCE_NAME -> b.copy(displayName = "初级单人住所")
+            LEGACY_MULTI_RESIDENCE_NAME -> b.copy(displayName = "初级多人住所")
+            else -> b
+        }
+    }
+    val counterKeyMap = mapOf(
+        GuideCounterKeys.buildingBuiltKey(LEGACY_SINGLE_RESIDENCE_NAME) to GuideCounterKeys.buildingBuiltKey("初级单人住所"),
+        GuideCounterKeys.buildingBuiltKey(LEGACY_MULTI_RESIDENCE_NAME) to GuideCounterKeys.buildingBuiltKey("初级多人住所")
+    )
+    val renamedCounters = if (guideCounters.keys.any { it in counterKeyMap }) {
+        guideCounters.mapKeys { (key, _) -> counterKeyMap[key] ?: key }
+    } else {
+        guideCounters
+    }
+    val renamedCount = buildings.zip(renamed).count { (before, after) -> before != after }
+    if (renamedCount > 0) {
+        DomainLog.w(TAG, "住所显示名迁移：$renamedCount 座旧名建筑改写为初级前缀")
+    }
+    return renamed to renamedCounters
+}
 
 /**
  * D-13：将"无对应宗门"的孤儿建筑归入本宗（""）。

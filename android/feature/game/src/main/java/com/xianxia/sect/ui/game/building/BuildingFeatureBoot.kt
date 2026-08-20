@@ -111,10 +111,11 @@ private fun hallBuildingFeatures(): List<BuildingFeature> = listOf(
         cost = 20000, gridWidth = 4, gridHeight = 4, description = "悔过自新之地，关押违规弟子")
 )
 
-/** 住所型建筑（registerDefaults 拆分）：单人/多人住所 + 中级升级版 */
+/** 住所型建筑（registerDefaults 拆分）：初级/中级单人+多人住所（显示名带分级前缀，精灵名保持图集历史名称） */
 private fun residenceBuildingFeatures(): List<BuildingFeature> = listOf(
-    BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE,
+    BuildingFeature("single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE,
         listOf(SlotGroup.Residence(1)), isResidence = true, unlimitedBuild = true,
+        spriteName = "单人住所",
         drawableRes = R.drawable.building_single_residence, color = 0xFFEEEEEE,
         cost = 20000, gridWidth = 4, gridHeight = 4, description = "为弟子提供清修之所，修炼速度+20%",
         residenceSpeedBonus = "修炼速度+20%"),
@@ -124,8 +125,9 @@ private fun residenceBuildingFeatures(): List<BuildingFeature> = listOf(
         drawableRes = R.drawable.building_single_residence_upgraded, color = 0xFFEEEEEE,
         cost = 50000, gridWidth = 6, gridHeight = 6, description = "单人修炼之所，修炼速度+40%",
         residenceSpeedBonus = "修炼速度+40%"),
-    BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE,
+    BuildingFeature("multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE,
         listOf(SlotGroup.Residence(4)), isResidence = true, unlimitedBuild = true,
+        spriteName = "多人住所",
         drawableRes = R.drawable.building_multi_residence, color = 0xFFEEEEEE,
         cost = 30000, gridWidth = 6, gridHeight = 4, spriteWidth = 6, spriteHeight = 4,
         description = "供多名弟子共同修炼，修炼速度+10%",

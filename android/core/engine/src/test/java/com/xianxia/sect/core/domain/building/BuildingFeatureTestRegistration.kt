@@ -50,8 +50,9 @@ private fun productionFeatures(): List<BuildingFeature> = listOf(
 
 /** 住所类建筑（registerTestFeatures 拆分） */
 private fun residenceFeatures(): List<BuildingFeature> = listOf(
-    BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE,
+    BuildingFeature("single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE,
         listOf(SlotGroup.Residence(1)), isResidence = true, unlimitedBuild = true,
+        spriteName = "单人住所",
         cost = 12000, gridWidth = 4, gridHeight = 4,
         residenceSpeedBonus = "修炼速度+20%"),
     BuildingFeature("single_residence_upgraded", "中级单人住所", BuildingType.SINGLE_RESIDENCE,
@@ -59,8 +60,9 @@ private fun residenceFeatures(): List<BuildingFeature> = listOf(
         requiredSectLevel = SectLevel.MEDIUM,
         cost = 50000, gridWidth = 6, gridHeight = 6,
         residenceSpeedBonus = "修炼速度+40%"),
-    BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE,
+    BuildingFeature("multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE,
         listOf(SlotGroup.Residence(4)), isResidence = true, unlimitedBuild = true,
+        spriteName = "多人住所",
         cost = 24000, gridWidth = 6, gridHeight = 4,
         residenceSpeedBonus = "修炼速度+10%"),
     BuildingFeature("multi_residence_upgraded", "中级多人住所", BuildingType.MULTI_RESIDENCE,

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.domain.building.registerTestFeatures
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -55,5 +56,24 @@ class BuildingUpgradeCoverageTest {
                 "或显式声明故意排除）：$uncovered",
             uncovered.isEmpty()
         )
+    }
+
+    @Test
+    fun `住所显示名与精灵名解耦配置一致`() {
+        // 显示名补全分级前缀（初级…），精灵图集名保持历史名称（单人住所/多人住所）——
+        // 若注册表/旧档迁移（BuildingLoadSelfHeal.normalizeResidenceDisplayNames）任一侧漂移，
+        // 旧档迁移后名称仍不匹配注册表或渲染查不到图集索引，本守卫变红
+        val single = checkNotNull(BuildingFeatureRegistry.findByKey("single_residence")) { "single_residence 未注册" }
+        val multi = checkNotNull(BuildingFeatureRegistry.findByKey("multi_residence")) { "multi_residence 未注册" }
+        assertEquals("初级单人住所", single.displayName)
+        assertEquals("初级多人住所", multi.displayName)
+        assertEquals("初级住所精灵名应保持图集历史名称", "单人住所", single.effectiveSpriteName())
+        assertEquals("初级多人住所精灵名应保持图集历史名称", "多人住所", multi.effectiveSpriteName())
+        // 中级住所显示名即精灵名（无前缀解耦）
+        val singleUp = checkNotNull(BuildingFeatureRegistry.findByKey("single_residence_upgraded"))
+        assertEquals("中级单人住所", singleUp.effectiveSpriteName())
+        // 非住所建筑显示名即精灵名
+        val mine = checkNotNull(BuildingFeatureRegistry.findByKey("spirit_mine"))
+        assertEquals(mine.displayName, mine.effectiveSpriteName())
     }
 }

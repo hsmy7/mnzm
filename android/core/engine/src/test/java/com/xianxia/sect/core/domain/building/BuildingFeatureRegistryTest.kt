@@ -99,18 +99,18 @@ class BuildingFeatureRegistryTest {
 
     @Test
     fun `residenceSpeedMultiplier 解析正确`() {
-        assertEquals(1.20, BuildingFeatureRegistry.residenceSpeedMultiplier("单人住所"), 0.001)
+        assertEquals(1.20, BuildingFeatureRegistry.residenceSpeedMultiplier("初级单人住所"), 0.001)
         assertEquals(1.40, BuildingFeatureRegistry.residenceSpeedMultiplier("中级单人住所"), 0.001)
-        assertEquals(1.10, BuildingFeatureRegistry.residenceSpeedMultiplier("多人住所"), 0.001)
+        assertEquals(1.10, BuildingFeatureRegistry.residenceSpeedMultiplier("初级多人住所"), 0.001)
         assertEquals(1.0, BuildingFeatureRegistry.residenceSpeedMultiplier("灵矿场"), 0.001)
         assertEquals(1.0, BuildingFeatureRegistry.residenceSpeedMultiplier("未知建筑"), 0.001)
     }
 
     @Test
     fun `isResidence 判断正确`() {
-        assertTrue(BuildingFeatureRegistry.isResidence("单人住所"))
+        assertTrue(BuildingFeatureRegistry.isResidence("初级单人住所"))
         assertTrue(BuildingFeatureRegistry.isResidence("中级单人住所"))
-        assertTrue(BuildingFeatureRegistry.isResidence("多人住所"))
+        assertTrue(BuildingFeatureRegistry.isResidence("初级多人住所"))
         assertFalse(BuildingFeatureRegistry.isResidence("灵矿场"))
         assertFalse(BuildingFeatureRegistry.isResidence("炼丹炉"))
         assertFalse(BuildingFeatureRegistry.isResidence(""))

@@ -75,7 +75,8 @@ class FootprintTableSyncTest {
         )
 
         for (feature: BuildingFeature in features) {
-            val nameIdx = SpriteAtlasDef.BUILDING_NAME_INDEX[feature.displayName]
+            // 精灵名经 effectiveSpriteName 解析（显示名可带分级前缀，图集精灵名保持历史名称）
+            val nameIdx = SpriteAtlasDef.BUILDING_NAME_INDEX[feature.effectiveSpriteName()]
                 ?: throw AssertionError("建筑 '${feature.displayName}' 未在图集 BUILDING_NAMES 中注册")
             val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX[nameIdx]
             assertEquals(

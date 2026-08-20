@@ -432,7 +432,7 @@ class BuildingConfigService @Inject constructor(
     private fun createLeapStageBuildings(): Map<String, BuildingConfigModel> = mapOf(
         "single_residence" to BuildingConfigModel(
             id = "single_residence",
-            displayName = "单人住所",
+            displayName = "初级单人住所",
             buildingType = "SINGLE_RESIDENCE",
             slotCount = 1,
             baseSuccessRate = 1.0,
@@ -458,7 +458,7 @@ class BuildingConfigService @Inject constructor(
         ),
         "multi_residence" to BuildingConfigModel(
             id = "multi_residence",
-            displayName = "多人住所",
+            displayName = "初级多人住所",
             buildingType = "MULTI_RESIDENCE",
             slotCount = 4,
             baseSuccessRate = 1.0,

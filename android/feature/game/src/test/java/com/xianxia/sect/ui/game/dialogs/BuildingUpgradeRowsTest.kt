@@ -63,28 +63,28 @@ class BuildingUpgradeRowsTest {
     @Test
     fun `buildUpgradeRows - 按作用域宗门统计数量`() {
         val buildings = listOf(
-            residence("single_residence", "单人住所", "s1", gridX = 10),
-            residence("single_residence", "单人住所", "s2", gridX = 20),
-            residence("multi_residence", "多人住所", "m1", gridX = 30),
-            residence("single_residence", "单人住所", "o1", gridX = 40, sectId = "sect_b")
+            residence("single_residence", "初级单人住所", "s1", gridX = 10),
+            residence("single_residence", "初级单人住所", "s2", gridX = 20),
+            residence("multi_residence", "初级多人住所", "m1", gridX = 30),
+            residence("single_residence", "初级单人住所", "o1", gridX = 40, sectId = "sect_b")
         )
         val rows = buildUpgradeRows(data(buildings))
         assertEquals("应只有两行（他宗门不计入）", 2, rows.size)
 
         val single = rows.first { it.def.sourceKey == "single_residence" }
-        assertEquals("单人住所", single.displayName)
+        assertEquals("初级单人住所", single.displayName)
         assertEquals("单人住所可升级 2 座", 2, single.count)
 
         val multi = rows.first { it.def.sourceKey == "multi_residence" }
-        assertEquals("多人住所", multi.displayName)
+        assertEquals("初级多人住所", multi.displayName)
         assertEquals("多人住所可升级 1 座", 1, multi.count)
     }
 
     @Test
     fun `buildUpgradeRows - 保持注册表顺序`() {
         val buildings = listOf(
-            residence("multi_residence", "多人住所", "m1"),
-            residence("single_residence", "单人住所", "s1")
+            residence("multi_residence", "初级多人住所", "m1"),
+            residence("single_residence", "初级单人住所", "s1")
         )
         val rows = buildUpgradeRows(data(buildings))
         assertEquals(

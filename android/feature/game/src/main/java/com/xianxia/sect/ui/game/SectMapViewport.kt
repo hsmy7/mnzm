@@ -194,7 +194,10 @@ private fun computeMapPreview(
         mb != null -> mb.displayName
         else -> ""
     }
-    val previewNameIdx = BUILDING_NAME_INDEX[previewBuildingName] ?: -1
+    val previewNameIdx = BUILDING_NAME_INDEX[
+        com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+            .findByDisplayName(previewBuildingName)?.effectiveSpriteName() ?: previewBuildingName
+    ] ?: -1
     val hasPreview = isPreviewActive && previewNameIdx >= 0
 
     val previewUvs = if (hasPreview) {

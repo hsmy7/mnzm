@@ -120,7 +120,7 @@ class GameEngineAtomicAssignTest {
         store.update {
             gameData = gameData.copy(
                 placedBuildings = listOf(
-                    GridBuildingData(instanceId = BUILDING_ID, displayName = "单人住所")
+                    GridBuildingData(instanceId = BUILDING_ID, displayName = "初级单人住所")
                 ),
                 residenceSlots = listOf(
                     ResidenceSlot(buildingInstanceId = BUILDING_ID, slotIndex = SLOT_0)

@@ -36,6 +36,19 @@
 - **验证** — `compileReleaseKotlin` + `BuildingUpgradeTest`（串行 `--max-workers=1`）全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更
 
+### 调整（2026-08-19 住所显示名补全分级前缀：初级/中级命名体系）
+
+> 背景：产品要求建筑名称写全分级前缀——「单人住所/多人住所」改为「初级单人住所/初级多人住所」，与「中级单人住所/中级多人住所」形成 初级→中级 一致命名体系。
+
+- **显示名与精灵名解耦** — `BuildingFeature` 新增 `spriteName` 字段（空 = 回退 displayName）+ `effectiveSpriteName()`；初级单人住所/初级多人住所显式指定 `spriteName = "单人住所"/"多人住所"`（图集历史名称）。**精灵图集（build-atlas.mjs LAYOUT / SpriteAtlasDef / TextureAtlas.h / atlas-manifest.json / KTX）零改动**——避免重跑图集生成（建筑 drawable=null，重生成会产出空白建筑区）且 C++ 按 nameIdx 位置索引不受影响
+- **渲染/预览解析** — `buildBuildingDataArray`（MainGameScreen）与 `computeMapPreview`（SectMapViewport）的 `BUILDING_NAME_INDEX` 查找改为经注册表 `effectiveSpriteName()` 解析（旧档迁移前未注册建筑回退用自身 displayName 仍可渲染）
+- **旧存档迁移** — `BuildingLoadSelfHeal.normalizeResidenceDisplayNames`（纯函数）：placedBuildings 旧名「单人住所/多人住所」→「初级…」，同步迁移引导累计建造计数 key（`buildingBuilt:{旧名}`→`{新名}`，数值保留）；挂接 `BootSequenceController` Step 3（幂等，健康档零副作用）
+- **显示名引用同步** — `BuildingFeatureBoot`/`BuildingConfigService`/assets `buildings.json`/`GameConfig.BUILDING_BONUSES`/`ProductionSlot.displayName`/`GuideTask` 引导条件（安顿住所/多人聚居）
+- **守卫** — `BuildingUpgradeCoverageTest` 新增「住所显示名与精灵名解耦配置一致」（注册表显示名/精灵名/迁移目标三者同步，漂移即红）；`FootprintTableSyncTest` 改用 `effectiveSpriteName()` 与图集逐项比对
+- **测试** — `BuildingLoadSelfHealTest` 新增 4 用例（旧名改写/计数 key 迁移数值保留/幂等/新旧混合）；各建筑测试夹具批量同步新显示名
+- **验证** — `compileReleaseKotlin` + 全量 `testReleaseUnitTest --max-workers=1` 全绿
+- **兼容性** — 无 Entity/Migration/Proto 变更（displayName 为既有字段值变化，读档自愈改写）；旧档读档后建筑恢复可点/可拆/可升级
+
 ### 优化（2026-08-19 宗门仓库交互：移除点击选中 + 长按改点击 + 储物袋单独开启）
 
 > 背景：宗门仓库此前「点击=选中（高亮边框）、长按=查看详情」，储物袋需先点击选中再点右上角「开启」小按钮，交互层级多、发现成本高。

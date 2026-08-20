@@ -126,12 +126,12 @@ class GuideTaskTest {
     fun `BuildingCount - 累计计数大于当前存量时取累计值（升级不回退）`() {
         // 累计建造 5 座单人住所，升级后当前仅剩 3 座
         val gd = GameData().copy(
-            guideCounters = mapOf(GuideCounterKeys.buildingBuiltKey("单人住所") to 5L),
+            guideCounters = mapOf(GuideCounterKeys.buildingBuiltKey("初级单人住所") to 5L),
             placedBuildings = (1..3).map { index ->
-                GridBuildingData(displayName = "单人住所", instanceId = "s$index")
+                GridBuildingData(displayName = "初级单人住所", instanceId = "s$index")
             }
         )
-        val cond = GuideCondition.BuildingCount("单人住所", 5)
+        val cond = GuideCondition.BuildingCount("初级单人住所", 5)
         assertEquals("应取累计值 5（升级不回退）", 5L, cond.currentValue(gd))
         assertTrue("累计值满足目标", cond.isMet(gd))
     }
@@ -139,11 +139,11 @@ class GuideTaskTest {
     @Test
     fun `BuildingCount - 拆除后累计计数不回落`() {
         val gd = GameData().copy(
-            guideCounters = mapOf(GuideCounterKeys.buildingBuiltKey("单人住所") to 5L),
+            guideCounters = mapOf(GuideCounterKeys.buildingBuiltKey("初级单人住所") to 5L),
             placedBuildings = emptyList()
         )
         assertEquals("拆除后仍按累计 5", 5L,
-            GuideCondition.BuildingCount("单人住所", 5).currentValue(gd))
+            GuideCondition.BuildingCount("初级单人住所", 5).currentValue(gd))
     }
 
     @Test
@@ -161,20 +161,20 @@ class GuideTaskTest {
     @Test
     fun `BuildingCount - 累计计数按建筑名隔离`() {
         val gd = GameData().copy(
-            guideCounters = mapOf(GuideCounterKeys.buildingBuiltKey("单人住所") to 5L),
+            guideCounters = mapOf(GuideCounterKeys.buildingBuiltKey("初级单人住所") to 5L),
             placedBuildings = (1..2).map { index ->
-                GridBuildingData(displayName = "多人住所", instanceId = "m$index")
+                GridBuildingData(displayName = "初级多人住所", instanceId = "m$index")
             }
         )
         assertEquals("多人住所不受单人住所累计影响（当前 2）", 2L,
-            GuideCondition.BuildingCount("多人住所", 3).currentValue(gd))
+            GuideCondition.BuildingCount("初级多人住所", 3).currentValue(gd))
         assertEquals("单人住所累计不受多人住所影响", 5L,
-            GuideCondition.BuildingCount("单人住所", 3).currentValue(gd))
+            GuideCondition.BuildingCount("初级单人住所", 3).currentValue(gd))
     }
 
     @Test
     fun `GuideCounterKeys - buildingBuiltKey 格式稳定`() {
-        assertEquals("buildingBuilt:单人住所", GuideCounterKeys.buildingBuiltKey("单人住所"))
+        assertEquals("buildingBuilt:初级单人住所", GuideCounterKeys.buildingBuiltKey("初级单人住所"))
         assertEquals("buildingBuilt:灵矿场", GuideCounterKeys.buildingBuiltKey("灵矿场"))
     }
 

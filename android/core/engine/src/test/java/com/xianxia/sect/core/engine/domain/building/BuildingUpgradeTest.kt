@@ -140,7 +140,7 @@ class BuildingUpgradeTest {
         gridY: Int = 20,
         sectId: String = "main"
     ) = GridBuildingData(
-        buildingId = "single_residence", displayName = "单人住所",
+        buildingId = "single_residence", displayName = "初级单人住所",
         gridX = gridX, gridY = gridY, width = 4, height = 4,
         instanceId = instanceId, sectId = sectId
     )
@@ -151,7 +151,7 @@ class BuildingUpgradeTest {
         gridY: Int = 20,
         sectId: String = "main"
     ) = GridBuildingData(
-        buildingId = "multi_residence", displayName = "多人住所",
+        buildingId = "multi_residence", displayName = "初级多人住所",
         gridX = gridX, gridY = gridY, width = 6, height = 4,
         instanceId = instanceId, sectId = sectId
     )

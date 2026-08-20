@@ -1852,7 +1852,11 @@ internal fun buildBuildingDataArray(
         result[idx + 1] = b.gridY.toFloat()
         result[idx + 2] = sw.toFloat()
         result[idx + 3] = sh.toFloat()
-        val nameIndex = BUILDING_NAME_INDEX[b.displayName]
+        // 精灵名解析：显示名可能带分级前缀（如「初级单人住所」），经注册表回退到图集精灵名
+        //（「单人住所」）；未注册建筑回退用自身 displayName（旧档迁移前仍按原名可渲染）
+        val spriteName = BuildingFeatureRegistry.findByDisplayName(b.displayName)
+            ?.effectiveSpriteName() ?: b.displayName
+        val nameIndex = BUILDING_NAME_INDEX[spriteName]
         if (nameIndex == null && warnedUnregisteredBuildingNames.add(b.displayName)) {
             // B1 诊断：displayName 未注册 → 用索引 0 精灵兜底画出（可见），但点击端 findBuildingAt
             // 命中后无任何分支处理（静默吞掉）——与 onTap 日志配套定位"可见但点不中"建筑

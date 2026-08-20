@@ -69,8 +69,8 @@ class BuildingRemovalSlotCleanupTest {
                         listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.FORGE)),
                     BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE, listOf(SlotGroup.Warehouse())),
                     BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL, listOf(SlotGroup.PatrolTower())),
-                    BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE, listOf(SlotGroup.Residence(1))),
-                    BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE, listOf(SlotGroup.Residence(4))),
+                    BuildingFeature("single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE, listOf(SlotGroup.Residence(1))),
+                    BuildingFeature("multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE, listOf(SlotGroup.Residence(4))),
                     BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL, listOf(SlotGroup.BloodRefining())),
                     BuildingFeature("library", "藏经阁", BuildingType.LIBRARY, listOf(SlotGroup.Library())),
                     BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
@@ -263,7 +263,7 @@ class BuildingRemovalSlotCleanupTest {
         )
 
         val ids = collectDiscipleIdsForTest(
-            displayName = "单人住所", instanceId = targetInstanceId, gameData = gameData
+            displayName = "初级单人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
         assertEquals("应仅收集目标住所的弟子ID", setOf("40", "41"), ids)
@@ -282,7 +282,7 @@ class BuildingRemovalSlotCleanupTest {
         )
 
         val ids = collectDiscipleIdsForTest(
-            displayName = "多人住所", instanceId = targetInstanceId, gameData = gameData
+            displayName = "初级多人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
         assertEquals(setOf("50", "51", "52", "53"), ids)
@@ -550,7 +550,7 @@ class BuildingRemovalSlotCleanupTest {
         )
 
         val result = filterBuildingSlotsForTest(
-            displayName = "单人住所", instanceId = targetInstanceId, gameData = gameData
+            displayName = "初级单人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
         assertEquals(1, result.residenceSlots.size)
@@ -571,7 +571,7 @@ class BuildingRemovalSlotCleanupTest {
         )
 
         val result = filterBuildingSlotsForTest(
-            displayName = "多人住所", instanceId = targetInstanceId, gameData = gameData
+            displayName = "初级多人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
         assertEquals("应仅保留 multi-B 的1个槽位", 1, result.residenceSlots.size)

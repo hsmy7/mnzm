@@ -22,26 +22,26 @@ class GuideCounterBackfillTest {
     @Test
     fun `回填 - 旧档无计数时按当前存量回填`() {
         val buildings = listOf(
-            building("单人住所", "s1"), building("单人住所", "s2"), building("单人住所", "s3"),
-            building("多人住所", "m1")
+            building("初级单人住所", "s1"), building("初级单人住所", "s2"), building("初级单人住所", "s3"),
+            building("初级多人住所", "m1")
         )
         val result = computeBuildingCounterBackfill(buildings, emptyMap())
         assertEquals(
             "单人住所应回填 3",
-            3L, result[GuideCounterKeys.buildingBuiltKey("单人住所")]
+            3L, result[GuideCounterKeys.buildingBuiltKey("初级单人住所")]
         )
         assertEquals(
             "多人住所应回填 1",
-            1L, result[GuideCounterKeys.buildingBuiltKey("多人住所")]
+            1L, result[GuideCounterKeys.buildingBuiltKey("初级多人住所")]
         )
     }
 
     @Test
     fun `回填 - 不覆盖已有更高计数`() {
-        val buildings = listOf(building("单人住所", "s1"), building("单人住所", "s2"))
-        val existing = mapOf(GuideCounterKeys.buildingBuiltKey("单人住所") to 5L)
+        val buildings = listOf(building("初级单人住所", "s1"), building("初级单人住所", "s2"))
+        val existing = mapOf(GuideCounterKeys.buildingBuiltKey("初级单人住所") to 5L)
         val result = computeBuildingCounterBackfill(buildings, existing)
-        assertEquals("已有计数 5 应保留", 5L, result[GuideCounterKeys.buildingBuiltKey("单人住所")])
+        assertEquals("已有计数 5 应保留", 5L, result[GuideCounterKeys.buildingBuiltKey("初级单人住所")])
     }
 
     @Test

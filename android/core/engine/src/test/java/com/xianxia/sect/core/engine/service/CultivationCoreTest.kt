@@ -515,7 +515,7 @@ class CultivationCoreTest {
             disciple, GameData(), tables
         )
         val singleResidenceSpeed = core.calculateDiscipleCultivationPerPhase(
-            disciple, gameDataWithBuilding("1", "单人住所"), tables
+            disciple, gameDataWithBuilding("1", "初级单人住所"), tables
         )
 
         assertTrue("单人住所修炼速度应高于无建筑", singleResidenceSpeed > noBuildingSpeed)
@@ -531,7 +531,7 @@ class CultivationCoreTest {
             disciple, GameData(), tables
         )
         val multiResidenceSpeed = core.calculateDiscipleCultivationPerPhase(
-            disciple, gameDataWithBuilding("1", "多人住所"), tables
+            disciple, gameDataWithBuilding("1", "初级多人住所"), tables
         )
 
         assertTrue("多人住所修炼速度应高于无建筑", multiResidenceSpeed > noBuildingSpeed)
@@ -576,10 +576,10 @@ class CultivationCoreTest {
             disciple, gameDataWithBuilding("1", "中级单人住所"), tables
         )
         val singleSpeed = core.calculateDiscipleCultivationPerPhase(
-            disciple, gameDataWithBuilding("1", "单人住所"), tables
+            disciple, gameDataWithBuilding("1", "初级单人住所"), tables
         )
         val multiSpeed = core.calculateDiscipleCultivationPerPhase(
-            disciple, gameDataWithBuilding("1", "多人住所"), tables
+            disciple, gameDataWithBuilding("1", "初级多人住所"), tables
         )
 
         assertTrue("中级单人住所应快于单人住所", midSpeed > singleSpeed)

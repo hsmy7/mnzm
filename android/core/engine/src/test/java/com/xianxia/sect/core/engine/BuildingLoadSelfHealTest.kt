@@ -6,7 +6,9 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
@@ -32,6 +34,67 @@ class BuildingLoadSelfHealTest {
 
     private fun b(displayName: String, sectId: String, instanceId: String) =
         GridBuildingData(displayName = displayName, sectId = sectId, instanceId = instanceId)
+
+    // ================================================================
+    // normalizeResidenceDisplayNames — 2026-08-19 住所显示名分级前缀迁移
+    // ================================================================
+
+    @Test
+    fun `normalizeResidenceDisplayNames_旧名单人多人_改写为初级前缀`() {
+        val buildings = listOf(
+            b("单人住所", "", "s1"),
+            b("多人住所", "", "m1"),
+            b("炼丹炉", "", "a1"),
+            b("中级单人住所", "", "su1")
+        )
+        val (renamed, counters) = normalizeResidenceDisplayNames(buildings, emptyMap())
+        assertEquals("初级单人住所", renamed[0].displayName)
+        assertEquals("初级多人住所", renamed[1].displayName)
+        assertEquals("非住所建筑不动", "炼丹炉", renamed[2].displayName)
+        assertEquals("中级住所不动", "中级单人住所", renamed[3].displayName)
+        assertEquals("无计数时计数器原样", emptyMap<String, Long>(), counters)
+    }
+
+    @Test
+    fun `normalizeResidenceDisplayNames_引导计数key同步迁移且数值保留`() {
+        val counters = mapOf(
+            GuideCounterKeys.buildingBuiltKey("单人住所") to 5L,
+            GuideCounterKeys.buildingBuiltKey("多人住所") to 3L,
+            "miningOutput" to 100L
+        )
+        val (_, renamed) = normalizeResidenceDisplayNames(emptyList(), counters)
+        assertEquals("旧单人住所计数迁到新 key", 5L,
+            renamed[GuideCounterKeys.buildingBuiltKey("初级单人住所")])
+        assertEquals("旧多人住所计数迁到新 key", 3L,
+            renamed[GuideCounterKeys.buildingBuiltKey("初级多人住所")])
+        assertEquals("无关计数保留", 100L, renamed["miningOutput"])
+        assertEquals("旧 key 不再残留", null, renamed[GuideCounterKeys.buildingBuiltKey("单人住所")])
+    }
+
+    @Test
+    fun `normalizeResidenceDisplayNames_幂等_新名不动`() {
+        val buildings = listOf(
+            b("初级单人住所", "", "s1"),
+            b("初级多人住所", "", "m1")
+        )
+        val counters = mapOf(GuideCounterKeys.buildingBuiltKey("初级单人住所") to 5L)
+        val (renamed, renamedCounters) = normalizeResidenceDisplayNames(buildings, counters)
+        assertEquals("已迁移建筑不动", buildings, renamed)
+        assertEquals("已迁移计数不动", counters, renamedCounters)
+    }
+
+    @Test
+    fun `normalizeResidenceDisplayNames_旧名与新名混合_仅迁移旧名`() {
+        val buildings = listOf(
+            b("单人住所", "", "old1"),
+            b("初级单人住所", "", "new1")
+        )
+        val (renamed, _) = normalizeResidenceDisplayNames(buildings, emptyMap())
+        assertEquals("旧名改写", "初级单人住所", renamed[0].displayName)
+        assertEquals("新名不动", "初级单人住所", renamed[1].displayName)
+        // 混合后两座同名（旧档与新档共存窗口），均为新名即可
+        assertTrue(renamed.all { it.displayName == "初级单人住所" })
+    }
 
     // ================================================================
     // normalizeOrphanBuildingSectIds — D-13

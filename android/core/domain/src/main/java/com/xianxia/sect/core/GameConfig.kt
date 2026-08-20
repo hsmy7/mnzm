@@ -193,8 +193,8 @@ object GameConfig {
         /** 住所建筑修炼速度加成系数（按建筑 displayName 查表） */
         val BUILDING_BONUSES: Map<String, Double> = mapOf(
             "中级单人住所" to 1.40,
-            "单人住所" to 1.20,
-            "多人住所" to 1.10
+            "初级单人住所" to 1.20,
+            "初级多人住所" to 1.10
         )
     }
 

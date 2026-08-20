@@ -123,13 +123,19 @@ class BootSequenceController @Inject constructor(
                 val purified = purifyStaleActiveSectId(data.activeSectId, data.worldMapSects)
                 val fixed = buildingConfigService.fixupBuildingSizes(norm.buildings)
                 val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
+                // 2026-08-19：住所显示名分级前缀迁移（旧档「单人住所/多人住所」→「初级…」，
+                // 含引导累计建造计数 key 同步），幂等
+                val (renamedBuildings, renamedCounters) =
+                    normalizeResidenceDisplayNames(withIds, data.guideCounters)
                 if (withIds != data.placedBuildings || purified != data.activeSectId ||
-                    norm.spiritMineSlots != data.spiritMineSlots
+                    norm.spiritMineSlots != data.spiritMineSlots ||
+                    renamedBuildings != withIds || renamedCounters != data.guideCounters
                 ) {
                     data.copy(
-                        placedBuildings = withIds,
+                        placedBuildings = renamedBuildings,
                         activeSectId = purified,
-                        spiritMineSlots = norm.spiritMineSlots
+                        spiritMineSlots = norm.spiritMineSlots,
+                        guideCounters = renamedCounters
                     )
                 } else {
                     data

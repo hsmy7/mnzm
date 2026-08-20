@@ -419,7 +419,7 @@ object GuideTaskRegistry {
             id = 21, name = "安顿住所",
             description = "单人住所：1人/间，修炼速度+20%。可升级为中级单人住所（+40%）。",
             conditions = listOf(
-                GuideCondition.BuildingCount("单人住所", 5),
+                GuideCondition.BuildingCount("初级单人住所", 5),
                 GuideCondition.SlotFilledCount("residenceSlots", 5, "入住住所")
             )
         ),
@@ -427,7 +427,7 @@ object GuideTaskRegistry {
             id = 22, name = "多人聚居",
             description = "多人住所：4人/间，修炼速度+10%。适合大量弟子集中安置。",
             conditions = listOf(
-                GuideCondition.BuildingCount("多人住所", 3),
+                GuideCondition.BuildingCount("初级多人住所", 3),
                 GuideCondition.SlotFilledCount("residenceSlots", 12, "入住住所")
             )
         ),

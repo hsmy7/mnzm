@@ -42,6 +42,14 @@ data class BuildingFeature(
     val gridHeight: Int = 2,
     val spriteWidth: Int = 0,
     val spriteHeight: Int = 0,
+    /**
+     * 精灵图集名称（SpriteAtlasDef.BUILDING_NAMES 中的名字）。
+     *
+     * 默认空字符串 = 用 [displayName] 作为精灵名。显示名与精灵名解耦场景：
+     * 显示名补全分级前缀（如「初级单人住所」）而图集精灵名保持历史名称
+     * （「单人住所」）时，在此显式指定精灵名，渲染按此名称查图集索引。
+     */
+    val spriteName: String = "",
     val description: String = "",
     val baseSuccessRate: Double = 1.0,
     val maxQueueLength: Int = 1,
@@ -59,6 +67,9 @@ data class BuildingFeature(
     val slotCount: Int get() = slotGroups.sumOf { it.slotsPerInstance }
     fun effectiveSpriteWidth(): Int = if (spriteWidth > 0) spriteWidth else gridWidth
     fun effectiveSpriteHeight(): Int = if (spriteHeight > 0) spriteHeight else gridHeight
+
+    /** 精灵图集名称：显式 [spriteName] 优先，否则回退 [displayName]。 */
+    fun effectiveSpriteName(): String = spriteName.ifEmpty { displayName }
 }
 
 /**

@@ -177,7 +177,7 @@
     },
     "single_residence": {
       "id": "single_residence",
-      "displayName": "单人住所",
+      "displayName": "初级单人住所",
       "buildingType": "SINGLE_RESIDENCE",
       "slotCount": 1,
       "baseSuccessRate": 1.0,
@@ -207,7 +207,7 @@
     },
     "multi_residence": {
       "id": "multi_residence",
-      "displayName": "多人住所",
+      "displayName": "初级多人住所",
       "buildingType": "MULTI_RESIDENCE",
       "slotCount": 4,
       "baseSuccessRate": 1.0,
