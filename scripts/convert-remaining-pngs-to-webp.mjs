@@ -1,3 +1,9 @@
+/**
+ * 依赖说明：本脚本依赖 sharp（npm 包），由仓库根目录 package.json / package-lock.json 管理
+ * （devDependencies 声明 sharp ^0.35.x）。Node 从脚本所在目录向上解析 node_modules，
+ * 命中仓库根 node_modules——运行前请确认根目录已执行 `npm install`（或 `npm ci`）。
+ * 若报错 "Cannot find module 'sharp'"，在仓库根目录执行 npm install 即可。
+ */
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
