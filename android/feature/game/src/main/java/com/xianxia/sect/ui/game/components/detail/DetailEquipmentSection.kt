@@ -26,6 +26,12 @@ import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.theme.GameColors
 
 
+/** 槽位网格统一列数（玩家/敌方详情的功法与装备区均 4 列） */
+internal const val SLOT_GRID_COLUMNS = 4
+
+/** 槽位网格统一间距（横向 = 纵向，等距规格） */
+internal val SLOT_GRID_SPACING = 6.dp
+
 
 @Composable
 fun EquipmentSection(
@@ -46,7 +52,7 @@ fun EquipmentSection(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
         ) {
             EquipmentSlot("武器", weapon, Modifier.weight(1f), onSlotClick, onEquipmentClick, "weapon")
             EquipmentSlot("护甲", armor, Modifier.weight(1f), onSlotClick, onEquipmentClick, "armor")

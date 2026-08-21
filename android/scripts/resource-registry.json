@@ -82,12 +82,12 @@
     {
       "category": "MANUAL",
       "entries": [
-        { "name": "manual_1", "res": "manual_fan" },
-        { "name": "manual_2", "res": "manual_ling" },
-        { "name": "manual_3", "res": "manual_bao" },
-        { "name": "manual_4", "res": "manual_xuan" },
-        { "name": "manual_5", "res": "manual_di" },
-        { "name": "manual_6", "res": "manual_tian" }
+        { "name": "manual_1", "res": "manual_fan_ling" },
+        { "name": "manual_2", "res": "manual_fan_ling" },
+        { "name": "manual_3", "res": "manual_bao_xuan" },
+        { "name": "manual_4", "res": "manual_bao_xuan" },
+        { "name": "manual_5", "res": "manual_di_tian" },
+        { "name": "manual_6", "res": "manual_di_tian" }
       ]
     },
     {

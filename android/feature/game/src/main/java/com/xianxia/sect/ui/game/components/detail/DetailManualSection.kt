@@ -14,8 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalWindowInfo
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -57,19 +55,14 @@ fun ManualsSection(
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
         ) {
-            // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp
-            // containerSize 单位是像素，需除以 density 换算为 dp 后再按每 100dp 一列分列
-            //（D-34 回归修复：勿直接用像素值除以 100）
-            val manualColumnCount = maxOf(
-                1,
-                (LocalWindowInfo.current.containerSize.width / LocalDensity.current.density / 100).toInt()
-            )
-            manualSlots.chunked(manualColumnCount).forEachIndexed { rowIndex, rowSlots ->
+            // 槽位网格固定 4 列（与装备区/敌方详情等距规格一致），
+            // 不足 4 个的末行左对齐、尾部 weight 占位补齐
+            manualSlots.chunked(SLOT_GRID_COLUMNS).forEachIndexed { rowIndex, rowSlots ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
                 ) {
                     rowSlots.forEachIndexed { slotIndex, manual ->
                         val proficiencyData = manual?.id?.let { proficiencyMap[it] }
@@ -83,7 +76,7 @@ fun ManualsSection(
                             )
                         }
                     }
-                    repeat(manualColumnCount - rowSlots.size) {
+                    repeat(SLOT_GRID_COLUMNS - rowSlots.size) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }

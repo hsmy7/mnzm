@@ -34,6 +34,8 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.detail.SLOT_GRID_COLUMNS
+import com.xianxia.sect.ui.game.components.detail.SLOT_GRID_SPACING
 import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
@@ -396,7 +398,7 @@ private fun EnemyEquipmentSection(
     Spacer(Modifier.height(4.dp))
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
     ) {
         listOf(enemy.weaponName, enemy.armorName,
             enemy.bootsName, enemy.accessoryName).forEach { name ->
@@ -439,14 +441,14 @@ private fun EnemyManualSection(
         val rarity = manual?.rarity ?: 1
         Triple(manualName, rarity, manual)
     }
-    val paddedSkills = if (manualSkills.size % 4 == 0) manualSkills
-        else manualSkills + List(4 - manualSkills.size % 4) { Triple("", 1, null as ManualDatabase.ManualTemplate?) }
-    val rows = paddedSkills.chunked(4)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val paddedSkills = if (manualSkills.size % SLOT_GRID_COLUMNS == 0) manualSkills
+        else manualSkills + List(SLOT_GRID_COLUMNS - manualSkills.size % SLOT_GRID_COLUMNS) { Triple("", 1, null as ManualDatabase.ManualTemplate?) }
+    val rows = paddedSkills.chunked(SLOT_GRID_COLUMNS)
+    Column(verticalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)) {
         rows.forEach { row ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(SLOT_GRID_SPACING)
             ) {
                 row.forEach { (name, rarity, manual) ->
                     Box(

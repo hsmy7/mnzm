@@ -82,8 +82,8 @@ class SpriteCodegenSyncTest {
             src.contains("\"精铁剑\" to R.drawable.jing_tie_jian")
         )
         assertTrue(
-            "功法必须映射 manual_ 前缀键（manualSpriteRes(rarity) 查询协议；1=凡阶→manual_fan）",
-            src.contains("\"manual_1\" to R.drawable.manual_fan")
+            "功法必须映射 manual_ 前缀键（manualSpriteRes(rarity) 查询协议；1=凡阶→manual_fan_ling，凡/灵品共用单图）",
+            src.contains("\"manual_1\" to R.drawable.manual_fan_ling")
         )
         assertTrue(
             "丹药必须映射 pill_ 前缀键（pillSpriteRes(rarity) 查询协议；1=凡阶→pill_fan）",

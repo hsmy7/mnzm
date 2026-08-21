@@ -1144,6 +1144,7 @@ object GameConfig {
         val AD_FREE_UNION_IDS: Set<String> = setOf(
             "Ck9z455SQZadDIwBueJvRQ==",
             "4FTGX7tp7MO1nr+j/Vwm5A==",
+            "wQEmlbb1cEsrj8MG+e0NaQ==",
         )
     }
 }
