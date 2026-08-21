@@ -39,11 +39,10 @@
 - **验证** — `compileReleaseKotlin` + `:feature:game:testReleaseUnitTest`（新增类全绿）+ 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 层，引擎调用链（equipItem/learnManual/replaceManual）不变；`iOS` 标签：Compose 双栏为跨平台 UI，无 Android 独占 API
 
-### 优化（槽位网格统一 4 列等距 + 功法精灵图合并为双品阶单图 + 免广告白名单新增）
+### 优化（槽位网格统一 4 列等距 + 功法精灵图合并为双品阶单图）
 
 - **槽位网格统一 4 列、间距等距** — 玩家弟子详情（`DiscipleDetailScreen` 装备/功法 Tab）与敌方详情（`HeavenlyTrialBattleDialog`）的功法/装备槽位统一为固定 4 列网格：`DetailManualSection.kt` 删除按屏宽动态分列（LocalWindowInfo/LocalDensity）改为固定 `chunked(4)`；`DetailEquipmentSection.kt` 提取共享常量 `SLOT_GRID_COLUMNS`/`SLOT_GRID_SPACING`（6dp，横向=纵向等距）；敌方功法区行距 4dp→6dp 与行内一致；末行不足 4 个左对齐 + weight 占位补齐语义不变
 - **功法精灵图 6→3 张合并（双品阶共用单图）** — 美术素材（`D:\模拟宗门美术素材`）提供 3 张双品阶合并图（凡+灵/宝+玄/地+天），经 `sharp webp({lossless:true, effort:6})` 无损转换后以 `manual_fan_ling`/`manual_bao_xuan`/`manual_di_tian` 双模块放置（app + feature/game drawable-nodpi），删除旧 6 张；`resource-registry.json` MANUAL 分类 6 键（manual_1..6）映射到 3 个新 res（键名与 `manualSpriteRes(rarity)` 查询协议不变，仓库/更换界面/奖励/预加载消费方零改动）；`SpriteCodegenSyncTest` 期望同步更新；manifest/UID 由资源管线自动增量
-- **免广告白名单新增** — `GameConfig.Whitelist.AD_FREE_UNION_IDS` 追加 unionId `wQEmlbb1cEsrj8MG+e0NaQ==`（跳过广告、无视冷却与每日上限，`AdFreeWhitelist` 判定自动继承）
 - **验证** — `compileReleaseKotlin` + 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无新增权限、无数据收集变化（隐私政策无需更新）；功法图内存按预加载 `MAX_SPRITE_DIMENSION=300` 降采样，低端设备无回归；`iOS` 标签：Compose 网格与资源管线均为跨平台方案
 
