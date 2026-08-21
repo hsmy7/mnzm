@@ -5,9 +5,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -53,8 +50,6 @@ import com.xianxia.sect.core.model.Physique
 import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.GameConfig.TraitWashType
-import com.xianxia.sect.core.util.sortedByWatchedThenRarity
-import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.JadePurchaseFlow
 import com.xianxia.sect.ui.game.components.JadePurchaseOutcome
@@ -62,11 +57,9 @@ import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.PhysiqueDetailDialog
 import com.xianxia.sect.ui.components.AffixDetailDialog
-import com.xianxia.sect.ui.components.UnifiedItemCard
 import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -85,8 +78,12 @@ import com.xianxia.sect.ui.game.components.detail.ManualsSection
 import com.xianxia.sect.ui.game.components.detail.MasterApprenticeSelectDialog
 import com.xianxia.sect.ui.game.components.detail.PhysiquesSection
 import com.xianxia.sect.ui.game.components.detail.RelationsDialog
+import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionActions
+import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionConfig
+import com.xianxia.sect.ui.game.components.detail.ReplaceSelectionScreen
 import com.xianxia.sect.ui.game.components.detail.StorageBagDialog
 import com.xianxia.sect.ui.game.components.detail.TalentsSection
+import com.xianxia.sect.ui.game.components.detail.buildManualReplaceItems
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
 import com.xianxia.sect.ui.game.dialogs.SpiritRootWashDialog
 import com.xianxia.sect.ui.game.dialogs.TraitAddDialog
@@ -728,9 +725,9 @@ private fun DiscipleDetailSelectionDialogs(
             currentDiscipleId = disciple.id,
             discipleRealm = disciple.realm,
             selectedEquipmentId = selectedEquipmentId,
-            onSelect = { id -> selectedEquipmentId = if (selectedEquipmentId == id) null else id },
-            onConfirm = {
-                selectedEquipmentId?.let { id -> viewModel?.equipItem(disciple.id, id) }
+            onSelect = { id -> selectedEquipmentId = id },
+            onConfirm = { id ->
+                viewModel?.equipItem(disciple.id, id)
                 state.showEquipmentSelection = null
                 selectedEquipmentId = null
             },
@@ -749,9 +746,9 @@ private fun DiscipleDetailSelectionDialogs(
             discipleRealm = disciple.realm,
             maxManualSlots = maxManualSlots,
             selectedManualId = selectedManualId,
-            onSelect = { id -> selectedManualId = if (selectedManualId == id) null else id },
-            onConfirm = {
-                selectedManualId?.let { id -> viewModel?.learnManual(disciple.id, id) }
+            onSelect = { id -> selectedManualId = id },
+            onConfirm = { id ->
+                viewModel?.learnManual(disciple.id, id)
                 state.showManualSelection = false
                 selectedManualId = null
             },
@@ -914,113 +911,85 @@ private fun DiscipleDetailManualSection(
         if (showManualReplaceSelection) {
             val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
                 ?: emptySet()
-            val availableManualStacks = remember(
-                manualStacks, allManuals, disciple.manualIds, manual, disciple.realm, watchedKeys
+            // 可选功法 + 心法状态（替换流程）：排除其他已学名称与境界不足的堆叠；
+            // 心法置底禁用条件 = 弟子已有心法且原功法非心法（原功法为心法/弟子无心法时正常显示）
+            val (eligibleStacks, discipleHasMind) = remember(
+                manualStacks, allManuals, disciple.manualIds, manual, disciple.realm
             ) {
                 val manualMap = allManuals.associateBy { it.id }
                 val otherManualIds = disciple.manualIds.filter { it != manual.id }
-                val hasMindManual = otherManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
                 val learnedNames = otherManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
-                manualStacks.filter { stack ->
-                    !(hasMindManual && stack.type == ManualType.MIND) &&
+                val eligible = manualStacks.filter { stack ->
                     stack.name !in learnedNames &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
-                }.sortedByWatchedThenRarity(watchedKeys)
+                }
+                val hasMind = disciple.manualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
+                eligible to hasMind
             }
             var selectedReplaceManualId by remember { mutableStateOf<String?>(null) }
-            var showReplaceDetailStack by remember { mutableStateOf<ManualStack?>(null) }
 
             ManualReplaceDialog(
-                availableManualStacks = availableManualStacks,
-                selectedReplaceManualId = selectedReplaceManualId,
+                availableManualStacks = eligibleStacks,
+                mindItemsDisabled = discipleHasMind && manual.type != ManualType.MIND,
+                discipleRealm = disciple.realm,
                 watchedKeys = watchedKeys,
-                onSelectReplaceManual = { id ->
-                    selectedReplaceManualId = if (selectedReplaceManualId == id) null else id
-                },
-                onViewReplaceDetail = { stack -> showReplaceDetailStack = stack },
-                onConfirmReplace = {
-                    selectedReplaceManualId?.let { newId -> viewModel?.replaceManual(disciple.id, manual.id, newId) }
+                selectedReplaceManualId = selectedReplaceManualId,
+                onSelectReplaceManual = { id -> selectedReplaceManualId = id },
+                onConfirmReplace = { newId ->
+                    viewModel?.replaceManual(disciple.id, manual.id, newId)
                     showManualReplaceSelection = false
                     state.showManualDetailDialog = null
                 },
                 onDismissReplace = { showManualReplaceSelection = false }
             )
-
-            showReplaceDetailStack?.let { stack ->
-                ItemDetailDialog(item = stack, onDismiss = { showReplaceDetailStack = null }, viewModel = viewModel)
-            }
         }
     }
 }
 
 /**
- * 功法更换选择对话框
+ * 功法更换选择对话框（DiscipleDetailDialog 拆分）：全屏 7:3 双栏 + 心法规则。
+ *
+ * 进入默认选中列表第一个功法（[onConfirmReplace] 接收最终选中功法 id）。
+ * 心法规则（mindItemsDisabled 由调用方计算）：弟子已有心法且更换的原功法非心法时，
+ * 仓库心法置底置灰不可点击；更换的原功法为弟子心法、或弟子无心法时，仓库心法正常显示可点击。
  */
 @Composable
 private fun ManualReplaceDialog(
     availableManualStacks: List<ManualStack>,
-    selectedReplaceManualId: String?,
+    mindItemsDisabled: Boolean,
+    discipleRealm: Int,
     watchedKeys: Set<String> = emptySet(),
+    selectedReplaceManualId: String?,
     onSelectReplaceManual: (String) -> Unit,
-    onViewReplaceDetail: (ManualStack) -> Unit,
-    onConfirmReplace: () -> Unit,
+    onConfirmReplace: (String) -> Unit,
     onDismissReplace: () -> Unit
 ) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismissReplace,
-        title = "选择新功法",
-        mode = DialogMode.Auto,
-        dismissOnClickOutside = false
+    val items = remember(
+        availableManualStacks, discipleRealm, mindItemsDisabled, watchedKeys
     ) {
-        if (availableManualStacks.isEmpty()) {
-            Text(
-                text = "暂无可更换的功法",
-                fontSize = 12.sp,
-                color = Color.Black,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-            )
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(60.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 400.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(availableManualStacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
-                    UnifiedItemCard(
-                        data = ItemCardData(
-                            id = stack.id,
-                            name = stack.name,
-                            rarity = stack.rarity,
-                            quantity = stack.quantity,
-                            isLocked = stack.isLocked,
-                            isManual = true
-                        ),
-                        isSelected = selectedReplaceManualId == stack.id,
-                        isFollowed = stack.watchKey() in watchedKeys,
-                        onClick = { onSelectReplaceManual(stack.id) },
-                        onLongPress = { onViewReplaceDetail(stack) }
-                    )
-                }
-            }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            GameButton(
-                text = "取消",
-                onClick = onDismissReplace
-            )
-            GameButton(
-                text = "确认更换",
-                onClick = onConfirmReplace,
-                enabled = selectedReplaceManualId != null
-            )
-        }
+        buildManualReplaceItems(
+            stacks = availableManualStacks,
+            learnedNames = emptySet(),
+            discipleRealm = discipleRealm,
+            mindItemsDisabled = mindItemsDisabled,
+            watchedKeys = watchedKeys
+        )
     }
+
+    ReplaceSelectionScreen(
+        config = ReplaceSelectionConfig(
+            title = "选择新功法",
+            emptyText = "暂无可更换的功法",
+            items = items,
+            selectedId = selectedReplaceManualId,
+            confirmLabel = "更换",
+            actions = ReplaceSelectionActions(
+                onSelect = onSelectReplaceManual,
+                onConfirm = onConfirmReplace,
+                onDismiss = onDismissReplace
+            )
+        )
+    )
 }
 
 /**

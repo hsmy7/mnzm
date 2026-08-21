@@ -4,9 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -14,26 +11,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.util.sortedByWatchedThenRarity
-import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.GameViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
-import com.xianxia.sect.ui.game.components.ItemDetailDialog
-import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.theme.GameColors
-import java.util.Locale
 
 
 
@@ -116,6 +106,11 @@ fun EquipmentSlot(
     }
 }
 
+/**
+ * 装备更换/选择界面（EquipmentSelectionDialog 拆分）：全屏 7:3 双栏，
+ * 左侧仓库装备列表（关注优先→品阶降序、单选高亮），右侧选中装备详情（四区域 + 底部"更换"按钮）。
+ * 进入默认选中列表第一个装备；[onConfirm] 接收最终选中装备 id。
+ */
 @Composable
 fun EquipmentSelectionDialog(
     slotType: String,
@@ -126,92 +121,44 @@ fun EquipmentSelectionDialog(
     discipleRealm: Int,
     selectedEquipmentId: String?,
     onSelect: (String) -> Unit,
-    onConfirm: () -> Unit,
+    onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     viewModel: GameViewModel? = null
 ) {
     val slotTypeText = equipmentSelectionSlotText(slotType = slotType)
-
     val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
+    val slotEnum = runCatching {
+        EquipmentSlot.valueOf(slotType.uppercase(LocalLocale.current.platformLocale))
+    }.getOrDefault(EquipmentSlot.WEAPON)
 
-    val availableItems = rememberAvailableEquipment(
-        params = EquipmentSelectionParams(
-            allEquipment = allEquipment,
-            equipmentStacks = equipmentStacks,
-            slotType = slotType,
+    val items = remember(
+        allEquipment, equipmentStacks, slotEnum, currentEquipmentId, currentDiscipleId, discipleRealm, watchedKeys
+    ) {
+        buildEquipmentReplaceItems(
+            stacks = equipmentStacks,
+            instances = allEquipment,
+            slot = slotEnum,
             currentEquipmentId = currentEquipmentId,
             currentDiscipleId = currentDiscipleId,
             discipleRealm = discipleRealm,
             watchedKeys = watchedKeys
         )
-    )
-
-    var showDetailItem by remember { mutableStateOf<Any?>(null) }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择$slotTypeText",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                EquipmentGridContent(
-                    availableItems = availableItems,
-                    slotTypeText = slotTypeText,
-                    selectedEquipmentId = selectedEquipmentId,
-                    watchedKeys = watchedKeys,
-                    onItemClick = onSelect,
-                    onItemLongPress = { item ->
-                        if (item.isStack) {
-                            equipmentStacks.find { it.id == item.id }?.let { showDetailItem = it }
-                        } else {
-                            allEquipment.find { it.id == item.id }?.let { showDetailItem = it }
-                        }
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss
-                )
-                GameButton(
-                    text = "确认装备",
-                    onClick = onConfirm,
-                    enabled = selectedEquipmentId != null
-                )
-            }
-        }
     }
 
-    EquipmentDetailDialog(
-        item = showDetailItem,
-        viewModel = viewModel,
-        onDismiss = { showDetailItem = null }
-    )
-}
-
-/** 装备详情弹窗（EquipmentSelectionDialog 拆分） */
-@Composable
-private fun EquipmentDetailDialog(
-    item: Any?,
-    viewModel: GameViewModel?,
-    onDismiss: () -> Unit
-) {
-    if (item != null) {
-        ItemDetailDialog(
-            item = item,
-            onDismiss = onDismiss,
-            viewModel = viewModel
+    ReplaceSelectionScreen(
+        config = ReplaceSelectionConfig(
+            title = "更换$slotTypeText",
+            emptyText = "暂无可用的$slotTypeText",
+            items = items,
+            selectedId = selectedEquipmentId,
+            confirmLabel = "更换",
+            actions = ReplaceSelectionActions(
+                onSelect = onSelect,
+                onConfirm = onConfirm,
+                onDismiss = onDismiss
+            )
         )
-    }
+    )
 }
 
 /** 装备槽位中文名（EquipmentSelectionDialog 拆分） */
@@ -222,113 +169,3 @@ private fun equipmentSelectionSlotText(slotType: String): String = when (slotTyp
     "accessory" -> "饰品"
     else -> "装备"
 }
-
-/** 装备选择参数打包（EquipmentSelectionDialog 拆分，参数 >6 规避 LongParameterList） */
-private data class EquipmentSelectionParams(
-    val allEquipment: List<EquipmentInstance>,
-    val equipmentStacks: List<EquipmentStack>,
-    val slotType: String,
-    val currentEquipmentId: String?,
-    val currentDiscipleId: String,
-    val discipleRealm: Int,
-    val watchedKeys: Set<String>
-)
-
-/** 可选装备列表计算（EquipmentSelectionDialog 拆分）：栈装备 + 实例装备合并排序 */
-@Composable
-private fun rememberAvailableEquipment(
-    params: EquipmentSelectionParams
-): List<EquipmentSelectionItem> {
-    return remember(
-        params.allEquipment,
-        params.equipmentStacks,
-        params.slotType,
-        params.currentEquipmentId,
-        params.currentDiscipleId,
-        params.discipleRealm,
-        params.watchedKeys
-    ) {
-        val slotEnum = try {
-            EquipmentSlot.valueOf(params.slotType.uppercase(Locale.getDefault()))
-        } catch (_: Exception) {
-            EquipmentSlot.WEAPON
-        }
-
-        val stacks = params.equipmentStacks.filter { stack ->
-            stack.slot == slotEnum &&
-            GameConfig.Realm.meetsRealmRequirement(params.discipleRealm, stack.minRealm)
-        }.map { stack -> EquipmentSelectionItem(stack.id, stack.name, stack.rarity, stack.quantity, stack.isLocked, true) }
-
-        val instances = params.allEquipment.filter {
-            it.slot == slotEnum &&
-            it.id != params.currentEquipmentId &&
-            (it.ownerId == null || it.ownerId == params.currentDiscipleId) &&
-            GameConfig.Realm.meetsRealmRequirement(params.discipleRealm, it.minRealm)
-        }.map { inst -> EquipmentSelectionItem(inst.id, inst.name, inst.rarity, 1, false, false) }
-
-        (stacks + instances).sortedByWatchedThenRarity(
-            params.watchedKeys,
-            keyOf = { watchKey("equipment", it.name) },
-            rarityOf = { it.rarity },
-            nameOf = { it.name }
-        )
-    }
-}
-
-/** 装备选择网格区（EquipmentSelectionDialog 拆分）：空态提示 + 装备网格 */
-@Composable
-private fun EquipmentGridContent(
-    availableItems: List<EquipmentSelectionItem>,
-    slotTypeText: String,
-    selectedEquipmentId: String?,
-    watchedKeys: Set<String>,
-    onItemClick: (String) -> Unit,
-    onItemLongPress: (EquipmentSelectionItem) -> Unit
-) {
-    if (availableItems.isEmpty()) {
-        Text(
-            text = "暂无可用的$slotTypeText",
-            fontSize = 12.sp,
-            color = Color.Black,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-        )
-    } else {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(60.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 400.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(availableItems, key = { it.id }, contentType = { "equipment_selection_item" }) { item ->
-                UnifiedItemCard(
-                    data = ItemCardData(
-                        id = item.id,
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = item.quantity,
-                        isLocked = item.isLocked
-                    ),
-                    isSelected = selectedEquipmentId == item.id,
-                    isFollowed = watchKey("equipment", item.name) in watchedKeys,
-                    onClick = {
-                        onItemClick(item.id)
-                    },
-                    onLongPress = {
-                        onItemLongPress(item)
-                    }
-                )
-            }
-        }
-    }
-}
-
-internal data class EquipmentSelectionItem(
-    val id: String,
-    val name: String,
-    val rarity: Int,
-    val quantity: Int,
-    val isLocked: Boolean,
-    val isStack: Boolean
-)

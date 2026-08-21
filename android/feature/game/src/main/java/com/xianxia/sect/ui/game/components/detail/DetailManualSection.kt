@@ -4,14 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.ui.window.DialogProperties
-import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,20 +16,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
-import com.xianxia.sect.core.util.sortedByWatchedThenRarity
-import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.GameViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
-import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.theme.GameColors
@@ -158,6 +146,13 @@ fun ManualSlot(
     }
 }
 
+/**
+ * 功法学习/选择界面（ManualSelectionDialog 拆分）：全屏 7:3 双栏，
+ * 左侧仓库功法列表（关注优先→品阶降序、单选高亮、心法规则置底置灰），右侧选中功法详情（四区域 + 底部"更换"按钮）。
+ * 进入默认选中列表第一个功法；[onConfirm] 接收最终选中功法 id。
+ *
+ * 心法规则：弟子已有心法时仓库心法置底置灰不可点击；弟子无心法时正常显示。
+ */
 @Composable
 fun ManualSelectionDialog(
     manualStacks: List<ManualStack>,
@@ -167,154 +162,43 @@ fun ManualSelectionDialog(
     maxManualSlots: Int,
     selectedManualId: String?,
     onSelect: (String) -> Unit,
-    onConfirm: () -> Unit,
+    onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
     viewModel: GameViewModel? = null
 ) {
-    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
-        ?: emptySet()
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
 
-    val availableManualStacks = rememberAvailableManualStacks(
-        manualStacks = manualStacks,
-        allManuals = allManuals,
-        currentManualIds = currentManualIds,
-        discipleRealm = discipleRealm,
-        maxManualSlots = maxManualSlots,
-        watchedKeys = watchedKeys
-    )
-
-    var showDetailStack by remember { mutableStateOf<ManualStack?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = GameColors.PageBackground,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        title = {
-            ManualSelectionTitle(onDismiss = onDismiss)
-        },
-        text = {
-            DialogSystemBarGuard()
-            ManualSelectionGrid(
-                stacks = availableManualStacks,
-                selectedManualId = selectedManualId,
-                watchedKeys = watchedKeys,
-                onStackClick = onSelect,
-                onStackLongPress = { showDetailStack = it }
-            )
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismiss
-                )
-                GameButton(
-                    text = "确认学习",
-                    onClick = onConfirm,
-                    enabled = selectedManualId != null
-                )
-            }
-        }
-    )
-
-    showDetailStack?.let { stack ->
-        ItemDetailDialog(
-            item = stack,
-            onDismiss = { showDetailStack = null },
-            viewModel = viewModel
-        )
-    }
-}
-
-/** 可选功法列表计算（ManualSelectionDialog 拆分） */
-@Composable
-private fun rememberAvailableManualStacks(
-    manualStacks: List<ManualStack>,
-    allManuals: List<ManualInstance>,
-    currentManualIds: List<String>,
-    discipleRealm: Int,
-    maxManualSlots: Int,
-    watchedKeys: Set<String>
-): List<ManualStack> {
-    return remember(manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots, watchedKeys) {
+    val items = remember(
+        manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots, watchedKeys
+    ) {
         if (currentManualIds.size >= maxManualSlots) {
             emptyList()
         } else {
             val manualMap = allManuals.associateBy { it.id }
-            val hasMindManual = currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
+            val discipleHasMind = currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
             val learnedNames = currentManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
-            manualStacks.filter { stack ->
-                !(hasMindManual && stack.type == ManualType.MIND) &&
-                stack.name !in learnedNames &&
-                GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
-            }.sortedByWatchedThenRarity(watchedKeys)
+            buildManualReplaceItems(
+                stacks = manualStacks,
+                learnedNames = learnedNames,
+                discipleRealm = discipleRealm,
+                mindItemsDisabled = discipleHasMind,
+                watchedKeys = watchedKeys
+            )
         }
     }
-}
 
-/** 功法选择标题行（ManualSelectionDialog 拆分） */
-@Composable
-private fun ManualSelectionTitle(onDismiss: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "选择功法",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
+    ReplaceSelectionScreen(
+        config = ReplaceSelectionConfig(
+            title = "选择功法",
+            emptyText = "暂无可学习的功法",
+            items = items,
+            selectedId = selectedManualId,
+            confirmLabel = "更换",
+            actions = ReplaceSelectionActions(
+                onSelect = onSelect,
+                onConfirm = onConfirm,
+                onDismiss = onDismiss
+            )
         )
-        CloseButton(onClick = onDismiss)
-    }
-}
-
-/** 功法选择网格区（ManualSelectionDialog 拆分）：空态提示 + 功法网格 */
-@Composable
-private fun ManualSelectionGrid(
-    stacks: List<ManualStack>,
-    selectedManualId: String?,
-    watchedKeys: Set<String>,
-    onStackClick: (String) -> Unit,
-    onStackLongPress: (ManualStack) -> Unit
-) {
-    if (stacks.isEmpty()) {
-        Text(
-            text = "暂无可学习的功法",
-            fontSize = 12.sp,
-            color = Color.Black,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-        )
-    } else {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(60.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 400.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(stacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
-                UnifiedItemCard(
-                    data = ItemCardData(
-                        id = stack.id,
-                        name = stack.name,
-                        rarity = stack.rarity,
-                        quantity = stack.quantity,
-                        isLocked = stack.isLocked,
-                        isManual = true
-                    ),
-                    isSelected = selectedManualId == stack.id,
-                    isFollowed = stack.watchKey() in watchedKeys,
-                    onClick = {
-                        onStackClick(stack.id)
-                    },
-                    onLongPress = { onStackLongPress(stack) }
-                )
-            }
-        }
-    }
+    )
 }

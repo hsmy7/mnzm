@@ -363,10 +363,10 @@ private fun MutableList<String>.addManualStackBaseInfo(item: ManualStack) {
     }
 }
 
-/** 功法堆叠技能信息（getManualStackEffects 拆分） */
+/** 功法堆叠技能信息（getManualStackEffects 拆分）；internal 供 ReplaceSelectionData 复用 */
 // 拆分搬移:分支结构与原函数一致
 @Suppress("CyclomaticComplexMethod", "DEPRECATION")
-private fun MutableList<String>.addManualStackSkillInfo(item: ManualStack, skillName: String) {
+internal fun MutableList<String>.addManualStackSkillInfo(item: ManualStack, skillName: String) {
     add("")
     add("技能: $skillName")
     item.skillDescription?.let { sDesc ->

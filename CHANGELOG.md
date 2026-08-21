@@ -27,6 +27,18 @@
 - **验证** — `compileReleaseKotlin`（全模块含 feature:game）+ 全量 `testReleaseUnitTest --max-workers=1` 串行全绿 + `lintRelease` + 全模块 `detekt`（engine 15 项违规归零，baseline 零新增）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯重构，行为逐位等价（升级/溢出邮件/读档自愈逻辑不变，测试全绿佐证）
 
+### 重构（更换功法/装备界面全屏 7:3 双栏改版）
+
+> 背景：原更换功法/装备为三个小弹窗（`EquipmentSelectionDialog` 半屏网格 / `ManualSelectionDialog` AlertDialog 网格 / `ManualReplaceDialog` Auto 网格），长按看详情 + 勾选 + 底部按钮。需求：改为全屏 7:3 双栏（左 7 仓库列表、右 3 详情），1dp 灰竖线分隔，**进入默认选中第一个物品**、右侧常驻显示详情，单选恒选中（重复点击不取消），心法按"弟子已有心法且更换原功法非心法→置底置灰不可点"规则处理。
+
+- **新增共享组件（feature:game components/detail）** — `ReplaceSelectionScreen`：全屏 `UnifiedGameDialog(Full)` 内 `Row(weight(7f) | 1dp 灰竖线(GameColors.DividerGray) | weight(3f))`；**进入默认选中列表第一个物品**（`selectedId` 为空时以列表首项为有效选中，调用方无需初始化状态，直接点"更换"即作用于该默认选中项）；右侧详情面板常驻显示四区域（①精灵图+品阶色名称+副标题 ②属性加成 ③技能描述/装备描述 ④底部"更换"按钮固定、内容区可滚动）；左侧 `LazyVerticalGrid` 可滚动列表（关注优先→品阶降序→名称升序，选中金色描边，禁用项整体 alpha(0.4) 置灰 + "已学心法"小标签 + 不可点击）；切换选中项原地更新详情（面板常驻故移除滑入动画实现）；确认回调 `onConfirm(id)` 统一接收最终选中 id（装备/学习/替换三入口同步调整）
+- **新增纯逻辑（ReplaceSelectionData.kt，零 Android 依赖可 JVM 单测）** — `buildEquipmentReplaceItems`（堆叠+游离实例合并：槽位/境界/排除当前装备实例/归属过滤，过滤规则与原实现逐位一致）/ `buildManualReplaceItems`（已学名称排除/境界达标/心法置底禁用：`isDisabled = type==MIND && mindItemsDisabled`，可用项在前、禁用项置底，组内均品阶降序）；详情构建 `manualStackDetail`/`equipmentStackDetail`/`equipmentInstanceDetail`（复用 `ItemDetailEffects.kt` internal 格式化函数 `getStatDisplayName`/`formatBuffLine`/`addManualSkillInfo` 等；`addManualStackSkillInfo` 可见性 private→internal 供复用；功法无技能时回退模板/描述，装备实例按 `getFinalStats` 含孕养差值 `(↑x)`）
+- **三个入口统一改造** — `EquipmentSelectionDialog`（装备空槽/装备详情"更换"）、`ManualSelectionDialog`（功法学习）、`ManualReplaceDialog`（已学功法详情"更换"，薄封装：`mindItemsDisabled = discipleHasMind && 原功法类型 != MIND`）全部改为渲染 `ReplaceSelectionScreen`；删除旧网格/AlertDialog/长按详情私有实现（`EquipmentGridContent`/`ManualSelectionGrid`/`EquipmentDetailDialog`/`showReplaceDetailStack` 嵌套详情等）
+- **交互语义变化** — ①选中从"切换式"（再点取消）改为"恒选中式"（再点不变化），三处 `onSelect` 回调同步；②排序保留 `sortedByWatchedThenRarity` 的关注优先语义（已关注在前 → 组内品阶降序 → 名称升序；需求"按品阶由高到低"在关注组内成立，禁用心法组整体置底、组内同样关注优先）；③确认按钮文案统一"更换"；④长按详情移除（详情已内嵌点击即看）
+- **测试** — 新增 `ReplaceSelectionDataTest` 21 用例：排序（关注优先/品阶降序/同品阶名称升序）、心法置底禁用与三场景推演（换非心法+有心法→禁用；换心法→正常；无心法→正常）、关注心法仍在禁用组置底、已学名称/境界过滤、装备槽位/境界/当前装备实例/归属过滤、堆叠+实例合并、详情构建（精灵图键/属性行/技能行/无技能回退/孕养差值）
+- **验证** — `compileReleaseKotlin` + `:feature:game:testReleaseUnitTest`（新增类全绿）+ 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯 UI 层，引擎调用链（equipItem/learnManual/replaceManual）不变；`iOS` 标签：Compose 双栏为跨平台 UI，无 Android 独占 API
+
 ## [4.01.04] - 2026-08-19
 
 ### 新增（2026-08-19 弟子住所升级 + 一键升级）
