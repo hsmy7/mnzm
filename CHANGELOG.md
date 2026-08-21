@@ -93,6 +93,19 @@
 - **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；`Disciple` 模型/组件表/Proto 字段全部保留（旧档残留数据不再读取、写入路径清零自愈）
 - **玩家可见变化** — 修炼速度显示值变为真实值（如 400→200）；修炼速度丹实际效果降为设计值（原为 bug 双倍）——属平衡性恢复而非新增削弱
 
+### 重构（2026-08-19 登录/防沉迷验证流程状态机根治——4.00.98 以来"卡登录界面/弹实名认证"三度复发终局修复）
+
+> 背景：4.00.98 修复广告 SDK 重复初始化后，部分玩家反馈"登录后有概率卡在登录界面进不去，或弹出实名认证界面"，此后 4 轮修复（初始化时机收敛 `8844f31b` / 登出清会话 `585d4e23` / 初始化解耦 `383f3a4c` / RESUMED 延迟启动 `57919e8a`）均未根除。逐行排查登录/防沉迷链路确认 4 个叠加根因：**A** 合规回调注册与 TapTap 登录 SDK 初始化时序竞态——冷启动路径注册早于 SDK 就绪（`TapTapKit.context` 为 null）导致注册失败且无重试，SDK 回调监听器永久缺失，验证结果丢失；**B** 4.01.02 引入的 `complianceCheckDeferredStarted` 一次性标记全库无复位点——"SDK 认证页退出 / 实名认证界面切换账号"（走 `showMainScreen()` 不重建 Activity）后再登录，防沉迷验证被永久跳过且无任何提示；**C** `startComplianceCheck` 无 SDK 就绪前置检查——冷启动点"开始认证"时 startup 静默失败；**D** 恢复流程依赖反射复位 SDK `isRunning`，失败则永久卡实名认证界面。
+
+- **新增 `LoginFlowStateMachine`（app/login，纯 Kotlin 零 Android 依赖）** — 登录 → 防沉迷验证 → 进模式选择收敛为单一真相源：六态（Idle/LoggingIn/VerifyPending/Verifying/Verified/VerificationFailed）+ 12 事件 + 11 副作用，State/Event/SideEffect 全 sealed class（对标 Tinder StateMachine DSL 与项目既有 BootPhase/RunState ADR 模式）。**resumedReady 机制**：ActivityResumed 事件置位、LoginSuccess 新会话复位——精确实现"等登录成功之后稳定 RESUMED 再启动验证"（转场窗口期防护），替代原一次性标记且天然可复位（根因 B 根治）；**单飞语义**：仅在 VerifyPending→Verifying 转移启动一次 startup，重复事件 no-op（替代原 inFlight）
+- **SDK 就绪契约 + 回调注册原子绑定（根因 A/C 根治）** — `ComplianceManager.ensureCallbackRegistered`（幂等自愈：注册失败下次调用自动重试，`sdkCallbackRegistrar` 可注入供 JVM 测试）；`ensureSdkServicesInitialized` 的合规回调注册移到 `awaitTapTapSdkReady()` 之后；`StartComplianceVerification` 副作用 = 防御性 `isReady()` 检查 + `ensureCallbackRegistered` 自愈补注册 + startup——回调注册与验证启动原子绑定，注册失败不再永久失去回调
+- **登出统一四件套收敛** — 全部登出入口（模式选择/合规弹窗/实名认证界面/防沉迷退出）经状态机 `LogoutRequested` 事件汇聚到 `MainActivity.performFullLogout` 唯一实现（清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑回调），消除 4 处登出实现不一致；删除 `handleUserExit`/`startComplianceCheck`/`startComplianceCheckWhenResumed`/`scheduleComplianceTimeoutHint`/`recoverComplianceStuckState` 五个方法与 `complianceCheckInFlight`/`complianceCheckDeferredStarted`/`complianceTimeoutJob` 三个手工状态字段
+- **超时兜底增强** — 防沉迷验证 30s 超时经状态机 `VerificationTimeout` 事件恢复（`ComplianceManager.exit()` + 反射复位 `TapComplianceInternal.isRunning`，字段名多候选 `isRunning`/`mIsRunning`/`running` 防混淆变化）；新增登录 60s 超时（授权页无回调时中止登录流程，防 loading 永久转圈）
+- **途中发现一并修复** — ① `EnterGameButton.onSuccess` 全部 UI/Compose 状态操作包 `runOnUiThread`（TapTap 回调线程不保证主线程）；② 网络错误不再 `showMainScreen()` 回登录界面（已登录用户困惑循环），改为保留会话 + Toast + 实名认证界面可重试；③ `MainScreen.onLoginSuccess` 死参数移除；④ `rules/sdk-init-lifecycle.md` 补充"SDK 调用前必须就绪"与"状态收敛"两条核心原则与检查清单
+- **测试** — 新增 `LoginFlowStateMachineTest`（21 用例全转移矩阵：正常路径/根因 B 双回归守卫/冷启动三态/超时恢复/重试立即启动/网络错误保留会话/单飞幂等/登出全出口）+ `ComplianceManagerSelfHealTest`（6 用例：幂等/失败自愈重试/回调转发/兼容入口）；既有 `SafeRunAfterSdkInitTest`/`SdkInitGuardTest`/`TapDBManagerInitGuardTest`/`ComplianceCallbackHostTest` 全绿
+- **验证** — `compileReleaseKotlin` + 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无新增权限、无数据收集变化（隐私政策无需更新）；成功路径行为逐位一致，失败路径更健壮（可恢复）；`iOS` 标签：状态机纯 Kotlin 可直接 KMP 共享，Activity 生命周期事件由 iOS 对等（sceneDidBecomeActive）映射
+
 ## [4.01.03] - 2026-08-19
 
 ### 更新（弟子肖像全量换新 + 登录界面「进入游戏」一键登录）

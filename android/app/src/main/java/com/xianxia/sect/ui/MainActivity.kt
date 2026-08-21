@@ -52,6 +52,9 @@ import com.xianxia.sect.taptap.ComplianceManager
 import com.xianxia.sect.taptap.TapDBManager
 import com.xianxia.sect.ui.game.GameActivity
 import com.xianxia.sect.ui.game.LoadingScreen
+import com.xianxia.sect.login.LoginFlowEvent
+import com.xianxia.sect.login.LoginFlowHost
+import com.xianxia.sect.login.LoginFlowStateMachine
 import com.xianxia.sect.ui.util.ActionModeSafeCallback
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.AudioToggleRow
@@ -160,6 +163,8 @@ class MainActivity : ComponentActivity() {
         private const val TAP_SDK_READY_POLL_INTERVAL_MS = 100L
         /** 防沉迷验证超时兜底：SDK 静默失败（无任何回调）时提示用户，避免死卡登录界面 */
         private const val COMPLIANCE_TIMEOUT_MS = 30_000L
+        /** 登录超时兜底：TapTap 授权页无回调时中止登录流程（防 loading 永久转圈） */
+        private const val LOGIN_TIMEOUT_MS = 60_000L
         /**
          * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
          * 覆盖 Dialog 窗口销毁后键盘收起动画的剩余时长，等待 IME 状态落定
@@ -184,27 +189,83 @@ class MainActivity : ComponentActivity() {
         }, SYSTEM_BAR_RESTORE_DELAY_MS)
     }
 
-    /** 防沉迷验证超时兜底任务（验证成功回调后自动失效） */
-    private var complianceTimeoutJob: Job? = null
+    /** 防沉迷验证超时任务（状态机 ScheduleVerificationTimeout 副作用驱动） */
+    private var verificationTimeoutJob: Job? = null
+
+    /** 登录超时任务（状态机 ScheduleLoginTimeout 副作用驱动） */
+    private var loginTimeoutJob: Job? = null
+
+    /** 状态机副作用宿主：唯一执行 Android 侧动作的入口（先于状态机声明——构造依赖） */
+    private val loginFlowHost = object : LoginFlowHost {
+        override fun onStartComplianceVerification(unionId: String) {
+            // 防御：SDK 未就绪则不启动（30s 超时兜底回 VerificationFailed 可重试）
+            if (!TapTapAuthManager.isReady()) {
+                Log.w(TAG, "防沉迷验证启动前 TapTap SDK 未就绪，等待超时兜底")
+                return
+            }
+            // 回调注册与验证启动原子绑定：注册失败自愈重试，保证验证结果回调可达
+            ComplianceManager.ensureCallbackRegistered(complianceCallbackHost.callback)
+            ComplianceManager.startup(this@MainActivity, unionId)
+        }
+
+        override fun onShowComplianceVerificationScreen() {
+            showComplianceVerificationScreen()
+        }
+
+        override fun onShowModeSelection() {
+            showModeSelectionScreen()
+        }
+
+        override fun onShowLoginScreen() {
+            showMainScreen()
+        }
+
+        override fun onClearSessionAndLogout() {
+            performFullLogout()
+        }
+
+        override fun onShowToast(message: String) {
+            Toast.makeText(this@MainActivity, message, Toast.LENGTH_LONG).show()
+        }
+
+        override fun onRecoverSdkRunningState() {
+            runCatching { ComplianceManager.exit() }
+            runCatching { ComplianceManager.resetSdkRunningState() }
+        }
+
+        override fun onSetVerificationTimeout(active: Boolean) {
+            if (active) {
+                scheduleVerificationTimeout()
+            } else {
+                verificationTimeoutJob?.cancel()
+                verificationTimeoutJob = null
+            }
+        }
+
+        override fun onSetLoginTimeout(active: Boolean) {
+            if (active) {
+                scheduleLoginTimeout()
+            } else {
+                loginTimeoutJob?.cancel()
+                loginTimeoutJob = null
+            }
+        }
+
+        override fun onLog(message: String) {
+            Log.i(TAG, message)
+        }
+    }
 
     /**
-     * 防沉迷验证单飞守卫。
+     * 登录/防沉迷验证流程状态机（唯一真相源，替代散落的手工布尔标志）。
      *
-     * tap-compliance 4.10.5 的 isRunning 静态标记（进程内不重置）只在其内部
-     * `notifyMessageInternal` 终端回调处复位；若一次 startup 静默失败（实名认证
-     * DialogFragment 展示失败/无回调），isRunning 会永久为 true，导致同进程内后续
-     * `TapTapCompliance.startup()` 直接静默返回（"try startup failed, cause another
-     * check is running"）。本标记在终端回调/超时恢复处复位，保证：
-     * 1) 同一时刻只发起一次 startup（避免 SDK isRunning 竞争）；2) 静默失败后
-     * 允许在稳定状态重试（配合 [ComplianceManager.resetSdkRunningState] 反射复位）。
+     * 重构背景：complianceCheckInFlight / complianceCheckDeferredStarted 等手工状态
+     * 生命周期互不约束——一次性标记永不复位导致"退出认证/切换账号后再登录"验证被
+     * 永久跳过（根因 B）；回调注册与 SDK 就绪无统一契约导致冷启动注册失败后永久
+     * 失去回调（根因 A）。状态机以转移表收敛全部状态与副作用，详见
+     * docs/login-flow-state-machine.md。
      */
-    private var complianceCheckInFlight = false
-
-    /**
-     * 登录成功路径的延迟启动已触发标记（一次性语义）。
-     * 防止 repeatOnLifecycle 在 Activity 后台→前台切换时重复触发合规检查。
-     */
-    private var complianceCheckDeferredStarted = false
+    internal val loginFlowStateMachine = LoginFlowStateMachine(loginFlowHost)
 
     /** D-42：合规回调窗口端口（登录窗口适配器，宿主按接口转发） */
     private val complianceWindowPort = object : com.xianxia.sect.taptap.ComplianceCallbackHost.WindowPort {
@@ -240,6 +301,14 @@ class MainActivity : ComponentActivity() {
         hideSystemBars()
         // 安装 ActionMode 安全回调，防御文本选择工具栏 BadTokenException
         installActionModeSafeCallback()
+
+        // 登录/防沉迷流程状态机：Activity 稳定进入 RESUMED 时通知（防转场窗口期
+        // startup 导致实名认证弹窗展示失败——"延迟到 RESUMED 启动"契约收敛到状态机）
+        lifecycleScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                loginFlowStateMachine.onEvent(LoginFlowEvent.ActivityResumed)
+            }
+        }
         
         if (!::sessionManager.isInitialized) {
             Log.e(TAG, "SessionManager未初始化")
@@ -349,7 +418,7 @@ class MainActivity : ComponentActivity() {
             audioEngine.playBGM()
         }
 
-        lifecycleScope.launch {
+        lifecycleScope.launch(ioDispatcher.dispatcher) {
             // 仅初始化 TapTap 登录 SDK（登录按钮前置依赖，自身幂等）。
             // 广告聚合 SDK / 游戏时长统计 / 合规回调已从通用启动协程移出，
             // 只在登录成功回调（或已登录冷启动兜底）中初始化一次，
@@ -357,34 +426,33 @@ class MainActivity : ComponentActivity() {
             initTapTapLoginSdk()
 
             if (sessionManager.isLoggedIn) {
-                // 已登录冷启动兜底：登录发生在上个进程（进程销毁复用），
-                // 本进程未经过登录成功回调，在此补做一次 SDK 服务初始化。
-                // 解耦契约（safeRunAfterSdkInit）：初始化失败只记日志，
-                // 不得阻断主流程（界面跳转/合规验证）
+                // 已登录冷启动兜底：补做一次 SDK 服务初始化（广告聚合 SDK / 时长统计 /
+                // 合规回调注册——登录发生在上个进程，本进程未经过登录成功回调，不补做则
+                // 游戏内激励视频广告全部失效）。解耦契约（safeRunAfterSdkInit）：
+                // 初始化失败只记日志，不得阻断主流程
                 safeRunAfterSdkInit(
                     initSdkServices = { ensureSdkServicesInitialized() },
                     onInitFailed = { e -> Log.e(TAG, "SDK 服务初始化异常（不影响主流程）", e) },
-                    block = {
-                        if (sessionManager.complianceVerified) {
-                            showModeSelectionScreen()
-                        } else {
-                            val savedUnionId = sessionManager.unionId
-                            if (!savedUnionId.isNullOrEmpty()) {
-                                Log.d(TAG, "已登录但未通过防沉迷验证，重新验证")
-                                showComplianceVerificationScreen(savedUnionId)
-                            } else {
-                                Log.w(TAG, "已登录但缺少unionId，需要重新登录")
-                                sessionManager.clearSession()
-                                TapTapAuthManager.logout()
-                                showMainScreen()
-                            }
-                        }
-                    }
+                    block = {}
                 )
+                // 等待登录 SDK 就绪（"SDK 调用前必须就绪"契约，根治冷启动路径合规
+                // 回调注册早于 SDK 就绪导致永久失去回调的竞态），再经状态机 ColdStart
+                // 事件路由：已验证 → 直接进模式选择；未验证 → 显示实名认证界面手动重试
+                awaitTapTapSdkReady()
+                withContext(Dispatchers.Main) {
+                    loginFlowStateMachine.onEvent(
+                        LoginFlowEvent.ColdStart(
+                            complianceVerified = sessionManager.complianceVerified,
+                            unionId = sessionManager.unionId
+                        )
+                    )
+                }
                 return@launch
             }
 
-            showMainScreen()
+            withContext(Dispatchers.Main) {
+                showMainScreen()
+            }
         }
     }
     
@@ -409,9 +477,6 @@ class MainActivity : ComponentActivity() {
                         sessionManager = sessionManager,
                         complianceDialogState = complianceDialogState,
                         tapTapReady = tapTapReady.value,
-                        onLoginSuccess = {
-                            showModeSelectionScreen()
-                        },
                         onPrivacyAgreed = {
                             onPrivacyAgreed()
                         },
@@ -448,14 +513,10 @@ class MainActivity : ComponentActivity() {
                         showSaveSelectScreen(mode = SaveSelectMode.LOAD_SAVE)
                     },
                     onLogout = {
-                        sessionManager.clearSession()
-                        // 完整登出（对齐 handleUserExit）：清 TapTap SDK 登录态——否则残留
-                        // 会话使再次登录走"静默登录"（不弹登录页），防沉迷验证不触发
-                        // 导致卡在登录界面；停时长统计
-                        TapTapAuthManager.logout()
-                        TapDBManager.stopGameDurationTracking()
-                        ComplianceManager.unregisterCallback()
-                        recreate()
+                        // 登出统一入口：状态机 LogoutRequested → ClearSessionAndLogout
+                        //（清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑合规回调）+
+                        // ShowLoginScreen。不再依赖 recreate() 重置状态——状态机自身复位
+                        loginFlowStateMachine.onEvent(LoginFlowEvent.LogoutRequested)
                     },
                     soundEnabled = audioConfig.soundEnabled,
                     musicEnabled = audioConfig.musicEnabled,
@@ -634,28 +695,34 @@ class MainActivity : ComponentActivity() {
      * 各子系统内部自带幂等守卫（SdkInitGuard / TapDBManager / ComplianceManager），
      * 同进程内重复调用安全。
      *
-     * 合规回调须在主线程同步注册且先于 [startComplianceCheck]（防验证结果回调
-     * 因未注册而丢失）；广告 SDK 与时长统计异步执行（DirichletSdk.init 为异步
-     * API，不阻塞）。
+     * 合规回调注册移到 SDK 就绪之后（awaitTapTapSdkReady 完成）再执行，且经
+     * runCatching 全量兜底（含 Error 类）——注册失败只记日志，不阻断后续步骤；
+     * 即使此处失败，状态机 startup 前置的 [complianceCallbackHost] 自愈补注册
+     * 仍保证验证结果回调可达。广告 SDK 与时长统计异步执行（DirichletSdk.init
+     * 为异步 API，不阻塞）。
      *
-     * 契约：**永不抛出**（registerCallback 经 runCatching 全量兜底，含 Error 类）——
-     * 本方法位于登录/主流程关键路径，不得有能力阻断后续步骤；调用方统一经
-     * [safeRunAfterSdkInit] 编排（双保险 + 语义测试守护）。
+     * 契约：**永不抛出**（本方法位于登录/主流程关键路径，不得有能力阻断后续
+     * 步骤；调用方统一经 [safeRunAfterSdkInit] 编排，双保险 + 语义测试守护）。
      */
     internal fun ensureSdkServicesInitialized() {
-        runCatching {
-            // D-42：合规回调注册改走进程级宿主（ComplianceCallbackHost.callback）——
-            // 回调不再绑定 MainActivity 实例，登录后 MainActivity finish 不影响
-            // 游戏内时长/时间/年龄限制提示（转发到当前前台窗口）
-            ComplianceManager.registerCallback(complianceCallbackHost.callback)
-        }.onFailure {
-            Log.e(TAG, "合规回调注册异常（不影响后续流程）", it)
-        }
         lifecycleScope.launch(ioDispatcher.dispatcher) {
             // 冷启动路径下本协程与 initTapTapLoginSdk 并发，广告聚合 SDK 依赖
             // TapTapKit.context（TapTapAuthManager.init 反射兜底），必须先等其就绪；
             // 登录成功路径 SDK 必已就绪（login 前置检查），零等待
             awaitTapTapSdkReady()
+            // D-42：合规回调注册改走进程级宿主（ComplianceCallbackHost.callback）——
+            // 回调不再绑定 MainActivity 实例，登录后 MainActivity finish 不影响
+            // 游戏内时长/时间/年龄限制提示（转发到当前前台窗口）。
+            // 注册移到 SDK 就绪之后（根治：冷启动路径注册早于 SDK 就绪导致注册失败、
+            // 之后永久失去回调——根因 A）；即使此处失败，startup 前置的
+            // ensureCallbackRegistered（onStartComplianceVerification）会自愈重试
+            withContext(Dispatchers.Main) {
+                runCatching {
+                    ComplianceManager.ensureCallbackRegistered(complianceCallbackHost.callback)
+                }.onFailure {
+                    Log.e(TAG, "合规回调注册异常（不影响后续流程）", it)
+                }
+            }
             initAdSdk()
             TapDBManager.startGameDurationTracking(application)
         }
@@ -720,38 +787,26 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    internal fun handleUserExit() {
-        runOnUiThread {
-            sessionManager.clearSession()
-            com.xianxia.sect.taptap.TapDBManager.stopGameDurationTracking()
-            TapTapAuthManager.logout()
-            showMainScreen()
-        }
-    }
-
     // ── 合规回调处理（D-42 进程级宿主转发入口） ──
-    // 回调注册已由 ComplianceCallbackHost 进程级持有，本组方法仅承担 UI 响应。
+    // 回调注册已由 ComplianceCallbackHost 进程级持有，本组方法仅承担 UI 响应；
+    // 登录流程回调转发为状态机事件（状态转移与副作用由 LoginFlowStateMachine 统一管理）。
 
-    /** 合规验证成功（登录窗口回调）：标记已验证 + 进入模式选择 */
+    /** 合规验证成功（登录窗口回调）：状态机 VerificationSuccess → 进模式选择 */
     internal fun onComplianceLoginSuccess() {
-        complianceCheckInFlight = false
-        Log.i(TAG, "防沉迷验证成功（CODE_LOGIN_SUCCESS），进入模式选择")
+        Log.i(TAG, "防沉迷验证成功（CODE_LOGIN_SUCCESS）")
         sessionManager.markComplianceVerified()
-        showModeSelectionScreen()
+        loginFlowStateMachine.onEvent(LoginFlowEvent.VerificationSuccess)
     }
 
-    /** SDK 要求退出（退出/切换账号/实名停止统一入口，登录窗口回调） */
+    /** SDK 要求退出（退出/切换账号/实名停止统一入口，登录窗口回调）：状态机 VerificationExited → 统一登出 */
     internal fun onComplianceExited() {
-        complianceCheckInFlight = false
-        handleUserExit()
+        loginFlowStateMachine.onEvent(LoginFlowEvent.VerificationExited)
     }
 
-    /** 合规网络异常（登录窗口回调）：提示 + 回主界面 */
+    /** 合规网络异常（登录窗口回调）：状态机 VerificationNetworkError → 保留会话可重试 */
     internal fun onComplianceNetworkError() {
-        complianceCheckInFlight = false
         Log.w(TAG, "防沉迷验证网络异常（CODE_NETWORK_ERROR）")
-        Toast.makeText(this, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show()
-        showMainScreen()
+        loginFlowStateMachine.onEvent(LoginFlowEvent.VerificationNetworkError)
     }
 
     /** 时间/时长限制弹窗（限制类回调，主界面窗口） */
@@ -763,93 +818,54 @@ class MainActivity : ComponentActivity() {
     internal fun showComplianceAgeLimit() {
         complianceDialogState.value = ComplianceDialogState.AgeLimit
     }
-    
-    /**
-     * 登录成功路径：延迟到 Activity 稳定进入 RESUMED 后再启动防沉迷验证。
-     *
-     * 根因（tap-compliance 4.10.5 反编译证据）：登录成功回调常落在 TapTap 授权页
-     * 关闭的转场窗口期（onActivityResult → onResume 之间），此时立即调用
-     * `TapTapCompliance.startup()` 会导致其实名认证 DialogFragment（经
-     * `activity.getFragmentManager().show()`）展示失败且无任何回调，用户卡死在
-     * 登录界面（会话已存为"已登录+未验证"）。重进后从稳定 RESUMED 状态再次
-     * startup 即恢复正常——"等 resumed 再启动"即修复。
-     */
-    internal fun startComplianceCheckWhenResumed(unionId: String) {
-        lifecycleScope.launch {
-            lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                if (!complianceCheckDeferredStarted) {
-                    complianceCheckDeferredStarted = true
-                    startComplianceCheck(unionId)
-                }
-            }
-        }
-    }
 
     /**
-     * 发起防沉迷验证（单飞守卫）。
-     *
-     * [complianceCheckInFlight] 保证同一时刻只发起一次 startup，避免与 SDK
-     * `isRunning` 静态标记竞争（后续 startup 会静默 no-op）；静默失败后的进程内
-     * 重试由 [recoverComplianceStuckState] 复位后再次发起。
+     * 防沉迷验证超时兜底：SDK 静默失败（startup 后无任何回调）时经状态机
+     * VerificationTimeout 事件进入可恢复流程（恢复 SDK 运行状态 + 实名认证界面重试）。
+     * 验证成功（[SessionManager.complianceVerified] 置位）或任务取消后自动失效。
      */
-    internal fun startComplianceCheck(unionId: String) {
-        if (complianceCheckInFlight) {
-            Log.w(TAG, "防沉迷验证已在执行，忽略重复启动（避免 SDK isRunning 竞争）")
-            return
-        }
-        complianceCheckInFlight = true
-        Log.d(TAG, "开始合规认证检查，unionId: $unionId")
-        ComplianceManager.startup(this, unionId)
-        scheduleComplianceTimeoutHint()
-    }
-
-    /**
-     * 防沉迷验证超时兜底：SDK 静默失败（startup 后无任何回调）时进入进程内
-     * 可恢复流程，避免用户无反馈地卡在登录界面。
-     * 验证成功（[SessionManager.complianceVerified] 置位）后自动失效。
-     */
-    private fun scheduleComplianceTimeoutHint() {
-        if (complianceTimeoutJob?.isActive == true) return
-        complianceTimeoutJob = lifecycleScope.launch {
+    private fun scheduleVerificationTimeout() {
+        verificationTimeoutJob?.cancel()
+        verificationTimeoutJob = lifecycleScope.launch {
             delay(COMPLIANCE_TIMEOUT_MS)
             if (!sessionManager.complianceVerified && !isFinishing && !isDestroyed) {
                 Log.w(TAG, "防沉迷验证超时（SDK 静默失败无回调），进入可恢复流程")
-                Toast.makeText(
-                    this@MainActivity,
-                    "实名认证无响应，请点击重新认证",
-                    Toast.LENGTH_LONG
-                ).show()
-                recoverComplianceStuckState()
+                loginFlowStateMachine.onEvent(LoginFlowEvent.VerificationTimeout)
+            }
+        }
+    }
+
+    /** 登录超时兜底：TapTap 授权页无回调（SDK 异常/网络问题）时中止登录流程，防 loading 永久转圈 */
+    private fun scheduleLoginTimeout() {
+        loginTimeoutJob?.cancel()
+        loginTimeoutJob = lifecycleScope.launch {
+            delay(LOGIN_TIMEOUT_MS)
+            if (!isFinishing && !isDestroyed) {
+                Log.w(TAG, "登录超时（TapTap 授权页无回调），中止登录流程")
+                loginFlowStateMachine.onEvent(LoginFlowEvent.LoginTimeout)
             }
         }
     }
 
     /**
-     * SDK 静默失败后的进程内恢复（替代"只能杀进程重进"）：
-     *
-     * 1. `ComplianceManager.exit()` 解绑用户（清 SDK 会话残留）；
-     * 2. 反射复位 `TapComplianceInternal.isRunning`——该静态标记只在 SDK 内部
-     *    `notifyMessageInternal` 终端回调处复位，静默失败路径不会走到，且
-     *    `exit()` 也不复位；不复位则同进程内后续 startup 必静默失败（与
-     *    "杀进程重进后才弹实名认证"的用户反馈自证一致）；
-     * 3. 复位单飞守卫；
-     * 4. 路由到 app 自有实名认证界面（重进路径已被证明有效），用户在稳定状态
-     *    点击「开始认证」手动重试。
+     * 登出统一四件套（唯一实现点）：清本地会话 + 清 TapTap SDK 登录态 + 停时长统计 +
+     * 解绑合规回调。所有登出入口经状态机 LogoutRequested 事件汇聚到此处，杜绝
+     * "登出不完整 → 残留会话使再次登录走静默登录 → 防沉迷验证不触发"的回归。
+     * 界面切换（回登录界面）由状态机 ShowLoginScreen 副作用负责。
      */
-    private fun recoverComplianceStuckState() {
-        runCatching { ComplianceManager.exit() }
-        runCatching { ComplianceManager.resetSdkRunningState() }
-        complianceCheckInFlight = false
-        val savedUnionId = sessionManager.unionId
-        if (!savedUnionId.isNullOrEmpty()) {
-            showComplianceVerificationScreen(savedUnionId)
-        } else {
-            Log.w(TAG, "恢复流程缺少 unionId，回主界面")
-            showMainScreen()
-        }
+    private fun performFullLogout() {
+        sessionManager.clearSession()
+        TapTapAuthManager.logout()
+        TapDBManager.stopGameDurationTracking()
+        ComplianceManager.unregisterCallback()
+    }
+
+    /** 登出请求入口（文件内顶层 Composable 回调使用）：统一转发状态机 LogoutRequested */
+    internal fun requestLogout() {
+        loginFlowStateMachine.onEvent(LoginFlowEvent.LogoutRequested)
     }
     
-    private fun showComplianceVerificationScreen(unionId: String) {
+    private fun showComplianceVerificationScreen() {
         setContent {
             XianxiaTheme {
                 Surface(
@@ -858,14 +874,26 @@ class MainActivity : ComponentActivity() {
                 ) {
                     ComplianceVerificationScreen(
                         onStartVerification = {
-                            startComplianceCheck(unionId)
+                            // SDK 就绪契约：重试前先等待登录 SDK 就绪（防 TapTapKit.context
+                            // 未就绪时 startup 静默失败），就绪后经状态机 RetryVerification
+                            // 重新发起验证（状态机自身保证单飞与可重试）
+                            lifecycleScope.launch {
+                                awaitTapTapSdkReady()
+                                if (TapTapAuthManager.isReady()) {
+                                    loginFlowStateMachine.onEvent(LoginFlowEvent.RetryVerification)
+                                } else {
+                                    Toast.makeText(
+                                        this@MainActivity,
+                                        "TapTap SDK 初始化中，请稍后重试",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
                         },
                         onLogout = {
-                            sessionManager.clearSession()
-                            TapTapAuthManager.logout()
-                            TapDBManager.stopGameDurationTracking()
-                            ComplianceManager.unregisterCallback()
-                            showMainScreen()
+                            // 登出统一入口：状态机 LogoutRequested（清会话 + 清 SDK 登录态 +
+                            // 停时长统计 + 解绑回调 + 回登录界面）
+                            loginFlowStateMachine.onEvent(LoginFlowEvent.LogoutRequested)
                         }
                     )
                 }
@@ -996,7 +1024,6 @@ fun MainScreen(
     sessionManager: SessionManager,
     complianceDialogState: MutableState<ComplianceDialogState?>,
     tapTapReady: Boolean = false,
-    onLoginSuccess: () -> Unit,
     onPrivacyAgreed: () -> Unit = {},
     soundEnabled: Boolean = true,
     musicEnabled: Boolean = true,
@@ -1013,7 +1040,6 @@ fun MainScreen(
         showInAppPrivacy = showInAppPrivacy,
         onBackFromPrivacy = { showInAppPrivacy = false },
         complianceDialogState = complianceDialogState,
-        sessionManager = sessionManager,
         context = context
     )
 
@@ -1148,15 +1174,11 @@ private fun LoginColumnContent(
 }
 
 /**
- * 合规限制弹窗"退出游戏/切换账号"：清会话 + 完整登出（清 TapTap SDK 登录态 /
- * 停时长统计 / 解绑合规回调，对齐 [MainActivity.handleUserExit]）+ 重建主界面。
+ * 合规限制弹窗"退出游戏/切换账号"：统一经状态机 LogoutRequested（清会话 + 清 TapTap
+ * SDK 登录态 / 停时长统计 / 解绑合规回调 + 回登录界面），不再各写四件套 + recreate。
  */
-private fun performComplianceLogout(sessionManager: SessionManager, context: Context) {
-    sessionManager.clearSession()
-    TapTapAuthManager.logout()
-    TapDBManager.stopGameDurationTracking()
-    ComplianceManager.unregisterCallback()
-    (context as? MainActivity)?.recreate()
+private fun performComplianceLogout(context: Context) {
+    (context as? MainActivity)?.requestLogout()
 }
 
 /** 隐私政策展示 + 合规限制对话框（D-42：对话框本体已收敛到共享组件 ComplianceLimitDialogs） */
@@ -1165,7 +1187,6 @@ private fun MainComplianceDialogs(
     showInAppPrivacy: Boolean,
     onBackFromPrivacy: () -> Unit,
     complianceDialogState: MutableState<ComplianceDialogState?>,
-    sessionManager: SessionManager,
     context: Context
 ) {
     if (showInAppPrivacy) {
@@ -1175,7 +1196,7 @@ private fun MainComplianceDialogs(
 
     ComplianceLimitDialogs(
         complianceDialogState = complianceDialogState,
-        onLogout = { performComplianceLogout(sessionManager, context) },
+        onLogout = { performComplianceLogout(context) },
         onAgeFinish = { (context as? MainActivity)?.finish() }
     )
 }
@@ -1216,50 +1237,61 @@ private fun EnterGameButton(
                     return@clickableWithSound
                 }
 
+                // 登录请求进入状态机（LoggingIn 态 + 登录超时兜底）
+                activity.loginFlowStateMachine.onEvent(LoginFlowEvent.LoginRequested)
+
                 TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
                     override fun onSuccess(data: LoginData) {
-                        Log.d("MainScreen", "登录成功: ${data.name}")
-
-                        val unionId = data.unionid
-                        if (unionId.isNullOrEmpty()) {
-                            Log.e("MainScreen", "unionId为空，登录失败")
-                            onLoadingChange(false)
-                            Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
-                            return
-                        }
-
-                        sessionManager.saveLoginSession(
-                            userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                            userName = data.name ?: "TapTap用户",
-                            loginType = "taptap",
-                            unionId = unionId,
-                            avatar = data.avatar
-                        )
-
-                        com.xianxia.sect.taptap.TapDBManager.setUser(
-                            userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                            name = data.name
-                        )
-
-                        Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
-
-                        onLoadingChange(false)
+                        // TapTap SDK 回调线程不保证主线程：全部 UI/状态操作经 runOnUiThread 收敛
+                        //（历史缺陷：Compose 状态/Toast 在后台线程写入）
                         val act = context as? MainActivity
                         act?.runOnUiThread {
+                            Log.d("MainScreen", "登录成功: ${data.name}")
+
+                            val unionId = data.unionid
+                            if (unionId.isNullOrEmpty()) {
+                                Log.e("MainScreen", "unionId为空，登录失败")
+                                onLoadingChange(false)
+                                Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
+                                return@runOnUiThread
+                            }
+
+                            sessionManager.saveLoginSession(
+                                userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                                userName = data.name ?: "TapTap用户",
+                                loginType = "taptap",
+                                unionId = unionId,
+                                avatar = data.avatar
+                            )
+
+                            com.xianxia.sect.taptap.TapDBManager.setUser(
+                                userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                                name = data.name
+                            )
+
+                            Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
+
+                            onLoadingChange(false)
                             // 登录成功回调：一次性初始化广告/统计/合规服务（进程级幂等）。
                             // 解耦契约（safeRunAfterSdkInit）：初始化异常只记日志，
-                            // 不得阻断防沉迷验证；合规回调必须先于 startComplianceCheck
-                            // 注册（防验证结果回调丢失）
+                            // 不得阻断防沉迷验证（状态机接管后续流程）
                             safeRunAfterSdkInit(
                                 initSdkServices = { act.ensureSdkServicesInitialized() },
                                 onInitFailed = { e ->
                                     Log.e("MainActivity", "SDK 服务初始化异常（不影响登录流程）", e)
                                 },
-                                // 延迟到 Activity 稳定 RESUMED 后再启动防沉迷验证：
-                                // 登录回调落在授权页转场窗口期，立即 startup 会因宿主
-                                // Activity 未稳定导致实名认证弹窗展示失败（SDK 静默 no-op，
-                                // 无回调无 UI）→ 用户卡在登录界面
-                                block = { act.startComplianceCheckWhenResumed(unionId) }
+                                // 登录成功：状态机 LoginSuccess → VerifyPending，等 Activity
+                                // 稳定 RESUMED（repeatOnLifecycle 通知）后启动防沉迷验证——
+                                // 转场窗口期 startup 导致实名认证弹窗展示失败的问题由状态机
+                                // 前置（resumedReady 新会话复位）+ 超时兜底双重防护。
+                                // 仅当登录成功时 Activity 已稳定 RESUMED（静默登录等无
+                                // 授权页转场场景）才补发 ActivityResumed 立即启动验证
+                                block = {
+                                    act.loginFlowStateMachine.onEvent(LoginFlowEvent.LoginSuccess(unionId))
+                                    if (act.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                                        act.loginFlowStateMachine.onEvent(LoginFlowEvent.ActivityResumed)
+                                    }
+                                }
                             )
                         }
                     }

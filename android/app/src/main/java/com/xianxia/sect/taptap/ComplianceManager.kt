@@ -29,6 +29,14 @@ object ComplianceManager {
     private var callback: ComplianceCallback? = null
     private var isCallbackRegistered = false
 
+    /**
+     * SDK 回调监听器注册入口（测试注入点：JVM 测试用 Fake 替换，避免依赖 TapTap SDK）。
+     * 生产实现注册具名监听器；注册失败由 [ensureCallbackRegistered] 下次调用自愈重试。
+     */
+    internal var sdkCallbackRegistrar: (TapTapComplianceCallback) -> Unit = { listener ->
+        TapTapCompliance.registerComplianceCallback(listener)
+    }
+
     interface ComplianceCallback {
         fun onLoginSuccess()
         fun onExited()
@@ -40,18 +48,35 @@ object ComplianceManager {
         fun onRealNameStop()
     }
 
-    fun registerCallback(callback: ComplianceCallback) {
+    /**
+     * 幂等自愈注册合规回调。
+     *
+     * - [callback] 每次都更新（登出/重登后绑定最新宿主）；
+     * - SDK 监听器仅在未注册时（重）注册——注册失败只记日志，**下次调用自动重试**，
+     *   根治"冷启动路径注册早于 SDK 就绪导致注册失败、之后永久失去回调"（根因 A）。
+     *
+     * 调用时机：startup 之前必须调用（登录成功回调 / 已登录冷启动兜底 / 验证启动前置）。
+     */
+    fun ensureCallbackRegistered(callback: ComplianceCallback) {
         this.callback = callback
-        
         if (!isCallbackRegistered) {
             try {
-                TapTapCompliance.registerComplianceCallback(TapTapComplianceListener())
+                sdkCallbackRegistrar(TapTapComplianceListener())
                 isCallbackRegistered = true
                 Log.d(TAG, "合规认证回调已注册")
             } catch (e: Exception) {
-                Log.e(TAG, "注册合规认证回调失败: ${e.message}", e)
+                Log.e(TAG, "注册合规认证回调失败（下次 startup 前自愈重试）: ${e.message}", e)
             }
         }
+    }
+
+    /** 兼容入口：委托 [ensureCallbackRegistered]（历史调用方语义不变） */
+    fun registerCallback(callback: ComplianceCallback) = ensureCallbackRegistered(callback)
+
+    /** 测试辅助：复位进程级注册状态（仅测试调用，生产路径不使用） */
+    internal fun resetForTest() {
+        callback = null
+        isCallbackRegistered = false
     }
 
     fun unregisterCallback() {
@@ -123,17 +148,30 @@ object ComplianceManager {
      * `TapTapCompliance.startup()` 直接静默返回（日志 "try startup failed, cause
      * another check is running"），且 `exit()` 不复位它。反射复位与
      * [TapTapAuthManager.ensureTapTapKitContext] 兜底同模式。
+     *
+     * 字段名按候选列表依次尝试（SDK 升级/混淆后字段名可能变化），全部失败时
+     * 日志携带字段名与异常，便于升级后快速定位。
      */
     fun resetSdkRunningState() {
-        try {
-            val clazz = Class.forName("com.taptap.sdk.compliance.internal.TapComplianceInternal")
-            val field = clazz.getDeclaredField("isRunning")
-            field.isAccessible = true
-            field.setBoolean(null, false)
-            Log.d(TAG, "已复位 TapComplianceInternal.isRunning（防沉迷验证可重新启动）")
+        val candidateFieldNames = listOf("isRunning", "mIsRunning", "running")
+        val clazz = try {
+            Class.forName("com.taptap.sdk.compliance.internal.TapComplianceInternal")
         } catch (e: Exception) {
-            Log.e(TAG, "复位 TapComplianceInternal.isRunning 失败: ${e.message}", e)
+            Log.e(TAG, "反射复位 TapComplianceInternal 失败（找不到类）: ${e.message}", e)
+            return
         }
+        for (fieldName in candidateFieldNames) {
+            try {
+                val field = clazz.getDeclaredField(fieldName)
+                field.isAccessible = true
+                field.setBoolean(null, false)
+                Log.d(TAG, "已复位 TapComplianceInternal.$fieldName（防沉迷验证可重新启动）")
+                return
+            } catch (e: Exception) {
+                Log.d(TAG, "字段 $fieldName 不可用，尝试下一候选: ${e.message}")
+            }
+        }
+        Log.e(TAG, "复位 TapComplianceInternal.isRunning 失败：候选字段 $candidateFieldNames 均不可用")
     }
 
     fun exit() {
