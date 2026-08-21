@@ -461,6 +461,8 @@ SaveValidator.validate(SaveData)
 | R-09 | 2026-08-08 批次"途中发现" | **`withOverflowMailSuppressed` 8 个调用点语义审计**：D-01 新机制下语义变为纯"凭据类不转邮件"，是否保留待审计 | 🟡 中 | 逐调用点核对语义与 CLAUDE.md 13.3 溢出语义分类 |
 | R-10 | docs/build-perf/test-split.md 已知限制 | **app / feature:game 测试拆分门控未实施**（Robolectric 占比 41% / 39% 未过门控） | 🟢 低 | 按 test-split.md 门控执行模块拆分 |
 | R-11 | docs/build-perf 遗留调查项 | **build-perf 文档两处机制未完全解释**：baseline 139.8s 失真机制、Kover 掩盖 Collector 问题机制 | 🟢 低 | 补调查并更新对应 build-perf 文档 |
+| R-12 | 2026-08-21 detekt 全量排查（core:engine 15 项清偿后暴露） | **core:domain detekt 3 项违规**：`StackableItemStore.add` LongMethod 63/60（溢出邮件合并功能）；`GameConfig.SectMap.GATE_X/GATE_Y` MayBeConst ×2（灵矿场/门楼配置）——均为 2026-08-19~21 新功能引入、未冻结 baseline | 🟢 低 | 低风险清理：`add` 拆辅助函数；GATE_X/GATE_Y 改 `const val`（表达式引用常量可 const），修后 `:core:domain:detekt` 归零 |
+| R-13 | 2026-08-21 detekt 全量排查（core:engine 15 项清偿后暴露） | **feature:game detekt 6 项违规**：`MainGameScreen` FileLength（1744 行 UI 文件，需独立拆分工程）；`BuildingDelegate` TooManyFunctions 22/20；`MaterialSelectorDialog` LongMethod 88/60（血炼池）；`ResidenceDialog` LongMethod 60/60 + `ResidenceDialogContent` LongParameterList 11/8（住所升级对话框）；`MainGameScreenDemolishControls` LongMethod 60/60 | 🟡 中 | 除 MainGameScreen 拆分（独立重构工程，涉及上千行 Compose 迁移与独立回归）外，其余 5 项为低风险清理（拆函数/参数分组/@Suppress 豁免评估）；MainGameScreen 拆分单列专项 |
 
 ### 偿还触发条件档案（2026-08 根治批次建立）
 

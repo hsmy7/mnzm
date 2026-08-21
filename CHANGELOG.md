@@ -1,3 +1,32 @@
+## [4.01.05] - 2026-08-21
+
+### 重构（2026-08-19 登录/防沉迷验证流程状态机根治——4.00.98 以来"卡登录界面/弹实名认证"三度复发终局修复）
+
+> 背景：4.00.98 修复广告 SDK 重复初始化后，部分玩家反馈"登录后有概率卡在登录界面进不去，或弹出实名认证界面"，此后 4 轮修复（初始化时机收敛 `8844f31b` / 登出清会话 `585d4e23` / 初始化解耦 `383f3a4c` / RESUMED 延迟启动 `57919e8a`）均未根除。逐行排查登录/防沉迷链路确认 4 个叠加根因：**A** 合规回调注册与 TapTap 登录 SDK 初始化时序竞态——冷启动路径注册早于 SDK 就绪（`TapTapKit.context` 为 null）导致注册失败且无重试，SDK 回调监听器永久缺失，验证结果丢失；**B** 4.01.02 引入的 `complianceCheckDeferredStarted` 一次性标记全库无复位点——"SDK 认证页退出 / 实名认证界面切换账号"（走 `showMainScreen()` 不重建 Activity）后再登录，防沉迷验证被永久跳过且无任何提示；**C** `startComplianceCheck` 无 SDK 就绪前置检查——冷启动点"开始认证"时 startup 静默失败；**D** 恢复流程依赖反射复位 SDK `isRunning`，失败则永久卡实名认证界面。
+
+- **新增 `LoginFlowStateMachine`（app/login，纯 Kotlin 零 Android 依赖）** — 登录 → 防沉迷验证 → 进模式选择收敛为单一真相源：六态（Idle/LoggingIn/VerifyPending/Verifying/Verified/VerificationFailed）+ 12 事件 + 11 副作用，State/Event/SideEffect 全 sealed class（对标 Tinder StateMachine DSL 与项目既有 BootPhase/RunState ADR 模式）。**resumedReady 机制**：ActivityResumed 事件置位、LoginSuccess 新会话复位——精确实现"等登录成功之后稳定 RESUMED 再启动验证"（转场窗口期防护），替代原一次性标记且天然可复位（根因 B 根治）；**单飞语义**：仅在 VerifyPending→Verifying 转移启动一次 startup，重复事件 no-op（替代原 inFlight）
+- **SDK 就绪契约 + 回调注册原子绑定（根因 A/C 根治）** — `ComplianceManager.ensureCallbackRegistered`（幂等自愈：注册失败下次调用自动重试，`sdkCallbackRegistrar` 可注入供 JVM 测试）；`ensureSdkServicesInitialized` 的合规回调注册移到 `awaitTapTapSdkReady()` 之后；`StartComplianceVerification` 副作用 = 防御性 `isReady()` 检查 + `ensureCallbackRegistered` 自愈补注册 + startup——回调注册与验证启动原子绑定，注册失败不再永久失去回调
+- **登出统一四件套收敛** — 全部登出入口（模式选择/合规弹窗/实名认证界面/防沉迷退出）经状态机 `LogoutRequested` 事件汇聚到 `MainActivity.performFullLogout` 唯一实现（清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑回调），消除 4 处登出实现不一致；删除 `handleUserExit`/`startComplianceCheck`/`startComplianceCheckWhenResumed`/`scheduleComplianceTimeoutHint`/`recoverComplianceStuckState` 五个方法与 `complianceCheckInFlight`/`complianceCheckDeferredStarted`/`complianceTimeoutJob` 三个手工状态字段
+- **超时兜底增强** — 防沉迷验证 30s 超时经状态机 `VerificationTimeout` 事件恢复（`ComplianceManager.exit()` + 反射复位 `TapComplianceInternal.isRunning`，字段名多候选 `isRunning`/`mIsRunning`/`running` 防混淆变化）；新增登录 60s 超时（授权页无回调时中止登录流程，防 loading 永久转圈）
+- **途中发现一并修复** — ① `EnterGameButton.onSuccess` 全部 UI/Compose 状态操作包 `runOnUiThread`（TapTap 回调线程不保证主线程）；② 网络错误不再 `showMainScreen()` 回登录界面（已登录用户困惑循环），改为保留会话 + Toast + 实名认证界面可重试；③ `MainScreen.onLoginSuccess` 死参数移除；④ `rules/sdk-init-lifecycle.md` 补充"SDK 调用前必须就绪"与"状态收敛"两条核心原则与检查清单
+- **测试** — 新增 `LoginFlowStateMachineTest`（21 用例全转移矩阵：正常路径/根因 B 双回归守卫/冷启动三态/超时恢复/重试立即启动/网络错误保留会话/单飞幂等/登出全出口）+ `ComplianceManagerSelfHealTest`（6 用例：幂等/失败自愈重试/回调转发/兼容入口）；既有 `SafeRunAfterSdkInitTest`/`SdkInitGuardTest`/`TapDBManagerInitGuardTest`/`ComplianceCallbackHostTest` 全绿
+- **验证** — `compileReleaseKotlin` + 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无新增权限、无数据收集变化（隐私政策无需更新）；成功路径行为逐位一致，失败路径更健壮（可恢复）；`iOS` 标签：状态机纯 Kotlin 可直接 KMP 共享，Activity 生命周期事件由 iOS 对等（sceneDidBecomeActive）映射
+
+### 修复（2026-08-19 core:engine 代码质量清理——detekt 15 项加权违规归零）
+
+> 背景：上轮重构（登录状态机）全量 detekt 时发现 `:core:engine:detekt` 15 项加权违规，全部为 2026-08-19 当天提交的住所升级/一键升级功能（`d4db7436`/`036bd49e`/`257d2f07`/`c99ded0d`）与溢出邮件功能（`9935b8d1`）引入、且未跑 detekt 的预存问题。无功能 bug（均有测试覆盖或设计兜底），但 3 处高风险项 + 2 处架构命名污染显著抬高未来改动出错概率，本批全量清偿。
+
+- **包路径对齐（InvalidPackageDeclaration×2）** — `BuildingUpgradeCalculator.kt`/`BuildingUpgradeConfig.kt` 声明 `com.xianxia.sect.core.engine.domain.building` 但文件误放 `core/domain/building/` 目录（与其余 6 个同包文件目录错位，后者被 baseline 冻结）；git mv 至 `core/engine/.../core/engine/domain/building/`（包名不变，58 处 import 零改动）
+- **溢出物品模板解析拆分（CyclomaticComplexMethod 34→4）** — `InventorySystem.resolveOverflowItemId` 7 分支 + 三层 elvis 链收敛为 1 个 when 分发 + 6 个按类型顶层私有解析函数（pill/material/herb/seed/equipment/manual），各函数圈复杂度 ≤3，未命中仍返回空串（领取方回退随机生成，资产不丢失语义不变）
+- **批量升级重构（LongMethod 64→53 + CyclomaticComplexMethod 18→14 + LoopWithTooManyJumpStatements 归零）** — `BuildingFacadeImpl.upgradeBuildings` 拆 `checkUpgradeSectLevel`（等级整批判定）/`upgradeCandidates`（稳定序筛选）/`tryUpgradeOne`（单座升级 sealed 三态：Upgraded/SpaceBlocked/Missing，替代循环内 2 个 continue + break）；零升级守卫改幂等 copy（working/remainingStones 值相等时 copy 无副作用，行为等价）
+- **几何判定收数据类（LongParameterList 8→2）** — `rectsOverlap(aX,aY,aW,aH,bX,bY,bW,bH)` → `GridRect(x,y,w,h).overlaps(other)`（同包数据类，边界相接不算重叠语义不变）；`BuildingDelegate.overlapsExisting`（feature:game）与 `canFitUpgrade` 同步改用，`BuildingUpgradeCalculatorTest` 断言随迁
+- **ReturnCount 收敛 ×3** — `checkUpgrade`（守卫合并 `building==null || def==null`）/`canFitUpgrade`（边界与重叠判定合并为单表达式）/`upgradeCost`（源/目标缺失守卫合并）各收敛为 2 个 return
+- **ComplexCondition 命名布尔 ×2** — `isInsideBuildableArea` 边界四边判定拆 `withinMinCorner`/`withinMaxCorner`；`BootSequenceController` 读档自愈五条件拆 `buildingsChanged`/`activeSectChanged`/`mineSlotsChanged`/`namesRenamed`/`countersChanged` + `anySelfHealChanged`
+- **测试清理** — `BuildingRemovalSlotCleanupTest` 两行 121+ 字符分行；`BuildingUpgradeTest.multiResidence` 私有夹具死代码删除（重构残留，grep 确认零引用）
+- **验证** — `compileReleaseKotlin`（全模块含 feature:game）+ 全量 `testReleaseUnitTest --max-workers=1` 串行全绿 + `lintRelease` + 全模块 `detekt`（engine 15 项违规归零，baseline 零新增）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯重构，行为逐位等价（升级/溢出邮件/读档自愈逻辑不变，测试全绿佐证）
+
 ## [4.01.04] - 2026-08-19
 
 ### 新增（2026-08-19 弟子住所升级 + 一键升级）
@@ -92,33 +121,6 @@
 - **验证** — `compileReleaseKotlin` + 相关测试类（串行 `--max-workers=1`）全绿
 - **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；`Disciple` 模型/组件表/Proto 字段全部保留（旧档残留数据不再读取、写入路径清零自愈）
 - **玩家可见变化** — 修炼速度显示值变为真实值（如 400→200）；修炼速度丹实际效果降为设计值（原为 bug 双倍）——属平衡性恢复而非新增削弱
-
-### 重构（2026-08-19 登录/防沉迷验证流程状态机根治——4.00.98 以来"卡登录界面/弹实名认证"三度复发终局修复）
-
-> 背景：4.00.98 修复广告 SDK 重复初始化后，部分玩家反馈"登录后有概率卡在登录界面进不去，或弹出实名认证界面"，此后 4 轮修复（初始化时机收敛 `8844f31b` / 登出清会话 `585d4e23` / 初始化解耦 `383f3a4c` / RESUMED 延迟启动 `57919e8a`）均未根除。逐行排查登录/防沉迷链路确认 4 个叠加根因：**A** 合规回调注册与 TapTap 登录 SDK 初始化时序竞态——冷启动路径注册早于 SDK 就绪（`TapTapKit.context` 为 null）导致注册失败且无重试，SDK 回调监听器永久缺失，验证结果丢失；**B** 4.01.02 引入的 `complianceCheckDeferredStarted` 一次性标记全库无复位点——"SDK 认证页退出 / 实名认证界面切换账号"（走 `showMainScreen()` 不重建 Activity）后再登录，防沉迷验证被永久跳过且无任何提示；**C** `startComplianceCheck` 无 SDK 就绪前置检查——冷启动点"开始认证"时 startup 静默失败；**D** 恢复流程依赖反射复位 SDK `isRunning`，失败则永久卡实名认证界面。
-
-- **新增 `LoginFlowStateMachine`（app/login，纯 Kotlin 零 Android 依赖）** — 登录 → 防沉迷验证 → 进模式选择收敛为单一真相源：六态（Idle/LoggingIn/VerifyPending/Verifying/Verified/VerificationFailed）+ 12 事件 + 11 副作用，State/Event/SideEffect 全 sealed class（对标 Tinder StateMachine DSL 与项目既有 BootPhase/RunState ADR 模式）。**resumedReady 机制**：ActivityResumed 事件置位、LoginSuccess 新会话复位——精确实现"等登录成功之后稳定 RESUMED 再启动验证"（转场窗口期防护），替代原一次性标记且天然可复位（根因 B 根治）；**单飞语义**：仅在 VerifyPending→Verifying 转移启动一次 startup，重复事件 no-op（替代原 inFlight）
-- **SDK 就绪契约 + 回调注册原子绑定（根因 A/C 根治）** — `ComplianceManager.ensureCallbackRegistered`（幂等自愈：注册失败下次调用自动重试，`sdkCallbackRegistrar` 可注入供 JVM 测试）；`ensureSdkServicesInitialized` 的合规回调注册移到 `awaitTapTapSdkReady()` 之后；`StartComplianceVerification` 副作用 = 防御性 `isReady()` 检查 + `ensureCallbackRegistered` 自愈补注册 + startup——回调注册与验证启动原子绑定，注册失败不再永久失去回调
-- **登出统一四件套收敛** — 全部登出入口（模式选择/合规弹窗/实名认证界面/防沉迷退出）经状态机 `LogoutRequested` 事件汇聚到 `MainActivity.performFullLogout` 唯一实现（清会话 + 清 TapTap SDK 登录态 + 停时长统计 + 解绑回调），消除 4 处登出实现不一致；删除 `handleUserExit`/`startComplianceCheck`/`startComplianceCheckWhenResumed`/`scheduleComplianceTimeoutHint`/`recoverComplianceStuckState` 五个方法与 `complianceCheckInFlight`/`complianceCheckDeferredStarted`/`complianceTimeoutJob` 三个手工状态字段
-- **超时兜底增强** — 防沉迷验证 30s 超时经状态机 `VerificationTimeout` 事件恢复（`ComplianceManager.exit()` + 反射复位 `TapComplianceInternal.isRunning`，字段名多候选 `isRunning`/`mIsRunning`/`running` 防混淆变化）；新增登录 60s 超时（授权页无回调时中止登录流程，防 loading 永久转圈）
-- **途中发现一并修复** — ① `EnterGameButton.onSuccess` 全部 UI/Compose 状态操作包 `runOnUiThread`（TapTap 回调线程不保证主线程）；② 网络错误不再 `showMainScreen()` 回登录界面（已登录用户困惑循环），改为保留会话 + Toast + 实名认证界面可重试；③ `MainScreen.onLoginSuccess` 死参数移除；④ `rules/sdk-init-lifecycle.md` 补充"SDK 调用前必须就绪"与"状态收敛"两条核心原则与检查清单
-- **测试** — 新增 `LoginFlowStateMachineTest`（21 用例全转移矩阵：正常路径/根因 B 双回归守卫/冷启动三态/超时恢复/重试立即启动/网络错误保留会话/单飞幂等/登出全出口）+ `ComplianceManagerSelfHealTest`（6 用例：幂等/失败自愈重试/回调转发/兼容入口）；既有 `SafeRunAfterSdkInitTest`/`SdkInitGuardTest`/`TapDBManagerInitGuardTest`/`ComplianceCallbackHostTest` 全绿
-- **验证** — `compileReleaseKotlin` + 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
-- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无新增权限、无数据收集变化（隐私政策无需更新）；成功路径行为逐位一致，失败路径更健壮（可恢复）；`iOS` 标签：状态机纯 Kotlin 可直接 KMP 共享，Activity 生命周期事件由 iOS 对等（sceneDidBecomeActive）映射
-
-### 修复（2026-08-19 core:engine 代码质量清理——detekt 15 项加权违规归零）
-
-> 背景：上轮重构（登录状态机）全量 detekt 时发现 `:core:engine:detekt` 15 项加权违规，全部为 2026-08-19 当天提交的住所升级/一键升级功能（`d4db7436`/`036bd49e`/`257d2f07`/`c99ded0d`）与溢出邮件功能（`9935b8d1`）引入、且未跑 detekt 的预存问题。无功能 bug（均有测试覆盖或设计兜底），但 3 处高风险项 + 2 处架构命名污染显著抬高未来改动出错概率，本批全量清偿。
-
-- **包路径对齐（InvalidPackageDeclaration×2）** — `BuildingUpgradeCalculator.kt`/`BuildingUpgradeConfig.kt` 声明 `com.xianxia.sect.core.engine.domain.building` 但文件误放 `core/domain/building/` 目录（与其余 6 个同包文件目录错位，后者被 baseline 冻结）；git mv 至 `core/engine/.../core/engine/domain/building/`（包名不变，58 处 import 零改动）
-- **溢出物品模板解析拆分（CyclomaticComplexMethod 34→4）** — `InventorySystem.resolveOverflowItemId` 7 分支 + 三层 elvis 链收敛为 1 个 when 分发 + 6 个按类型顶层私有解析函数（pill/material/herb/seed/equipment/manual），各函数圈复杂度 ≤3，未命中仍返回空串（领取方回退随机生成，资产不丢失语义不变）
-- **批量升级重构（LongMethod 64→53 + CyclomaticComplexMethod 18→14 + LoopWithTooManyJumpStatements 归零）** — `BuildingFacadeImpl.upgradeBuildings` 拆 `checkUpgradeSectLevel`（等级整批判定）/`upgradeCandidates`（稳定序筛选）/`tryUpgradeOne`（单座升级 sealed 三态：Upgraded/SpaceBlocked/Missing，替代循环内 2 个 continue + break）；零升级守卫改幂等 copy（working/remainingStones 值相等时 copy 无副作用，行为等价）
-- **几何判定收数据类（LongParameterList 8→2）** — `rectsOverlap(aX,aY,aW,aH,bX,bY,bW,bH)` → `GridRect(x,y,w,h).overlaps(other)`（同包数据类，边界相接不算重叠语义不变）；`BuildingDelegate.overlapsExisting`（feature:game）与 `canFitUpgrade` 同步改用，`BuildingUpgradeCalculatorTest` 断言随迁
-- **ReturnCount 收敛 ×3** — `checkUpgrade`（守卫合并 `building==null || def==null`）/`canFitUpgrade`（边界与重叠判定合并为单表达式）/`upgradeCost`（源/目标缺失守卫合并）各收敛为 2 个 return
-- **ComplexCondition 命名布尔 ×2** — `isInsideBuildableArea` 边界四边判定拆 `withinMinCorner`/`withinMaxCorner`；`BootSequenceController` 读档自愈五条件拆 `buildingsChanged`/`activeSectChanged`/`mineSlotsChanged`/`namesRenamed`/`countersChanged` + `anySelfHealChanged`
-- **测试清理** — `BuildingRemovalSlotCleanupTest` 两行 121+ 字符分行；`BuildingUpgradeTest.multiResidence` 私有夹具死代码删除（重构残留，grep 确认零引用）
-- **验证** — `compileReleaseKotlin`（全模块含 feature:game）+ 全量 `testReleaseUnitTest --max-workers=1` 串行全绿 + `lintRelease` + 全模块 `detekt`（engine 15 项违规归零，baseline 零新增）
-- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯重构，行为逐位等价（升级/溢出邮件/读档自愈逻辑不变，测试全绿佐证）
 
 ## [4.01.03] - 2026-08-19
 
