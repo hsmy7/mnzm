@@ -663,17 +663,13 @@ class BuildingFacadeImpl @Inject constructor(
         var outcome: UpgradeResult = UpgradeResult.Failure(listOf("未知错误"))
         stateStore.update {
             // 宗门等级门槛整批判定（需求：灵石以外条件不满足 → 明确告知）
-            val currentLevel = gameData.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
-            if (currentLevel < SectLevel.MEDIUM) {
-                outcome = UpgradeResult.Failure(
-                    listOf("需要宗门等级达到中型（当前${SectLevel.levelName(currentLevel)}），无法升级")
-                )
+            val levelFailure = checkUpgradeSectLevel(gameData)
+            if (levelFailure != null) {
+                outcome = UpgradeResult.Failure(listOf(levelFailure))
                 return@update
             }
 
-            val candidates = gameData.placedBuildings
-                .filter { it.sectId == sectId && it.buildingId == sourceKey }
-                .sortedWith(compareBy({ it.gridX }, { it.gridY }, { it.instanceId }))
+            val candidates = upgradeCandidates(gameData, sectId, sourceKey)
             if (candidates.isEmpty()) {
                 outcome = UpgradeResult.Failure(listOf("没有可升级的$sourceName"))
                 return@update
@@ -694,28 +690,20 @@ class BuildingFacadeImpl @Inject constructor(
             var spaceBlocked = 0
             for (candidate in candidates) {
                 if (upgraded >= affordable) break
-                // 以「升级中间态」增量校验空间，防相邻建筑同时扩占地互相重叠
-                if (!BuildingUpgradeCalculator.canFitUpgrade(working, candidate, def)) {
-                    spaceBlocked++
-                    continue
+                when (val result = tryUpgradeOne(working, candidate, def, target)) {
+                    UpgradeOneResult.Upgraded -> {
+                        upgraded++
+                        remainingStones -= cost
+                    }
+                    UpgradeOneResult.SpaceBlocked -> spaceBlocked++
+                    UpgradeOneResult.Missing -> Unit
                 }
-                val index = working.indexOfFirst { it.instanceId == candidate.instanceId }
-                if (index < 0) continue
-                working[index] = working[index].copy(
-                    buildingId = target.key,
-                    displayName = target.displayName,
-                    width = target.gridWidth,
-                    height = target.gridHeight
-                )
-                upgraded++
-                remainingStones -= cost
             }
-            if (upgraded > 0) {
-                gameData = gameData.copy(
-                    spiritStones = remainingStones,
-                    placedBuildings = working
-                )
-            }
+            // 零升级时 copy 幂等（working/remainingStones 与原值相等），无需单独守卫
+            gameData = gameData.copy(
+                spiritStones = remainingStones,
+                placedBuildings = working
+            )
             outcome = UpgradeResult.Success(upgraded, spaceBlocked)
         }
         outcome
@@ -844,4 +832,59 @@ class BuildingFacadeImpl @Inject constructor(
         discipleStatusService.syncSingleDiscipleStatus(discipleId)
     }
 
+}
+
+// ===== 批量升级辅助（upgradeBuildings 拆分，保持主流程 ≤60 行 / 圈复杂度 ≤15） =====
+
+/** 批量升级单座结果 */
+private sealed interface UpgradeOneResult {
+    data object Upgraded : UpgradeOneResult
+    data object SpaceBlocked : UpgradeOneResult
+    data object Missing : UpgradeOneResult
+}
+
+/**
+ * 单座升级尝试：以「升级中间态」增量校验空间（防相邻建筑同时扩占地互相重叠），
+ * 通过则原地变换为升级目标建筑（保留 instanceId/gridX/gridY/sectId）。
+ */
+private fun tryUpgradeOne(
+    working: MutableList<GridBuildingData>,
+    candidate: GridBuildingData,
+    def: BuildingUpgradeDef,
+    target: BuildingFeature
+): UpgradeOneResult {
+    val index = working.indexOfFirst { it.instanceId == candidate.instanceId }
+    if (index >= 0 && BuildingUpgradeCalculator.canFitUpgrade(working, candidate, def)) {
+        working[index] = working[index].copy(
+            buildingId = target.key,
+            displayName = target.displayName,
+            width = target.gridWidth,
+            height = target.gridHeight
+        )
+        return UpgradeOneResult.Upgraded
+    }
+    return if (index < 0) UpgradeOneResult.Missing else UpgradeOneResult.SpaceBlocked
+}
+
+/**
+ * 批量升级候选：同宗门同类型的建筑按 稳定序（gridX/gridY/instanceId）排序。
+ */
+private fun upgradeCandidates(
+    gameData: GameData,
+    sectId: String,
+    sourceKey: String
+): List<GridBuildingData> = gameData.placedBuildings
+    .filter { it.sectId == sectId && it.buildingId == sourceKey }
+    .sortedWith(compareBy({ it.gridX }, { it.gridY }, { it.instanceId }))
+
+/**
+ * 批量升级前置整批判定：宗门等级达到中型才允许升级。
+ *
+ * @return 不满足时的失败文案（直接用于提示框），满足时 null
+ */
+private fun checkUpgradeSectLevel(gameData: GameData): String? {
+    val currentLevel = gameData.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
+    return if (currentLevel < SectLevel.MEDIUM) {
+        "需要宗门等级达到中型（当前${SectLevel.levelName(currentLevel)}），无法升级"
+    } else null
 }

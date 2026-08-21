@@ -145,17 +145,6 @@ class BuildingUpgradeTest {
         instanceId = instanceId, sectId = sectId
     )
 
-    private fun multiResidence(
-        instanceId: String,
-        gridX: Int = 20,
-        gridY: Int = 20,
-        sectId: String = "main"
-    ) = GridBuildingData(
-        buildingId = "multi_residence", displayName = "初级多人住所",
-        gridX = gridX, gridY = gridY, width = 6, height = 4,
-        instanceId = instanceId, sectId = sectId
-    )
-
     private fun setupState(
         stones: Long,
         level: Int = SectLevel.MEDIUM,

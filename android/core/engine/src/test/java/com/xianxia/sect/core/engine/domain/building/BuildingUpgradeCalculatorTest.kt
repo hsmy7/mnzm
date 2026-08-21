@@ -252,14 +252,14 @@ class BuildingUpgradeCalculatorTest {
     }
 
     @Test
-    fun `rectsOverlap - 边界相接不算重叠`() {
-        assertFalse(rectsOverlap(0, 0, 4, 4, 4, 0, 4, 4))
-        assertFalse(rectsOverlap(0, 0, 4, 4, 0, 4, 4, 4))
+    fun `GridRect overlaps - 边界相接不算重叠`() {
+        assertFalse(GridRect(0, 0, 4, 4).overlaps(GridRect(4, 0, 4, 4)))
+        assertFalse(GridRect(0, 0, 4, 4).overlaps(GridRect(0, 4, 4, 4)))
     }
 
     @Test
-    fun `rectsOverlap - 部分与完全重叠判定正确`() {
-        assertTrue(rectsOverlap(0, 0, 4, 4, 3, 0, 4, 4))
-        assertTrue(rectsOverlap(0, 0, 6, 6, 1, 1, 2, 2))
+    fun `GridRect overlaps - 部分与完全重叠判定正确`() {
+        assertTrue(GridRect(0, 0, 4, 4).overlaps(GridRect(3, 0, 4, 4)))
+        assertTrue(GridRect(0, 0, 6, 6).overlaps(GridRect(1, 1, 2, 2)))
     }
 }

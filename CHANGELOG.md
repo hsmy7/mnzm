@@ -106,6 +106,20 @@
 - **验证** — `compileReleaseKotlin` + 全量 `testReleaseUnitTest --max-workers=1` 串行全绿
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无新增权限、无数据收集变化（隐私政策无需更新）；成功路径行为逐位一致，失败路径更健壮（可恢复）；`iOS` 标签：状态机纯 Kotlin 可直接 KMP 共享，Activity 生命周期事件由 iOS 对等（sceneDidBecomeActive）映射
 
+### 修复（2026-08-19 core:engine 代码质量清理——detekt 15 项加权违规归零）
+
+> 背景：上轮重构（登录状态机）全量 detekt 时发现 `:core:engine:detekt` 15 项加权违规，全部为 2026-08-19 当天提交的住所升级/一键升级功能（`d4db7436`/`036bd49e`/`257d2f07`/`c99ded0d`）与溢出邮件功能（`9935b8d1`）引入、且未跑 detekt 的预存问题。无功能 bug（均有测试覆盖或设计兜底），但 3 处高风险项 + 2 处架构命名污染显著抬高未来改动出错概率，本批全量清偿。
+
+- **包路径对齐（InvalidPackageDeclaration×2）** — `BuildingUpgradeCalculator.kt`/`BuildingUpgradeConfig.kt` 声明 `com.xianxia.sect.core.engine.domain.building` 但文件误放 `core/domain/building/` 目录（与其余 6 个同包文件目录错位，后者被 baseline 冻结）；git mv 至 `core/engine/.../core/engine/domain/building/`（包名不变，58 处 import 零改动）
+- **溢出物品模板解析拆分（CyclomaticComplexMethod 34→4）** — `InventorySystem.resolveOverflowItemId` 7 分支 + 三层 elvis 链收敛为 1 个 when 分发 + 6 个按类型顶层私有解析函数（pill/material/herb/seed/equipment/manual），各函数圈复杂度 ≤3，未命中仍返回空串（领取方回退随机生成，资产不丢失语义不变）
+- **批量升级重构（LongMethod 64→53 + CyclomaticComplexMethod 18→14 + LoopWithTooManyJumpStatements 归零）** — `BuildingFacadeImpl.upgradeBuildings` 拆 `checkUpgradeSectLevel`（等级整批判定）/`upgradeCandidates`（稳定序筛选）/`tryUpgradeOne`（单座升级 sealed 三态：Upgraded/SpaceBlocked/Missing，替代循环内 2 个 continue + break）；零升级守卫改幂等 copy（working/remainingStones 值相等时 copy 无副作用，行为等价）
+- **几何判定收数据类（LongParameterList 8→2）** — `rectsOverlap(aX,aY,aW,aH,bX,bY,bW,bH)` → `GridRect(x,y,w,h).overlaps(other)`（同包数据类，边界相接不算重叠语义不变）；`BuildingDelegate.overlapsExisting`（feature:game）与 `canFitUpgrade` 同步改用，`BuildingUpgradeCalculatorTest` 断言随迁
+- **ReturnCount 收敛 ×3** — `checkUpgrade`（守卫合并 `building==null || def==null`）/`canFitUpgrade`（边界与重叠判定合并为单表达式）/`upgradeCost`（源/目标缺失守卫合并）各收敛为 2 个 return
+- **ComplexCondition 命名布尔 ×2** — `isInsideBuildableArea` 边界四边判定拆 `withinMinCorner`/`withinMaxCorner`；`BootSequenceController` 读档自愈五条件拆 `buildingsChanged`/`activeSectChanged`/`mineSlotsChanged`/`namesRenamed`/`countersChanged` + `anySelfHealChanged`
+- **测试清理** — `BuildingRemovalSlotCleanupTest` 两行 121+ 字符分行；`BuildingUpgradeTest.multiResidence` 私有夹具死代码删除（重构残留，grep 确认零引用）
+- **验证** — `compileReleaseKotlin`（全模块含 feature:game）+ 全量 `testReleaseUnitTest --max-workers=1` 串行全绿 + `lintRelease` + 全模块 `detekt`（engine 15 项违规归零，baseline 零新增）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯重构，行为逐位等价（升级/溢出邮件/读档自愈逻辑不变，测试全绿佐证）
+
 ## [4.01.03] - 2026-08-19
 
 ### 更新（弟子肖像全量换新 + 登录界面「进入游戏」一键登录）

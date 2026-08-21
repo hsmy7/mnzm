@@ -40,9 +40,8 @@ object BuildingUpgradeCalculator {
      */
     fun checkUpgrade(data: GameData, instanceId: String): UpgradeCheckResult {
         val building = data.placedBuildings.find { it.instanceId == instanceId }
-            ?: return UpgradeCheckResult.NotUpgradeable
-        val def = BuildingUpgradeRegistry.findUpgrade(building.buildingId)
-            ?: return UpgradeCheckResult.NotUpgradeable
+        val def = building?.let { BuildingUpgradeRegistry.findUpgrade(it.buildingId) }
+        if (building == null || def == null) return UpgradeCheckResult.NotUpgradeable
         val reasons = mutableListOf<String>()
 
         val currentLevel = data.worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
@@ -82,26 +81,22 @@ object BuildingUpgradeCalculator {
         val target = BuildingFeatureRegistry.findByKey(def.targetKey) ?: return false
         val gridW = target.gridWidth
         val gridH = target.gridHeight
-        if (!isInsideBuildableArea(building.gridX, building.gridY, gridW, gridH)) return false
-        return buildings.none { other ->
-            other.sectId == building.sectId &&
-                other.instanceId != building.instanceId &&
-                rectsOverlap(
-                    building.gridX, building.gridY, gridW, gridH,
-                    other.gridX, other.gridY, other.width, other.height
-                )
-        }
+        return isInsideBuildableArea(building.gridX, building.gridY, gridW, gridH) &&
+            buildings.none { other ->
+                other.sectId == building.sectId &&
+                    other.instanceId != building.instanceId &&
+                    GridRect(building.gridX, building.gridY, gridW, gridH)
+                        .overlaps(GridRect(other.gridX, other.gridY, other.width, other.height))
+            }
     }
 
     /** 网格位置是否位于边界树木区域之内且不占用门楼固定结构占地。 */
     private fun isInsideBuildableArea(gridX: Int, gridY: Int, gridW: Int, gridH: Int): Boolean {
         val border = GameConfig.SectMap.BORDER_TREE_RING
-        if (gridX < border || gridY < border ||
-            gridX + gridW > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
-            gridY + gridH > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
-        ) {
-            return false
-        }
+        val withinMinCorner = gridX >= border && gridY >= border
+        val withinMaxCorner = gridX + gridW <= GameConfig.SectMap.WORLD_WIDTH_CELLS - border &&
+            gridY + gridH <= GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
+        if (!withinMinCorner || !withinMaxCorner) return false
         val blocked = FixedSectGateway.blockedCells
         return (gridY until gridY + gridH).none { cy ->
             (gridX until gridX + gridW).any { cx -> GridSystem.packCell(cx, cy) in blocked }
@@ -110,22 +105,15 @@ object BuildingUpgradeCalculator {
 }
 
 /**
- * 两个轴对齐矩形是否重叠（边界相接不算重叠）。
+ * 轴对齐矩形（网格坐标）——建筑放置与建筑升级占地重叠判定的单一事实。
+ * 边界相接不算重叠。
  *
  * 上提自 feature:game BuildingDelegate.overlapsExisting 的矩形判定，
  * 供建筑放置与建筑升级两处共用，保证判定公式单一事实。
- *
- * @param aX 矩形 a 左上角 X
- * @param aY 矩形 a 左上角 Y
- * @param aW 矩形 a 宽度
- * @param aH 矩形 a 高度
- * @param bX 矩形 b 左上角 X
- * @param bY 矩形 b 左上角 Y
- * @param bW 矩形 b 宽度
- * @param bH 矩形 b 高度
- * @return 存在重叠时 true
  */
-fun rectsOverlap(
-    aX: Int, aY: Int, aW: Int, aH: Int,
-    bX: Int, bY: Int, bW: Int, bH: Int
-): Boolean = aX < bX + bW && aX + aW > bX && aY < bY + bH && aY + aH > bY
+data class GridRect(val x: Int, val y: Int, val width: Int, val height: Int) {
+    /** 与另一矩形是否重叠（边界相接不算重叠） */
+    fun overlaps(other: GridRect): Boolean =
+        x < other.x + other.width && x + width > other.x &&
+            y < other.y + other.height && y + height > other.y
+}

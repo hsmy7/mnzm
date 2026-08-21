@@ -127,10 +127,14 @@ class BootSequenceController @Inject constructor(
                 // 含引导累计建造计数 key 同步），幂等
                 val (renamedBuildings, renamedCounters) =
                     normalizeResidenceDisplayNames(withIds, data.guideCounters)
-                if (withIds != data.placedBuildings || purified != data.activeSectId ||
-                    norm.spiritMineSlots != data.spiritMineSlots ||
-                    renamedBuildings != withIds || renamedCounters != data.guideCounters
-                ) {
+                val buildingsChanged = withIds != data.placedBuildings
+                val activeSectChanged = purified != data.activeSectId
+                val mineSlotsChanged = norm.spiritMineSlots != data.spiritMineSlots
+                val namesRenamed = renamedBuildings != withIds
+                val countersChanged = renamedCounters != data.guideCounters
+                val anySelfHealChanged = buildingsChanged || activeSectChanged || mineSlotsChanged ||
+                    namesRenamed || countersChanged
+                if (anySelfHealChanged) {
                     data.copy(
                         placedBuildings = renamedBuildings,
                         activeSectId = purified,

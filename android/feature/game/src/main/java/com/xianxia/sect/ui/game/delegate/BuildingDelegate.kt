@@ -8,8 +8,8 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.core.engine.domain.building.GridRect
 import com.xianxia.sect.core.engine.domain.building.UpgradeResult
-import com.xianxia.sect.core.engine.domain.building.rectsOverlap
 import com.xianxia.sect.core.engine.addProductionSlot
 import com.xianxia.sect.core.engine.assignToResidenceAtomic
 import com.xianxia.sect.core.engine.moveBuildingDirect
@@ -381,9 +381,7 @@ internal fun overlapsExisting(
 ): Boolean {
     return buildings.any { other ->
         other.sectId == sectId &&
-            rectsOverlap(
-                gridX, gridY, width, height,
-                other.gridX, other.gridY, other.width, other.height
-            )
+            GridRect(gridX, gridY, width, height)
+                .overlaps(GridRect(other.gridX, other.gridY, other.width, other.height))
     }
 }

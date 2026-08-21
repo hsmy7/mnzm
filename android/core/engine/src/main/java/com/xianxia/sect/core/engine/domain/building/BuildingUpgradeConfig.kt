@@ -41,8 +41,9 @@ object BuildingUpgradeRegistry {
      * @return 差价灵石数；源/目标任一侧未注册时返回 0（防御，正常流程不会触发）
      */
     fun upgradeCost(def: BuildingUpgradeDef): Long {
-        val source = BuildingFeatureRegistry.findByKey(def.sourceKey) ?: return 0
-        val target = BuildingFeatureRegistry.findByKey(def.targetKey) ?: return 0
+        val source = BuildingFeatureRegistry.findByKey(def.sourceKey)
+        val target = BuildingFeatureRegistry.findByKey(def.targetKey)
+        if (source == null || target == null) return 0
         return (target.cost - source.cost).coerceAtLeast(0)
     }
 }

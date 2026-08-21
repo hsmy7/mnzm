@@ -129,36 +129,16 @@ class InventorySystem @Inject constructor(
      * 否则领取方只能按稀有度随机生成（"回气丹"溢出邮件可能领到同稀有度的其它丹药）。
      *
      * 各类型按模板属性（名称/稀有度/品阶/分类等）反查数据库模板；未命中返回空串，
-     * 领取方回退既有随机生成逻辑（仅不精确，不丢失资产）。
+     * 领取方回退既有随机生成逻辑（仅不精确，不丢失资产）。各类型解析见
+     * [resolvePillTemplateId] 等顶层私有函数（按类型拆分，单函数圈复杂度 ≤15）。
      */
     private fun resolveOverflowItemId(itemType: String, item: StackableItem): String = when (itemType) {
-        "pill" -> (item as? Pill)?.let {
-            ItemDatabase.allPills.values.firstOrNull { p ->
-                p.name == it.name && p.rarity == it.rarity &&
-                    p.category == it.category && p.grade == it.grade
-            }?.id ?: ""
-        } ?: ""
-        "material" -> (item as? Material)?.let {
-            ItemDatabase.allMaterials.values.firstOrNull { m ->
-                m.name == it.name && m.rarity == it.rarity && m.category == it.category
-            }?.id ?: ""
-        } ?: ""
-        "herb" -> (item as? Herb)?.let {
-            HerbDatabase.getHerbsByTier(it.rarity).firstOrNull { h ->
-                h.name == it.name && h.category == it.category
-            }?.id ?: ""
-        } ?: ""
-        "seed" -> (item as? Seed)?.let {
-            HerbDatabase.getAllSeeds().firstOrNull { s ->
-                s.name == it.name && s.rarity == it.rarity && s.growTime == it.growTime
-            }?.id ?: ""
-        } ?: ""
-        "equipment" -> (item as? EquipmentStack)?.let {
-            EquipmentDatabase.getTemplateByName(it.name)?.id ?: ""
-        } ?: ""
-        "manual" -> (item as? ManualStack)?.let {
-            ManualDatabase.getByName(it.name)?.id ?: ""
-        } ?: ""
+        "pill" -> resolvePillTemplateId(item)
+        "material" -> resolveMaterialTemplateId(item)
+        "herb" -> resolveHerbTemplateId(item)
+        "seed" -> resolveSeedTemplateId(item)
+        "equipment" -> resolveEquipmentTemplateId(item)
+        "manual" -> resolveManualTemplateId(item)
         else -> ""
     }
 
@@ -1443,3 +1423,45 @@ class InventorySystem @Inject constructor(
     override fun addHerb(item: Herb): DomainResult<Herb> = addHerb(item, merge = true)
     override fun addSeed(item: Seed): DomainResult<Seed> = addSeed(item, merge = true)
 }
+
+// ===== 溢出邮件物品模板 id 解析（InventorySystem.resolveOverflowItemId 按类型拆分，
+//       单函数圈复杂度 ≤15——detekt CyclomaticComplexMethod 阈值） =====
+
+private fun resolvePillTemplateId(item: StackableItem): String =
+    (item as? Pill)?.let {
+        ItemDatabase.allPills.values.firstOrNull { p ->
+            p.name == it.name && p.rarity == it.rarity &&
+                p.category == it.category && p.grade == it.grade
+        }?.id ?: ""
+    } ?: ""
+
+private fun resolveMaterialTemplateId(item: StackableItem): String =
+    (item as? Material)?.let {
+        ItemDatabase.allMaterials.values.firstOrNull { m ->
+            m.name == it.name && m.rarity == it.rarity && m.category == it.category
+        }?.id ?: ""
+    } ?: ""
+
+private fun resolveHerbTemplateId(item: StackableItem): String =
+    (item as? Herb)?.let {
+        HerbDatabase.getHerbsByTier(it.rarity).firstOrNull { h ->
+            h.name == it.name && h.category == it.category
+        }?.id ?: ""
+    } ?: ""
+
+private fun resolveSeedTemplateId(item: StackableItem): String =
+    (item as? Seed)?.let {
+        HerbDatabase.getAllSeeds().firstOrNull { s ->
+            s.name == it.name && s.rarity == it.rarity && s.growTime == it.growTime
+        }?.id ?: ""
+    } ?: ""
+
+private fun resolveEquipmentTemplateId(item: StackableItem): String =
+    (item as? EquipmentStack)?.let {
+        EquipmentDatabase.getTemplateByName(it.name)?.id ?: ""
+    } ?: ""
+
+private fun resolveManualTemplateId(item: StackableItem): String =
+    (item as? ManualStack)?.let {
+        ManualDatabase.getByName(it.name)?.id ?: ""
+    } ?: ""

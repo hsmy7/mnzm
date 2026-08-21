@@ -69,8 +69,14 @@ class BuildingRemovalSlotCleanupTest {
                         listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.FORGE)),
                     BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE, listOf(SlotGroup.Warehouse())),
                     BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL, listOf(SlotGroup.PatrolTower())),
-                    BuildingFeature("single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE, listOf(SlotGroup.Residence(1))),
-                    BuildingFeature("multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE, listOf(SlotGroup.Residence(4))),
+                    BuildingFeature(
+                        "single_residence", "初级单人住所", BuildingType.SINGLE_RESIDENCE,
+                        listOf(SlotGroup.Residence(1))
+                    ),
+                    BuildingFeature(
+                        "multi_residence", "初级多人住所", BuildingType.MULTI_RESIDENCE,
+                        listOf(SlotGroup.Residence(4))
+                    ),
                     BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL, listOf(SlotGroup.BloodRefining())),
                     BuildingFeature("library", "藏经阁", BuildingType.LIBRARY, listOf(SlotGroup.Library())),
                     BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
