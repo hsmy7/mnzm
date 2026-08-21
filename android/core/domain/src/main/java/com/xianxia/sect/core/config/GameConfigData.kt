@@ -84,7 +84,7 @@ data class GameConfigData(
 
     @Serializable
     data class ProductionSection(
-        val spiritMineBaseOutputPerMiner: Int = 160,
+        val spiritMineBaseOutputPerMiner: Int = 170,
         val spiritMineMiningThreshold: Int = 70,
         val spiritMineMiningBonusRate: Double = 0.02
     )

@@ -1,3 +1,12 @@
+## [4.01.06] - 2026-08-22
+
+### 调整（2026-08-22 广告每日观看上限 20→15 + 灵矿每矿工月基础产出 160→170）
+
+- **广告每日观看上限 20→15** — `AdsDelegate.DAILY_AD_LIMIT`（设备/账号维度，跨存档共享，白名单用户不受限）；联动 `GameConfig.Jade.AD_JADE_PER_DAY_MAX` 60→45（15 次 × 3 枚，防溢出余量精确化）；`JadeSymbolAdDialog` 确认文案同步为「最多观看15次广告」；`AdsDelegateTest` / `GameViewModelTest` 上限断言（repeat 20→15、剩余次数 19→14）同步
+- **灵矿每矿工月基础产出 160→170（+10 灵石）** — `GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER` / `GameConfigData.ProductionSection.spiritMineBaseOutputPerMiner` / assets `game_config.json` 三源同步（守卫测试 `GameConfigConsistencyTest` 强制一致）；`SpiritMineMonthlySettlementTest` 动态引用自动跟随；产出经采矿技能 / 执事道德 / 灵矿增产政策乘区加成后按月结算
+- **验证** — `:core:domain` / `:feature:game` / `:core:engine` 全量 `testReleaseUnitTest --max-workers=1` 串行全绿（BUILD SUCCESSFUL，144 tasks）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；纯数值配置调整，旧档读档后自动生效
+
 ## [4.01.05] - 2026-08-21
 
 ### 重构（2026-08-19 登录/防沉迷验证流程状态机根治——4.00.98 以来"卡登录界面/弹实名认证"三度复发终局修复）

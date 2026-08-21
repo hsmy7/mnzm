@@ -882,7 +882,7 @@ class GameViewModelTest {
     fun `watchAdForJadeSymbols - 每日上限时拦截不调广告`() = runTest(testDispatcher) {
         AdsDelegate.resetForTest()
         AdFreeWhitelist.initialize(null)
-        repeat(20) { viewModel.tryMarkAdWatched() }
+        repeat(15) { viewModel.tryMarkAdWatched() }
 
         viewModel.watchAdForJadeSymbols()
 

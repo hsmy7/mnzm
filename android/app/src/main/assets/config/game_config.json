@@ -36,7 +36,7 @@
     "dailyHpMpRecoveryRate": 0.2
   },
   "production": {
-    "spiritMineBaseOutputPerMiner": 160,
+    "spiritMineBaseOutputPerMiner": 170,
     "spiritMineMiningThreshold": 70,
     "spiritMineMiningBonusRate": 0.02
   },

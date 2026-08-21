@@ -24,7 +24,7 @@ class AdsDelegate(
         private const val TAG = "AdsDelegate"
         private const val AD_COOLDOWN_MS = 60_000L
         /** 非白名单用户每日最大广告观看次数（设备/账号维度） */
-        private const val DAILY_AD_LIMIT = 20
+        private const val DAILY_AD_LIMIT = 15
 
         /** 当日广告观看计数（原子化，跨实例共享） */
         private val dailyCount = AtomicInteger(0)

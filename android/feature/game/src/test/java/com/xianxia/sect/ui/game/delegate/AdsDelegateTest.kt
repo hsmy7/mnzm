@@ -12,7 +12,7 @@ import org.junit.Test
 /**
  * 广告播放委托测试（2026-08-11 新增，clock 注入后确定性）。
  *
- * 覆盖：60s 冷却 / 每日 20 次上限与回滚 / 跨天重置 / 白名单跳过冷却与上限 /
+ * 覆盖：60s 冷却 / 每日 15 次上限与回滚 / 跨天重置 / 白名单跳过冷却与上限 /
  * 上限后冷却过期仍不可看。
  */
 class AdsDelegateTest {
@@ -51,16 +51,16 @@ class AdsDelegateTest {
     // ── 每日上限 ──
 
     @Test
-    fun `第 21 次观看返回 false 且计数回滚`() {
-        repeat(20) { assertTrue("第 ${it + 1} 次应成功", delegate.tryMarkAdWatched()) }
-        assertTrue("满 20 次后达上限", delegate.isDailyAdLimitReached())
-        assertFalse("第 21 次应被拒", delegate.tryMarkAdWatched())
+    fun `第 16 次观看返回 false 且计数回滚`() {
+        repeat(15) { assertTrue("第 ${it + 1} 次应成功", delegate.tryMarkAdWatched()) }
+        assertTrue("满 15 次后达上限", delegate.isDailyAdLimitReached())
+        assertFalse("第 16 次应被拒", delegate.tryMarkAdWatched())
         assertEquals("计数回滚后剩余 0", 0, delegate.getRemainingDailyAds())
     }
 
     @Test
     fun `达上限后冷却过期仍不可观看`() {
-        repeat(20) { delegate.tryMarkAdWatched() }
+        repeat(15) { delegate.tryMarkAdWatched() }
         nowMs += 60_000L
         assertFalse("上限与冷却独立判定", delegate.isAdOnCooldown())
         assertTrue("跨冷却后仍达上限", delegate.isDailyAdLimitReached())
@@ -71,11 +71,11 @@ class AdsDelegateTest {
 
     @Test
     fun `跨天后计数重置可继续观看`() {
-        repeat(20) { delegate.tryMarkAdWatched() }
+        repeat(15) { delegate.tryMarkAdWatched() }
         nowMs += 24 * 60 * 60 * 1000L // 次日同刻（无夏令时地区必然跨天）
         assertFalse("次日重置", delegate.isDailyAdLimitReached())
         assertTrue(delegate.tryMarkAdWatched())
-        assertEquals(19, delegate.getRemainingDailyAds())
+        assertEquals(14, delegate.getRemainingDailyAds())
     }
 
     // ── 白名单 ──

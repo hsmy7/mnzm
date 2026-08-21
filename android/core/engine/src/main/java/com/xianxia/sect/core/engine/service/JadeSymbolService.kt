@@ -265,7 +265,7 @@ class JadeSymbolService @Inject constructor(
      * 与 [settleGrants] 同款幂等语义：先更新运行时 [totalCount] 再绝对值写
      * GameData——否则 checkpointNow/settleGrants 用旧绝对值写回导致玉符回涨。
      * **不写入 [todayCount]**：广告玉符独立于时间渠道的每日上限（单日时间 20 +
-     * 广告 60 合计上限）。
+     * 广告 45 合计上限）。
      *
      * @param amount 发放数量（必须为正）
      * @return 是否成功（amount 非正返回 false，状态不变）

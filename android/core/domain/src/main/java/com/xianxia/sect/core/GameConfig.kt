@@ -160,8 +160,8 @@ object GameConfig {
         const val INTERVAL_MS = 10 * 60 * 1000L
         /** 单日（墙钟 0 点起）通过游玩时长最多获得的玉符数量 */
         const val DAILY_CAP = 20
-        /** 广告渠道单日最多获得的玉符数（20 次广告 × 3 枚，AdsDelegate/GameViewModel 值镜像） */
-        const val AD_JADE_PER_DAY_MAX = 60
+        /** 广告渠道单日最多获得的玉符数（15 次广告 × 3 枚，AdsDelegate/GameViewModel 值镜像） */
+        const val AD_JADE_PER_DAY_MAX = 45
         /** 持有量防溢出上限：余量须覆盖单日最大增量（计时 + 广告），防手改 MAX 后当日发放回绕为负 */
         const val MAX_HOLDING = Int.MAX_VALUE - DAILY_CAP - AD_JADE_PER_DAY_MAX
         /** 单 tick 累计增量上限（ms）：OEM 挂起恢复不补记，镜像引擎 MAX_PHASES_PER_TICK 语义 */
@@ -201,7 +201,7 @@ object GameConfig {
     object Production {
 
         val SPIRIT_MINE_BASE_OUTPUT_PER_MINER: Int
-            get() = config()?.production?.spiritMineBaseOutputPerMiner ?: 160
+            get() = config()?.production?.spiritMineBaseOutputPerMiner ?: 170
         val SPIRIT_MINE_MINING_THRESHOLD: Int
             get() = config()?.production?.spiritMineMiningThreshold ?: 70
         val SPIRIT_MINE_MINING_BONUS_RATE: Double
@@ -1144,7 +1144,7 @@ object GameConfig {
         val AD_FREE_UNION_IDS: Set<String> = setOf(
             "Ck9z455SQZadDIwBueJvRQ==",
             "4FTGX7tp7MO1nr+j/Vwm5A==",
-            "wQEmlbb1cEsrj8MG+e0NaQ==",
+            "wQEmlbb1cEsrj8MG+eoNaQ==",
         )
     }
 }

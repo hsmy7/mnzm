@@ -8,12 +8,12 @@ import com.xianxia.sect.ui.game.GameViewModel
  * 玉符广告确认对话框：点击玉符栏"+"按钮后弹出。
  *
  * 三态流（与 MerchantDialog 广告确认框判定序一致，composable 首帧判定）：
- * 1. Limit — 每日广告观看次数已达 20 次上限
+ * 1. Limit — 每日广告观看次数已达 15 次上限
  * 2. Cooldown — 距上次观看不足 60 秒
  * 3. Confirm — 正常确认框（观看广告获得 3 玉符）
  *
  * 广告玉符**不计入**每日 20 枚上限（用户决策），但广告观看次数仍受
- * 每日 20 次与 60 秒冷却限制（AdsDelegate 统一控制，与突破/商人广告一致）。
+ * 每日 15 次与 60 秒冷却限制（AdsDelegate 统一控制，与突破/商人广告一致）。
  */
 @Composable
 internal fun JadeSymbolAdDialog(
@@ -47,7 +47,7 @@ internal fun JadeSymbolAdDialog(
             StandardPromptDialog(
                 onDismissRequest = onDismiss,
                 title = "获得玉符",
-                text = "观看广告获得3玉符，最多观看20次广告。",
+                text = "观看广告获得3玉符，最多观看15次广告。",
                 dismissLabel = "取消",
                 confirmLabel = "观看",
                 onConfirm = {
