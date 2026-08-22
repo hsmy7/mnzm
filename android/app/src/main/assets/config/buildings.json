@@ -200,9 +200,9 @@
       "autoRestartEnabled": false,
       "cost": 15000,
       "gridWidth": 18,
-      "gridHeight": 19,
+      "gridHeight": 16,
       "spriteWidth": 18,
-      "spriteHeight": 20,
+      "spriteHeight": 18,
       "description": "处理宗门事务的核心建筑"
     },
     "multi_residence": {

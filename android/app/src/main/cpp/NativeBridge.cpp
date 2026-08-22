@@ -668,7 +668,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     else if (ftW == 6 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
                     else if (ftW == 5 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
                     else if (ftW == 6 && ftH == 2) ftIdx = 2;  // 门楼 6x2 → 3x2（拉伸）
-                    else if (ftW == 18 && ftH == 19) ftIdx = 3;  // 天枢殿 18x19（近方形）→ 3x3（拉伸）
+                    else if (ftW == 18 && ftH == 16) ftIdx = 3;  // 天枢殿 18x16（近方形）→ 3x3（拉伸）
                 }
 
                 if (ftIdx >= 0 && ftIdx < (int)ftuvCount) {
