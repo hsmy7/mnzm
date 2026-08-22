@@ -163,6 +163,7 @@ class SpriteCodegenSyncTest {
         assertContains(sprites, SpriteEntry("crop_mature", 960, 0, 64, 64))
         assertContains(sprites, SpriteEntry("灵矿场", 0, 256, 256, 256))
         assertContains(sprites, SpriteEntry("中级多人住所", 768, 1024, 256, 256))
+        assertContains(sprites, SpriteEntry("天枢殿", 1536, 512, 512, 512))  // 专属 512×512 高清槽位
         assertContains(sprites, SpriteEntry("floor_tile_3x3", 1280, 704, 192, 192))
         assertContains(sprites, SpriteEntry("spirit_mine_ground", 1280, 896, 256, 256))
         assertContains(sprites, SpriteEntry("sect_gate", 1536, 256, 384, 256))

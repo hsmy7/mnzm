@@ -211,6 +211,21 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
+    fun `天枢殿使用专属 512x512 高清槽位`() {
+        // 2026-08-23 清晰度根治：天枢殿显示 18×15 格（≈576×480 世界像素），默认 256 槽位
+        // 放大 2.25 倍仍糊——buildingRectOverrides 分配 512×512 专属槽位（图集 (1536,512)）
+        val idx = SpriteAtlasDef.BUILDING_NAME_INDEX["天枢殿"]
+            ?: throw AssertionError("天枢殿未在图集 BUILDING_NAMES 中注册")
+        assertEquals(
+            "天枢殿槽位 rect 与期望不一致——修改 buildingRectOverrides 后需同步本测试期望",
+            SpriteRect(1536, 512, 512, 512),
+            SpriteAtlasDef.buildingRect(idx)
+        )
+        // 其他建筑仍走行公式 256×256 槽位
+        assertEquals(SpriteRect(0, 256, 256, 256), SpriteAtlasDef.buildingRect(0))
+    }
+
+    @Test
     fun `生成物不含死代码命令类且保留复杂度抑制注解`() {
         val src = source()
         assertFalse("死代码类 FrameDrawCommand 不应出现在生成物中", src.contains("FrameDrawCommand"))

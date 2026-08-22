@@ -51,14 +51,18 @@ class SoftwareCanvasBackendAtlasTest {
     }
 
     @Test
-    fun `spriteAtlasDef - buildingRect matches BUILDING_NAMES size`() {
+    fun `spriteAtlasDef - buildingRect valid for all buildings`() {
+        // 2026-08-23：天枢殿使用专属 512×512 高清槽位（buildingRectOverrides），
+        // 不再要求全部等于 BUILDING_SIZE——改为：槽位必须为合法正方形，且默认行公式
+        // 槽位保持 BUILDING_SIZE（天枢殿 512 槽位由 SpriteAtlasDefGeneratedTest 专项锁定）
         for (i in SpriteAtlasDef.BUILDING_NAMES.indices) {
             val rect = SpriteAtlasDef.buildingRect(i)
             assertTrue("buildingRect $i: w=${rect.w}", rect.w > 0)
             assertTrue("buildingRect $i: h=${rect.h}", rect.h > 0)
-            assertEquals(SpriteAtlasDef.BUILDING_SIZE, rect.w)
-            assertEquals(SpriteAtlasDef.BUILDING_SIZE, rect.h)
+            assertEquals("buildingRect $i 应为正方形槽位 (w=${rect.w},h=${rect.h})", rect.w, rect.h)
         }
+        // 默认行公式槽位尺寸不受专属覆盖影响
+        assertEquals(SpriteAtlasDef.BUILDING_SIZE, SpriteAtlasDef.buildingRect(0).w)
     }
 
     @Test

@@ -78,6 +78,14 @@ const LAYOUT = {
     '中级多人住所',
   ],
   buildingColsPerRow: [5, 5, 5, 4],
+  // 建筑专属槽位覆盖（图集名 → 自定义 rect）：默认所有建筑走行公式 256×256 槽位；
+  // 大显示尺寸建筑（天枢殿 18×15 格 ≈ 576×480 世界像素）分配 512×512 高清槽位，
+  // 显示放大比从 2.25x 降至 ~1.1x（2026-08-23 清晰度根治）。位置须避开建筑行区
+  // （y=256~1280, x=0~1280）、地砖列（x=1280~1536, y=256~1152）、门楼（1536,256,384,256）
+  // 与云层区（y≥1408）——置于右侧 (1536,512) 起 512×512。
+  buildingRectOverrides: {
+    '天枢殿': [1536, 512, 512, 512],
+  },
   // 占地尺寸（FOOTPRINT_BY_NAME_INDEX，按建筑索引）
   footprints: [
     [4, 4], [4, 3], [1, 1], [4, 3], [5, 3], [6, 4], [6, 3], [4, 3], [4, 3], [18, 13],
@@ -139,7 +147,7 @@ const LAYOUT = {
     { name: '藏经阁', rect: [256, 512, 256, 256] },
     { name: '问道塔', rect: [512, 512, 256, 256] },
     { name: '青云塔', rect: [768, 512, 256, 256] },
-    { name: '天枢殿', rect: [1024, 512, 256, 256] },
+    { name: '天枢殿', rect: [1536, 512, 512, 512] },  // 专属 512×512 高清槽位（buildingRectOverrides）
     { name: '执法堂', rect: [0, 768, 256, 256] },
     { name: '任务阁', rect: [256, 768, 256, 256] },
     { name: '巡视楼', rect: [512, 768, 256, 256] },
@@ -238,8 +246,16 @@ function semanticIndices(layout) {
   };
 }
 
-/** 复刻 SpriteAtlasDef.buildingRect（图集行分布公式） */
+/**
+ * 复刻 SpriteAtlasDef.buildingRect（图集行分布公式，支持建筑专属槽位覆盖）。
+ * 覆盖表：图集名 → [x, y, w, h]（大显示建筑用高清槽位，见 LAYOUT.buildingRectOverrides）。
+ */
 function buildingRectOf(colsPerRow, nameIndex) {
+  const name = LAYOUT.buildingNames[nameIndex];
+  const override = name != null ? LAYOUT.buildingRectOverrides?.[name] : null;
+  if (override) {
+    return { x: override[0], y: override[1], w: override[2], h: override[3] };
+  }
   let idx = 0;
   for (let rowIndex = 0; rowIndex < colsPerRow.length; rowIndex++) {
     for (let col = 0; col < colsPerRow[rowIndex]; col++) {
@@ -304,6 +320,14 @@ function generateSpriteAtlasDef(layout) {
   const buildingNameLines = layout.buildingNames.map((n) => `        ${JSON.stringify(n)}`).join(',\n');
   const footprintLines = layout.footprints
     .map((fp, i) => `        ${fp[0]} to ${fp[1]},   // ${i}: ${layout.buildingNames[i]}`)
+    .join('\n');
+  // 建筑专属槽位覆盖（图集名 → [x,y,w,h]，大显示建筑用高清槽位）
+  const buildingOverrideLines = Object.entries(layout.buildingRectOverrides ?? {})
+    .map(([name, rect]) => {
+      const i = layout.buildingNames.indexOf(name);
+      if (i < 0) throw new Error(`buildingRectOverrides 引用未知建筑: "${name}"`);
+      return `        ${i} to SpriteRect(${rect.join(', ')}),   // ${name}`;
+    })
     .join('\n');
   const cropLines = layout.crops
     .map((c) => `        ${c.name}(SpriteRect(${c.rect.join(', ')}))`)
@@ -447,6 +471,11 @@ function generateSpriteAtlasDef(layout) {
     '        BUILDING_NAMES.withIndex().associate { it.value to it.index }',
     '    }',
     '',
+    '    /** 建筑专属槽位覆盖（索引 → 自定义图集 rect；大显示建筑用高清槽位） */',
+    '    private val BUILDING_RECT_OVERRIDES: Map<Int, SpriteRect> = mapOf(',
+    buildingOverrideLines,
+    '    )',
+    '',
     '    /**',
     '     * 占地尺寸（按 BUILDING_NAMES 索引，供渲染器查找占地面积用于地砖选择）。',
     '     * 建筑数据数组中传递的是精灵比例尺寸（spriteWidth/spriteHeight），',
@@ -465,13 +494,14 @@ function generateSpriteAtlasDef(layout) {
     '        var idx = 0',
     '        for (rowIndex in BUILDING_COLS_PER_ROW.indices) {',
     '            for (col in 0 until BUILDING_COLS_PER_ROW[rowIndex]) {',
-    '                val px = col * BUILDING_SIZE',
-    '                val py = BUILDING_SIZE + rowIndex * BUILDING_SIZE',
+    '                // 专属槽位覆盖优先，否则行公式 256×256 槽位',
+    '                val r = BUILDING_RECT_OVERRIDES[idx]',
+    '                    ?: SpriteRect(col * BUILDING_SIZE, BUILDING_SIZE + rowIndex * BUILDING_SIZE, BUILDING_SIZE, BUILDING_SIZE)',
     '                val i = idx * 4',
-    '                uvs[i] = px.toFloat() / ATLAS_W',
-    '                uvs[i + 1] = py.toFloat() / ATLAS_H',
-    '                uvs[i + 2] = (px + BUILDING_SIZE).toFloat() / ATLAS_W',
-    '                uvs[i + 3] = (py + BUILDING_SIZE).toFloat() / ATLAS_H',
+    '                uvs[i] = r.x.toFloat() / ATLAS_W',
+    '                uvs[i + 1] = r.y.toFloat() / ATLAS_H',
+    '                uvs[i + 2] = (r.x + r.w).toFloat() / ATLAS_W',
+    '                uvs[i + 3] = (r.y + r.h).toFloat() / ATLAS_H',
     '                idx++',
     '            }',
     '        }',
@@ -492,6 +522,7 @@ function generateSpriteAtlasDef(layout) {
     '     * @param nameIndex 建筑索引',
     '     */',
     '    fun buildingRect(nameIndex: Int): SpriteRect {',
+    '        BUILDING_RECT_OVERRIDES[nameIndex]?.let { return it }',
     '        var idx = 0',
     '        for (rowIndex in BUILDING_COLS_PER_ROW.indices) {',
     '            for (col in 0 until BUILDING_COLS_PER_ROW[rowIndex]) {',

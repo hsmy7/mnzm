@@ -57,6 +57,7 @@
 - **验证** — `compileReleaseKotlin` / `lintRelease` / 全量单测串行 `testReleaseUnitTest --max-workers=1` 全绿；codegen 产物（SpriteAtlasDef/footprint_table/SpriteCode/KTX/atlas-manifest）重新生成（layoutHash 更新）
 - **天枢殿尺寸：占地 18×13、精灵 18×15 + 全新外观素材** — 占地宽 18（精灵宽 18 等宽，消除两侧地基空隙）、占地高 13、精灵高 15（高于占地 2 格，屋顶微出）；三源配置 + 测试镜像同步；`LAYOUT.footprints[9]` 最终 [18,13]（重新生成 SpriteAtlasDef.kt + footprint_table.h，C++ FP_W/FP_H 自动同步）；地砖映射双端 18×13 → 3（近方形 → 3×3 地砖拉伸）；天枢殿精灵图按素材源目录 `D:\模拟宗门美术素材\天枢殿.png` 重新导入（`import-art-assets.mjs`，无损 WebP，双模块放置），KTX 图集重新生成；旧档经 `fixupBuildingSizes` 自动改宽高并钳位坐标；测试期望同步（`SpriteAtlasDefGeneratedTest` FOOTPRINT、`SoftwareCanvasBackendAtlasTest` floorTileIndex）
 - **天枢殿素材两侧透明留白根因修复（殿体未占满精灵绘制区域）** — 导入脚本 `import-art-assets.mjs` 固定 600×400（3:2）画布用 `contain`，而新素材源图 1405×1091（≈1.29:1）等比缩放后左右各留 44px 透明边 → 图集 `fit:fill` 拉伸进 256×256 槽位后殿体仅占精灵绘制区域 85%、两侧露出地砖。修复：画布比例自适应源图比例（以高度为基准重算宽度），contain 后内容恰好占满（实测左右留白 44px→2px）；天枢殿素材重新导入（515×400）并重新生成 KTX
+- **天枢殿专属 512×512 高清图集槽位（清晰度根治）** — 天枢殿显示 18×15 格（≈576×480 世界像素），256×256 槽位放大 2.25 倍仍不够清晰。新增 `LAYOUT.buildingRectOverrides` 建筑专属槽位覆盖机制（图集名 → 自定义 rect，codegen 同步到 SpriteAtlasDef.BUILDING_UV_MAP / buildingRect / C++ MAP_SPRITES），天枢殿分配图集 (1536,512) 512×512 专属槽位（避开建筑行区/地砖列/门楼/云层区），显示放大比降至 ~1.1 倍，素材细节全保留；KTX 重新生成（实测 512 槽位已填充、旧 256 槽位留空）；守卫测试：`SpriteAtlasDefGeneratedTest` 新增天枢殿 512 槽位断言、`SpriteCodegenSyncTest` MAP_SPRITES 抽查天枢殿条目、`SoftwareCanvasBackendAtlasTest` buildingRect 守卫放宽为"合法正方形 + 默认槽位保持 BUILDING_SIZE"
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染与静态资源配置变更，旧档经尺寸修正自动适配
 
 ## [4.01.07] - 2026-08-22
