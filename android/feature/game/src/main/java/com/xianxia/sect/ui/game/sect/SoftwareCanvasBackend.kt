@@ -487,13 +487,15 @@ class SoftwareCanvasBackend(
     // ── 精灵绘制 Paint ──
 
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-        isFilterBitmap = false
+        // 2026-08 图集建筑槽位 128→256 后放大仍可达 1.5x：双线性过滤消除 NEAREST 颗粒感，
+        // 与 Vulkan 图集 sampler（LINEAR）双端观感一致
+        isFilterBitmap = true
         isAntiAlias = false
         isDither = false
     }
 
     private val previewPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
-        isFilterBitmap = false
+        isFilterBitmap = true
         isAntiAlias = false
     }
 

@@ -53,7 +53,8 @@
 - **云层整体缩小 50%** — `CloudLayerAnimator.SCALE_MIN/MAX` 0.8~1.6 → 0.4~0.8（显示尺寸 = 图集原生 rect × 缩放，双后端共享同一快照，零图集改动）；`CloudLayerAnimatorTest` 新增缩放区间守卫
 - **云层速度 5→3 格/秒** — `CloudLayerAnimator.SPEED_TILES_PER_SECOND` 5→3（=96 世界像素/秒，现实时间）；测试断言/KDoc/NativeBridge 注释/渲染文档同步
 - **天枢殿占地 12×6、精灵 12×8** — `BuildingFeatureBoot.kt` / `BuildingConfigService` 默认配置 / assets `config/buildings.json` 三源同步（gridWidth 6→12、gridHeight 3→6、spriteWidth 6→12、spriteHeight 6→8）；`build-atlas.mjs LAYOUT.footprints[9]` [6,3]→[12,6]（FOOTPRINT_BY_NAME_INDEX 权威源，重新生成 SpriteAtlasDef.kt + footprint_table.h，C++ FP_W/FP_H 自动同步）；地砖映射双端新增 `12×6 → 3×2`（Kotlin `floorTileIndex` 模板 + `NativeBridge.cpp` 手写表）；旧档已建天枢殿经既有 `fixupBuildingSizes`（Boot/读档路径）自动改宽高并钳位坐标
-- **验证** — `compileReleaseKotlin` / `lintRelease` / 全量单测串行 `testReleaseUnitTest --max-workers=1` 全绿；codegen 产物（SpriteAtlasDef/footprint_table/SpriteCode/KTX/atlas-manifest）重新生成
+- **建筑贴图分辨率提升 128→256（天枢殿"糊"根治）** — 图集 `LAYOUT.buildingSize` 128→256：天枢殿 12×8 格显示（384×256 世界像素）放大倍数由 3 倍降至 1.5 倍，其余建筑同步受益。图集重排：建筑区 4 行 × 256px（行公式 y=256/512/768/1024，x=0~1280），地砖 5 种与宗门门楼移入建筑区右侧列（x≥1280），云层区不变；`LAYOUT.mapSprites`（C++ MAP_SPRITES 源）手写表同步；`SectAtlasAssembler`（运行时 RGBA 图集）/`SoftwareCanvasBackend`/`VulkanRenderBackend` 均动态消费 codegen 产物自动跟随。**配套：双路径图集采样 NEAREST→LINEAR**（`VulkanBackend.cpp` RGBA/ASTC 两处 sampler + `SoftwareCanvasBackend` 共享 paint `isFilterBitmap=true`），消除残余放大颗粒感，双端观感一致；测试期望同步（`SpriteAtlasDefGeneratedTest` BUILDING_SIZE/STRUCTURES/FloorTileType、`SpriteCodegenSyncTest` MAP_SPRITES 抽查条目与 BUILDING_W/H、`SoftwareCanvasBackendCloudTest` 灵田槽位坐标）
+- **验证** — `compileReleaseKotlin` / `lintRelease` / 全量单测串行 `testReleaseUnitTest --max-workers=1` 全绿；codegen 产物（SpriteAtlasDef/footprint_table/SpriteCode/KTX/atlas-manifest）重新生成（layoutHash 更新）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染与静态资源配置变更，旧档经尺寸修正自动适配
 
 ## [4.01.07] - 2026-08-22

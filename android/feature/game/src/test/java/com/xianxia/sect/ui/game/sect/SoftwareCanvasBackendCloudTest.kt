@@ -40,8 +40,8 @@ class SoftwareCanvasBackendCloudTest {
         val c = Canvas(bmp)
         // 地面源（chunk 底）
         c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
-        // 灵田建筑精灵源（nameIdx=2 → buildingRect(2) = (256,128,128,128)）= 白色
-        c.drawRect(256f, 128f, 384f, 256f, Paint().apply { color = Color.WHITE })
+        // 灵田建筑精灵源（nameIdx=2 → buildingRect(2) = (512,256,256,256)）= 白色
+        c.drawRect(512f, 256f, 768f, 512f, Paint().apply { color = Color.WHITE })
         // 云层 1 槽位（CLOUD_RECTS.first() = (0,1408,484,120)）= 亮青色
         val cloudRect = SpriteAtlasDef.CLOUD_RECTS.first().second
         c.drawRect(

@@ -34,7 +34,7 @@ class SpriteAtlasDefGeneratedTest {
         assertEquals("ATLAS_W", "2048", extractConst(src, "ATLAS_W"))
         assertEquals("ATLAS_H", "2048", extractConst(src, "ATLAS_H"))
         assertEquals("TILE_SIZE", "64", extractConst(src, "TILE_SIZE"))
-        assertEquals("BUILDING_SIZE", "128", extractConst(src, "BUILDING_SIZE"))
+        assertEquals("BUILDING_SIZE", "256", extractConst(src, "BUILDING_SIZE"))
     }
 
     @Test
@@ -67,7 +67,7 @@ class SpriteAtlasDefGeneratedTest {
     fun `STRUCTURES 固定结构与期望全等`() {
         val expected = listOf(
             StructureDef(
-                "宗门门楼", "sect_gate", intArrayOf(640, 128, 384, 256), 6, 2, 6, 4
+                "宗门门楼", "sect_gate", intArrayOf(1536, 256, 384, 256), 6, 2, 6, 4
             ),
         )
         val actual = parseStructures(source())
@@ -161,11 +161,11 @@ class SpriteAtlasDefGeneratedTest {
     @Test
     fun `FloorTileType 5 个枚举值及 rect 与期望全等`() {
         val expected = listOf(
-            Array5("TILE_2x2", "floor_tile_2x2", 2, 2, intArrayOf(0, 640, 128, 128)),
-            Array5("TILE_2x3", "floor_tile_2x3", 2, 3, intArrayOf(0, 768, 128, 192)),
-            Array5("TILE_3x2", "floor_tile_3x2", 3, 2, intArrayOf(0, 960, 192, 128)),
-            Array5("TILE_3x3", "floor_tile_3x3", 3, 3, intArrayOf(192, 960, 192, 192)),
-            Array5("SPIRIT_MINE_GROUND", "spirit_mine_ground", 4, 4, intArrayOf(0, 1152, 256, 256)),
+            Array5("TILE_2x2", "floor_tile_2x2", 2, 2, intArrayOf(1280, 256, 128, 128)),
+            Array5("TILE_2x3", "floor_tile_2x3", 2, 3, intArrayOf(1280, 384, 128, 192)),
+            Array5("TILE_3x2", "floor_tile_3x2", 3, 2, intArrayOf(1280, 576, 192, 128)),
+            Array5("TILE_3x3", "floor_tile_3x3", 3, 3, intArrayOf(1280, 704, 192, 192)),
+            Array5("SPIRIT_MINE_GROUND", "spirit_mine_ground", 4, 4, intArrayOf(1280, 896, 256, 256)),
         )
         val actual = parseFloorTiles(source())
         assertEquals(

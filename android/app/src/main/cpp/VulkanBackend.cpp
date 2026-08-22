@@ -1768,14 +1768,14 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         }
     }
 
-    // ---- Step 5: Sampler（图集 CLAMP_TO_EDGE + NEAREST；地面 REPEAT + LINEAR 平滑环绕） ----
+    // ---- Step 5: Sampler（图集与地面均 LINEAR 双线性平滑——2026-08 图集建筑槽位
+    // 128→256 后放大倍数仍可达 1.5x，NEAREST 会产生像素颗粒感，改 LINEAR 平滑；
+    // 地面整图铺 LINEAR 亦消除 REPEAT 环绕点纹理边界跳变的暗接缝） ----
     {
         VkSamplerCreateInfo sampInfo{};
         sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        // 地面整图铺用 LINEAR：环绕点插值过渡，消除 NEAREST 在纹理边界跳变产生的暗接缝
-        const VkBool32 linear = (addressMode == VK_SAMPLER_ADDRESS_MODE_REPEAT) ? VK_TRUE : VK_FALSE;
-        sampInfo.magFilter = linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
-        sampInfo.minFilter = linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+        sampInfo.magFilter = VK_FILTER_LINEAR;
+        sampInfo.minFilter = VK_FILTER_LINEAR;
         sampInfo.addressModeU = addressMode;
         sampInfo.addressModeV = addressMode;
         sampInfo.anisotropyEnable = VK_FALSE;
@@ -2004,12 +2004,13 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         }
     }
 
-    // ---- Step 5: Sampler（与 RGBA 路径同参数） ----
+    // ---- Step 5: Sampler（与 RGBA 路径同参数——图集 LINEAR 双线性平滑，
+    // 2026-08 与 RGBA 路径对齐：NEAREST 在建筑放大显示时有颗粒感） ----
     {
         VkSamplerCreateInfo sampInfo{};
         sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        sampInfo.magFilter = VK_FILTER_NEAREST;
-        sampInfo.minFilter = VK_FILTER_NEAREST;
+        sampInfo.magFilter = VK_FILTER_LINEAR;
+        sampInfo.minFilter = VK_FILTER_LINEAR;
         sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
         sampInfo.anisotropyEnable = VK_FALSE;

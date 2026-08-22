@@ -111,8 +111,8 @@ class SpriteCodegenSyncTest {
             "#define TREE_SIZE 128",
             "#define ATLAS_W 2048",
             "#define ATLAS_H 2048",
-            "#define BUILDING_W 128",
-            "#define BUILDING_H 128",
+            "#define BUILDING_W 256",
+            "#define BUILDING_H 256",
         )) {
             assertTrue("TextureAtlas.h 缺少常量行: $line", src.contains(line))
         }
@@ -161,11 +161,11 @@ class SpriteCodegenSyncTest {
         assertContains(sprites, SpriteEntry("ground_tile", 0, 0, 64, 64))
         assertContains(sprites, SpriteEntry("tree1", 256, 0, 128, 128))
         assertContains(sprites, SpriteEntry("crop_mature", 960, 0, 64, 64))
-        assertContains(sprites, SpriteEntry("灵矿场", 0, 128, 128, 128))
-        assertContains(sprites, SpriteEntry("中级多人住所", 384, 512, 128, 128))
-        assertContains(sprites, SpriteEntry("floor_tile_3x3", 192, 960, 192, 192))
-        assertContains(sprites, SpriteEntry("spirit_mine_ground", 0, 1152, 256, 256))
-        assertContains(sprites, SpriteEntry("sect_gate", 640, 128, 384, 256))
+        assertContains(sprites, SpriteEntry("灵矿场", 0, 256, 256, 256))
+        assertContains(sprites, SpriteEntry("中级多人住所", 768, 1024, 256, 256))
+        assertContains(sprites, SpriteEntry("floor_tile_3x3", 1280, 704, 192, 192))
+        assertContains(sprites, SpriteEntry("spirit_mine_ground", 1280, 896, 256, 256))
+        assertContains(sprites, SpriteEntry("sect_gate", 1536, 256, 384, 256))
         assertContains(sprites, SpriteEntry("cloud_1", 0, 1408, 484, 120))
         assertContains(sprites, SpriteEntry("cloud_5", 524, 1620, 472, 200))
         assertTrue(
