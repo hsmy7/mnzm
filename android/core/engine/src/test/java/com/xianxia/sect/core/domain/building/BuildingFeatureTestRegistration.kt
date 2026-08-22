@@ -82,7 +82,7 @@ private fun miscFeatures(): List<BuildingFeature> = listOf(
         cost = 8000, gridWidth = 4, gridHeight = 3),
     BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
         listOf(SlotGroup.ElderPositions.TIANSHU_HALL),
-        cost = 15000, gridWidth = 18, gridHeight = 14, spriteWidth = 18, spriteHeight = 16,
+        cost = 15000, gridWidth = 18, gridHeight = 13, spriteWidth = 18, spriteHeight = 15,
         isGloballyUnique = true),
     BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
         listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT),

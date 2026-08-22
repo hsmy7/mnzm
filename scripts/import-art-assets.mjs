@@ -37,8 +37,9 @@ const MODULE_DIRS = {
  * - modules：输出到的模块列表（feature/game 为建筑/地图精灵惯例，app 为双模块副本）
  */
 const IMPORT = {
-  // 天枢殿（新素材 1442×1091，2026-08-22 更新）——保持 600×400 与原精灵一致
-  '天枢殿': { out: 'building_tianshu_hall', canvasW: 600, canvasH: 400, modules: ['feature/game'] },
+  // 天枢殿（素材源更新，2026-08-22 用户替换）——等比缩放并透明延展到 600×400 画布，
+  // 双模块放置（feature/game 供运行时图集，app 副本与 KTX 拼装双端一致）
+  '天枢殿': { out: 'building_tianshu_hall', canvasW: 600, canvasH: 400, modules: ['feature/game', 'app'] },
   // 云层（世界顶部动态云朵，5 种形态，保持原生尺寸）
   '云层1': { out: 'cloud_1', modules: ['feature/game', 'app'] },
   '云层2': { out: 'cloud_2', modules: ['feature/game', 'app'] },
