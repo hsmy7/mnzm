@@ -55,6 +55,10 @@ class AtlasLayoutSyncTest {
         "crop_mature" to SpriteAtlasDef.CropStage.MATURE
     )
 
+    // 云层名称映射（C++ 名称 → Kotlin CLOUD_RECTS，与 LAYOUT.clouds 顺序一致）
+    private val cloudNameMap: Map<String, SpriteRect> =
+        SpriteAtlasDef.CLOUD_RECTS.associate { (name, rect) -> name to rect }
+
     @Test
     fun `MAP_SPRITES 建筑与 BUILDING_NAMES 双向一致`() {
         val cpp = parseMapSprites()
@@ -78,9 +82,10 @@ class AtlasLayoutSyncTest {
             )
         }
 
-        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构）必须是 BUILDING_NAMES 中的成员（无孤儿）
+        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构/非云层）必须是 BUILDING_NAMES 中的成员（无孤儿）
         val kotlinBuildingNames = SpriteAtlasDef.BUILDING_NAMES.toSet()
-        val knownNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys + structureNameMap.keys
+        val knownNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
+            structureNameMap.keys + cloudNameMap.keys
         val orphanBuildings = cpp
             .filter { it.name !in knownNames }
             .filter { it.name !in kotlinBuildingNames }
@@ -178,10 +183,37 @@ class AtlasLayoutSyncTest {
     }
 
     @Test
+    fun `MAP_SPRITES 云层与 CLOUD_RECTS rect 一致`() {
+        val cppByName = parseMapSprites().associateBy { it.name }
+
+        for ((cppName, rect) in cloudNameMap) {
+            val entry = cppByName[cppName]
+                ?: throw AssertionError("云层 '$cppName' 未在 TextureAtlas.h MAP_SPRITES 中注册——" +
+                    "新增云层精灵必须同步 SpriteAtlasDef.CLOUD_RECTS 与 C++ MAP_SPRITES")
+            assertEquals(
+                "云层 '$cppName' 图集位置 C++=(${entry.x},${entry.y},${entry.w},${entry.h}) " +
+                    "≠ Kotlin=(${rect.x},${rect.y},${rect.w},${rect.h})——" +
+                    "修改图集布局必须两端同步",
+                rect,
+                cppEntryToRect(entry)
+            )
+        }
+
+        // 反向覆盖：Kotlin 全部云层都应在 C++ 有映射
+        val uncoveredClouds = SpriteAtlasDef.CLOUD_RECTS
+            .filter { it.first !in cloudNameMap }
+        assertTrue(
+            "SpriteAtlasDef.CLOUD_RECTS 存在未在 C++ MAP_SPRITES 覆盖的云层: " +
+                "${uncoveredClouds.map { it.first }}——新增云层精灵必须同步 TextureAtlas.h",
+            uncoveredClouds.isEmpty()
+        )
+    }
+
+    @Test
     fun `MAP_SPRITES 无孤儿条目且 TileType 全部覆盖`() {
         val cpp = parseMapSprites()
         val coveredNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
-            structureNameMap.keys + SpriteAtlasDef.BUILDING_NAMES
+            structureNameMap.keys + cloudNameMap.keys + SpriteAtlasDef.BUILDING_NAMES
         val orphans = cpp.filter { it.name !in coveredNames }
         assertTrue(
             "TextureAtlas.h MAP_SPRITES 存在无法映射的孤儿条目: ${orphans.map { it.name }}——" +

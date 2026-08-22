@@ -102,7 +102,11 @@ class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBackend {
                 cropData = frame.spiritCropData,
                 cropUVMap = SpriteAtlasDef.CROP_UV_MAP,
                 // 批次 3 插值消费链：作物进度帧间平滑权重（仅渲染契约）
-                frameAlpha = frame.currentAlpha
+                frameAlpha = frame.currentAlpha,
+                // ★ 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
+                // 与 C++ 侧同一快照保证像素级一致；cloudUVMap 与 SpriteAtlasDef 同源）
+                cloudData = host.cloudData,
+                cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP
             )
         }
 

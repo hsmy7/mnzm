@@ -45,7 +45,7 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
         if (sb == null || atlas == null) return false
 
         val mergedFrame = mergeCameraAndBuildingData(frame)
-        val rendered = renderSoftwareFrame(sb, atlas, mergedFrame, viewportW, viewportH)
+        val rendered = renderSoftwareFrame(sb, atlas, mergedFrame, viewportW, viewportH, host.cloudData)
         return finishFrame(rendered)
     }
 
@@ -102,7 +102,8 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
         atlas: Bitmap,
         frame: RenderFrame,
         viewportW: Int,
-        viewportH: Int
+        viewportH: Int,
+        cloudData: FloatArray?
     ): Bitmap? {
         return try {
             sb.renderFrame(
@@ -111,7 +112,9 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                 vpW = viewportW.coerceAtLeast(1),
                 vpH = viewportH.coerceAtLeast(1),
                 // ★ 地图淡入 alpha（WP4）：渲染线程每帧计算，合成 paint.alpha 应用
-                fadeAlpha = host.fadeAlpha
+                fadeAlpha = host.fadeAlpha,
+                // ★ 云层实例数据（渲染线程逐帧快照——与 Vulkan 路径同一份数据）
+                cloudData = cloudData
             )
         } catch (e: RuntimeException) {
             android.util.Log.e("SoftwareRenderBackend", "renderFrame failed: ${e.message}", e)

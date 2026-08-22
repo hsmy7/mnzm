@@ -182,6 +182,35 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
+    fun `CLOUD_RECTS 5 个云层及 rect 与期望全等`() {
+        val expected = listOf(
+            Pair("cloud_1", intArrayOf(0, 1408, 484, 120)),
+            Pair("cloud_2", intArrayOf(484, 1408, 452, 188)),
+            Pair("cloud_3", intArrayOf(936, 1408, 488, 96)),
+            Pair("cloud_4", intArrayOf(0, 1620, 524, 108)),
+            Pair("cloud_5", intArrayOf(524, 1620, 472, 200)),
+        )
+        val actual = parseCloudRects(source())
+        assertEquals(
+            "CLOUD_RECTS 数量与期望不一致——修改 LAYOUT.clouds 后需同步本测试期望",
+            expected.size, actual.size
+        )
+        for (i in expected.indices) {
+            assertEquals("CLOUD_RECTS[${expected[i].first}] 名称", expected[i].first, actual[i].first)
+            assertEquals(
+                "CLOUD_RECTS[${expected[i].first}] rect",
+                expected[i].second.toList(),
+                actual[i].second.toList()
+            )
+        }
+        // 图集边界守卫：云层 rect 必须在 2048×2048 图集内（防 LAYOUT 手改越界）
+        val insideAtlas = actual.all { (_, r) ->
+            r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= SpriteAtlasDef.ATLAS_W && r[1] + r[3] <= SpriteAtlasDef.ATLAS_H
+        }
+        assertTrue("云层 rect 超出图集范围", insideAtlas)
+    }
+
+    @Test
     fun `生成物不含死代码命令类且保留复杂度抑制注解`() {
         val src = source()
         assertFalse("死代码类 FrameDrawCommand 不应出现在生成物中", src.contains("FrameDrawCommand"))
@@ -236,6 +265,22 @@ class SpriteAtlasDefGeneratedTest {
 
     private fun parseCropStages(src: String): List<Pair<String, IntArray>> {
         val regex = Regex("""^\s{8}(\w+)\(SpriteRect\((\d+), (\d+), (\d+), (\d+)\)\)[,;]?$""", RegexOption.MULTILINE)
+        return regex.findAll(src).map { m ->
+            Pair(
+                m.groupValues[1],
+                intArrayOf(
+                    m.groupValues[2].toInt(), m.groupValues[3].toInt(),
+                    m.groupValues[4].toInt(), m.groupValues[5].toInt()
+                )
+            )
+        }.toList()
+    }
+
+    private fun parseCloudRects(src: String): List<Pair<String, IntArray>> {
+        val regex = Regex(
+            """^\s{8}"(\w+)" to SpriteRect\((\d+), (\d+), (\d+), (\d+)\)[,]?$""",
+            RegexOption.MULTILINE
+        )
         return regex.findAll(src).map { m ->
             Pair(
                 m.groupValues[1],

@@ -45,6 +45,7 @@
 | dirty_frame_skip | 脏帧跳过（静止画面跳过渲染与指标：相机/帧引用/总线/淡入/缩放五守卫；EWMA 跳帧不统计防虚高） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP3（FrameSkipPolicyTest） |
 | power_save_mode | 系统省电模式监听（ACTION_POWER_SAVE_MODE_CHANGED → fpsCap 30；与低电量 45 取 min；evaluatePowerPolicy 纯函数） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP5（BatteryAwareControllerTest 扩展） |
 | dynamic_adpf_target | ADPF 目标帧时长动态化（实际帧率 → 系统性能预算；frameDurationNs 纯函数 + renderFrameRate collect 联动） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP4（GameEngineCoreFpsPolicyTest + ThermalMonitorTest 扩展） |
+| cloud_layer | 世界顶部动态云朵（CloudLayerAnimator 渲染线程驱动：只在世界外生成/横向穿越/出界消失，速度 5 格/秒，随机类型/方向/Y/缩放/透明度；实例数据快照 host.cloudData 双后端共享；绘制在建筑/作物层之上、高亮/预览/网格线之下；skipDecor 同判定降级；云活跃时 cloudDirty 阻止脏帧跳过） | ✅ | ✅ | ✅ | 2026-08-22（CloudLayerAnimatorTest + SoftwareCanvasBackendCloudTest + FrameSkipPolicyTest） |
 
 ## 新增特性流程
 

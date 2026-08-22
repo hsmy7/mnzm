@@ -18,6 +18,16 @@
 - **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志留待批次 9（引擎切换）时追加功能说明
 - **规则固化（2026-08-22）** — CLAUDE.md 用户公约新增第 15 条「根因修复」（修复必须从症状追溯到根因、用正确逻辑覆盖，禁止打补丁式绕过）与第 16 条「C++ 优先」（新增/修改的引擎核心逻辑一律优先 C++，UI 层保持 Compose/Kotlin）；落地细则见 `rules/cpp-priority.md`，质量规则同步至 `rules/code-quality.md`
 
+### 美术更新（2026-08-22 动态云层 + 天枢殿新外观 + 素材源目录）
+
+- **新增动态云层** — 宗门地图世界顶部动态云朵：只在世界外生成（左外生成右移 / 右外生成左移）、横向穿越世界、完全移出对侧边缘后在 世界外消失；速度固定 5 格/秒；随机云层类型（5 种精灵）、方向、Y（顶部条带）、缩放/透明度、生成间隔与并发数。绘制在建筑/作物层之上（可遮挡建筑）、UI（Compose 覆盖层）之下（不遮挡任何界面）。引擎 `CloudLayerAnimator`（feature/game 纯 Kotlin，渲染线程驱动）→ 逐帧实例快照 `host.cloudData` → Vulkan（`NativeBridge.cpp drawAllTiles` 云层段）与 Canvas（`SoftwareCanvasBackend.drawClouds`）双后端共享同一份数据，像素级一致；云活跃时 `cloudDirty` 阻止脏帧跳过，无云静止时恢复省电；热控/缩放 LOD 与装饰层同判定降级
+- **天枢殿精灵替换** — 新 `天枢殿.png`（1442×1091）经无损转换（WebP lossless）替换 `building_tianshu_hall.webp`（600×400，与原精灵一致）
+- **素材源目录固化** — `D:\模拟宗门美术素材` 登记为项目唯一美术素材权威源（`rules/static-resources.md` 新增章节）；新导入脚本 `scripts/import-art-assets.mjs`（PNG → 无损 WebP → 双模块 drawable-nodpi，映射表登记）；删除过时脚本 `scripts/optimize-building-images.mjs`（有损/单模块）
+- **图集** — `LAYOUT.clouds` 新增 5 个云层槽位（图集 y≥1408 空闲区，保持纵横比），KTX（ASTC）与 RGBA 双路径图集同步重生成（`atlas_astc.ktx` 40 精灵 / `atlas-manifest.json` layoutHash 更新 / `sprite-uid-map.json` 新增 cloud_1~5 UID）
+- **测试** — 新增 `CloudLayerAnimatorTest`（世界外生成/双方向/5 格每秒位移/出界消失不泄漏/值域/dt 钳制）+ `SoftwareCanvasBackendCloudTest`（建筑之上/视口剔除/alpha×fade/装饰降级跳过/非法数据防御）；`FrameSkipPolicyTest` 新增 cloudDirty；守卫测试同步（`SpriteAtlasDefGeneratedTest` 云层 rect、`AtlasManifestSyncTest` 云层条目、`SpriteCodegenSyncTest` MAP_SPRITES 39 条）
+- **验证** — `compileReleaseKotlin` BUILD SUCCESSFUL；新测试类通过
+- **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；纯渲染与静态资源变更，旧档无影响
+
 ## [4.01.07] - 2026-08-22
 
 ### 修复（2026-08-22 解决已知问题）

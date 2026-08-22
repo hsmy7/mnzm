@@ -3,9 +3,9 @@
   "format": "ASTC_4x4_LDR",
   "width": 2048,
   "height": 2048,
-  "layoutHash": "02506727370bc5df",
-  "generatedAt": "2026-08-17T17:17:20.748Z",
-  "spriteCount": 35,
+  "layoutHash": "5c258fba571887b2",
+  "generatedAt": "2026-08-22T14:06:50.852Z",
+  "spriteCount": 40,
   "sprites": [
     {
       "name": "GROUND",
@@ -286,6 +286,46 @@
       "w": 384,
       "h": 256,
       "drawable": "sect_gate"
+    },
+    {
+      "name": "cloud_1",
+      "x": 0,
+      "y": 1408,
+      "w": 484,
+      "h": 120,
+      "drawable": "cloud_1"
+    },
+    {
+      "name": "cloud_2",
+      "x": 484,
+      "y": 1408,
+      "w": 452,
+      "h": 188,
+      "drawable": "cloud_2"
+    },
+    {
+      "name": "cloud_3",
+      "x": 936,
+      "y": 1408,
+      "w": 488,
+      "h": 96,
+      "drawable": "cloud_3"
+    },
+    {
+      "name": "cloud_4",
+      "x": 0,
+      "y": 1620,
+      "w": 524,
+      "h": 108,
+      "drawable": "cloud_4"
+    },
+    {
+      "name": "cloud_5",
+      "x": 524,
+      "y": 1620,
+      "w": 472,
+      "h": 200,
+      "drawable": "cloud_5"
     }
   ]
 }

@@ -108,6 +108,9 @@ static std::atomic<float> g_fadeAlpha{1.0f};
 static std::map<int64_t, float> g_lastCropProgress;
 static std::vector<int64_t> g_activeCropKeys;
 
+// 云层实例数据单条步长（[x, y, w, h, spriteIndex, alpha]，与 CloudLayerAnimator.CLOUD_DATA_STRIDE 同值）
+static constexpr int CLOUD_DATA_STRIDE = 6;
+
 /** 检查世界坐标矩形是否与视口相交（可见性检测） */
 static inline bool isRectVisible(float x, float y, float w, float h) {
     // 矩形完全在视口之外才返回 false
@@ -446,7 +449,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloatArray floorTileUVMap,  // 建筑 UV 映射 + 地砖 UV 映射
     jfloatArray cropData,        // 灵田作物数据 [gx, gy, progress01] × N（WP6，可 null）
     jfloatArray cropUVMap,       // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6，可 null）
-    jfloat frameAlpha) {         // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑）
+    jfloat frameAlpha,           // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑）
+    jfloatArray cloudData,       // 云层实例数据 [x, y, w, h, spriteIndex, alpha] × N（可 null）
+    jfloatArray cloudUVMap) {    // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可 null）
 
     if (!g_renderer || !tileData || !uvMap) return;
 
@@ -796,6 +801,59 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 
         env->ReleaseFloatArrayElements(cropData, crops, JNI_ABORT);
         env->ReleaseFloatArrayElements(cropUVMap, cuvs, JNI_ABORT);
+    }
+
+    // ---- 3.5 云层（世界顶部动态云朵——建筑/作物之上、UI 之下） ----
+    // 实例数据由 Kotlin CloudLayerAnimator 逐帧生成（只在世界外生成/穿越/出界消失，
+    // 速度 5 格/秒）；本段只消费快照，与 Canvas 侧 drawClouds 同一份数据保证双端一致。
+    if (cloudData && cloudUVMap) {
+        jfloat* clouds = env->GetFloatArrayElements(cloudData, nullptr);
+        jfloat* cuvs = env->GetFloatArrayElements(cloudUVMap, nullptr);
+        jsize cuvCount = env->GetArrayLength(cloudUVMap) / 4;
+        jsize cloudCount = env->GetArrayLength(cloudData) / CLOUD_DATA_STRIDE;
+
+        // 热控降质/装饰关闭/缩放 LOD 时跳过（与装饰层同判定——云层属装饰性环境动画）
+        const bool skipClouds = g_decorationsDisabled.load() ||
+                                g_qualityFactor.load() < DECOR_QUALITY_THRESHOLD ||
+                                (g_decorLod.load() && g_scale < DECOR_QUALITY_THRESHOLD);
+        if (!skipClouds) {
+            for (int i = 0; i < cloudCount; i++) {
+                int idx = i * CLOUD_DATA_STRIDE;
+                float cx = clouds[idx];
+                float cy = clouds[idx + 1];
+                float cw = clouds[idx + 2];
+                float ch = clouds[idx + 3];
+                float alpha = clouds[idx + 5];
+
+                // NaN/非法值防御（数据篡改层——非法实例不画任何像素；
+                // alpha 用显式 NaN 判定：NaN 比较恒 false 会穿透区间检查）
+                if (cx != cx || cy != cy || cw != cw || ch != ch) continue;
+                if (cw <= 0.0f || ch <= 0.0f) continue;
+                if (alpha != alpha || alpha < 0.0f || alpha > 1.0f) continue;
+                if (cx < -1e6f || cx > 1e6f || cy < -1e6f || cy > 1e6f) continue;
+
+                if (!isRectVisible(cx, cy, cw, ch)) continue;
+
+                // spriteIndex → UV 索引（NaN/负值/越界统一回退 0，仿 crop 段防御风格）
+                float spriteF = clouds[idx + 4];
+                int uvIdx;
+                if (!(spriteF >= 0.0f && spriteF < (float)cuvCount)) {
+                    uvIdx = 0;
+                } else {
+                    uvIdx = static_cast<int>(spriteF);
+                }
+
+                batcher.add(atlasTexId, cx, cy, cw, ch,
+                    cuvs[uvIdx * 4] + UV_EPSILON,
+                    cuvs[uvIdx * 4 + 1] + UV_EPSILON,
+                    cuvs[uvIdx * 4 + 2] - UV_EPSILON,
+                    cuvs[uvIdx * 4 + 3] - UV_EPSILON,
+                    1.0f, 1.0f, 1.0f, alpha * fadeAlpha);
+            }
+        }
+
+        env->ReleaseFloatArrayElements(cloudData, clouds, JNI_ABORT);
+        env->ReleaseFloatArrayElements(cloudUVMap, cuvs, JNI_ABORT);
     }
 
     // ---- 4. 提交合并后的图集绘制 ----

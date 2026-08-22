@@ -143,7 +143,7 @@ class SpriteCodegenSyncTest {
     }
 
     @Test
-    fun `TextureAtlas 头 - MAP_SPRITES 35 条与期望全等`() {
+    fun `TextureAtlas 头 - MAP_SPRITES 39 条与期望全等`() {
         val src = headerSource()
         val spriteRegex = Regex("""\{ "([^"]+)",\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\},\s*""")
         val sprites = spriteRegex.findAll(src).map { m ->
@@ -154,8 +154,8 @@ class SpriteCodegenSyncTest {
             )
         }.toList()
         assertEquals(
-            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 5 地砖 + 1 结构 = 34）",
-            34, sprites.size
+            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 5 地砖 + 1 结构 + 5 云层 = 39）",
+            39, sprites.size
         )
         // 抽查关键条目（数据与 Kotlin LAYOUT 同源，见 build-atlas.mjs）
         assertContains(sprites, SpriteEntry("ground_tile", 0, 0, 64, 64))
@@ -166,6 +166,8 @@ class SpriteCodegenSyncTest {
         assertContains(sprites, SpriteEntry("floor_tile_3x3", 192, 960, 192, 192))
         assertContains(sprites, SpriteEntry("spirit_mine_ground", 0, 1152, 256, 256))
         assertContains(sprites, SpriteEntry("sect_gate", 640, 128, 384, 256))
+        assertContains(sprites, SpriteEntry("cloud_1", 0, 1408, 484, 120))
+        assertContains(sprites, SpriteEntry("cloud_5", 524, 1620, 472, 200))
         assertTrue(
             "MAP_SPRITE_COUNT 计算式必须存在（C++ 侧依赖）",
             src.contains("MAP_SPRITE_COUNT") && src.contains("sizeof(MAP_SPRITES)")

@@ -56,6 +56,15 @@ object SectAtlasAssembler {
         R.drawable.growing_spiritgrass9,
     )
 
+    /** 云层精灵 drawable（按 SpriteAtlasDef.CLOUD_RECTS 声明顺序）。 */
+    private val CLOUD_DRAWABLE_LIST = listOf(
+        R.drawable.cloud_1,
+        R.drawable.cloud_2,
+        R.drawable.cloud_3,
+        R.drawable.cloud_4,
+        R.drawable.cloud_5,
+    )
+
     /**
      * 构建地图图集位图（2048×2048 ARGB_8888）。
      *
@@ -89,7 +98,7 @@ object SectAtlasAssembler {
     private fun buildSpriteSlots(): List<SpriteSlot> {
         val buildingMap = BuildingFeatureRegistry.all.associate { it.displayName to it.drawableRes }
         return buildTileSlots() + buildBuildingSlots(buildingMap) +
-            buildFloorSlots() + buildCropSlots() + buildStructureSlots()
+            buildFloorSlots() + buildCropSlots() + buildStructureSlots() + buildCloudSlots()
     }
 
     /** 瓦片/装饰精灵槽位（含 6 种草皮地面变体）。 */
@@ -142,6 +151,15 @@ object SectAtlasAssembler {
             SpriteSlot(
                 s.name, s.rect.x, s.rect.y, s.rect.w, s.rect.h,
                 STRUCTURE_DRAWABLE_MAP[s.key] ?: 0
+            )
+        }
+
+    /** 云层精灵槽位（世界顶部动态云朵——图集槽位，位置/运动由 CloudLayerAnimator 驱动）。 */
+    private fun buildCloudSlots(): List<SpriteSlot> =
+        SpriteAtlasDef.CLOUD_RECTS.mapIndexed { index, (name, rect) ->
+            SpriteSlot(
+                name, rect.x, rect.y, rect.w, rect.h,
+                CLOUD_DRAWABLE_LIST.getOrNull(index) ?: 0
             )
         }
 

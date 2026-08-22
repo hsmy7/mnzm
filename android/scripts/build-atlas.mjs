@@ -101,6 +101,15 @@ const LAYOUT = {
   structures: [
     { name: '宗门门楼', key: 'sect_gate', rect: [640, 128, 384, 256], footprint: [6, 2], spriteSize: [6, 4] },
   ],
+  // 云层精灵（世界顶部动态云朵的图集槽位——仅提供精灵，位置/运动由
+  // CloudLayerAnimator 逐帧驱动。放在图集 y≥1408 空闲区，保持源素材纵横比）
+  clouds: [
+    { name: 'cloud_1', rect: [0, 1408, 484, 120] },
+    { name: 'cloud_2', rect: [484, 1408, 452, 188] },
+    { name: 'cloud_3', rect: [936, 1408, 488, 96] },
+    { name: 'cloud_4', rect: [0, 1620, 524, 108] },
+    { name: 'cloud_5', rect: [524, 1620, 472, 200] },
+  ],
   // 双端共享渲染常量（原 NativeBridge.cpp / RenderLodPolicy.kt / BuildingRenderGeometry.kt
   // 三处同值手工同步——2026-08-13 收敛为单一数据源，Kotlin/C++ 双产物自动一致）
   lodThreshold: 0.6,
@@ -142,6 +151,11 @@ const LAYOUT = {
     { name: 'floor_tile_3x3', rect: [192, 960, 192, 192] },
     { name: 'spirit_mine_ground', rect: [0, 1152, 256, 256] },
     { name: 'sect_gate', rect: [640, 128, 384, 256] },
+    { name: 'cloud_1', rect: [0, 1408, 484, 120] },
+    { name: 'cloud_2', rect: [484, 1408, 452, 188] },
+    { name: 'cloud_3', rect: [936, 1408, 488, 96] },
+    { name: 'cloud_4', rect: [0, 1620, 524, 108] },
+    { name: 'cloud_5', rect: [524, 1620, 472, 200] },
   ],
 };
 
@@ -268,6 +282,9 @@ function generateSpriteAtlasDef(layout) {
     .join(',\n');
   const structureDefLines = layout.structures
     .map((s) => `        StructureDef(${JSON.stringify(s.name)}, ${JSON.stringify(s.key)}, SpriteRect(${s.rect.join(', ')}), ${s.footprint[0]}, ${s.footprint[1]}, ${s.spriteSize[0]}, ${s.spriteSize[1]})`)
+    .join(',\n');
+  const cloudRectLines = layout.clouds
+    .map((c) => `        ${JSON.stringify(c.name)} to SpriteRect(${c.rect.join(', ')})`)
     .join(',\n');
   const groundVariantLines = si.groundVariants.join(', ');
 
@@ -485,6 +502,33 @@ function generateSpriteAtlasDef(layout) {
     '            uv[i + 1] = r.y.toFloat() / ATLAS_H',
     '            uv[i + 2] = (r.x + r.w).toFloat() / ATLAS_W',
     '            uv[i + 3] = (r.y + r.h).toFloat() / ATLAS_H',
+    '        }',
+    '        uv',
+    '    }',
+    '',
+    '    // ============================================================',
+    '    // 云层精灵（世界顶部动态云朵——图集槽位，位置/运动由',
+    '    // CloudLayerAnimator 逐帧驱动，渲染端只按槽位取 UV/源矩形）',
+    '    // ============================================================',
+    '',
+    '    /** 云层精灵图集 rect（按 LAYOUT.clouds 声明顺序，Canvas 渲染取源矩形） */',
+    '    val CLOUD_RECTS: List<Pair<String, SpriteRect>> = listOf(',
+    cloudRectLines,
+    '    )',
+    '',
+    '    /**',
+    '     * 云层 UV 映射（归一化 0-1，按云层索引，供 Vulkan 纹理采样）。',
+    '     * 与 C++ TextureAtlas.h MAP_SPRITES cloud_* 同源。',
+    '     */',
+    '    val CLOUD_UV_MAP: FloatArray by lazy {',
+    '        val uv = FloatArray(CLOUD_RECTS.size * 4)',
+    '        for ((i, entry) in CLOUD_RECTS.withIndex()) {',
+    '            val r = entry.second',
+    '            val j = i * 4',
+    '            uv[j] = r.x.toFloat() / ATLAS_W',
+    '            uv[j + 1] = r.y.toFloat() / ATLAS_H',
+    '            uv[j + 2] = (r.x + r.w).toFloat() / ATLAS_W',
+    '            uv[j + 3] = (r.y + r.h).toFloat() / ATLAS_H',
     '        }',
     '        uv',
     '    }',
@@ -784,6 +828,14 @@ function buildSpriteList() {
     sprites.push({
       name: st.key, x: st.rect[0], y: st.rect[1], w: st.rect[2], h: st.rect[3],
       drawable: st.key,
+    });
+  });
+
+  // 云层精灵（LAYOUT.clouds 声明顺序；drawable = key = 资源文件名）
+  LAYOUT.clouds.forEach((c) => {
+    sprites.push({
+      name: c.name, x: c.rect[0], y: c.rect[1], w: c.rect[2], h: c.rect[3],
+      drawable: c.name,
     });
   });
 

@@ -377,6 +377,37 @@ class NativeSurfaceView(
     @Volatile
     var commandBus: RenderCommandBus? = null
 
+    // ── 云层动画（2026-08-22：世界顶部动态云朵） ──
+
+    /**
+     * 云层动画引擎（渲染线程驱动——只在世界外生成/穿越/出界消失，速度 5 格/秒）。
+     * 构造期初始化（世界尺寸来自 [config]）；跳帧期间仍随节拍唤醒推进生成定时器。
+     */
+    val cloudAnimator = CloudLayerAnimator(
+        worldWidthPx = config.worldPixelWidth.toFloat()
+    )
+
+    /**
+     * 当前帧云层实例数据快照（[CloudLayerAnimator.snapshot] 输出；
+     * 渲染线程写、双后端读——同一份快照保证 Vulkan/Canvas 像素级一致）。
+     */
+    @Volatile
+    var cloudData: FloatArray? = null
+
+    /**
+     * 推进云层动画并刷新 [cloudData]（渲染线程每节拍调用）。
+     *
+     * @param nowNs 当前时间戳（纳秒）
+     * @return 本帧是否必须渲染（云朵移动/生成/销毁）
+     */
+    fun updateClouds(nowNs: Long): Boolean {
+        val dirty = cloudAnimator.update(nowNs)
+        if (dirty) {
+            cloudData = cloudAnimator.snapshot()
+        }
+        return dirty
+    }
+
     /**
      * 相机脏标记 — [currentFrame] 更新时置 true，渲染线程读取后复位。
      * 使用 [AtomicBoolean] 防止 Compose 线程与 RenderThread 之间的
@@ -1037,10 +1068,13 @@ class NativeSurfaceView(
                 //   直至真实渲染，防相机移动丢失）
                 val frame = currentFrame
                 val fade = fadeAlpha
+                // ★ 云层动画推进（渲染线程每节拍调用——跳帧期间也随节拍唤醒推进生成
+                //   定时器，空天空不会卡死；返回值作为脏帧信号，云朵运动不被跳帧定格）
+                val cloudDirty = updateClouds(System.nanoTime())
                 // 淡入完成兜底（2026-08-18）：淡入已结束但最后一帧仍以淡入中 alpha
                 // 渲染时强制补渲一帧完整不透明地图——防脏帧跳过把"半透明瓦片 +
                 // 米白清屏色 #F2EDE4"帧永久定格（"进入游戏全屏半透明白色覆盖"根因）
-                if (shouldSkipFrame(frame, lastRenderedFrame) &&
+                if (shouldSkipFrame(frame, lastRenderedFrame, cloudDirty) &&
                     !needsFadeCompletionFrame(lastRenderedFadeAlpha, fade)
                 ) {
                     diagSkipCount++
@@ -1073,14 +1107,19 @@ class NativeSurfaceView(
         }
 
         /** 脏帧跳过判定（信号收集 + FrameSkipPolicy 纯函数） */
-        private fun shouldSkipFrame(frame: RenderFrame?, lastRenderedFrame: RenderFrame?): Boolean {
+        private fun shouldSkipFrame(
+            frame: RenderFrame?,
+            lastRenderedFrame: RenderFrame?,
+            cloudDirty: Boolean
+        ): Boolean {
             return FrameSkipPolicy.shouldSkipFrame(
                 FrameSkipInputs(
                     cameraDirty = cameraDirty.get(),
                     frameChanged = frame !== lastRenderedFrame,
                     buildingBusDirty = commandBus?.buildingDirty?.get() ?: false,
                     fadeActive = fadeAlpha < 1f,
-                    scaleChanged = softwareRenderScaleVersion != lastRenderedScaleVersion
+                    scaleChanged = softwareRenderScaleVersion != lastRenderedScaleVersion,
+                    cloudDirty = cloudDirty
                 )
             )
         }

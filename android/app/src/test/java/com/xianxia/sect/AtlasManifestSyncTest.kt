@@ -145,6 +145,10 @@ class AtlasManifestSyncTest {
             val r = s.rect
             list += SpriteEntry(s.key, r.x, r.y, r.w, r.h)
         }
+        // 云层精灵（build-atlas.mjs buildSpriteList 在 structures 之后追加）
+        for ((name, r) in SpriteAtlasDef.CLOUD_RECTS) {
+            list += SpriteEntry(name, r.x, r.y, r.w, r.h)
+        }
         return list
     }
 

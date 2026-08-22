@@ -14,13 +14,14 @@ import org.junit.Test
  */
 class FrameSkipPolicyTest {
 
-    /** 全静止输入（五守卫全 false） */
+    /** 全静止输入（六守卫全 false） */
     private fun idleInputs() = FrameSkipInputs(
         cameraDirty = false,
         frameChanged = false,
         buildingBusDirty = false,
         fadeActive = false,
-        scaleChanged = false
+        scaleChanged = false,
+        cloudDirty = false
     )
 
     @Test
@@ -51,6 +52,12 @@ class FrameSkipPolicyTest {
     @Test
     fun `render scale changed - must render`() {
         assertFalse(FrameSkipPolicy.shouldSkipFrame(idleInputs().copy(scaleChanged = true)))
+    }
+
+    @Test
+    fun `cloud dirty - must render`() {
+        // 云朵运动/生成/销毁 → 画面持续变化，必须渲染（防云层动画被脏帧跳过定格）
+        assertFalse(FrameSkipPolicy.shouldSkipFrame(idleInputs().copy(cloudDirty = true)))
     }
 
     @Test

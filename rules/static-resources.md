@@ -13,19 +13,27 @@
 - 跨模块共享的 UI 资源放 `android/core/ui/src/main/res/drawable-nodpi/`
 - **禁止**直接提交 PNG/JPG 格式的游戏图片资源
 
-### 1.2 转换工具
+### 1.2 素材源目录与转换工具
+
+**素材源目录（唯一权威源）：`D:\模拟宗门美术素材`**
+
+所有游戏美术的 PNG 源文件一律放在该目录，仓库内只存 WebP 产物（PNG 不提交）。
+今后任何素材改动流程：**新素材/改素材放入源目录 → 运行导入脚本 → 构建验证**。
+素材源目录与 drawable 的映射关系登记在 `scripts/import-art-assets.mjs` 的 `IMPORT` 表中，
+新增素材只需在该表加一行（源文件名 → drawable 名 + 目标模块）后运行脚本。
 
 有现成的 Node.js 转换脚本：
 
 ```bash
+# 素材源目录导入：PNG → 无损 WebP（按 scripts/import-art-assets.mjs 的 IMPORT 映射表
+# 输出到对应模块 drawable-nodpi；天枢殿等比缩放+透明延展 600×400，云层保持原生尺寸）
+node scripts/import-art-assets.mjs
+
 # 批量转换 PNG → 无损 WebP（扫描所有资源目录，转换后自动删除原 PNG）
 node scripts/convert-remaining-pngs-to-webp.mjs
-
-# 建筑图片优化（从外部源目录取 PNG，输出 WebP 到 drawable-nodpi）
-node scripts/optimize-building-images.mjs
 ```
 
-转换参数（`convert-remaining-pngs-to-webp.mjs`）：
+转换参数（`convert-remaining-pngs-to-webp.mjs` 与 `import-art-assets.mjs` 统一）：
 - `lossless: true` — 无损压缩
 - `effort: 6` — 最高压缩率
 

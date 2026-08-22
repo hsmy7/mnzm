@@ -18,6 +18,9 @@ package com.xianxia.sect.ui.game.sect
  * - 地图淡入中 → [FrameSkipInputs.fadeActive] = true → 不跳
  * - renderScale/qualityFactor 变化 → [FrameSkipInputs.scaleChanged] = true → 不跳
  *   （强制重渲染应用新缩放/帧缓冲重建）
+ * - 云朵运动/生成/销毁 → [FrameSkipInputs.cloudDirty] = true → 不跳
+ *   （云层动画由渲染线程逐节拍推进——跳帧期间仍推进生成定时器，云活跃时画面
+ *   持续变化必须渲染；无云静止时恢复跳帧省电）
  *
  * ## 与帧率阶梯的关系
  * 循环仍按帧率节拍唤醒（30 次/秒唤醒成本可忽略），仅跳过渲染与指标统计——
@@ -36,7 +39,8 @@ object FrameSkipPolicy {
             !inputs.frameChanged &&
             !inputs.buildingBusDirty &&
             !inputs.fadeActive &&
-            !inputs.scaleChanged
+            !inputs.scaleChanged &&
+            !inputs.cloudDirty
 }
 
 /**
@@ -52,7 +56,9 @@ data class FrameSkipInputs(
     /** 地图淡入进行中（fadeAlpha < 1） */
     val fadeActive: Boolean,
     /** 渲染缩放/画质因子变化（需强制重渲染应用） */
-    val scaleChanged: Boolean
+    val scaleChanged: Boolean,
+    /** 云层动画变化（云朵移动/生成/销毁——云活跃时画面持续变化必须渲染） */
+    val cloudDirty: Boolean
 )
 
 /**

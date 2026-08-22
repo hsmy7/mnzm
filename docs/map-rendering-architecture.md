@@ -9,7 +9,7 @@
 
 ```
 渲染顺序（由 C++ VulkanBackend::submitFrame 提交）：
-  Layer 1: 统一瓦片层 — 地面+装饰+建筑全部从图集取 UV，SpriteBatcher 合并为 1 次 draw call
+  Layer 1: 统一瓦片层 — 地面+装饰+建筑+地砖+作物+云层全部从图集取 UV，SpriteBatcher 合并为 1 次 draw call
   Layer 2: Preview    — 纯色矩形（放置/移动预览）→ 白色纹理乘以顶点颜色
 ```
 
@@ -108,7 +108,6 @@ UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtla
 ## 装饰物生成算法
 
 `SectMapTileGenerator.generateTileData()` 使用**平滑噪声地块**方案：
-
 | 装饰类型 | 斑块尺度 | 斑块覆盖 | 斑块内密度 | 算法 |
 |---------|---------|---------|-----------|------|
 | 草 (3 变体) | 8×8 | ~14%（0.18 密度时） | ~80% | `smoothNoise(scale=8)` 确定草地斑块区域，斑块内密集分布 |
@@ -354,6 +353,21 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 | **4.0.41** | **Vulkan v2 统一图集逐格渲染** | 2 draw calls、无双空指针/LINEAR+REPEAT/栈溢出 bug、视锥剔除 |
 | **4.0.41** | **Canvas 软件回退渲染 (SoftwareCanvasBackend)** | Vulkan 失败时自动降级，模拟器/Vulkan 问题设备全覆盖，零 C++ 依赖 |
 
+## 动态云层（2026-08-22）
+
+世界顶部动态云朵，绘制在建筑/作物层之上（可遮挡建筑）、UI（Compose 覆盖层）之下。
+
+- **动画引擎**：`CloudLayerAnimator`（feature/game，纯 Kotlin）由渲染线程每节拍驱动——
+  只在世界外生成（左外生成右移 / 右外生成左移）、横向穿越世界、完全移出对侧边缘后消失；
+  速度固定 **5 格/秒**（= 5 × `GameConfig.SectMap.TILE_SIZE`）；随机类型（5 种精灵）、
+  方向、Y（世界顶部条带内）、缩放/透明度、生成间隔与并发数。
+- **数据通道**：逐帧实例快照 `[x, y, w, h, spriteIndex, alpha] × N` 写入
+  `NativeSurfaceView.cloudData`，Vulkan（`drawAllTiles` 云层段）与 Canvas（`drawClouds`）
+  消费同一份数据，保证双端像素级一致；云活跃时 `cloudDirty` 阻止脏帧跳过（静止画面恢复省电）。
+- **降级**：与装饰层同判定（热控 quality<0.6 / 装饰关闭 / 缩放 LOD<0.6 时整层跳过）。
+- **图集**：云层精灵槽位在 `build-atlas.mjs LAYOUT.clouds`（图集 y≥1408 空闲区，
+  保持源素材纵横比），KTX（ASTC）与 RGBA 运行时图集双路径同源。
+
 ## 美术资源清单
 
 所有地图资源放在 `drawable-nodpi`（需同时放入 `:app` 和 `:feature:game` 模块）：
@@ -368,6 +382,7 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 | `decoration_grass_large.webp` | 大草丛装饰 | `大草丛.png` |
 | `decoration_tree1.webp` | 树变体 1 | `树木1.png` |
 | `decoration_tree2.webp` | 树变体 2 | `树木2.png` |
+| `cloud_1.webp` ~ `cloud_5.webp` | 世界顶部动态云朵（5 种形态，图集槽位见 `LAYOUT.clouds`） | `云层1.png` ~ `云层5.png` |
 
 > 草皮由 `convert-grass-tiles.mjs` 无损转 webp（64×64，已做无缝平铺处理）；门楼转 2× 分辨率
 > （门楼 384×256 = 6×4 格）。其余已删除/替换的草皮与阶梯资源均已清理。

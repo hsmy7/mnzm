@@ -72,6 +72,9 @@ class SoftwareCanvasBackend(
         /** 灵田作物数据单条步长（[gx, gy, progress01]） */
         private const val CROP_DATA_STRIDE = 3
 
+        /** 云层实例数据单条步长（[x, y, w, h, spriteIndex, alpha]） */
+        private const val CLOUD_DATA_STRIDE = 6
+
         /** 高亮线宽（格数）：max(2px, tileSize×0.06) 的格数分量 */
         private const val HIGHLIGHT_LINE_WIDTH_TILES = 0.06f
 
@@ -517,6 +520,13 @@ class SoftwareCanvasBackend(
         isDither = false
     }
 
+    /** 云层 Paint（独立实例——逐帧改 alpha 不得污染共享 paint，仿 cropPaint 惯例） */
+    private val cloudPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+        isFilterBitmap = false
+        isAntiAlias = false
+        isDither = false
+    }
+
     /** 批次 3 插值消费链：上一帧作物原始进度（key=gx/gy 编码，见 [cropProgressKey]） */
     private val lastCropProgress = HashMap<Long, Float>()
 
@@ -538,6 +548,17 @@ class SoftwareCanvasBackend(
         for (stage in SpriteAtlasDef.CropStage.values()) {
             val sr = stage.rect
             rects[stage.ordinal] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
+        }
+        @Suppress("UNCHECKED_CAST")
+        rects as Array<Rect>
+    }
+
+    /** 云层精灵图源矩形（按 SpriteAtlasDef.CLOUD_RECTS 声明顺序，与 C++ CLOUD_UV_MAP 同源） */
+    private val cloudSrcRects: Array<Rect> by lazy {
+        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.CLOUD_RECTS.size)
+        for ((index, entry) in SpriteAtlasDef.CLOUD_RECTS.withIndex()) {
+            val sr = entry.second
+            rects[index] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
         }
         @Suppress("UNCHECKED_CAST")
         rects as Array<Rect>
@@ -590,7 +611,8 @@ class SoftwareCanvasBackend(
         atlas: Bitmap,
         vpW: Int,
         vpH: Int,
-        fadeAlpha: Float = 1f
+        fadeAlpha: Float = 1f,
+        cloudData: FloatArray? = null
     ): Bitmap? {
         // ★ 装饰层 LOD 最终判定（WP5）：scale/热控/显式关闭三条件收敛于
         // RenderLodPolicy 纯函数（与 C++ skipDecor 同阈值双端对齐）。
@@ -637,9 +659,10 @@ class SoftwareCanvasBackend(
             rebuildInvalidChunks(atlas, frame, decorSkip)
         }
 
-        // 合成可见 chunk → 灵田作物层 → 选中高亮 → 拆除高亮 → 预览精灵 → 网格线
+        // 合成可见 chunk → 灵田作物层 → 云层 → 选中高亮 → 拆除高亮 → 预览精灵 → 网格线
         composeVisibleChunks(canvas, frame, tileSize, drawScale, fbW, fbH, fadeAlpha)
         drawCrops(canvas, atlas, frame, fadeAlpha, drawScale)
+        drawClouds(canvas, atlas, frame, cloudData, decorSkip, fadeAlpha, drawScale)
         if (config.renderFlags.selectionHighlight) {
             drawSelectionHighlight(canvas, frame, drawScale)
         }
@@ -1039,6 +1062,64 @@ class SoftwareCanvasBackend(
         val degenerate = right - left <= 0 || bottom - top <= 0
         val visible = !offScreenX && !offScreenY && !degenerate
         return if (visible) Rect(left, top, right, bottom) else null
+    }
+
+    // ============================================================
+    // 云层绘制（世界顶部动态云朵）
+    // ============================================================
+
+    /**
+     * 绘制云层（逐帧动态叠加，不烘焙 chunk）。
+     *
+     * 数据源 [cloudData]（[x, y, w, h, spriteIndex, alpha] × N，渲染线程逐帧生成快照，
+     * 与 C++ 侧同一份数据——双端像素级一致）。绘制在建筑/作物层之后（可遮挡建筑）、
+     * 高亮/预览/网格线之前（不遮挡交互反馈）。alpha = 实例 alpha × 全局淡入，
+     * 与 C++ 侧 `alpha * fadeAlpha` 同数学。
+     *
+     * 防御：NaN/非法值跳过（与 C++ 段同语义——非法实例不画任何像素）；视口剔除；
+     * decorSkip（热控/装饰关闭/缩放 LOD）时整层跳过——与装饰层同判定，低端设备自动降级。
+     */
+    private fun drawClouds(
+        canvas: Canvas,
+        atlas: Bitmap,
+        frame: RenderFrame,
+        cloudData: FloatArray?,
+        decorSkip: Boolean,
+        fadeAlpha: Float,
+        drawScale: Float
+    ) {
+        if (cloudData == null || decorSkip) return
+        val count = cloudData.size / CLOUD_DATA_STRIDE
+        if (count == 0) return
+        val fade = fadeAlpha.coerceIn(0f, 1f)
+        for (i in 0 until count) {
+            val idx = i * CLOUD_DATA_STRIDE
+            val x = cloudData[idx]
+            val y = cloudData[idx + 1]
+            val w = cloudData[idx + 2]
+            val h = cloudData[idx + 3]
+            val spriteIndex = cloudData[idx + 4]
+            val alpha = cloudData[idx + 5]
+            // NaN/非法值防御（与 C++ 段同语义——非法实例不画任何像素）
+            if (x.isNaN() || y.isNaN() || w.isNaN() || h.isNaN()) continue
+            if (w <= 0f || h <= 0f) continue
+            if (alpha.isNaN() || alpha < 0f || alpha > 1f) continue
+            val src = cloudSrcRects.getOrNull(spriteIndex.toInt()) ?: continue
+
+            // 视口剔除（世界坐标 → 帧缓冲像素；与 cropScreenRect 同风格）
+            val left = ((x - frame.camX) * drawScale).roundToInt()
+            val top = ((y - frame.camY) * drawScale).roundToInt()
+            val right = ((x + w - frame.camX) * drawScale).roundToInt()
+            val bottom = ((y + h - frame.camY) * drawScale).roundToInt()
+            val offScreenX = right <= 0 || left >= canvas.width
+            val offScreenY = bottom <= 0 || top >= canvas.height
+            val degenerate = right - left <= 0 || bottom - top <= 0
+            if (offScreenX || offScreenY || degenerate) continue
+
+            cloudPaint.alpha = (alpha * fade * 255).toInt().coerceIn(0, 255)
+            canvas.drawBitmap(atlas, src, Rect(left, top, right, bottom), cloudPaint)
+        }
+        cloudPaint.alpha = 255 // 防御性恢复（cloudPaint 仅本方法使用，保持惯例防未来共享）
     }
 
     // ============================================================
