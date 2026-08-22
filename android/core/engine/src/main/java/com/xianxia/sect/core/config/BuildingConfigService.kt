@@ -451,9 +451,9 @@ class BuildingConfigService @Inject constructor(
             baseSuccessRate = 1.0,
             cost = 15000,
             gridWidth = 18,
-            gridHeight = 16,
+            gridHeight = 14,
             spriteWidth = 18,
-            spriteHeight = 18,
+            spriteHeight = 16,
             description = "处理宗门事务的核心建筑"
         ),
         "multi_residence" to BuildingConfigModel(

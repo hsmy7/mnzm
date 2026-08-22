@@ -126,7 +126,7 @@ class SpriteAtlasDefGeneratedTest {
     fun `FOOTPRINT_BY_NAME_INDEX 19 对占地尺寸与期望全等`() {
         val expected = listOf(
             intArrayOf(4, 4), intArrayOf(4, 3), intArrayOf(1, 1), intArrayOf(4, 3), intArrayOf(5, 3),
-            intArrayOf(6, 4), intArrayOf(6, 3), intArrayOf(4, 3), intArrayOf(4, 3), intArrayOf(18, 16),
+            intArrayOf(6, 4), intArrayOf(6, 3), intArrayOf(4, 3), intArrayOf(4, 3), intArrayOf(18, 14),
             intArrayOf(6, 3), intArrayOf(4, 3), intArrayOf(4, 3), intArrayOf(4, 4), intArrayOf(4, 4),
             intArrayOf(6, 6), intArrayOf(6, 4), intArrayOf(4, 4), intArrayOf(6, 5),
         )
