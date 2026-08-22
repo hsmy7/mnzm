@@ -203,18 +203,22 @@ private fun CloudSaveIdleSection(
         )
     }
 
+    // 2026-08-23 并发根治：启动流程进行中禁用云存档按钮（防御性增强，
+    // 入口层统一守卫已保证安全，此处减少"点击后被拒绝"的体验）
+    val bootInProgress by saveLoadViewModel.bootInProgress.collectAsState()
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         GameButton(
             text = "上传存档",
             onClick = { saveLoadViewModel.uploadToCloudSave() },
-            enabled = saveLoadViewModel.isCloudSaveAvailable()
+            enabled = saveLoadViewModel.isCloudSaveAvailable() && !bootInProgress
         )
         GameButton(
             text = "下载存档",
             onClick = { saveLoadViewModel.downloadFromCloudSave() },
-            enabled = saveLoadViewModel.isCloudSaveAvailable() && cloudSaveInfo.hasSaveData
+            enabled = saveLoadViewModel.isCloudSaveAvailable() && cloudSaveInfo.hasSaveData && !bootInProgress
         )
     }
 }

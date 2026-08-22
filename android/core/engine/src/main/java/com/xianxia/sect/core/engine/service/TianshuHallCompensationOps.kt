@@ -13,7 +13,6 @@ import kotlinx.serialization.serializer
  * 读档时直接删除，通过本邮件补偿玩家 1000 万灵石（用户指定金额）。
  * 独立文件保持 BootSequenceController 规模稳定（参照 MailCompensationOps 拆分模式）。
  */
-private const val TAG = "TianshuCompensation"
 
 /** 补偿邮件稳定 ID（天枢殿全局唯一 + 删除后不再触发 → 天然幂等） */
 private const val TIANSHU_COMPENSATION_MAIL_ID = "tianshu_hall_rebuild_compensation_v1"

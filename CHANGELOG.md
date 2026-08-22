@@ -61,6 +61,17 @@
 - **旧档天枢殿删除 + 补偿邮件（1000 万灵石，用户决策）** — 天枢殿历经多次占地/精灵尺寸调整（6×3 → … → 18×13），旧档遗留天枢殿（占地尺寸与当前配置不符）读档时**直接删除**，通过邮件补偿 1000 万灵石并告知玩家最终改动。实现：`BuildingLoadSelfHeal.filterLegacyTianshuHalls` 纯函数在 Step 3 fixup **之前**识别旧档天枢殿（fixup 会统一修正尺寸，先判定才能识别）；BootSequenceController 新增 Step 3.1 `migrateLegacyTianshuHalls`——**先发邮件成功再删建筑**（插入失败保留建筑、已被 fixup 成当前尺寸、下次不重发，杜绝"删了没补偿"的资产丢失）；删除时同步清空天枢殿 ElderPositions 职务（副宗主/招募长老回归空闲）；补偿邮件 `TianshuHallCompensationOps.buildTianshuCompensationMail`（mailType=compensation，附件下品灵石 10,000,000，7 天有效）；测试：`BuildingLoadSelfHealTest` 纯函数识别测试 + `TianshuHallCompensationOpsTest` 邮件构造测试（金额/文案/附件）+ `BootSequenceControllerTest` 集成测试（旧尺寸删除+发邮件 / 当前尺寸保留不发 / 邮件失败保留建筑）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染与静态资源配置变更，旧档经尺寸修正自动适配
 
+### 修复（2026-08-23 云存档独立会话 + 启动流程并发根治）
+
+> 背景：用户实报两个云存档缺陷——(1) 游戏外（主菜单）读取云存档后加载界面永久卡在"正在同步云存档中"；(2) 多次点击读取云存档报"boot() already in progress for slot 1"。经根因排查确认与 C++ 迁移（批次 0-3 纯新增骨架未接入运行时）**无关**，为云读档流程自身的两个独立缺陷，本次一并根治。
+
+- **云存档独立会话（根因修复卡死）** — 云读档/云下载不再写入本地 1..6 槽位：`SlotLockManager.slotIndexMap` 纳入云会话槽位 0（`isValidSlot(0)=true`，锁/存储层放行）；`handleCloudLoadSuccess`/`handleCloudDownloadSuccess` 删除"落盘当前槽位 + 备份 + 覆盖确认（`awaitOverwriteConfirmation`）"，改为 `applyCloudSaveToEngine` 以云会话槽位 0 直接内存加载 + boot（`reconcileCloudSlot` 目标恒为 0，repository 脏写落 `game_data_0` 云镜像，UI 槽位列表不暴露）。根因：原覆盖确认弹窗 `GameCloudOverwriteSection` 仅在游戏主界面（`MainGameScreen`→`GameOverlayHost`）组合，主菜单云读档处于加载界面（`mapPreloadData==null`）时弹窗永不渲染 → `awaitOverwriteConfirmation` 永久挂起 → 卡死。云档不再落盘本地槽位后覆盖场景不存在，卡死根除。云会话保存语义：手动保存到 1..6 为显式导出，保存到"云存档"（slot 0）为上传云，重启落 slot 0 云镜像
+- **启动流程并发根治（根因修复 boot already in progress）** — `BootSequenceController` 重入保护从私有 `AtomicBoolean` 升级为公开只读 `bootInProgress: StateFlow<Boolean>`（内部仍 `compareAndSet` 拒绝式兜底）；`SaveLoadViewModel` 新增统一前置守卫 `isBootOperationBlocked()`，5 个触发 boot 的入口（`startNewGame`/`loadGameInternal`/`restartGame`/`downloadFromCloudSave`/`loadFromCloudSave`）统一检查 `bootInProgress` 并补齐不对称锁检查：`startNewGame` 补查 `cloudDownloadLock`/`_isRestarting`/`loadLock`/`saveLock`/`isSaving`，`restartGame` 补查 `cloudDownloadLock`，云入口补查 `_isRestarting`/`saveLock`。根因：云读档/云下载路径持有 `cloudDownloadLock` 期间不设 `isLoading`（设计决定），而 `startNewGame`/`restartGame` 不查该锁；且 boot 进行中 `runState` 短暂置 RELOADING 使 `isGameLoaded` 守卫失效——并发窗口内第二个 boot 被拒绝式保护挡下报错。统一守卫在状态污染前拦截
+- **UI 防御性增强** — `CloudSaveDialog` 上传/下载按钮在 `bootInProgress` 期间禁用（入口守卫已保证安全，此为减少"点击后被拒绝"的体验）
+- **死代码清理** — 移除覆盖确认全链路（`CloudOverwriteRequest`/`confirmCloudOverwrite`/`cancelCloudOverwrite`/`pendingCloudLoadData`/`pendingCloudLoadSlot`/`cloudOverwriteContinuation`/`awaitOverwriteConfirmation`/`backupCurrentSlotBeforeCloudLoad`/`GameCloudOverwriteSection`）
+- **测试** — `SaveLoadViewModelLoadTest` 云读档/云下载用例重写为云会话语义（断言不落盘、boot 以 slot 0 执行）+ 新增 7 个并发守卫测试（boot 进行中 5 入口全拒绝、云下载进行中 restartGame/startNewGame 拒绝）；`SlotLockManagerTest` 新增 slot 0 合法断言；`BootSequenceControllerTest` 回归通过
+- **兼容性** — 无 Entity/Migration/DB 变更（DATABASE_VERSION 不变）；云档加载语义变化：不再覆盖本地槽位（玩家保存需显式选择槽位或上传云），本地 1..6 存档零影响；`isValidSlot(0)=true` 波及面审查：UI 槽位列表仍只显示 1..6 + 虚拟云入口，slot 0 本地读写仅云会话内部可达
+
 ## [4.01.07] - 2026-08-22
 
 ### 修复（2026-08-22 解决已知问题）

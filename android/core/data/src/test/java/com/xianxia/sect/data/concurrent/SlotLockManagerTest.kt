@@ -17,14 +17,19 @@ class SlotLockManagerTest {
     // ==================== isValidSlot ====================
 
     @Test
+    fun `isValidSlot - slot 0 (cloud session) is valid`() {
+        assertTrue("云会话槽位 0 应为合法槽位", lockManager.isValidSlot(0))
+    }
+
+    @Test
     fun `isValidSlot - slot 1 is valid`() {
         assertTrue(lockManager.isValidSlot(1))
     }
 
 
     @Test
-    fun `isValidSlot - slots 1 to maxSlots are valid`() {
-        for (slot in 1..5) {
+    fun `isValidSlot - slots 0 to maxSlots are valid`() {
+        for (slot in 0..5) {
             assertTrue("Slot $slot should be valid", lockManager.isValidSlot(slot))
         }
     }
@@ -43,6 +48,12 @@ class SlotLockManagerTest {
     @Test
     fun `isValidSlot - slot -10 is invalid`() {
         assertFalse(lockManager.isValidSlot(-10))
+    }
+
+    @Test
+    fun `withWriteLockLight - executes block for cloud session slot 0`() = runTest {
+        val result = lockManager.withWriteLockLight(0) { "cloud_session" }
+        assertEquals("cloud_session", result)
     }
 
     // ==================== getMaxSlots ====================

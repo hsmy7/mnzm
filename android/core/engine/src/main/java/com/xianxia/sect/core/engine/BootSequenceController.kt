@@ -15,7 +15,6 @@ import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,8 +53,19 @@ class BootSequenceController @Inject constructor(
         private const val MAP_GENERATE_RETRY_COUNT = 2
     }
 
-    /** 重入保护：防止 boot() 被并发调用 */
-    private val bootInProgress = AtomicBoolean(false)
+    /**
+     * 启动流程是否正在进行（只读状态）。
+     *
+     * 2026-08-23 并发根治：作为入口层统一互斥信号——SaveLoadViewModel 所有
+     * 会触发 [boot] 的入口（新游戏/读档/重启/云读档/云下载）前置检查此状态，
+     * 防止"云存档操作进行中（不设 isLoading，互斥依赖 cloudDownloadLock）而
+     * 其他入口不查该锁"的守卫不对称窗口导致并发 boot。UI 层亦可监听此状态
+     * 禁用相关按钮（防御性增强）。内部仍保留拒绝式原子保护作为最后防线。
+     */
+    val bootInProgress: kotlinx.coroutines.flow.StateFlow<Boolean> get() = _bootInProgress
+
+    /** 重入保护：防止 boot() 被并发调用（暴露为 [bootInProgress] 只读状态） */
+    private val _bootInProgress = kotlinx.coroutines.flow.MutableStateFlow(false)
 
     /**
      * 统一启动入口。必须在 [gameEngine.loadData] / [gameEngine.createNewGame] 之后调用。
@@ -86,7 +96,7 @@ class BootSequenceController @Inject constructor(
         var gameStarted = false
 
         try {
-            if (!bootInProgress.compareAndSet(false, true)) {
+            if (!_bootInProgress.compareAndSet(false, true)) {
                 val err = "boot() already in progress for slot $slot"
                 DomainLog.w(TAG, err)
                 onError(err)
@@ -284,7 +294,7 @@ class BootSequenceController @Inject constructor(
             onError(e.message ?: "启动失败")
             return Result.failure(e)
         } finally {
-            bootInProgress.set(false)
+            _bootInProgress.value = false
         }
     }
 

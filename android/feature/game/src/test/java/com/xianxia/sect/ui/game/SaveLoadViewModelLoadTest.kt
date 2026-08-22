@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import com.xianxia.sect.core.engine.BootSequenceController
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.GameStateSnapshot
@@ -11,6 +12,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -25,7 +27,6 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
-import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
@@ -77,6 +78,7 @@ class SaveLoadViewModelLoadTest {
     private val storageFacade: StorageFacade = mockk(relaxed = true)
     private val tapCloudSaveManager: TapCloudSaveManager = mockk(relaxed = true)
     private val sessionManager: SessionManager = mockk(relaxed = true)
+    private val bootSequenceController: BootSequenceController = mockk(relaxed = true)
 
     private lateinit var viewModel: SaveLoadViewModel
 
@@ -97,6 +99,12 @@ class SaveLoadViewModelLoadTest {
         every { persistenceFacade.storageFacade } returns storageFacade
         every { persistenceFacade.tapCloudSaveManager } returns tapCloudSaveManager
         every { persistenceFacade.sessionManager } returns sessionManager
+        // 2026-08-23 并发根治：统一守卫读 bootInProgress + applyCloudSaveToEngine
+        // 调 boot——relaxed mock 返回 null 会 NPE，显式 stub 为 false/成功
+        every { persistenceFacade.bootSequenceController } returns bootSequenceController
+        every { bootSequenceController.bootInProgress } returns MutableStateFlow(false)
+        coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.success(Unit)
         every { sessionManager.isLoggedIn } returns true
         // 下载覆盖前"备份当前存档"会 load 当前槽位——relaxed mock 对非空泛型
         // 返回 null 导致 NPE，显式 stub 为"当前无存档"
@@ -120,6 +128,12 @@ class SaveLoadViewModelLoadTest {
         // stopGameLoopAndWait——relaxed mock 默认返回 false 会中止读档流程，
         // 现有用例全部需要默认成功；各用例自己的 coEvery stub 后注册覆盖此处
         coEvery { gameEngineCore.stopGameLoopAndWait(any()) } returns true
+        // 2026-08-23 云会话：applyCloudSaveToEngine 读 gameEngine.gameData.value
+        //（AISectDiscipleManager.initForSlot(loadedGd.mapSeed)）——relaxed mock
+        // 返回 null 会 NPE 使 boot 不执行，显式 stub 为最小有效游戏数据
+        every { gameEngine.gameData } returns MutableStateFlow(
+            GameData(sectName = "青云宗", saveVersion = 2)
+        )
 
         viewModel = SaveLoadViewModel(
             gameEngine = gameEngine,
@@ -193,54 +207,54 @@ class SaveLoadViewModelLoadTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 用例 1：云档迁移管线（v0→2）+ save 失败中止
+    // 用例 1：云档迁移管线（v0→2）+ 云会话独立加载（不落盘本地槽位）
+    // 2026-08-23：云存档独立会话——迁移/校验/堆叠重建后直接内存加载 + boot，
+    // 不写任何本地槽位（原实现落盘当前槽位 + 覆盖确认，主菜单场景确认弹窗
+    // 不渲染导致永久卡死，已根治）
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `performCloudLoad - old v0 cloud save migrated to v2 before local write`() = runTest(testDispatcher) {
+    fun `performCloudLoad - old v0 cloud save migrated before cloud session load`() = runTest(testDispatcher) {
         // 老版本上传的 v0 云档（修炼值未缩放）
         coEvery { tapCloudSaveManager.downloadSave() } returns
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "青云宗", saveVersion = 0))
             )
-        // save 失败注入：同时验证"迁移发生在 save 前"与"失败后不再继续读档"
-        //（MockK 标准模式：stub 用 any()，捕获用 verify 的 capture）
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.failure(SaveError.SAVE_FAILED, "injected failure")
 
         viewModel.loadFromCloudSave()
         advanceUntilIdle()
 
-        // 迁移管线已在 save 前应用：saveVersion 0 → 2
-        val saveSlot = slot<SaveData>()
-        coVerify { storageFacade.save(any(), capture(saveSlot)) }
-        assertEquals("云档迁移后 saveVersion 应为 2", 2, saveSlot.captured.gameData.saveVersion)
-        // save 失败 → 中止：不再刷新存档元数据、不进入读档流程
-        //（getSaveSlotsSuspend 与 loadGameFromSlot 均在 save 成功之后才执行）
-        coVerify(exactly = 1) { storageFacade.getSaveSlotsSuspend() }
+        // 云会话独立加载：迁移后的数据直接进内存（boot），不落盘任何本地槽位
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) {
+            bootSequenceController.boot(
+                StorageConstants.CLOUD_SAVE_SLOT, any(), any(), any(), any(), any(), any()
+            )
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 用例 2：云档完整性校验修复（损坏可修复数据修复后写入）
+    // 用例 2：云档完整性校验修复（损坏可修复数据修复后加载）
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `performCloudLoad - corrupted but repairable cloud save is repaired before write`() = runTest(testDispatcher) {
+    fun `performCloudLoad - corrupted but repairable cloud save is repaired before load`() = runTest(testDispatcher) {
         // 负灵石（经济系统异常数据）→ SaveValidator 的 SpiritStoneNonNegativeRule 修复为 0
         coEvery { tapCloudSaveManager.downloadSave() } returns
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2, spiritStones = -100L))
             )
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.failure(SaveError.SAVE_FAILED, "injected failure")
 
         viewModel.loadFromCloudSave()
         advanceUntilIdle()
 
-        val saveSlot = slot<SaveData>()
-        coVerify { storageFacade.save(any(), capture(saveSlot)) }
-        assertEquals("负灵石应在写入前修复为 0", 0L, saveSlot.captured.gameData.spiritStones)
-        coVerify(exactly = 1) { storageFacade.getSaveSlotsSuspend() }
+        // 可修复数据修复后直接云会话加载（不落盘，无 save 注入失败路径）
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) {
+            bootSequenceController.boot(
+                StorageConstants.CLOUD_SAVE_SLOT, any(), any(), any(), any(), any(), any()
+            )
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -266,171 +280,104 @@ class SaveLoadViewModelLoadTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 用例 4：正常路径（无加载进行中）允许下载
+    // 用例 4：正常路径（无加载进行中）允许下载并云会话加载
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `performCloudDownload - proceeds when no load in progress`() = runTest(testDispatcher) {
+    fun `performCloudDownload - proceeds and loads cloud session`() = runTest(testDispatcher) {
         coEvery { tapCloudSaveManager.downloadSave() } returns
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
             )
-        // 游戏内下载会持久化到当前槽位（本次修复），save 失败注入避免深链
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.failure(SaveError.SAVE_FAILED, "injected failure")
+        every { stateStore.isSaving } returns MutableStateFlow(false)
 
         viewModel.downloadFromCloudSave()
         advanceUntilIdle()
 
         coVerify(exactly = 1) { tapCloudSaveManager.downloadSave() }
+        // 云会话独立加载：不落盘本地槽位，直接内存加载 + boot
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) {
+            bootSequenceController.boot(
+                StorageConstants.CLOUD_SAVE_SLOT, any(), any(), any(), any(), any(), any()
+            )
+        }
         val state = viewModel.cloudSaveOperationState.value
         assertTrue(
-            "save 失败应返回 Error 状态，实际: $state",
-            state is CloudSaveOperationState.Error
+            "云下载成功应返回 Success 状态，实际: $state",
+            state is CloudSaveOperationState.Success
         )
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // C1（2026-08-05）：主菜单云读档自阻塞——loadGameFromSlot 透传 fromCloudLoad
+    // C1（2026-08-05）：主菜单云读档直达云会话（不再经 loadGameFromSlot）
+    // 2026-08-23：云读档成功路径直接 applyCloudSaveToEngine（内存加载 + boot），
+    // 原 loadGameFromSlot → loadGameInternal 链路（落盘 + 读档）已废弃
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `performCloudLoad - success path proceeds to loadGame`() = runTest(testDispatcher) {
-        // C1 修复前：handleCloudLoadSuccess 调 loadGameFromSlot → loadGame 的
-        // cloudDownloadLock 守卫拒绝（performCloudLoad 全程持锁）→ 云档已落盘但
-        // 内存加载永不执行（主菜单云读档必失败）。修复后 fromCloudLoad=true 绕过。
+    fun `performCloudLoad - success path loads cloud session directly`() = runTest(testDispatcher) {
         coEvery { tapCloudSaveManager.downloadSave() } returns
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2, currentSlot = 1))
             )
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.Success(Unit)
-        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
-        // A6：目标槽位 = getCurrentSlot()（relaxed mock 返回 0 会走向非法槽位）
-        every { storageFacade.getCurrentSlot() } returns 1
-        coEvery { storageFacade.hasSaveSuspend(1) } returns false
         // setSaveLoadState(isLoading=true) 评估 isSaving.value——relaxed mock 返回 Object 必崩
         every { stateStore.isSaving } returns MutableStateFlow(false)
 
         viewModel.loadFromCloudSave()
         advanceUntilIdle()
 
-        // 走到读档流程：loadGame 的 launch 已注册 activeLoadJob
-        coVerify { gameEngineCore.registerActiveLoadJob(any()) }
+        // 云会话直达：不落盘、不经 loadGameFromSlot，直接内存加载 + boot
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 1) {
+            bootSequenceController.boot(
+                StorageConstants.CLOUD_SAVE_SLOT, any(), any(), any(), any(), any(), any()
+            )
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // A6（2026-08-05）：云读档目标槽位 = 当前槽位（忽略云档 currentSlot 元数据）
+    // A6（2026-08-05）演进：云读档不覆盖任何本地槽位——云会话槽位 0
+    // 2026-08-23：云存档独立——忽略云档来源元数据，以云会话槽位 0 加载，
+    // 本地 1..6 槽位零影响（无需覆盖确认，覆盖确认弹窗仅在游戏主界面渲染、
+    // 主菜单加载界面永不显示导致永久卡死的根因场景随之消除）
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `cloud load ignores cloud currentSlot metadata and uses current slot`() = runTest(testDispatcher) {
-        // 用户实报场景：云档 currentSlot=2（上传时在槽位 2），当前槽位=1——
-        // 修复前云档被写入槽位 2 静默覆盖本地存档 b
+    fun `cloud load uses cloud session slot and never touches local slots`() = runTest(testDispatcher) {
+        // 用户实报场景：云档 currentSlot=2（上传时在槽位 2）——云会话加载必须
+        // 忽略云档来源元数据，以云会话槽位 0 加载，本地槽位零影响
         coEvery { tapCloudSaveManager.downloadSave() } returns
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "云宗", saveVersion = 2, currentSlot = 2))
             )
-        every { storageFacade.getCurrentSlot() } returns 1
-        coEvery { storageFacade.hasSaveSuspend(1) } returns false
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.Success(Unit)
-        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
         every { stateStore.isSaving } returns MutableStateFlow(false)
 
         viewModel.loadFromCloudSave()
         advanceUntilIdle()
 
-        // 目标槽位 = 1（当前槽位），云档 currentSlot=2 仅作来源元数据被忽略
-        coVerify(exactly = 1) { storageFacade.setCurrentSlot(1) }
-        coVerify(exactly = 1) { storageFacade.save(1, any()) }
-        coVerify(exactly = 0) { storageFacade.save(2, any()) }
-    }
-
-    @Test
-    fun `cloud load saves data with slotId corrected to target slot`() = runTest(testDispatcher) {
-        // 对抗性审查修复（2026-08-06）：主菜单云读档落盘前必须修正 slotId——
-        // 云档 slotId 为 @Transient 恒 0，直接 save 会把 slotId=0 写入缓存，
-        // 随后 loadGameFromSlot 缓存命中读回时 setActiveSlot(0) 仓库脏写错槽
-        coEvery { tapCloudSaveManager.downloadSave() } returns
-            TapCloudSaveManager.CloudSaveResult.Success(
-                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2))
-            )
-        every { storageFacade.getCurrentSlot() } returns 1
-        coEvery { storageFacade.hasSaveSuspend(1) } returns false
-        val savedData = slot<SaveData>()
-        coEvery { storageFacade.save(any(), capture(savedData)) } returns
-            SaveResult.Success(Unit)
-        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
-        every { stateStore.isSaving } returns MutableStateFlow(false)
-
-        viewModel.loadFromCloudSave()
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { storageFacade.save(1, any()) }
-        assertEquals("落盘数据 slotId 修正为目标槽位", 1, savedData.captured.gameData.slotId)
-        assertEquals("落盘数据 currentSlot 修正为目标槽位", 1, savedData.captured.gameData.currentSlot)
-    }
-
-    @Test
-    fun `cloud load waits for player confirmation when target slot has local save`() = runTest(testDispatcher) {
-        coEvery { tapCloudSaveManager.downloadSave() } returns
-            TapCloudSaveManager.CloudSaveResult.Success(
-                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2, currentSlot = 2))
-            )
-        every { storageFacade.getCurrentSlot() } returns 1
-        // 目标槽位 1 已有本地存档 → 挂起等待确认
-        coEvery { storageFacade.hasSaveSuspend(1) } returns true
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.Success(Unit)
-        every { stateStore.isSaving } returns MutableStateFlow(false)
-
-        viewModel.loadFromCloudSave()
-        advanceUntilIdle()
-
-        // 确认请求已发出，未确认前不落盘
-        assertTrue("覆盖确认请求应已发出", viewModel.cloudOverwriteRequest.value != null)
+        // 云会话槽位 0：setCurrentSlot(0)、不落盘任何本地槽位（1..6 零影响）
+        coVerify(exactly = 1) { storageFacade.setCurrentSlot(StorageConstants.CLOUD_SAVE_SLOT) }
         coVerify(exactly = 0) { storageFacade.save(any(), any()) }
-
-        // 玩家确认 → 继续落盘
-        viewModel.confirmCloudOverwrite()
-        advanceUntilIdle()
-        coVerify(exactly = 1) { storageFacade.save(1, any()) }
-    }
-
-    @Test
-    fun `cloud load aborts when player rejects overwrite`() = runTest(testDispatcher) {
-        coEvery { tapCloudSaveManager.downloadSave() } returns
-            TapCloudSaveManager.CloudSaveResult.Success(
-                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2))
+        coVerify(exactly = 1) {
+            bootSequenceController.boot(
+                StorageConstants.CLOUD_SAVE_SLOT, any(), any(), any(), any(), any(), any()
             )
-        every { storageFacade.getCurrentSlot() } returns 1
-        coEvery { storageFacade.hasSaveSuspend(1) } returns true
-        every { stateStore.isSaving } returns MutableStateFlow(false)
-
-        viewModel.loadFromCloudSave()
-        advanceUntilIdle()
-
-        viewModel.cancelCloudOverwrite()
-        advanceUntilIdle()
-
-        // 拒绝后不落盘、不读档（本地存档原样保留）
-        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
-        coVerify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // B8（2026-08-05）：云下载内存加载 slotId/currentSlot 同时修正
+    // B8（2026-08-05）：云下载内存加载 slotId/currentSlot 同时修正到云会话槽位
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `reconcileCloudSlot fixes both slotId and currentSlot to target slot`() = runTest(testDispatcher) {
+    fun `reconcileCloudSlot fixes both slotId and currentSlot to cloud session slot`() = runTest(testDispatcher) {
         val reconciled = cloudSaveData(GameData(sectName = "云宗", saveVersion = 2, currentSlot = 2))
-        val resolved = viewModel.reconcileCloudSlot(reconciled, 3)
-        // 云档 slotId 为 @Transient 恒 0——必须修正为 3，否则 loadFromSnapshot
-        // 内 setActiveSlot(gameData.slotId) 拿到 0 导致 repository 脏写错槽
-        assertEquals("slotId 修正为目标槽位", 3, resolved.slotId)
-        assertEquals("currentSlot 修正为目标槽位", 3, resolved.currentSlot)
+        val resolved = viewModel.reconcileCloudSlot(reconciled, StorageConstants.CLOUD_SAVE_SLOT)
+        // 云档 slotId 为 @Transient 恒 0——修正为云会话槽位 0（本地 1..6 不受影响），
+        // 否则 loadFromSnapshot 内 setActiveSlot(gameData.slotId) 拿到旧值使仓库脏写错槽
+        assertEquals("slotId 修正为云会话槽位", 0, resolved.slotId)
+        assertEquals("currentSlot 修正为云会话槽位", 0, resolved.currentSlot)
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -438,24 +385,22 @@ class SaveLoadViewModelLoadTest {
     // ──────────────────────────────────────────────────────────────────
 
     @Test
-    fun `loadGameFromSlot(0) - self-chain download proceeds`() = runTest(testDispatcher) {
+    fun `loadGameFromSlot(0) - self-chain download proceeds as cloud session`() = runTest(testDispatcher) {
         // C2 修复前：先 setSaveLoadState(isLoading=true) 再调 downloadFromCloudSave，
-        // 被其自身 isLoading 守卫（L1339）恒真拒绝——SettingsTab 云槽位读取必失败
+        // 被其自身 isLoading 守卫恒真拒绝——SettingsTab 云槽位读取必失败
         coEvery { tapCloudSaveManager.downloadSave() } returns
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
             )
-        // save 失败注入避免深链（下载本身是否执行才是断言目标）
-        coEvery { storageFacade.save(any(), any()) } returns
-            SaveResult.failure(SaveError.SAVE_FAILED, "injected failure")
         // setSaveLoadState(isLoading=true) 评估 isSaving.value——relaxed mock 返回 Object 必崩
         every { stateStore.isSaving } returns MutableStateFlow(false)
 
         viewModel.loadGameFromSlot(0)
         advanceUntilIdle()
 
-        // 下载必须实际执行（修复前 0 次）
+        // 下载必须实际执行（修复前 0 次）；云会话独立加载不落盘
         coVerify(exactly = 1) { tapCloudSaveManager.downloadSave() }
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -760,5 +705,109 @@ class SaveLoadViewModelLoadTest {
         assertEquals("上传后云存档槽位应显示月份", 5, cloudSlot.gameMonth)
         assertEquals("上传后云存档槽位应显示灵石数", 888L, cloudSlot.spiritStones)
         assertTrue("上传后云存档槽位不应标记为空", !cloudSlot.isEmpty)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 2026-08-23 并发根治：boot 进行中所有触发 boot 的入口被统一守卫拒绝
+    //（用户"多次点击读取云存档"实报 boot() already in progress 的回归守卫）
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `startNewGame rejected while boot in progress`() = runTest(testDispatcher) {
+        every { bootSequenceController.bootInProgress } returns MutableStateFlow(true)
+        every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+
+        viewModel.startNewGame("青云宗", 1)
+
+        // 未注册 activeLoadJob = 未启动协程（并发 boot 在状态污染前被拦下）
+        verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    @Test
+    fun `loadGame rejected while boot in progress`() = runTest(testDispatcher) {
+        every { bootSequenceController.bootInProgress } returns MutableStateFlow(true)
+
+        viewModel.loadGame(SaveSlot(1, "青云宗", 0L, 1, 1, "", 0, 0L))
+
+        verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    @Test
+    fun `restartGame rejected while boot in progress`() = runTest(testDispatcher) {
+        every { bootSequenceController.bootInProgress } returns MutableStateFlow(true)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.restartGame()
+
+        verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    @Test
+    fun `cloud download rejected while boot in progress`() = runTest(testDispatcher) {
+        every { bootSequenceController.bootInProgress } returns MutableStateFlow(true)
+
+        viewModel.downloadFromCloudSave()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { tapCloudSaveManager.downloadSave() }
+        assertTrue(
+            "boot 进行中云下载应返回 Error 状态",
+            viewModel.cloudSaveOperationState.value is CloudSaveOperationState.Error
+        )
+    }
+
+    @Test
+    fun `cloud load rejected while boot in progress`() = runTest(testDispatcher) {
+        every { bootSequenceController.bootInProgress } returns MutableStateFlow(true)
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { tapCloudSaveManager.downloadSave() }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `restartGame rejected while cloud download in progress`() = runTest(testDispatcher) {
+        // 根因场景：云下载（cloudDownloadLock 持有、isLoading=false）期间重启可
+        // 穿入并发触发第二个 boot——2026-08-23 修复：restartGame 补查 cloudDownloadLock
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        // 下载永不完成 → performCloudDownload 挂起期间 cloudDownloadLock 被持有
+        //（coAnswers 使 await 在被 mock 方法调用时执行，而非 stub 定义时挂起测试协程）
+        val never = CompletableDeferred<TapCloudSaveManager.CloudSaveResult>()
+        coEvery { tapCloudSaveManager.downloadSave() } coAnswers { never.await() }
+
+        viewModel.downloadFromCloudSave()
+        runCurrent()
+        viewModel.restartGame()
+
+        // restart 协程未注册（被 cloudDownloadLock 守卫拒绝）
+        verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+        never.complete(TapCloudSaveManager.CloudSaveResult.NetworkError("test"))
+        advanceUntilIdle()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `startNewGame rejected while cloud download in progress`() = runTest(testDispatcher) {
+        // 根因场景：云下载期间 startNewGame 可穿入（原实现不查 cloudDownloadLock）
+        every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        val never = CompletableDeferred<TapCloudSaveManager.CloudSaveResult>()
+        coEvery { tapCloudSaveManager.downloadSave() } coAnswers { never.await() }
+
+        viewModel.downloadFromCloudSave()
+        runCurrent()
+        viewModel.startNewGame("青云宗", 1)
+
+        verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+        never.complete(TapCloudSaveManager.CloudSaveResult.NetworkError("test"))
+        advanceUntilIdle()
     }
 }

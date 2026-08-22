@@ -40,7 +40,14 @@ class SlotLockManager(
     private val acquisitionCount = ConcurrentHashMap<Int, Long>()
     private val holdCounts = ConcurrentHashMap<Int, Int>()
 
-    private val slotIndexMap: Map<Int, Int> = (1..maxSlots).map { it to it }.toMap()
+    /**
+     * 合法槽位索引表（含云会话槽位 0）。
+     *
+     * slot 0 为云存档独立会话槽位（2026-08-23）：云读档/云下载以 slot 0 加载
+     * 进内存，本地 1..maxSlots 槽位完全不受影响；slot 0 的落盘（DB 键
+     * game_data_0 等）是云会话的本地镜像，UI 槽位列表不暴露。
+     */
+    private val slotIndexMap: Map<Int, Int> = (0..maxSlots).map { it to it }.toMap()
 
     private fun getMutex(slot: Int): Mutex {
         val index = slotIndexMap[slot]

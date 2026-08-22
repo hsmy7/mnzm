@@ -212,32 +212,6 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
-    // ── A6（2026-08-05）：主菜单云读档覆盖确认 ──
-    // 目标槽位已有本地存档时不静默覆盖，挂起等待玩家确认
-    private val _cloudOverwriteRequest = MutableStateFlow<CloudOverwriteRequest?>(null)
-    val cloudOverwriteRequest: StateFlow<CloudOverwriteRequest?> = _cloudOverwriteRequest.asStateFlow()
-    // 对抗性审查修复（2026-08-06）：@Volatile——IO 线程写入、主线程读取，
-    // 普通字段存在极窄窗口读到陈旧 null 导致确认 tap 丢失、挂起永久
-    @Volatile
-    private var cloudOverwriteContinuation: kotlinx.coroutines.CancellableContinuation<Boolean>? = null
-    private var pendingCloudLoadData: SaveData? = null
-    private var pendingCloudLoadSlot: Int = 0
-
-    /** 玩家确认覆盖目标槽位后继续云读档 */
-    fun confirmCloudOverwrite() {
-        _cloudOverwriteRequest.value = null
-        cloudOverwriteContinuation?.resume(true)
-        cloudOverwriteContinuation = null
-    }
-
-    /** 玩家拒绝覆盖，中止云读档（不落盘不读档） */
-    fun cancelCloudOverwrite() {
-        _cloudOverwriteRequest.value = null
-        cloudOverwriteContinuation?.resume(false)
-        cloudOverwriteContinuation = null
-        pendingCloudLoadData = null
-    }
-
     fun isCloudSaveAvailable(): Boolean = persistenceFacade.sessionManager.isLoggedIn
 
     // P-8：unifiedState（20Hz 锁竞争 + 50ms 采样延迟）→ 独立窄流直连（零延迟）
@@ -452,7 +426,63 @@ class SaveLoadViewModel @Inject constructor(
         _loadingProgress.value = progress
     }
 
+    /**
+     * 启动流程是否正在进行（透传 [BootSequenceController.bootInProgress]）。
+     *
+     * 2026-08-23 并发根治：UI 层监听此状态禁用云存档/重置等入口按钮
+     *（防御性增强；入口层统一守卫已保证安全，此处仅为减少"点击后被拒绝"的体验）。
+     */
+    val bootInProgress: StateFlow<Boolean>
+        get() = persistenceFacade.bootSequenceController.bootInProgress
+
+    /**
+     * 2026-08-23 并发根治：boot 触发入口统一前置守卫。
+     *
+     * 根因：云读档/云下载路径持有 [cloudDownloadLock] 期间不设 isLoading（设计
+     * 决定，互斥依赖其他入口查该锁），但 startNewGame/restartGame 不查
+     * cloudDownloadLock；且 boot 进行中 runState 短暂置为 RELOADING 使
+     * isGameLoaded 守卫失效——存在并发窗口，第二个 boot 被
+     * BootSequenceController 拒绝式保护挡下报 "boot() already in progress"
+     *（用户"多次点击读取云存档"实报）。
+     *
+     * 统一守卫：所有会触发 boot 的入口先查 [BootSequenceController.bootInProgress]，
+     * 再补齐各自缺失的不对称锁检查，从入口处阻断并发 boot（在状态被污染之前）。
+     *
+     * @return true 表示操作被阻断（调用方应直接 return）
+     */
+    private fun isBootOperationBlocked(): Boolean {
+        if (persistenceFacade.bootSequenceController.bootInProgress.value) {
+            Log.w(TAG, "Boot in progress, ignoring operation")
+            showError("正在加载游戏，请稍候")
+            return true
+        }
+        return false
+    }
+
+    @Suppress("ReturnCount") // 并发守卫多入口（boot/云锁/重启/加载/保存/内存），多 return 为守卫风格
     fun startNewGame(sectName: String, slot: Int = 1) {
+        // 并发根治（2026-08-23）：统一守卫 + 补齐 startNewGame 缺失的互斥检查
+        if (isBootOperationBlocked()) return
+        if (cloudDownloadLock.get()) {
+            Log.w(TAG, "Cloud save operation in progress, ignoring startNewGame request")
+            showError("云存档操作进行中，请稍后开始新游戏")
+            return
+        }
+        if (_isRestarting.value) {
+            Log.w(TAG, "Restarting, ignoring startNewGame request")
+            showError("游戏重置中，请稍后开始新游戏")
+            return
+        }
+        if (loadLock.get() || saveLock.get()) {
+            Log.w(TAG, "Save/load in progress, ignoring startNewGame request")
+            showError("正在保存/读档中，请稍后开始新游戏")
+            return
+        }
+        if (stateStore.isSaving.value) {
+            Log.w(TAG, "Currently saving, ignoring startNewGame request")
+            showError("正在保存中，请稍后开始新游戏")
+            return
+        }
         if (stateStore.isLoading.value && _loadingProgress.value < PROGRESS_COMPLETE) {
             Log.w(TAG, "Already loading with progress ${_loadingProgress.value}, ignoring startNewGame request")
             return
@@ -656,6 +686,8 @@ class SaveLoadViewModel @Inject constructor(
      */
     @Suppress("ReturnCount") // 读档多守卫（云锁/重启/加载/保存/loadLock/内存），多 return 为守卫风格
     private fun loadGameInternal(saveSlot: SaveSlot, fromCloudLoad: Boolean) {
+        // 并发根治（2026-08-23）：boot 进行中禁止读档（云会话/其他入口 boot 进行时）
+        if (isBootOperationBlocked()) return
         // 2026-08-04 对抗性审查修复（B3）：云存档操作进行中禁止本地读档——
         // 原实现不查 cloudDownloadLock，云读档下载期间点本地档会与云下载
         // 并发写 DB/内存，导致"内存=本地档、DB=云档"静默分歧
@@ -860,6 +892,8 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun loadGameFromSlot(slot: Int, fromCloudLoad: Boolean = false) {
+        // 并发根治（2026-08-23）：boot 进行中禁止任何读档/云下载入口
+        if (isBootOperationBlocked()) return
         // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
             viewModelScope.launch(ioDispatcher.dispatcher) {
@@ -908,7 +942,20 @@ class SaveLoadViewModel @Inject constructor(
      * 与 downloadFromCloudSave()（游戏内 SaveSlotDialog 使用）不同，
      * 此方法直接驱动 GameActivity 的 LoadingScreen 进度反馈。
      */
+    @Suppress("ReturnCount") // 云读档多守卫（boot/重启/保存/云锁），多 return 为守卫风格
     fun loadFromCloudSave() {
+        // 并发根治（2026-08-23）：boot/重启/保存进行中禁止云读档
+        if (isBootOperationBlocked()) return
+        if (_isRestarting.value) {
+            Log.w(TAG, "Restarting, ignoring cloud load request")
+            showError("游戏重置中，请稍后读取云存档")
+            return
+        }
+        if (saveLock.get()) {
+            Log.w(TAG, "Save in progress, ignoring cloud load request")
+            showError("正在保存中，请稍后读取云存档")
+            return
+        }
         if (!cloudDownloadLock.compareAndSet(false, true)) {
             Log.w(TAG, "Cloud load already in progress, ignoring")
             return
@@ -1200,6 +1247,17 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun restartGame() {
+        // 并发根治（2026-08-23）：boot 进行中禁止重启（boot 的 runState 中途为
+        // RELOADING，isGameLoaded 守卫失效，必须用 bootInProgress 兜底）
+        if (isBootOperationBlocked()) return
+        // 云存档操作进行中禁止重启——原实现不查 cloudDownloadLock，云读档/云下载
+        //（不设 isLoading）期间重启可穿入，与云会话并发触发第二个 boot
+        //（用户"多次点击读取云存档"实报的 boot() already in progress 主肇事入口）
+        if (cloudDownloadLock.get()) {
+            Log.w(TAG, "Cloud save operation in progress, ignoring restartGame request")
+            showError("云存档操作进行中，请稍后重置")
+            return
+        }
         // T16（2026-08-05）：boot 失败（runState=IDLE）后内存残留新档数据，
         // 若此入口可达会用残留数据覆写磁盘——防御性守卫（与 loadGame 同模式）
         if (!isGameLoaded) {
@@ -1625,7 +1683,23 @@ class SaveLoadViewModel @Inject constructor(
         return uploadData
     }
 
+    @Suppress("ReturnCount") // 云下载多守卫（boot/重启/保存/云锁/加载），多 return 为守卫风格
     fun downloadFromCloudSave() {
+        // 并发根治（2026-08-23）：boot/重启/保存进行中禁止云下载
+        if (isBootOperationBlocked()) {
+            _cloudSaveOperationState.value = CloudSaveOperationState.Error("正在加载中，请稍后")
+            return
+        }
+        if (_isRestarting.value) {
+            Log.w(TAG, "Restarting, ignoring cloud download request")
+            _cloudSaveOperationState.value = CloudSaveOperationState.Error("游戏重置中，请稍后")
+            return
+        }
+        if (saveLock.get()) {
+            Log.w(TAG, "Save in progress, ignoring cloud download request")
+            _cloudSaveOperationState.value = CloudSaveOperationState.Error("正在保存中，请稍后")
+            return
+        }
         if (!cloudDownloadLock.compareAndSet(false, true)) {
             Log.w(TAG, "Cloud download already in progress, ignoring")
             return
@@ -1657,7 +1731,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 // 2026-08-04 对抗性审查修复（B5）：下载期间不设 isLoading——
                 // 并发互斥由 loadGame/saveGame 的 cloudDownloadLock 检查保证；
-                // 下载前备份（backupCurrentSlotBeforeCloudLoad）保护本地旧档
+                // 2026-08-23：云会话独立加载，不落盘本地槽位（无需备份）
                 val result = persistenceFacade.tapCloudSaveManager.downloadSave()
 
                 when (result) {
@@ -1691,21 +1765,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
 
-    /** 下载覆盖前备份当前存档（触发 SaveFileManager 原子写入创建 .bak 快照；失败非阻断） */
-    private suspend fun backupCurrentSlotBeforeCloudLoad(slot: Int) {
-        try {
-            val currentData = persistenceFacade.storageFacade.load(slot).getOrNull()
-            if (currentData != null) {
-                persistenceFacade.storageFacade.save(slot, currentData)
-                Log.d(TAG, "Backup: preserved current save for slot $slot before cloud download")
-            }
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            Log.w(TAG, "Failed to backup slot $slot before cloud download", e)
-        }
-    }
-
-    /** 云读档 Success 分支：管线 → 落盘 → 刷新 → 读档（2026-08-04 提取，控制主函数复杂度） */
+    /** 云读档 Success 分支：管线 → 云会话独立加载（2026-08-04 提取，控制主函数复杂度） */
     @Suppress("ReturnCount") // 云档多失败守卫（空数据/损坏/写入失败），多 return 为守卫风格
     private suspend fun handleCloudLoadSuccess(result: TapCloudSaveManager.CloudSaveResult.Success) {
         val saveData = result.saveData
@@ -1738,87 +1798,21 @@ class SaveLoadViewModel @Inject constructor(
         }
         processed = SaveDataReconciler.reconcileStacks(processed)
 
-        // A6 修复（2026-08-05 用户实报）：云读档覆盖本地存档——原实现把云档
-        // gameData.currentSlot（= 上传时的游戏槽位，纯来源元数据）当作目标写入
-        // 槽位，∈1..6 时直接采用：玩家在槽位 2 上传云档后，主菜单点"云存档"
-        // 读档会静默覆盖槽位 2 的本地存档 b。现目标槽位统一为当前槽位
-        //（与游戏内云下载路径语义一致），彻底忽略云档来源元数据。
-        val slot = persistenceFacade.storageFacade.getCurrentSlot()
-        persistenceFacade.storageFacade.setCurrentSlot(slot)
-
-        // A6：目标槽位已有本地存档 → 挂起等待玩家确认覆盖（不静默覆盖）
-        if (!awaitOverwriteConfirmation(processed, slot)) return
-
-        // 下载覆盖前备份当前存档（触发 StorageEngine SaveFileManager 原子写入创建 .bak 快照）
-        backupCurrentSlotBeforeCloudLoad(slot)
-
-        // 对抗性审查修复（2026-08-06）：落盘前修正 slotId——云档 slotId 为
-        // @Transient 恒 0，直接 save 会把 slotId=0 写入缓存，随后 loadGameFromSlot
-        // 经缓存命中读回时 loadFromSnapshot 内 setActiveSlot(0) 使仓库脏写错槽
-        val slotAdjusted = processed.copy(gameData = reconcileCloudSlot(processed, slot))
-
-        // 2026-08-04 修复：检查写入结果——原实现忽略结果，写库失败后
-        // 继续读档会读到旧数据（或报"存档为空"），玩家误以为云档已加载
-        val saveResult = persistenceFacade.storageFacade.save(slot, slotAdjusted)
-        if (saveResult.isFailure) {
-            showError("云存档写入本地失败，请重试")
-            return
+        // 2026-08-23（用户决策）：云存档为独立存档，读取不覆盖任何本地槽位——
+        // 直接以云会话槽位 0 加载进内存（本地 1..6 槽位零影响，无需覆盖确认）。
+        // 根因：原实现（A6）写入当前槽位 + 挂起等待覆盖确认，但确认弹窗仅在
+        // 游戏主界面渲染，主菜单云读档处于加载界面时弹窗永不显示 → 永久卡死
+        //（"正在同步云存档中"）。云档不再落盘本地槽位后该场景不复存在。
+        persistenceFacade.storageFacade.setCurrentSlot(StorageConstants.CLOUD_SAVE_SLOT)
+        val bootResult = applyCloudSaveToEngine(processed, StorageConstants.CLOUD_SAVE_SLOT)
+        if (bootResult.isFailure) {
+            showError("读取云存档失败: ${bootResult.exceptionOrNull()?.message}")
         }
-
-        // 刷新存档元数据缓存
-        try {
-            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
-        } catch (e: CancellationException) { throw e }
-          catch (e: Exception) {
-            Log.w(TAG, "loadFromCloudSave: failed to refresh save slots", e)
-        }
-
-        // 走正常读档流程（BootSequenceController.boot + 资源预加载）
-        // C1 修复（2026-08-05）：fromCloudLoad=true 绕过 loadGameInternal 的
-        // cloudDownloadLock 守卫——本路径仍持有该锁（performCloudLoad 全程持有），
-        // 原实现被守卫拒绝：云档已落盘但内存加载永不执行，主菜单云读档必失败
-        loadGameFromSlot(slot, fromCloudLoad = true)
     }
 
     /**
-     * A6（2026-08-05）：云读档覆盖确认——目标槽位已有本地存档时挂起等待
-     * 玩家确认（[confirmCloudOverwrite]/[cancelCloudOverwrite] 恢复）。
-     *
-     * @return true 继续落盘；false 玩家拒绝（中止云读档）
+     * 云下载 Success 分支：管线 → 云会话独立加载（2026-08-04 提取，控制主函数复杂度）
      */
-    @Suppress("ReturnCount") // 无本地存档早退 + 确认结果分派，守卫风格
-    private suspend fun awaitOverwriteConfirmation(processed: SaveData, slot: Int): Boolean {
-        if (!persistenceFacade.storageFacade.hasSaveSuspend(slot)) return true
-        Log.w(TAG, "云读档目标槽位 $slot 已有本地存档，等待玩家确认覆盖")
-        pendingCloudLoadData = processed
-        pendingCloudLoadSlot = slot
-        _cloudOverwriteRequest.value = CloudOverwriteRequest(
-            slot = slot,
-            cloudYear = processed.gameData.gameYear,
-            cloudMonth = processed.gameData.gameMonth,
-            cloudSectName = processed.gameData.sectName
-        )
-        val confirmed = suspendCancellableCoroutine<Boolean> { cont ->
-            cloudOverwriteContinuation = cont
-            // 对抗性审查修复（2026-08-06）：协程取消（ViewModel 销毁/看门狗）时
-            // 清理挂起引用——不清理则残留 continuation 引用，且 _cloudOverwriteRequest
-            // 停留在弹出状态；取消会从挂起点抛 CancellationException 使
-            // performCloudLoad 的 finally 正常释放 cloudDownloadLock
-            cont.invokeOnCancellation {
-                if (cloudOverwriteContinuation === cont) cloudOverwriteContinuation = null
-            }
-        }
-        _cloudOverwriteRequest.value = null
-        if (!confirmed) {
-            Log.i(TAG, "玩家拒绝覆盖槽位 $slot，云读档中止")
-            pendingCloudLoadData = null
-            return false
-        }
-        Log.i(TAG, "玩家确认覆盖槽位 $slot，继续云读档")
-        return true
-    }
-
-    /** 云下载 Success 分支：管线 → 落盘 → 内存加载 → boot（2026-08-04 提取，控制主函数复杂度） */
     @Suppress("ReturnCount") // 云档多失败守卫（空数据/损坏/写入失败），多 return 为守卫风格
     private suspend fun handleCloudDownloadSuccess(result: TapCloudSaveManager.CloudSaveResult.Success) {
         val saveData = result.saveData
@@ -1859,26 +1853,33 @@ class SaveLoadViewModel @Inject constructor(
         }
         // 旧格式云存档无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
         val reconciled = SaveDataReconciler.reconcileStacks(processed)
-        val effectiveSlot = persistenceFacade.storageFacade.getCurrentSlot()
 
-        // 2026-08-04 对抗性审查修复（B5）：下载覆盖前备份当前存档（对齐主菜单云读档路径）
-        backupCurrentSlotBeforeCloudLoad(effectiveSlot)
-
-        // 2026-08-04 修复：持久化本地 DB——原实现只加载内存不落盘，
-        // 重启后回到旧档（玩家误以为下载失败）；与主菜单云读档
-        // （performCloudLoad）语义对齐。写入失败则中止，不进入内存加载
-        val saveResult = persistenceFacade.storageFacade.save(effectiveSlot, reconciled)
-        if (saveResult.isFailure) {
-            _cloudSaveOperationState.value =
-                CloudSaveOperationState.Error("云存档写入本地失败，请重试")
-            return
+        // 2026-08-23（用户决策）：云存档为独立存档，下载不覆盖任何本地槽位——
+        // 直接以云会话槽位 0 加载进内存；本地 1..6 槽位零影响（原实现备份+落盘
+        // 覆盖当前槽位，云档槽位语义混乱）。云会话的本地落盘（如重启保存）
+        // 落在 slot 0 云镜像，UI 槽位列表不暴露。
+        persistenceFacade.storageFacade.setCurrentSlot(StorageConstants.CLOUD_SAVE_SLOT)
+        val bootResult = applyCloudSaveToEngine(reconciled, StorageConstants.CLOUD_SAVE_SLOT)
+        if (bootResult.isSuccess) {
+            _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
+            _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
+        } else {
+            _cloudSaveOperationState.value = CloudSaveOperationState.Error(
+                "读取云存档失败: ${bootResult.exceptionOrNull()?.message}"
+            )
         }
-
-        applyCloudSaveToEngine(reconciled, effectiveSlot)
     }
 
-    /** 云下载后的内存加载 + boot（2026-08-04 提取，控制 handleCloudDownloadSuccess 行数） */
-    private suspend fun applyCloudSaveToEngine(reconciled: SaveData, effectiveSlot: Int) {
+    /**
+     * 云下载后的内存加载 + boot（2026-08-04 提取，控制 handleCloudDownloadSuccess 行数）。
+     *
+     * 2026-08-23：云会话独立加载——[effectiveSlot] 为云会话槽位
+     * [StorageConstants.CLOUD_SAVE_SLOT]，不落盘任何本地槽位；返回 [Result] 由
+     * 调用方决定成功/失败反馈（主菜单云读档与游戏内云下载反馈通道不同）。
+     *
+     * @return boot 结果；失败时消息可直接展示给玩家
+     */
+    private suspend fun applyCloudSaveToEngine(reconciled: SaveData, effectiveSlot: Int): Result<Unit> {
         // B8 修复（2026-08-05）：云档 slotId 为 @Transient 恒 0——只修 currentSlot
         // 会让 loadFromSnapshot 内 repository.setActiveSlot(gameData.slotId) 拿到 0，
         // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正
@@ -1889,8 +1890,7 @@ class SaveLoadViewModel @Inject constructor(
         val stopped = gameEngineCore.stopGameLoopAndWait(GAME_LOOP_STOP_TIMEOUT_MS)
         if (!stopped) {
             Log.e(TAG, "=== cloud download FAILED === cannot stop game loop within timeout")
-            _cloudSaveOperationState.value = CloudSaveOperationState.Error("无法停止游戏循环，请重试")
-            return
+            return Result.failure(IllegalStateException("无法停止游戏循环，请重试"))
         }
         _isTimeRunning.value = false
         Log.d(TAG, "Game loop stopped for cloud download")
@@ -1926,7 +1926,7 @@ class SaveLoadViewModel @Inject constructor(
             onMapReady = { mapData -> _mapPreloadData.value = mapData }
         )
 
-        if (bootResult.isSuccess) {
+        return if (bootResult.isSuccess) {
             // 与本地读档/新游戏路径一致：注入白名单福利
             gameEngine.sendWhitelistBonus(effectiveSlot)
 
@@ -1936,11 +1936,10 @@ class SaveLoadViewModel @Inject constructor(
             // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
             gameEngine.sendStorageBagCompensation(effectiveSlot)
 
-            _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
-            _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
+            Result.success(Unit)
         } else {
-            _cloudSaveOperationState.value = CloudSaveOperationState.Error(
-                "读取云存档失败: ${bootResult.exceptionOrNull()?.message}"
+            Result.failure(
+                bootResult.exceptionOrNull() ?: IllegalStateException("云存档加载失败")
             )
         }
     }
@@ -1956,6 +1955,10 @@ class SaveLoadViewModel @Inject constructor(
      * 云档 gameData.slotId 为 @Transient 恒 0、currentSlot 是上传时来源槽位
      *（与目标槽位无关）；loadFromSnapshot 内部用 gameData.slotId 设置仓库
      * 活跃槽位，只修 currentSlot 会导致 repository 脏写指向槽位 0。
+     *
+     * 2026-08-23：云存档独立会话——[effectiveSlot] 恒为
+     * [StorageConstants.CLOUD_SAVE_SLOT]（0），云会话数据落 slot 0 云镜像，
+     * 本地 1..6 槽位零影响。
      */
     internal fun reconcileCloudSlot(reconciled: SaveData, effectiveSlot: Int): com.xianxia.sect.core.model.GameData {
         return reconciled.gameData.copy(

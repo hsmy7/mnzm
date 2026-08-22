@@ -26,7 +26,6 @@ import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
 import com.xianxia.sect.ui.game.BloodRefiningViewModel
-import com.xianxia.sect.ui.game.CloudOverwriteRequest
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
 import com.xianxia.sect.ui.game.ForgeViewModel
 import com.xianxia.sect.ui.game.GameViewModel
@@ -92,7 +91,6 @@ fun GameOverlayHost(
         LocalDialogScrimHosted provides true
     ) {
     val viewModel = vms.game
-    val saveLoadViewModel = vms.saveLoad
 
     val state = rememberGameOverlayDialogState(viewModel = viewModel)
     val data = rememberGameOverlayDialogData(viewModel = viewModel, state = state)
@@ -125,7 +123,6 @@ fun GameOverlayHost(
         state = state,
         data = data,
         viewModel = viewModel,
-        saveLoadViewModel = saveLoadViewModel,
         onDismiss = onDismiss
     )
 
@@ -398,7 +395,6 @@ private fun GameOverlayDialogs(
     state: GameOverlayDialogState,
     data: GameOverlayDialogData,
     viewModel: GameViewModel,
-    saveLoadViewModel: SaveLoadViewModel,
     onDismiss: () -> Unit
 ) {
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsStateWithLifecycle()
@@ -422,12 +418,6 @@ private fun GameOverlayDialogs(
         dialogRenderable = data.dialogRenderable,
         message = state.capacityWarningMessage,
         onDismiss = { state.capacityWarningMessage = null }
-    )
-    // A6（2026-08-05）：云读档覆盖确认——目标槽位已有本地存档时不静默覆盖
-    val cloudOverwrite by saveLoadViewModel.cloudOverwriteRequest.collectAsStateWithLifecycle()
-    GameCloudOverwriteSection(
-        dialogRenderable = data.dialogRenderable,
-        cloudOverwrite = cloudOverwrite, saveLoadViewModel = saveLoadViewModel
     )
     GameNotificationSection(
         dialogRenderable = data.dialogRenderable,
@@ -530,33 +520,6 @@ private fun GameCapacityWarningSection(
             // 支持点击屏幕外关闭（dismissOnClickOutside 默认 true）
             scrimEnabled = false
         )
-    }
-}
-
-/** 云读档覆盖确认弹窗（GameOverlayHost 拆分） */
-@Composable
-private fun GameCloudOverwriteSection(
-    dialogRenderable: Boolean,
-    cloudOverwrite: CloudOverwriteRequest?,
-    saveLoadViewModel: SaveLoadViewModel
-) {
-    if (dialogRenderable && cloudOverwrite != null) {
-        // J 项：4 处 `!!` 清理——?.let 安全访问（cloudOverwrite 已判非空，语义等价）
-        cloudOverwrite.let { request ->
-            StandardPromptDialog(
-                onDismissRequest = { saveLoadViewModel.cancelCloudOverwrite() },
-                title = "覆盖本地存档？",
-                text = "云端存档（第${request.cloudYear}年${request.cloudMonth}月 " +
-                    "${request.cloudSectName}）将写入槽位 ${request.slot}，" +
-                    "该槽位的本地存档将被覆盖。\n\n确定要覆盖吗？",
-                confirmLabel = "覆盖并继续",
-                onConfirm = { saveLoadViewModel.confirmCloudOverwrite() },
-                dismissLabel = "取消",
-                onDismiss = { saveLoadViewModel.cancelCloudOverwrite() },
-                dismissOnClickOutside = false,
-                scrimEnabled = false
-            )
-        }
     }
 }
 
