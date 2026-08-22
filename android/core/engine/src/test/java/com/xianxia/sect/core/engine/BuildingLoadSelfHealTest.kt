@@ -234,4 +234,39 @@ class BuildingLoadSelfHealTest {
         assertEquals(listOf("orphan_mine"), result.demolished.map { it.instanceId })
         assertEquals(1500L, result.totalRefund)
     }
+
+    // ================================================================
+    // filterLegacyTianshuHalls — 2026-08-23 旧档天枢殿识别（占地尺寸与当前配置不符）
+    // ================================================================
+
+    @Test
+    fun `filterLegacyTianshuHalls_旧尺寸天枢殿被识别`() {
+        val buildings = listOf(
+            GridBuildingData(displayName = "天枢殿", gridX = 5, gridY = 5,
+                width = 6, height = 3, instanceId = "legacy_tianshu"),
+            GridBuildingData(displayName = "炼丹炉", gridX = 0, gridY = 0,
+                width = 4, height = 3, instanceId = "alchemy")
+        )
+        val legacy = filterLegacyTianshuHalls(buildings) { 18 to 13 }
+        assertEquals("旧尺寸天枢殿（6×3 ≠ 当前 18×13）应被识别", listOf("legacy_tianshu"), legacy.map { it.instanceId })
+    }
+
+    @Test
+    fun `filterLegacyTianshuHalls_当前尺寸天枢殿不识别`() {
+        val buildings = listOf(
+            GridBuildingData(displayName = "天枢殿", gridX = 5, gridY = 5,
+                width = 18, height = 13, instanceId = "new_tianshu")
+        )
+        val legacy = filterLegacyTianshuHalls(buildings) { 18 to 13 }
+        assertTrue("当前尺寸天枢殿（18×13）不应被识别为旧档遗留", legacy.isEmpty())
+    }
+
+    @Test
+    fun `filterLegacyTianshuHalls_无天枢殿返回空`() {
+        val buildings = listOf(
+            GridBuildingData(displayName = "灵田", gridX = 0, gridY = 0, width = 1, height = 1, instanceId = "field")
+        )
+        val legacy = filterLegacyTianshuHalls(buildings) { 18 to 13 }
+        assertTrue("无天枢殿时返回空列表", legacy.isEmpty())
+    }
 }

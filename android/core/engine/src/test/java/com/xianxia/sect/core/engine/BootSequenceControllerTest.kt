@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -45,6 +46,7 @@ class BootSequenceControllerTest {
     private lateinit var gameEngineCore: GameEngineCore
     private lateinit var gameEngine: GameEngine
     private lateinit var buildingConfigService: BuildingConfigService
+    private lateinit var mailService: MailService
     private lateinit var controller: BootSequenceController
 
     private val gameDataFlow = MutableStateFlow(GameData())
@@ -57,6 +59,10 @@ class BootSequenceControllerTest {
         gameEngineCore = mock()
         gameEngine = mock()
         buildingConfigService = mock()
+        mailService = mock()
+
+        // 2026-08-23：天枢殿当前配置占地 18×13（filterLegacyTianshuHalls 判定用）
+        whenever(buildingConfigService.getBuildingGridSize("天枢殿")).thenReturn(18 to 13)
 
         // EngineContextDispatcher: 使用 Fake 确保 extension 函数内部 withEngineContext 正常执行
         whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
@@ -104,7 +110,8 @@ class BootSequenceControllerTest {
             stateStore = stateStore,
             gameEngineCore = gameEngineCore,
             gameEngine = gameEngine,
-            buildingConfigService = buildingConfigService
+            buildingConfigService = buildingConfigService,
+            mailService = mailService
         )
     }
 
@@ -141,6 +148,82 @@ class BootSequenceControllerTest {
         verify(buildingConfigService).fixupBuildingSizes(
             any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()
         )
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 2026-08-23：旧档天枢殿删除 + 补偿邮件（用户决策）
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `boot - 旧尺寸天枢殿被删除并发送补偿邮件`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        stateStore.update {
+            gameData = GameData(
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
+                        width = 6, height = 3, instanceId = "legacy_tianshu"),
+                    GridBuildingData(displayName = "灵田", gridX = 0, gridY = 0,
+                        width = 1, height = 1, instanceId = "field")
+                )
+            )
+        }
+
+        val result = controller.boot(slot = 1, onSuccess = {})
+
+        assertTrue("boot should succeed", result.isSuccess)
+        val placed = stateStore.gameData.value.placedBuildings
+        assertTrue("旧尺寸天枢殿（6×3）应被删除", placed.none { it.displayName == "天枢殿" })
+        assertEquals("其他建筑应保留", listOf("field"), placed.map { it.instanceId })
+        verify(mailService).insertMail(any())
+    }
+
+    @Test
+    fun `boot - 当前尺寸天枢殿保留且不发补偿邮件`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        stateStore.update {
+            gameData = GameData(
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
+                        width = 18, height = 13, instanceId = "new_tianshu")
+                )
+            )
+        }
+
+        val result = controller.boot(slot = 1, onSuccess = {})
+
+        assertTrue("boot should succeed", result.isSuccess)
+        assertTrue(
+            "当前尺寸天枢殿（18×13）应保留",
+            stateStore.gameData.value.placedBuildings.any { it.instanceId == "new_tianshu" }
+        )
+        verify(mailService, never()).insertMail(any())
+    }
+
+    @Test
+    fun `boot - 补偿邮件插入失败时保留天枢殿防资产丢失`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        stateStore.update {
+            gameData = GameData(
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
+                        width = 6, height = 3, instanceId = "legacy_tianshu")
+                )
+            )
+        }
+        whenever(mailService.insertMail(any())).thenThrow(RuntimeException("db down"))
+
+        val result = controller.boot(slot = 1, onSuccess = {})
+
+        assertTrue("邮件失败不应阻塞 boot", result.isSuccess)
+        assertTrue(
+            "补偿邮件插入失败时应保留天枢殿（无补偿不删除）",
+            stateStore.gameData.value.placedBuildings.any { it.instanceId == "legacy_tianshu" }
+        )
+        // 删除步骤应被跳过（update 事务不应移除天枢殿）
+        verify(mailService).insertMail(any())
     }
 
     // ──────────────────────────────────────────────────────────────────

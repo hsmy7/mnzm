@@ -198,6 +198,32 @@ fun computeBuildingOverflowMigration(
 /** 灵田显示名（占地尺寸不变，迁移中优先保留） */
 private const val SPIRIT_FIELD_NAME = "灵田"
 
+/** 天枢殿显示名（2026-08-23：旧档遗留天枢殿删除+补偿） */
+internal const val TIANSHU_HALL_DISPLAY_NAME = "天枢殿"
+
+/**
+ * 识别旧档遗留天枢殿（2026-08-23）。
+ *
+ * 天枢殿历经多次占地/精灵尺寸调整（6×3 → … → 18×13），旧档遗留的天枢殿尺寸与
+ * 当前配置不符。按用户决策：读档时直接删除旧档天枢殿并通过邮件补偿 1000 万灵石
+ * （由 [BootSequenceController] 编排：先发邮件成功再删建筑）。
+ *
+ * **必须在 fixupBuildingSizes 之前判定**——fixup 会把尺寸统一修正为当前配置，
+ * 先判定才能识别旧档遗留（尺寸不符的天枢殿）。
+ *
+ * @param buildings 全部建筑列表（fixup 前原始数据）
+ * @param gridSizeOf 建筑显示名 → 当前配置占地尺寸（宽, 高）
+ * @return 旧档遗留天枢殿列表（尺寸与当前配置不符的天枢殿；天枢殿全局唯一，最多 1 座）
+ */
+internal fun filterLegacyTianshuHalls(
+    buildings: List<GridBuildingData>,
+    gridSizeOf: (String) -> Pair<Int, Int>
+): List<GridBuildingData> = buildings.filter { b ->
+    if (b.displayName != TIANSHU_HALL_DISPLAY_NAME) return@filter false
+    val (w, h) = gridSizeOf(b.displayName)
+    b.width != w || b.height != h
+}
+
 /** 检查建筑是否在地图内、不与其他建筑/固定结构重叠（迁移自 SaveLoadLoadDelegate，条件拆分过 detekt） */
 private fun canPlaceAt(
     b: GridBuildingData,

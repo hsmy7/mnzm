@@ -3,6 +3,9 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.core.engine.service.MailService
+import com.xianxia.sect.core.engine.service.TIANSHU_COMPENSATION_SPIRIT_STONES
+import com.xianxia.sect.core.engine.service.buildTianshuCompensationMail
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
@@ -41,7 +44,8 @@ class BootSequenceController @Inject constructor(
     private val stateStore: GameStateStore,
     private val gameEngineCore: GameEngineCore,
     private val gameEngine: GameEngine,
-    private val buildingConfigService: BuildingConfigService
+    private val buildingConfigService: BuildingConfigService,
+    private val mailService: MailService
 ) {
     companion object {
         private const val TAG = "BootSequence"
@@ -116,11 +120,18 @@ class BootSequenceController @Inject constructor(
             // （点不中/占用缺失可叠建/不可渲染）。归一化在溢出迁移之前（迁移按 sectId
             // 分组，孤儿不先归位则重叠检测失效）；世界重生（Step 5）之前，worldMapSects
             // 为空时归一化自动跳过（防误伤），下次读档收敛。
+            var legacyTianshuHalls: List<GridBuildingData> = emptyList()
             gameEngine.updateGameData { data ->
                 val norm = normalizeOrphanBuildingSectIds(
                     data.placedBuildings, data.spiritMineSlots, data.worldMapSects
                 )
                 val purified = purifyStaleActiveSectId(data.activeSectId, data.worldMapSects)
+                // 2026-08-23：旧档遗留天枢殿识别（占地尺寸与当前配置不符）——必须在 fixup
+                // 之前判定（fixup 会把尺寸统一修正为当前配置，先判定才能识别旧档遗留）；
+                // 删除 + 补偿邮件（1000 万灵石）由 Step 3.1 编排（先发邮件成功再删建筑）
+                legacyTianshuHalls = filterLegacyTianshuHalls(norm.buildings) {
+                    buildingConfigService.getBuildingGridSize(it)
+                }
                 val fixed = buildingConfigService.fixupBuildingSizes(norm.buildings)
                 val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
                 // 2026-08-19：住所显示名分级前缀迁移（旧档「单人住所/多人住所」→「初级…」，
@@ -145,6 +156,9 @@ class BootSequenceController @Inject constructor(
                     data
                 }
             }
+
+            // ── Step 3.1: 旧档天枢殿删除 + 补偿邮件（2026-08-23，用户决策）──
+            migrateLegacyTianshuHalls(legacyTianshuHalls, slot)
 
             // ── Step 3.5: 溢出迁移（占地×2 后放不下的旧建筑拆除全额退款）──
             // 2026-08-06 从 SaveLoadLoadDelegate 归位：此前在 loadData 后、fixup 前执行
@@ -378,6 +392,51 @@ class BootSequenceController @Inject constructor(
      *
      * 在 Step 3 建筑修复后、游戏循环启动前执行，保证迁移是原子且安全的。
      */
+    /**
+     * 旧档天枢殿删除 + 补偿邮件（2026-08-23，用户决策）。
+     *
+     * 天枢殿历经多次占地/精灵尺寸调整（6×3 → … → 18×13），旧档遗留的天枢殿（尺寸与
+     * 当前配置不符，由 [filterLegacyTianshuHalls] 在 fixup 前识别）直接删除，通过邮件
+     * 补偿玩家 1000 万灵石并告知最终改动。
+     *
+     * **先发邮件成功、再删建筑**：邮件插入失败时保留建筑（已被 Step 3 fixup 修正为
+     * 当前尺寸，下次读档不再触发），杜绝"删了没补偿"的资产丢失。天枢殿为全局唯一
+     * 建筑（全图最多 1 座），删除按显示名匹配即安全。
+     *
+     * @param legacy 旧档遗留天枢殿列表（Step 3 识别，fixup 前原始数据）
+     * @param slot 当前存档槽位（补偿邮件落位）
+     */
+    private suspend fun migrateLegacyTianshuHalls(legacy: List<GridBuildingData>, slot: Int) {
+        if (legacy.isEmpty()) return
+        try {
+            mailService.insertMail(buildTianshuCompensationMail(slot))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // 邮件插入失败不删建筑（无补偿不删除）；建筑已被 fixup 成当前尺寸，下次读档不重发
+            DomainLog.e(TAG, "天枢殿补偿邮件插入失败 slot=$slot（保留建筑，不发放补偿）", e)
+            return
+        }
+        stateStore.update {
+            var gd = gameData.copy(
+                placedBuildings = gameData.placedBuildings
+                    .filterNot { it.displayName == TIANSHU_HALL_DISPLAY_NAME }
+            )
+            // 槽位清理：天枢殿唯一（全局唯一建筑），ElderPositions 职务（副宗主/招募长老）清空回归空闲
+            for (b in legacy) {
+                val feature = BuildingFeatureRegistry.findByDisplayName(b.displayName)
+                if (feature != null) {
+                    for (group in feature.slotGroups) {
+                        gd = group.filterFromGameData(gd, b.instanceId, feature)
+                    }
+                }
+            }
+            gameData = gd
+        }
+        DomainLog.w(TAG, "旧档天枢殿已删除（尺寸变更补偿）：${legacy.size} 座，" +
+            "补偿邮件已发 灵石×$TIANSHU_COMPENSATION_SPIRIT_STONES，slot=$slot")
+    }
+
     /**
      * 溢出迁移：将占地×2 时代（或归一化并入本宗）放不下的建筑拆除，全额返还灵石，弟子恢复空闲。
      *
