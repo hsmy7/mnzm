@@ -16,6 +16,7 @@
 - **JNI 桥与 CI** — Android `GameCoreBridge.cpp`（库 `native-game-core`，双 ABI）+ Kotlin `GameCoreBridge.kt`；ActionId codegen（`gen-action-ids.mjs`）；桌面对拍桥 + 构建脚本（llvm-mingw 静态链接）；`ci.yml` 新增 `cpp-engine-test` job
 - **验证** — 桌面 GTest 58/58；JUnit 跨语言对拍 16/16（DiffTime 5 + DiffState 3 + DiffRng 7 + 守卫 1）；**全量串行 `testReleaseUnitTest --max-workers=1` 6984 测试 0 失败**；NDK `externalNativeBuildRelease` 通过
 - **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志留待批次 9（引擎切换）时追加功能说明
+- **规则固化（2026-08-22）** — CLAUDE.md 用户公约新增第 15 条「根因修复」（修复必须从症状追溯到根因、用正确逻辑覆盖，禁止打补丁式绕过）与第 16 条「C++ 优先」（新增/修改的引擎核心逻辑一律优先 C++，UI 层保持 Compose/Kotlin）；落地细则见 `rules/cpp-priority.md`，质量规则同步至 `rules/code-quality.md`
 
 ## [4.01.07] - 2026-08-22
 

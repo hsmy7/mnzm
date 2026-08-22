@@ -19,6 +19,8 @@
 12. **报告途中发现** — 任务完成后必须明确向用户报告中途发现的预存问题、无用代码、可优化的代码等可改进项，不自作主张隐藏
 13. **清理一次性代码** — 任务完成后必须直接清理为完成任务而创建的临时测试代码、调试代码等一次性代码，不遗留垃圾
 14. **任务完成后才提交** — 禁止在任务中途提交代码。所有改动（修复代码、测试、临时诊断日志等）在任务全部完成、清理完一次性代码后，一次性提交
+15. **根因修复** — 修复 bug 必须做根因修复：从症状沿因果链追溯到根因，用正确的逻辑覆盖错误，禁止打补丁式绕过（特判分支、屏蔽症状、掩盖错误的 workaround 等均属打补丁）。修复后必须验证根因路径已被正确逻辑替代、症状不再复现，并在提交说明中写明根因
+16. **C++ 优先** — 项目整体技术方向为 C++（总方案见 docs/adr/cpp-engine-migration.md）：所有新增/修改的引擎、战斗、结算、生产、探索、内政等核心逻辑代码，以及涉及这些逻辑的设计方案，一律优先采用 C++ 实现（经 JNI 与 Kotlin 对接；UI 层 Compose 只能用 Kotlin，保持不变）。禁止新增与 C++ 迁移方向相悖的纯 Kotlin 引擎逻辑；确因紧急无法立即 C++ 化的，必须登记并尽快下沉。详见 rules/cpp-priority.md
 
 ---
 
@@ -78,6 +80,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 - **乘区法公式架构** — 8 个系统统一乘区法（修炼/战斗/突破/生产等）
 - **BootPhase/RunState 双层生命周期** — 启动单向推进、运行时可循环回退
 - **扩展性架构预留** — RemoteConfig 未绑定状态与激活前置、商业化接入点、离线收益引擎接入点、社交隔离层、iOS 迁移预留（KMP/Compose Multiplatform/Room→SQLDelight/Vulkan→Metal 评估）
+- **C++ 引擎迁移（进行中）** — 游戏逻辑核心 Kotlin→C++：game-core 纯 C++20 引擎（零 Android 依赖、桌面可编译、iOS 可复用）+ JNI 桥 + JSON 快照镜像，Kotlin GameStateStore 降级为镜像；总方案见 docs/adr/cpp-engine-migration.md，进度见 docs/cpp-engine.md
 - **关键源码目录** — Core/Data/UI/UseCase 模块路径
 - **待完成项登记与偿还触发档案** — 待办 D 系列已清空（2026-08 债务根治批次）；条件式未来工作（TapDB 服务端/RemoteConfig/OAID/音频 release/16KB 对齐等）见"偿还触发条件档案"章节，触发条件满足时按要点实施
 
@@ -85,7 +88,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 
 项目知识库详见 [docs/knowledge-base.md](docs/knowledge-base.md)，涵盖以下内容：
 
-- **技术栈** — Kotlin 2.0.21, Compose, Hilt, Room, MMKV 等
+- **技术栈** — Kotlin 2.0.21, Compose, Hilt, Room, MMKV 等；引擎核心逐步迁移 C++（game-core，C++20 + JNI，规则见 rules/cpp-priority.md）
 - **关键类说明** — GameEngineCore, GameStateStore, BootSequenceController, GameViewModel 等
 - **弟子分配门卫系统** — DiscipleAssignmentGate + 11 槽位统一注册表
 - **存档槽位隔离** — `slot_id` 复合主键、`resetForSlot`、强制 slotId 赋值
