@@ -55,6 +55,14 @@ android {
     // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
     tasks.withType(Test).configureEach {
         maxParallelForks = 1
+
+        // 桌面 JNI 对拍库路径转发（Kotlin→C++ 迁移批次 0）：
+        // 命令行 `./gradlew -Dgamecore.jni.path=...` 传入 Gradle daemon JVM，
+        // 此处转发到测试 JVM；未传时 DiffRngTest 自动跳过（Assume）。
+        // 构建方式见 scripts/build-desktop-jni.ps1（本地）/ ci.yml cpp-engine-test（CI）
+        if (System.getProperty('gamecore.jni.path')) {
+            systemProperty 'gamecore.jni.path', System.getProperty('gamecore.jni.path')
+        }
     }
 
     defaultConfig {

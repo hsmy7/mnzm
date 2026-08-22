@@ -20,6 +20,12 @@ if(NOT DEFINED SPRITE_GENERATED_DIR)
     set(SPRITE_GENERATED_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
+# ════════════════════════════════════════════════════════════════
+# game-core — 纯 C++ 游戏引擎核心（Kotlin→C++ 迁移批次 0）
+# 静态库引入；桌面/CI 测试见 gamecore/CMakeLists.txt（GAMECORE_BUILD_TESTS）
+# ════════════════════════════════════════════════════════════════
+add_subdirectory(gamecore)
+
 # 主库
 add_library(native-renderer SHARED
     VulkanBackend.cpp
@@ -41,6 +47,25 @@ target_link_libraries(native-renderer
     android
     log
     z
+)
+
+# ════════════════════════════════════════════════════════════════
+# native-game-core — 游戏引擎 JNI 库（Kotlin→C++ 迁移批次 0）
+# 独立于渲染库；GameCoreBridge.cpp 是唯一依赖 JNI/Android 的桥层，
+# game-core 静态库本体零 Android 依赖（桌面/iOS 可复用）
+# ════════════════════════════════════════════════════════════════
+add_library(native-game-core SHARED
+    GameCoreBridge.cpp
+)
+
+target_include_directories(native-game-core PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(native-game-core
+    game-core
+    android
+    log
 )
 
 set_target_properties(native-renderer PROPERTIES

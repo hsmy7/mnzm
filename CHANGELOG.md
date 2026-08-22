@@ -1,3 +1,22 @@
+## [4.01.08] - 2026-08-22
+
+### 新增（C++ 游戏引擎迁移批次 0-3：基础设施 / 状态模型 / 静态数据 / 时间结算引擎）
+
+> 背景：按用户需求将游戏逻辑核心由 Kotlin 迁至 C++（界面保持现状，性能 + iOS 跨平台准备）。
+> 总体方案见 `docs/adr/cpp-engine-migration.md`，批次进度与待办见 `docs/cpp-engine.md` /
+> `docs/architecture.md` C 系列登记表。本批为**纯工程基础设施**，无玩家可见行为变化；
+> Kotlin 引擎照常运营（feature flag 关闭）。
+
+- **新增 `game-core` 纯 C++ 引擎静态库**（`android/app/src/main/cpp/gamecore/`，C++20，零 Android 依赖，桌面/iOS 可编译）— 基础接口（`Result` 三态 / `Clock` 现实时间注入 / `Logger` 跨平台日志）+ 引擎门面 `GameCore`（init/advance/execute/export/import/poll）+ vendored `nlohmann/json`
+- **确定性 RNG 复刻** — `DeterministicRng`（PCG-XSH-RR 64→32，先截断 32 位再旋转的修复后语义）+ `RngManager`（8 分区与 Kotlin `RngPartition` id 对齐）逐行移植；GTest 黄金序列 + JUnit 跨语言差分对拍（`DiffRngTest`，真实 Kotlin RNG vs C++ 经 JNI 逐位一致，含 nextInt/nextDouble 位级/nextLong/snapshot/分区）
+- **状态模型 + JSON 快照协议** — `state/models.h`：GameData 全字段（标量/简单集合 + 18 个嵌套类型：政策/长老/生产槽/建筑/联盟/世界宗门/关卡/商人/年度报告等）；`json_codec`：nlohmann ↔ kotlinx 字段名一致、宽松 from_json、int-key Map 显式转换、可空字段 optional（含 NullableStringAsEmpty/IntAsZero 序列化器对齐）、浮点规范化（规避 kotlinx "N.0" 解码缺陷）；Kotlin 快照 DTO `NativeGameState.kt`；`DiffStateTest` 快照往返逐字段相等
+- **静态数据 codegen** — `scripts/gen-templates.mjs` 从 Kotlin Registry 提取 → C++ 装备表（72 条）+ 抽取快照；双端守卫测试（Kotlin 快照 ↔ EquipmentDatabase 逐条比对 + C++ 抽样断言），任一侧改数据即失败提示重跑生成器
+- **时间系统 + 惰性结算引擎** — `system/time_system.h`（年/月/旬进位，等价 TimeSystem.onPhaseTick）+ `system/settlement.h`（对齐 GameTimeClock 语义：2000ms/旬×speed、单 tick 上限 3×speed 旬、超限丢弃余量；月/年边界 + 结算钩子）；`DiffTimeTest` 1000 旬跨年逐位一致 + 空档非时间状态不变性
+- **对抗性审查（2026-08-22）** — 修复 A1（读档后结算引擎累积复位，防多推进）、A2（时间语义对齐 GameTimeClock 而非帧循环步长）；登记 C-11~C-15（shuffled 稳定性/nextGaussian 精度/RNG 恢复/float 覆盖/对拍基准）
+- **JNI 桥与 CI** — Android `GameCoreBridge.cpp`（库 `native-game-core`，双 ABI）+ Kotlin `GameCoreBridge.kt`；ActionId codegen（`gen-action-ids.mjs`）；桌面对拍桥 + 构建脚本（llvm-mingw 静态链接）；`ci.yml` 新增 `cpp-engine-test` job
+- **验证** — 桌面 GTest 58/58；JUnit 跨语言对拍 16/16（DiffTime 5 + DiffState 3 + DiffRng 7 + 守卫 1）；**全量串行 `testReleaseUnitTest --max-workers=1` 6984 测试 0 失败**；NDK `externalNativeBuildRelease` 通过
+- **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志留待批次 9（引擎切换）时追加功能说明
+
 ## [4.01.07] - 2026-08-22
 
 ### 修复（2026-08-22 解决已知问题）

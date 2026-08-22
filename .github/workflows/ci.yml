@@ -8,6 +8,26 @@ on:
   workflow_dispatch:
 
 jobs:
+  # ── C++ 游戏引擎单元测试（game-core，纯桌面构建，独立于 Gradle）──────
+  # game-core 零 Android 依赖：Linux g++/CMake 直接编译 + GTest 跑测试。
+  # 覆盖：RNG 黄金序列（PCG-XSH-RR 复刻跨语言守护）、Result、GameCore 生命周期。
+  cpp-engine-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android/app/src/main/cpp/gamecore
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake (tests)
+        run: cmake -B build -DGAMECORE_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build game-core + tests
+        run: cmake --build build -j2
+
+      - name: Run GTest
+        run: ctest --test-dir build --output-on-failure
+
   build:
     runs-on: ubuntu-latest
     defaults:

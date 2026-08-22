@@ -464,6 +464,30 @@ SaveValidator.validate(SaveData)
 | R-12 | 2026-08-21 detekt 全量排查（core:engine 15 项清偿后暴露） | **core:domain detekt 3 项违规**：`StackableItemStore.add` LongMethod 63/60（溢出邮件合并功能）；`GameConfig.SectMap.GATE_X/GATE_Y` MayBeConst ×2（灵矿场/门楼配置）——均为 2026-08-19~21 新功能引入、未冻结 baseline | 🟢 低 | 低风险清理：`add` 拆辅助函数；GATE_X/GATE_Y 改 `const val`（表达式引用常量可 const），修后 `:core:domain:detekt` 归零 |
 | R-13 | 2026-08-21 detekt 全量排查（core:engine 15 项清偿后暴露） | **feature:game detekt 6 项违规**：`MainGameScreen` FileLength（1744 行 UI 文件，需独立拆分工程）；`BuildingDelegate` TooManyFunctions 22/20；`MaterialSelectorDialog` LongMethod 88/60（血炼池）；`ResidenceDialog` LongMethod 60/60 + `ResidenceDialogContent` LongParameterList 11/8（住所升级对话框）；`MainGameScreenDemolishControls` LongMethod 60/60 | 🟡 中 | 除 MainGameScreen 拆分（独立重构工程，涉及上千行 Compose 迁移与独立回归）外，其余 5 项为低风险清理（拆函数/参数分组/@Suppress 豁免评估）；MainGameScreen 拆分单列专项 |
 
+### C++ 引擎迁移待办 C 系列（2026-08-22 批次 0-3 完成登记）
+
+> 总方案：`docs/adr/cpp-engine-migration.md`；进度：`docs/cpp-engine.md`。
+> 已完成批次 0（基础设施）/1（状态模型+快照）/2 第一子步（装备表 codegen）/3（时间系统+结算引擎）。
+> 以下为**活跃待办**——批次 4-10 为后续迁移批次，C-01~C-05 为批次 0-3 审查登记项。
+
+| # | 待办内容 | 触发/计划 |
+|---|---|---|
+| C-01 | **批次 4：经济/生产/库存系统**（SpiritStoneWallet、InventorySystem、生产槽结算、溢出邮件、灵田/矿场/炼丹/锻造）——月变结算钩子（onMonthChange）首批实现 | 下一批次 |
+| C-02 | **批次 5：弟子系统**（属性计算乘区法、修炼 Checkpoint、突破、丹药/装备/功法、死亡/婚姻、11 槽分配）——onPhaseSettle 钩子（修炼推进） | 批次 4 后 |
+| C-03 | **批次 6：战斗系统**（BattleSystem、AI 宗门/妖兽、宗门战） | 批次 5 后 |
+| C-04 | **批次 7：世界/内政**（建筑、政策、外交、宗门等级、年俸、邮件、兑换码）——onYearChange 钩子（年度报告） | 批次 6 后 |
+| C-05 | **批次 8：探索/秘境**（Exploration、SecretRealm、Cave、HeavenlyTrial、Patrol） | 批次 7 后 |
+| C-06 | **批次 9：集成切换**（GameEngine 族 ~275 方法 + Facade 117 方法转发、StateSyncService 镜像、tick 桥、事件回调、feature flag、存档对接、性能基准） | 批次 8 后 |
+| C-07 | **批次 10：Kotlin 引擎退役**（删除重复逻辑、对拍转回归、清理临时工具、文档收尾） | 批次 9 后 |
+| C-08 | **批次 1 剩余：低频嵌套类型**（秘境/血炼/探索队伍/功法精通/侦查信息等 ~20 个）与重型 @Transient 字段（aiSectDisciples 等） | 随批次 3-8 子系统迁移配套 |
+| C-09 | **批次 2 剩余：Registry 提取器扩展**（丹药配方/功法/天赋/体质/词缀/材料/锻造配方/妖兽材料，格式差异逐表适配） | 随批次 4-8 |
+| C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等，依赖批次 4-7 系统） | 随批次 4-7 |
+| C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
+| C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |
+| C-13 | **审查登记：读档后 RNG 分区状态恢复**——GameCore.rng_ 需从 GameData.rngStates 恢复（import 时），当前未接线 | 批次 5（首个 RNG 消费系统） |
+| C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——批次 1 已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8 |
+| C-15 | **审查登记：Diff 对拍基准为内联复刻**（DiffTimeTest 复刻 TimeSystem.onPhaseTick；批次 9 集成时切换为真实引擎对拍） | 批次 9 |
+
 ### 偿还触发条件档案（2026-08 根治批次建立）
 
 > 本档案收纳"决策不修/客观受限"项的偿还触发条件与实施要点——**不是待办**：
@@ -482,6 +506,8 @@ SaveValidator.validate(SaveData)
 | T-RB | Robolectric 4.13 卡死（52 处 `@Config(sdk=34)` pin） | TapTap SDK 字节码修复（Collector 补 StackMapTable）或 Robolectric 提供 COMPUTE_FRAMES 开关 | 升级后重查字节码 + 性能评估（4.16 比 4.13 慢 ~2 倍），见 docs/build-perf/robolectric-4.16-evaluation.md |
 | T-CONV | 各模块 SDK 配置再收编（convention plugin 已建立） | 模块再增长或 KMP 迁移 | 新模块直接应用 `xianxia.android[.application/.test]` convention plugin（docs/build-perf/stage3-config-cache.md） |
 | T-PRO | proguard 宽规则进一步收窄 | 每次 R8 相关发布验证 | 按序尝试删除 kotlinx.serialization → coroutines → lifecycle/room 整包规则（官方 consumer rules 兜底），每次完整 R8 验证 + 存档读写回归 |
+| T-CPP-1 | C++ 引擎未实现 kotlinx-proto 编解码（存档经 Kotlin 镜像，格式零变更） | iOS 立项且需无 Kotlin 的纯 C++ 存档 | 按 kotlinx-serialization protobuf 标准 wire 兼容方案实现（2174 个 @ProtoNumber schema 生成 + 默认值省略规则 + Map/Set KeyValue/packed + .sav 两层头 + CRC32C）；当前镜像方案已覆盖全部场景（详见 docs/adr/cpp-engine-migration.md） |
+| T-CPP-2 | 静态数据双份（Kotlin Registry + C++ 表） | 批次 10 Kotlin 引擎退役后 | 统一为单一源：Kotlin Registry 删除或改 codegen 生成（docs/cpp-engine.md 批次 2 说明）；迁移期以抽样守卫测试防漂移 |
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 
