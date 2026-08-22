@@ -80,7 +80,7 @@ const LAYOUT = {
   buildingColsPerRow: [5, 5, 5, 4],
   // 占地尺寸（FOOTPRINT_BY_NAME_INDEX，按建筑索引）
   footprints: [
-    [4, 4], [4, 3], [1, 1], [4, 3], [5, 3], [6, 4], [6, 3], [4, 3], [4, 3], [6, 3],
+    [4, 4], [4, 3], [1, 1], [4, 3], [5, 3], [6, 4], [6, 3], [4, 3], [4, 3], [12, 6],
     [6, 3], [4, 3], [4, 3], [4, 4], [4, 4], [6, 6], [6, 4], [4, 4], [6, 5],
   ],
   // 灵田作物三阶段（CropStage）
@@ -181,6 +181,33 @@ const FLOOR_DRAWABLE = {
 
 /** 作物资源名（与 buildAtlasBitmap cropDrawableMap 一致，按 ordinal） */
 const CROP_DRAWABLE = ['growing_spiritgrass7', 'growing_spiritgrass8', 'growing_spiritgrass9'];
+
+/**
+ * 建筑资源名映射（图集名 → drawable-nodpi 资源文件名，与 BuildingFeatureBoot.kt
+ * 的 drawableRes 一一对应；与 SectAtlasAssembler 的 effectiveSpriteName 语义一致——
+ * 图集名是精灵名，可能不同于带分级前缀的显示名）。
+ */
+const BUILDING_DRAWABLE = {
+  '灵矿场': 'building_spirit_mine',
+  '灵植阁': 'building_herb_garden',
+  '灵田': 'building_spirit_field',
+  '炼丹炉': 'building_alchemy',
+  '锻造坊': 'building_forge',
+  '仓库': 'building_warehouse',
+  '藏经阁': 'building_library',
+  '问道塔': 'building_wen_dao_peak',
+  '青云塔': 'building_qingyun_peak',
+  '天枢殿': 'building_tianshu_hall',
+  '执法堂': 'building_law_enforcement',
+  '任务阁': 'building_mission_hall',
+  '巡视楼': 'building_patrol_tower',
+  '监牢': 'building_reflection_cliff',
+  '单人住所': 'building_single_residence',
+  '中级单人住所': 'building_single_residence_upgraded',
+  '多人住所': 'building_multi_residence',
+  '血炼池': 'blood_refining_pool',
+  '中级多人住所': 'building_multi_residence_upgraded',
+};
 
 /** 语义索引推导（构建期断言：LAYOUT 缺语义名称即报错，防索引漂移） */
 function semanticIndices(layout) {
@@ -585,6 +612,7 @@ function generateSpriteAtlasDef(layout) {
     '        gw == 4 && gh == 3 -> 2  // 宽扁 → 3x2 地砖',
     '        gw == 6 && gh == 5 -> 2  // 宽扁 → 3x2 地砖',
     '        gw == 6 && gh == 2 -> 2  // 门楼占地 6x2 → 3x2 地砖（拉伸）',
+    '        gw == 12 && gh == 6 -> 2  // 天枢殿占地 12x6 → 3x2 地砖（拉伸）',
     '        else -> -1',
     '    }',
     '',
@@ -798,12 +826,13 @@ function buildSpriteList() {
     });
   }
 
-  // 建筑（BUILDING_NAMES 顺序，rect 由行分布公式计算）
+  // 建筑（BUILDING_NAMES 顺序，rect 由行分布公式计算；drawable = 资源文件名——
+  // 2026-08 修复：此前为 null 导致 KTX/ASTC 图集建筑槽位全空、Vulkan+ASTC 设备建筑不显示）
   for (let i = 0; i < LAYOUT.buildingNames.length; i++) {
     const rect = buildingRectOf(LAYOUT.buildingColsPerRow, i);
     sprites.push({
       name: LAYOUT.buildingNames[i], x: rect.x, y: rect.y, w: rect.w, h: rect.h,
-      drawable: null,
+      drawable: BUILDING_DRAWABLE[LAYOUT.buildingNames[i]] ?? null,
     });
   }
 

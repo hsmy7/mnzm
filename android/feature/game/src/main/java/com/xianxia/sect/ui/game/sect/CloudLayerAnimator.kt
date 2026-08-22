@@ -11,7 +11,7 @@ import kotlin.random.Random
  * - **只在世界外生成**：右移云朵生成在左边缘外（`x + w ≤ 0`），左移云朵生成在右边缘外
  *   （`x ≥ worldW`），随后横向穿越世界；
  * - **在世界外消失**：完全移出对侧边缘（右移 → `x ≥ worldW`；左移 → `x + w ≤ 0`）后销毁；
- * - **速度固定 5 格/秒**（1 格 = [GameConfig.SectMap.TILE_SIZE] 世界像素）；
+ * - **速度固定 3 格/秒**（1 格 = [GameConfig.SectMap.TILE_SIZE] 世界像素）；
  * - **随机**：随机云层类型（5 种精灵）、随机方向、随机 Y（世界顶部条带内）、
  *   随机缩放/透明度、随机生成间隔与并发目标数。
  *
@@ -159,10 +159,10 @@ class CloudLayerAnimator(
     }
 
     companion object {
-        /** 云层移动速度（格/秒）——需求硬性规定 */
-        const val SPEED_TILES_PER_SECOND = 5
+        /** 云层移动速度（格/秒）——需求硬性规定（现实时间） */
+        const val SPEED_TILES_PER_SECOND = 3
 
-        /** 云层移动速度（世界像素/毫秒 = 5 格/秒 × tileSize / 1000） */
+        /** 云层移动速度（世界像素/毫秒 = 3 格/秒 × tileSize / 1000） */
         val SPEED_PX_PER_MS: Float =
             SPEED_TILES_PER_SECOND * GameConfig.SectMap.TILE_SIZE / 1000f
 
@@ -177,9 +177,12 @@ class CloudLayerAnimator(
         const val SPAWN_INTERVAL_MIN_MS = 1500L
         const val SPAWN_INTERVAL_MAX_MS = 4000L
 
-        /** 随机缩放区间（云朵大小 = 原生尺寸 × scale） */
-        const val SCALE_MIN = 0.8f
-        const val SCALE_MAX = 1.6f
+        /**
+         * 随机缩放区间（云朵大小 = 原生尺寸 × scale）。
+         * 2026-08 调整：整体缩小 50%（0.8~1.6 → 0.4~0.8），所有云朵显示尺寸减半。
+         */
+        const val SCALE_MIN = 0.4f
+        const val SCALE_MAX = 0.8f
 
         /** 随机透明度区间 */
         const val ALPHA_MIN = 0.85f

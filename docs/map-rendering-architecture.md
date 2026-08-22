@@ -359,8 +359,9 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 
 - **动画引擎**：`CloudLayerAnimator`（feature/game，纯 Kotlin）由渲染线程每节拍驱动——
   只在世界外生成（左外生成右移 / 右外生成左移）、横向穿越世界、完全移出对侧边缘后消失；
-  速度固定 **5 格/秒**（= 5 × `GameConfig.SectMap.TILE_SIZE`）；随机类型（5 种精灵）、
+  速度固定 **3 格/秒**（= 3 × `GameConfig.SectMap.TILE_SIZE`）；随机类型（5 种精灵）、
   方向、Y（世界顶部条带内）、缩放/透明度、生成间隔与并发数。
+  2026-08 调整：云朵整体缩小 50%（缩放区间 0.8~1.6 → 0.4~0.8）。
 - **数据通道**：逐帧实例快照 `[x, y, w, h, spriteIndex, alpha] × N` 写入
   `NativeSurfaceView.cloudData`，Vulkan（`drawAllTiles` 云层段）与 Canvas（`drawClouds`）
   消费同一份数据，保证双端像素级一致；云活跃时 `cloudDirty` 阻止脏帧跳过（静止画面恢复省电）。

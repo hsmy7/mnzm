@@ -14,7 +14,7 @@ import kotlin.random.Random
  *
  * 覆盖维度：
  * - 只在世界外生成（左外生成右移 / 右外生成左移，两种方向都会出现）
- * - 移动速度恰为 5 格/秒（=160 世界像素/秒，与 GameConfig.SectMap.TILE_SIZE 同源）
+ * - 移动速度恰为 3 格/秒（=96 世界像素/秒，与 GameConfig.SectMap.TILE_SIZE 同源）
  * - 完全移出世界后消失（活跃计数必须出现过下降——计数只会因出界销毁而减少）
  * - 帧间隔钳制（卡顿/后台恢复后云朵不瞬移）
  * - 快照条目值域合法（无 NaN、y 在顶部条带、alpha/类型索引在配置区间、宽高为正）
@@ -73,12 +73,20 @@ class CloudLayerAnimatorTest {
     // ── 速度 ──
 
     @Test
-    fun `速度常量与配置同源_每秒 5 格`() {
-        assertEquals(5, CloudLayerAnimator.SPEED_TILES_PER_SECOND)
-        val expectedPxPerMs = 5f * GameConfig.SectMap.TILE_SIZE / 1000f
+    fun `速度常量与配置同源_每秒 3 格`() {
+        assertEquals(3, CloudLayerAnimator.SPEED_TILES_PER_SECOND)
+        val expectedPxPerMs = 3f * GameConfig.SectMap.TILE_SIZE / 1000f
         assertEquals(expectedPxPerMs, CloudLayerAnimator.SPEED_PX_PER_MS, 0.0001f)
-        // 1 秒位移 = 5 格 × 32px = 160px
-        assertEquals(160f, CloudLayerAnimator.SPEED_PX_PER_MS * 1000f, 0.001f)
+        // 1 秒位移 = 3 格 × 32px = 96px
+        assertEquals(96f, CloudLayerAnimator.SPEED_PX_PER_MS * 1000f, 0.001f)
+    }
+
+    @Test
+    fun `缩放区间为原生尺寸一半_云朵整体缩小`() {
+        // 2026-08 调整：0.8~1.6 → 0.4~0.8，所有云朵显示尺寸减半（锁住 50% 缩小不变量）
+        assertEquals(0.4f, CloudLayerAnimator.SCALE_MIN)
+        assertEquals(0.8f, CloudLayerAnimator.SCALE_MAX)
+        assertEquals("最大/最小缩放比值应保持不变（整体减半）", 2.0f, CloudLayerAnimator.SCALE_MAX / CloudLayerAnimator.SCALE_MIN, 0.0001f)
     }
 
     @Test
@@ -97,7 +105,7 @@ class CloudLayerAnimatorTest {
             if (before != null && after != null && before.size == after.size) {
                 for (i in before.indices step CloudLayerAnimator.CLOUD_DATA_STRIDE) {
                     val dx = after[i] - before[i]
-                    assertEquals("云朵位移必须=5格/秒×dt", step, abs(dx), 0.01f)
+                    assertEquals("云朵位移必须=3格/秒×dt", step, abs(dx), 0.01f)
                 }
                 stableWindowsChecked++
                 if (stableWindowsChecked >= 3) return
@@ -182,12 +190,12 @@ class CloudLayerAnimatorTest {
         }
         assertTrue("应出现单朵云状态", a.activeCount() == 1)
         val xBefore = a.snapshot()!![0]
-        // 5000ms 大跳（模拟卡顿/后台恢复）：dt 钳制到 500ms，位移 ≤ 80px
+        // 5000ms 大跳（模拟卡顿/后台恢复）：dt 钳制到 500ms，位移 ≤ 48px
         now += 5000L
         a.update(now)
         assertTrue("大跳后仍应有云", a.activeCount() >= 1)
         val dx = abs(a.snapshot()!![0] - xBefore)
         val clampBound = CloudLayerAnimator.SPEED_PX_PER_MS * CloudLayerAnimator.DT_CLAMP_MS + 0.01f
-        assertTrue("dt 钳制后位移应≤500ms 对应距离（80px），实际 $dx", dx <= clampBound)
+        assertTrue("dt 钳制后位移应≤500ms 对应距离（48px），实际 $dx", dx <= clampBound)
     }
 }

@@ -595,11 +595,14 @@ tasks.register('generateAstcAtlas') {
     group = 'build'
     description = '从权威源生成 ASTC 压缩图集（KTX1 + manifest）'
     dependsOn 'generateResourceManifest'
-    // 2026-08-14：配置缓存前置——配置期捕获（doLast 内禁止脚本对象）
-    def astcencDir = file('scripts/tools/astcenc/bin')
+    // 2026-08-14：配置缓存前置——配置期捕获（doLast 内禁止脚本对象）。
+    // 2026-08-22 修复：路径按 android 根目录（rootProject）解析——此前相对 project（app）
+    // 解析导致 astcenc 永远"找不到"、脚本路径错位，任务恒静默跳过（KTX 变更无法重生成）。
+    def androidRoot = rootProject.projectDir
+    def astcencDir = file("${androidRoot}/scripts/tools/astcenc/bin")
     def astcencCandidates = ['astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe']
         .collect { file("${astcencDir}/${it}") }
-    def scriptDir = projectDir
+    def scriptDir = androidRoot
     doLast {
         def hasAstcenc = astcencDir.exists() && astcencCandidates.any { it.exists() }
         if (!hasAstcenc) {

@@ -668,6 +668,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     else if (ftW == 6 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
                     else if (ftW == 5 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
                     else if (ftW == 6 && ftH == 2) ftIdx = 2;  // 门楼 6x2 → 3x2（拉伸）
+                    else if (ftW == 12 && ftH == 6) ftIdx = 2;  // 天枢殿 12x6 → 3x2（拉伸）
                 }
 
                 if (ftIdx >= 0 && ftIdx < (int)ftuvCount) {
@@ -805,7 +806,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
 
     // ---- 3.5 云层（世界顶部动态云朵——建筑/作物之上、UI 之下） ----
     // 实例数据由 Kotlin CloudLayerAnimator 逐帧生成（只在世界外生成/穿越/出界消失，
-    // 速度 5 格/秒）；本段只消费快照，与 Canvas 侧 drawClouds 同一份数据保证双端一致。
+    // 速度 3 格/秒，尺寸为原生 rect × 0.4~0.8 缩放）；本段只消费快照，
+    // 与 Canvas 侧 drawClouds 同一份数据保证双端一致。
     if (cloudData && cloudUVMap) {
         jfloat* clouds = env->GetFloatArrayElements(cloudData, nullptr);
         jfloat* cuvs = env->GetFloatArrayElements(cloudUVMap, nullptr);

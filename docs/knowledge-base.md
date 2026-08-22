@@ -35,7 +35,7 @@
 | 组件 | 位置 | 职责 |
 |------|------|------|
 | `SectAtlasAssembler` | `feature/game/.../sect/` | 宗门地图图集运行时组装（自 NativeSurfaceView companion 外移） |
-| `CloudLayerAnimator` | `feature/game/.../sect/` | 世界顶部动态云朵动画引擎（渲染线程驱动：只在世界外生成/横向穿越/出界消失，5 格/秒，随机类型/方向/Y/缩放/透明度；逐帧快照 `host.cloudData` 双后端共享） |
+| `CloudLayerAnimator` | `feature/game/.../sect/` | 世界顶部动态云朵动画引擎（渲染线程驱动：只在世界外生成/横向穿越/出界消失，3 格/秒，随机类型/方向/Y/缩放（0.4~0.8，2026-08 缩半）/透明度；逐帧快照 `host.cloudData` 双后端共享） |
 | `SurfaceProvider` / `AndroidSurfaceProvider` | `core/engine/.../platform/` / `feature/game/.../sect/` | 渲染表面生命周期平台抽象（iOS 迁移点；防御逻辑：10s 超时/generation 防 stale/首帧黑屏） |
 | `EngineTween` / `Timeline` / `EasingConstants` | `core/engine/.../animation/` / `core/domain/.../animation/` | 统一缓动库（TimeSource 驱动、帧率无关；CameraAnimator 已迁移；战斗动画经守卫评估不迁移） |
 | `RenderCommandBus` 双通道 | `feature/game/.../sect/` | 帧数据覆盖槽 + RenderCommand 命令 FIFO（SPSC 无锁环形缓冲）；`RenderCommand`/`ResourceHandle` 契约在 `core/engine/.../core/render/` |

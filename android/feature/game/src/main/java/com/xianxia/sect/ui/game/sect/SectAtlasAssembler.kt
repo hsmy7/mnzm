@@ -96,10 +96,21 @@ object SectAtlasAssembler {
      * SpriteAtlasDef 生成物，本函数只消费布局不定义布局）。
      */
     private fun buildSpriteSlots(): List<SpriteSlot> {
-        val buildingMap = BuildingFeatureRegistry.all.associate { it.displayName to it.drawableRes }
+        val buildingMap = buildingAtlasDrawableMap()
         return buildTileSlots() + buildBuildingSlots(buildingMap) +
             buildFloorSlots() + buildCropSlots() + buildStructureSlots() + buildCloudSlots()
     }
+
+    /**
+     * 建筑图集名 → drawableRes 映射。
+     *
+     * 键必须是 [SpriteAtlasDef.BUILDING_NAMES] 中的**图集精灵名**（经
+     * [BuildingFeature.effectiveSpriteName] 解析）而非显示名——显示名可带分级前缀
+     * （如「初级多人住所」）而图集精灵名保持历史名称（「多人住所」），按显示名建
+     * 映射会导致住所类建筑槽位查空、精灵图不显示（2026-08 修复根因）。
+     */
+    internal fun buildingAtlasDrawableMap(): Map<String, Int> =
+        BuildingFeatureRegistry.all.associate { it.effectiveSpriteName() to it.drawableRes }
 
     /** 瓦片/装饰精灵槽位（含 6 种草皮地面变体）。 */
     private fun buildTileSlots(): List<SpriteSlot> =

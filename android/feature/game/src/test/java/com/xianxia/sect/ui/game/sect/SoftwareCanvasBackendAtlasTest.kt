@@ -186,6 +186,7 @@ class SoftwareCanvasBackendAtlasTest {
         assertEquals(2, SpriteAtlasDef.floorTileIndex(4, 3))  // 宽扁 → 3x2
         assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 5))  // 宽扁 → 3x2
         assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 2))  // 门楼占地 6x2 → 3x2
+        assertEquals(2, SpriteAtlasDef.floorTileIndex(12, 6))  // 天枢殿占地 12x6 → 3x2（拉伸）
     }
 
     @Test

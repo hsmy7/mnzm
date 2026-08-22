@@ -46,6 +46,16 @@
 - **验证** — 全量 `detekt` 6 模块全绿；`compileReleaseKotlin` + `lintRelease` BUILD SUCCESSFUL；全量单测串行 `testReleaseUnitTest --max-workers=1` 通过（0 失败）
 - **兼容性** — 全部为纯重构（行为逐位不变，含 `StackableItemStore.add` 合并/分块语义），无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）
 
+### 调整（2026-08-22 住所精灵修复 + 云层缩小/减速 + 天枢殿扩建）
+
+- **修复初级多人/单人住所精灵图不显示（根因）** — `c99ded0d` 住所显示名补全「初级」前缀后，运行时图集组装器 `SectAtlasAssembler.buildSpriteSlots` 仍按 **displayName** 建 `建筑名→drawable` 映射，而槽位按**图集精灵名**（`BUILDING_NAMES[idx]`）查询 → 显示名≠精灵名的住所（「初级多人住所」↔「多人住所」、「初级单人住所」↔「单人住所」）查空 → 槽位留空 → 精灵图不显示。修复：改经 `effectiveSpriteName()` 建映射（新增可测纯函数 `buildingAtlasDrawableMap()`）；新增守卫测试 `SectAtlasBuildingDrawableGuardTest`（图集每个建筑名必须映射到非零 drawable、注册表↔图集名双射，锁住所回归）
+- **根治 KTX/ASTC 图集建筑槽位全空（同族预存缺陷）** — `e8c7bb97` 资源管线重构把 `build-atlas.mjs` 建筑精灵 drawable 置为 null（此前从 `BuildingFeatureBoot.kt` 解析），此后生成的 `atlas_astc.ktx` 建筑槽位全空（实测解码 KTX：天枢殿/多人住所/灵田区域 alpha=0）→ Vulkan+ASTC 设备所有建筑不显示。修复：`build-atlas.mjs` 新增 `BUILDING_DRAWABLE` 映射（图集名→资源文件名 19 项，与 BuildingFeatureBoot drawableRes 一致）+ 重新生成 `atlas_astc.ktx` / `atlas-manifest.json`（建筑条目 drawable 由 null 补齐，layoutHash 不变）
+- **云层整体缩小 50%** — `CloudLayerAnimator.SCALE_MIN/MAX` 0.8~1.6 → 0.4~0.8（显示尺寸 = 图集原生 rect × 缩放，双后端共享同一快照，零图集改动）；`CloudLayerAnimatorTest` 新增缩放区间守卫
+- **云层速度 5→3 格/秒** — `CloudLayerAnimator.SPEED_TILES_PER_SECOND` 5→3（=96 世界像素/秒，现实时间）；测试断言/KDoc/NativeBridge 注释/渲染文档同步
+- **天枢殿占地 12×6、精灵 12×8** — `BuildingFeatureBoot.kt` / `BuildingConfigService` 默认配置 / assets `config/buildings.json` 三源同步（gridWidth 6→12、gridHeight 3→6、spriteWidth 6→12、spriteHeight 6→8）；`build-atlas.mjs LAYOUT.footprints[9]` [6,3]→[12,6]（FOOTPRINT_BY_NAME_INDEX 权威源，重新生成 SpriteAtlasDef.kt + footprint_table.h，C++ FP_W/FP_H 自动同步）；地砖映射双端新增 `12×6 → 3×2`（Kotlin `floorTileIndex` 模板 + `NativeBridge.cpp` 手写表）；旧档已建天枢殿经既有 `fixupBuildingSizes`（Boot/读档路径）自动改宽高并钳位坐标
+- **验证** — `compileReleaseKotlin` / `lintRelease` / 全量单测串行 `testReleaseUnitTest --max-workers=1` 全绿；codegen 产物（SpriteAtlasDef/footprint_table/SpriteCode/KTX/atlas-manifest）重新生成
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染与静态资源配置变更，旧档经尺寸修正自动适配
+
 ## [4.01.07] - 2026-08-22
 
 ### 修复（2026-08-22 解决已知问题）

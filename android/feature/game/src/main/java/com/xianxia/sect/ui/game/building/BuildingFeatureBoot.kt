@@ -88,7 +88,7 @@ private fun hallBuildingFeatures(): List<BuildingFeature> = listOf(
     BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
         listOf(SlotGroup.ElderPositions.TIANSHU_HALL),
         drawableRes = R.drawable.building_tianshu_hall, color = 0xFFFFF176,
-        cost = 15000, gridWidth = 6, gridHeight = 3, spriteWidth = 6, spriteHeight = 6,
+        cost = 15000, gridWidth = 12, gridHeight = 6, spriteWidth = 12, spriteHeight = 8,
         description = "处理宗门事务的核心建筑", isGloballyUnique = true),
     BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
         listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT),
