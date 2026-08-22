@@ -67,12 +67,27 @@ async function main() {
     let outW = meta.width;
     let outH = meta.height;
     if (cfg.canvasW && cfg.canvasH) {
-      encode.resize(cfg.canvasW, cfg.canvasH, {
+      // 画布比例自适应源图（2026-08-23 根因修复）：contain 画布若与源图比例不一致，
+      // 内容等比缩放后会在两侧/上下留出透明边——图集槽位按 fit:fill 拉伸后该透明边
+      // 跟随放大，导致殿体（精灵内容）不占满精灵绘制区域、两侧露出地砖。
+      // 以画布高度为基准、按源图比例重算画布宽度，使 contain 后内容恰好占满画布。
+      const srcRatio = meta.width / meta.height;
+      const canvasRatio = cfg.canvasW / cfg.canvasH;
+      let canvasW = cfg.canvasW;
+      let canvasH = cfg.canvasH;
+      if (Math.abs(srcRatio - canvasRatio) > 0.001) {
+        if (srcRatio > canvasRatio) {
+          canvasH = Math.round(cfg.canvasW / srcRatio);
+        } else {
+          canvasW = Math.round(cfg.canvasH * srcRatio);
+        }
+      }
+      encode.resize(canvasW, canvasH, {
         fit: 'contain',
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       });
-      outW = cfg.canvasW;
-      outH = cfg.canvasH;
+      outW = canvasW;
+      outH = canvasH;
     }
     const result = await encode.webp(WEBP_OPTIONS).toBuffer();
 
