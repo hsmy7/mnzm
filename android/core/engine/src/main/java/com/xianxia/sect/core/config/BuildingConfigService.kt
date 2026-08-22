@@ -450,10 +450,10 @@ class BuildingConfigService @Inject constructor(
             slotCount = 2,
             baseSuccessRate = 1.0,
             cost = 15000,
-            gridWidth = 12,
-            gridHeight = 6,
-            spriteWidth = 12,
-            spriteHeight = 8,
+            gridWidth = 18,
+            gridHeight = 12,
+            spriteWidth = 16,
+            spriteHeight = 22,
             description = "处理宗门事务的核心建筑"
         ),
         "multi_residence" to BuildingConfigModel(
