@@ -98,90 +98,135 @@ class StackableItemStore<T>(
      */
     @Suppress("UNCHECKED_CAST")
     fun add(item: T, merge: Boolean = true): DomainResult<T> {
-        // 守卫：拒绝负数/零数量
-        if (item.quantity <= 0) {
-            return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(item.quantity))
-        }
-        // 守卫（E5 对抗性审查）：maxStack<=0 时分块 `minOf(remaining, maxStack)` 产生
-        // 空/负数量堆叠直到槽满（内存垃圾），语义上无法合并也无法分块 → 直接失败
-        if (maxStack <= 0) {
+        // 守卫：拒绝负数/零数量；maxStack<=0 时分块产生空/负数量堆叠（E5 对抗性审查）
+        if (!isAddableQuantity(item)) {
             return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(item.quantity))
         }
         val key = stackKeyOf(item)
-        var remaining = item.quantity
-        var mergedAny = false
 
         if (merge) {
-            val ids = keyIndex[key] ?: emptyList()
-            // toList() 快照避免并发修改；ids 极小（典型 1-3），开销可忽略
-            for (id in ids.toList()) {
-                val existing = store.get(id) ?: continue
-                val space = maxStack - existing.quantity
-                if (space <= 0) continue
-
-                val addQty = minOf(remaining, space)
-                val updated = existing.withQuantity(existing.quantity + addQty) as T
-                store.update(id) { updated }
-                remaining -= addQty
-                mergedAny = true
-                promoteKey(key, id)
-
-                if (remaining <= 0) {
-                    return DomainResult.Success(updated)
-                }
+            val outcome = mergeIntoExistingStacks(item, key)
+            if (outcome.completed != null) {
+                // remaining 归零：全部合并成功，返回最后一个被合并的堆叠
+                return DomainResult.Success(outcome.completed)
             }
+            if (outcome.remaining <= 0) {
+                return DomainResult.Success(item)
+            }
+            return createNewStacksOrPartial(item, key, outcome.remaining, outcome.mergedAny)
         }
-
-        // 还有剩余 → 按 maxStack 分块创建新堆叠
-        if (remaining > 0) {
-            if (store.size >= maxSlots()) {
-                // 无空槽：本次有实际合并量则返回 Partial（溢出量=剩余），
-                // 本次零合并（或 merge=false）则视为仓库满返回 Failure——
-                // 否则调用方会把"零合并 Partial"当作部分成功，物品静默丢失且不可重试
-                val lastMergedId = if (!merge) null else (keyIndex[key]?.lastOrNull())
-                return if (mergedAny && lastMergedId != null) {
-                    val lastMerged = store.get(lastMergedId) ?: return@add DomainResult.Failure(
-                        AppError.Domain.Inventory.NotFound(lastMergedId)
-                    )
-                    DomainResult.Partial(lastMerged as T, remaining)
-                } else {
-                    DomainResult.Failure(AppError.Domain.Inventory.Full())
-                }
-            }
-
-            // 分块创建：单次添加数量可能超过 maxStack，逐块生成不超过上限的堆叠
-            // ★ 修复（仓库满时获得物品导致仓库内相同物品消失）：
-            //   多分块若复用同一 item.id 会破坏 id 唯一性——EntityStore 按 id 索引
-            //   只保留一条、DB 主键 (id, slot) REPLACE 去重，导致堆叠在保存/重载后
-            //   静默丢失。因此仅首个分块保留物品原 id（兼容既有语义），后续分块
-            //   必须生成新 id。
-            var chunkIndex = 0
-            while (remaining > 0 && store.size < maxSlots()) {
-                val chunk = minOf(remaining, maxStack)
-                val base = item.withQuantity(chunk) as T
-                val newItem = if (chunkIndex == 0 && store.get(base.id) == null) {
-                    base
-                } else {
-                    base.withNewId(newId()) as T
-                }
-                store.add(newItem)
-                keyIndex.getOrPut(key) { mutableListOf() }.add(newItem.id)
-                remaining -= chunk
-                chunkIndex++
-            }
-            if (remaining > 0) {
-                // 槽位中途耗尽：返回 Partial（溢出量=剩余）
-                val lastMergedId = keyIndex[key]?.lastOrNull()
-                val lastMerged = lastMergedId?.let { store.get(it) }
-                    ?: return DomainResult.Failure(AppError.Domain.Inventory.Full())
-                return DomainResult.Partial(lastMerged as T, remaining)
-            }
-            return DomainResult.Success(item)
-        }
-
-        // remaining == 0：全部已合并，返回 Success（用最后一个被合并的堆叠作为 data）
-        return DomainResult.Success(item)
+        return createNewStacksOrPartial(item, key, item.quantity, mergedAny = false)
     }
+
+    /** 数量守卫：负数/零数量或 maxStack<=0（无法合并也无法分块）视为非法。 */
+    private fun isAddableQuantity(item: T): Boolean = item.quantity > 0 && maxStack > 0
+
+    /**
+     * 合并到所有匹配堆叠（最近使用优先，填满的自然沉降到尾部）。
+     *
+     * @return 合并结果；[MergeOutcome.completed] 非 null = 全部合并完成
+     */
+    private fun mergeIntoExistingStacks(item: T, key: StackKey): MergeOutcome<T> {
+        val ids = keyIndex[key] ?: return MergeOutcome(item.quantity, mergedAny = false, completed = null)
+        var remaining = item.quantity
+        var mergedAny = false
+        var completed: T? = null
+        // toList() 快照避免并发修改；ids 极小（典型 1-3），开销可忽略
+        for (id in ids.toList()) {
+            val existing = store.get(id) ?: continue
+            val space = maxStack - existing.quantity
+            if (space <= 0) continue
+
+            val addQty = minOf(remaining, space)
+            val updated = existing.withQuantity(existing.quantity + addQty) as T
+            store.update(id) { updated }
+            remaining -= addQty
+            mergedAny = true
+            promoteKey(key, id)
+
+            if (remaining <= 0) {
+                completed = updated
+                break
+            }
+        }
+        return MergeOutcome(remaining, mergedAny, completed)
+    }
+
+    /**
+     * 剩余数量按 [maxStack] 分块创建新堆叠；槽位不足时按是否发生过合并返回
+     * Partial（溢出量=剩余）或 Failure（零合并且仓库满——避免物品静默丢失）。
+     */
+    private fun createNewStacksOrPartial(
+        item: T,
+        key: StackKey,
+        remaining: Int,
+        mergedAny: Boolean
+    ): DomainResult<T> = if (store.size >= maxSlots()) {
+        fullSlotResult(key, remaining, mergedAny)
+    } else {
+        createChunksResult(item, key, remaining)
+    }
+
+    /** 槽位已满时按是否发生过合并返回 Partial/Failure。 */
+    private fun fullSlotResult(key: StackKey, remaining: Int, mergedAny: Boolean): DomainResult<T> {
+        val lastMergedId = keyIndex[key]?.lastOrNull()
+        return when {
+            mergedAny && lastMergedId != null -> {
+                val lastMerged = store.get(lastMergedId)
+                if (lastMerged == null) {
+                    DomainResult.Failure(AppError.Domain.Inventory.NotFound(lastMergedId))
+                } else {
+                    DomainResult.Partial(lastMerged as T, remaining)
+                }
+            }
+            else -> DomainResult.Failure(AppError.Domain.Inventory.Full())
+        }
+    }
+
+    /**
+     * 分块创建新堆叠：单次添加数量可能超过 maxStack，逐块生成不超过上限的堆叠；
+     * 槽位中途耗尽返回 Partial（溢出量=剩余）。
+     *
+     * ★ 修复（仓库满时获得物品导致仓库内相同物品消失）：多分块若复用同一
+     *   item.id 会破坏 id 唯一性——EntityStore 按 id 索引只保留一条、DB 主键
+     *   (id, slot) REPLACE 去重，导致堆叠在保存/重载后静默丢失。因此仅首个
+     *   分块保留物品原 id（兼容既有语义），后续分块必须生成新 id。
+     */
+    private fun createChunksResult(item: T, key: StackKey, remaining: Int): DomainResult<T> {
+        var left = remaining
+        var chunkIndex = 0
+        while (left > 0 && store.size < maxSlots()) {
+            val chunk = minOf(left, maxStack)
+            val base = item.withQuantity(chunk) as T
+            val newItem = if (chunkIndex == 0 && store.get(base.id) == null) {
+                base
+            } else {
+                base.withNewId(newId()) as T
+            }
+            store.add(newItem)
+            addToKeyIndex(key, newItem.id)
+            left -= chunk
+            chunkIndex++
+        }
+        return if (left > 0) {
+            val lastMergedId = keyIndex[key]?.lastOrNull()
+            val lastMerged = lastMergedId?.let { store.get(it) }
+            if (lastMerged == null) {
+                DomainResult.Failure(AppError.Domain.Inventory.Full())
+            } else {
+                DomainResult.Partial(lastMerged as T, left)
+            }
+        } else {
+            DomainResult.Success(item)
+        }
+    }
+
+    /** 合并阶段结果（remaining 归零且 completed 非 null = 全部合并）。 */
+    private data class MergeOutcome<T>(
+        val remaining: Int,
+        val mergedAny: Boolean,
+        val completed: T?
+    )
 
     /**
      * 移除指定数量的物品。

@@ -28,6 +28,24 @@
 - **验证** — `compileReleaseKotlin` BUILD SUCCESSFUL；新测试类通过
 - **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；纯渲染与静态资源变更，旧档无影响
 
+### 代码质量（2026-08-22 预存问题清理）
+
+- **detekt 全绿** — 清除全模块预存违规（此前 `:core:engine` 批次遗留 6 条 + 被掩盖的 `:core:domain` 3 条 + `:feature:game` 12 条）：
+  - `DiffStateTest` LongMethod ×2 → 拆分为命名样本辅助函数（`gameDataRoundTripSample`/`applyGameDataScalarsPart1/2`/`applyGameDataNestedPart1/2`/`disciplesAndItemsRoundTripSample`/`sampleDisciples`）
+  - `StackableItemStore.add` LongMethod → 拆为 `mergeIntoExistingStacks`（MergeOutcome 泛型化）/`createNewStacksOrPartial`（再拆 `fullSlotResult`/`createChunksResult`，ReturnCount 收敛）
+  - `GameConfig.GATE_X/GATE_Y/GATE_SPRITE_Y` MayBeConst → `const val`
+  - `ActionIds` EmptyClassBlock → 根因修复在生成器 `gen-action-ids.mjs`（ACTION_CATALOG 为空时由生成物 `@Suppress("EmptyClassBlock")`，清单非空自动消失）
+  - `DiffRngTest`/`TemplateRegistryGuardTest` MaxLineLength + UnusedImports → 拆行/删导入
+  - `MainGameScreen` FileLength 2010→1950（`buildSpiritCropData` 移入新文件 `SpiritCropRenderData.kt`）+ `MainGameScreenDemolishControls` LongMethod 拆分（`DemolishModeButtons`/`QuickActionButtons`）
+  - `ResidenceDialog` LongMethod + `ResidenceDialogContent` LongParameterList → `rememberResidenceDerivedState`/`ResidenceContentParams` 分组
+  - `BloodRefiningPoolDialog.MaterialSelectorDialog` LongMethod → `MaterialSelectorList`（ColumnScope 扩展）/`MaterialUseButton`/`MaterialSelectorDialogs` 拆分
+  - `EquipmentSelectionDialog`/`ManualSelectionDialog` LongParameterList → `EquipmentSelectionParams`/`ManualSelectionParams` 分组（调用方 DiscipleDetailScreen 同步）
+  - `BuildingDelegate` TooManyFunctions 22→18 → 升级域拆分至新类 `BuildingUpgradeDelegate`（GameViewModel 接线同步）
+  - `NativeSurfaceView` TooManyFunctions 20→19（云层 `advanceClouds` 移为顶层函数）；`SoftwareCanvasBackend` TooManyFunctions 20→18 + `drawClouds` CyclomaticComplexMethod/ComplexCondition + `cloudScreenRect`/`isValidCloud` ReturnCount/LongParameterList（顶层单返回辅助函数）
+- **清理一次性脚本** — 删除仓库根 `update_ui.py`/`update_ui.ps1`（批量改 UI 字体/背景的过期脚本，无引用）与 `android/scripts/tools/atlas_verify/` 图集验证临时产物
+- **验证** — 全量 `detekt` 6 模块全绿；`compileReleaseKotlin` + `lintRelease` BUILD SUCCESSFUL；全量单测串行 `testReleaseUnitTest --max-workers=1` 通过（0 失败）
+- **兼容性** — 全部为纯重构（行为逐位不变，含 `StackableItemStore.add` 合并/分块语义），无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）
+
 ## [4.01.07] - 2026-08-22
 
 ### 修复（2026-08-22 解决已知问题）

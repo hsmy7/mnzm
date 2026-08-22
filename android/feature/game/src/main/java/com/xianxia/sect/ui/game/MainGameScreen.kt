@@ -45,9 +45,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MapPreloadData
-import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.util.GridSnapHelper
-import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
@@ -1753,56 +1751,73 @@ private fun MainGameScreenDemolishControls(
     ) {
         Spacer(modifier = Modifier.weight(1f))
         if (state.isDemolishMode) {
-            // 区域选择按钮 + 正上方的直径调整进度条（仅区域模式激活时显示）
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (state.isAreaSelectMode) {
-                    AreaDiameterSlider(
-                        diameter = state.areaDiameter,
-                        onDiameterChange = { state.areaDiameter = it }
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                }
-                AreaSelectButton(
-                    isActive = state.isAreaSelectMode,
-                    onClick = {
-                        state.isAreaSelectMode = !state.isAreaSelectMode
-                        if (state.isAreaSelectMode) state.areaDiameter = AREA_DEFAULT_DIAMETER
-                    }
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            GameButton(
-                text = "取消拆除",
-                onClick = {
-                    state.isDemolishMode = false
-                    state.isAreaSelectMode = false
-                    state.demolishSelectedIds = emptySet()
-                }
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            GameButton(
-                text = "确认拆除",
-                enabled = state.demolishSelectedIds.isNotEmpty(),
-                onClick = {
-                    viewModel.demolishBuildings(state.demolishSelectedIds.toList())
-                    state.isDemolishMode = false
-                    state.isAreaSelectMode = false
-                    state.demolishSelectedIds = emptySet()
-                }
-            )
+            DemolishModeButtons(state, viewModel)
         } else {
-            Column(horizontalAlignment = Alignment.End) {
-                GameButton(
-                    text = "一键升级",
-                    onClick = { viewModel.navigateToDialog(DialogType.BuildingUpgrade) }
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                GameButton(
-                    text = "一键拆除",
-                    onClick = { state.enterDemolishMode() }
-                )
-            }
+            QuickActionButtons(state, viewModel)
         }
+    }
+}
+
+/** 拆除模式按钮行：区域选择按钮（+ 直径调整进度条）+ 取消/确认拆除 */
+@Composable
+private fun DemolishModeButtons(
+    state: MainGameScreenState,
+    viewModel: GameViewModel
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (state.isAreaSelectMode) {
+            AreaDiameterSlider(
+                diameter = state.areaDiameter,
+                onDiameterChange = { state.areaDiameter = it }
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+        AreaSelectButton(
+            isActive = state.isAreaSelectMode,
+            onClick = {
+                state.isAreaSelectMode = !state.isAreaSelectMode
+                if (state.isAreaSelectMode) state.areaDiameter = AREA_DEFAULT_DIAMETER
+            }
+        )
+    }
+    Spacer(modifier = Modifier.width(8.dp))
+    GameButton(
+        text = "取消拆除",
+        onClick = {
+            state.isDemolishMode = false
+            state.isAreaSelectMode = false
+            state.demolishSelectedIds = emptySet()
+        }
+    )
+    Spacer(modifier = Modifier.width(8.dp))
+    GameButton(
+        text = "确认拆除",
+        enabled = state.demolishSelectedIds.isNotEmpty(),
+        onClick = {
+            viewModel.demolishBuildings(state.demolishSelectedIds.toList())
+            state.isDemolishMode = false
+            state.isAreaSelectMode = false
+            state.demolishSelectedIds = emptySet()
+        }
+    )
+}
+
+/** 非拆除模式快捷按钮：一键升级 + 一键拆除入口 */
+@Composable
+private fun QuickActionButtons(
+    state: MainGameScreenState,
+    viewModel: GameViewModel
+) {
+    Column(horizontalAlignment = Alignment.End) {
+        GameButton(
+            text = "一键升级",
+            onClick = { viewModel.navigateToDialog(DialogType.BuildingUpgrade) }
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        GameButton(
+            text = "一键拆除",
+            onClick = { state.enterDemolishMode() }
+        )
     }
 }
 
@@ -1941,70 +1956,7 @@ internal fun buildingsInSquare(
 }
 
 // BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（P-7，同包 internal）
-
-/** 灵田建筑显示名（与 buildBuildingDataArray 的灵田判定同源） */
-private const val SPIRIT_FIELD_NAME = "灵田"
-
-/** 灵田作物数据单条步长（[gx, gy, progress01]） */
-private const val CROP_DATA_STRIDE = 3
-
-/**
- * 构建灵田作物渲染数据（WP6）。
- *
- * 输入为已按 sectId 过滤的放置建筑列表与种植记录。仅灵田建筑
- * （displayName == [SPIRIT_FIELD_NAME]）且该田存在种植记录（seedId 非空、同宗门）时
- * 输出 [gx, gy, progress01] 三元组；progress01 = 游戏时间进度
- * （[TimeProgressUtil.calculateProgressFraction]，与生产结算同源）。
- * 无作物时返回 null（后端跳过作物层——渲染零开销）。
- *
- * 注意：与 [buildBuildingDataArray] 不同，本函数不做 Y 排序——作物与灵田建筑同格
- * 绘制（作物绘制在建筑层之后，灵田之间互相遮挡无意义），且数组索引与建筑数组
- * 无关联（后端按三元组独立解析、双端同数学）。
- *
- * @param buildings 已按 sectId 过滤的放置建筑列表
- * @param plants 全部种植记录（内部按 sectId 过滤）
- * @param currentYear 当前游戏年
- * @param currentMonth 当前游戏月
- * @param sectId 当前宗门 ID（跨宗门记录防御性跳过）
- */
-internal fun buildSpiritCropData(
-    buildings: List<GridBuildingData>,
-    plants: List<SpiritFieldPlant>,
-    currentYear: Int,
-    currentMonth: Int,
-    sectId: String
-): FloatArray? {
-    val plantByBuilding = HashMap<String, SpiritFieldPlant>()
-    for (plant in plants) {
-        // 跨宗门记录防御性跳过 + 未种植的田无作物（if 包裹避免 continue）
-        if (plant.sectId == sectId && plant.seedId.isNotEmpty()) {
-            plantByBuilding[plant.buildingInstanceId] = plant
-        }
-    }
-
-    var count = 0
-    val buffer = FloatArray(buildings.size * CROP_DATA_STRIDE)
-    for (b in buildings) {
-        val plant = plantByBuilding[b.instanceId]
-        if (b.displayName == SPIRIT_FIELD_NAME && plant != null) {
-            val progress = TimeProgressUtil.calculateProgressFraction(
-                startYear = plant.plantYear,
-                startMonth = plant.plantMonth,
-                duration = plant.growTime,
-                currentYear = currentYear,
-                currentMonth = currentMonth
-            )
-            val idx = count * CROP_DATA_STRIDE
-            buffer[idx] = b.gridX.toFloat()
-            buffer[idx + 1] = b.gridY.toFloat()
-            buffer[idx + 2] = progress
-            count++
-        }
-    }
-    // 单 return：无种植 → null；全部命中 → 原数组；部分命中 → 截断
-    if (count == 0) return null
-    return if (count == buildings.size) buffer else buffer.copyOf(count * CROP_DATA_STRIDE)
-}
+// 灵田作物渲染数据构建已移入 SpiritCropRenderData.kt（文件行数收敛）
 
 
 

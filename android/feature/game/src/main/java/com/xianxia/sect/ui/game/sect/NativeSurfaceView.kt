@@ -395,20 +395,6 @@ class NativeSurfaceView(
     var cloudData: FloatArray? = null
 
     /**
-     * 推进云层动画并刷新 [cloudData]（渲染线程每节拍调用）。
-     *
-     * @param nowNs 当前时间戳（纳秒）
-     * @return 本帧是否必须渲染（云朵移动/生成/销毁）
-     */
-    fun updateClouds(nowNs: Long): Boolean {
-        val dirty = cloudAnimator.update(nowNs)
-        if (dirty) {
-            cloudData = cloudAnimator.snapshot()
-        }
-        return dirty
-    }
-
-    /**
      * 相机脏标记 — [currentFrame] 更新时置 true，渲染线程读取后复位。
      * 使用 [AtomicBoolean] 防止 Compose 线程与 RenderThread 之间的
      * read-then-write 竞态导致相机更新丢失。
@@ -1070,7 +1056,7 @@ class NativeSurfaceView(
                 val fade = fadeAlpha
                 // ★ 云层动画推进（渲染线程每节拍调用——跳帧期间也随节拍唤醒推进生成
                 //   定时器，空天空不会卡死；返回值作为脏帧信号，云朵运动不被跳帧定格）
-                val cloudDirty = updateClouds(System.nanoTime())
+                val cloudDirty = advanceClouds(this@NativeSurfaceView, System.nanoTime())
                 // 淡入完成兜底（2026-08-18）：淡入已结束但最后一帧仍以淡入中 alpha
                 // 渲染时强制补渲一帧完整不透明地图——防脏帧跳过把"半透明瓦片 +
                 // 米白清屏色 #F2EDE4"帧永久定格（"进入游戏全屏半透明白色覆盖"根因）
@@ -1484,4 +1470,22 @@ private fun uploadGroundTexture(context: android.content.Context) {
     } catch (t: Throwable) {
         android.util.Log.e("NativeSurfaceView", "uploadGroundTexture failed", t)
     }
+}
+
+/**
+ * 推进云层动画并刷新 [NativeSurfaceView.cloudData]（渲染线程每节拍调用）。
+ *
+ * 顶层函数而非 [NativeSurfaceView] 成员——保持类函数数低于 TooManyFunctions
+ * 阈值（thresholdInClasses=20，本类已 19 个成员函数）。
+ *
+ * @param host 渲染宿主（读云层动画引擎、写实例快照）
+ * @param nowNs 当前时间戳（纳秒）
+ * @return 本帧是否必须渲染（云朵移动/生成/销毁）
+ */
+private fun advanceClouds(host: NativeSurfaceView, nowNs: Long): Boolean {
+    val dirty = host.cloudAnimator.update(nowNs)
+    if (dirty) {
+        host.cloudData = host.cloudAnimator.snapshot()
+    }
+    return dirty
 }

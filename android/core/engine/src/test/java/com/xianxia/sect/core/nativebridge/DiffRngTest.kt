@@ -53,7 +53,11 @@ class DiffRngTest {
         repeat(50) {
             val k = kotlin.nextDouble()
             val c = DiffRngBridge.nativeNextDouble()
-            assertEquals("nextDouble 第 $it 次不一致", java.lang.Double.doubleToRawLongBits(k), java.lang.Double.doubleToRawLongBits(c))
+            assertEquals(
+                "nextDouble 第 $it 次不一致",
+                java.lang.Double.doubleToRawLongBits(k),
+                java.lang.Double.doubleToRawLongBits(c)
+            )
         }
     }
 

@@ -72,8 +72,10 @@ import com.xianxia.sect.ui.game.components.detail.DetailActionCallbacks
 import com.xianxia.sect.ui.game.components.detail.DetailRightPanel
 import com.xianxia.sect.ui.game.components.detail.EquipmentSection
 import com.xianxia.sect.ui.game.components.detail.EquipmentSelectionDialog
+import com.xianxia.sect.ui.game.components.detail.EquipmentSelectionParams
 import com.xianxia.sect.ui.game.components.detail.LifeLogDialog
 import com.xianxia.sect.ui.game.components.detail.ManualSelectionDialog
+import com.xianxia.sect.ui.game.components.detail.ManualSelectionParams
 import com.xianxia.sect.ui.game.components.detail.ManualsSection
 import com.xianxia.sect.ui.game.components.detail.MasterApprenticeSelectDialog
 import com.xianxia.sect.ui.game.components.detail.PhysiquesSection
@@ -712,19 +714,22 @@ private fun DiscipleDetailSelectionDialogs(
 
     state.showEquipmentSelection?.let { slotType ->
         EquipmentSelectionDialog(
-            slotType = slotType,
-            allEquipment = allEquipment,
-            equipmentStacks = equipmentStacks,
-            currentEquipmentId = when (slotType) {
-                "weapon" -> disciple.weaponId
-                "armor" -> disciple.armorId
-                "boots" -> disciple.bootsId
-                "accessory" -> disciple.accessoryId
-                else -> null
-            },
-            currentDiscipleId = disciple.id,
-            discipleRealm = disciple.realm,
-            selectedEquipmentId = selectedEquipmentId,
+            params = EquipmentSelectionParams(
+                slotType = slotType,
+                allEquipment = allEquipment,
+                equipmentStacks = equipmentStacks,
+                currentEquipmentId = when (slotType) {
+                    "weapon" -> disciple.weaponId
+                    "armor" -> disciple.armorId
+                    "boots" -> disciple.bootsId
+                    "accessory" -> disciple.accessoryId
+                    else -> null
+                },
+                currentDiscipleId = disciple.id,
+                discipleRealm = disciple.realm,
+                selectedEquipmentId = selectedEquipmentId,
+                viewModel = viewModel
+            ),
             onSelect = { id -> selectedEquipmentId = id },
             onConfirm = { id ->
                 viewModel?.equipItem(disciple.id, id)
@@ -740,12 +745,15 @@ private fun DiscipleDetailSelectionDialogs(
 
     if (state.showManualSelection) {
         ManualSelectionDialog(
-            manualStacks = manualStacks,
-            allManuals = allManuals,
-            currentManualIds = disciple.manualIds,
-            discipleRealm = disciple.realm,
-            maxManualSlots = maxManualSlots,
-            selectedManualId = selectedManualId,
+            params = ManualSelectionParams(
+                manualStacks = manualStacks,
+                allManuals = allManuals,
+                currentManualIds = disciple.manualIds,
+                discipleRealm = disciple.realm,
+                maxManualSlots = maxManualSlots,
+                selectedManualId = selectedManualId,
+                viewModel = viewModel
+            ),
             onSelect = { id -> selectedManualId = id },
             onConfirm = { id ->
                 viewModel?.learnManual(disciple.id, id)

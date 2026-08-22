@@ -1004,9 +1004,9 @@ object GameConfig {
         const val GATE_HEIGHT = 2
         const val GATE_SPRITE_WIDTH = 6
         const val GATE_SPRITE_HEIGHT = 4
-        val GATE_X: Int = (WORLD_WIDTH_CELLS - GATE_WIDTH) / 2
-        val GATE_Y: Int = WORLD_HEIGHT_CELLS - GATE_HEIGHT
-        val GATE_SPRITE_Y: Int = GATE_Y - (GATE_SPRITE_HEIGHT - GATE_HEIGHT)
+        const val GATE_X: Int = (WORLD_WIDTH_CELLS - GATE_WIDTH) / 2
+        const val GATE_Y: Int = WORLD_HEIGHT_CELLS - GATE_HEIGHT
+        const val GATE_SPRITE_Y: Int = GATE_Y - (GATE_SPRITE_HEIGHT - GATE_HEIGHT)
 
         init {
             require(BORDER_TREE_RING >= 0 && BORDER_TREE_RING < WORLD_WIDTH_CELLS / 2) {

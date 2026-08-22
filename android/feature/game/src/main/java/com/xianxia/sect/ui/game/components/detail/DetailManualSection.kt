@@ -139,6 +139,17 @@ fun ManualSlot(
     }
 }
 
+/** 功法选择弹窗参数分组（ManualSelectionDialog LongParameterList 收敛）。 */
+data class ManualSelectionParams(
+    val manualStacks: List<ManualStack>,
+    val allManuals: List<ManualInstance>,
+    val currentManualIds: List<String>,
+    val discipleRealm: Int,
+    val maxManualSlots: Int,
+    val selectedManualId: String?,
+    val viewModel: GameViewModel? = null
+)
+
 /**
  * 功法学习/选择界面（ManualSelectionDialog 拆分）：全屏 7:3 双栏，
  * 左侧仓库功法列表（关注优先→品阶降序、单选高亮、心法规则置底置灰），右侧选中功法详情（四区域 + 底部"更换"按钮）。
@@ -148,32 +159,27 @@ fun ManualSlot(
  */
 @Composable
 fun ManualSelectionDialog(
-    manualStacks: List<ManualStack>,
-    allManuals: List<ManualInstance>,
-    currentManualIds: List<String>,
-    discipleRealm: Int,
-    maxManualSlots: Int,
-    selectedManualId: String?,
+    params: ManualSelectionParams,
     onSelect: (String) -> Unit,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-    viewModel: GameViewModel? = null
+    onDismiss: () -> Unit
 ) {
-    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
+    val watchedKeys = params.viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
 
     val items = remember(
-        manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots, watchedKeys
+        params.manualStacks, params.allManuals, params.currentManualIds,
+        params.discipleRealm, params.maxManualSlots, watchedKeys
     ) {
-        if (currentManualIds.size >= maxManualSlots) {
+        if (params.currentManualIds.size >= params.maxManualSlots) {
             emptyList()
         } else {
-            val manualMap = allManuals.associateBy { it.id }
-            val discipleHasMind = currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
-            val learnedNames = currentManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
+            val manualMap = params.allManuals.associateBy { it.id }
+            val discipleHasMind = params.currentManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
+            val learnedNames = params.currentManualIds.mapNotNull { mid -> manualMap[mid]?.name }.toSet()
             buildManualReplaceItems(
-                stacks = manualStacks,
+                stacks = params.manualStacks,
                 learnedNames = learnedNames,
-                discipleRealm = discipleRealm,
+                discipleRealm = params.discipleRealm,
                 mindItemsDisabled = discipleHasMind,
                 watchedKeys = watchedKeys
             )
@@ -185,7 +191,7 @@ fun ManualSelectionDialog(
             title = "选择功法",
             emptyText = "暂无可学习的功法",
             items = items,
-            selectedId = selectedManualId,
+            selectedId = params.selectedManualId,
             confirmLabel = "更换",
             actions = ReplaceSelectionActions(
                 onSelect = onSelect,

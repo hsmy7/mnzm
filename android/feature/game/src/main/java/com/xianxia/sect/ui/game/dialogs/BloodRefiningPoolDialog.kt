@@ -431,92 +431,133 @@ private fun MaterialSelectorDialog(
         title = "选择妖兽精血",
         mode = DialogMode.Half
     ) {
-        var showDetail by remember { mutableStateOf(false) }
         var detailMaterial by remember { mutableStateOf<BeastMaterialDatabase.BeastMaterial?>(null) }
         var selectedMaterialId by remember { mutableStateOf<String?>(null) }
         var showInsufficientPrompt by remember { mutableStateOf(false) }
+        val selectedEntry = bloodMaterials.firstOrNull { it.first.id == selectedMaterialId }
 
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (bloodMaterials.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                    Text("无符合条件的材料", fontSize = 14.sp, color = Color.Black)
-                }
-            } else {
-                // 列表区内部滚动：按钮固定在底部始终可见，无需滚动找按钮
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                ) {
-                    BloodMaterialList(
-                        bloodMaterials = bloodMaterials,
-                        viewModel = viewModel,
-                        selectedMaterialId = selectedMaterialId,
-                        onMaterialClick = { mat ->
-                            selectedMaterialId = if (selectedMaterialId == mat.id) null else mat.id
-                        },
-                        onShowDetail = { mat ->
-                            detailMaterial = mat
-                            showDetail = true
-                        }
-                    )
-                }
-            }
-
-            // 底部"使用"按钮：选中材料数量不足门槛时弹提示，充足则放入材料槽并关闭弹窗
-            val selectedEntry = bloodMaterials.firstOrNull { it.first.id == selectedMaterialId }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                GameButton(
-                    text = "使用",
-                    onClick = {
-                        val entry = selectedEntry
-                        if (entry != null && entry.second >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) {
-                            onSelect(entry.first, entry.second)
-                            onDismiss()
-                        } else if (entry != null) {
-                            showInsufficientPrompt = true
-                        }
-                    },
-                    enabled = selectedEntry != null,
-                    modifier = Modifier
-                        .width(ButtonSizes.StandardWidth)
-                        .height(ButtonSizes.StandardHeight)
-                )
-            }
-        }
-
-        if (showInsufficientPrompt) {
-            StandardPromptDialog(
-                onDismissRequest = { showInsufficientPrompt = false },
-                title = "材料不足",
-                text = "材料需要${BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT}个，" +
-                        "不足${BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT}不可使用"
-            )
-        }
-
-        if (showDetail && detailMaterial != null) {
-            val mat = checkNotNull(detailMaterial)
-            ItemDetailDialog(
-                item = Material(
-                    id = mat.id,
-                    name = mat.name,
-                    description = mat.description,
-                    rarity = mat.rarity
-                ),
-                onDismiss = {
-                    showDetail = false
-                    detailMaterial = null
+            MaterialSelectorList(
+                bloodMaterials = bloodMaterials,
+                viewModel = viewModel,
+                selectedMaterialId = selectedMaterialId,
+                onMaterialClick = { mat ->
+                    selectedMaterialId = if (selectedMaterialId == mat.id) null else mat.id
                 },
-                viewModel = viewModel
+                onShowDetail = { mat ->
+                    detailMaterial = mat
+                }
+            )
+            // 底部"使用"按钮：选中材料数量不足门槛时弹提示，充足则放入材料槽并关闭弹窗
+            MaterialUseButton(
+                selectedEntry = selectedEntry,
+                onUse = {
+                    val entry = selectedEntry
+                    if (entry != null && entry.second >= BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT) {
+                        onSelect(entry.first, entry.second)
+                        onDismiss()
+                    } else if (entry != null) {
+                        showInsufficientPrompt = true
+                    }
+                }
             )
         }
+
+        MaterialSelectorDialogs(
+            showInsufficientPrompt = showInsufficientPrompt,
+            onDismissInsufficient = { showInsufficientPrompt = false },
+            detailMaterial = detailMaterial,
+            onDismissDetail = { detailMaterial = null },
+            viewModel = viewModel
+        )
+    }
+}
+
+/** 材料选择弹窗的提示/详情子弹窗（MaterialSelectorDialog 拆分——函数行数收敛）。 */
+@Composable
+private fun MaterialSelectorDialogs(
+    showInsufficientPrompt: Boolean,
+    onDismissInsufficient: () -> Unit,
+    detailMaterial: BeastMaterialDatabase.BeastMaterial?,
+    onDismissDetail: () -> Unit,
+    viewModel: GameViewModel?
+) {
+    if (showInsufficientPrompt) {
+        StandardPromptDialog(
+            onDismissRequest = onDismissInsufficient,
+            title = "材料不足",
+            text = "材料需要${BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT}个，" +
+                "不足${BloodRefiningViewModel.REQUIRED_MATERIAL_COUNT}不可使用"
+        )
+    }
+
+    if (detailMaterial != null) {
+        val mat = detailMaterial
+        ItemDetailDialog(
+            item = Material(
+                id = mat.id,
+                name = mat.name,
+                description = mat.description,
+                rarity = mat.rarity
+            ),
+            onDismiss = onDismissDetail,
+            viewModel = viewModel
+        )
+    }
+}
+
+/** 材料列表区（MaterialSelectorDialog 拆分）：空态提示 + 列表内部滚动（按钮固定在底部）。 */
+@Composable
+private fun ColumnScope.MaterialSelectorList(
+    bloodMaterials: List<Pair<BeastMaterialDatabase.BeastMaterial, Int>>,
+    viewModel: GameViewModel?,
+    selectedMaterialId: String?,
+    onMaterialClick: (BeastMaterialDatabase.BeastMaterial) -> Unit,
+    onShowDetail: (BeastMaterialDatabase.BeastMaterial) -> Unit
+) {
+    if (bloodMaterials.isEmpty()) {
+        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+            Text("无符合条件的材料", fontSize = 14.sp, color = Color.Black)
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+        ) {
+            BloodMaterialList(
+                bloodMaterials = bloodMaterials,
+                viewModel = viewModel,
+                selectedMaterialId = selectedMaterialId,
+                onMaterialClick = onMaterialClick,
+                onShowDetail = onShowDetail
+            )
+        }
+    }
+}
+
+/** 底部"使用"按钮（MaterialSelectorDialog 拆分）。 */
+@Composable
+private fun MaterialUseButton(
+    selectedEntry: Pair<BeastMaterialDatabase.BeastMaterial, Int>?,
+    onUse: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        GameButton(
+            text = "使用",
+            onClick = onUse,
+            enabled = selectedEntry != null,
+            modifier = Modifier
+                .width(ButtonSizes.StandardWidth)
+                .height(ButtonSizes.StandardHeight)
+        )
     }
 }
 

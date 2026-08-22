@@ -36,28 +36,7 @@ fun ResidenceDialog(
 ) {
     val scope = rememberCoroutineScope()
     val building = gameData.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return
-    val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(building.displayName)
-    val isSingleResidence = feature?.isResidence == true && feature.slotGroups.any { it is com.xianxia.sect.core.engine.domain.building.SlotGroup.Residence && it.slotsPerInstance == 1 }
-    val slotCount = if (isSingleResidence) 1 else 4
-
-    val residenceSlots = gameData.residenceSlots.filter { it.buildingInstanceId == buildingInstanceId }
-    val slots = (0 until slotCount).map { index ->
-        residenceSlots.find { it.slotIndex == index }
-            ?: com.xianxia.sect.core.model.ResidenceSlot(buildingInstanceId = buildingInstanceId, slotIndex = index)
-    }
-
-    val bonusText = feature?.residenceSpeedBonus ?: ""
-    val discipleMap = disciples.associateBy { it.id }
-
-    // ── 住所升级区（仅初级住所可升级：单人住所 / 多人住所）──
-    val upgradeDef = com.xianxia.sect.core.engine.domain.building.BuildingUpgradeRegistry
-        .findUpgrade(building.buildingId)
-    val upgradeCost = upgradeDef?.let {
-        com.xianxia.sect.core.engine.domain.building.BuildingUpgradeRegistry.upgradeCost(it)
-    } ?: 0L
-    val playerSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
-    val hasSectLevel = playerSectLevel >= com.xianxia.sect.core.SectLevel.MEDIUM
-    val hasEnoughStones = gameData.spiritStones >= upgradeCost
+    val state = rememberResidenceDerivedState(building, buildingInstanceId, gameData, disciples, viewModel)
 
     var showDiscipleSelector by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableIntStateOf(0) }
@@ -70,9 +49,15 @@ fun ResidenceDialog(
         scrollableContent = true
     ) {
         ResidenceDialogContent(
-            slots = slots,
-            discipleMap = discipleMap,
-            bonusText = bonusText,
+            params = ResidenceContentParams(
+                slots = state.slots,
+                discipleMap = state.discipleMap,
+                bonusText = state.bonusText,
+                upgradeDef = state.upgradeDef,
+                upgradeCost = state.upgradeCost,
+                hasEnoughStones = state.hasEnoughStones,
+                hasSectLevel = state.hasSectLevel
+            ),
             onEmptySlotClick = { selectedSlotIndex = it; isSwapping = false; showDiscipleSelector = true },
             onMoveOut = { index ->
                 scope.launch {
@@ -80,10 +65,6 @@ fun ResidenceDialog(
                 }
             },
             onSwap = { selectedSlotIndex = it; isSwapping = true; showDiscipleSelector = true },
-            upgradeDef = upgradeDef,
-            upgradeCost = upgradeCost,
-            hasEnoughStones = hasEnoughStones,
-            hasSectLevel = hasSectLevel,
             onUpgrade = { scope.launch { viewModel.upgradeResidence(buildingInstanceId) } }
         )
     }
@@ -100,19 +81,74 @@ fun ResidenceDialog(
     }
 }
 
+/** 住所弹窗派生状态（ResidenceDialog 拆分——函数行数收敛；每次重组重算，行为与原内联一致）。 */
+private data class ResidenceDerivedState(
+    val slots: List<ResidenceSlot>,
+    val discipleMap: Map<String, DiscipleAggregate>,
+    val bonusText: String,
+    val upgradeDef: com.xianxia.sect.core.engine.domain.building.BuildingUpgradeDef?,
+    val upgradeCost: Long,
+    val hasEnoughStones: Boolean,
+    val hasSectLevel: Boolean
+)
+
+/** 住所弹窗派生状态计算（拆分自 ResidenceDialog——LongMethod 收敛）。 */
+@Composable
+private fun rememberResidenceDerivedState(
+    building: com.xianxia.sect.core.model.GridBuildingData,
+    buildingInstanceId: String,
+    gameData: GameData,
+    disciples: List<DiscipleAggregate>,
+    viewModel: GameViewModel
+): ResidenceDerivedState {
+    val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+        .findByDisplayName(building.displayName)
+    val isSingleResidence = feature?.isResidence == true &&
+        feature.slotGroups.any {
+            it is com.xianxia.sect.core.engine.domain.building.SlotGroup.Residence && it.slotsPerInstance == 1
+        }
+    val slotCount = if (isSingleResidence) 1 else 4
+
+    val residenceSlots = gameData.residenceSlots.filter { it.buildingInstanceId == buildingInstanceId }
+    val slots = (0 until slotCount).map { index ->
+        residenceSlots.find { it.slotIndex == index }
+            ?: com.xianxia.sect.core.model.ResidenceSlot(buildingInstanceId = buildingInstanceId, slotIndex = index)
+    }
+    val upgradeDef = com.xianxia.sect.core.engine.domain.building.BuildingUpgradeRegistry
+        .findUpgrade(building.buildingId)
+    val upgradeCost = upgradeDef?.let {
+        com.xianxia.sect.core.engine.domain.building.BuildingUpgradeRegistry.upgradeCost(it)
+    } ?: 0L
+    val playerSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
+    return ResidenceDerivedState(
+        slots = slots,
+        discipleMap = disciples.associateBy { it.id },
+        bonusText = feature?.residenceSpeedBonus ?: "",
+        upgradeDef = upgradeDef,
+        upgradeCost = upgradeCost,
+        hasEnoughStones = gameData.spiritStones >= upgradeCost,
+        hasSectLevel = playerSectLevel >= com.xianxia.sect.core.SectLevel.MEDIUM
+    )
+}
+
+/** 住所内容区参数分组（ResidenceDialogContent LongParameterList 收敛）。 */
+private data class ResidenceContentParams(
+    val slots: List<ResidenceSlot>,
+    val discipleMap: Map<String, DiscipleAggregate>,
+    val bonusText: String,
+    val upgradeDef: com.xianxia.sect.core.engine.domain.building.BuildingUpgradeDef?,
+    val upgradeCost: Long,
+    val hasEnoughStones: Boolean,
+    val hasSectLevel: Boolean
+)
+
 /** 弟子住所主内容区（ResidenceDialog 拆分）：加成文案 + 槽位行 + 升级区 */
 @Composable
 private fun ResidenceDialogContent(
-    slots: List<ResidenceSlot>,
-    discipleMap: Map<String, DiscipleAggregate>,
-    bonusText: String,
+    params: ResidenceContentParams,
     onEmptySlotClick: (Int) -> Unit,
     onMoveOut: (Int) -> Unit,
     onSwap: (Int) -> Unit,
-    upgradeDef: com.xianxia.sect.core.engine.domain.building.BuildingUpgradeDef?,
-    upgradeCost: Long,
-    hasEnoughStones: Boolean,
-    hasSectLevel: Boolean,
     onUpgrade: () -> Unit
 ) {
     Column(
@@ -124,7 +160,7 @@ private fun ResidenceDialogContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center
         ) {
-            val bonusParts = bonusText.split("+")
+            val bonusParts = params.bonusText.split("+")
             if (bonusParts.size == 2) {
                 Text(
                     text = bonusParts[0],
@@ -147,9 +183,9 @@ private fun ResidenceDialogContent(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally)
         ) {
-            slots.forEach { slot ->
+            params.slots.forEach { slot ->
                 val disciple = slot.discipleId.let { id ->
-                    if (id.isNotEmpty()) discipleMap[id] else null
+                    if (id.isNotEmpty()) params.discipleMap[id] else null
                 }
                 ResidenceSlotColumn(
                     slot = slot,
@@ -164,11 +200,11 @@ private fun ResidenceDialogContent(
         Spacer(modifier = Modifier.height(12.dp))
 
         // 住所升级区（仅初级住所显示）：条件文本（满足=白 / 不满足=红）+ 升级按钮
-        if (upgradeDef != null) {
+        if (params.upgradeDef != null) {
             ResidenceUpgradeSection(
-                upgradeCost = upgradeCost,
-                hasEnoughStones = hasEnoughStones,
-                hasSectLevel = hasSectLevel,
+                upgradeCost = params.upgradeCost,
+                hasEnoughStones = params.hasEnoughStones,
+                hasSectLevel = params.hasSectLevel,
                 onUpgrade = onUpgrade
             )
             Spacer(modifier = Modifier.height(12.dp))

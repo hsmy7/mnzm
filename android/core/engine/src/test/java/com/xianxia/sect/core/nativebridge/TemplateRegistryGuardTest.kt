@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assume.assumeTrue
 import org.junit.Test
-import java.io.File
 
 /**
  * TemplateRegistryGuardTest — 静态数据守卫（批次 2）。
@@ -56,7 +55,12 @@ class TemplateRegistryGuardTest {
             assertEquals("$id.speed", obj.getValue("speed").jsonPrimitive.int, tpl.speed)
             assertEquals("$id.hp", obj.getValue("hp").jsonPrimitive.int, tpl.hp)
             assertEquals("$id.mp", obj.getValue("mp").jsonPrimitive.int, tpl.mp)
-            assertEquals("$id.critChance", obj.getValue("critChance").jsonPrimitive.content.toDouble(), tpl.critChance, 1e-12)
+            assertEquals(
+                "$id.critChance",
+                obj.getValue("critChance").jsonPrimitive.content.toDouble(),
+                tpl.critChance,
+                1e-12
+            )
             assertEquals("$id.price", obj.getValue("price").jsonPrimitive.int, tpl.price)
         }
     }

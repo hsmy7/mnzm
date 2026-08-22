@@ -135,6 +135,7 @@ import com.xianxia.sect.ui.game.delegate.AutoAssignDelegate
 import com.xianxia.sect.ui.game.delegate.BagDelegate
 import com.xianxia.sect.ui.game.delegate.BeastAttackDelegate
 import com.xianxia.sect.ui.game.delegate.BuildingDelegate
+import com.xianxia.sect.ui.game.delegate.BuildingUpgradeDelegate
 import com.xianxia.sect.ui.game.delegate.DiscipleDelegate
 import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
 import com.xianxia.sect.ui.game.delegate.GuideDelegate
@@ -201,7 +202,10 @@ class GameViewModel @Inject constructor(
     val buildingDelegate = BuildingDelegate(
         gameEngine, delegateServices.buildingFacade, delegateServices.buildingConfigService,
         dispatcher = delegateServices.ioDispatcher.dispatcher,
-        onDemolishSuccess = { msg -> showSuccess(msg) },
+        onDemolishSuccess = { msg -> showSuccess(msg) }
+    )
+    val buildingUpgradeDelegate = BuildingUpgradeDelegate(
+        gameEngine,
         onUpgradeSuccess = { msg -> showSuccess(msg) },
         onUpgradeError = { msg -> showError(msg) }
     )
@@ -533,9 +537,9 @@ class GameViewModel @Inject constructor(
         buildingDelegate.moveBuilding(instanceId, newGridX, newGridY)
     fun demolishBuilding(instanceId: String) = buildingDelegate.demolishBuilding(instanceId)
     fun demolishBuildings(instanceIds: List<String>) = buildingDelegate.demolishBuildings(instanceIds)
-    fun upgradeResidence(instanceId: String) = buildingDelegate.upgradeResidence(instanceId)
-    fun upgradeBuildingOne(sourceKey: String) = buildingDelegate.upgradeBuildingOne(sourceKey)
-    fun upgradeBuildingsOfType(sourceKey: String) = buildingDelegate.upgradeBuildingsOfType(sourceKey)
+    fun upgradeResidence(instanceId: String) = buildingUpgradeDelegate.upgradeResidence(instanceId)
+    fun upgradeBuildingOne(sourceKey: String) = buildingUpgradeDelegate.upgradeBuildingOne(sourceKey)
+    fun upgradeBuildingsOfType(sourceKey: String) = buildingUpgradeDelegate.upgradeBuildingsOfType(sourceKey)
     fun fixupBuildingSizesIfNeeded() = buildingDelegate.fixupBuildingSizesIfNeeded()
 
     // ── 核心状态流 ──

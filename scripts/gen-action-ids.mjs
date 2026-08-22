@@ -67,6 +67,11 @@ function genKotlin() {
   lines.push(' * ActionIds — 业务操作码（与 C++ action_ids.h 由 gen-action-ids.mjs 同源生成）。');
   lines.push(' * 禁止手改：修改清单后运行 `node scripts/gen-action-ids.mjs`。');
   lines.push(' */');
+  // 批次 0 骨架：ACTION_CATALOG 为空 → 空对象体触发 detekt EmptyClassBlock，
+  // 由生成器在清单为空时显式抑制（清单非空后抑制自动消失）
+  if (ACTION_CATALOG.length === 0) {
+    lines.push('@Suppress("EmptyClassBlock") // 批次 0 骨架：ACTION_CATALOG 为空，随子系统迁移填充');
+  }
   lines.push('object ActionIds {');
   for (const a of ACTION_CATALOG) {
     lines.push('    /** ' + a.desc + ' */');

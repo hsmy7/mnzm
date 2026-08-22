@@ -7,7 +7,6 @@ import android.graphics.Paint
 import androidx.core.graphics.createBitmap
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.SpriteAtlasDef
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before

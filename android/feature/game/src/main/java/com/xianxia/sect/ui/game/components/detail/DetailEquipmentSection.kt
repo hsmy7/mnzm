@@ -112,6 +112,18 @@ fun EquipmentSlot(
     }
 }
 
+/** 装备选择弹窗参数分组（EquipmentSelectionDialog LongParameterList 收敛）。 */
+data class EquipmentSelectionParams(
+    val slotType: String,
+    val allEquipment: List<EquipmentInstance>,
+    val equipmentStacks: List<EquipmentStack>,
+    val currentEquipmentId: String?,
+    val currentDiscipleId: String,
+    val discipleRealm: Int,
+    val selectedEquipmentId: String?,
+    val viewModel: GameViewModel? = null
+)
+
 /**
  * 装备更换/选择界面（EquipmentSelectionDialog 拆分）：全屏 7:3 双栏，
  * 左侧仓库装备列表（关注优先→品阶降序、单选高亮），右侧选中装备详情（四区域 + 底部"更换"按钮）。
@@ -119,34 +131,28 @@ fun EquipmentSlot(
  */
 @Composable
 fun EquipmentSelectionDialog(
-    slotType: String,
-    allEquipment: List<EquipmentInstance>,
-    equipmentStacks: List<EquipmentStack>,
-    currentEquipmentId: String?,
-    currentDiscipleId: String,
-    discipleRealm: Int,
-    selectedEquipmentId: String?,
+    params: EquipmentSelectionParams,
     onSelect: (String) -> Unit,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-    viewModel: GameViewModel? = null
+    onDismiss: () -> Unit
 ) {
-    val slotTypeText = equipmentSelectionSlotText(slotType = slotType)
-    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
+    val slotTypeText = equipmentSelectionSlotText(slotType = params.slotType)
+    val watchedKeys = params.viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value ?: emptySet()
     val slotEnum = runCatching {
-        EquipmentSlot.valueOf(slotType.uppercase(LocalLocale.current.platformLocale))
+        EquipmentSlot.valueOf(params.slotType.uppercase(LocalLocale.current.platformLocale))
     }.getOrDefault(EquipmentSlot.WEAPON)
 
     val items = remember(
-        allEquipment, equipmentStacks, slotEnum, currentEquipmentId, currentDiscipleId, discipleRealm, watchedKeys
+        params.allEquipment, params.equipmentStacks, slotEnum,
+        params.currentEquipmentId, params.currentDiscipleId, params.discipleRealm, watchedKeys
     ) {
         buildEquipmentReplaceItems(
-            stacks = equipmentStacks,
-            instances = allEquipment,
+            stacks = params.equipmentStacks,
+            instances = params.allEquipment,
             slot = slotEnum,
-            currentEquipmentId = currentEquipmentId,
-            currentDiscipleId = currentDiscipleId,
-            discipleRealm = discipleRealm,
+            currentEquipmentId = params.currentEquipmentId,
+            currentDiscipleId = params.currentDiscipleId,
+            discipleRealm = params.discipleRealm,
             watchedKeys = watchedKeys
         )
     }
@@ -156,7 +162,7 @@ fun EquipmentSelectionDialog(
             title = "更换$slotTypeText",
             emptyText = "暂无可用的$slotTypeText",
             items = items,
-            selectedId = selectedEquipmentId,
+            selectedId = params.selectedEquipmentId,
             confirmLabel = "更换",
             actions = ReplaceSelectionActions(
                 onSelect = onSelect,

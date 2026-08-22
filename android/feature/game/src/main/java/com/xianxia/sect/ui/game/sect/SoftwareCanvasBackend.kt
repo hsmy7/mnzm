@@ -1101,23 +1101,12 @@ class SoftwareCanvasBackend(
             val spriteIndex = cloudData[idx + 4]
             val alpha = cloudData[idx + 5]
             // NaN/非法值防御（与 C++ 段同语义——非法实例不画任何像素）
-            if (x.isNaN() || y.isNaN() || w.isNaN() || h.isNaN()) continue
-            if (w <= 0f || h <= 0f) continue
-            if (alpha.isNaN() || alpha < 0f || alpha > 1f) continue
+            if (!isValidCloud(x, y, w, h, alpha)) continue
             val src = cloudSrcRects.getOrNull(spriteIndex.toInt()) ?: continue
-
             // 视口剔除（世界坐标 → 帧缓冲像素；与 cropScreenRect 同风格）
-            val left = ((x - frame.camX) * drawScale).roundToInt()
-            val top = ((y - frame.camY) * drawScale).roundToInt()
-            val right = ((x + w - frame.camX) * drawScale).roundToInt()
-            val bottom = ((y + h - frame.camY) * drawScale).roundToInt()
-            val offScreenX = right <= 0 || left >= canvas.width
-            val offScreenY = bottom <= 0 || top >= canvas.height
-            val degenerate = right - left <= 0 || bottom - top <= 0
-            if (offScreenX || offScreenY || degenerate) continue
-
+            val dst = cloudScreenRect(frame, x, y, w, h, drawScale, canvas) ?: continue
             cloudPaint.alpha = (alpha * fade * 255).toInt().coerceIn(0, 255)
-            canvas.drawBitmap(atlas, src, Rect(left, top, right, bottom), cloudPaint)
+            canvas.drawBitmap(atlas, src, dst, cloudPaint)
         }
         cloudPaint.alpha = 255 // 防御性恢复（cloudPaint 仅本方法使用，保持惯例防未来共享）
     }
@@ -1236,4 +1225,43 @@ class SoftwareCanvasBackend(
         frameCanvas = null
     }
 
+}
+
+/**
+ * 云层实例合法性（NaN/±Inf/非正宽高/透明度越界——与 C++ 段同语义拦截）。
+ * 顶层函数（不增加 SoftwareCanvasBackend 类函数数——TooManyFunctions 守卫）。
+ */
+private fun isValidCloud(x: Float, y: Float, w: Float, h: Float, alpha: Float): Boolean {
+    val coordsFinite = x.isFinite() && y.isFinite()
+    // 两两组合拆开（ComplexCondition ≤3）：NaN 比较恒 false，`!in` 一并拦截透明度
+    val sizePositive = (w.isFinite() && w > 0f) && (h.isFinite() && h > 0f)
+    val alphaValid = alpha in 0f..1f
+    return coordsFinite && sizePositive && alphaValid
+}
+
+/**
+ * 云层屏幕矩形（视口剔除：视口外/退化尺寸 → null）。
+ * 顶层函数（不增加 SoftwareCanvasBackend 类函数数——TooManyFunctions 守卫）。
+ */
+private fun cloudScreenRect(
+    frame: RenderFrame,
+    x: Float,
+    y: Float,
+    w: Float,
+    h: Float,
+    drawScale: Float,
+    canvas: Canvas
+): Rect? {
+    val left = ((x - frame.camX) * drawScale).roundToInt()
+    val top = ((y - frame.camY) * drawScale).roundToInt()
+    val right = ((x + w - frame.camX) * drawScale).roundToInt()
+    val bottom = ((y + h - frame.camY) * drawScale).roundToInt()
+    val offRightOrLeft = right <= 0 || left >= canvas.width
+    val offBottomOrTop = bottom <= 0 || top >= canvas.height
+    val degenerate = right - left <= 0 || bottom - top <= 0
+    return if (offRightOrLeft || offBottomOrTop || degenerate) {
+        null
+    } else {
+        Rect(left, top, right, bottom)
+    }
 }
