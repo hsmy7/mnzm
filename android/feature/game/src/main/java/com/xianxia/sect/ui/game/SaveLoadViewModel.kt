@@ -1894,53 +1894,71 @@ class SaveLoadViewModel @Inject constructor(
         }
         _isTimeRunning.value = false
         Log.d(TAG, "Game loop stopped for cloud download")
-        gameEngine.loadData(
-            gameData = resolvedGameData,
-            disciples = reconciled.disciples,
-            equipmentStacks = reconciled.equipmentStacks,
-            equipmentInstances = reconciled.equipmentInstances,
-            manualStacks = reconciled.manualStacks,
-            manualInstances = reconciled.manualInstances,
-            pills = reconciled.pills,
-            materials = reconciled.materials,
-            herbs = reconciled.herbs,
-            seeds = reconciled.seeds,
-            storageBags = reconciled.storageBags,
-            battleLogs = reconciled.battleLogs,
-            alliances = reconciled.alliances,
-            productionSlots = reconciled.productionSlots
-        )
 
-        // B8：与本地读档路径（performLoadToSlot）一致——基于地图种子播种 AI
-        // 宗门 RNG（确定性），此前云下载路径缺失导致 AI 弟子/宗门行为未按
-        // 地图种子确定性生成
-        val loadedGd = gameEngine.gameData.value
-        AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
+        // 2026-08-23：游戏内云下载/云读档期间显示加载界面——置位 isLoading +
+        // 清空地图预加载数据，使 GameActivity Crossfade 切换到 LoadingScreen
+        //（根因：此前云路径不设 isLoading，且本地 mapPreloadData 一旦非空永不回
+        // null，Crossfade 恒显示游戏画面，读云存档无任何加载反馈；本地读档已有
+        // isLoading 置位，LoadingScreen 改为由 isLoading 驱动后两条路径一致）
+        _mapPreloadData.value = null
+        _loadingProgress.value = PROGRESS_START
+        _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
+        setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
 
-        val bootResult = persistenceFacade.bootSequenceController.boot(
-            slot = effectiveSlot,
-            onPreloadResources = { preloadGameResources() },
-            onProgress = { progress ->
-                _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
-            },
-            onMapReady = { mapData -> _mapPreloadData.value = mapData }
-        )
-
-        return if (bootResult.isSuccess) {
-            // 与本地读档/新游戏路径一致：注入白名单福利
-            gameEngine.sendWhitelistBonus(effectiveSlot)
-
-            // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
-            gameEngine.sendExclusiveBonus(effectiveSlot)
-
-            // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
-            gameEngine.sendStorageBagCompensation(effectiveSlot)
-
-            Result.success(Unit)
-        } else {
-            Result.failure(
-                bootResult.exceptionOrNull() ?: IllegalStateException("云存档加载失败")
+        try {
+            gameEngine.loadData(
+                gameData = resolvedGameData,
+                disciples = reconciled.disciples,
+                equipmentStacks = reconciled.equipmentStacks,
+                equipmentInstances = reconciled.equipmentInstances,
+                manualStacks = reconciled.manualStacks,
+                manualInstances = reconciled.manualInstances,
+                pills = reconciled.pills,
+                materials = reconciled.materials,
+                herbs = reconciled.herbs,
+                seeds = reconciled.seeds,
+                storageBags = reconciled.storageBags,
+                battleLogs = reconciled.battleLogs,
+                alliances = reconciled.alliances,
+                productionSlots = reconciled.productionSlots
             )
+
+            // B8：与本地读档路径（performLoadToSlot）一致——基于地图种子播种 AI
+            // 宗门 RNG（确定性），此前云下载路径缺失导致 AI 弟子/宗门行为未按
+            // 地图种子确定性生成
+            val loadedGd = gameEngine.gameData.value
+            AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
+
+            val bootResult = persistenceFacade.bootSequenceController.boot(
+                slot = effectiveSlot,
+                onPreloadResources = { preloadGameResources() },
+                onProgress = { progress ->
+                    _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+                },
+                onMapReady = { mapData -> _mapPreloadData.value = mapData }
+            )
+
+            return if (bootResult.isSuccess) {
+                // 与本地读档/新游戏路径一致：注入白名单福利
+                gameEngine.sendWhitelistBonus(effectiveSlot)
+
+                // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
+                gameEngine.sendExclusiveBonus(effectiveSlot)
+
+                // 补偿邮件：定向用户 10 个地品储物袋（3 天有效，每档一次，非目标用户自动跳过）
+                gameEngine.sendStorageBagCompensation(effectiveSlot)
+
+                Result.success(Unit)
+            } else {
+                Result.failure(
+                    bootResult.exceptionOrNull() ?: IllegalStateException("云存档加载失败")
+                )
+            }
+        } finally {
+            // 复位加载标志（NonCancellable 保证取消路径也执行，对齐 C4 resetOwnedLoadState 模式）
+            withContext(NonCancellable) {
+                setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
+            }
         }
     }
 

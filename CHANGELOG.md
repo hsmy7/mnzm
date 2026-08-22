@@ -72,6 +72,15 @@
 - **测试** — `SaveLoadViewModelLoadTest` 云读档/云下载用例重写为云会话语义（断言不落盘、boot 以 slot 0 执行）+ 新增 7 个并发守卫测试（boot 进行中 5 入口全拒绝、云下载进行中 restartGame/startNewGame 拒绝）；`SlotLockManagerTest` 新增 slot 0 合法断言；`BootSequenceControllerTest` 回归通过
 - **兼容性** — 无 Entity/Migration/DB 变更（DATABASE_VERSION 不变）；云档加载语义变化：不再覆盖本地槽位（玩家保存需显式选择槽位或上传云），本地 1..6 存档零影响；`isValidSlot(0)=true` 波及面审查：UI 槽位列表仍只显示 1..6 + 虚拟云入口，slot 0 本地读写仅云会话内部可达
 
+### 修复（2026-08-23 游戏内云存档加载动画）
+
+> 背景：用户实报"游戏内读取云存档时不弹出加载动画，读取本地存档正常"。经排查为 UI 过渡条件缺陷，非云会话逻辑问题。
+
+- **根因** — `GameActivity` 的 `Crossfade` 显示游戏主界面的条件为本地 `mapPreloadData != null`（L393），而该本地值**只在 boot 到达 `MAP_READY` 时从 ViewModel 单向同步、一旦非空永不回 null** → 游戏内（`mapPreloadData` 已非空）任何读档/云下载期间界面停留在游戏画面，不切 LoadingScreen。本地读档"正常"是因为主菜单读档路径新启动 `GameActivity`（本地值初始 null）；游戏内读本地档实际同样不显示（同一缺陷）
+- **修复（根因）** — LoadingScreen 显示条件改为由加载状态驱动：`GameActivity` 收集 `saveLoadViewModel.isLoading`，`Crossfade targetState = mapPreloadData != null && !isLoading`；云下载/云读档路径 `applyCloudSaveToEngine` 在 boot 前置位 `isLoading=true` + 清空 `_mapPreloadData` + 置 `PHASE_CLOUD_SYNC` 进度（try/finally 保证成功/失败/取消路径均复位，NonCancellable 对齐 C4 模式）。本地读档（`performLoadToSlot` 已有 `isLoading=true`）自动受益，游戏内本地读档与云读档表现一致
+- **测试** — `SaveLoadViewModelLoadTest` 新增 3 个用例：云下载/云读档 boot 执行时 `pendingAction=load`（isLoading 置位证据）+ 完成后复位；boot 失败时 isLoading 复位不卡加载界面
+- **兼容性** — 无 Entity/Migration/DB/存档变更；纯 UI 过渡 + ViewModel 标志位变更，首次启动/主菜单路径行为不变
+
 ## [4.01.07] - 2026-08-22
 
 ### 修复（2026-08-22 解决已知问题）

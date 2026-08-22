@@ -120,6 +120,9 @@ class SaveLoadViewModelLoadTest {
             )
         )
         every { stateStore.isLoading } returns MutableStateFlow(false)
+        // 2026-08-23：applyCloudSaveToEngine 置位 isLoading 时 setSaveLoadState 读
+        // stateStore.isSaving.value——relaxed mock 返回 null 会 NPE，全局 stub 为 false
+        every { stateStore.isSaving } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)
         // T12（2026-08-05）：init 会收集 stuckResetEvents——stub 为真实 SharedFlow
         // （collect 是扩展函数，relaxed mock 的 SharedFlow 会抛 KotlinNothingValueException）
@@ -809,5 +812,73 @@ class SaveLoadViewModelLoadTest {
         verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
         never.complete(TapCloudSaveManager.CloudSaveResult.NetworkError("test"))
         advanceUntilIdle()
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 2026-08-23：游戏内云下载/云读档显示加载动画（isLoading 置位 + mapPreloadData 清空，
+    // GameActivity Crossfade 由 isLoading 驱动切 LoadingScreen——修复"游戏内读云存档
+    // 无加载反馈"：原云路径不设 isLoading 且本地 mapPreloadData 非空后永不回 null）
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `performCloudDownload sets isLoading during cloud session load then resets`() = runTest(testDispatcher) {
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
+            )
+        // boot 执行时捕获 setSaveLoadState(isLoading=true) 已置位的证据（pendingAction 与
+        // isLoading 同一次调用设置，且直接 asStateFlow 暴露可同步读）
+        var pendingActionAtBoot: String? = null
+        coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) } answers {
+            pendingActionAtBoot = viewModel.pendingAction.value
+            Result.success(Unit)
+        }
+
+        viewModel.downloadFromCloudSave()
+        advanceUntilIdle()
+
+        // 加载期间 isLoading 置位（触发 LoadingScreen），完成后复位
+        assertEquals("boot 执行时 isLoading 应置位（pendingAction=load）", "load", pendingActionAtBoot)
+        assertEquals("云下载完成后 isLoading 应复位", null, viewModel.pendingAction.value)
+    }
+
+    @Test
+    fun `performCloudLoad sets isLoading during cloud session load then resets`() = runTest(testDispatcher) {
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
+            )
+        var pendingActionAtBoot: String? = null
+        coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) } answers {
+            pendingActionAtBoot = viewModel.pendingAction.value
+            Result.success(Unit)
+        }
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        // 主菜单云读档同样置位/复位（LoadingScreen 进度由 boot onProgress 驱动）
+        assertEquals("云读档 boot 执行时 isLoading 应置位（pendingAction=load）", "load", pendingActionAtBoot)
+        assertEquals("云读档完成后 isLoading 应复位", null, viewModel.pendingAction.value)
+    }
+
+    @Test
+    fun `performCloudDownload resets isLoading when boot fails`() = runTest(testDispatcher) {
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
+            )
+        // boot 失败 → isLoading 必须复位（finally 保证），界面不卡 LoadingScreen
+        coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) } returns
+            Result.failure(IllegalStateException("boot failed"))
+
+        viewModel.downloadFromCloudSave()
+        advanceUntilIdle()
+
+        assertEquals("boot 失败后 isLoading 应复位", null, viewModel.pendingAction.value)
+        assertTrue(
+            "boot 失败后应返回 Error 状态",
+            viewModel.cloudSaveOperationState.value is CloudSaveOperationState.Error
+        )
     }
 }

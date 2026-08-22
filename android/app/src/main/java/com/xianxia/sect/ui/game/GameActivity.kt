@@ -269,6 +269,11 @@ class GameActivity : ComponentActivity() {
                 ) {
                     val loadingProgress by saveLoadViewModel.loadingProgress.collectAsStateWithLifecycle()
                     val preloadPhase by saveLoadViewModel.preloadPhase.collectAsStateWithLifecycle()
+                    // 2026-08-23：加载界面由 isLoading 驱动——游戏内读档/云下载期间
+                    //（isLoading=true）即使本地 mapPreloadData 仍为旧值非空，也切到
+                    // LoadingScreen 显示加载动画（此前 Crossfade 只看 mapPreloadData，
+                    // 本地值一旦非空永不回 null，游戏内读云存档无任何加载反馈）
+                    val isLoading by saveLoadViewModel.isLoading.collectAsStateWithLifecycle()
                     var errorMessage by remember { mutableStateOf<String?>(null) }
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()
                     
@@ -389,8 +394,11 @@ class GameActivity : ComponentActivity() {
                         }
                     }
 
+                    // 加载界面显示条件（2026-08-23）：地图未就绪（首次启动）或加载进行中
+                    //（游戏内读档/云下载，isLoading=true）——后者修复"游戏内读云存档
+                    // 无加载动画"（原只看 mapPreloadData，本地值非空后永不切 LoadingScreen）
                     Crossfade(
-                        targetState = mapPreloadData != null,
+                        targetState = mapPreloadData != null && !isLoading,
                         animationSpec = tween(durationMillis = 400),
                         label = "loadingToGameTransition"
                     ) { showGame ->
