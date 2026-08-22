@@ -891,24 +891,49 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
+    @Suppress("ReturnCount") // 云下载自包含入口多守卫（boot/重启/保存/云锁/加载），多 return 为守卫风格
     fun loadGameFromSlot(slot: Int, fromCloudLoad: Boolean = false) {
         // 并发根治（2026-08-23）：boot 进行中禁止任何读档/云下载入口
         if (isBootOperationBlocked()) return
         // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
+            // 云会话下载自包含入口（2026-08-23）：直接执行 performCloudDownload，
+            // 不经过 downloadFromCloudSave 入口——协程开头即置位 isLoading，
+            // SaveSlotDialog 立即显示"读取中..."转圈（根因：原实现 isLoading 在
+            // _cloudSaveOperationState.first{} 之后才置位，下载最耗时的阶段无任何
+            // 反馈，用户实报"游戏内读云存档无加载动画"；C2 曾把置位移后是因
+            // 前置位会被 downloadFromCloudSave 自身的 isLoading 守卫拒绝）。
+            // 互斥守卫与 downloadFromCloudSave 对齐（boot/重启/保存/云锁/加载）。
+            if (_isRestarting.value) {
+                Log.w(TAG, "Restarting, ignoring cloud slot load request")
+                showError("游戏重置中，请稍后读取云存档")
+                return
+            }
+            if (saveLock.get()) {
+                Log.w(TAG, "Save in progress, ignoring cloud slot load request")
+                showError("正在保存中，请稍后读取云存档")
+                return
+            }
+            if (!cloudDownloadLock.compareAndSet(false, true)) {
+                Log.w(TAG, "Cloud download already in progress, ignoring")
+                return
+            }
+            if (stateStore.isLoading.value) {
+                Log.w(TAG, "Load in progress, ignoring cloud slot load request")
+                cloudDownloadLock.set(false)
+                showError("正在加载中，请稍后读取云存档")
+                return
+            }
             viewModelScope.launch(ioDispatcher.dispatcher) {
                 resetCloudSaveOperationState()
+                // 立即置位：下载/加载全程 SaveSlotDialog 显示"读取中..."转圈
+                setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
                 try {
-                    downloadFromCloudSave()
+                    performCloudDownload()
                     // 等待云端操作完成（Downloading → Success/Error）
                     _cloudSaveOperationState.first {
                         it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
                     }
-                    // C2 修复（2026-08-05）：isLoading 占位移到下载完成之后——
-                    // 原实现在下载前置位，被 downloadFromCloudSave 自身的 isLoading 守卫
-                    // （L1339）恒真拒绝，SettingsTab 云槽位读取必失败。
-                    // 下载期互斥由 cloudDownloadLock 承担（loadGame/saveGame 入口均查）
-                    setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
                     when (val state = _cloudSaveOperationState.value) {
                         is CloudSaveOperationState.Success -> showSuccess(state.message)
                         is CloudSaveOperationState.Error -> showError(state.message)
@@ -918,6 +943,8 @@ class SaveLoadViewModel @Inject constructor(
                   catch (e: Exception) {
                     showError("下载失败: ${e.message}")
                 } finally {
+                    // performCloudDownload 的 finally 已释放锁，此处幂等兜底
+                    cloudDownloadLock.set(false)
                     setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
                 }
             }

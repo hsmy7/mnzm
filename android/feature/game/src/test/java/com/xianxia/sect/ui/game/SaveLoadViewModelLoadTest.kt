@@ -387,6 +387,7 @@ class SaveLoadViewModelLoadTest {
     // C2（2026-08-05）：loadGameFromSlot(0) 自链下载自阻塞
     // ──────────────────────────────────────────────────────────────────
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     @Test
     fun `loadGameFromSlot(0) - self-chain download proceeds as cloud session`() = runTest(testDispatcher) {
         // C2 修复前：先 setSaveLoadState(isLoading=true) 再调 downloadFromCloudSave，
@@ -404,6 +405,27 @@ class SaveLoadViewModelLoadTest {
         // 下载必须实际执行（修复前 0 次）；云会话独立加载不落盘
         coVerify(exactly = 1) { tapCloudSaveManager.downloadSave() }
         coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `loadGameFromSlot(0) - isLoading set during download shows busy indicator`() = runTest(testDispatcher) {
+        // 用户实报：游戏内选择存档界面点云存档无"读取中..."转圈——根因是 isLoading
+        // 在下载完成后才置位。修复：协程开头立即置位（下载期间 pendingAction=load）。
+        // 用永不完成的下载挂起协程，验证下载进行中 isLoading 已置位。
+        val never = CompletableDeferred<TapCloudSaveManager.CloudSaveResult>()
+        coEvery { tapCloudSaveManager.downloadSave() } coAnswers { never.await() }
+
+        viewModel.loadGameFromSlot(0)
+        runCurrent()
+
+        // 下载挂起期间 isLoading 已置位（SaveSlotDialog 显示"读取中..."转圈）
+        assertEquals("下载期间 isLoading 应置位（pendingAction=load）", "load", viewModel.pendingAction.value)
+
+        never.complete(TapCloudSaveManager.CloudSaveResult.NetworkError("test"))
+        advanceUntilIdle()
+        // 完成后复位
+        assertEquals("下载完成后 isLoading 应复位", null, viewModel.pendingAction.value)
     }
 
     // ──────────────────────────────────────────────────────────────────
