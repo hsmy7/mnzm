@@ -1,3 +1,17 @@
+## [4.01.09] - 2026-08-23
+
+### 修复（键盘反复弹出/界面闪烁/界面反复下拉——第四根因根治）
+
+> 背景：用户实报小米15、荣耀500 Pro、荣耀200 Pro、红米K70 上含输入框对话框仍复现"键盘反复弹出、界面闪烁、界面反复下拉"。经审计：全部输入对话框三件套已合规、守卫链（`ImeVisibilityTracker`/`SystemBarFreezeScope`/`SystemBarHidePolicy`/`ImeAwareAutoFocus`/`DialogFocusGuard`）自 v4.00.99（荣耀 GT 根治）后零改动——本次为**第四根因**（修复覆盖盲区），非回归。
+
+- **根因（第四根因）** — ① **freeze 作用域缺陷**：`SystemBarFreezeScope` 是全局单例，只经 `SystemBarHidePolicy` 冻结**宿主 Activity** 的 `hideSystemBars()`；平台 Dialog 窗口自身的系统栏隐藏（`DialogSystemBarGuard` 的 HIDE_NAVIGATION / `WindowInsetsControllerCompat.hide()`）不经该策略——输入对话框的 `freezeSystemBars=true` 对 Dialog 窗口**零约束**；② **targetSdk=35 强制 edge-to-edge**（Android 15）系统在 IME 期间接管导航栏，此时 Dialog 窗口仍隐藏/切换系统栏与 IME 转场动画对抗；③ 荣耀 GT 修复的"IME 感知切换"（键盘可见时 applyShow/applyHide）在 HyperOS 2 / MagicOS 8/9 的键盘转场动画上**自身成为放大器**。振荡回路：键盘弹出 → HIDE_NAVIGATION/controller.hide 冲突（API<35 传统标志真执行 / API 35 edge-to-edge 接管对抗）→ 键盘收起 → 焦点仍在输入框 → ROM 智能输入法重弹 → 循环；每次循环 ADJUST_PAN 平移内容上下 → "界面反复下拉"
+- **根治** — 新增 `DialogSystemBarFreezeScope`（core/ui，按 Window 冻结计数 + 0↔1 翻转回调）：含输入框的容器（`freezeSystemBars=true`）在 Dialog{} 块内经新增 `DialogSystemBarFreezeEffect` 冻结本窗口；`DialogSystemBarGuard` 重构为冻结感知——冻结态**只隐藏状态栏、不隐藏导航栏**（切断 HIDE_NAVIGATION×IME 冲突面，API<35 与 API 35 双路径同时根治）、键盘可见期间**零系统栏切换**（删除 IME 感知 applyShow/applyHide）、冻结进入（嵌套输入框挂载）恢复导航栏显示、解冻延迟 350ms + 二次校验（窗口未冻结且键盘不可见）恢复隐藏；`InlineStandardPromptDialog` 渲染于平台 Dialog 窗口内（`isInsideDialogWindow`）且 `freezeSystemBars=true` 时**自动冻结外层窗口**（嵌套传导，仓库出售 SellConfirmDialog 场景，调用方无需传参）；`ImeVisibilityTracker` 检测双信号（`isVisible(ime) || ime bottom > 0`，ADJUST_PAN 窗口可见性标志不翻转时高度信号兜底）；`rememberImeAwareAutoFocusRequester` 重试前焦点守卫（已有文本输入焦点不再重复 requestFocus，防检测信号不稳定时键盘反复重弹）
+- **容器** — `UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog` 在 Dialog{} 块内接入 `DialogSystemBarFreezeEffect(freezeSystemBars)`（后两者新增 `freezeSystemBars: Boolean = false` 参数，默认 false 全部旧调用点零改动）；全库输入对话框四件套审计通过（避让二选一/freezeSystemBars/自动聚焦/Dialog 窗口冻结传导）
+- **测试** — 新增 `DialogSystemBarFreezeScopeTest` 9 用例（窗口计数隔离/嵌套计数/翻转回调仅翻转时触发/监听器增删/异常隔离/no-op）；新增 `ImeAwareAutoFocusTest` 5 用例（EditText 聚焦判定/未聚焦/Button 非文本/无焦点/子树焦点）；`DialogSystemBarGuardTest` 重写 7 用例（未冻结全隐藏/冻结挂载只隐藏状态栏/挂载时键盘可见零操作/冻结进入恢复导航栏/解冻延迟恢复/解冻二次校验拦截/窗口销毁解除跟踪）；`StandardPromptDialogTest` +2（嵌套传导冻结外层窗口/非嵌套 Activity 冻结语义保持）；`ImeVisibilityTrackerTest` +2（双信号：isVisible false + bottom>0 判可见、isVisible true + bottom=0 判可见）
+- **验证** — 全量 `compileReleaseKotlin` + `testReleaseUnitTest --max-workers=1`（6 模块全绿）+ `lintRelease` + `detekt` BUILD SUCCESSFUL
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无输入框对话框（80+ 处）行为不变；输入对话框导航栏在输入期间可见为**有意取舍**（行业主流"输入时退出沉浸"：键盘弹出时导航栏本就应可见，edge-to-edge 下为浮层条），非输入对话框沉浸不变；`iOS` 标签：仅 Android 窗口层交互，iOS 无 IME×系统栏机制，不构成迁移障碍
+- **顺带修复预存缺陷** — `changelog_entries.json` 自 dc545cbe 引入的未转义双引号（`"读取中"` → `「读取中」`），该文件此前为非法 JSON，`ChangelogParseTest` 仅靠 `isLenient` 宽容通过，本次新增条目使其暴露（根因修复，非 workaround）
+
 ## [4.01.08] - 2026-08-22
 
 ### 新增（C++ 游戏引擎迁移批次 0-3：基础设施 / 状态模型 / 静态数据 / 时间结算引擎）
@@ -82,17 +96,6 @@
 - **回退（2026-08-23 用户决策：游戏内读档只要弹窗转圈，不要全屏）** — 上两段中"全屏 LoadingScreen 由 isLoading 驱动"部分**整体回退**：全屏加载页仅在首次进入（地图未就绪）时显示，游戏内读档/云下载不再切全屏——存档弹窗是独立 Window + 60% 黑色遮罩（`DialogScrim` 0x99000000），全屏加载页在弹窗底下完全不可见，切换纯属多余且导致游戏画面无谓 Crossfade。保留：`applyCloudSaveToEngine`/`loadGameFromSlot(0)` 的 `isLoading` 置位/复位（驱动弹窗"转圈+读取中"，boot 阶段持续生效）
 - **测试** — `SaveLoadViewModelLoadTest` 新增 3 个用例：云下载/云读档 boot 执行时 `pendingAction=load`（isLoading 置位证据）+ 完成后复位；boot 失败时 isLoading 复位不卡加载界面；`loadGameFromSlot(0)` 下载挂起期间 `pendingAction=load`（下载阶段即有"读取中"反馈）+ 完成后复位
 - **兼容性** — 无 Entity/Migration/DB/存档变更；纯 UI 过渡 + ViewModel 标志位变更，首次启动/主菜单路径行为不变
-
-### 修复（2026-08-23 键盘反复弹出/界面闪烁/界面反复下拉——第四根因根治）
-
-> 背景：用户实报小米15、荣耀500 Pro、荣耀200 Pro、红米K70 上含输入框对话框仍复现"键盘反复弹出、界面闪烁、界面反复下拉"。经审计：全部输入对话框三件套已合规、守卫链（`ImeVisibilityTracker`/`SystemBarFreezeScope`/`SystemBarHidePolicy`/`ImeAwareAutoFocus`/`DialogFocusGuard`）自 v4.00.99（荣耀 GT 根治）后零改动——本次为**第四根因**（修复覆盖盲区），非回归。
-
-- **根因（第四根因）** — ① **freeze 作用域缺陷**：`SystemBarFreezeScope` 是全局单例，只经 `SystemBarHidePolicy` 冻结**宿主 Activity** 的 `hideSystemBars()`；平台 Dialog 窗口自身的系统栏隐藏（`DialogSystemBarGuard` 的 HIDE_NAVIGATION / `WindowInsetsControllerCompat.hide()`）不经该策略——输入对话框的 `freezeSystemBars=true` 对 Dialog 窗口**零约束**；② **targetSdk=35 强制 edge-to-edge**（Android 15）系统在 IME 期间接管导航栏，此时 Dialog 窗口仍隐藏/切换系统栏与 IME 转场动画对抗；③ 荣耀 GT 修复的"IME 感知切换"（键盘可见时 applyShow/applyHide）在 HyperOS 2 / MagicOS 8/9 的键盘转场动画上**自身成为放大器**。振荡回路：键盘弹出 → HIDE_NAVIGATION/controller.hide 冲突（API<35 传统标志真执行 / API 35 edge-to-edge 接管对抗）→ 键盘收起 → 焦点仍在输入框 → ROM 智能输入法重弹 → 循环；每次循环 ADJUST_PAN 平移内容上下 → "界面反复下拉"
-- **根治** — 新增 `DialogSystemBarFreezeScope`（core/ui，按 Window 冻结计数 + 0↔1 翻转回调）：含输入框的容器（`freezeSystemBars=true`）在 Dialog{} 块内经新增 `DialogSystemBarFreezeEffect` 冻结本窗口；`DialogSystemBarGuard` 重构为冻结感知——冻结态**只隐藏状态栏、不隐藏导航栏**（切断 HIDE_NAVIGATION×IME 冲突面，API<35 与 API 35 双路径同时根治）、键盘可见期间**零系统栏切换**（删除 IME 感知 applyShow/applyHide）、冻结进入（嵌套输入框挂载）恢复导航栏显示、解冻延迟 350ms + 二次校验（窗口未冻结且键盘不可见）恢复隐藏；`InlineStandardPromptDialog` 渲染于平台 Dialog 窗口内（`isInsideDialogWindow`）且 `freezeSystemBars=true` 时**自动冻结外层窗口**（嵌套传导，仓库出售 SellConfirmDialog 场景，调用方无需传参）；`ImeVisibilityTracker` 检测双信号（`isVisible(ime) || ime bottom > 0`，ADJUST_PAN 窗口可见性标志不翻转时高度信号兜底）；`rememberImeAwareAutoFocusRequester` 重试前焦点守卫（已有文本输入焦点不再重复 requestFocus，防检测信号不稳定时键盘反复重弹）
-- **容器** — `UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog` 在 Dialog{} 块内接入 `DialogSystemBarFreezeEffect(freezeSystemBars)`（后两者新增 `freezeSystemBars: Boolean = false` 参数，默认 false 全部旧调用点零改动）；全库输入对话框四件套审计通过（避让二选一/freezeSystemBars/自动聚焦/Dialog 窗口冻结传导）
-- **测试** — 新增 `DialogSystemBarFreezeScopeTest` 9 用例（窗口计数隔离/嵌套计数/翻转回调仅翻转时触发/监听器增删/异常隔离/no-op）；新增 `ImeAwareAutoFocusTest` 5 用例（EditText 聚焦判定/未聚焦/Button 非文本/无焦点/子树焦点）；`DialogSystemBarGuardTest` 重写 7 用例（未冻结全隐藏/冻结挂载只隐藏状态栏/挂载时键盘可见零操作/冻结进入恢复导航栏/解冻延迟恢复/解冻二次校验拦截/窗口销毁解除跟踪）；`StandardPromptDialogTest` +2（嵌套传导冻结外层窗口/非嵌套 Activity 冻结语义保持）；`ImeVisibilityTrackerTest` +2（双信号：isVisible false + bottom>0 判可见、isVisible true + bottom=0 判可见）
-- **验证** — `:core:ui:testReleaseUnitTest` 86 用例全绿；全量 `compileReleaseKotlin` + `testReleaseUnitTest --max-workers=1` + `lintRelease` + `detekt` 见批次验证
-- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无输入框对话框（80+ 处）行为不变；输入对话框导航栏在输入期间可见为**有意取舍**（行业主流"输入时退出沉浸"：键盘弹出时导航栏本就应可见，edge-to-edge 下为浮层条），非输入对话框沉浸不变；`iOS` 标签：仅 Android 窗口层交互，iOS 无 IME×系统栏机制，不构成迁移障碍
 
 ## [4.01.07] - 2026-08-22
 
