@@ -837,9 +837,10 @@ class SaveLoadViewModelLoadTest {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 2026-08-23：游戏内云下载/云读档显示加载动画（isLoading 置位 + mapPreloadData 清空，
-    // GameActivity Crossfade 由 isLoading 驱动切 LoadingScreen——修复"游戏内读云存档
-    // 无加载反馈"：原云路径不设 isLoading 且本地 mapPreloadData 非空后永不回 null）
+    // 2026-08-23：云下载/云读档加载反馈——isLoading 置位驱动存档弹窗的"转圈+读取中"
+    //（SaveSlotDialog/CloudSaveDialog 的 isBusy = isSaving||isLoading），覆盖下载与
+    // boot 全程，完成后复位。全屏加载页不参与（弹窗独立 Window + 遮罩盖住全屏，
+    // 2026-08-23 用户决策回退全屏切换）
     // ──────────────────────────────────────────────────────────────────
 
     @Test
@@ -859,7 +860,7 @@ class SaveLoadViewModelLoadTest {
         viewModel.downloadFromCloudSave()
         advanceUntilIdle()
 
-        // 加载期间 isLoading 置位（触发 LoadingScreen），完成后复位
+        // 加载期间 isLoading 置位（驱动弹窗"读取中..."转圈），完成后复位
         assertEquals("boot 执行时 isLoading 应置位（pendingAction=load）", "load", pendingActionAtBoot)
         assertEquals("云下载完成后 isLoading 应复位", null, viewModel.pendingAction.value)
     }
@@ -879,7 +880,7 @@ class SaveLoadViewModelLoadTest {
         viewModel.loadFromCloudSave()
         advanceUntilIdle()
 
-        // 主菜单云读档同样置位/复位（LoadingScreen 进度由 boot onProgress 驱动）
+        // 主菜单云读档同样置位/复位（弹窗"读取中..."与全屏进度由 boot onProgress 驱动）
         assertEquals("云读档 boot 执行时 isLoading 应置位（pendingAction=load）", "load", pendingActionAtBoot)
         assertEquals("云读档完成后 isLoading 应复位", null, viewModel.pendingAction.value)
     }
@@ -890,7 +891,7 @@ class SaveLoadViewModelLoadTest {
             TapCloudSaveManager.CloudSaveResult.Success(
                 cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
             )
-        // boot 失败 → isLoading 必须复位（finally 保证），界面不卡 LoadingScreen
+        // boot 失败 → isLoading 必须复位（finally 保证），弹窗"读取中..."转圈不卡死
         coEvery { bootSequenceController.boot(any(), any(), any(), any(), any(), any(), any()) } returns
             Result.failure(IllegalStateException("boot failed"))
 

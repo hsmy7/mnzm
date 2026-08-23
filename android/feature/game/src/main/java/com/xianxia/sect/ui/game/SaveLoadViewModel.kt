@@ -1922,12 +1922,9 @@ class SaveLoadViewModel @Inject constructor(
         _isTimeRunning.value = false
         Log.d(TAG, "Game loop stopped for cloud download")
 
-        // 2026-08-23：游戏内云下载/云读档期间显示加载界面——置位 isLoading +
-        // 清空地图预加载数据，使 GameActivity Crossfade 切换到 LoadingScreen
-        //（根因：此前云路径不设 isLoading，且本地 mapPreloadData 一旦非空永不回
-        // null，Crossfade 恒显示游戏画面，读云存档无任何加载反馈；本地读档已有
-        // isLoading 置位，LoadingScreen 改为由 isLoading 驱动后两条路径一致）
-        _mapPreloadData.value = null
+        // 2026-08-23：云会话加载全程保持 isLoading=true——驱动存档弹窗（SaveSlotDialog/
+        // CloudSaveDialog）的"转圈+读取中"反馈覆盖 boot 阶段；isLoading 不驱动全屏
+        // 加载页（游戏内弹窗独立窗口 + 遮罩会盖住全屏，2026-08-23 已回退全屏切换）。
         _loadingProgress.value = PROGRESS_START
         _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
         setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
