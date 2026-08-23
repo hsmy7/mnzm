@@ -118,6 +118,47 @@ static inline bool isRectVisible(float x, float y, float w, float h) {
              y + h <= g_viewTop || y >= g_viewBottom);
 }
 
+// 石板道路邻接方向位（与 Kotlin RoadTiling 同源）：上=1 右=2 下=4 左=8
+static constexpr int ROAD_UP = 1;
+static constexpr int ROAD_RIGHT = 2;
+static constexpr int ROAD_DOWN = 4;
+static constexpr int ROAD_LEFT = 8;
+
+/**
+ * 位掩码 → 道路形态（与 Kotlin RoadTiling.tileTypeForBitmask 同语义）。
+ * 返回索引：0=SINGLE 1=HORIZONTAL 2=VERTICAL 3..6=转角(TL/TR/BL/BR)
+ * 7..10=T 型(UP/RIGHT/DOWN/LEFT) 11=CROSS。
+ */
+static int roadTypeForMask(int mask) {
+    const int m = mask & 0xF;
+    int cnt = 0;
+    for (int i = 0; i < 4; ++i) if (m & (1 << i)) ++cnt;
+    if (cnt == 0) return 0;                       // SINGLE（孤立单格）
+    if (cnt == 1) {                               // 死路（道路端点）按方向归为直路
+        if (m == ROAD_LEFT || m == ROAD_RIGHT) return 1;   // HORIZONTAL
+        if (m == ROAD_UP || m == ROAD_DOWN) return 2;      // VERTICAL
+        return 0;
+    }
+    if (cnt == 2) {
+        if (m == (ROAD_UP | ROAD_DOWN)) return 2;       // VERTICAL
+        if (m == (ROAD_LEFT | ROAD_RIGHT)) return 1;    // HORIZONTAL
+        if (m == (ROAD_UP | ROAD_LEFT)) return 3;       // CORNER_TL
+        if (m == (ROAD_UP | ROAD_RIGHT)) return 4;      // CORNER_TR
+        if (m == (ROAD_DOWN | ROAD_LEFT)) return 5;     // CORNER_BL
+        if (m == (ROAD_DOWN | ROAD_RIGHT)) return 6;    // CORNER_BR
+        return 0;
+    }
+    if (cnt == 3) {
+        if (m == (ROAD_UP | ROAD_LEFT | ROAD_RIGHT)) return 7;  // T_UP
+        if (m == (ROAD_DOWN | ROAD_LEFT | ROAD_RIGHT)) return 8; // T_DOWN
+        if (m == (ROAD_UP | ROAD_DOWN | ROAD_RIGHT)) return 9;   // T_RIGHT
+        if (m == (ROAD_UP | ROAD_DOWN | ROAD_LEFT)) return 10;   // T_LEFT
+        return 0;
+    }
+    if (cnt == 4) return 11;  // CROSS
+    return 0;
+}
+
 // 瓷砖类型常量（TILE_GROUND / TILE_BUILDING）
 // 由生成 TextureAtlas.h 提供（与 SpriteAtlasDef.TileType.index 同源，2026-08-13 收敛）
 
@@ -451,7 +492,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloatArray cropUVMap,       // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6，可 null）
     jfloat frameAlpha,           // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑）
     jfloatArray cloudData,       // 云层实例数据 [x, y, w, h, spriteIndex, alpha] × N（可 null）
-    jfloatArray cloudUVMap) {    // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可 null）
+    jfloatArray cloudUVMap,      // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可 null）
+    jintArray roadData,          // 石板道路每格位掩码（展平 [0..N]，0=非道路；可 null）
+    jfloatArray roadUVMap) {     // 道路 UV 映射 [u0,v0,u1,v1] × ROAD_RECTS 数（可 null）
 
     if (!g_renderer || !tileData || !uvMap) return;
 
@@ -576,7 +619,88 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         }
     }
 
-    // ---- 2. 建筑层 ----
+    // ---- 2. 石板道路层（装饰之上、建筑之下 —— 与 Canvas 侧烘焙顺序一致） ----
+    // 每格按位掩码合成：主体（直路用 base，转角/T/十字用 junction）+ 外缘描边条
+    //（roadBorderMask = 掩码补集，内部相邻格不描边）+ 外缘转角件 + 十字中心装饰。
+    if (roadData && roadUVMap) {
+        jint* roads = env->GetIntArrayElements(roadData, nullptr);
+        jfloat* ruvs = env->GetFloatArrayElements(roadUVMap, nullptr);
+        jsize roadArrCount = env->GetArrayLength(roadData);
+        if ((jsize)rows * cols <= roadArrCount) {
+            const float quarter = tileSizeF * 0.25f;
+            // ROAD_RECTS 声明顺序索引（与 SpriteAtlasDef.ROAD_RECTS/ROAD_UV_MAP 同源）
+            // 0 base, 1 base_v, 2 junction, 3 edge_h, 4 edge_v,
+            // 5 corner_tr, 6 corner_tl, 7 corner_br, 8 corner_bl, 9 cross_center
+            const int R_UP = 1, R_RIGHT = 2, R_DOWN = 4, R_LEFT = 8;
+
+            for (int row = minRow; row <= maxRow; row++) {
+                float wy = (float)(row * tileSize);
+                for (int col = minCol; col <= maxCol; col++) {
+                    const int mask = roads[row * cols + col];
+                    if (mask == 0) continue;
+                    float wx = (float)(col * tileSize);
+                    if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
+
+                    // 形态 + 边框（掩码补集）
+                    const int type = roadTypeForMask(mask);
+                    const int border = (0xF ^ (mask & 0xF));
+
+                    // 主体
+                    int baseIdx = 2;  // jungle（转角/T/十字）
+                    if (type == 1) baseIdx = 0;        // HORIZONTAL
+                    else if (type == 2) baseIdx = 1;   // VERTICAL
+                    batcher.add(atlasTexId, wx, wy, tileSizeF, tileSizeF,
+                        ruvs[baseIdx*4]+UV_EPSILON, ruvs[baseIdx*4+1]+UV_EPSILON,
+                        ruvs[baseIdx*4+2]-UV_EPSILON, ruvs[baseIdx*4+3]-UV_EPSILON,
+                        1.0f, 1.0f, 1.0f, fadeAlpha);
+
+                    // 外缘描边条（1/4 格厚）
+                    if (border & R_UP)
+                        batcher.add(atlasTexId, wx, wy, tileSizeF, quarter,
+                            ruvs[3*4]+UV_EPSILON, ruvs[3*4+1]+UV_EPSILON,
+                            ruvs[3*4+2]-UV_EPSILON, ruvs[3*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+                    if (border & R_DOWN)
+                        batcher.add(atlasTexId, wx, wy+tileSizeF-quarter, tileSizeF, quarter,
+                            ruvs[3*4]+UV_EPSILON, ruvs[3*4+1]+UV_EPSILON,
+                            ruvs[3*4+2]-UV_EPSILON, ruvs[3*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+                    if (border & R_LEFT)
+                        batcher.add(atlasTexId, wx, wy, quarter, tileSizeF,
+                            ruvs[4*4]+UV_EPSILON, ruvs[4*4+1]+UV_EPSILON,
+                            ruvs[4*4+2]-UV_EPSILON, ruvs[4*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+                    if (border & R_RIGHT)
+                        batcher.add(atlasTexId, wx+tileSizeF-quarter, wy, quarter, tileSizeF,
+                            ruvs[4*4]+UV_EPSILON, ruvs[4*4+1]+UV_EPSILON,
+                            ruvs[4*4+2]-UV_EPSILON, ruvs[4*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+
+                    // 外缘转角件（相邻两外缘相交外角）
+                    if ((border & R_UP) && (border & R_LEFT))
+                        batcher.add(atlasTexId, wx, wy, quarter, quarter,
+                            ruvs[6*4]+UV_EPSILON, ruvs[6*4+1]+UV_EPSILON, ruvs[6*4+2]-UV_EPSILON, ruvs[6*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+                    if ((border & R_UP) && (border & R_RIGHT))
+                        batcher.add(atlasTexId, wx+tileSizeF-quarter, wy, quarter, quarter,
+                            ruvs[5*4]+UV_EPSILON, ruvs[5*4+1]+UV_EPSILON, ruvs[5*4+2]-UV_EPSILON, ruvs[5*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+                    if ((border & R_DOWN) && (border & R_LEFT))
+                        batcher.add(atlasTexId, wx, wy+tileSizeF-quarter, quarter, quarter,
+                            ruvs[8*4]+UV_EPSILON, ruvs[8*4+1]+UV_EPSILON, ruvs[8*4+2]-UV_EPSILON, ruvs[8*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+                    if ((border & R_DOWN) && (border & R_RIGHT))
+                        batcher.add(atlasTexId, wx+tileSizeF-quarter, wy+tileSizeF-quarter, quarter, quarter,
+                            ruvs[7*4]+UV_EPSILON, ruvs[7*4+1]+UV_EPSILON, ruvs[7*4+2]-UV_EPSILON, ruvs[7*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
+
+                    // 十字中心装饰（居中，约 2×2 格视觉）
+                    if (type == 11) {
+                        const float cs = tileSizeF * 2.0f;
+                        batcher.add(atlasTexId, wx - tileSizeF*0.5f, wy - tileSizeF*0.5f, cs, cs,
+                            ruvs[9*4]+UV_EPSILON, ruvs[9*4+1]+UV_EPSILON, ruvs[9*4+2]-UV_EPSILON, ruvs[9*4+3]-UV_EPSILON,
+                            1.0f,1.0f,1.0f,fadeAlpha);
+                    }
+                }
+            }
+        }
+        env->ReleaseIntArrayElements(roadData, roads, JNI_ABORT);
+        env->ReleaseFloatArrayElements(roadUVMap, ruvs, JNI_ABORT);
+    }
+
+    // ---- 3. 建筑层 ----
     jfloat* buildings = nullptr;
     jfloat* buvs = nullptr;
     jsize buvCount = 0;

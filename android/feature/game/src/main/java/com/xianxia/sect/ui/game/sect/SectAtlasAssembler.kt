@@ -65,6 +65,20 @@ object SectAtlasAssembler {
         R.drawable.cloud_5,
     )
 
+    /** 石板道路精灵 drawable（按 SpriteAtlasDef.ROAD_RECTS 键；names 与 ROAD_DRAWABLE 产物一致）。 */
+    private val ROAD_DRAWABLE_MAP = mapOf(
+        "road_base" to R.drawable.road_base,
+        "road_base_v" to R.drawable.road_base_v,
+        "road_junction" to R.drawable.road_junction,
+        "road_edge_h" to R.drawable.road_edge_h,
+        "road_edge_v" to R.drawable.road_edge_v,
+        "road_corner_tr" to R.drawable.road_corner_tr,
+        "road_corner_tl" to R.drawable.road_corner_tl,
+        "road_corner_br" to R.drawable.road_corner_br,
+        "road_corner_bl" to R.drawable.road_corner_bl,
+        "road_cross_center" to R.drawable.road_cross_center,
+    )
+
     /**
      * 构建地图图集位图（2048×2048 ARGB_8888）。
      *
@@ -98,7 +112,8 @@ object SectAtlasAssembler {
     private fun buildSpriteSlots(): List<SpriteSlot> {
         val buildingMap = buildingAtlasDrawableMap()
         return buildTileSlots() + buildBuildingSlots(buildingMap) +
-            buildFloorSlots() + buildCropSlots() + buildStructureSlots() + buildCloudSlots()
+            buildFloorSlots() + buildCropSlots() + buildStructureSlots() + buildCloudSlots() +
+            buildRoadSlots()
     }
 
     /**
@@ -171,6 +186,15 @@ object SectAtlasAssembler {
             SpriteSlot(
                 name, rect.x, rect.y, rect.w, rect.h,
                 CLOUD_DRAWABLE_LIST.getOrNull(index) ?: 0
+            )
+        }
+
+    /** 石板道路精灵槽位（按 SpriteAtlasDef.ROAD_RECTS 声明顺序，渲染叠加层取 UV/源矩形）。 */
+    private fun buildRoadSlots(): List<SpriteSlot> =
+        SpriteAtlasDef.ROAD_RECTS.map { (name, rect) ->
+            SpriteSlot(
+                name, rect.x, rect.y, rect.w, rect.h,
+                ROAD_DRAWABLE_MAP[name] ?: 0
             )
         }
 

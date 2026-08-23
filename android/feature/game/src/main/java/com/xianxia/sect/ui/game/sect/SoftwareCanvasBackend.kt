@@ -11,6 +11,8 @@ import com.xianxia.sect.core.render.RenderLodPolicy
 import com.xianxia.sect.core.render.RenderScalePolicy
 import com.xianxia.sect.core.render.SpiritCropRender
 import com.xianxia.sect.core.render.SpriteAtlasDef
+import com.xianxia.sect.core.util.RoadTileType
+import com.xianxia.sect.core.util.RoadTiling
 import kotlin.math.roundToInt
 
 /**
@@ -150,6 +152,10 @@ class SoftwareCanvasBackend(
     private var chunkBuildingHash: Int = 0
     /** 上一次渲染的 buildingData 引用（用于跳过 contentHashCode O(n) 遍历） */
     private var cachedBuildingData: FloatArray? = null
+    /** 上一次渲染的 road hash（道路数据变化 → 失效 chunk 局部重建） */
+    private var chunkRoadHash: Int = 0
+    /** 上一次渲染的 roadData 引用（用于跳过 contentHashCode O(n) 遍历） */
+    private var cachedRoadData: IntArray? = null
     /** 测试观测：chunk 重建累计次数（WP5 LOD 档内无重建防抖断言用） */
     internal var chunkRebuildCount: Int = 0
         private set
@@ -161,7 +167,8 @@ class SoftwareCanvasBackend(
         val tileSize: Int,
         val tileSrcRects: Array<Rect>,
         val buildingSrcRects: Array<Rect>,
-        val floorTileSrcRects: Array<Rect>
+        val floorTileSrcRects: Array<Rect>,
+        val roadSrcRects: Map<String, Rect>
     )
 
     /** 相机-屏幕变换（chunk 烘焙用固定 viewport = chunk 像素尺寸） */
@@ -224,13 +231,19 @@ class SoftwareCanvasBackend(
             buildingArray: FloatArray?,
             buildingCount: Int,
             decorSkip: Boolean,
-            buildingShadows: Boolean
+            buildingShadows: Boolean,
+            roadData: IntArray?
         ) {
             val bmp = bitmap ?: createBitmap(CHUNK_PIXEL, CHUNK_PIXEL, Bitmap.Config.RGB_565).also { bitmap = it }
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
 
             drawGroundAndDecor(canvas, atlas, tileData, cols, decorSkip)
+
+            // 石板道路层（装饰之上、建筑之下，烘焙进 chunk——与建筑层级一致）
+            if (roadData != null) {
+                drawRoadsToCanvas(canvas, atlas, roadData, cols)
+            }
 
             // 绘制建筑（使用相对相机 (camX=chunk左上角, scale=1) 达到精确对齐）
             if (buildingArray != null && buildingCount > 0) {
@@ -353,6 +366,94 @@ class SoftwareCanvasBackend(
             }
         }
 
+        /**
+         * 石板道路层（装饰之上、建筑之下，烘焙进 chunk）。
+         *
+         * 每格按位掩码合成：主体（直路用 base，转角/T/十字用 junction）+ 外缘描边条
+         * （[RoadTiling.roadBorderMask] 决定哪些边描边，内部相邻格不描边）+ 外缘转角件
+         * + 十字中心装饰。并行道路内部不重复描边。
+         */
+        private fun drawRoadsToCanvas(
+            canvas: Canvas,
+            atlas: Bitmap,
+            roadData: IntArray,
+            cols: Int
+        ) {
+            val rows = roadData.size / cols
+            val startCol = col * CHUNK_SIZE_TILES
+            val startRow = row * CHUNK_SIZE_TILES
+            val endCol = (startCol + CHUNK_SIZE_TILES).coerceAtMost(cols)
+            val endRow = (startRow + CHUNK_SIZE_TILES).coerceAtMost(rows)
+            val tileSize = kit.tileSize
+            val quarter = tileSize / 4
+            val reuseRect = Rect()
+
+            for (r in startRow until endRow) {
+                for (c in startCol until endCol) {
+                    val idx = r * cols + c
+                    val mask = roadData[idx]
+                    if (mask == 0) continue
+
+                    val type = RoadTiling.tileTypeForBitmask(mask)
+                    val border = RoadTiling.roadBorderMask(mask)
+                    val chunkOffX = c * tileSize - startCol * tileSize
+                    val chunkOffY = r * tileSize - startRow * tileSize
+
+                    // 主体：直路按朝向，转角/T/十字用路口拼接素材
+                    val baseKey = when (type) {
+                        RoadTileType.HORIZONTAL -> "road_base"
+                        RoadTileType.VERTICAL -> "road_base_v"
+                        else -> "road_junction"
+                    }
+                    drawRoadSprite(canvas, atlas, baseKey, chunkOffX, chunkOffY, tileSize, tileSize, reuseRect)
+
+                    // 外缘描边条（1/4 格厚）：仅无道路邻居的边
+                    if (border and RoadTiling.DIR_UP != 0)
+                        drawRoadSprite(canvas, atlas, "road_edge_h", chunkOffX, chunkOffY, tileSize, quarter, reuseRect)
+                    if (border and RoadTiling.DIR_DOWN != 0)
+                        drawRoadSprite(canvas, atlas, "road_edge_h", chunkOffX, chunkOffY + tileSize - quarter, tileSize, quarter, reuseRect)
+                    if (border and RoadTiling.DIR_LEFT != 0)
+                        drawRoadSprite(canvas, atlas, "road_edge_v", chunkOffX, chunkOffY, quarter, tileSize, reuseRect)
+                    if (border and RoadTiling.DIR_RIGHT != 0)
+                        drawRoadSprite(canvas, atlas, "road_edge_v", chunkOffX + tileSize - quarter, chunkOffY, quarter, tileSize, reuseRect)
+
+                    // 外缘转角件（相邻两外缘相交的外角）
+                    if (border and RoadTiling.DIR_UP != 0 && border and RoadTiling.DIR_LEFT != 0)
+                        drawRoadSprite(canvas, atlas, "road_corner_tl", chunkOffX, chunkOffY, quarter, quarter, reuseRect)
+                    if (border and RoadTiling.DIR_UP != 0 && border and RoadTiling.DIR_RIGHT != 0)
+                        drawRoadSprite(canvas, atlas, "road_corner_tr", chunkOffX + tileSize - quarter, chunkOffY, quarter, quarter, reuseRect)
+                    if (border and RoadTiling.DIR_DOWN != 0 && border and RoadTiling.DIR_LEFT != 0)
+                        drawRoadSprite(canvas, atlas, "road_corner_bl", chunkOffX, chunkOffY + tileSize - quarter, quarter, quarter, reuseRect)
+                    if (border and RoadTiling.DIR_DOWN != 0 && border and RoadTiling.DIR_RIGHT != 0)
+                        drawRoadSprite(canvas, atlas, "road_corner_br", chunkOffX + tileSize - quarter, chunkOffY + tileSize - quarter, quarter, quarter, reuseRect)
+
+                    // 十字中心装饰（居中，约 2×2 格视觉）
+                    if (type == RoadTileType.CROSS) {
+                        val cs = tileSize * 2
+                        val cx = chunkOffX - tileSize / 2
+                        val cy = chunkOffY - tileSize / 2
+                        drawRoadSprite(canvas, atlas, "road_cross_center", cx, cy, cs, cs, reuseRect)
+                    }
+                }
+            }
+        }
+
+        /** 绘制单个道路精灵（源矩形由 [kit] 查询，目标矩形在 chunk 局部坐标系）。 */
+        private fun drawRoadSprite(
+            canvas: Canvas,
+            atlas: Bitmap,
+            key: String,
+            left: Int,
+            top: Int,
+            w: Int,
+            h: Int,
+            reuseRect: Rect
+        ) {
+            val src = kit.roadSrcRects[key] ?: return
+            reuseRect.set(left, top, left + w, top + h)
+            canvas.drawBitmap(atlas, src, reuseRect, rebuildPaint)
+        }
+
         /** 视锥剔除（屏幕矩形与 chunk 视口相交判定——4 条件拆两半规避复杂条件） */
         private fun isOffScreen(left: Int, top: Int, right: Int, bottom: Int, view: ViewTransform): Boolean {
             val pastRightOrBottom = left >= view.vpW || bottom <= 0
@@ -461,7 +562,7 @@ class SoftwareCanvasBackend(
      * 精灵源矩形随 SpriteAtlasDef 静态数据生成，无 Android 依赖）
      */
     private val chunkKit: ChunkDrawKit by lazy {
-        ChunkDrawKit(config.tileSize, tileSrcRects, buildingSrcRects, floorTileSrcRects)
+        ChunkDrawKit(config.tileSize, tileSrcRects, buildingSrcRects, floorTileSrcRects, roadSrcRects)
     }
 
     /**
@@ -592,6 +693,13 @@ class SoftwareCanvasBackend(
         rects as Array<Rect>
     }
 
+    /** 石板道路精灵图源矩形（key → source rect，按 SpriteAtlasDef.ROAD_RECTS 生成） */
+    private val roadSrcRects: Map<String, Rect> by lazy {
+        SpriteAtlasDef.ROAD_RECTS.associate { (key, r) ->
+            key to Rect(r.x, r.y, r.x + r.w, r.y + r.h)
+        }
+    }
+
     // ============================================================
     // 公共 API
     // ============================================================
@@ -651,13 +759,15 @@ class SoftwareCanvasBackend(
         // 引用缓存优化：跳过 contentHashCode O(n) 遍历当数据引用未变化
         val tileHash = if (td === cachedTileData) chunkTileHash else td.contentHashCode().also { cachedTileData = td }
         val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }
+        val roadArray = frame.roadData
+        val roadHash = if (roadArray === cachedRoadData) chunkRoadHash else (roadArray?.contentHashCode() ?: 0).also { cachedRoadData = roadArray }
 
         // ═══════════════════════════════════════════════════════
         // Chunk 缓存完整渲染（Scroll Compositing 已废弃）
         // ═══════════════════════════════════════════════════════
 
         // Chunk 失效检查 + 重建（WP5：装饰判定用 LOD 合并值——档位内浮点微动不触发重建防抖动）
-        if (invalidateChunksForChanges(tileHash, buildingHash, decorSkip)) {
+        if (invalidateChunksForChanges(tileHash, buildingHash, roadHash, decorSkip)) {
             rebuildInvalidChunks(atlas, frame, decorSkip)
         }
 
@@ -724,10 +834,12 @@ class SoftwareCanvasBackend(
     private fun invalidateChunksForChanges(
         tileHash: Int,
         buildingHash: Int,
+        roadHash: Int,
         decorSkip: Boolean
     ): Boolean {
         val chunkTileChanged = tileHash != chunkTileHash
         val chunkBuildingChanged = buildingHash != chunkBuildingHash
+        val chunkRoadChanged = roadHash != chunkRoadHash
         val chunkDecorChanged = decorSkip != lastDecorationsDisabled
 
         if (chunkDecorChanged) {
@@ -747,7 +859,13 @@ class SoftwareCanvasBackend(
             // 失效全部 chunk（4×4 网格 16 块，建筑变化低频，重建成本可接受）。
             invalidateAllChunks()
         }
-        return chunkTileChanged || chunkBuildingChanged || chunkDecorChanged
+        if (chunkRoadChanged) {
+            // 道路变化：失效全部 chunk（道路可能横跨多个 chunk，局部失效受 32×32 网格限制，
+            // 全失效 16 块重建成本低——道路放置/删除低频，满足"只更新受影响区域"）。
+            chunkRoadHash = roadHash
+            invalidateAllChunks()
+        }
+        return chunkTileChanged || chunkBuildingChanged || chunkRoadChanged || chunkDecorChanged
     }
 
     /** 重建全部失效 chunk（失效检查完成后统一执行，防半失效窗口） */
@@ -764,7 +882,8 @@ class SoftwareCanvasBackend(
                         buildingArray = frame.buildingData,
                         buildingCount = frame.buildingCount,
                         decorSkip = decorSkip,
-                        buildingShadows = config.renderFlags.buildingShadows
+                        buildingShadows = config.renderFlags.buildingShadows,
+                        roadData = frame.roadData
                     )
                 }
             }
@@ -1142,6 +1261,7 @@ class SoftwareCanvasBackend(
             chunkCaches.forEach { col -> col.forEach { it.isValid = false } }
             chunkTileHash = 0
             chunkBuildingHash = 0
+            chunkRoadHash = 0
             chunkDecorVersion = 0
             // WP5：chunk 失效基准用 LOD 合并值（scale/热控/显式关闭），
             // 与 renderFrame 的比较值同源，杜绝基准漂移

@@ -106,7 +106,10 @@ class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBackend {
                 // ★ 云层实例数据（渲染线程逐帧生成快照——双后端共享同一份 host.cloudData，
                 // 与 C++ 侧同一快照保证像素级一致；cloudUVMap 与 SpriteAtlasDef 同源）
                 cloudData = host.cloudData,
-                cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP
+                cloudUVMap = SpriteAtlasDef.CLOUD_UV_MAP,
+                // ★ 石板道路每格位掩码 + UV（双后端按位掩码合成主体/边缘/转角/十字装饰）
+                roadData = frame.roadData,
+                roadUVMap = SpriteAtlasDef.ROAD_UV_MAP
             )
         }
 

@@ -111,6 +111,22 @@ const LAYOUT = {
   structures: [
     { name: '宗门门楼', key: 'sect_gate', rect: [1536, 256, 384, 256], footprint: [6, 2], spriteSize: [6, 4] },
   ],
+  // 石板道路系统（RoadSprite：主体/路口/边缘条/转角/十字装饰）
+  // 渲染叠加层按位掩码合成：直路用 base，转角/T/十字用 junction，
+  // 外缘描边条用 edge_*，外角用 corner_*，十字中心装饰用 cross_center。
+  // 槽位取自 y=0..128 空闲行（x≥1024）与 y=1024..1280 右列"×256"空闲区，均不与其他条目重叠。
+  roads: [
+    { name: 'road_base',       rect: [1024, 0, 64, 64] },
+    { name: 'road_base_v',     rect: [1088, 0, 64, 64] },
+    { name: 'road_junction',   rect: [1152, 0, 64, 64] },
+    { name: 'road_edge_h',     rect: [1216, 0, 64, 16] },
+    { name: 'road_edge_v',     rect: [1216, 16, 16, 64] },
+    { name: 'road_corner_tr',  rect: [1232, 64, 48, 48] },
+    { name: 'road_corner_tl',  rect: [1280, 64, 48, 48] },
+    { name: 'road_corner_br',  rect: [1328, 64, 48, 48] },
+    { name: 'road_corner_bl',  rect: [1376, 64, 48, 48] },
+    { name: 'road_cross_center', rect: [1024, 1024, 256, 256] },
+  ],
   // 云层精灵（世界顶部动态云朵的图集槽位——仅提供精灵，位置/运动由
   // CloudLayerAnimator 逐帧驱动。放在图集 y≥1408 空闲区，保持源素材纵横比）
   clouds: [
@@ -168,6 +184,17 @@ const LAYOUT = {
     { name: 'cloud_3', rect: [936, 1408, 488, 96] },
     { name: 'cloud_4', rect: [0, 1620, 524, 108] },
     { name: 'cloud_5', rect: [524, 1620, 472, 200] },
+    // 石板道路系统（与 LAYOUT.roads 同源；C++ 经 getRegion("road_*") 取 UV）
+    { name: 'road_base', rect: [1024, 0, 64, 64] },
+    { name: 'road_base_v', rect: [1088, 0, 64, 64] },
+    { name: 'road_junction', rect: [1152, 0, 64, 64] },
+    { name: 'road_edge_h', rect: [1216, 0, 64, 16] },
+    { name: 'road_edge_v', rect: [1216, 16, 16, 64] },
+    { name: 'road_corner_tr', rect: [1232, 64, 48, 48] },
+    { name: 'road_corner_tl', rect: [1280, 64, 48, 48] },
+    { name: 'road_corner_br', rect: [1328, 64, 48, 48] },
+    { name: 'road_corner_bl', rect: [1376, 64, 48, 48] },
+    { name: 'road_cross_center', rect: [1024, 1024, 256, 256] },
   ],
 };
 
@@ -189,6 +216,20 @@ const FLOOR_DRAWABLE = {
   TILE_3x2: 'floor_tile_3x2',
   TILE_3x3: 'floor_tile_3x3',
   SPIRIT_MINE_GROUND: 'spirit_mine_ground',
+};
+
+/** 石板道路资源名映射（LAYOUT.roads → drawable-nodpi 资源名；由 prepare-road-textures.mjs 生成） */
+const ROAD_DRAWABLE = {
+  road_base: 'road_base',
+  road_base_v: 'road_base_v',
+  road_junction: 'road_junction',
+  road_edge_h: 'road_edge_h',
+  road_edge_v: 'road_edge_v',
+  road_corner_tr: 'road_corner_tr',
+  road_corner_tl: 'road_corner_tl',
+  road_corner_br: 'road_corner_br',
+  road_corner_bl: 'road_corner_bl',
+  road_cross_center: 'road_cross_center',
 };
 
 /** 作物资源名（与 buildAtlasBitmap cropDrawableMap 一致，按 ordinal） */
@@ -340,6 +381,9 @@ function generateSpriteAtlasDef(layout) {
     .join(',\n');
   const cloudRectLines = layout.clouds
     .map((c) => `        ${JSON.stringify(c.name)} to SpriteRect(${c.rect.join(', ')})`)
+    .join(',\n');
+  const roadLines = layout.roads
+    .map((r) => `        ${JSON.stringify(r.name)} to SpriteRect(${r.rect.join(', ')})`)
     .join(',\n');
   const groundVariantLines = si.groundVariants.join(', ');
 
@@ -585,6 +629,40 @@ function generateSpriteAtlasDef(layout) {
     '    val CLOUD_UV_MAP: FloatArray by lazy {',
     '        val uv = FloatArray(CLOUD_RECTS.size * 4)',
     '        for ((i, entry) in CLOUD_RECTS.withIndex()) {',
+    '            val r = entry.second',
+    '            val j = i * 4',
+    '            uv[j] = r.x.toFloat() / ATLAS_W',
+    '            uv[j + 1] = r.y.toFloat() / ATLAS_H',
+    '            uv[j + 2] = (r.x + r.w).toFloat() / ATLAS_W',
+    '            uv[j + 3] = (r.y + r.h).toFloat() / ATLAS_H',
+    '        }',
+    '        uv',
+    '    }',
+    '',
+    '    // ============================================================',
+    '    // 石板道路系统（RoadSprite：主体/路口/边缘条/转角/十字装饰）',
+    '    // 渲染叠加层按位掩码合成：直路用 base，转角/T/十字用 junction，',
+    '    // 外缘描边条用 edge_*，外角用 corner_*，十字中心装饰用 cross_center。',
+    '    // 与 C++ TextureAtlas.h MAP_SPRITES 的 road_* 同源。',
+    '    // ============================================================',
+    '',
+    '    /** 道路精灵图集 rect（按 LAYOUT.roads 声明顺序；Canvas 渲染取源矩形） */',
+    '    val ROAD_RECTS: List<Pair<String, SpriteRect>> = listOf(',
+    roadLines,
+    '    )',
+    '',
+    '    /** 道路精灵名称 → rect（渲染器按 bitMask 合成时查询） */',
+    '    val ROAD_RECT_BY_KEY: Map<String, SpriteRect> by lazy {',
+    '        ROAD_RECTS.associate { it.first to it.second }',
+    '    }',
+    '',
+    '    /**',
+    '     * 道路 UV 映射（归一化 0-1，按 ROAD_RECTS 声明顺序，供 Vulkan 纹理采样）。',
+    '     * 与 C++ TextureAtlas.h 的 road UV 计算一致。',
+    '     */',
+    '    val ROAD_UV_MAP: FloatArray by lazy {',
+    '        val uv = FloatArray(ROAD_RECTS.size * 4)',
+    '        for ((i, entry) in ROAD_RECTS.withIndex()) {',
     '            val r = entry.second',
     '            val j = i * 4',
     '            uv[j] = r.x.toFloat() / ATLAS_W',
@@ -900,6 +978,14 @@ function buildSpriteList() {
     sprites.push({
       name: c.name, x: c.rect[0], y: c.rect[1], w: c.rect[2], h: c.rect[3],
       drawable: c.name,
+    });
+  });
+
+  // 石板道路（LAYOUT.roads 声明顺序；drawable = ROAD_DRAWABLE 资源名）
+  LAYOUT.roads.forEach((r) => {
+    sprites.push({
+      name: r.name, x: r.rect[0], y: r.rect[1], w: r.rect[2], h: r.rect[3],
+      drawable: ROAD_DRAWABLE[r.name] ?? null,
     });
   });
 

@@ -474,9 +474,20 @@ class NativeSurfaceView(
         val safeTileData = if (frame.tileData === prevTileData) prevTileData else frame.tileData.copyOf()
         val prevBuildingData = currentFrame?.buildingData
         val safeBuildingData = if (frame.buildingData != null && frame.buildingData === prevBuildingData) prevBuildingData else frame.buildingData?.copyOf()
+        // roadData 尺寸校验（与 tileData 同式防坏帧）；roadData 可为 null（无道路）
+        val roadTotal = config.worldWidthCells * config.worldHeightCells
+        val roadArr = frame.roadData
+        if (roadArr != null && roadArr.size != roadTotal) {
+            android.util.Log.e("NativeSurfaceView",
+                "RenderFrame roadData size mismatch: ${roadArr.size} vs expected $roadTotal")
+            return
+        }
+        val prevRoadData = currentFrame?.roadData
+        val safeRoadData = if (roadArr != null && roadArr === prevRoadData) prevRoadData else roadArr?.copyOf()
         currentFrame = frame.copy(
             tileData = safeTileData,
-            buildingData = safeBuildingData
+            buildingData = safeBuildingData,
+            roadData = safeRoadData
         )
         cameraDirty.set(true)
     }

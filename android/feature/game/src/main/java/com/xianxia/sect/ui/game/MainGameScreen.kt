@@ -46,6 +46,7 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.core.util.RoadTiling
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
@@ -316,7 +317,8 @@ private data class MainGameScreenMapTiles(
     val flatTileData: IntArray,
     val buildingDataArray: FloatArray?,
     val spiritCropData: FloatArray?,
-    val demolishHighlightData: ByteArray?
+    val demolishHighlightData: ByteArray?,
+    val roadData: IntArray?
 )
 
 /** MainGameScreen 渲染数据（MainGameScreen 拆分）：索引/网格/精灵/配置 */
@@ -328,7 +330,8 @@ private data class MainGameScreenRenderData(
     val nativeConfig: NativeRenderConfig,
     val buildingDataArray: FloatArray?,
     val spiritCropData: FloatArray?,
-    val demolishHighlightData: ByteArray?
+    val demolishHighlightData: ByteArray?,
+    val roadData: IntArray?
 )
 
 /** MainGameScreen 视口数据（MainGameScreen 拆分）：相机/预览/渲染参数 */
@@ -373,7 +376,7 @@ private fun rememberMainGameScreenDerived(
 private fun buildMainGameScreenBuildingList(
     viewModel: GameViewModel
 ): List<Pair<String, (GridBuildingData?) -> Unit>> {
-    return BuildingFeatureRegistry.constructible.map { def ->
+    val buildings = BuildingFeatureRegistry.constructible.map { def ->
         val handler: (GridBuildingData?) -> Unit = when (def.key) {
             "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.SpiritMine(it)) }; Unit }
             "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogType.HerbGarden) }
@@ -396,6 +399,8 @@ private fun buildMainGameScreenBuildingList(
         }
         def.displayName to handler
     }
+    // 石板道路（建造栏目标，铺设走 RoadFacade 自动拼接）
+    return buildings + (GameConfig.Road.DISPLAY_NAME to { _ -> Unit })
 }
 
 /** MainGameScreen 地图静态数据计算（MainGameScreen 拆分） */
@@ -409,14 +414,14 @@ private fun rememberMainGameScreenMapData(
         BuildingFeatureRegistry.all.associate { def ->
             val (w, h) = viewModel.getBuildingGridSize(def.displayName)
             def.displayName to GridSnapHelper.BuildingSize(w, h)
-        }
+        } + (GameConfig.Road.DISPLAY_NAME to GridSnapHelper.BuildingSize(1, 1))
     }
     // 建筑精灵比例尺寸映射 — 用于渲染视觉大小（可能大于占地尺寸）
     val buildingSpriteSizes = remember {
         BuildingFeatureRegistry.all.associate { def ->
             val (sw, sh) = viewModel.getBuildingSpriteSize(def.displayName)
             def.displayName to GridSnapHelper.BuildingSize(sw, sh)
-        }
+        } + (GameConfig.Road.DISPLAY_NAME to GridSnapHelper.BuildingSize(1, 1))
     }
     // 建筑列表及点击回调
     val buildingList = remember {
@@ -492,11 +497,20 @@ private fun rememberMainGameScreenMapTiles(
             else buildDemolishHighlightData(derived.effectivePlacedBuildings, state.demolishSelectedIds)
         }
     }
+    // ★ 石板道路数据（每格邻接位掩码，供双后端合成道路主体/边缘/转角/十字装饰）
+    val roadData = remember(gameData.roads) {
+        RoadTiling.buildRoadMaskArray(
+            roads = gameData.roads,
+            cols = mapPreloadData.worldWidthCells,
+            rows = mapPreloadData.worldHeightCells
+        )
+    }
     return MainGameScreenMapTiles(
         flatTileData = flatTileData,
         buildingDataArray = buildingDataArray,
         spiritCropData = spiritCropData.value,
-        demolishHighlightData = demolishHighlightData.value
+        demolishHighlightData = demolishHighlightData.value,
+        roadData = roadData
     )
 }
 
@@ -555,7 +569,8 @@ private fun rememberMainGameScreenRenderData(
         nativeConfig = nativeConfig,
         buildingDataArray = tiles.buildingDataArray,
         spiritCropData = tiles.spiritCropData,
-        demolishHighlightData = tiles.demolishHighlightData
+        demolishHighlightData = tiles.demolishHighlightData,
+        roadData = tiles.roadData
     )
 }
 
@@ -595,6 +610,7 @@ private fun rememberMainGameScreenViewportData(
                 surfaceProviderFactory = viewModel.getSurfaceProviderFactory(), gpuTier = viewModel.getGpuTier(),
                 buildingSpriteSizes = mapData.buildingSpriteSizes, selectedGrid = state.selectedBuildingGrid,
                 spiritCropData = renderData.spiritCropData, demolishHighlightData = renderData.demolishHighlightData,
+                roadData = renderData.roadData,
                 gridOverlayVisible = state.isPlacingBuilding || state.movingBuilding != null,
                 alphaProvider = { viewModel.gameEngineCore.currentAlpha }
             )
@@ -896,8 +912,15 @@ private fun handleMainGameScreenTap(
     // 拆除模式：单点切换选中 / 区域模式范围选中，不弹详情
     if (state.isDemolishMode) {
         handleDemolishTap(
-            state = state, derived = derived, renderData = renderData, gx = gx, gy = gy
+            state = state, derived = derived, renderData = renderData, viewModel = viewModel, gx = gx, gy = gy
         )
+        return
+    }
+    // 石板道路：1×1，点击地图格即放置（替代拖拽+确认按钮）——直接调 placeRoad 由它自判可否放置
+    if (state.isPlacingBuilding && state.placingBuildingName == GameConfig.Road.DISPLAY_NAME) {
+        viewModel.placeRoad(gx, gy)
+        state.isPlacingBuilding = false
+        state.placingBuildingName = ""
         return
     }
     val clicked = renderData.buildingIndex.findBuildingAt(gx, gy)
@@ -1181,11 +1204,12 @@ private fun findMainGameScreenBuildingAt(
     return renderData.buildingIndex.findBuildingAt(gx, gy)
 }
 
-/** 拆除模式点击处理（MainGameScreen 拆分）：区域模式范围选中 / 单点切换选中 */
+/** 拆除模式点击处理（MainGameScreen 拆分）：区域模式范围选中 / 单点切换选中 / 删路 */
 private fun handleDemolishTap(
     state: MainGameScreenState,
     derived: MainGameScreenDerived,
     renderData: MainGameScreenRenderData,
+    viewModel: GameViewModel,
     gx: Int,
     gy: Int
 ) {
@@ -1200,12 +1224,18 @@ private fun handleDemolishTap(
             diameter = state.areaDiameter
         )
     } else {
-        // 单点模式：点击建筑切换选中状态
-        val b = renderData.buildingIndex.findBuildingAt(gx, gy) ?: return
-        if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
-            state.demolishSelectedIds = if (b.instanceId in state.demolishSelectedIds)
-                state.demolishSelectedIds - b.instanceId
-            else state.demolishSelectedIds + b.instanceId
+        // 单点模式：点击建筑切换选中状态；无建筑但为道路格则直接删路
+        val b = renderData.buildingIndex.findBuildingAt(gx, gy)
+        if (b != null) {
+            if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
+                state.demolishSelectedIds = if (b.instanceId in state.demolishSelectedIds)
+                    state.demolishSelectedIds - b.instanceId
+                else state.demolishSelectedIds + b.instanceId
+            }
+        } else {
+            // 石板道路：拆除模式下点道路格立即删除（自动重算邻居拼接）
+            val hasRoad = derived.gameData?.roads?.any { it.gridX == gx && it.gridY == gy } == true
+            if (hasRoad) viewModel.removeRoad(gx, gy)
         }
     }
 }
@@ -1220,7 +1250,11 @@ private fun onSelectBuildingFromBar(
 ) {
     // 拆除模式下点击建造卡片不进入放置模式
     if (state.isDemolishMode) return
-    val size = mapData.buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
+    val size = if (name == GameConfig.Road.DISPLAY_NAME) {
+        GridSnapHelper.BuildingSize(1, 1)  // 石板道路为单格
+    } else {
+        mapData.buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
+    }
     state.isPlacingBuilding = true
     state.placingBuildingName = name
     state.placingBuildingSize = size
@@ -1429,13 +1463,18 @@ private fun MainGameScreenPlacementConfirm(
                 viewModel.batchPlaceBuilding(state.goldFingerState)
                 state.goldFingerState = GoldFingerState()
             } else if (state.placementValidity == GridSnapHelper.PlacementValidity.Valid) {
-                viewModel.placeBuilding(
-                    name = state.placingBuildingName,
-                    gridX = state.placingSnappedGridX,
-                    gridY = state.placingSnappedGridY,
-                    width = state.placingBuildingSize.width,
-                    height = state.placingBuildingSize.height
-                )
+                if (state.placingBuildingName == GameConfig.Road.DISPLAY_NAME) {
+                    // 石板道路：走道路系统自动拼接（单格，RoadFacade 内扣 20 灵石/格）
+                    viewModel.placeRoad(state.placingSnappedGridX, state.placingSnappedGridY)
+                } else {
+                    viewModel.placeBuilding(
+                        name = state.placingBuildingName,
+                        gridX = state.placingSnappedGridX,
+                        gridY = state.placingSnappedGridY,
+                        width = state.placingBuildingSize.width,
+                        height = state.placingBuildingSize.height
+                    )
+                }
             }
             state.isPlacingBuilding = false
             state.placingBuildingName = ""
@@ -1720,13 +1759,15 @@ private fun BoxScope.MainGameScreenBuildingBar(
                 },
                 getBuildingMaxCount = { name ->
                     when {
+                        name == GameConfig.Road.DISPLAY_NAME -> Int.MAX_VALUE
                         BuildingFeatureRegistry.isResidence(name) ||
                             BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
                         else -> 1
                     }
                 },
                 getBuildingCount = { name ->
-                    if (BuildingFeatureRegistry.isGloballyUnique(name)) {
+                    if (name == GameConfig.Road.DISPLAY_NAME) 0
+                    else if (BuildingFeatureRegistry.isGloballyUnique(name)) {
                         gameData.placedBuildings.count { it.displayName == name }
                     } else {
                         data.derived.activeSectBuildings.count { it.displayName == name }

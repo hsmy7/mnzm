@@ -59,6 +59,10 @@ class AtlasLayoutSyncTest {
     private val cloudNameMap: Map<String, SpriteRect> =
         SpriteAtlasDef.CLOUD_RECTS.associate { (name, rect) -> name to rect }
 
+    // 石板道路名称映射（C++ 名称 → Kotlin ROAD_RECTS，与 LAYOUT.roads 顺序一致）
+    private val roadNameMap: Map<String, SpriteRect> =
+        SpriteAtlasDef.ROAD_RECTS.associate { (name, rect) -> name to rect }
+
     @Test
     fun `MAP_SPRITES 建筑与 BUILDING_NAMES 双向一致`() {
         val cpp = parseMapSprites()
@@ -82,10 +86,10 @@ class AtlasLayoutSyncTest {
             )
         }
 
-        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构/非云层）必须是 BUILDING_NAMES 中的成员（无孤儿）
+        // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构/非云层/非道路）必须是 BUILDING_NAMES 中的成员（无孤儿）
         val kotlinBuildingNames = SpriteAtlasDef.BUILDING_NAMES.toSet()
         val knownNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
-            structureNameMap.keys + cloudNameMap.keys
+            structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys
         val orphanBuildings = cpp
             .filter { it.name !in knownNames }
             .filter { it.name !in kotlinBuildingNames }
@@ -213,7 +217,8 @@ class AtlasLayoutSyncTest {
     fun `MAP_SPRITES 无孤儿条目且 TileType 全部覆盖`() {
         val cpp = parseMapSprites()
         val coveredNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
-            structureNameMap.keys + cloudNameMap.keys + SpriteAtlasDef.BUILDING_NAMES
+            structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys +
+            SpriteAtlasDef.BUILDING_NAMES
         val orphans = cpp.filter { it.name !in coveredNames }
         assertTrue(
             "TextureAtlas.h MAP_SPRITES 存在无法映射的孤儿条目: ${orphans.map { it.name }}——" +
@@ -231,6 +236,33 @@ class AtlasLayoutSyncTest {
             "SpriteAtlasDef.TileType 存在未在 C++ MAP_SPRITES 覆盖的类型: $uncovered——" +
                 "新增瓦片类型必须同步 TextureAtlas.h（TILE_BUILDING 除外，见上方注释）",
             uncovered.isEmpty()
+        )
+    }
+
+    @Test
+    fun `MAP_SPRITES 道路与 ROAD_RECTS rect 一致`() {
+        val cppByName = parseMapSprites().associateBy { it.name }
+
+        for ((cppName, rect) in roadNameMap) {
+            val entry = cppByName[cppName]
+                ?: throw AssertionError("道路 '$cppName' 未在 TextureAtlas.h MAP_SPRITES 中注册——" +
+                    "新增道路精灵必须同步 SpriteAtlasDef.ROAD_RECTS 与 C++ MAP_SPRITES")
+            assertEquals(
+                "道路 '$cppName' 图集位置 C++=(${entry.x},${entry.y},${entry.w},${entry.h}) " +
+                    "≠ Kotlin=(${rect.x},${rect.y},${rect.w},${rect.h})——" +
+                    "修改图集布局必须两端同步",
+                rect,
+                cppEntryToRect(entry)
+            )
+        }
+
+        // 反向覆盖：Kotlin 全部道路精灵都应在 C++ 有映射
+        val uncoveredRoads = SpriteAtlasDef.ROAD_RECTS
+            .filter { it.first !in roadNameMap }
+        assertTrue(
+            "SpriteAtlasDef.ROAD_RECTS 存在未在 C++ MAP_SPRITES 覆盖的道路: " +
+                "${uncoveredRoads.map { it.first }}——新增道路精灵必须同步 TextureAtlas.h",
+            uncoveredRoads.isEmpty()
         )
     }
 

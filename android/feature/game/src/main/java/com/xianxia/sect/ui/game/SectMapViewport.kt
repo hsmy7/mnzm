@@ -194,20 +194,33 @@ private fun computeMapPreview(
         mb != null -> mb.displayName
         else -> ""
     }
-    val previewNameIdx = BUILDING_NAME_INDEX[
-        com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-            .findByDisplayName(previewBuildingName)?.effectiveSpriteName() ?: previewBuildingName
-    ] ?: -1
-    val hasPreview = isPreviewActive && previewNameIdx >= 0
+    // 石板道路：非建筑精灵，预览用 road_base 石板纹理（1×1 格）
+    val isRoadPreview = previewBuildingName == com.xianxia.sect.core.GameConfig.Road.DISPLAY_NAME
+    val previewNameIdx = if (isRoadPreview) {
+        -1
+    } else {
+        BUILDING_NAME_INDEX[
+            com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+                .findByDisplayName(previewBuildingName)?.effectiveSpriteName() ?: previewBuildingName
+        ] ?: -1
+    }
+    val hasPreview = isPreviewActive && (isRoadPreview || previewNameIdx >= 0)
 
-    val previewUvs = if (hasPreview) {
-        floatArrayOf(
+    val previewUvs = when {
+        isRoadPreview -> floatArrayOf(
+            SpriteAtlasDef.ROAD_UV_MAP[0],
+            SpriteAtlasDef.ROAD_UV_MAP[1],
+            SpriteAtlasDef.ROAD_UV_MAP[2],
+            SpriteAtlasDef.ROAD_UV_MAP[3]
+        )
+        hasPreview -> floatArrayOf(
             BUILDING_UV_MAP[previewNameIdx * 4],
             BUILDING_UV_MAP[previewNameIdx * 4 + 1],
             BUILDING_UV_MAP[previewNameIdx * 4 + 2],
             BUILDING_UV_MAP[previewNameIdx * 4 + 3]
         )
-    } else null
+        else -> null
+    }
 
     val px = if (mb != null) preview.movingWorldX else preview.placingWorldX
     val py = if (mb != null) preview.movingWorldY else preview.placingWorldY
@@ -275,6 +288,8 @@ private fun buildSectRenderFrame(
     // 门控 RenderFrame——与精灵同帧同相机快照，消除 Compose 覆盖层相位差
     demolishHighlightData = params.demolishHighlightData,
     gridOverlayVisible = params.gridOverlayVisible,
+    // ★ 石板道路每格位掩码（双后端按其合成道路主体/边缘/转角/十字装饰）
+    roadData = params.roadData,
     // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑权重）
     currentAlpha = currentAlpha
 )
@@ -317,6 +332,8 @@ internal data class SectMapViewportParams(
     val spiritCropData: FloatArray? = null,
     /** 拆除模式高亮标记（与 buildingDataArray 同序；null=非拆除模式，双后端跳过整层） */
     val demolishHighlightData: ByteArray? = null,
+    /** 石板道路每格位掩码（展平；null=无道路，双后端跳过道路层） */
+    val roadData: IntArray? = null,
     /** 放置/移动模式全视口网格线开关（true=双后端画视口内网格线） */
     val gridOverlayVisible: Boolean = false,
     /**

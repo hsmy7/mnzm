@@ -29,6 +29,7 @@ add_executable(game-core-tests
     json_codec_test.cpp
     equipment_db_test.cpp
     time_system_test.cpp
+    road_system_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

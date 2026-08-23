@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.cultivation
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
+import com.xianxia.sect.core.engine.domain.road.RoadFacade
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.service.FormulaService
@@ -21,5 +22,6 @@ class CultivationFacadeImpl @Inject constructor(
     override val lawEnforcementProcessor: LawEnforcementProcessor,
     override val discipleFacade: DiscipleFacade,
     override val productionFacade: ProductionFacade,
-    override val buildingFacade: BuildingFacade
+    override val buildingFacade: BuildingFacade,
+    override val roadFacade: RoadFacade
 ) : CultivationFacade

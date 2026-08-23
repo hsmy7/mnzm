@@ -124,3 +124,12 @@ android/app/src/main/cpp/
 - 批次 4-8：经济/生产/弟子/战斗/内政/探索 子系统
 - 批次 9：转发层 + 状态同步 + feature flag 切换
 - 批次 10：Kotlin 引擎退役
+- 批次 R（**待完成，深耦合收敛**）：石板道路渲染深耦合
+
+> **批次 R 背景（深耦合登记，2026-08-24 道路系统落地后）**
+> 石板道路的**视觉合成逻辑**（道路主体 base/junction + 外缘描边 edge + 外角 corner + 十字中心装饰 cross_center 的逐格组合、邻接位掩码推导）目前**双端重复实现**：
+> - Kotlin Canvas：`SoftwareCanvasBackend.drawRoadsToCanvas`（按 `SpriteAtlasDef.ROAD_RECTS` 取源矩形逐格绘制）
+> - C++ Vulkan：`NativeBridge.cpp drawAllTiles` 道路段（按传入 `roadUVMap` 用 `SpriteBatcher` 合成）
+>
+> 且二者都**深耦合**于生成式图集（`build-atlas.mjs` → `SpriteAtlasDef.kt`/`TextureAtlas.h` + 运行时 `SectAtlasAssembler`），并各自维护 `RoadTiling.tileTypeForBitmask`/C++ `roadTypeForMask` 的同语义双份实现。**待完成批次 R 目标**：把道路位掩码→形态、边框判定、逐格合成收敛为**单一权威**（下沉到 `gamecore/map/road_system.h` 已就位的求解器 + 统一的 C++ 渲染合成），Kotlin 侧仅做数据装配，消除双端重复与图集强耦合（对照"单数据源"原则）。完成前本系统暂以"双端并行 + 生成图集 + 运行时拼装"运行。
+

@@ -47,6 +47,9 @@ import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.openStorageBag
 import com.xianxia.sect.core.engine.placeBuilding
 import com.xianxia.sect.core.engine.plantOnSpiritField
+import com.xianxia.sect.core.engine.placeRoad
+import com.xianxia.sect.core.engine.removeRoad
+import com.xianxia.sect.core.engine.canPlaceRoad
 import com.xianxia.sect.core.engine.plantOnSpiritFields
 import com.xianxia.sect.core.engine.popSubDialogDomain
 import com.xianxia.sect.core.engine.purchaseBreakthroughBonus
@@ -541,6 +544,21 @@ class GameViewModel @Inject constructor(
     fun upgradeBuildingOne(sourceKey: String) = buildingUpgradeDelegate.upgradeBuildingOne(sourceKey)
     fun upgradeBuildingsOfType(sourceKey: String) = buildingUpgradeDelegate.upgradeBuildingsOfType(sourceKey)
     fun fixupBuildingSizesIfNeeded() = buildingDelegate.fixupBuildingSizesIfNeeded()
+
+    // ── Road Delegate（石板道路自动拼接）──
+
+    /** 放置道路：目标可放置则自动拼接并更新当前格 + 上下左右共 5 格；经引擎线程执行保证与游戏循环一致。 */
+    fun placeRoad(gridX: Int, gridY: Int) {
+        gameEngine.launchOnEngine { gameEngine.placeRoad(gridX, gridY) }
+    }
+
+    /** 删除道路：删除当前格并重算 4 个邻居（周围道路立即重新拼接）；经引擎线程执行。 */
+    fun removeRoad(gridX: Int, gridY: Int) {
+        gameEngine.launchOnEngine { gameEngine.removeRoad(gridX, gridY) }
+    }
+
+    /** 判定某格是否可放置道路（界内 + 可建环 + 非建筑/固定结构占位 + 尚未是道路）。 */
+    fun canPlaceRoad(gridX: Int, gridY: Int): Boolean = gameEngine.canPlaceRoad(gridX, gridY)
 
     // ── 核心状态流 ──
 

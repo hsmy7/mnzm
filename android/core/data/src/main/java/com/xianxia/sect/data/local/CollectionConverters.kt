@@ -36,6 +36,7 @@ import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.PendingTraitAdd
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.RoadData
 import com.xianxia.sect.core.model.SecretRealmAITeam
 import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmState
@@ -248,6 +249,16 @@ object CollectionConverters {
     @JvmStatic
     fun toLibrarySlotList(value: String): List<LibrarySlot> =
         ProtobufConverters.decodeFromBase64(ListSerializer(LibrarySlot.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromRoadDataList(value: List<RoadData>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(RoadData.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toRoadDataList(value: String): List<RoadData> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(RoadData.serializer()), value) { emptyList() }
 
     @TypeConverter
     @JvmStatic

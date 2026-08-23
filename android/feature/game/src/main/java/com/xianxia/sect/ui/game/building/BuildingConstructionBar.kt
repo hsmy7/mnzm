@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
@@ -124,7 +125,13 @@ private fun BuildingConstructionItem(
                     .background(Color.White.copy(alpha = 0.7f))
             )
             Image(
-                painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal),
+                painter = painterResource(
+                    id = if (name == GameConfig.Road.DISPLAY_NAME) {
+                        R.drawable.road_base  // 石板道路精灵图
+                    } else {
+                        com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal
+                    }
+                ),
                 contentDescription = name,
                 modifier = Modifier
                     .weight(1f)

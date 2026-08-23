@@ -149,6 +149,10 @@ class AtlasManifestSyncTest {
         for ((name, r) in SpriteAtlasDef.CLOUD_RECTS) {
             list += SpriteEntry(name, r.x, r.y, r.w, r.h)
         }
+        // 石板道路（build-atlas.mjs buildSpriteList 在 clouds 之后追加）
+        for ((name, r) in SpriteAtlasDef.ROAD_RECTS) {
+            list += SpriteEntry(name, r.x, r.y, r.w, r.h)
+        }
         return list
     }
 

@@ -292,11 +292,15 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     private fun parseCloudRects(src: String): List<Pair<String, IntArray>> {
-        val regex = Regex(
-            """^\s{8}"(\w+)" to SpriteRect\((\d+), (\d+), (\d+), (\d+)\)[,]?$""",
-            RegexOption.MULTILINE
-        )
-        return regex.findAll(src).map { m ->
+        // 限定在 CLOUD_RECTS 块内解析——ROAD_RECTS 同为 "name" to SpriteRect(...) 格式，
+        // 不限定会把道路条目误计入云层。
+        val decl = src.indexOf("val CLOUD_RECTS")
+        if (decl < 0) throw AssertionError("生成物中未找到 CLOUD_RECTS")
+        // 以 ROAD_RECTS 声明为界截取 CLOUD_RECTS 块（CLOUD_RECTS 在 ROAD_RECTS 之前声明）
+        val end = src.indexOf("val ROAD_RECTS", decl).let { if (it < 0) src.length else it }
+        val block = src.substring(decl, end)
+        val regex = Regex(""""(\w+)" to SpriteRect\((\d+), (\d+), (\d+), (\d+)\)[,]?$""", RegexOption.MULTILINE)
+        return regex.findAll(block).map { m ->
             Pair(
                 m.groupValues[1],
                 intArrayOf(

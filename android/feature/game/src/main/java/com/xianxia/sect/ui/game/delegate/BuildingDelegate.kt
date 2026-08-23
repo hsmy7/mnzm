@@ -187,6 +187,7 @@ class BuildingDelegate(
 
     /** 查询建筑放置所需灵石。 */
     fun getBuildingCost(displayName: String): Long {
+        if (displayName == GameConfig.Road.DISPLAY_NAME) return GameConfig.Road.COST_PER_CELL
         return buildingConfigService.getBuildingConfigByDisplayName(displayName)?.cost ?: 1000L
     }
 

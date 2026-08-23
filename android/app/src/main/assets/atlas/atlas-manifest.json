@@ -3,9 +3,9 @@
   "format": "ASTC_4x4_LDR",
   "width": 2048,
   "height": 2048,
-  "layoutHash": "276e72a3765aaf01",
-  "generatedAt": "2026-08-22T16:58:19.784Z",
-  "spriteCount": 40,
+  "layoutHash": "82af4a4e6ea42711",
+  "generatedAt": "2026-08-23T18:26:20.664Z",
+  "spriteCount": 50,
   "sprites": [
     {
       "name": "GROUND",
@@ -326,6 +326,86 @@
       "w": 472,
       "h": 200,
       "drawable": "cloud_5"
+    },
+    {
+      "name": "road_base",
+      "x": 1024,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "drawable": "road_base"
+    },
+    {
+      "name": "road_base_v",
+      "x": 1088,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "drawable": "road_base_v"
+    },
+    {
+      "name": "road_junction",
+      "x": 1152,
+      "y": 0,
+      "w": 64,
+      "h": 64,
+      "drawable": "road_junction"
+    },
+    {
+      "name": "road_edge_h",
+      "x": 1216,
+      "y": 0,
+      "w": 64,
+      "h": 16,
+      "drawable": "road_edge_h"
+    },
+    {
+      "name": "road_edge_v",
+      "x": 1216,
+      "y": 16,
+      "w": 16,
+      "h": 64,
+      "drawable": "road_edge_v"
+    },
+    {
+      "name": "road_corner_tr",
+      "x": 1232,
+      "y": 64,
+      "w": 48,
+      "h": 48,
+      "drawable": "road_corner_tr"
+    },
+    {
+      "name": "road_corner_tl",
+      "x": 1280,
+      "y": 64,
+      "w": 48,
+      "h": 48,
+      "drawable": "road_corner_tl"
+    },
+    {
+      "name": "road_corner_br",
+      "x": 1328,
+      "y": 64,
+      "w": 48,
+      "h": 48,
+      "drawable": "road_corner_br"
+    },
+    {
+      "name": "road_corner_bl",
+      "x": 1376,
+      "y": 64,
+      "w": 48,
+      "h": 48,
+      "drawable": "road_corner_bl"
+    },
+    {
+      "name": "road_cross_center",
+      "x": 1024,
+      "y": 1024,
+      "w": 256,
+      "h": 256,
+      "drawable": "road_cross_center"
     }
   ]
 }

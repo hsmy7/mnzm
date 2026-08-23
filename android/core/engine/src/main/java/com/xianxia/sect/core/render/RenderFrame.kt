@@ -82,6 +82,13 @@ data class RenderFrame(
     /** 地图行数（世界格数） */
     val rows: Int,
 
+    /**
+     * 石板道路数据（展平一维，index = row * cols + col；值 = 邻接位掩码，0 = 非道路）。
+     * 双后端（Vulkan/Canvas）据此按 [com.xianxia.sect.core.util.RoadTiling] 合成道路
+     * 主体 + 边缘 + 转角 + 十字中心装饰。null = 无道路，两端跳过整层。
+     */
+    val roadData: IntArray? = null,
+
     /** 建筑数据 [gx, gy, w, h, nameIdx] × N（可选，无建筑时为 null） */
     val buildingData: FloatArray? = null,
     val buildingCount: Int = 0,

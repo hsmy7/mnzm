@@ -165,7 +165,9 @@ object NativeBridge {
         cropUVMap: FloatArray? = null, // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6）
         frameAlpha: Float = 0f, // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑权重）
         cloudData: FloatArray? = null, // 云层实例数据 [x, y, w, h, spriteIndex, alpha] × N（可为 null）
-        cloudUVMap: FloatArray? = null // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可为 null）
+        cloudUVMap: FloatArray? = null, // 云层 UV 映射 [u0,v0,u1,v1] × 云层类型数（可为 null）
+        roadData: IntArray? = null, // 石板道路每格位掩码（展平，0=非道路；可为 null）
+        roadUVMap: FloatArray? = null // 道路 UV 映射 [u0,v0,u1,v1] × ROAD_RECTS 数（可为 null）
     )
 
     /** 绘制纯色矩形（网格线/放置预览） */

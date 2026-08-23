@@ -381,6 +381,12 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var placedBuildings: List<GridBuildingData> = emptyList(),
 
+    // 石板道路（网格坐标；由 road_system 自动拼接，玩家只负责放置）
+    @ProtoNumber(224)
+    @ColumnInfo(name = "roads", defaultValue = "")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var roads: List<RoadData> = emptyList(),
+
     // 灵田种植状态
     @ProtoNumber(141)
     @SettlementStrategy(Strategy.CUSTOM)

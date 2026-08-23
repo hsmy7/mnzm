@@ -1,3 +1,19 @@
+## [4.01.10] - 2026-08-24
+
+### 新增：石板道路自动拼接系统
+
+> 玩家在宗门地图网格铺设石板道路，程序按邻接位掩码自动拼接为直路/转角/丁字路口/十字路口，并正确处理并行道路（内部不重复描边）、任意复杂道路网络的自动连接，以及建筑/道路互斥（不能互相覆盖）。建造栏新增"石板路"，20 灵石/格，点击地图格即放置，拆除模式点道路格可删路（周围道路自动重拼）。
+
+- **C++ 引擎核心** — `gamecore/include/gamecore/map/road_system.h`（+`road_system_test.cpp`，16 断言 GTest）：4-bit 位掩码（上1右2下4左8）→ 12 态自动选图；`roadBorderMask`（掩码补集）实现并行道路内部不重复描边；place/remove 仅重算当前格+上下左右共 5 格（O(1) 局部更新）；`canPlaceRoad`/`canPlaceBuilding` 冲突判定；`rebuild` 读档全量重建
+- **Kotlin 域镜像** — `RoadTileType`/`RoadTiling`（与 C++ 同语义）+ `RoadPlacementResult`（sealed）
+- **纹理接入（B：进图集）** — `build-atlas.mjs` 增 `LAYOUT.roads`（10 槽位：base/base_v/junction/edge_h/edge_v/corner×4/cross_center）+ `ROAD_DRAWABLE` + codegen；重生成 `SpriteAtlasDef.kt`（`ROAD_RECTS`/`ROAD_UV_MAP`）+ C++ `TextureAtlas.h` + `atlas_astc.ktx`（40→50 精灵）+ 运行时 `SectAtlasAssembler` 拼装道路精灵（道路 WebP 已双模块落位）
+- **存档/迁移** — `RoadData` + `GameData.roads`（`@ProtoNumber(224)`）+ `CollectionConverters` + `MIGRATION_48_49`（DATABASE_VERSION 48→49，纯加法列）+ `RoomMigrationV48To49Test`
+- **引擎/门面** — `RoadFacade`/Impl（原子事务扣 20 灵石 + 5 格邻接重算）+ DI（`CoreModule`/`CultivationFacade`）+ `GameEngine.roadFacade` + `GameEngineRoadOps`（placeRoad/removeRoad/canPlaceRoad）+ `PlaceRoadUseCase`/`RemoveRoadUseCase`
+- **渲染** — `RenderFrame.roadData`（每格位掩码）+ `NativeSurfaceView` 校验 + Compose 全链接线；`SoftwareCanvasBackend` 道路烘焙进 chunk（装饰上、建筑下，道路哈希局部重建）；C++ `NativeBridge.cpp` 增 `roadTypeForMask` + `drawAllTiles` 道路段（UV+批处理）+ `NativeBridge.kt`/`VulkanRenderBackend.kt` 传 `roadData`+`ROAD_UV_MAP`
+- **UI / 建造栏** — `GameViewModel.placeRoad/removeRoad/canPlaceRoad`；建造栏"石板路"（石板精灵图、无限数量）+ 点击地图格即放置 + 放置预览显示石板；拆除模式点道路格删路
+- **验证** — `compileReleaseKotlin`（全模块 SUCCESS）+ `RoadTilingTest` + `RoadFacadeImplTest` + `AtlasLayoutSyncTest` + `AtlasManifestSyncTest` + `SpriteAtlasDefGeneratedTest` + `RoomMigrationV48To49Test` + C++ gamecore GTest（74/74 全绿）
+- **待完成批次（道路渲染深耦合）** — 已登记至 `docs/cpp-engine.md` 批次 R
+
 ## [4.01.09] - 2026-08-23
 
 ### 修复（键盘反复弹出/界面闪烁/界面反复下拉——第四根因根治）

@@ -1021,6 +1021,14 @@ object GameConfig {
         }
     }
 
+    object Road {
+        /** 石板路建造栏显示名（玩家在建造栏选择）。 */
+        const val DISPLAY_NAME = "石板路"
+
+        /** 每格造价（灵石）。 */
+        const val COST_PER_CELL = 20L
+    }
+
     object WorldMap {
         const val MAP_WIDTH = 1698
         const val MAP_HEIGHT = 926

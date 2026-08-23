@@ -65,6 +65,7 @@ import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
+import com.xianxia.sect.core.engine.domain.road.RoadFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -134,6 +135,7 @@ class GameEngine @Inject constructor(
     internal val heavyDataDecoder: HeavyDataDecoder get() = economyFacade.saveFacade.heavyDataDecoder
     internal val discipleFacade: DiscipleFacade get() = cultivationFacade.discipleFacade
     internal val buildingFacade: BuildingFacade get() = cultivationFacade.buildingFacade
+    internal val roadFacade: RoadFacade get() = cultivationFacade.roadFacade
     internal val inventoryFacade: InventoryFacade get() = economyFacade.inventoryFacade
     internal val diplomacyFacade: DiplomacyFacade get() = explorationFacade.diplomacyFacade
     internal val productionFacade: ProductionFacade get() = cultivationFacade.productionFacade

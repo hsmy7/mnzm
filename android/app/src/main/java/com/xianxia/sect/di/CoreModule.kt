@@ -107,6 +107,10 @@ object CoreModule {
 
     @Provides
     @Singleton
+    fun provideRoadFacade(impl: com.xianxia.sect.core.engine.domain.road.RoadFacadeImpl): com.xianxia.sect.core.engine.domain.road.RoadFacade = impl
+
+    @Provides
+    @Singleton
     fun provideInventoryFacade(impl: com.xianxia.sect.core.engine.domain.inventory.InventoryFacadeImpl): com.xianxia.sect.core.engine.domain.inventory.InventoryFacade = impl
 
     @Provides
