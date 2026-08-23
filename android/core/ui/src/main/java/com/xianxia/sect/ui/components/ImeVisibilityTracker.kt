@@ -49,14 +49,18 @@ object ImeVisibilityTracker {
     private val windows = CopyOnWriteArrayList<WindowState>()
 
     /**
-     * IME 可见性提取函数（默认实现走 androidx.core 官方 [WindowInsetsCompat.isVisible]；
-     * 测试可注入替换——Robolectric 对 android.view.WindowInsets 的 ime 类型支持不全，
-     * 注入后状态机逻辑可脱离框架限制验证）。
+     * IME 可见性提取函数（默认实现走 androidx.core 官方 [WindowInsetsCompat.isVisible] +
+     * IME 底部高度双信号；测试可注入替换——Robolectric 对 android.view.WindowInsets 的
+     * ime 类型支持不全，注入后状态机逻辑可脱离框架限制验证）。
+     *
+     * 双信号（2026-08 第四根因键盘频闪根治）：可见性标志 或 IME 底部高度 > 0 任一成立
+     * 即视为键盘可见——ADJUST_PAN 等不 resize 的窗口在部分国产 ROM 上可见性标志可能
+     * 不翻转（insets 可见性与窗口 resize 语义耦合），高度信号作为兜底，增强多窗口
+     * 跟踪的鲁棒性（解冻恢复链路的二次校验依赖全局可见性的准确性）。
      */
     @VisibleForTesting
-    internal var imeVisibilityExtractor: (WindowInsetsCompat) -> Boolean = { insets ->
-        insets.isVisible(WindowInsetsCompat.Type.ime())
-    }
+    internal var imeVisibilityExtractor: (WindowInsetsCompat) -> Boolean =
+        ::defaultImeVisibilityExtractor
 
     /**
      * 接管 [window] 的 IME 可见性跟踪。
@@ -103,6 +107,11 @@ object ImeVisibilityTracker {
         return windows.firstOrNull { it.windowRef.get() === window }?.imeVisible ?: false
     }
 
+    /** 默认双信号实现（初始化与 resetForTest 共用，保证测试间隔离后语义不漂移） */
+    private fun defaultImeVisibilityExtractor(insets: WindowInsetsCompat): Boolean =
+        insets.isVisible(WindowInsetsCompat.Type.ime()) ||
+            insets.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0
+
     /** insets 回调处理（提取为独立函数便于 Robolectric 单测直接驱动） */
     internal fun onInsetsApplied(
         view: View,
@@ -147,6 +156,6 @@ object ImeVisibilityTracker {
     internal fun resetForTest() {
         isImeVisible = false
         windows.clear()
-        imeVisibilityExtractor = { insets -> insets.isVisible(WindowInsetsCompat.Type.ime()) }
+        imeVisibilityExtractor = ::defaultImeVisibilityExtractor
     }
 }

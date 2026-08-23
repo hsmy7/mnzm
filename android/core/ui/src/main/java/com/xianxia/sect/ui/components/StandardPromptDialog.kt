@@ -1,8 +1,11 @@
 package com.xianxia.sect.ui.components
 
 import android.app.Activity
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.View
+import android.view.Window
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -53,6 +56,14 @@ import androidx.core.view.WindowInsetsControllerCompat
 
 /** 键盘/系统栏守卫统一日志 TAG（与 ImeVisibilityTracker 一致，便于 logcat 真机验证） */
 private const val TAG = "ImeGuard"
+
+/**
+ * 解冻后延迟恢复系统栏隐藏的等待时长（毫秒）：
+ * 覆盖键盘收起动画的剩余时长，等待 IME 状态落定再恢复隐藏，
+ * 切断"键盘动画期间 hide() 对抗"（荣耀GT系列 + 第四根因键盘频闪根治）。
+ * 与 MainActivity/GameActivity 的 SYSTEM_BAR_RESTORE_DELAY_MS 保持一致（三处同值）。
+ */
+private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
 
 /**
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
@@ -148,11 +159,19 @@ internal fun isInsideDialogWindow(view: View): Boolean =
  * Compose Dialog 创建独立平台 Window，不继承 Activity 的 systemUiVisibility 标志。
  * 此 composable 在 Dialog 挂载时对该 Window 应用隐藏标志，卸载时不需恢复（Window 销毁）。
  *
- * IME 感知（2026-08 荣耀 GT 系列键盘频闪根治）：API < 35 上传统 SYSTEM_UI_FLAG_*
- * 被 SystemUI 完整执行，Dialog 窗口的 HIDE_NAVIGATION 与键盘（IME）所需的导航栏
- * 区域冲突会引发 insets 翻转（放大器 B）。本守卫经 [ImeVisibilityTracker] 跟踪
- * 本窗口的键盘可见性：键盘可见期间暂停隐藏并恢复导航栏显示，键盘收起后恢复隐藏。
- * API 35+ 上 legacy 标志为 no-op 且系统接管导航栏，本逻辑零副作用。
+ * 冻结感知（2026-08 第四根因键盘频闪根治）：输入对话框（`freezeSystemBars = true`）
+ * 挂载期间本窗口经 [DialogSystemBarFreezeScope] 处于冻结态——**只隐藏状态栏，不隐藏
+ * 导航栏**：切断 HIDE_NAVIGATION 与键盘（IME）的冲突面（API<35 传统标志被 SystemUI
+ * 完整执行，导航栏隐藏使 IME 布局区域失效触发键盘收起再弹；API 35 edge-to-edge 下
+ * 系统在 IME 期间接管导航栏，应用隐藏与其对抗）。嵌套内联输入框
+ * （[InlineStandardPromptDialog] 渲染于本窗口内）挂载时经冻结翻转回调恢复导航栏显示，
+ * 解冻后延迟 [SYSTEM_BAR_RESTORE_DELAY_MS] 恢复隐藏。
+ *
+ * 零操作原则（第四根因核心）：键盘可见期间对系统栏**不做任何 hide/show 切换**——
+ * 历史"IME 感知切换"（荣耀 GT 系列根治手段）在 HyperOS 2 / MagicOS 8/9 的键盘转场
+ * 动画上自身成为振荡放大器，直接移除切换动作即根治；本守卫仍经 [ImeVisibilityTracker]
+ * 跟踪本窗口键盘可见性（保证全局 `isImeVisible` 准确，供解冻恢复链路二次校验），
+ * 但不再响应翻转切换系统栏。
  *
  * 双路径方案（对标 GameActivity.hideSystemBars()）：
  * 1. WindowInsetsControllerCompat（现代 API，API 30+ 推荐方式）
@@ -169,69 +188,160 @@ fun DialogSystemBarGuard() {
         ?: return
 
     DisposableEffect(dialogWindow) {
-        val controller = WindowInsetsControllerCompat(dialogWindow, dialogWindow.decorView)
-        val decor = dialogWindow.decorView
+        val state = DialogSystemBarState(dialogWindow)
+        state.applyInitialState()
+        DialogSystemBarFreezeScope.addOnFrozenChangedListener(dialogWindow, state::onFreezeChanged)
+        // 保留本窗口的 IME 跟踪（全局 isImeVisible 准确性，供解冻恢复链路二次校验）；
+        // 零操作原则下不再响应翻转切换系统栏
+        ImeVisibilityTracker.attach(dialogWindow)
+        onDispose { state.dispose() }
+    }
+}
 
-        // 当前是否处于"系统栏已隐藏"态（键盘可见期间切换为 show 态，键盘收起后恢复）
-        var hideApplied = true
+/**
+ * DialogSystemBarGuard 的窗口系统栏状态机（2026-08 第四根因键盘频闪根治）。
+ *
+ * 顶层拆分：detekt 圈复杂度按函数体（含 lambda/局部函数）统计，守卫全部副作用
+ * 收敛于此类的独立方法，避免 DialogSystemBarGuard 组合函数超阈值。
+ * 语义：冻结（含输入框）挂载只隐藏状态栏、不隐藏导航栏（切断 HIDE_NAVIGATION×IME
+ * 冲突面）；键盘可见期间零系统栏切换；冻结进入恢复导航栏显示；解冻延迟恢复隐藏。
+ */
+private class DialogSystemBarState(
+    private val window: Window
+) {
+    private val controller = WindowInsetsControllerCompat(window, window.decorView)
+    private val decor = window.decorView
+    /** 解冻延迟恢复用的主线程 Handler（与 View.postDelayed 语义等价，Robolectric 可推进） */
+    private val restoreHandler = Handler(Looper.getMainLooper())
 
-        fun applyHide() {
-            // 路径 1: WindowInsetsController 方式（现代 API，API 30+ 推荐）
-            controller.hide(
-                WindowInsetsCompat.Type.statusBars() or
-                    WindowInsetsCompat.Type.navigationBars()
-            )
-            controller.systemBarsBehavior =
-                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    /** 当前是否处于"系统栏已隐藏"态（冻结进入恢复 / 解冻延迟恢复的状态机跟踪） */
+    var hideApplied: Boolean = false
+        private set
 
-            // 路径 2: 传统 SYSTEM_UI_FLAGS 方式（国产 OEM ROM 兼容，与 GameActivity.hideSystemBars 一致）
-            // 注：始终执行（不按 API level 过滤），因为国产 OEM ROM 即使在 API 35+ 上
-            // 仍可能对 WindowInsetsController 支持不完整，传统标志作为补充。在纯 AOSP 35+
-            // 上这些 flag 是 deprecated 但无害的 no-op。
-            @Suppress("DEPRECATION")
-            decor.systemUiVisibility =
-                decor.systemUiVisibility or
-                (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                 View.SYSTEM_UI_FLAG_FULLSCREEN or
+    /** 隐藏系统栏；[hideNavigationBar] 为 false（冻结态）时保留导航栏，切断 IME 冲突面 */
+    fun applyHide(hideNavigationBar: Boolean) {
+        // 路径 1: WindowInsetsController 方式（现代 API，API 30+ 推荐）
+        val hideTypes = if (hideNavigationBar) {
+            WindowInsetsCompat.Type.statusBars() or
+                WindowInsetsCompat.Type.navigationBars()
+        } else {
+            WindowInsetsCompat.Type.statusBars()
+        }
+        controller.hide(hideTypes)
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        // 路径 2: 传统 SYSTEM_UI_FLAGS 方式（国产 OEM ROM 兼容，与 GameActivity.hideSystemBars 一致）
+        // 注：始终执行（不按 API level 过滤），因为国产 OEM ROM 即使在 API 35+ 上
+        // 仍可能对 WindowInsetsController 支持不完整，传统标志作为补充。在纯 AOSP 35+
+        // 上这些 flag 是 deprecated 但无害的 no-op。
+        @Suppress("DEPRECATION")
+        decor.systemUiVisibility = decor.systemUiVisibility or
+            (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+             View.SYSTEM_UI_FLAG_FULLSCREEN or
+             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+             View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+             if (hideNavigationBar) {
                  View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                 View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-        }
+                     View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+             } else {
+                 0
+             })
+    }
 
-        fun applyShow() {
-            // 键盘可见期间恢复导航栏，切断 HIDE_NAVIGATION 与 IME 的对抗（放大器 B）。
-            // 仅涉及导航栏：键盘位于底部，状态栏无冲突，FULLSCREEN 标志保留不动。
-            controller.show(WindowInsetsCompat.Type.navigationBars())
-            @Suppress("DEPRECATION")
-            decor.systemUiVisibility =
-                decor.systemUiVisibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION.inv()
-        }
+    /**
+     * 冻结进入（嵌套输入框挂载）：恢复导航栏显示，清除与 IME 冲突的 HIDE_NAVIGATION。
+     * 仅涉及导航栏：键盘位于底部，状态栏无冲突，FULLSCREEN 标志保留不动。
+     */
+    fun applyShowNavigation() {
+        controller.show(WindowInsetsCompat.Type.navigationBars())
+        @Suppress("DEPRECATION")
+        decor.systemUiVisibility =
+            decor.systemUiVisibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION.inv()
+    }
 
-        fun syncWithIme() {
-            val imeVisible = ImeVisibilityTracker.isImeVisibleFor(dialogWindow)
-            if (imeVisible && hideApplied) {
-                applyShow()
-                hideApplied = false
-                Log.d(TAG, "DialogSystemBarGuard: IME 可见，暂停窗口系统栏隐藏")
-            } else if (!imeVisible && !hideApplied) {
-                applyHide()
+    /** 初始状态：全局键盘可见 → 零操作；冻结（含输入框）→ 只隐藏状态栏；未冻结 → 全隐藏 */
+    fun applyInitialState() {
+        val frozen = DialogSystemBarFreezeScope.isFrozen(window)
+        val imeVisible = ImeVisibilityTracker.isImeVisible
+        when {
+            frozen && !imeVisible -> {
+                applyHide(hideNavigationBar = false)
                 hideApplied = true
-                Log.d(TAG, "DialogSystemBarGuard: IME 隐藏，恢复窗口系统栏隐藏")
             }
+            !frozen && !imeVisible -> {
+                applyHide(hideNavigationBar = true)
+                hideApplied = true
+            }
+            else -> Log.d(TAG, "DialogSystemBarGuard: 挂载时键盘可见，零系统栏操作")
         }
+    }
 
-        // 先接入本窗口的键盘跟踪再决定初始状态：挂载时键盘已可见（罕见竞态）
-        // → 初始即 show 态，避免"先 hide 再 show"的瞬时对抗窗口
-        ImeVisibilityTracker.attach(dialogWindow) { syncWithIme() }
-        syncWithIme()
-        if (hideApplied) applyHide()
+    /** 解冻延迟恢复：等待键盘收起动画结束、IME 状态落定后恢复隐藏（二次校验放行） */
+    fun scheduleRestoreAfterUnfreeze() {
+        restoreHandler.postDelayed({
+            if (!DialogSystemBarFreezeScope.isFrozen(window) &&
+                !ImeVisibilityTracker.isImeVisible
+            ) {
+                applyHide(hideNavigationBar = true)
+                hideApplied = true
+                Log.d(TAG, "DialogSystemBarGuard: 解冻延迟恢复系统栏隐藏")
+            }
+        }, SYSTEM_BAR_RESTORE_DELAY_MS)
+    }
 
-        onDispose {
-            // 解除跟踪并复位该窗口状态（窗口销毁后键盘随之收起，
-            // 供解冻恢复链路的 SystemBarHidePolicy 正确放行 hide）
-            ImeVisibilityTracker.detach(dialogWindow)
+    /**
+     * 冻结翻转回调：冻结进入（嵌套输入框挂载）→ 恢复导航栏显示；
+     * 解冻（输入对话框销毁）→ 延迟恢复隐藏。
+     */
+    fun onFreezeChanged() {
+        if (DialogSystemBarFreezeScope.isFrozen(window)) {
+            if (hideApplied) {
+                applyShowNavigation()
+                hideApplied = false
+                Log.d(TAG, "DialogSystemBarGuard: 冻结进入，恢复导航栏显示")
+            }
+        } else if (!hideApplied) {
+            scheduleRestoreAfterUnfreeze()
         }
+    }
+
+    /** 卸载清理：注销冻结监听、解除 IME 跟踪、清理解冻延迟恢复的残留回调 */
+    fun dispose() {
+        DialogSystemBarFreezeScope.removeOnFrozenChangedListener(window, ::onFreezeChanged)
+        ImeVisibilityTracker.detach(window)
+        restoreHandler.removeCallbacksAndMessages(null)
+    }
+}
+
+/**
+ * 输入对话框挂载期间的 Dialog 窗口系统栏冻结 Effect（2026-08 第四根因键盘频闪根治）。
+ *
+ * [enabled] 为 true（含文本输入的对话框）时，挂载期间对**本 Dialog 窗口**执行
+ * [DialogSystemBarFreezeScope.enterFreeze]——[DialogSystemBarGuard] 据此只隐藏状态栏、
+ * 不隐藏导航栏（切断 HIDE_NAVIGATION×IME 冲突面），销毁时解冻并触发 guard 延迟恢复。
+ * 与 [SystemBarFreezeEffect]（冻结宿主 Activity 的 `hideSystemBars`）职责互补：
+ * 前者管 Activity 侧，本 Effect 管 Dialog 窗口侧。
+ *
+ * 必须在 Dialog{} 块内调用（[LocalView] 解析为 Dialog 窗口视图）；
+ * 找不到 DialogWindowProvider 时 Log.w 后跳过（冻结传导退化，由零操作策略兜底）。
+ */
+@Composable
+internal fun DialogSystemBarFreezeEffect(enabled: Boolean) {
+    if (!enabled) return
+    val dialogWindow = generateSequence(LocalView.current) {
+        it.parent as? View
+    }
+        .filterIsInstance<DialogWindowProvider>()
+        .firstOrNull()
+        ?.window
+    if (dialogWindow == null) {
+        Log.w("DialogSystemBarFreezeEffect", "无法获取 Dialog 窗口引用，窗口级系统栏冻结失效")
+        return
+    }
+    DisposableEffect(dialogWindow) {
+        DialogSystemBarFreezeScope.enterFreeze(dialogWindow)
+        onDispose { DialogSystemBarFreezeScope.exitFreeze(dialogWindow) }
     }
 }
 
@@ -253,6 +363,8 @@ fun StandardPromptDialog(
     @DrawableRes dialogBackgroundRes: Int = R.drawable.dialog_box,
     @DrawableRes buttonBackgroundRes: Int = R.drawable.ui_button,
     @DrawableRes closeButtonRes: Int = R.drawable.ui_close_button,
+    /** 含文本输入框时传 true：挂载期间冻结本 Dialog 窗口系统栏（第四根因键盘频闪根治，见 DialogSystemBarFreezeScope） */
+    freezeSystemBars: Boolean = false,
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
     // D-34：LocalWindowInfo.current.containerSize 替代 Configuration.screenWidthDp/screenHeightDp
@@ -274,6 +386,8 @@ fun StandardPromptDialog(
             dismissOnClickOutside = false
         )
     ) {
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（第四根因根治，见 DialogSystemBarFreezeScope）
+        DialogSystemBarFreezeEffect(freezeSystemBars)
         // 在 Dialog 窗口内切换 softInputMode，切断 HyperOS 震荡回路
         DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏（该 Window 不继承 Activity 的设置）
@@ -392,6 +506,26 @@ fun InlineStandardPromptDialog(
     // manifest adjustResize + imePadding 官方标准组合。
     val dialogView = LocalView.current
     val insideDialogWindow = remember { isInsideDialogWindow(dialogView) }
+
+    // 嵌套传导（2026-08 第四根因根治）：内联输入框渲染于平台 Dialog 窗口内时，
+    // 冻结外层 Dialog 窗口的系统栏操作——DialogSystemBarGuard 据此恢复导航栏显示、
+    // 不再隐藏导航栏（切断 HIDE_NAVIGATION×IME 冲突面）。freezeSystemBars 语义
+    // 从宿主 Activity 自动传导到外层 Dialog 窗口，调用方无需传参
+    // （如仓库出售：SmallScreenDialog 平台窗口 overlay 槽位内嵌 SellConfirmDialog）。
+    if (freezeSystemBars && insideDialogWindow) {
+        val outerWindow = remember(dialogView) {
+            generateSequence(dialogView) { it.parent as? View }
+                .filterIsInstance<DialogWindowProvider>()
+                .firstOrNull()
+                ?.window
+        }
+        if (outerWindow != null) {
+            DisposableEffect(outerWindow) {
+                DialogSystemBarFreezeScope.enterFreeze(outerWindow)
+                onDispose { DialogSystemBarFreezeScope.exitFreeze(outerWindow) }
+            }
+        }
+    }
 
     PromptDialogScrim(
         onDismissRequest = onDismissRequest,

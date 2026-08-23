@@ -122,6 +122,8 @@ fun UnifiedGameDialog(
             dismissOnClickOutside = false
         )
     ) {
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（第四根因根治，见 DialogSystemBarFreezeScope）
+        DialogSystemBarFreezeEffect(freezeSystemBars)
         // 切换 softInputMode，切断 OEM 键盘频闪震荡回路（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
         DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）

@@ -1,6 +1,9 @@
 package com.xianxia.sect.ui.components
 
 import android.util.Log
+import android.view.View
+import android.widget.EditText
+import android.widget.TextView
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.runtime.Composable
@@ -20,6 +23,21 @@ private const val AUTO_FOCUS_MAX_RETRIES = 2
 
 /** 每次聚焦请求后等待键盘弹出的确认超时（毫秒） */
 private const val AUTO_FOCUS_RETRY_INTERVAL_MS = 800L
+
+/**
+ * 当前视图树中是否已有文本输入焦点。
+ *
+ * 聚焦重试守卫（2026-08 第四根因键盘频闪根治）：HyperOS 2 / MagicOS 8/9 等 ROM 上
+ * IME insets 检测信号可能不稳定（键盘已弹出但 `imeVisible` 未翻转），此时重复
+ * requestFocus 无意义且会触发 ROM 智能输入法反复重弹键盘——已有文本输入焦点即
+ * 说明焦点请求已生效，放弃重试交由输入法/系统自行落定。
+ *
+ * internal 供 Robolectric 单测直接驱动判定逻辑。
+ */
+internal fun hasTextInputFocus(view: View): Boolean {
+    val focused = view.findFocus() ?: return false
+    return focused is EditText || (focused is TextView && focused.inputType != 0)
+}
 
 /**
  * 创建带"IME 弹出确认 + 有限重试"的自动聚焦 [FocusRequester]。
@@ -53,6 +71,12 @@ fun rememberImeAwareAutoFocusRequester(): FocusRequester {
         while (attempt < AUTO_FOCUS_MAX_RETRIES) {
             delay(AUTO_FOCUS_RETRY_INTERVAL_MS)
             if (latestImeVisible) return@LaunchedEffect
+            // 输入框已有焦点但 IME 未确认：重复 requestFocus 无意义且可能触发
+            // ROM 智能输入法反复重弹键盘（检测信号不稳定场景），放弃重试
+            if (hasTextInputFocus(view)) {
+                Log.d(TAG, "IME 未在 ${AUTO_FOCUS_RETRY_INTERVAL_MS}ms 内确认，但输入框已有焦点，跳过重复聚焦")
+                return@LaunchedEffect
+            }
             Log.d(
                 TAG,
                 "IME 未在 ${AUTO_FOCUS_RETRY_INTERVAL_MS}ms 内弹出，重试聚焦 " +

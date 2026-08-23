@@ -487,8 +487,8 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🔴 | 新增生产类政策已同步在 `SectPolicyToggleUseCase` 中触发 `checkpointAllProduction()` |
 | 🔴 | 新增长老类型已同步在 `ElderManagementUseCase.productionElderTypes` 中注册 |
 | 🔴 | 新增对话框已遵循 `rules/new-dialog-checklist.md` 标准流程（注册 DialogType → 渲染 when 分支） |
-| 🔴 | 新增包含输入框的对话框已按 `rules/dialog-soft-input-guard.md` 三件套检查：① 避让机制二选一（平台 Dialog 窗口 `DialogSoftInputGuard` / Activity 覆盖层 `imePadding`，禁止叠加）；② 声明 `freezeSystemBars = true`（自定义容器直接接 `SystemBarFreezeScope`，荣耀 X70 键盘频闪根治）；③ 自动聚焦一律用 `rememberImeAwareAutoFocusRequester()`（禁止裸单次 `requestFocus`） |
-| 🔴 | 新增使用 Compose `Dialog()` 或 Material3 `AlertDialog` 的组件已添加 `DialogSystemBarGuard()` 调用（Dialog Window 不继承 Activity 的 `hideSystemBars()`，需独立隐藏状态栏） |
+| 🔴 | 新增包含输入框的对话框已按 `rules/dialog-soft-input-guard.md` 四件套检查：① 避让机制二选一（平台 Dialog 窗口 `DialogSoftInputGuard` / Activity 覆盖层 `imePadding`，禁止叠加）；② 声明 `freezeSystemBars = true`（自定义容器直接接 `SystemBarFreezeScope`，荣耀 X70 键盘频闪根治）；③ 自动聚焦一律用 `rememberImeAwareAutoFocusRequester()`（禁止裸单次 `requestFocus`）；④ 平台 Dialog 窗口持输入框时冻结须传导到 Dialog 窗口（容器内 `DialogSystemBarFreezeEffect` / 自定义容器 `DialogSystemBarFreezeScope.enterFreeze(本窗口)`——`DialogSystemBarGuard` 冻结态只隐藏状态栏不隐藏导航栏、键盘可见期间零系统栏切换，小米15/荣耀500 Pro/荣耀200 Pro/红米K70 第四根因） |
+| 🔴 | 新增使用 Compose `Dialog()` 或 Material3 `AlertDialog` 的组件已添加 `DialogSystemBarGuard()` 调用（Dialog Window 不继承 Activity 的 `hideSystemBars()`，需独立隐藏状态栏；含输入框时经 `DialogSystemBarFreezeEffect` 冻结本窗口，guard 自动只隐藏状态栏） |
 | 🔴 | 新增聊天/对话类对话框使用 `UnifiedGameDialog` 容器（详见 `rules/chat-dialog-design.md`） |
 | 🔴 | 新增标记 `isAlive=0` / `status=DEAD` 的代码路径必须调用 `discipleTables.markDead(id, year)` 而非手动写三个字段；仅 `handleDiscipleDeath` 可豁免（已内置 deathYears 写入） |
 | 🔴 | 新增精灵图已在 SpriteResRegistry 注册 + 文件已放两个模块 drawable-nodpi（详见 `rules/static-resources.md`） |

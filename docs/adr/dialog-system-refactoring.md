@@ -36,3 +36,13 @@
 - 调用点适配：RenameDialog 聚焦 delay(100)→view.post + 补 keyboardActions(onDone)；RenameSectDialog 加 scrimEnabled=false（GameOverlayHost 单例遮罩）；RenameDiscipleDialog 移入 DiscipleDetailDialog 内容 lambda（否则内联后被 Dialog 窗口遮挡不可见）
 - 含文本输入的对话框统一使用 `InlineStandardPromptDialog`；平台 Dialog 容器（UnifiedGameDialog 等）仅用于无文本输入场景
 - 机制规则见 `rules/dialog-soft-input-guard.md`（双机制避让法则）
+
+## 更正记录（2026-08-23）：第四根因——输入对话框 Dialog 窗口系统栏零操作 + 冻结按窗口传导
+
+**回归/盲区**：v4.01.08 实测小米15、荣耀500 Pro、荣耀200 Pro、红米K70 上含输入框对话框仍复现"键盘反复弹出、界面闪烁、界面反复下拉"。审计结论：全部输入对话框三件套已合规、守卫链自 v4.00.99（荣耀 GT 根治）零改动——非回归，是**第四根因**：`SystemBarFreezeScope` 只冻结宿主 Activity 的 `hideSystemBars()`，平台 Dialog 窗口自身的系统栏隐藏（`DialogSystemBarGuard`）不经 `SystemBarHidePolicy`——`freezeSystemBars=true` 对 Dialog 窗口零约束；叠加 targetSdk=35 强制 edge-to-edge（Android 15 系统在 IME 期间接管导航栏）与荣耀 GT 修复的"IME 感知切换"（applyShow/applyHide）在 HyperOS 2/MagicOS 8/9 键盘转场动画上自身成为放大器。
+
+**根治（2026-08-23）**：输入期间 Dialog 窗口对系统栏零操作，冻结语义按窗口传导：
+- 新增 `DialogSystemBarFreezeScope`（core/ui，按 Window 冻结计数 + 0↔1 翻转回调）+ `DialogSystemBarFreezeEffect`（容器 Dialog{} 块内冻结本窗口）；`DialogSystemBarGuard` 重构为冻结感知：冻结态只隐藏状态栏、不隐藏导航栏（切断 HIDE_NAVIGATION×IME 冲突面）、删除 IME 感知切换（键盘可见期间零操作）、冻结进入恢复导航栏显示、解冻延迟 350ms + 二次校验恢复
+- `InlineStandardPromptDialog` 渲染于平台 Dialog 窗口内（`isInsideDialogWindow`）且 `freezeSystemBars=true` 时自动冻结外层窗口（嵌套传导，仓库出售场景，调用方无需传参）；`UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog` 接入 effect（后两者新增 `freezeSystemBars: Boolean = false` 参数）
+- `ImeVisibilityTracker` 检测双信号（`isVisible(ime) || bottom > 0`）；`rememberImeAwareAutoFocusRequester` 重试前焦点守卫（已有文本输入焦点不再重复 requestFocus）
+- 机制规则见 `rules/dialog-soft-input-guard.md`（第四根因防御法则）；行业对标：主流游戏/引擎（UE/Unity/Google AGDK GameTextInput）均采用"输入时系统栏可见（退出沉浸）→ 系统键盘 → 输入完成恢复沉浸"，本方案即该做法的工程化落地，C++ 化不能根治（问题机制全在 Android 窗口系统层，与业务语言无关）

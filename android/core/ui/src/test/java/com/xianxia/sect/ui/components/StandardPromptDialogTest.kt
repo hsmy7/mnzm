@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -61,6 +62,7 @@ class StandardPromptDialogTest {
         // 冻结作用域与 IME 跟踪器均为全局单例，测试间隔离，防跨用例污染
         SystemBarFreezeScope.resetForTest()
         ImeVisibilityTracker.resetForTest()
+        DialogSystemBarFreezeScope.resetForTest()
     }
 
     /** 实现 DialogWindowProvider 的伪 Dialog 视图（用于窗口上下文检测单测） */
@@ -473,5 +475,81 @@ class StandardPromptDialogTest {
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("scrim").assertExists()
+    }
+
+    // ── 嵌套冻结传导（2026-08 第四根因键盘频闪根治）──
+    // 内联输入框渲染于平台 Dialog 窗口内时（isInsideDialogWindow && freezeSystemBars），
+    // freezeSystemBars 语义自动传导：冻结外层 Dialog 窗口系统栏
+    // （DialogSystemBarGuard 据此恢复导航栏显示，切断 HIDE_NAVIGATION×IME 冲突面），
+    // 卸载后解冻。调用方无需传参（如仓库出售：SmallScreenDialog 平台窗口 overlay
+    // 槽位内嵌 SellConfirmDialog）。
+
+    @Test
+    fun `嵌套内联输入框 - freezeSystemBars 传导冻结外层 Dialog 窗口`() {
+        val showOverlay = mutableStateOf(true)
+        val outerWindow = mutableStateOf<Window?>(null)
+        composeRule.setContent {
+            Dialog(onDismissRequest = {}) {
+                // 捕获外层 Dialog 窗口引用（与 isInsideDialogWindow 同款祖先遍历）
+                val dialogView = LocalView.current
+                DisposableEffect(Unit) {
+                    outerWindow.value = generateSequence(dialogView) {
+                        it.parent as? View
+                    }
+                        .filterIsInstance<DialogWindowProvider>()
+                        .firstOrNull()
+                        ?.window
+                    onDispose {}
+                }
+                // 模拟 SmallScreenDialog 平台窗口 overlay 槽位内嵌内联输入框
+                if (showOverlay.value) {
+                    InlineStandardPromptDialog(
+                        onDismissRequest = {},
+                        title = "出售",
+                        confirmLabel = "出售",
+                        dismissLabel = "取消",
+                        freezeSystemBars = true
+                    ) {
+                        Text("数量输入")
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        val window = checkNotNull(outerWindow.value) { "应捕获到外层 Dialog 窗口" }
+        assertTrue(
+            "嵌套内联输入框挂载应冻结外层 Dialog 窗口",
+            DialogSystemBarFreezeScope.isFrozen(window)
+        )
+
+        composeRule.runOnUiThread { showOverlay.value = false }
+        composeRule.waitForIdle()
+        assertFalse("内联输入框卸载应解冻外层 Dialog 窗口", DialogSystemBarFreezeScope.isFrozen(window))
+    }
+
+    @Test
+    fun `非嵌套内联输入框 - 不冻结任何 Dialog 窗口且 Activity 冻结语义保持`() {
+        assertFalse("测试前应为未冻结状态", SystemBarFreezeScope.isFrozen)
+        val showDialog = mutableStateOf(true)
+        composeRule.setContent {
+            if (showDialog.value) {
+                // Activity 层直接渲染（无外层 Dialog 窗口）：只冻结宿主 Activity，
+                // 窗口级冻结无目标窗口、不产生副作用
+                InlineStandardPromptDialog(
+                    onDismissRequest = {},
+                    title = "创建宗门",
+                    confirmLabel = "创建",
+                    dismissLabel = "取消",
+                    freezeSystemBars = true
+                ) {
+                    Text("输入框内容")
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        assertTrue("Activity 层冻结语义应保持", SystemBarFreezeScope.isFrozen)
+        composeRule.runOnUiThread { showDialog.value = false }
+        composeRule.waitForIdle()
+        assertFalse("销毁后应解冻", SystemBarFreezeScope.isFrozen)
     }
 }

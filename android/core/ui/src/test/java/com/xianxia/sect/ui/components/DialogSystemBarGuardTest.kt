@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.components
 
+import android.os.Looper
 import android.view.View
 import android.view.Window
 import androidx.activity.ComponentActivity
@@ -19,19 +20,21 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.util.concurrent.TimeUnit
 
 /**
- * DialogSystemBarGuard IME 感知测试（2026-08 荣耀 GT 系列键盘频闪根治）：
+ * DialogSystemBarGuard 冻结感知测试（2026-08 第四根因键盘频闪根治）：
  *
- * API < 35 上传统 SYSTEM_UI_FLAG_* 被 SystemUI 完整执行，Dialog 窗口的
- * HIDE_NAVIGATION 与键盘（IME）所需导航栏区域冲突会引发 insets 翻转
- * （放大器 B）。本守卫在键盘可见期间清除 HIDE_NAVIGATION 并恢复导航栏，
- * 键盘收起后恢复隐藏。
+ * 输入对话框（freezeSystemBars=true）挂载期间本窗口经 DialogSystemBarFreezeScope
+ * 冻结——只隐藏状态栏、不隐藏导航栏（切断 HIDE_NAVIGATION×IME 冲突面）；
+ * 嵌套内联输入框挂载（冻结进入）恢复导航栏显示，解冻后延迟恢复隐藏；
+ * 键盘可见期间对系统栏零操作（不再响应 IME 翻转切换系统栏）。
  *
- * 键盘状态经 [ImeVisibilityTracker.imeVisibilityExtractor] 注入驱动——
- * Robolectric 对 android.view.WindowInsets 的 ime 类型支持不全，
- * 状态机逻辑与框架 insets 解析解耦验证。
+ * 冻结状态经 [DialogSystemBarFreezeScope] 直接驱动；键盘可见性经
+ * [ImeVisibilityTracker.setImeVisibleForTest] 驱动（Robolectric 对
+ * android.view.WindowInsets 的 ime 类型支持不全，状态机逻辑与框架解析解耦验证）。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -44,6 +47,7 @@ class DialogSystemBarGuardTest {
     fun tearDown() {
         ImeVisibilityTracker.resetForTest()
         SystemBarFreezeScope.resetForTest()
+        DialogSystemBarFreezeScope.resetForTest()
     }
 
     private fun imeInsetsWith(height: Int): WindowInsetsCompat =
@@ -51,22 +55,33 @@ class DialogSystemBarGuardTest {
             .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, height))
             .build()
 
-    /** 挂载 DialogSystemBarGuard 并捕获 Dialog 窗口引用（与 isInsideDialogWindow 同款祖先遍历） */
-    private fun mountDialogWithGuard(): Window {
+    private fun findDialogWindow(view: View): Window? =
+        generateSequence(view) { it.parent as? View }
+            .filterIsInstance<DialogWindowProvider>()
+            .firstOrNull()
+            ?.window
+
+    /**
+     * 挂载 DialogSystemBarGuard 并捕获 Dialog 窗口引用（与 isInsideDialogWindow 同款祖先遍历）。
+     * [frozen] 为 true 时先对 Dialog 窗口 enterFreeze（模拟容器 freezeSystemBars=true 的挂载顺序：
+     * DialogSystemBarFreezeEffect 声明于 guard 之前，先执行冻结再挂 guard）。
+     */
+    private fun mountDialogWithGuard(frozen: Boolean = false): Window {
         val dialogWindow = mutableStateOf<Window?>(null)
         composeRule.setContent {
             Dialog(onDismissRequest = {}) {
-                DialogSystemBarGuard()
                 val dialogView = LocalView.current
                 DisposableEffect(Unit) {
-                    dialogWindow.value = generateSequence(dialogView) {
-                        it.parent as? View
+                    val window = findDialogWindow(dialogView)
+                    dialogWindow.value = window
+                    if (frozen && window != null) {
+                        DialogSystemBarFreezeScope.enterFreeze(window)
                     }
-                        .filterIsInstance<DialogWindowProvider>()
-                        .firstOrNull()
-                        ?.window
-                    onDispose {}
+                    onDispose {
+                        if (frozen) window?.let { DialogSystemBarFreezeScope.exitFreeze(it) }
+                    }
                 }
+                DialogSystemBarGuard()
                 Text("守卫测试")
             }
         }
@@ -85,44 +100,80 @@ class DialogSystemBarGuardTest {
         window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN != 0
 
     @Test
-    fun `挂载后 - 应用传统隐藏标志`() {
-        val window = mountDialogWithGuard()
-        assertTrue("挂载后应含 HIDE_NAVIGATION", hasHideNavigation(window))
+    fun `未冻结挂载 - 应用状态栏与导航栏隐藏标志`() {
+        val window = mountDialogWithGuard(frozen = false)
+        assertTrue("未冻结挂载后应含 HIDE_NAVIGATION", hasHideNavigation(window))
         assertTrue("挂载后应含 FULLSCREEN", hasFullscreen(window))
     }
 
     @Test
-    fun `键盘可见 - 清除 HIDE_NAVIGATION 冲突标志且保留 FULLSCREEN`() {
-        val window = mountDialogWithGuard()
-        ImeVisibilityTracker.imeVisibilityExtractor = { true }
-        ImeVisibilityTracker.onInsetsApplied(window.decorView, imeInsetsWith(200), window)
+    fun `冻结挂载 - 只隐藏状态栏不隐藏导航栏`() {
+        val window = mountDialogWithGuard(frozen = true)
+        assertFalse("冻结（含输入框）挂载后不应隐藏导航栏（切断 IME 冲突面）", hasHideNavigation(window))
+        assertTrue("冻结挂载后应仍隐藏状态栏（与键盘无冲突）", hasFullscreen(window))
+    }
+
+    @Test
+    fun `挂载时键盘可见 - 零系统栏操作`() {
+        ImeVisibilityTracker.setImeVisibleForTest(true)
+        val window = mountDialogWithGuard(frozen = false)
+        assertFalse("键盘可见期间挂载应零系统栏操作（无 HIDE_NAVIGATION）", hasHideNavigation(window))
+        assertFalse("键盘可见期间挂载应零系统栏操作（无 FULLSCREEN）", hasFullscreen(window))
+        ImeVisibilityTracker.setImeVisibleForTest(false)
+    }
+
+    @Test
+    fun `冻结进入 - 恢复导航栏显示且保留状态栏隐藏`() {
+        val window = mountDialogWithGuard(frozen = false)
+        assertTrue("冻结前应已隐藏导航栏", hasHideNavigation(window))
+
+        composeRule.runOnUiThread {
+            DialogSystemBarFreezeScope.enterFreeze(window)
+        }
         composeRule.waitForIdle()
-        assertFalse(
-            "键盘可见期间应清除与 IME 冲突的 HIDE_NAVIGATION",
-            hasHideNavigation(window)
-        )
+        assertFalse("冻结进入（嵌套输入框挂载）应清除 HIDE_NAVIGATION", hasHideNavigation(window))
         assertTrue("FULLSCREEN（状态栏）与键盘无冲突应保留", hasFullscreen(window))
     }
 
     @Test
-    fun `键盘收起 - 恢复 HIDE_NAVIGATION 隐藏标志`() {
-        val window = mountDialogWithGuard()
-        ImeVisibilityTracker.imeVisibilityExtractor = { true }
-        ImeVisibilityTracker.onInsetsApplied(window.decorView, imeInsetsWith(200), window)
-        ImeVisibilityTracker.imeVisibilityExtractor = { false }
-        ImeVisibilityTracker.onInsetsApplied(window.decorView, imeInsetsWith(0), window)
+    fun `解冻 - 延迟后恢复导航栏隐藏`() {
+        val window = mountDialogWithGuard(frozen = false)
+        assertTrue("冻结前应已隐藏导航栏", hasHideNavigation(window))
+
+        composeRule.runOnUiThread {
+            DialogSystemBarFreezeScope.enterFreeze(window)
+        }
         composeRule.waitForIdle()
-        assertTrue("键盘收起后应恢复 HIDE_NAVIGATION", hasHideNavigation(window))
+        assertFalse("冻结期间应恢复导航栏显示", hasHideNavigation(window))
+
+        composeRule.runOnUiThread {
+            DialogSystemBarFreezeScope.exitFreeze(window)
+        }
+        composeRule.waitForIdle()
+        assertFalse("解冻后延迟期间仍保持导航栏显示（等键盘收起动画落定）", hasHideNavigation(window))
+
+        // 推进主线程延迟任务（350ms 恢复延迟）
+        shadowOf(Looper.getMainLooper()).idleFor(400, TimeUnit.MILLISECONDS)
+        composeRule.waitForIdle()
+        assertTrue("解冻延迟结束后应恢复导航栏隐藏", hasHideNavigation(window))
     }
 
     @Test
-    fun `无键盘事件 - 隐藏标志保持不抖动`() {
-        val window = mountDialogWithGuard()
-        // 模拟无输入框对话框的常态：无 IME 翻转 → 标志恒为隐藏态
-        ImeVisibilityTracker.imeVisibilityExtractor = { false }
-        ImeVisibilityTracker.onInsetsApplied(window.decorView, imeInsetsWith(0), window)
+    fun `解冻延迟内二次校验 - 键盘仍可见则不恢复隐藏`() {
+        val window = mountDialogWithGuard(frozen = false)
+        composeRule.runOnUiThread {
+            DialogSystemBarFreezeScope.enterFreeze(window)
+        }
         composeRule.waitForIdle()
-        assertTrue("无键盘时保持隐藏态", hasHideNavigation(window))
+        composeRule.runOnUiThread {
+            DialogSystemBarFreezeScope.exitFreeze(window)
+        }
+        // 延迟回调执行前键盘仍可见（恢复链路二次校验应放行）
+        ImeVisibilityTracker.setImeVisibleForTest(true)
+        shadowOf(Looper.getMainLooper()).idleFor(400, TimeUnit.MILLISECONDS)
+        composeRule.waitForIdle()
+        assertFalse("键盘仍可见时延迟恢复应被二次校验拦截", hasHideNavigation(window))
+        ImeVisibilityTracker.setImeVisibleForTest(false)
     }
 
     @Test
@@ -135,12 +186,7 @@ class DialogSystemBarGuardTest {
                     DialogSystemBarGuard()
                     val dialogView = LocalView.current
                     DisposableEffect(Unit) {
-                        dialogWindow.value = generateSequence(dialogView) {
-                            it.parent as? View
-                        }
-                            .filterIsInstance<DialogWindowProvider>()
-                            .firstOrNull()
-                            ?.window
+                        dialogWindow.value = findDialogWindow(dialogView)
                         onDispose {}
                     }
                     Text("守卫测试")

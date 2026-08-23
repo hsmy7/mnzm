@@ -50,6 +50,10 @@ fun SmallScreenDialog(
     footer: @Composable ColumnScope.() -> Unit = {},
     /** 窗口级覆盖层槽位（如内联售卖确认弹窗）：frame 内容之后渲染（z 序最高），fillMaxSize 覆盖整个窗口框 */
     overlay: @Composable (() -> Unit)? = null,
+    /** 含文本输入框时传 true：挂载期间冻结本 Dialog 窗口系统栏（第四根因键盘频闪根治，见 DialogSystemBarFreezeScope）。
+     *  当前嵌套输入场景（overlay 槽位内嵌 InlineStandardPromptDialog）由内联组件自动传导，无需调用方传参；
+     *  本参数为"平台 Dialog 窗口直接持输入框"场景的语义预留。 */
+    freezeSystemBars: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // D-34：LocalWindowInfo 替代 Configuration.screenWidthDp/screenHeightDp
@@ -68,6 +72,8 @@ fun SmallScreenDialog(
             dismissOnClickOutside = dismissOnClickOutside
         )
     ) {
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（第四根因根治，见 DialogSystemBarFreezeScope）
+        DialogSystemBarFreezeEffect(freezeSystemBars)
         // 切换 softInputMode，切断 OEM 键盘频闪震荡回路
         DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏

@@ -147,4 +147,31 @@ class ImeVisibilityTrackerTest {
         ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
         assertEquals(2, flipCount)
     }
+
+    // ── 双信号检测（2026-08 第四根因键盘频闪根治）──
+    // 默认提取器 = insets.isVisible(ime) || insets.getInsets(ime).bottom > 0：
+    // ADJUST_PAN 等不 resize 的窗口在部分国产 ROM 上可见性标志可能不翻转，
+    // IME 底部高度作为兜底信号（解冻恢复链路的二次校验依赖全局可见性准确性）。
+
+    @Test
+    fun `双信号 - isVisible 为 false 但 IME 底部高度大于 0 时判为可见`() {
+        ImeVisibilityTracker.attach(activity.window)
+        // 不注入提取器，直接验证默认双信号实现
+        val insets = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 200))
+            .setVisible(WindowInsetsCompat.Type.ime(), false)
+            .build()
+        ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertTrue("底部高度信号应兜底判为可见", ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `双信号 - isVisible 为 true 但底部高度为 0 时仍判为可见`() {
+        ImeVisibilityTracker.attach(activity.window)
+        val insets = WindowInsetsCompat.Builder()
+            .setVisible(WindowInsetsCompat.Type.ime(), true)
+            .build()
+        ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertTrue("可见性标志信号应保持生效", ImeVisibilityTracker.isImeVisible)
+    }
 }
