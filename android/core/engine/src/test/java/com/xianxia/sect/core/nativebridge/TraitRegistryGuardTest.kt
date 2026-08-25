@@ -82,7 +82,11 @@ class TraitRegistryGuardTest {
                 val ktPos = tpl.positionBonus
                 assertNotNull("$id.positionBonus 快照有但 Kotlin 无", ktPos)
                 ktPos ?: return@forEach
-                assertEquals("$id.positionBonus.slotType", posObj.getValue("slotType").jsonPrimitive.content, ktPos.slotType.name)
+                assertEquals(
+                    "$id.positionBonus.slotType",
+                    posObj.getValue("slotType").jsonPrimitive.content,
+                    ktPos.slotType.name
+                )
                 assertEquals(
                     "$id.positionBonus.effectBonus",
                     posObj.getValue("effectBonus").jsonPrimitive.content.toDouble(),

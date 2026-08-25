@@ -10,7 +10,6 @@ import com.xianxia.sect.core.state.StackableItemStore
 import com.xianxia.sect.core.util.AppError
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -49,6 +48,8 @@ class DiffSpiritFieldTest {
         val herbsHarvested: Int,
     )
 
+    /** Kotlin 端灵田收获复刻（对拍专用内联实现，禁止重构拆分——漂移即对拍失败）。 */
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     private fun kotlinHarvest(
         gd: GameData, herbs: List<Herb>, seeds: List<Seed>, roll: Int,
     ): KotlinHarvestResult {

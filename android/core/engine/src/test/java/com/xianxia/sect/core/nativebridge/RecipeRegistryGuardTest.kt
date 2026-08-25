@@ -118,7 +118,11 @@ class RecipeRegistryGuardTest {
                 recipe.breakthroughChance,
                 1e-12
             )
-            assertEquals("$id.targetRealm", obj.getValue("targetRealm").jsonPrimitive.content.toInt(), recipe.targetRealm)
+            assertEquals(
+                "$id.targetRealm",
+                obj.getValue("targetRealm").jsonPrimitive.content.toInt(),
+                recipe.targetRealm
+            )
             // 材料 map
             val snapshotMaterials = obj.getValue("materials").jsonObject
             assertEquals("$id.materials.size", recipe.materials.size, snapshotMaterials.size)

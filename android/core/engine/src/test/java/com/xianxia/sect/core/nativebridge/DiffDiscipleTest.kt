@@ -3,10 +3,7 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
@@ -37,8 +34,6 @@ class DiffDiscipleTest {
         assertTrue("C++ 执行出错: $result", !result.contains("\"error\""))
         return json.parseToJsonElement(result) as JsonObject
     }
-
-    private fun d(v: Double) = JsonPrimitive(v)
 
     // ── 基础属性乘区法 ─────────────────────────────────────────────
 
@@ -77,8 +72,14 @@ class DiffDiscipleTest {
         val cpp = cppOp(op)
         val rc = GameConfig.Realm.get(7)
         val layerMult = 1.0 + (3 - 1) * 0.1
-        assertEquals(kotlin.math.round(rc.baseHp * layerMult * 1.8).toInt(), cpp["maxHp"]!!.toString().toInt())
-        assertEquals(kotlin.math.round(rc.basePhysicalAttack * layerMult * 2.0).toInt(), cpp["physicalAttack"]!!.toString().toInt())
+        assertEquals(
+            kotlin.math.round(rc.baseHp * layerMult * 1.8).toInt(),
+            cpp["maxHp"]!!.toString().toInt()
+        )
+        assertEquals(
+            kotlin.math.round(rc.basePhysicalAttack * layerMult * 2.0).toInt(),
+            cpp["physicalAttack"]!!.toString().toInt()
+        )
         assertEquals(0.15, cpp["critRate"]!!.toString().toDouble(), 1e-12)
     }
 

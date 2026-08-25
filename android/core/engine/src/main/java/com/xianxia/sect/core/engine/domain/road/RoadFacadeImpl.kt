@@ -35,6 +35,7 @@ class RoadFacadeImpl @Inject constructor(
         return canPlaceCell(gridX, gridY, occupied, data)
     }
 
+    @Suppress("ReturnCount")  // 多 return 为放置失败分支（Blocked 原因逐级短路），有 RoadFacadeImplTest 守护
     override fun placeRoad(gridX: Int, gridY: Int): RoadPlacementResult {
         val data = stateStore.gameDataSnapshot
         val occupied = buildingOccupiedCells(data) + FixedSectGateway.blockedCells
@@ -71,6 +72,7 @@ class RoadFacadeImpl @Inject constructor(
 
     // ── 可建造判定（独立方法，逻辑不散落 UI）────────────────────────
 
+    @Suppress("ReturnCount", "ComplexCondition")  // 边界+占用+道路三重判据逐级短路，有 RoadFacadeImplTest 守护
     private fun canPlaceCell(
         gridX: Int,
         gridY: Int,
@@ -85,6 +87,7 @@ class RoadFacadeImpl @Inject constructor(
         return true
     }
 
+    @Suppress("ComplexCondition")  // 与 canPlaceCell 同构的 reason 分支，保持对应可读性
     private fun blockReason(
         gridX: Int,
         gridY: Int,
@@ -108,6 +111,7 @@ class RoadFacadeImpl @Inject constructor(
      * 对给定道路集合，重算 [gridX, gridY] 及其上下左右（最多 5 格）的位掩码与形态。
      * 非道路格自动被移除。只更新受影响格，O(1)。
      */
+    @Suppress("LoopWithTooManyJumpStatements")  // 邻域重算的 continue 短路为 O(1) 局部更新本质，有测试守护
     private fun recomputeNeighborhood(
         roads: List<RoadData>,
         gridX: Int,

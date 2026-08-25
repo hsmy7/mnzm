@@ -617,6 +617,116 @@ void from_json(const nlohmann::json& j, PatrolSlot& v) {
     GC_FROM(j, v, discipleRealm); GC_FROM(j, v, portraitRes); GC_FROM(j, v, buildingInstanceId);
 }
 
+// ── SecretRealm 状态机（批次 1 剩余）─────────────────────────────────
+
+void to_json(nlohmann::json& j, const SecretRealmState& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); GC_TO(v, j, name); GC_TO(v, j, x); GC_TO(v, j, y);
+    GC_TO(v, j, spawnYear); GC_TO(v, j, spawnMonth); GC_TO(v, j, spriteIndex);
+}
+void from_json(const nlohmann::json& j, SecretRealmState& v) {
+    GC_FROM(j, v, id); GC_FROM(j, v, name); GC_FROM(j, v, x); GC_FROM(j, v, y);
+    GC_FROM(j, v, spawnYear); GC_FROM(j, v, spawnMonth); GC_FROM(j, v, spriteIndex);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmMemberState& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, discipleId); GC_TO(v, j, name); GC_TO(v, j, portraitRes);
+    GC_TO(v, j, realm); GC_TO(v, j, realmName); GC_TO(v, j, currentHp);
+    GC_TO(v, j, isDying); GC_TO(v, j, isDead); GC_TO(v, j, maxHp);
+}
+void from_json(const nlohmann::json& j, SecretRealmMemberState& v) {
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, name); GC_FROM(j, v, portraitRes);
+    GC_FROM(j, v, realm); GC_FROM(j, v, realmName); GC_FROM(j, v, currentHp);
+    GC_FROM(j, v, isDying); GC_FROM(j, v, isDead); GC_FROM(j, v, maxHp);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmOption& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, label); GC_TO(v, j, description); GC_TO(v, j, staminaCost);
+}
+void from_json(const nlohmann::json& j, SecretRealmOption& v) {
+    GC_FROM(j, v, label); GC_FROM(j, v, description); GC_FROM(j, v, staminaCost);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmRewardItem& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, type); GC_TO(v, j, itemId); GC_TO(v, j, name);
+    GC_TO(v, j, rarity); GC_TO(v, j, quantity);
+}
+void from_json(const nlohmann::json& j, SecretRealmRewardItem& v) {
+    GC_FROM(j, v, type); GC_FROM(j, v, itemId); GC_FROM(j, v, name);
+    GC_FROM(j, v, rarity); GC_FROM(j, v, quantity);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmAIMember& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, discipleId); GC_TO(v, j, name); GC_TO(v, j, portraitRes); GC_TO(v, j, realm);
+}
+void from_json(const nlohmann::json& j, SecretRealmAIMember& v) {
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, name); GC_FROM(j, v, portraitRes); GC_FROM(j, v, realm);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmEventParams& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, beastTypeName); GC_TO(v, j, beastRealm); GC_TO(v, j, beastCount);
+    GC_TO(v, j, ambushSucceeded); GC_TO(v, j, beastLayer); GC_TO(v, j, lostItemCount);
+    GC_TO(v, j, spiritStones); GC_TO(v, j, itemRewards);
+    GC_TO(v, j, aiSectId); GC_TO(v, j, aiSectName); GC_TO(v, j, aiSectLevel);
+    GC_TO(v, j, aiMembers);
+}
+void from_json(const nlohmann::json& j, SecretRealmEventParams& v) {
+    GC_FROM(j, v, beastTypeName); GC_FROM(j, v, beastRealm); GC_FROM(j, v, beastCount);
+    GC_FROM(j, v, ambushSucceeded); GC_FROM(j, v, beastLayer); GC_FROM(j, v, lostItemCount);
+    GC_FROM(j, v, spiritStones); GC_FROM(j, v, itemRewards);
+    GC_FROM(j, v, aiSectId); GC_FROM(j, v, aiSectName); GC_FROM(j, v, aiSectLevel);
+    GC_FROM(j, v, aiMembers);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmEventRecord& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, eventType); GC_TO(v, j, title); GC_TO(v, j, description);
+    GC_TO(v, j, options); GC_TO(v, j, chosenOptionIndex); GC_TO(v, j, resultText);
+    GC_TO(v, j, params); GC_TO(v, j, absoluteMonth);
+}
+void from_json(const nlohmann::json& j, SecretRealmEventRecord& v) {
+    GC_FROM(j, v, eventType); GC_FROM(j, v, title); GC_FROM(j, v, description);
+    GC_FROM(j, v, options); GC_FROM(j, v, chosenOptionIndex); GC_FROM(j, v, resultText);
+    GC_FROM(j, v, params); GC_FROM(j, v, absoluteMonth);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmBackpack& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, spiritStones); GC_TO(v, j, equipment); GC_TO(v, j, manuals);
+    GC_TO(v, j, pills); GC_TO(v, j, materials); GC_TO(v, j, herbs); GC_TO(v, j, seeds);
+}
+void from_json(const nlohmann::json& j, SecretRealmBackpack& v) {
+    GC_FROM(j, v, spiritStones); GC_FROM(j, v, equipment); GC_FROM(j, v, manuals);
+    GC_FROM(j, v, pills); GC_FROM(j, v, materials); GC_FROM(j, v, herbs); GC_FROM(j, v, seeds);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmExplorationSession& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, secretRealmId); GC_TO(v, j, members); GC_TO(v, j, stamina);
+    GC_TO(v, j, backpack); GC_TO_OPT(v, j, currentEvent); GC_TO(v, j, eventHistory);
+    GC_TO(v, j, startYear); GC_TO(v, j, startMonth); GC_TO(v, j, resultMessage);
+}
+void from_json(const nlohmann::json& j, SecretRealmExplorationSession& v) {
+    GC_FROM(j, v, secretRealmId); GC_FROM(j, v, members); GC_FROM(j, v, stamina);
+    GC_FROM(j, v, backpack); GC_FROM_OPT(j, v, currentEvent); GC_FROM(j, v, eventHistory);
+    GC_FROM(j, v, startYear); GC_FROM(j, v, startMonth); GC_FROM(j, v, resultMessage);
+}
+
+void to_json(nlohmann::json& j, const SecretRealmAITeam& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); GC_TO(v, j, sectId); GC_TO(v, j, sectName);
+    GC_TO(v, j, members); GC_TO(v, j, sectLevel);
+}
+void from_json(const nlohmann::json& j, SecretRealmAITeam& v) {
+    GC_FROM(j, v, id); GC_FROM(j, v, sectId); GC_FROM(j, v, sectName);
+    GC_FROM(j, v, members); GC_FROM(j, v, sectLevel);
+}
+
 // ── GameData ─────────────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const GameData& v) {
@@ -659,6 +769,9 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, isGameOver); GC_TO(v, j, soundEnabled); GC_TO(v, j, musicEnabled);
     GC_TO(v, j, usedRedeemCodes); GC_TO(v, j, watchedItemIds);
     GC_TO(v, j, shownWarningStageIds); GC_TO(v, j, secretRealmCooldownYear);
+    // 批次 1 剩余：远古秘境状态机
+    GC_TO(v, j, secretRealmState); GC_TO(v, j, secretRealmSession);
+    GC_TO(v, j, secretRealmAITeams);
     GC_TO(v, j, suzerainSectId); GC_TO(v, j, lastYearSpiritStoneIncome);
     GC_TO(v, j, mapSeed);
     GC_TO(v, j, sectAttackCooldowns); GC_TO(v, j, guideCounters);
@@ -727,6 +840,9 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, isGameOver); GC_FROM(j, v, soundEnabled); GC_FROM(j, v, musicEnabled);
     GC_FROM(j, v, usedRedeemCodes); GC_FROM(j, v, watchedItemIds);
     GC_FROM(j, v, shownWarningStageIds); GC_FROM(j, v, secretRealmCooldownYear);
+    // 批次 1 剩余：远古秘境状态机
+    GC_FROM(j, v, secretRealmState); GC_FROM(j, v, secretRealmSession);
+    GC_FROM(j, v, secretRealmAITeams);
     GC_FROM(j, v, suzerainSectId); GC_FROM(j, v, lastYearSpiritStoneIncome);
     GC_FROM(j, v, mapSeed);
     GC_FROM(j, v, sectAttackCooldowns); GC_FROM(j, v, guideCounters);

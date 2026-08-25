@@ -228,6 +228,54 @@ TEST(JsonCodecTest, NestedTypesRoundTrip) {
     d.mailRecords[0].mailId = "mail-1";
     d.pendingTraitAdds.push_back(PendingTraitAdd{});
     d.pendingTraitAdds[0].traitId = "t-1";
+    // 远古秘境状态机（批次 1 剩余）
+    d.secretRealmState.id = "sr-1";
+    d.secretRealmState.name = "远古秘境";
+    d.secretRealmState.x = 12.5f;
+    d.secretRealmState.y = -3.0f;
+    d.secretRealmState.spawnYear = 3;
+    d.secretRealmState.spawnMonth = 7;
+    d.secretRealmState.spriteIndex = 2;
+    d.secretRealmSession.secretRealmId = "sr-1";
+    d.secretRealmSession.stamina = 12;
+    d.secretRealmSession.startYear = 3;
+    d.secretRealmSession.startMonth = 7;
+    d.secretRealmSession.resultMessage = "击退妖兽";
+    d.secretRealmSession.members.push_back(SecretRealmMemberState{});
+    d.secretRealmSession.members[0].discipleId = "d-1";
+    d.secretRealmSession.members[0].name = "张三";
+    d.secretRealmSession.members[0].realm = 5;
+    d.secretRealmSession.members[0].currentHp = 80;
+    d.secretRealmSession.members[0].isDying = true;
+    d.secretRealmSession.backpack.spiritStones = 500;
+    d.secretRealmSession.backpack.pills.push_back(Pill{});
+    d.secretRealmSession.backpack.pills[0].id = "pill-1";
+    d.secretRealmSession.backpack.pills[0].quantity = 3;
+    SecretRealmEventRecord ev;
+    ev.eventType = "BEAST_ENCOUNTER";
+    ev.title = "遭遇妖兽";
+    ev.chosenOptionIndex = 1;
+    ev.params.beastTypeName = "烈焰虎";
+    ev.params.beastRealm = 6;
+    ev.params.beastCount = 2;
+    ev.params.ambushSucceeded = true;
+    ev.params.spiritStones = 100;
+    ev.params.itemRewards.push_back(SecretRealmRewardItem{});
+    ev.params.itemRewards[0].type = "material";
+    ev.params.itemRewards[0].name = "兽骨";
+    ev.params.itemRewards[0].quantity = 2;
+    ev.options.push_back(SecretRealmOption{});
+    ev.options[0].label = "战斗";
+    ev.options[0].staminaCost = 1;
+    d.secretRealmSession.currentEvent = ev;
+    d.secretRealmSession.eventHistory.push_back(ev);
+    d.secretRealmAITeams.push_back(SecretRealmAITeam{});
+    d.secretRealmAITeams[0].id = "ai-1";
+    d.secretRealmAITeams[0].sectId = "s-9";
+    d.secretRealmAITeams[0].sectLevel = 2;
+    d.secretRealmAITeams[0].members.push_back(SecretRealmAIMember{});
+    d.secretRealmAITeams[0].members[0].discipleId = "ai-d-1";
+    d.secretRealmAITeams[0].members[0].realm = 4;
 
     const nlohmann::json j = d;
     const GameData decoded = j.get<GameData>();
@@ -247,6 +295,30 @@ TEST(JsonCodecTest, NestedTypesRoundTrip) {
     EXPECT_EQ(decoded.travelingMerchantItems[0].price, 100);
     EXPECT_EQ(decoded.mailRecords[0].mailId, "mail-1");
     EXPECT_EQ(decoded.pendingTraitAdds[0].traitId, "t-1");
+    // 远古秘境状态机
+    EXPECT_EQ(decoded.secretRealmState.id, "sr-1");
+    EXPECT_FLOAT_EQ(decoded.secretRealmState.x, 12.5f);
+    EXPECT_EQ(decoded.secretRealmState.spawnYear, 3);
+    EXPECT_EQ(decoded.secretRealmSession.secretRealmId, "sr-1");
+    EXPECT_EQ(decoded.secretRealmSession.stamina, 12);
+    EXPECT_EQ(decoded.secretRealmSession.resultMessage, "击退妖兽");
+    ASSERT_EQ(decoded.secretRealmSession.members.size(), 1u);
+    EXPECT_EQ(decoded.secretRealmSession.members[0].name, "张三");
+    EXPECT_TRUE(decoded.secretRealmSession.members[0].isDying);
+    EXPECT_EQ(decoded.secretRealmSession.backpack.spiritStones, 500);
+    ASSERT_EQ(decoded.secretRealmSession.backpack.pills.size(), 1u);
+    EXPECT_EQ(decoded.secretRealmSession.backpack.pills[0].quantity, 3);
+    ASSERT_TRUE(decoded.secretRealmSession.currentEvent.has_value());
+    EXPECT_EQ(decoded.secretRealmSession.currentEvent->eventType, "BEAST_ENCOUNTER");
+    EXPECT_EQ(decoded.secretRealmSession.currentEvent->chosenOptionIndex, 1);
+    EXPECT_EQ(decoded.secretRealmSession.currentEvent->params.beastTypeName, "烈焰虎");
+    EXPECT_TRUE(decoded.secretRealmSession.currentEvent->params.ambushSucceeded);
+    EXPECT_EQ(decoded.secretRealmSession.currentEvent->params.itemRewards[0].type, "material");
+    EXPECT_EQ(decoded.secretRealmSession.eventHistory.size(), 1u);
+    ASSERT_EQ(decoded.secretRealmAITeams.size(), 1u);
+    EXPECT_EQ(decoded.secretRealmAITeams[0].sectId, "s-9");
+    EXPECT_EQ(decoded.secretRealmAITeams[0].sectLevel, 2);
+    EXPECT_EQ(decoded.secretRealmAITeams[0].members[0].discipleId, "ai-d-1");
 }
 
 TEST(JsonCodecTest, LenientFromJsonMissingFieldsUseDefaults) {

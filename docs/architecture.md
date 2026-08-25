@@ -467,9 +467,9 @@ SaveValidator.validate(SaveData)
 ### C++ 引擎迁移待办 C 系列（2026-08-22 批次 0-3 完成登记）
 
 > 总方案：`docs/adr/cpp-engine-migration.md`；进度：`docs/cpp-engine.md`。
-> 已完成批次 0（基础设施）/1（状态模型+快照 + 低频嵌套类型核心）/2（装备表 + 天赋/体质/词条 + 丹药/锻造配方）
+> 已完成批次 0（基础设施）/1（状态模型+快照 + 低频嵌套类型核心 + 远古秘境状态机 10 类型）/2（装备表 + 天赋/体质/词条 + 丹药/锻造配方 + 妖兽材料 192 + 功法 540）
 > /3（时间系统+结算引擎）/4（经济/库存/灵田）/5（弟子属性/修炼/突破/生命周期核心）/6（战斗乘区法核心）/
-> 7（内政核心）/8（世界关卡核心）/9（ActionId + execute 分发表）/R（道路求解器权威性对拍守护）。
+> 7（内政核心）/8（世界关卡核心）/9（ActionId + execute 分发表 + 转发层基础设施：feature flag + StateSyncService 宽松合并 + tick 桥 + 转发辅助 + 性能基准）/R（道路求解器权威性对拍守护 + Vulkan 端位掩码判定收敛 road_system.h 单一权威）。
 > 以下为**活跃待办**——批次 10 与批次 9/R 的剩余子步为后续迁移批次，C-01~C-05 等为登记项。
 
 | # | 待办内容 | 触发/计划 |
@@ -479,10 +479,10 @@ SaveValidator.validate(SaveData)
 | C-03 | **批次 6：战斗系统** ✅ 已完成核心（乘区法伤害/境界压制/斩杀/闪避/护盾） | 完成（回合编排/AI 决策随批次 9 接线） |
 | C-04 | **批次 7：世界/内政** ✅ 已完成核心（政策成本/灵矿产出/年俸/乘区工具） | 完成（政策 toggle/外交/兑换码随批次 9 接线） |
 | C-05 | **批次 8：探索/秘境** ✅ 已完成核心（世界关卡清理/刷新/妖兽移动） | 完成（LevelGenerator/秘境状态机随批次 9 接线） |
-| C-06 | **批次 9：集成切换** 🔄 核心已完成（ActionId 46 动作 + C++ execute 分发表 + 对拍）；剩余 Kotlin GameEngine 275 方法逐一转发、StateSyncService 镜像、tick 桥、feature flag、性能基准 | 超大工作量批次，需与 UI 回归协同 |
+| C-06 | **批次 9：集成切换** 🟡 核心 + 转发层基础设施已完成（ActionId 46 动作 + execute 分发表 + feature flag/StateSyncService 宽松合并/tick 桥（shadow 对拍）/转发辅助/性能基准）；剩余 Kotlin GameEngine 275 方法逐一转发（**依赖 C++ 动作全覆盖**——未迁移系统无对应动作；NativeBenchmarkTest 证实 JNI+JSON 开销显著，转发范围应裁剪为低频业务操作）、全量快照→增量变更集同步、全量切换（C++ 为真相源） | 超大工作量批次，需与 UI 回归协同；全量切换为批次 10 前置 |
 | C-07 | **批次 10：Kotlin 引擎退役**（删除重复逻辑、对拍转回归、清理临时工具、文档收尾） | 批次 9 完整转发层落地后 |
-| C-08 | **批次 1 剩余：低频嵌套类型** ✅ 已完成核心（血炼三件套/功法精通/矿脉/巡视槽位）；剩余秘境 ~12 类型随批次 8 状态机 | 完成（秘境状态机随批次 9 接线） |
-| C-09 | **批次 2 剩余：Registry 提取器扩展** ✅ 已完成（天赋/体质/词条 + 丹药/锻造配方 C++ 等价生成器 + 双端守卫） | 完成 |
+| C-08 | **批次 1 剩余：低频嵌套类型** ✅ 已完成（血炼三件套/功法精通/矿脉/巡视槽位 + **远古秘境状态机 10 类型**：SecretRealmState/Session/MemberState/EventRecord/Option/Params/Backpack/RewardItem/AITeam/AIMember，含 optional currentEvent 编解码 + DiffNestedTypesTest 对拍） | 完成（探索队伍/侦查信息重型状态随批次 8 配套） |
+| C-09 | **批次 2 剩余：Registry 提取器扩展** ✅ 已完成（天赋/体质/词条 + 丹药/锻造配方 + **妖兽材料 192/功法 540 C++ 等价生成器 + 双端守卫**） | 完成 |
 | C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等） | 政策成本/灵矿/年俸已 C++ 化；onMonthChange/onYearChange 钩子接线随批次 9 |
 | C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
 | C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |

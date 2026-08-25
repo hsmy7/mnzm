@@ -1,5 +1,16 @@
 ## [4.01.10] - 2026-08-24
 
+### 新增（C++ 引擎迁移批次 9 剩余：转发层基础设施 + 批次 1/2 剩余 + 批次 R 收敛）
+
+> 纯工程内部引擎迁移，无玩家可见行为变化（Kotlin 引擎照常运营，feature flag 默认关闭，任何时刻可回退）。
+
+- **批次 9 剩余（转发层基础设施）** — `NativeEngineFlag`（feature flag，默认关闭 + `withNativeEngine` 测试临时开关）；`StateSyncService`（C++→Kotlin 镜像：`syncFromNative`/`applySnapshot` 单事务原子 + **字段级宽松合并** `mergeGameData`——C++ 只导出已迁移字段，白名单外字段保留 Kotlin 值，镜像永不丢未迁移字段；`buildNativeState`/`importToNative` 读档基线）；GameEngineCore `stateSyncServiceRef` 接入 + **tick 桥（shadow 对拍模式）**（flag 开启时 `nativeAdvance` 推进 C++ 影子状态，不镜像覆盖——Kotlin 仍为真相源）+ `loadSnapshot` 后 `importToNative` 基线对齐；`GameEngineNativeOps`（`tryExecuteNative` 转发辅助：flag 开启 + native 可用 → `nativeExecute` + 镜像，否则返回 null 走 Kotlin 原实现）；`GameCoreBridge.isLoaded` 暴露；`NativeBenchmarkTest` 性能基准（wallet add 1000 次 native 含 JNI+JSON 开销 10.2ms vs Kotlin 17µs——确认**高频纯计算应留 Kotlin 侧**，转发范围裁剪为低频业务操作，登记批次 10）
+- **批次 1 剩余（远古秘境状态机）** — `models.h` 新增 10 类型（`SecretRealmState`/`SecretRealmExplorationSession`/`SecretRealmMemberState`/`SecretRealmEventRecord`/`SecretRealmOption`/`SecretRealmEventParams`/`SecretRealmBackpack`/`SecretRealmRewardItem`/`SecretRealmAITeam`/`SecretRealmAIMember`）+ `json_codec.cpp` 编解码（含 currentEvent optional）+ GameData 三字段（secretRealmState/secretRealmSession/secretRealmAITeams）；`DiffNestedTypesTest.secret realm state machine round trip` 对拍
+- **批次 2 剩余（妖兽材料/功法表）** — `data/beast_material_db.h`（192 条 = 8 妖兽 × 4 材料 × 6 品阶，含派生 price/materialCategory）+ `data/manual_db.h`（540 条 = attack 108 + defense 162 + support 234 + mind 36，全 27 字段含 skillBuffs）+ 生成器 `gen-beast-material-db.mjs`/`gen-manual-db.mjs` + 双端守卫（`BeastMaterialRegistryGuardTest` 3 / `ManualRegistryGuardTest` 2 / C++ `beast_material_db_test` 5 / `manual_db_test` 6）
+- **批次 R（求解器权威收敛）** — `NativeBridge.cpp` 删除本地双份 `roadTypeForMask`/描边计算，收敛为 `gamecore/map/road_system.h` 单一权威（`tileTypeForBitmask`/`roadBorderMask`）；渲染合成器物理下沉（Canvas/Vulkan 逐格合成统一）登记随后续批次
+- **测试** — 新增 `DiffStateSyncTest` 7 + `DiffNativeForwardTest` 4 + `BeastMaterialRegistryGuardTest` 3 + `ManualRegistryGuardTest` 2 + `NativeBenchmarkTest` 2 + `DiffNestedTypesTest` +1，engine 模块 2818 测试全绿；桌面 GTest 289/289；NDK `externalNativeBuildRelease` 通过
+- **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志留待批次 9 引擎切换
+
 ### 新增：石板道路自动拼接系统
 
 > 玩家在宗门地图网格铺设石板道路，程序按邻接位掩码自动拼接为直路/转角/丁字路口/十字路口，并正确处理并行道路（内部不重复描边）、任意复杂道路网络的自动连接，以及建筑/道路互斥（不能互相覆盖）。建造栏新增"石板路"，20 灵石/格，点击地图格即放置，拆除模式点道路格可删路（周围道路自动重拼）。

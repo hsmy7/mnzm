@@ -144,6 +144,10 @@ class GameEngine @Inject constructor(
     internal val lawEnforcementProcessor: LawEnforcementProcessor get() = cultivationFacade.lawEnforcementProcessor
     internal val jadeSymbolService: JadeSymbolService get() = gameEngineCore.jadeSymbolServiceRef
 
+    /** C++ 引擎镜像同步服务（批次 9：StateSyncService 接入；经 GameEngineCore 访问器取用） */
+    internal val stateSyncService: com.xianxia.sect.core.nativebridge.StateSyncService
+        get() = gameEngineCore.stateSyncServiceRef
+
     init {
         // 注入任务完成检测回调到 GameEngineCore，
         // 确保空闲期间任务完成也能被每月结算及时检测

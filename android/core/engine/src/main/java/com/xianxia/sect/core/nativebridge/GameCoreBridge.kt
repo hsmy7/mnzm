@@ -16,6 +16,9 @@ object GameCoreBridge {
     /** 是否已加载原生库 */
     private var loaded = false
 
+    /** 原生库是否已加载（转发层/tick 桥在调用前检查，未加载则静默跳过） */
+    val isLoaded: Boolean get() = loaded
+
     /** 加载原生库（独立于渲染库 native-renderer） */
     fun ensureLoaded() {
         if (!loaded) {

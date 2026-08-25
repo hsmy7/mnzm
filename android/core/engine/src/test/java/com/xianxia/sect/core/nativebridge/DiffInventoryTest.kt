@@ -143,7 +143,10 @@ class DiffInventoryTest {
     fun `equipment chunk creation matches Kotlin aggregate`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        val incoming = EquipmentStack(id = "eq-1", name = "铁剑", rarity = 2, slot = EquipmentSlot.WEAPON, quantity = 2000)
+        val incoming = EquipmentStack(
+            id = "eq-1", name = "铁剑", rarity = 2,
+            slot = EquipmentSlot.WEAPON, quantity = 2000
+        )
         val kotlinResult = kotlinAddEquipment(emptyList(), incoming)
         val cppResult = execCppOps(
             NativeGameState(equipmentStacks = emptyList(), gameData = GameData()),

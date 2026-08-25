@@ -14,6 +14,7 @@ import org.junit.Test
 class RoadTilingTest {
 
     @Test
+    @Suppress("MaxLineLength")  // 逐态断言长行（镜像 C++ road_system_test 表格语义）
     fun `tileType maps all forms`() {
         assertEquals(RoadTileType.SINGLE, RoadTiling.tileTypeForBitmask(0))
         assertEquals(RoadTileType.VERTICAL, RoadTiling.tileTypeForBitmask(RoadTiling.DIR_UP or RoadTiling.DIR_DOWN))

@@ -46,11 +46,6 @@ class DiffEconomyTest {
             else -> gd.copy(spiritStones = newAmount)
         }
 
-    private fun safeAdd(a: Long, b: Long): Long {
-        val result = a + b
-        return if (result < 0) Long.MAX_VALUE else result
-    }
-
     private fun safeMul(a: Long, b: Long): Long {
         val result = a * b
         return if (a != 0L && result / a != b) Long.MAX_VALUE else result
@@ -98,13 +93,15 @@ class DiffEconomyTest {
     private fun recordAnnual(gd: GameData, delta: Long, reason: String, source: String): GameData =
         if (delta > 0) {
             gd.copy(
-                annualIncomeBySource = gd.annualIncomeBySource + (source to (gd.annualIncomeBySource[source] ?: 0L) + delta),
+                annualIncomeBySource = gd.annualIncomeBySource +
+                    (source to (gd.annualIncomeBySource[source] ?: 0L) + delta),
                 annualTotalIncome = gd.annualTotalIncome + delta
             )
         } else if (delta < 0) {
             val absD = -delta
             gd.copy(
-                annualExpenditureByReason = gd.annualExpenditureByReason + (reason to (gd.annualExpenditureByReason[reason] ?: 0L) + absD),
+                annualExpenditureByReason = gd.annualExpenditureByReason +
+                    (reason to (gd.annualExpenditureByReason[reason] ?: 0L) + absD),
                 annualTotalExpenditure = gd.annualTotalExpenditure + absD
             )
         } else gd
@@ -132,7 +129,10 @@ class DiffEconomyTest {
         return out
     }
 
-    /** Kotlin 端执行单条钱包操作（复刻 SpiritStoneWallet 语义） */
+    @Suppress(
+        "LongMethod", "CyclomaticComplexMethod", "NestedBlockDepth", "ReturnCount",
+        "LoopWithTooManyJumpStatements",  // 复刻 Kotlin batch 预检查/执行的 continue 短路语义
+    )
     private fun kotlinWalletOp(gd: GameData, op: JsonObject): GameData {
         val opName = (op["op"] as JsonPrimitive).content
         return when (opName) {
@@ -249,7 +249,10 @@ class DiffEconomyTest {
         assertEquals("annualTotalIncome 不一致", kotlinGd.annualTotalIncome, decoded.annualTotalIncome)
         assertEquals("annualTotalExpenditure 不一致", kotlinGd.annualTotalExpenditure, decoded.annualTotalExpenditure)
         assertEquals("annualIncomeBySource 不一致", kotlinGd.annualIncomeBySource, decoded.annualIncomeBySource)
-        assertEquals("annualExpenditureByReason 不一致", kotlinGd.annualExpenditureByReason, decoded.annualExpenditureByReason)
+        assertEquals(
+            "annualExpenditureByReason 不一致",
+            kotlinGd.annualExpenditureByReason, decoded.annualExpenditureByReason
+        )
         assertEquals("autoSell 开关漂移", kotlinGd.autoSellMidGradeForPurchase, decoded.autoSellMidGradeForPurchase)
         assertEquals("autoSell 开关漂移", kotlinGd.autoSellHighGradeForPurchase, decoded.autoSellHighGradeForPurchase)
     }

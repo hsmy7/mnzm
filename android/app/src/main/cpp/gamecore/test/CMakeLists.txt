@@ -30,6 +30,8 @@ add_executable(game-core-tests
     equipment_db_test.cpp
     trait_db_test.cpp
     recipe_db_test.cpp
+    beast_material_db_test.cpp
+    manual_db_test.cpp
     time_system_test.cpp
     road_system_test.cpp
     economy_test.cpp

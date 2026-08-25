@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.core.nativebridge
+package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.util.ZoneCalculator
 import kotlinx.serialization.json.Json
@@ -13,11 +13,15 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffGovernmentTest 鈥?鍐呮斂绯荤粺璺ㄨ瑷€宸垎瀵规媿锛堟壒娆?7 楠屾敹鏍稿績锛夈€? *
- * 瀹堟姢鐩爣锛欳++ gamecore::system::government锛堜箻鍖烘硶/姒傜巼涔樺尯/鏃堕棿缂╁噺鍔犻€?
- * 鏀跨瓥鏈堝害蹇犺瘹閬撳痉/鐏电熆浜у嚭锛変笌 Kotlin ZoneCalculator 鍏紡**閫愪綅涓€鑷?*銆? *
- * Kotlin 鍩哄噯锛氱湡瀹?ZoneCalculator锛堢敓浜т唬鐮佸悓涓€瀹炵幇锛夈€? *
- * 鍓嶇疆锛氭闈?JNI 宸叉瀯寤哄苟娉ㄥ叆 `-Dgamecore.jni.path`锛涙湭娉ㄥ叆鏃惰烦杩囥€? */
+ * DiffGovernmentTest — 内政系统跨语言差分对拍（批次 7 验收核心）。
+ *
+ * 守护目标：C++ gamecore::system::government（乘区法/概率乘区/时间缩减加速/
+ * 政策月度忠诚道德/灵矿产出）与 Kotlin ZoneCalculator 公式**逐位一致**。
+ *
+ * Kotlin 基准：真实 ZoneCalculator（生产代码同一实现）。
+ *
+ * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
+ */
 class DiffGovernmentTest {
 
     private val json = Json { encodeDefaults = true }
@@ -26,11 +30,11 @@ class DiffGovernmentTest {
         val result = DiffRngBridge.nativeCoreGovernmentOp(
             json.encodeToString(JsonObject.serializer(), op).encodeToByteArray()
         ).decodeToString()
-        assertTrue("C++ 鎵ц鍑洪敊: $result", !result.contains("\"error\""))
+        assertTrue("C++ 执行出错: $result", !result.contains("\"error\""))
         return json.parseToJsonElement(result) as JsonObject
     }
 
-    // 鈹€鈹€ 涔樺尯娉?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    // ── 乘区法 ─────────────────────────────────────────────────────
 
     @Test
     fun `zone calculate matches Kotlin`() {
@@ -49,7 +53,7 @@ class DiffGovernmentTest {
             val cpp = cppOp(op)
             assertEquals("base=$base zones=$zones",
                 expected, cpp["value"]!!.toString().toDouble(), 1e-12)
-            // Kotlin 鐪熷疄瀹炵幇
+            // Kotlin 真实实现
             assertEquals("base=$base zones=$zones",
                 ZoneCalculator.calculate(base, *zones.toDoubleArray()),
                 cpp["value"]!!.toString().toDouble(), 1e-12)
@@ -121,13 +125,13 @@ class DiffGovernmentTest {
         }
     }
 
-    // 鈹€鈹€ 鏀跨瓥鏈堝害蹇犺瘹/閬撳痉 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    // ── 政策月度忠诚/道德 ───────────────────────────────────────────
 
     @Test
     fun `policy monthly deltas match Kotlin config`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        // Kotlin锛欱ENEVOLENT +1, RELAXED +2, STRICT -1, ENHANCED -1, CURFEW -1
+        // Kotlin：BENEVOLENT +1, RELAXED +2, STRICT -1, ENHANCED -1, CURFEW -1
         val op = buildJsonObject {
             put("op", "policyMonthlyDeltas")
             put("benevolentGovernance", true)
@@ -143,15 +147,16 @@ class DiffGovernmentTest {
         assertEquals(1, cpp["moralityDelta"]!!.toString().toInt())
     }
 
-    // 鈹€鈹€ 鐏电熆浜у嚭 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    // ── 灵矿产出 ───────────────────────────────────────────────────
 
     @Test
     fun `spirit mine monthly matches Kotlin formula`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         for (case in listOf(
-            Triple(3, 0.0, 0.0),  // 鏃犲姞鎴?            Triple(3, 0.1, 0.0),  // 閲囩熆鍔犳垚
-            Triple(2, 0.0, 0.2),  // 鏀跨瓥鍔犳垚
+            Triple(3, 0.0, 0.0),  // 无加成
+            Triple(3, 0.1, 0.0),  // 采矿加成
+            Triple(2, 0.0, 0.2),  // 政策加成
         )) {
             val op = buildJsonObject {
                 put("op", "spiritMineMonthly"); put("minerCount", case.first)
@@ -167,4 +172,3 @@ class DiffGovernmentTest {
         }
     }
 }
-

@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
@@ -192,6 +193,14 @@ class GameEngineCore @Inject constructor(
     /** 玉符服务访问器（引擎扩展方法事务内扣减/刷新用；构造参数不动，测试命名参数构造兼容） */
     internal val jadeSymbolServiceRef: JadeSymbolService
         get() = jadeSymbolService
+
+    /**
+     * C++ 引擎镜像同步服务（批次 9：StateSyncService 接入）。
+     * 构造参数不动（测试命名参数构造兼容）——默认参数直接建于注入的
+     * stateStore 之上；Hilt 场景由 GameEngine 经此访问器取用。
+     */
+    internal val stateSyncServiceRef: StateSyncService =
+        StateSyncService(stateStore)
 
     /** 场景帧时间预算（单位：ns，用于游戏等待自适应） */
     private val sceneFrameBudgetNs: Long
@@ -1517,6 +1526,9 @@ class GameEngineCore @Inject constructor(
             System.currentTimeMillis() else 0L
         // 进度快照采样：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs）
         sampleProgressSnapshot()
+        // 批次 9 tick 桥（shadow 对拍模式）：推进 C++ 影子状态，不镜像覆盖 Kotlin
+        //（Kotlin 仍为真相源；全量切换登记批次 10 前置，见 docs/cpp-engine.md）
+        tickNativeShadow(LOGIC_DT_NS, gameClock.nowMs())
         val tickResult = gameClock.tick(isSettlementPending = false)
         // 电量感知热控阈值偏移（低电量未充电提前 2°C 降载）；checkAndAdjust 10s 间隔检查，
         // 此处仅浮点赋值无锁开销
@@ -1957,6 +1969,8 @@ class GameEngineCore @Inject constructor(
             storageBags = snapshot.storageBags,
             battleLogs = snapshot.battleLogs
         )
+        // 批次 9 shadow 基线对齐：Kotlin 读档状态导入 C++ 影子引擎（同起点对拍）
+        loadNativeBaseline(stateSyncServiceRef)
     }
     
 }

@@ -104,6 +104,19 @@ android/app/src/main/cpp/
 > 剩余（登记随后续批次）：秘境（SecretRealmState/ExplorationSession/MemberState/EventRecord/Option/Backpack 等 ~12 类型）、
 > 探索队伍/侦查信息等重型状态——随批次 8 探索/秘境状态机落地配套。
 
+### 批次 1 剩余（已完成）：远古秘境状态机
+
+| 项 | 说明 |
+|---|---|
+| C++ 秘境状态机 | `state/models.h`：`SecretRealmState`（地图实例 id/name/x/y/spawnYear/spawnMonth/spriteIndex）+ `SecretRealmExplorationSession`（secretRealmId/members/stamina/backpack/currentEvent(optional)/eventHistory/startYear/startMonth/resultMessage）+ `SecretRealmMemberState`（discipleId/name/portraitRes/realm/currentHp/isDying/isDead/maxHp）+ `SecretRealmEventRecord`（eventType/title/description/options/chosenOptionIndex/resultText/params/absoluteMonth）+ `SecretRealmOption`/`SecretRealmEventParams`（妖兽参数 + AI 宗门遭遇）/`SecretRealmBackpack`（7 类物品暂存）/`SecretRealmRewardItem`/`SecretRealmAITeam`/`SecretRealmAIMember` —— 与 Kotlin SecretRealmModels 逐字段对齐 |
+| JSON 编解码 | `json_codec.cpp`：10 个类型 to_json/from_json（含 currentEvent 的 std::optional 编解码）+ GameData 三个字段（secretRealmState/secretRealmSession/secretRealmAITeams）GC_TO/GC_FROM |
+| GTest | `JsonCodecTest.NestedTypesRoundTrip` 扩展（秘境全字段往返：状态/会话/成员/背包/事件/参数/奖励/AI 队伍）——桌面 GTest 278/278 |
+| JUnit 对拍 | `DiffNestedTypesTest.secret realm state machine round trip`（C++ 导出↔Kotlin 解码逐字段一致）——nativebridge 累计 110/110 |
+| 验证 | 桌面 GTest 278/278；JUnit nativebridge 110/110；NDK 构建不受影响 |
+
+> 批次 1 剩余验收达成：远古秘境状态机 C++ 模型 + 快照编解码完成，双端对拍逐字段一致。
+> 剩余（登记随后续批次）：探索队伍/侦查信息等重型状态——依赖 SecretRealm 探索队伍完整状态机（批次 8 探索配套）。
+
 ### 批次 2（第一子步已完成）：静态数据/注册表（装备表）
 
 | 项 | 说明 |
@@ -139,6 +152,20 @@ android/app/src/main/cpp/
 
 > 批次 2 剩余验收达成：丹药/锻造配方表 C++ 化 + 快照锚点完成（Kotlin 改数据 → 重跑 `node scripts/gen-recipe-db.mjs`）。
 > 剩余（登记随后续批次）：功法/材料/妖兽材料表。
+
+### 批次 2 剩余（已完成）：妖兽材料 + 功法静态表
+
+| 项 | 说明 |
+|---|---|
+| C++ 妖兽材料表 | `data/beast_material_db.h`：`BeastMaterialTemplate`（id/name/tier/rarity/category/description/icon/dropWeight + 派生 price/materialCategory）+ `beastMaterialTemplates()`（**192 条** = 8 妖兽 × 4 材料 × 6 品阶；源码注释旧数字 288 有误）+ `beastMaterialById`/`beastMaterialsByBeastType`（中文妖兽名如"虎妖"/英文前缀均支持，Kotlin 同语义） |
+| C++ 功法表 | `data/manual_db.h`：`ManualTemplate`（全 27 字段：stats map + skill 全字段 + skillBuffs 列表）+ `manualTemplates()`（**540 条** = attack 108 + defense 162 + support 234 + mind 36）+ `manualById` |
+| 等价生成器 | `scripts/gen-beast-material-db.mjs`（解析 BeastMaterialDatabase.kt listOf 字面量，price=GameConfig.Rarity.materialBasePrice、category→MaterialCategory.name 派生复刻）→ beast_material_db_sample.json；`scripts/gen-manual-db.mjs`（解析 assets/data/manuals.json 四类功法）→ manual_db_sample.json |
+| 守卫测试（双端锚定） | Kotlin `BeastMaterialRegistryGuardTest`（3：快照↔Kotlin Registry 逐字段 + ItemDatabase.allMaterials 交叉锚定 + 妖兽类型查询语义）+ `ManualRegistryGuardTest`（2：快照↔manuals.json 数据源逐字段 + 类型分布）；C++ `beast_material_db_test`（5）+ `manual_db_test`（6） |
+| 验证 | 桌面 GTest 294/294（新增 11）；JUnit 守卫 5/5；NDK 构建不受影响 |
+
+> 批次 2 剩余验收达成：妖兽材料/功法静态表 C++ 化 + 双端守卫完成（Kotlin 改数据 → 重跑 `node scripts/gen-beast-material-db.mjs` / `gen-manual-db.mjs`）。
+> 剩余（登记随后续批次）：材料表本身 = 妖兽材料转换（`ItemDatabase.allMaterials` = beastMaterials，已随妖兽表覆盖）；功法表数据源为
+> assets 资源文件（manuals.json/manuals.pb），生成器直接读资源文件，**无 Kotlin 常量需守卫**——数据源改动需重跑生成器。
 
 ### 批次 3（已完成）：时间系统 + 惰性结算引擎
 
@@ -236,7 +263,26 @@ android/app/src/main/cpp/
 > 批次 9 验收达成：C++ 侧 execute 统一入口完成——Kotlin 转发层（GameEngine 族方法体改转发 + StateSyncService 镜像 +
 > feature flag 切换）已具备全部底层动作。剩余（登记随后续批次）：Kotlin GameEngine 275 方法逐一转发（方法签名保留、
 > 方法体改 JNI nativeExecute 调用）、StateSyncService 全量快照→增量变更集同步、tick 桥接、feature flag 与性能基准——
-> 为超大工作量批次，需与 UI 回归测试协同推进。 
+> 为超大工作量批次，需与 UI 回归测试协同推进。
+
+### 批次 9 剩余（转发层基础设施已完成）：feature flag + StateSyncService + tick 桥 + 性能基准
+
+| 项 | 说明 |
+|---|---|
+| feature flag | `nativebridge/NativeEngineFlag.kt`：`enabled`（生产默认 false）+ `withNativeEngine` 测试临时开关；双实现并行任何时刻可回退 |
+| StateSyncService 接入 | `nativebridge/StateSyncService.kt`：`syncFromNative`（C++ 导出→解码→镜像）、`applySnapshot`（单事务原子 + **字段级宽松合并** `mergeGameData`——C++ 只导出已迁移字段，白名单外字段保留 Kotlin 值，镜像永不丢未迁移字段）、`buildNativeState`/`importToNative`（读档 Kotlin→C++ 基线）；GameEngineCore 经 `stateSyncServiceRef` 暴露，GameEngine 经 `stateSyncService` 访问 |
+| tick 桥（shadow 对拍模式） | `GameEngineCore.tickInternal`：flag 开启且 C++ 引擎可用时 `nativeAdvance` 推进 C++ 影子状态（**不镜像覆盖**——Kotlin 仍为真相源，未迁移系统如 SecretRealm 由 Kotlin 驱动，双推进会冲突）；`loadSnapshot` 后 `importToNative` 对齐影子基线 |
+| 转发辅助 | `nativebridge/GameEngineNativeOps.kt`：`tryExecuteNative`（flag 开启 + native 可用 → `nativeExecute` + 结果镜像；否则返回 null 走 Kotlin 原实现）+ `params`/`field`/`str`/`long` JSON 工具 |
+| JUnit 对拍 | `DiffStateSyncTest`（7：全字段收集/单事务/往返/宽松合并/字段级 merge/导出键合并/import 降级）+ `DiffNativeForwardTest`（4：flag 关闭降级/native 不可用降级/flag 恢复/merge 安全）+ `NativeBenchmarkTest`（2：native vs Kotlin 吞吐 + 规模正确性）——nativebridge 累计 109/109 |
+| 性能基准 | `NativeBenchmarkTest`：wallet add 1000 次 native（含 JNI+JSON 开销）11.8ms vs Kotlin 28µs——高频纯计算场景确认 JNI 传输开销显著，**低频方法调用（业务操作）才适合转发**；此结论登记为批次 10 转发范围裁剪依据 |
+
+> 批次 9 剩余基础设施达成：feature flag / StateSyncService（字段级宽松合并防丢字段）/ tick 桥（shadow 对拍）/
+> 转发辅助层 / 性能基准全部落地并有 JUnit 守护。
+> 剩余（登记随后续批次）：GameEngine 275 方法逐一转发（**依赖 C++ 动作全覆盖**——目前 C++ 仅 46 动作覆盖已迁移
+> 系统，未迁移系统如 SecretRealm/外交/邮件等无对应动作，转发无从谈起；且 NativeBenchmarkTest 显示 JNI+JSON 开销
+> 显著，**高频纯计算应留在 Kotlin 侧**，转发范围应裁剪为低频业务操作）；全量快照→增量变更集同步（nativeExportDirty
+> 当前为空实现，需 C++ 侧变更集追踪）；**全量切换（C++ 为真相源）登记为批次 10 前置**——shadow 对拍期 Kotlin 引擎
+> 仍是运行时真相源。 
 
 ## 6. 后续批次（详见实施计划）
 
@@ -266,5 +312,14 @@ android/app/src/main/cpp/
 > 批次 R 验收达成：道路**求解器权威性**双端对拍守护完成（掩码→形态/描边/邻接计算逐位一致）。
 > 剩余（登记随后续批次）：**渲染合成收敛**——Kotlin Canvas `SoftwareCanvasBackend.drawRoadsToCanvas` 与 C++ Vulkan
 > `NativeBridge.drawAllTiles` 道路段的逐格合成逻辑统一为单一 C++ 合成器（下沉 road_system.h），Kotlin 侧仅做数据装配；
-> 同时解除与生成式图集的强耦合。此为渲染层大工程，需与 Vulkan/Canvas 双路径回归协同推进。 
+> 同时解除与生成式图集的强耦合。此为渲染层大工程，需与 Vulkan/Canvas 双路径回归协同推进。
+
+### 批次 R（求解器权威收敛已完成）：Vulkan 端位掩码判定收敛 road_system.h
+
+| 项 | 说明 |
+|---|---|
+| 收敛 | `NativeBridge.cpp` 删除本地双份 `roadTypeForMask`（位掩码→形态全量 if-else）与 `border = 0xF ^ (mask & 0xF)`，改经 `gamecore/map/road_system.h` 的 `tileTypeForBitmask`/`roadBorderMask` 单一权威（C++20 inline 纯函数，零 Android 依赖）；`native-renderer` CMake 增加 gamecore include 路径 |
+| 语义核对 | 权威 RoadTileType 枚举序（SINGLE=0..CROSS=11）与 Vulkan ROAD_RECTS 素材索引对齐：HORIZONTAL=1→base、VERTICAL=2→base_v、CROSS=11→cross_center 均一致；T 型（7-10）在渲染中统一用 junction 素材，T_DOWN/T_RIGHT 序号差异无渲染影响 |
+| 验证 | 桌面 GTest `Road*` 16/16（road_system_test 不变）；JUnit `DiffRoadTest` 3/3（求解器双端对拍守护不受影响）；NDK `externalNativeBuildRelease` 通过 |
+| 剩余（登记） | **渲染合成器物理下沉**：Kotlin Canvas `drawRoadsToCanvas` 与 Vulkan 道路段的逐格合成（主体/描边条/转角件/十字中心的摆放顺序）仍双端各自实现；统一为单一 C++ 合成器需跨模块 JNI 通道 + Vulkan/Canvas 双路径回归，为渲染层大工程登记随后续批次 | 
 

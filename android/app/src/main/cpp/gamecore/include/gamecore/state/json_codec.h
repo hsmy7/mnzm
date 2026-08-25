@@ -97,6 +97,28 @@ void from_json(const nlohmann::json& j, SpiritMineSlot& v);
 void to_json(nlohmann::json& j, const PatrolSlot& v);
 void from_json(const nlohmann::json& j, PatrolSlot& v);
 
+// 批次 1 剩余：远古秘境状态机
+void to_json(nlohmann::json& j, const SecretRealmState& v);
+void from_json(const nlohmann::json& j, SecretRealmState& v);
+void to_json(nlohmann::json& j, const SecretRealmMemberState& v);
+void from_json(const nlohmann::json& j, SecretRealmMemberState& v);
+void to_json(nlohmann::json& j, const SecretRealmOption& v);
+void from_json(const nlohmann::json& j, SecretRealmOption& v);
+void to_json(nlohmann::json& j, const SecretRealmRewardItem& v);
+void from_json(const nlohmann::json& j, SecretRealmRewardItem& v);
+void to_json(nlohmann::json& j, const SecretRealmAIMember& v);
+void from_json(const nlohmann::json& j, SecretRealmAIMember& v);
+void to_json(nlohmann::json& j, const SecretRealmEventParams& v);
+void from_json(const nlohmann::json& j, SecretRealmEventParams& v);
+void to_json(nlohmann::json& j, const SecretRealmEventRecord& v);
+void from_json(const nlohmann::json& j, SecretRealmEventRecord& v);
+void to_json(nlohmann::json& j, const SecretRealmBackpack& v);
+void from_json(const nlohmann::json& j, SecretRealmBackpack& v);
+void to_json(nlohmann::json& j, const SecretRealmExplorationSession& v);
+void from_json(const nlohmann::json& j, SecretRealmExplorationSession& v);
+void to_json(nlohmann::json& j, const SecretRealmAITeam& v);
+void from_json(const nlohmann::json& j, SecretRealmAITeam& v);
+
 void to_json(nlohmann::json& j, const GameData& v);
 void from_json(const nlohmann::json& j, GameData& v);
 

@@ -16,6 +16,9 @@
 // 建筑占地尺寸查找表（2026-08-01：由 SpriteAtlasDef.kt 生成，禁止手改——
 // 运行 ./gradlew generateFootprintHeader 重新生成）
 #include "footprint_table.h"
+// 石板道路求解器（批次 R：位掩码→形态/描边判定收敛为单一权威——
+// Kotlin RoadTiling 与 C++ 渲染端统一引用 gamecore/map/road_system.h）
+#include "gamecore/map/road_system.h"
 
 // UV 向内收缩 0.5 texel（匹配 Cocos2d-x CC_FIX_ARTIFACTS_BY_STRECHING_TEXEL）
 // 防止 CLAMP_TO_EDGE + NEAREST 采样下 UV 边界采样到相邻图素，消除彩色缝合线
@@ -118,45 +121,15 @@ static inline bool isRectVisible(float x, float y, float w, float h) {
              y + h <= g_viewTop || y >= g_viewBottom);
 }
 
-// 石板道路邻接方向位（与 Kotlin RoadTiling 同源）：上=1 右=2 下=4 左=8
-static constexpr int ROAD_UP = 1;
-static constexpr int ROAD_RIGHT = 2;
-static constexpr int ROAD_DOWN = 4;
-static constexpr int ROAD_LEFT = 8;
-
 /**
- * 位掩码 → 道路形态（与 Kotlin RoadTiling.tileTypeForBitmask 同语义）。
+ * 位掩码 → 道路形态索引（批次 R 收敛：单一权威 = gamecore/map/road_system.h
+ * 的 tileTypeForBitmask，与 Kotlin RoadTiling 逐位同语义，双端对拍守护）。
  * 返回索引：0=SINGLE 1=HORIZONTAL 2=VERTICAL 3..6=转角(TL/TR/BL/BR)
- * 7..10=T 型(UP/RIGHT/DOWN/LEFT) 11=CROSS。
+ * 7..10=T 型(UP/RIGHT/DOWN/LEFT) 11=CROSS —— 与 road_system.h RoadTileType
+ * 枚举序一致（Kotlin RoadTileType 同序，SpriteAtlasDef.ROAD_RECTS 依赖此序）。
  */
 static int roadTypeForMask(int mask) {
-    const int m = mask & 0xF;
-    int cnt = 0;
-    for (int i = 0; i < 4; ++i) if (m & (1 << i)) ++cnt;
-    if (cnt == 0) return 0;                       // SINGLE（孤立单格）
-    if (cnt == 1) {                               // 死路（道路端点）按方向归为直路
-        if (m == ROAD_LEFT || m == ROAD_RIGHT) return 1;   // HORIZONTAL
-        if (m == ROAD_UP || m == ROAD_DOWN) return 2;      // VERTICAL
-        return 0;
-    }
-    if (cnt == 2) {
-        if (m == (ROAD_UP | ROAD_DOWN)) return 2;       // VERTICAL
-        if (m == (ROAD_LEFT | ROAD_RIGHT)) return 1;    // HORIZONTAL
-        if (m == (ROAD_UP | ROAD_LEFT)) return 3;       // CORNER_TL
-        if (m == (ROAD_UP | ROAD_RIGHT)) return 4;      // CORNER_TR
-        if (m == (ROAD_DOWN | ROAD_LEFT)) return 5;     // CORNER_BL
-        if (m == (ROAD_DOWN | ROAD_RIGHT)) return 6;    // CORNER_BR
-        return 0;
-    }
-    if (cnt == 3) {
-        if (m == (ROAD_UP | ROAD_LEFT | ROAD_RIGHT)) return 7;  // T_UP
-        if (m == (ROAD_DOWN | ROAD_LEFT | ROAD_RIGHT)) return 8; // T_DOWN
-        if (m == (ROAD_UP | ROAD_DOWN | ROAD_RIGHT)) return 9;   // T_RIGHT
-        if (m == (ROAD_UP | ROAD_DOWN | ROAD_LEFT)) return 10;   // T_LEFT
-        return 0;
-    }
-    if (cnt == 4) return 11;  // CROSS
-    return 0;
+    return static_cast<int>(gamecore::map::tileTypeForBitmask(mask));
 }
 
 // 瓷砖类型常量（TILE_GROUND / TILE_BUILDING）
@@ -641,9 +614,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     float wx = (float)(col * tileSize);
                     if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 
-                    // 形态 + 边框（掩码补集）
+                    // 形态 + 边框（掩码补集——批次 R 收敛：roadBorderMask 权威）
                     const int type = roadTypeForMask(mask);
-                    const int border = (0xF ^ (mask & 0xF));
+                    const int border = gamecore::map::roadBorderMask(mask);
 
                     // 主体
                     int baseIdx = 2;  // jungle（转角/T/十字）

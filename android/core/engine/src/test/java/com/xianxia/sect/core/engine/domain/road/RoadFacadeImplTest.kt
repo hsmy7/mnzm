@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.road
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.util.RoadPlacementResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

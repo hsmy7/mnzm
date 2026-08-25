@@ -37,6 +37,7 @@ add_library(native-renderer SHARED
 
 target_include_directories(native-renderer PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/gamecore/include
     ${SHADER_DIR}
     ${SPRITE_GENERATED_DIR}
     ${Vulkan_INCLUDE_DIRS}

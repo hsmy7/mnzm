@@ -433,6 +433,117 @@ struct PatrolSlot {
     std::string buildingInstanceId;
 };
 
+// ── SecretRealm（远古秘境）状态机（批次 1 剩余）────────────────────────
+
+/// SecretRealmState（远古秘境地图实例；id 为空 = 当前不存在）
+struct SecretRealmState {
+    std::string id;
+    std::string name = "远古秘境";
+    float x = 0.0f;
+    float y = 0.0f;
+    int32_t spawnYear = 1;
+    int32_t spawnMonth = 1;
+    int32_t spriteIndex = 0;
+};
+
+/// SecretRealmMemberState（探索队伍成员动态状态）
+struct SecretRealmMemberState {
+    std::string discipleId;
+    std::string name;
+    std::string portraitRes;
+    int32_t realm = 9;
+    std::string realmName;
+    int32_t currentHp = -1;      // -1 = 满血（与 Disciple.combat.currentHp 语义一致）
+    bool isDying = false;        // 重伤濒死（保命一次）
+    bool isDead = false;         // 已永久死亡
+    int32_t maxHp = 0;           // 战斗口径最大生命值；0 = 未知
+};
+
+/// SecretRealmOption（事件选项）
+struct SecretRealmOption {
+    std::string label;
+    std::string description;
+    int32_t staminaCost = 1;
+};
+
+/// SecretRealmRewardItem（奖励物品描述，结算时才实例化入仓）
+struct SecretRealmRewardItem {
+    std::string type;            // equipment / manual / pill / material / herb / seed
+    std::string itemId;
+    std::string name;
+    int32_t rarity = 1;
+    int32_t quantity = 1;
+};
+
+/// SecretRealmAIMember（AI 宗门队伍成员）
+struct SecretRealmAIMember {
+    std::string discipleId;
+    std::string name;
+    std::string portraitRes;
+    int32_t realm = 9;
+};
+
+/// SecretRealmEventParams（妖兽事件参数，读档一致性关键）
+struct SecretRealmEventParams {
+    std::string beastTypeName;
+    int32_t beastRealm = 9;
+    int32_t beastCount = 1;
+    bool ambushSucceeded = false;   // 偷袭成功：初始血量 -10%
+    int32_t beastLayer = 1;         // 妖兽层数 1..9
+    int32_t lostItemCount = 0;      // 战斗失败丢失件数
+    int64_t spiritStones = 0;
+    std::vector<SecretRealmRewardItem> itemRewards;
+    std::string aiSectId;           // AI 宗门遭遇
+    std::string aiSectName;
+    int32_t aiSectLevel = 0;        // 0小型/1中型/2大型/3顶级
+    std::vector<SecretRealmAIMember> aiMembers;
+};
+
+/// SecretRealmEventRecord（探索事件记录——整个事件序列化，读档可继续）
+struct SecretRealmEventRecord {
+    std::string eventType;          // SecretRealmEventType.name
+    std::string title;
+    std::string description;
+    std::vector<SecretRealmOption> options;
+    int32_t chosenOptionIndex = -1; // -1 = 未选择（进行中）
+    std::string resultText;
+    SecretRealmEventParams params;
+    int32_t absoluteMonth = 0;
+};
+
+/// SecretRealmBackpack（探索背包——暂存探索所得，结束统一入宗门仓库）
+struct SecretRealmBackpack {
+    int64_t spiritStones = 0;
+    std::vector<EquipmentStack> equipment;
+    std::vector<ManualStack> manuals;
+    std::vector<Pill> pills;
+    std::vector<Material> materials;
+    std::vector<Herb> herbs;
+    std::vector<Seed> seeds;
+};
+
+/// SecretRealmExplorationSession（完整持久化，支撑断线续玩）
+struct SecretRealmExplorationSession {
+    std::string secretRealmId;
+    std::vector<SecretRealmMemberState> members;
+    int32_t stamina = 20;
+    SecretRealmBackpack backpack;
+    std::optional<SecretRealmEventRecord> currentEvent;   // 最近未完成事件
+    std::vector<SecretRealmEventRecord> eventHistory;     // 已完成事件序列
+    int32_t startYear = 1;
+    int32_t startMonth = 1;
+    std::string resultMessage;      // 上个事件结算结果描述
+};
+
+/// SecretRealmAITeam（AI 宗门探索队伍——仅派遣占位）
+struct SecretRealmAITeam {
+    std::string id;
+    std::string sectId;
+    std::string sectName;
+    std::vector<SecretRealmAIMember> members;
+    int32_t sectLevel = 0;
+};
+
 /// WorldLevel（世界关卡：妖兽/洞府）
 struct WorldLevel {
     std::string id;
@@ -641,6 +752,10 @@ struct GameData {
     std::vector<std::string> shownWarningStageIds;
     // 秘境
     int32_t secretRealmCooldownYear = 0;
+    // 批次 1 剩余：远古秘境状态机（玩法状态，结算不参与）
+    SecretRealmState secretRealmState;
+    SecretRealmExplorationSession secretRealmSession;
+    std::vector<SecretRealmAITeam> secretRealmAITeams;
     // 附庸
     std::string suzerainSectId;
     int64_t lastYearSpiritStoneIncome = 0;

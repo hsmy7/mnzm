@@ -63,7 +63,11 @@ object RoadTiling {
      * 任意 4-bit 组合必然落在 12 类之一：
      *   0/1 连接 → 单格；2 连接（对边）→ 直路、（相邻边）→ 转角；
      *   3 连接 → T 型（主干 = 单独臂）；4 连接 → 十字。
+     *
+     * 圈复杂度偏高（22）为查表式映射本质：与 C++ road_system.h 同源并由
+     * DiffRoadTest 全 16 掩码对拍守护，禁止重构（改写引入漂移风险）。
      */
+    @Suppress("CyclomaticComplexMethod")
     fun tileTypeForBitmask(mask: Int): RoadTileType {
         val m = mask and MASK_ALL
         return when (connectionCount(m)) {
@@ -117,6 +121,7 @@ object RoadTiling {
     }
 
     /** 基于编码集合的位掩码查询（[cells] 为 `packCell(x,y)` 集合）。 */
+    @Suppress("ComplexCondition")  // 四邻边界检查为显式自解释判据（与 C++ road_system.h 同源，DiffRoadTest 守护）
     fun bitmaskAt(cells: Set<Long>, x: Int, y: Int, width: Int, height: Int): Int {
         var mask = 0
         if (x >= 0 && y >= 0 && x < width && y < height) {

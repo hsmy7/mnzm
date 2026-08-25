@@ -25,16 +25,9 @@ class DiffBreakthroughTest {
 
     private val json = Json { encodeDefaults = true }
 
-    private fun cppValue(op: JsonObject): JsonObject {
-        val result = DiffRngBridge.nativeCoreCultivationOp(
-            json.encodeToString(JsonObject.serializer(), op).encodeToByteArray()
-        ).decodeToString()
-        assertTrue("C++ 执行出错: $result", !result.contains("\"error\""))
-        return json.parseToJsonElement(result) as JsonObject
-    }
-
     // ── estimateMonthsToNextBreakthrough（Kotlin 真实公式）───────────
 
+    @Suppress("ReturnCount")  // 复刻 Kotlin 公式的分支出口，禁止重构（漂移即对拍失败）
     private fun kotlinEstimate(remaining: Double, rate: Double): Int {
         if (remaining <= 0.0) return 0
         if (rate <= 0.0) return Int.MAX_VALUE
@@ -69,6 +62,7 @@ class DiffBreakthroughTest {
     // ── 突破成功/失败应用（Kotlin 复刻）────────────────────────────
 
     /** 复刻 DiscipleBreakthroughHandler.applyBreakthroughSuccess */
+    @Suppress("UnusedParameter")  // cultivation 仅作签名对齐（C++ 侧同参数表）
     private fun kotlinSuccess(
         realm: Int, realmLayer: Int, cultivation: Double, lifespan: Int, lifespanGain: Int,
     ): Triple<Int, Int, Double> {
