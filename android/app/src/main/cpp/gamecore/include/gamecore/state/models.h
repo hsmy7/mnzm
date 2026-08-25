@@ -413,12 +413,24 @@ struct SpiritFieldPlant {
     int32_t plantMonth = 0;
     std::string sectId;
     int32_t completionMonth = 0;
+    int32_t completionPhase = 1;
 };
 
 /// PatrolConfig（巡视塔配置）
 struct PatrolConfig {
     std::vector<int32_t> targetRealms;   // Set<Int> → JSON 数组
     int32_t maxBeastCount = 1;
+    bool requireFullStatus = true;
+};
+
+/// PatrolSlot（巡视槽位——Kotlin PatrolSlot）
+struct PatrolSlot {
+    int32_t index = 0;
+    std::string discipleId;
+    std::string discipleName;
+    std::string discipleRealm;
+    std::string portraitRes;
+    std::string buildingInstanceId;
 };
 
 /// WorldLevel（世界关卡：妖兽/洞府）
@@ -486,6 +498,64 @@ struct PendingTraitAdd {
     std::string discipleId;
     std::string type;
     std::string traitId;
+};
+
+// ── 批次 1 剩余：低频嵌套类型（与 Kotlin @Serializable 字段名一致） ──
+
+/// BloodRefinementProgress（血炼进行中）
+struct BloodRefinementProgress {
+    std::string discipleId;
+    std::string discipleName;
+    std::string materialId;
+    std::string materialName;
+    int32_t startYear = 0;
+    int32_t startMonth = 0;
+    int32_t durationMonths = 0;
+    std::string selectedStat;
+    double bonusPercent = 0.0;
+};
+
+/// BloodRefinementBonusTotal（血炼累计——单利旧格式，存档兼容）
+struct BloodRefinementBonusTotal {
+    std::string discipleId;
+    int32_t hpBonus = 0;
+    int32_t physicalAttackBonus = 0;
+    int32_t magicAttackBonus = 0;
+    int32_t physicalDefenseBonus = 0;
+    int32_t magicDefenseBonus = 0;
+    int32_t speedBonus = 0;
+};
+
+/// BloodRefinementPctTotal（血炼累计——百分比乘区格式）
+struct BloodRefinementPctTotal {
+    std::string discipleId;
+    double hpBonusPct = 0.0;
+    double physicalAttackBonusPct = 0.0;
+    double magicAttackBonusPct = 0.0;
+    double physicalDefenseBonusPct = 0.0;
+    double magicDefenseBonusPct = 0.0;
+    double speedBonusPct = 0.0;
+};
+
+/// ManualProficiencyData（功法熟练度）
+struct ManualProficiencyData {
+    std::string manualId;
+    std::string manualName;
+    double proficiency = 0.0;
+    int32_t maxProficiency = 100;
+    int32_t level = 1;
+    int32_t masteryLevel = 0;
+};
+
+/// SpiritMineSlot（矿脉槽位——Kotlin SpiritMineSlot）
+struct SpiritMineSlot {
+    int32_t index = 0;
+    std::string discipleId;
+    std::string discipleName;
+    int32_t output = 100;
+    std::string sectId;
+    int32_t consecutiveMiningMonths = 0;
+    std::string buildingInstanceId;
 };
 
 // ── GameData（核心标量 + 简单集合字段） ─────────────────────────────
@@ -618,6 +688,13 @@ struct GameData {
     std::map<std::string, std::vector<std::string>> bloodRefinements;
     std::vector<YearlyReport> yearlyReports;
     std::vector<PendingTraitAdd> pendingTraitAdds;
+    // ── 批次 1 剩余：低频嵌套类型字段 ──
+    std::map<std::string, std::vector<ManualProficiencyData>> manualProficiencies;
+    std::vector<SpiritMineSlot> spiritMineSlots;
+    std::map<std::string, BloodRefinementBonusTotal> bloodRefinementBonusTotals;
+    std::map<std::string, BloodRefinementPctTotal> bloodRefinementPctTotals;
+    std::map<std::string, BloodRefinementProgress> activeBloodRefinements;
+    std::vector<PatrolSlot> patrolSlots;
 };
 
 // ── 完整状态快照（GameCore 持有的真相状态） ────────────────────────

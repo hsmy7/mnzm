@@ -48,5 +48,29 @@ object DiffRngBridge {
     // ── GameCore 时间推进通道（批次 3，对拍用） ──────────────
     external fun nativeCoreAdvancePhases(phaseCount: Int): Int
 
+    // ── 经济/库存操作通道（批次 4，对拍用） ──────────────────
+    external fun nativeCoreExecOps(opsJson: ByteArray): ByteArray
+
+    // ── 弟子属性计算通道（批次 5，对拍用） ──────────────────
+    external fun nativeCoreDiscipleOp(opJson: ByteArray): ByteArray
+
+    // ── 修炼推进计算通道（批次 5b，对拍用） ────────────────
+    external fun nativeCoreCultivationOp(opJson: ByteArray): ByteArray
+
+    // ── 战斗计算通道（批次 6a，对拍用） ────────────────────
+    external fun nativeCoreBattleOp(opJson: ByteArray): ByteArray
+
+    // ── 内政计算通道（批次 7，对拍用） ────────────────────
+    external fun nativeCoreGovernmentOp(opJson: ByteArray): ByteArray
+
+    // ── 探索计算通道（批次 8a，对拍用） ────────────────────
+    external fun nativeCoreExplorationOp(opJson: ByteArray): ByteArray
+
+    // ── execute 分发表通道（批次 9，对拍用） ────────────────
+    external fun nativeCoreExecute(actionId: Int, paramsJson: ByteArray): ByteArray
+
+    // ── 道路系统通道（批次 R，对拍用） ─────────────────────
+    external fun nativeRoadOp(opJson: ByteArray): ByteArray
+
     external fun nativeDestroy()
 }

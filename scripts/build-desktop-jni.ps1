@@ -49,6 +49,7 @@ $staticArgs = @('-static', '-static-libgcc', '-static-libstdc++')
     (Join-Path $src 'src\rng.cpp') `
     (Join-Path $src 'src\game_core.cpp') `
     (Join-Path $src 'src\json_codec.cpp') `
+    (Join-Path $src 'src\execute_dispatch.cpp') `
     -o $out
 
 if ($LASTEXITCODE -ne 0) { throw "Build failed (exit=$LASTEXITCODE)" }

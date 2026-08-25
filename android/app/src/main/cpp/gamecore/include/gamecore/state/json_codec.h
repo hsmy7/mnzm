@@ -84,6 +84,19 @@ void from_json(const nlohmann::json& j, YearlyReport& v);
 void to_json(nlohmann::json& j, const PendingTraitAdd& v);
 void from_json(const nlohmann::json& j, PendingTraitAdd& v);
 
+void to_json(nlohmann::json& j, const BloodRefinementProgress& v);
+void from_json(const nlohmann::json& j, BloodRefinementProgress& v);
+void to_json(nlohmann::json& j, const BloodRefinementBonusTotal& v);
+void from_json(const nlohmann::json& j, BloodRefinementBonusTotal& v);
+void to_json(nlohmann::json& j, const BloodRefinementPctTotal& v);
+void from_json(const nlohmann::json& j, BloodRefinementPctTotal& v);
+void to_json(nlohmann::json& j, const ManualProficiencyData& v);
+void from_json(const nlohmann::json& j, ManualProficiencyData& v);
+void to_json(nlohmann::json& j, const SpiritMineSlot& v);
+void from_json(const nlohmann::json& j, SpiritMineSlot& v);
+void to_json(nlohmann::json& j, const PatrolSlot& v);
+void from_json(const nlohmann::json& j, PatrolSlot& v);
+
 void to_json(nlohmann::json& j, const GameData& v);
 void from_json(const nlohmann::json& j, GameData& v);
 

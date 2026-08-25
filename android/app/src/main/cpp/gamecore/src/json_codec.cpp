@@ -454,21 +454,21 @@ void to_json(nlohmann::json& j, const SpiritFieldPlant& v) {
     GC_TO(v, j, buildingInstanceId); GC_TO(v, j, seedId); GC_TO(v, j, seedName);
     GC_TO(v, j, growTime); GC_TO(v, j, expectedYield);
     GC_TO(v, j, plantYear); GC_TO(v, j, plantMonth); GC_TO(v, j, sectId);
-    GC_TO(v, j, completionMonth);
+    GC_TO(v, j, completionMonth); GC_TO(v, j, completionPhase);
 }
 void from_json(const nlohmann::json& j, SpiritFieldPlant& v) {
     GC_FROM(j, v, buildingInstanceId); GC_FROM(j, v, seedId); GC_FROM(j, v, seedName);
     GC_FROM(j, v, growTime); GC_FROM(j, v, expectedYield);
     GC_FROM(j, v, plantYear); GC_FROM(j, v, plantMonth); GC_FROM(j, v, sectId);
-    GC_FROM(j, v, completionMonth);
+    GC_FROM(j, v, completionMonth); GC_FROM(j, v, completionPhase);
 }
 
 void to_json(nlohmann::json& j, const PatrolConfig& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, targetRealms); GC_TO(v, j, maxBeastCount);
+    GC_TO(v, j, targetRealms); GC_TO(v, j, maxBeastCount); GC_TO(v, j, requireFullStatus);
 }
 void from_json(const nlohmann::json& j, PatrolConfig& v) {
-    GC_FROM(j, v, targetRealms); GC_FROM(j, v, maxBeastCount);
+    GC_FROM(j, v, targetRealms); GC_FROM(j, v, maxBeastCount); GC_FROM(j, v, requireFullStatus);
 }
 
 void to_json(nlohmann::json& j, const WorldLevel& v) {
@@ -537,6 +537,86 @@ void from_json(const nlohmann::json& j, PendingTraitAdd& v) {
     GC_FROM(j, v, discipleId); GC_FROM(j, v, type); GC_FROM(j, v, traitId);
 }
 
+// ── 批次 1 剩余：低频嵌套类型 ─────────────────────────────────────
+
+void to_json(nlohmann::json& j, const BloodRefinementProgress& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, materialId); GC_TO(v, j, materialName);
+    GC_TO(v, j, startYear); GC_TO(v, j, startMonth);
+    GC_TO(v, j, durationMonths); GC_TO(v, j, selectedStat);
+    GC_TO(v, j, bonusPercent);
+}
+void from_json(const nlohmann::json& j, BloodRefinementProgress& v) {
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, materialId); GC_FROM(j, v, materialName);
+    GC_FROM(j, v, startYear); GC_FROM(j, v, startMonth);
+    GC_FROM(j, v, durationMonths); GC_FROM(j, v, selectedStat);
+    GC_FROM(j, v, bonusPercent);
+}
+
+void to_json(nlohmann::json& j, const BloodRefinementBonusTotal& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, discipleId); GC_TO(v, j, hpBonus);
+    GC_TO(v, j, physicalAttackBonus); GC_TO(v, j, magicAttackBonus);
+    GC_TO(v, j, physicalDefenseBonus); GC_TO(v, j, magicDefenseBonus);
+    GC_TO(v, j, speedBonus);
+}
+void from_json(const nlohmann::json& j, BloodRefinementBonusTotal& v) {
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, hpBonus);
+    GC_FROM(j, v, physicalAttackBonus); GC_FROM(j, v, magicAttackBonus);
+    GC_FROM(j, v, physicalDefenseBonus); GC_FROM(j, v, magicDefenseBonus);
+    GC_FROM(j, v, speedBonus);
+}
+
+void to_json(nlohmann::json& j, const BloodRefinementPctTotal& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, discipleId); GC_TO(v, j, hpBonusPct);
+    GC_TO(v, j, physicalAttackBonusPct); GC_TO(v, j, magicAttackBonusPct);
+    GC_TO(v, j, physicalDefenseBonusPct); GC_TO(v, j, magicDefenseBonusPct);
+    GC_TO(v, j, speedBonusPct);
+}
+void from_json(const nlohmann::json& j, BloodRefinementPctTotal& v) {
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, hpBonusPct);
+    GC_FROM(j, v, physicalAttackBonusPct); GC_FROM(j, v, magicAttackBonusPct);
+    GC_FROM(j, v, physicalDefenseBonusPct); GC_FROM(j, v, magicDefenseBonusPct);
+    GC_FROM(j, v, speedBonusPct);
+}
+
+void to_json(nlohmann::json& j, const ManualProficiencyData& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, manualId); GC_TO(v, j, manualName);
+    GC_TO(v, j, proficiency); GC_TO(v, j, maxProficiency);
+    GC_TO(v, j, level); GC_TO(v, j, masteryLevel);
+}
+void from_json(const nlohmann::json& j, ManualProficiencyData& v) {
+    GC_FROM(j, v, manualId); GC_FROM(j, v, manualName);
+    GC_FROM(j, v, proficiency); GC_FROM(j, v, maxProficiency);
+    GC_FROM(j, v, level); GC_FROM(j, v, masteryLevel);
+}
+
+void to_json(nlohmann::json& j, const SpiritMineSlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, output); GC_TO(v, j, sectId);
+    GC_TO(v, j, consecutiveMiningMonths); GC_TO(v, j, buildingInstanceId);
+}
+void from_json(const nlohmann::json& j, SpiritMineSlot& v) {
+    GC_FROM(j, v, index); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, output); GC_FROM(j, v, sectId);
+    GC_FROM(j, v, consecutiveMiningMonths); GC_FROM(j, v, buildingInstanceId);
+}
+
+void to_json(nlohmann::json& j, const PatrolSlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, discipleRealm); GC_TO(v, j, portraitRes); GC_TO(v, j, buildingInstanceId);
+}
+void from_json(const nlohmann::json& j, PatrolSlot& v) {
+    GC_FROM(j, v, index); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, discipleRealm); GC_FROM(j, v, portraitRes); GC_FROM(j, v, buildingInstanceId);
+}
+
 // ── GameData ─────────────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const GameData& v) {
@@ -603,6 +683,10 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, mailRecords); GC_TO(v, j, sectLevelClaimRecords);
     GC_TO(v, j, bloodRefinements);
     GC_TO(v, j, yearlyReports); GC_TO(v, j, pendingTraitAdds);
+    // 批次 1 剩余：低频嵌套类型字段
+    GC_TO(v, j, manualProficiencies); GC_TO(v, j, spiritMineSlots);
+    GC_TO(v, j, bloodRefinementBonusTotals); GC_TO(v, j, bloodRefinementPctTotals);
+    GC_TO(v, j, activeBloodRefinements); GC_TO(v, j, patrolSlots);
 }
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
@@ -667,6 +751,10 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, mailRecords); GC_FROM(j, v, sectLevelClaimRecords);
     GC_FROM(j, v, bloodRefinements);
     GC_FROM(j, v, yearlyReports); GC_FROM(j, v, pendingTraitAdds);
+    // 批次 1 剩余：低频嵌套类型字段
+    GC_FROM(j, v, manualProficiencies); GC_FROM(j, v, spiritMineSlots);
+    GC_FROM(j, v, bloodRefinementBonusTotals); GC_FROM(j, v, bloodRefinementPctTotals);
+    GC_FROM(j, v, activeBloodRefinements); GC_FROM(j, v, patrolSlots);
 }
 
 // ── Full snapshot ────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ add_library(game-core STATIC
     src/rng.cpp
     src/game_core.cpp
     src/json_codec.cpp
+    src/execute_dispatch.cpp
 )
 
 target_include_directories(game-core PUBLIC

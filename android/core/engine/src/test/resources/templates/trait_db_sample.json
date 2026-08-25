@@ -1,0 +1,2766 @@
+{
+ "talentCount": 109,
+ "physiqueCount": 24,
+ "affixCount": 71,
+ "talents": [
+  {
+   "id": "r1_cult_speed",
+   "name": "灵脉流转",
+   "description": "修炼速度+6%",
+   "rarity": 1,
+   "effects": {
+    "cultivationSpeed": 0.06
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_cult_speed",
+   "name": "灵脉流转",
+   "description": "修炼速度+10%",
+   "rarity": 1,
+   "effects": {
+    "cultivationSpeed": 0.1
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_cult_speed",
+   "name": "灵脉流转",
+   "description": "修炼速度+15%",
+   "rarity": 2,
+   "effects": {
+    "cultivationSpeed": 0.15
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r4_cult_speed",
+   "name": "灵脉流转",
+   "description": "修炼速度+22%",
+   "rarity": 2,
+   "effects": {
+    "cultivationSpeed": 0.22
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r5_cult_speed",
+   "name": "灵脉流转",
+   "description": "修炼速度+25%",
+   "rarity": 3,
+   "effects": {
+    "cultivationSpeed": 0.25
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r6_cult_speed",
+   "name": "灵脉流转",
+   "description": "修炼速度+32%",
+   "rarity": 3,
+   "effects": {
+    "cultivationSpeed": 0.32
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_break_chance",
+   "name": "悟道通玄",
+   "description": "突破概率+1.0%",
+   "rarity": 1,
+   "effects": {
+    "breakthroughChance": 0.01
+   },
+   "isNegative": false,
+   "type": "BREAK_CHANCE",
+   "template": "break_chance",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_break_chance",
+   "name": "悟道通玄",
+   "description": "突破概率+1.5%",
+   "rarity": 1,
+   "effects": {
+    "breakthroughChance": 0.015
+   },
+   "isNegative": false,
+   "type": "BREAK_CHANCE",
+   "template": "break_chance",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_break_chance",
+   "name": "悟道通玄",
+   "description": "突破概率+3.0%",
+   "rarity": 2,
+   "effects": {
+    "breakthroughChance": 0.03
+   },
+   "isNegative": false,
+   "type": "BREAK_CHANCE",
+   "template": "break_chance",
+   "positionBonus": null
+  },
+  {
+   "id": "r4_break_chance",
+   "name": "悟道通玄",
+   "description": "突破概率+4.0%",
+   "rarity": 2,
+   "effects": {
+    "breakthroughChance": 0.04
+   },
+   "isNegative": false,
+   "type": "BREAK_CHANCE",
+   "template": "break_chance",
+   "positionBonus": null
+  },
+  {
+   "id": "r5_break_chance",
+   "name": "悟道通玄",
+   "description": "突破概率+5.0%",
+   "rarity": 3,
+   "effects": {
+    "breakthroughChance": 0.05
+   },
+   "isNegative": false,
+   "type": "BREAK_CHANCE",
+   "template": "break_chance",
+   "positionBonus": null
+  },
+  {
+   "id": "r6_break_chance",
+   "name": "悟道通玄",
+   "description": "突破概率+7.0%",
+   "rarity": 3,
+   "effects": {
+    "breakthroughChance": 0.07
+   },
+   "isNegative": false,
+   "type": "BREAK_CHANCE",
+   "template": "break_chance",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_lifespan",
+   "name": "寿元绵长",
+   "description": "寿命+10%",
+   "rarity": 1,
+   "effects": {
+    "lifespan": 0.1
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_lifespan",
+   "name": "寿元绵长",
+   "description": "寿命+16%",
+   "rarity": 1,
+   "effects": {
+    "lifespan": 0.16
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_lifespan",
+   "name": "寿元绵长",
+   "description": "寿命+25%",
+   "rarity": 2,
+   "effects": {
+    "lifespan": 0.25
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r4_lifespan",
+   "name": "寿元绵长",
+   "description": "寿命+35%",
+   "rarity": 2,
+   "effects": {
+    "lifespan": 0.35
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r5_lifespan",
+   "name": "寿元绵长",
+   "description": "寿命+45%",
+   "rarity": 3,
+   "effects": {
+    "lifespan": 0.45
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r6_lifespan",
+   "name": "寿元绵长",
+   "description": "寿命+60%",
+   "rarity": 3,
+   "effects": {
+    "lifespan": 0.6
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r6_manual_slot",
+   "name": "天衍道藏",
+   "description": "功法槽位+1",
+   "rarity": 3,
+   "effects": {
+    "manualSlot": 1
+   },
+   "isNegative": false,
+   "type": "MANUAL_SLOT",
+   "template": "manual_slot",
+   "positionBonus": null
+  },
+  {
+   "id": "r6_win_growth",
+   "name": "百战通神",
+   "description": "每胜利一场战斗后，随机一个属性+1（无上限）",
+   "rarity": 3,
+   "effects": {
+    "winBattleRandomAttrPlus": 1
+   },
+   "isNegative": false,
+   "type": "WIN_GROWTH",
+   "template": "win_growth",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_phy_atk",
+   "name": "勇武",
+   "description": "物攻+6%",
+   "rarity": 1,
+   "effects": {
+    "physicalAttack": 0.06
+   },
+   "isNegative": false,
+   "type": "BAT_PHY_ATK",
+   "template": "bat_phy_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_phy_atk",
+   "name": "勇武",
+   "description": "物攻+13%",
+   "rarity": 2,
+   "effects": {
+    "physicalAttack": 0.13
+   },
+   "isNegative": false,
+   "type": "BAT_PHY_ATK",
+   "template": "bat_phy_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_phy_atk",
+   "name": "勇武",
+   "description": "物攻+22%",
+   "rarity": 3,
+   "effects": {
+    "physicalAttack": 0.22
+   },
+   "isNegative": false,
+   "type": "BAT_PHY_ATK",
+   "template": "bat_phy_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_mag_atk",
+   "name": "神通",
+   "description": "法攻+6%",
+   "rarity": 1,
+   "effects": {
+    "magicAttack": 0.06
+   },
+   "isNegative": false,
+   "type": "BAT_MAG_ATK",
+   "template": "bat_mag_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_mag_atk",
+   "name": "神通",
+   "description": "法攻+13%",
+   "rarity": 2,
+   "effects": {
+    "magicAttack": 0.13
+   },
+   "isNegative": false,
+   "type": "BAT_MAG_ATK",
+   "template": "bat_mag_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_mag_atk",
+   "name": "神通",
+   "description": "法攻+22%",
+   "rarity": 3,
+   "effects": {
+    "magicAttack": 0.22
+   },
+   "isNegative": false,
+   "type": "BAT_MAG_ATK",
+   "template": "bat_mag_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_phy_def",
+   "name": "铁骨",
+   "description": "物防+6%",
+   "rarity": 1,
+   "effects": {
+    "physicalDefense": 0.06
+   },
+   "isNegative": false,
+   "type": "BAT_PHY_DEF",
+   "template": "bat_phy_def",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_phy_def",
+   "name": "铁骨",
+   "description": "物防+13%",
+   "rarity": 2,
+   "effects": {
+    "physicalDefense": 0.13
+   },
+   "isNegative": false,
+   "type": "BAT_PHY_DEF",
+   "template": "bat_phy_def",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_phy_def",
+   "name": "铁骨",
+   "description": "物防+22%",
+   "rarity": 3,
+   "effects": {
+    "physicalDefense": 0.22
+   },
+   "isNegative": false,
+   "type": "BAT_PHY_DEF",
+   "template": "bat_phy_def",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_mag_def",
+   "name": "玄清",
+   "description": "法防+6%",
+   "rarity": 1,
+   "effects": {
+    "magicDefense": 0.06
+   },
+   "isNegative": false,
+   "type": "BAT_MAG_DEF",
+   "template": "bat_mag_def",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_mag_def",
+   "name": "玄清",
+   "description": "法防+13%",
+   "rarity": 2,
+   "effects": {
+    "magicDefense": 0.13
+   },
+   "isNegative": false,
+   "type": "BAT_MAG_DEF",
+   "template": "bat_mag_def",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_mag_def",
+   "name": "玄清",
+   "description": "法防+22%",
+   "rarity": 3,
+   "effects": {
+    "magicDefense": 0.22
+   },
+   "isNegative": false,
+   "type": "BAT_MAG_DEF",
+   "template": "bat_mag_def",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_speed",
+   "name": "疾风",
+   "description": "速度+6%",
+   "rarity": 1,
+   "effects": {
+    "speed": 0.06
+   },
+   "isNegative": false,
+   "type": "BAT_SPEED",
+   "template": "bat_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_speed",
+   "name": "疾风",
+   "description": "速度+13%",
+   "rarity": 2,
+   "effects": {
+    "speed": 0.13
+   },
+   "isNegative": false,
+   "type": "BAT_SPEED",
+   "template": "bat_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_speed",
+   "name": "疾风",
+   "description": "速度+22%",
+   "rarity": 3,
+   "effects": {
+    "speed": 0.22
+   },
+   "isNegative": false,
+   "type": "BAT_SPEED",
+   "template": "bat_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_hp",
+   "name": "体健",
+   "description": "气血+10%",
+   "rarity": 1,
+   "effects": {
+    "maxHp": 0.1
+   },
+   "isNegative": false,
+   "type": "BAT_HP",
+   "template": "bat_hp",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_hp",
+   "name": "体健",
+   "description": "气血+18%",
+   "rarity": 2,
+   "effects": {
+    "maxHp": 0.18
+   },
+   "isNegative": false,
+   "type": "BAT_HP",
+   "template": "bat_hp",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_hp",
+   "name": "体健",
+   "description": "气血+30%",
+   "rarity": 3,
+   "effects": {
+    "maxHp": 0.3
+   },
+   "isNegative": false,
+   "type": "BAT_HP",
+   "template": "bat_hp",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_mp",
+   "name": "气海",
+   "description": "法力+10%",
+   "rarity": 1,
+   "effects": {
+    "maxMp": 0.1
+   },
+   "isNegative": false,
+   "type": "BAT_MP",
+   "template": "bat_mp",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_mp",
+   "name": "气海",
+   "description": "法力+18%",
+   "rarity": 2,
+   "effects": {
+    "maxMp": 0.18
+   },
+   "isNegative": false,
+   "type": "BAT_MP",
+   "template": "bat_mp",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_mp",
+   "name": "气海",
+   "description": "法力+30%",
+   "rarity": 3,
+   "effects": {
+    "maxMp": 0.3
+   },
+   "isNegative": false,
+   "type": "BAT_MP",
+   "template": "bat_mp",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_bat_crit",
+   "name": "锋锐",
+   "description": "暴击+4%",
+   "rarity": 1,
+   "effects": {
+    "critRate": 0.04
+   },
+   "isNegative": false,
+   "type": "BAT_CRIT",
+   "template": "bat_crit",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_bat_crit",
+   "name": "锋锐",
+   "description": "暴击+8%",
+   "rarity": 2,
+   "effects": {
+    "critRate": 0.08
+   },
+   "isNegative": false,
+   "type": "BAT_CRIT",
+   "template": "bat_crit",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_bat_crit",
+   "name": "锋锐",
+   "description": "暴击+14%",
+   "rarity": 3,
+   "effects": {
+    "critRate": 0.14
+   },
+   "isNegative": false,
+   "type": "BAT_CRIT",
+   "template": "bat_crit",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_int",
+   "name": "天慧",
+   "description": "智力+4",
+   "rarity": 1,
+   "effects": {
+    "intelligenceFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_INT",
+   "template": "base_int",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_int",
+   "name": "天慧",
+   "description": "智力+10",
+   "rarity": 2,
+   "effects": {
+    "intelligenceFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_INT",
+   "template": "base_int",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_int",
+   "name": "天慧",
+   "description": "智力+18",
+   "rarity": 3,
+   "effects": {
+    "intelligenceFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_INT",
+   "template": "base_int",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_charm",
+   "name": "仙姿",
+   "description": "魅力+4",
+   "rarity": 1,
+   "effects": {
+    "charmFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_CHARM",
+   "template": "base_charm",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_charm",
+   "name": "仙姿",
+   "description": "魅力+10",
+   "rarity": 2,
+   "effects": {
+    "charmFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_CHARM",
+   "template": "base_charm",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_charm",
+   "name": "仙姿",
+   "description": "魅力+18",
+   "rarity": 3,
+   "effects": {
+    "charmFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_CHARM",
+   "template": "base_charm",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_loyal",
+   "name": "赤诚",
+   "description": "忠诚+4",
+   "rarity": 1,
+   "effects": {
+    "loyaltyFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_LOYAL",
+   "template": "base_loyal",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_loyal",
+   "name": "赤诚",
+   "description": "忠诚+10",
+   "rarity": 2,
+   "effects": {
+    "loyaltyFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_LOYAL",
+   "template": "base_loyal",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_loyal",
+   "name": "赤诚",
+   "description": "忠诚+18",
+   "rarity": 3,
+   "effects": {
+    "loyaltyFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_LOYAL",
+   "template": "base_loyal",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_comp",
+   "name": "顿悟",
+   "description": "悟性+4",
+   "rarity": 1,
+   "effects": {
+    "comprehensionFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_COMP",
+   "template": "base_comp",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_comp",
+   "name": "顿悟",
+   "description": "悟性+10",
+   "rarity": 2,
+   "effects": {
+    "comprehensionFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_COMP",
+   "template": "base_comp",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_comp",
+   "name": "顿悟",
+   "description": "悟性+18",
+   "rarity": 3,
+   "effects": {
+    "comprehensionFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_COMP",
+   "template": "base_comp",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_arti",
+   "name": "天工",
+   "description": "炼器+4",
+   "rarity": 1,
+   "effects": {
+    "artifactRefiningFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_ARTI",
+   "template": "base_arti",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_arti",
+   "name": "天工",
+   "description": "炼器+10",
+   "rarity": 2,
+   "effects": {
+    "artifactRefiningFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_ARTI",
+   "template": "base_arti",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_arti",
+   "name": "天工",
+   "description": "炼器+18",
+   "rarity": 3,
+   "effects": {
+    "artifactRefiningFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_ARTI",
+   "template": "base_arti",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_pill",
+   "name": "天丹",
+   "description": "炼丹+4",
+   "rarity": 1,
+   "effects": {
+    "pillRefiningFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_PILL",
+   "template": "base_pill",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_pill",
+   "name": "天丹",
+   "description": "炼丹+10",
+   "rarity": 2,
+   "effects": {
+    "pillRefiningFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_PILL",
+   "template": "base_pill",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_pill",
+   "name": "天丹",
+   "description": "炼丹+18",
+   "rarity": 3,
+   "effects": {
+    "pillRefiningFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_PILL",
+   "template": "base_pill",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_plant",
+   "name": "青帝",
+   "description": "灵植+4",
+   "rarity": 1,
+   "effects": {
+    "spiritPlantingFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_PLANT",
+   "template": "base_plant",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_plant",
+   "name": "青帝",
+   "description": "灵植+10",
+   "rarity": 2,
+   "effects": {
+    "spiritPlantingFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_PLANT",
+   "template": "base_plant",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_plant",
+   "name": "青帝",
+   "description": "灵植+18",
+   "rarity": 3,
+   "effects": {
+    "spiritPlantingFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_PLANT",
+   "template": "base_plant",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_teach",
+   "name": "夫子",
+   "description": "传道+4",
+   "rarity": 1,
+   "effects": {
+    "teachingFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_TEACH",
+   "template": "base_teach",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_teach",
+   "name": "夫子",
+   "description": "传道+10",
+   "rarity": 2,
+   "effects": {
+    "teachingFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_TEACH",
+   "template": "base_teach",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_teach",
+   "name": "夫子",
+   "description": "传道+18",
+   "rarity": 3,
+   "effects": {
+    "teachingFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_TEACH",
+   "template": "base_teach",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_moral",
+   "name": "仁心",
+   "description": "德行+4",
+   "rarity": 1,
+   "effects": {
+    "moralityFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_MORAL",
+   "template": "base_moral",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_moral",
+   "name": "仁心",
+   "description": "德行+10",
+   "rarity": 2,
+   "effects": {
+    "moralityFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_MORAL",
+   "template": "base_moral",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_moral",
+   "name": "仁心",
+   "description": "德行+18",
+   "rarity": 3,
+   "effects": {
+    "moralityFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_MORAL",
+   "template": "base_moral",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_base_mining",
+   "name": "地眼",
+   "description": "采矿+4",
+   "rarity": 1,
+   "effects": {
+    "miningFlat": 4
+   },
+   "isNegative": false,
+   "type": "BASE_MINING",
+   "template": "base_mining",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_base_mining",
+   "name": "地眼",
+   "description": "采矿+10",
+   "rarity": 2,
+   "effects": {
+    "miningFlat": 10
+   },
+   "isNegative": false,
+   "type": "BASE_MINING",
+   "template": "base_mining",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_base_mining",
+   "name": "地眼",
+   "description": "采矿+18",
+   "rarity": 3,
+   "effects": {
+    "miningFlat": 18
+   },
+   "isNegative": false,
+   "type": "BASE_MINING",
+   "template": "base_mining",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_pos_vice_sect_master",
+   "name": "辅政之才",
+   "description": "政策效果加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_VICE_SECT_MASTER",
+   "template": "pos_vice_sect_master",
+   "positionBonus": {
+    "slotType": "VICE_SECT_MASTER",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_vice_sect_master",
+   "name": "辅政之才",
+   "description": "政策效果加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_VICE_SECT_MASTER",
+   "template": "pos_vice_sect_master",
+   "positionBonus": {
+    "slotType": "VICE_SECT_MASTER",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_vice_sect_master",
+   "name": "辅政之才",
+   "description": "政策效果加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_VICE_SECT_MASTER",
+   "template": "pos_vice_sect_master",
+   "positionBonus": {
+    "slotType": "VICE_SECT_MASTER",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_herb_garden",
+   "name": "灵田灵手",
+   "description": "灵药成熟速度加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_HERB_GARDEN",
+   "template": "pos_herb_garden",
+   "positionBonus": {
+    "slotType": "HERB_GARDEN",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_herb_garden",
+   "name": "灵田灵手",
+   "description": "灵药成熟速度加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_HERB_GARDEN",
+   "template": "pos_herb_garden",
+   "positionBonus": {
+    "slotType": "HERB_GARDEN",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_herb_garden",
+   "name": "灵田灵手",
+   "description": "灵药成熟速度加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_HERB_GARDEN",
+   "template": "pos_herb_garden",
+   "positionBonus": {
+    "slotType": "HERB_GARDEN",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_alchemy",
+   "name": "丹道宗师",
+   "description": "炼丹成功率加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_ALCHEMY",
+   "template": "pos_alchemy",
+   "positionBonus": {
+    "slotType": "ALCHEMY",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_alchemy",
+   "name": "丹道宗师",
+   "description": "炼丹成功率加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_ALCHEMY",
+   "template": "pos_alchemy",
+   "positionBonus": {
+    "slotType": "ALCHEMY",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_alchemy",
+   "name": "丹道宗师",
+   "description": "炼丹成功率加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_ALCHEMY",
+   "template": "pos_alchemy",
+   "positionBonus": {
+    "slotType": "ALCHEMY",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_forge",
+   "name": "器道宗师",
+   "description": "炼器成功率加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_FORGE",
+   "template": "pos_forge",
+   "positionBonus": {
+    "slotType": "FORGE",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_forge",
+   "name": "器道宗师",
+   "description": "炼器成功率加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_FORGE",
+   "template": "pos_forge",
+   "positionBonus": {
+    "slotType": "FORGE",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_forge",
+   "name": "器道宗师",
+   "description": "炼器成功率加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_FORGE",
+   "template": "pos_forge",
+   "positionBonus": {
+    "slotType": "FORGE",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_outer_elder",
+   "name": "外门栋梁",
+   "description": "外门弟子突破指导加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_OUTER_ELDER",
+   "template": "pos_outer_elder",
+   "positionBonus": {
+    "slotType": "OUTER_ELDER",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_outer_elder",
+   "name": "外门栋梁",
+   "description": "外门弟子突破指导加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_OUTER_ELDER",
+   "template": "pos_outer_elder",
+   "positionBonus": {
+    "slotType": "OUTER_ELDER",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_outer_elder",
+   "name": "外门栋梁",
+   "description": "外门弟子突破指导加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_OUTER_ELDER",
+   "template": "pos_outer_elder",
+   "positionBonus": {
+    "slotType": "OUTER_ELDER",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_preaching",
+   "name": "传道大师",
+   "description": "外门弟子传道修炼速度加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_PREACHING",
+   "template": "pos_preaching",
+   "positionBonus": {
+    "slotType": "PREACHING",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_preaching",
+   "name": "传道大师",
+   "description": "外门弟子传道修炼速度加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_PREACHING",
+   "template": "pos_preaching",
+   "positionBonus": {
+    "slotType": "PREACHING",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_preaching",
+   "name": "传道大师",
+   "description": "外门弟子传道修炼速度加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_PREACHING",
+   "template": "pos_preaching",
+   "positionBonus": {
+    "slotType": "PREACHING",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_law_enforcement",
+   "name": "执法金刚",
+   "description": "叛逃/偷盗捕获率加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_LAW_ENFORCEMENT",
+   "template": "pos_law_enforcement",
+   "positionBonus": {
+    "slotType": "LAW_ENFORCEMENT",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_law_enforcement",
+   "name": "执法金刚",
+   "description": "叛逃/偷盗捕获率加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_LAW_ENFORCEMENT",
+   "template": "pos_law_enforcement",
+   "positionBonus": {
+    "slotType": "LAW_ENFORCEMENT",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_law_enforcement",
+   "name": "执法金刚",
+   "description": "叛逃/偷盗捕获率加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_LAW_ENFORCEMENT",
+   "template": "pos_law_enforcement",
+   "positionBonus": {
+    "slotType": "LAW_ENFORCEMENT",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_inner_elder",
+   "name": "内门柱石",
+   "description": "内门弟子突破指导加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_INNER_ELDER",
+   "template": "pos_inner_elder",
+   "positionBonus": {
+    "slotType": "INNER_ELDER",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_inner_elder",
+   "name": "内门柱石",
+   "description": "内门弟子突破指导加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_INNER_ELDER",
+   "template": "pos_inner_elder",
+   "positionBonus": {
+    "slotType": "INNER_ELDER",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_inner_elder",
+   "name": "内门柱石",
+   "description": "内门弟子突破指导加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_INNER_ELDER",
+   "template": "pos_inner_elder",
+   "positionBonus": {
+    "slotType": "INNER_ELDER",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_recruiting",
+   "name": "招贤伯乐",
+   "description": "招募弟子数上限加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_RECRUITING",
+   "template": "pos_recruiting",
+   "positionBonus": {
+    "slotType": "RECRUITING",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_recruiting",
+   "name": "招贤伯乐",
+   "description": "招募弟子数上限加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_RECRUITING",
+   "template": "pos_recruiting",
+   "positionBonus": {
+    "slotType": "RECRUITING",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_recruiting",
+   "name": "招贤伯乐",
+   "description": "招募弟子数上限加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_RECRUITING",
+   "template": "pos_recruiting",
+   "positionBonus": {
+    "slotType": "RECRUITING",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "r1_pos_cloud_preaching",
+   "name": "青云传道",
+   "description": "内门弟子传道修炼速度加成+7%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_CLOUD_PREACHING",
+   "template": "pos_cloud_preaching",
+   "positionBonus": {
+    "slotType": "CLOUD_PREACHING",
+    "effectBonus": 0.07
+   }
+  },
+  {
+   "id": "r2_pos_cloud_preaching",
+   "name": "青云传道",
+   "description": "内门弟子传道修炼速度加成+14%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_CLOUD_PREACHING",
+   "template": "pos_cloud_preaching",
+   "positionBonus": {
+    "slotType": "CLOUD_PREACHING",
+    "effectBonus": 0.14
+   }
+  },
+  {
+   "id": "r3_pos_cloud_preaching",
+   "name": "青云传道",
+   "description": "内门弟子传道修炼速度加成+22%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION_CLOUD_PREACHING",
+   "template": "pos_cloud_preaching",
+   "positionBonus": {
+    "slotType": "CLOUD_PREACHING",
+    "effectBonus": 0.22
+   }
+  },
+  {
+   "id": "neg_base_comprehension",
+   "name": "神识迟钝",
+   "description": "悟性/智力/传道 -8",
+   "rarity": 0,
+   "effects": {
+    "comprehensionFlat": -8,
+    "intelligenceFlat": -8,
+    "teachingFlat": -8
+   },
+   "isNegative": true,
+   "type": "BASE_COMP",
+   "template": "neg_base_comprehension",
+   "positionBonus": null
+  },
+  {
+   "id": "neg_base_craft",
+   "name": "百艺生疏",
+   "description": "炼器/炼丹/种植 -6",
+   "rarity": 0,
+   "effects": {
+    "artifactRefiningFlat": -6,
+    "pillRefiningFlat": -6,
+    "spiritPlantingFlat": -6
+   },
+   "isNegative": true,
+   "type": "BASE_ARTI",
+   "template": "neg_base_craft",
+   "positionBonus": null
+  },
+  {
+   "id": "neg_base_social",
+   "name": "心性偏执",
+   "description": "魅力/忠诚/道德 -6",
+   "rarity": 0,
+   "effects": {
+    "charmFlat": -6,
+    "loyaltyFlat": -6,
+    "moralityFlat": -6
+   },
+   "isNegative": true,
+   "type": "BASE_CHARM",
+   "template": "neg_base_social",
+   "positionBonus": null
+  },
+  {
+   "id": "neg_battle_offense",
+   "name": "怯战失锋",
+   "description": "物攻/法攻/暴击下降",
+   "rarity": 0,
+   "effects": {
+    "critRate": -0.02,
+    "magicAttack": -0.1,
+    "physicalAttack": -0.1
+   },
+   "isNegative": true,
+   "type": "BAT_PHY_ATK",
+   "template": "neg_battle_offense",
+   "positionBonus": null
+  },
+  {
+   "id": "neg_battle_survival",
+   "name": "体魄亏空",
+   "description": "生存属性下降",
+   "rarity": 0,
+   "effects": {
+    "magicDefense": -0.1,
+    "maxHp": -0.15,
+    "maxMp": -0.08,
+    "physicalDefense": -0.1,
+    "speed": -0.06
+   },
+   "isNegative": true,
+   "type": "BAT_HP",
+   "template": "neg_battle_survival",
+   "positionBonus": null
+  }
+ ],
+ "physiques": [
+  {
+   "id": "r1_phys_cult_speed",
+   "name": "灵脉天成",
+   "description": "修炼速度+8%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0.08,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "phys_cult_speed"
+  },
+  {
+   "id": "r2_phys_cult_speed",
+   "name": "灵脉天成",
+   "description": "修炼速度+16%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0.16,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "phys_cult_speed"
+  },
+  {
+   "id": "r3_phys_cult_speed",
+   "name": "灵脉天成",
+   "description": "修炼速度+28%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0.28,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "phys_cult_speed"
+  },
+  {
+   "id": "r1_phys_dmg_amp",
+   "name": "九阳真身",
+   "description": "伤害加成+5%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0.05,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "DAMAGE_AMP",
+   "template": "phys_dmg_amp"
+  },
+  {
+   "id": "r2_phys_dmg_amp",
+   "name": "九阳真身",
+   "description": "伤害加成+11%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0.11,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "DAMAGE_AMP",
+   "template": "phys_dmg_amp"
+  },
+  {
+   "id": "r3_phys_dmg_amp",
+   "name": "九阳真身",
+   "description": "伤害加成+20%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0.2,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "DAMAGE_AMP",
+   "template": "phys_dmg_amp"
+  },
+  {
+   "id": "r1_phys_dmg_reduce",
+   "name": "金身不坏",
+   "description": "减伤+4%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0.04,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "DAMAGE_REDUCTION",
+   "template": "phys_dmg_reduce"
+  },
+  {
+   "id": "r2_phys_dmg_reduce",
+   "name": "金身不坏",
+   "description": "减伤+9%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0.09,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "DAMAGE_REDUCTION",
+   "template": "phys_dmg_reduce"
+  },
+  {
+   "id": "r3_phys_dmg_reduce",
+   "name": "金身不坏",
+   "description": "减伤+16%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0.16,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "DAMAGE_REDUCTION",
+   "template": "phys_dmg_reduce"
+  },
+  {
+   "id": "r1_phys_crit_dmg",
+   "name": "天眼通",
+   "description": "暴击伤害+10%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0.1,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "CRIT_DAMAGE",
+   "template": "phys_crit_dmg"
+  },
+  {
+   "id": "r2_phys_crit_dmg",
+   "name": "天眼通",
+   "description": "暴击伤害+22%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0.22,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "CRIT_DAMAGE",
+   "template": "phys_crit_dmg"
+  },
+  {
+   "id": "r3_phys_crit_dmg",
+   "name": "天眼通",
+   "description": "暴击伤害+38%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0.38,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "CRIT_DAMAGE",
+   "template": "phys_crit_dmg"
+  },
+  {
+   "id": "r1_phys_defense",
+   "name": "玄铁体质",
+   "description": "防御加成+6%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0.06,
+   "isNegative": false,
+   "type": "DEFENSE_BONUS",
+   "template": "phys_defense"
+  },
+  {
+   "id": "r2_phys_defense",
+   "name": "玄铁体质",
+   "description": "防御加成+13%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0.13,
+   "isNegative": false,
+   "type": "DEFENSE_BONUS",
+   "template": "phys_defense"
+  },
+  {
+   "id": "r3_phys_defense",
+   "name": "玄铁体质",
+   "description": "防御加成+22%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0.22,
+   "isNegative": false,
+   "type": "DEFENSE_BONUS",
+   "template": "phys_defense"
+  },
+  {
+   "id": "r1_phys_hybrid_off",
+   "name": "战魔之体",
+   "description": "伤害加成+3%，暴击伤害+6%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0.03,
+   "damageReduction": 0,
+   "critDamageBonus": 0.06,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "HYBRID_OFFENSE",
+   "template": "phys_hybrid_off"
+  },
+  {
+   "id": "r2_phys_hybrid_off",
+   "name": "战魔之体",
+   "description": "伤害加成+7%，暴击伤害+14%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0.07,
+   "damageReduction": 0,
+   "critDamageBonus": 0.14,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "HYBRID_OFFENSE",
+   "template": "phys_hybrid_off"
+  },
+  {
+   "id": "r3_phys_hybrid_off",
+   "name": "战魔之体",
+   "description": "伤害加成+12%，暴击伤害+24%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0.12,
+   "damageReduction": 0,
+   "critDamageBonus": 0.24,
+   "defenseBonus": 0,
+   "isNegative": false,
+   "type": "HYBRID_OFFENSE",
+   "template": "phys_hybrid_off"
+  },
+  {
+   "id": "r1_phys_hybrid_def",
+   "name": "磐石体质",
+   "description": "减伤+2%，防御加成+4%",
+   "rarity": 1,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0.02,
+   "critDamageBonus": 0,
+   "defenseBonus": 0.04,
+   "isNegative": false,
+   "type": "HYBRID_DEFENSE",
+   "template": "phys_hybrid_def"
+  },
+  {
+   "id": "r2_phys_hybrid_def",
+   "name": "磐石体质",
+   "description": "减伤+5%，防御加成+8%",
+   "rarity": 2,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0.05,
+   "critDamageBonus": 0,
+   "defenseBonus": 0.08,
+   "isNegative": false,
+   "type": "HYBRID_DEFENSE",
+   "template": "phys_hybrid_def"
+  },
+  {
+   "id": "r3_phys_hybrid_def",
+   "name": "磐石体质",
+   "description": "减伤+9%，防御加成+14%",
+   "rarity": 3,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": 0.09,
+   "critDamageBonus": 0,
+   "defenseBonus": 0.14,
+   "isNegative": false,
+   "type": "HYBRID_DEFENSE",
+   "template": "phys_hybrid_def"
+  },
+  {
+   "id": "neg_phys_cult",
+   "name": "经脉堵塞",
+   "description": "修炼速度-20%",
+   "rarity": 0,
+   "cultivationSpeedBonus": -0.2,
+   "damageAmplification": 0,
+   "damageReduction": 0,
+   "critDamageBonus": 0,
+   "defenseBonus": 0,
+   "isNegative": true,
+   "type": "CULT_SPEED",
+   "template": "neg_phys_cult"
+  },
+  {
+   "id": "neg_phys_defense",
+   "name": "体弱多病",
+   "description": "减伤-10%，防御加成-15%",
+   "rarity": 0,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": 0,
+   "damageReduction": -0.1,
+   "critDamageBonus": 0,
+   "defenseBonus": -0.15,
+   "isNegative": true,
+   "type": "HYBRID_DEFENSE",
+   "template": "neg_phys_defense"
+  },
+  {
+   "id": "neg_phys_offense",
+   "name": "灵根残缺",
+   "description": "伤害加成-12%，暴击伤害-20%",
+   "rarity": 0,
+   "cultivationSpeedBonus": 0,
+   "damageAmplification": -0.12,
+   "damageReduction": 0,
+   "critDamageBonus": -0.2,
+   "defenseBonus": 0,
+   "isNegative": true,
+   "type": "HYBRID_OFFENSE",
+   "template": "neg_phys_offense"
+  }
+ ],
+ "affixes": [
+  {
+   "id": "r1_aff_base_int",
+   "name": "聪慧",
+   "description": "智力+3",
+   "rarity": 1,
+   "effects": {
+    "intelligenceFlat": 3
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_int",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_base_int",
+   "name": "聪慧",
+   "description": "智力+7",
+   "rarity": 2,
+   "effects": {
+    "intelligenceFlat": 7
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_int",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_base_int",
+   "name": "聪慧",
+   "description": "智力+12",
+   "rarity": 3,
+   "effects": {
+    "intelligenceFlat": 12
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_int",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_base_comp",
+   "name": "灵慧",
+   "description": "悟性+3",
+   "rarity": 1,
+   "effects": {
+    "comprehensionFlat": 3
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_comp",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_base_comp",
+   "name": "灵慧",
+   "description": "悟性+7",
+   "rarity": 2,
+   "effects": {
+    "comprehensionFlat": 7
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_comp",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_base_comp",
+   "name": "灵慧",
+   "description": "悟性+12",
+   "rarity": 3,
+   "effects": {
+    "comprehensionFlat": 12
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_comp",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_base_charm",
+   "name": "风采",
+   "description": "魅力+3",
+   "rarity": 1,
+   "effects": {
+    "charmFlat": 3
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_charm",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_base_charm",
+   "name": "风采",
+   "description": "魅力+7",
+   "rarity": 2,
+   "effects": {
+    "charmFlat": 7
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_charm",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_base_charm",
+   "name": "风采",
+   "description": "魅力+12",
+   "rarity": 3,
+   "effects": {
+    "charmFlat": 12
+   },
+   "isNegative": false,
+   "type": "BASE_FLAT",
+   "template": "aff_base_charm",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_bat_atk",
+   "name": "锐利",
+   "description": "物攻+4%",
+   "rarity": 1,
+   "effects": {
+    "magicAttack": 0.04,
+    "physicalAttack": 0.04
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_bat_atk",
+   "name": "锐利",
+   "description": "物攻+9%",
+   "rarity": 2,
+   "effects": {
+    "magicAttack": 0.09,
+    "physicalAttack": 0.09
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_bat_atk",
+   "name": "锐利",
+   "description": "物攻+16%",
+   "rarity": 3,
+   "effects": {
+    "magicAttack": 0.16,
+    "physicalAttack": 0.16
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_atk",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_bat_hp",
+   "name": "厚甲",
+   "description": "气血+4%",
+   "rarity": 1,
+   "effects": {
+    "maxHp": 0.04
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_hp",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_bat_hp",
+   "name": "厚甲",
+   "description": "气血+9%",
+   "rarity": 2,
+   "effects": {
+    "maxHp": 0.09
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_hp",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_bat_hp",
+   "name": "厚甲",
+   "description": "气血+16%",
+   "rarity": 3,
+   "effects": {
+    "maxHp": 0.16
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_hp",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_bat_speed",
+   "name": "轻盈",
+   "description": "速度+4%",
+   "rarity": 1,
+   "effects": {
+    "speed": 0.04
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_bat_speed",
+   "name": "轻盈",
+   "description": "速度+9%",
+   "rarity": 2,
+   "effects": {
+    "speed": 0.09
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_bat_speed",
+   "name": "轻盈",
+   "description": "速度+16%",
+   "rarity": 3,
+   "effects": {
+    "speed": 0.16
+   },
+   "isNegative": false,
+   "type": "BAT_PCT",
+   "template": "aff_bat_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_cult_speed",
+   "name": "悟道",
+   "description": "修炼速度+5%",
+   "rarity": 1,
+   "effects": {
+    "cultivationSpeed": 0.05
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "aff_cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_cult_speed",
+   "name": "悟道",
+   "description": "修炼速度+11%",
+   "rarity": 2,
+   "effects": {
+    "cultivationSpeed": 0.11
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "aff_cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_cult_speed",
+   "name": "悟道",
+   "description": "修炼速度+20%",
+   "rarity": 3,
+   "effects": {
+    "cultivationSpeed": 0.2
+   },
+   "isNegative": false,
+   "type": "CULT_SPEED",
+   "template": "aff_cult_speed",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_lifespan",
+   "name": "延年",
+   "description": "寿命+8%",
+   "rarity": 1,
+   "effects": {
+    "lifespan": 0.08
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "aff_lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_lifespan",
+   "name": "延年",
+   "description": "寿命+16%",
+   "rarity": 2,
+   "effects": {
+    "lifespan": 0.16
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "aff_lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_lifespan",
+   "name": "延年",
+   "description": "寿命+28%",
+   "rarity": 3,
+   "effects": {
+    "lifespan": 0.28
+   },
+   "isNegative": false,
+   "type": "LIFESPAN",
+   "template": "aff_lifespan",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_manual_slot",
+   "name": "道藏",
+   "description": "功法槽位+1",
+   "rarity": 3,
+   "effects": {
+    "manualSlot": 1
+   },
+   "isNegative": false,
+   "type": "MANUAL_SLOT",
+   "template": "aff_manual_slot",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_win_growth",
+   "name": "战悟",
+   "description": "每胜利一场战斗后，随机一个属性+1（无上限）",
+   "rarity": 3,
+   "effects": {
+    "winBattleRandomAttrPlus": 1
+   },
+   "isNegative": false,
+   "type": "WIN_GROWTH",
+   "template": "aff_win_growth",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_dmg_amp",
+   "name": "煞气",
+   "description": "伤害加成+3%",
+   "rarity": 1,
+   "effects": {
+    "damageAmplification": 0.03
+   },
+   "isNegative": false,
+   "type": "DAMAGE_AMP",
+   "template": "aff_dmg_amp",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_dmg_amp",
+   "name": "煞气",
+   "description": "伤害加成+7%",
+   "rarity": 2,
+   "effects": {
+    "damageAmplification": 0.07
+   },
+   "isNegative": false,
+   "type": "DAMAGE_AMP",
+   "template": "aff_dmg_amp",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_dmg_amp",
+   "name": "煞气",
+   "description": "伤害加成+13%",
+   "rarity": 3,
+   "effects": {
+    "damageAmplification": 0.13
+   },
+   "isNegative": false,
+   "type": "DAMAGE_AMP",
+   "template": "aff_dmg_amp",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_dmg_reduce",
+   "name": "护体",
+   "description": "减伤+3%",
+   "rarity": 1,
+   "effects": {
+    "damageReduction": 0.03
+   },
+   "isNegative": false,
+   "type": "DAMAGE_REDUCTION",
+   "template": "aff_dmg_reduce",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_dmg_reduce",
+   "name": "护体",
+   "description": "减伤+6%",
+   "rarity": 2,
+   "effects": {
+    "damageReduction": 0.06
+   },
+   "isNegative": false,
+   "type": "DAMAGE_REDUCTION",
+   "template": "aff_dmg_reduce",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_dmg_reduce",
+   "name": "护体",
+   "description": "减伤+11%",
+   "rarity": 3,
+   "effects": {
+    "damageReduction": 0.11
+   },
+   "isNegative": false,
+   "type": "DAMAGE_REDUCTION",
+   "template": "aff_dmg_reduce",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_crit_dmg",
+   "name": "破军",
+   "description": "暴击伤害+6%",
+   "rarity": 1,
+   "effects": {
+    "critDamageBonus": 0.06
+   },
+   "isNegative": false,
+   "type": "CRIT_DAMAGE",
+   "template": "aff_crit_dmg",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_crit_dmg",
+   "name": "破军",
+   "description": "暴击伤害+14%",
+   "rarity": 2,
+   "effects": {
+    "critDamageBonus": 0.14
+   },
+   "isNegative": false,
+   "type": "CRIT_DAMAGE",
+   "template": "aff_crit_dmg",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_crit_dmg",
+   "name": "破军",
+   "description": "暴击伤害+24%",
+   "rarity": 3,
+   "effects": {
+    "critDamageBonus": 0.24
+   },
+   "isNegative": false,
+   "type": "CRIT_DAMAGE",
+   "template": "aff_crit_dmg",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_defense",
+   "name": "坚壁",
+   "description": "防御加成+4%",
+   "rarity": 1,
+   "effects": {
+    "defenseBonus": 0.04
+   },
+   "isNegative": false,
+   "type": "DEFENSE_BONUS",
+   "template": "aff_defense",
+   "positionBonus": null
+  },
+  {
+   "id": "r2_aff_defense",
+   "name": "坚壁",
+   "description": "防御加成+9%",
+   "rarity": 2,
+   "effects": {
+    "defenseBonus": 0.09
+   },
+   "isNegative": false,
+   "type": "DEFENSE_BONUS",
+   "template": "aff_defense",
+   "positionBonus": null
+  },
+  {
+   "id": "r3_aff_defense",
+   "name": "坚壁",
+   "description": "防御加成+15%",
+   "rarity": 3,
+   "effects": {
+    "defenseBonus": 0.15
+   },
+   "isNegative": false,
+   "type": "DEFENSE_BONUS",
+   "template": "aff_defense",
+   "positionBonus": null
+  },
+  {
+   "id": "r1_aff_pos_vice_sect_master",
+   "name": "辅政之印",
+   "description": "政策效果加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_vice_sect_master",
+   "positionBonus": {
+    "slotType": "VICE_SECT_MASTER",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_vice_sect_master",
+   "name": "辅政之印",
+   "description": "政策效果加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_vice_sect_master",
+   "positionBonus": {
+    "slotType": "VICE_SECT_MASTER",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_vice_sect_master",
+   "name": "辅政之印",
+   "description": "政策效果加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_vice_sect_master",
+   "positionBonus": {
+    "slotType": "VICE_SECT_MASTER",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_herb_garden",
+   "name": "灵田之印",
+   "description": "灵药成熟速度加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_herb_garden",
+   "positionBonus": {
+    "slotType": "HERB_GARDEN",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_herb_garden",
+   "name": "灵田之印",
+   "description": "灵药成熟速度加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_herb_garden",
+   "positionBonus": {
+    "slotType": "HERB_GARDEN",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_herb_garden",
+   "name": "灵田之印",
+   "description": "灵药成熟速度加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_herb_garden",
+   "positionBonus": {
+    "slotType": "HERB_GARDEN",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_alchemy",
+   "name": "丹道之印",
+   "description": "炼丹成功率加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_alchemy",
+   "positionBonus": {
+    "slotType": "ALCHEMY",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_alchemy",
+   "name": "丹道之印",
+   "description": "炼丹成功率加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_alchemy",
+   "positionBonus": {
+    "slotType": "ALCHEMY",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_alchemy",
+   "name": "丹道之印",
+   "description": "炼丹成功率加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_alchemy",
+   "positionBonus": {
+    "slotType": "ALCHEMY",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_forge",
+   "name": "器道之印",
+   "description": "炼器成功率加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_forge",
+   "positionBonus": {
+    "slotType": "FORGE",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_forge",
+   "name": "器道之印",
+   "description": "炼器成功率加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_forge",
+   "positionBonus": {
+    "slotType": "FORGE",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_forge",
+   "name": "器道之印",
+   "description": "炼器成功率加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_forge",
+   "positionBonus": {
+    "slotType": "FORGE",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_outer_elder",
+   "name": "外门之印",
+   "description": "外门弟子突破指导加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_outer_elder",
+   "positionBonus": {
+    "slotType": "OUTER_ELDER",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_outer_elder",
+   "name": "外门之印",
+   "description": "外门弟子突破指导加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_outer_elder",
+   "positionBonus": {
+    "slotType": "OUTER_ELDER",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_outer_elder",
+   "name": "外门之印",
+   "description": "外门弟子突破指导加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_outer_elder",
+   "positionBonus": {
+    "slotType": "OUTER_ELDER",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_preaching",
+   "name": "传道之印",
+   "description": "外门弟子传道修炼速度加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_preaching",
+   "positionBonus": {
+    "slotType": "PREACHING",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_preaching",
+   "name": "传道之印",
+   "description": "外门弟子传道修炼速度加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_preaching",
+   "positionBonus": {
+    "slotType": "PREACHING",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_preaching",
+   "name": "传道之印",
+   "description": "外门弟子传道修炼速度加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_preaching",
+   "positionBonus": {
+    "slotType": "PREACHING",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_law_enforcement",
+   "name": "执法之印",
+   "description": "叛逃/偷盗捕获率加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_law_enforcement",
+   "positionBonus": {
+    "slotType": "LAW_ENFORCEMENT",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_law_enforcement",
+   "name": "执法之印",
+   "description": "叛逃/偷盗捕获率加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_law_enforcement",
+   "positionBonus": {
+    "slotType": "LAW_ENFORCEMENT",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_law_enforcement",
+   "name": "执法之印",
+   "description": "叛逃/偷盗捕获率加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_law_enforcement",
+   "positionBonus": {
+    "slotType": "LAW_ENFORCEMENT",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_inner_elder",
+   "name": "内门之印",
+   "description": "内门弟子突破指导加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_inner_elder",
+   "positionBonus": {
+    "slotType": "INNER_ELDER",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_inner_elder",
+   "name": "内门之印",
+   "description": "内门弟子突破指导加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_inner_elder",
+   "positionBonus": {
+    "slotType": "INNER_ELDER",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_inner_elder",
+   "name": "内门之印",
+   "description": "内门弟子突破指导加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_inner_elder",
+   "positionBonus": {
+    "slotType": "INNER_ELDER",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_recruiting",
+   "name": "招贤之印",
+   "description": "招募弟子数上限加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_recruiting",
+   "positionBonus": {
+    "slotType": "RECRUITING",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_recruiting",
+   "name": "招贤之印",
+   "description": "招募弟子数上限加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_recruiting",
+   "positionBonus": {
+    "slotType": "RECRUITING",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_recruiting",
+   "name": "招贤之印",
+   "description": "招募弟子数上限加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_recruiting",
+   "positionBonus": {
+    "slotType": "RECRUITING",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "r1_aff_pos_cloud_preaching",
+   "name": "青云之印",
+   "description": "内门弟子传道修炼速度加成+6%",
+   "rarity": 1,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_cloud_preaching",
+   "positionBonus": {
+    "slotType": "CLOUD_PREACHING",
+    "effectBonus": 0.06
+   }
+  },
+  {
+   "id": "r2_aff_pos_cloud_preaching",
+   "name": "青云之印",
+   "description": "内门弟子传道修炼速度加成+12%",
+   "rarity": 2,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_cloud_preaching",
+   "positionBonus": {
+    "slotType": "CLOUD_PREACHING",
+    "effectBonus": 0.12
+   }
+  },
+  {
+   "id": "r3_aff_pos_cloud_preaching",
+   "name": "青云之印",
+   "description": "内门弟子传道修炼速度加成+20%",
+   "rarity": 3,
+   "effects": {},
+   "isNegative": false,
+   "type": "POSITION",
+   "template": "aff_pos_cloud_preaching",
+   "positionBonus": {
+    "slotType": "CLOUD_PREACHING",
+    "effectBonus": 0.2
+   }
+  },
+  {
+   "id": "neg_aff_base",
+   "name": "愚钝",
+   "description": "智力/悟性/魅力 -5",
+   "rarity": 0,
+   "effects": {
+    "charmFlat": -5,
+    "comprehensionFlat": -5,
+    "intelligenceFlat": -5
+   },
+   "isNegative": true,
+   "type": "BASE_FLAT",
+   "template": "neg_aff_base",
+   "positionBonus": null
+  },
+  {
+   "id": "neg_aff_battle",
+   "name": "虚弱",
+   "description": "物攻/法攻/气血 -8%",
+   "rarity": 0,
+   "effects": {
+    "magicAttack": -0.08,
+    "maxHp": -0.08,
+    "physicalAttack": -0.08
+   },
+   "isNegative": true,
+   "type": "BAT_PCT",
+   "template": "neg_aff_battle",
+   "positionBonus": null
+  },
+  {
+   "id": "neg_aff_lifespan",
+   "name": "夭折",
+   "description": "寿命-15%",
+   "rarity": 0,
+   "effects": {
+    "lifespan": -0.15
+   },
+   "isNegative": true,
+   "type": "LIFESPAN",
+   "template": "neg_aff_lifespan",
+   "positionBonus": null
+  }
+ ]
+}

@@ -14,6 +14,16 @@
 - **验证** — `compileReleaseKotlin`（全模块 SUCCESS）+ `RoadTilingTest` + `RoadFacadeImplTest` + `AtlasLayoutSyncTest` + `AtlasManifestSyncTest` + `SpriteAtlasDefGeneratedTest` + `RoomMigrationV48To49Test` + C++ gamecore GTest（74/74 全绿）
 - **待完成批次（道路渲染深耦合）** — 已登记至 `docs/cpp-engine.md` 批次 R
 
+### 新增（C++ 引擎迁移批次 2 剩余子步：丹药/锻造配方表）
+
+> 纯工程内部数据表迁移，无玩家可见行为变化（Kotlin 引擎照常运营，feature flag 关闭）。
+
+- **C++ 配方表** — `gamecore/include/gamecore/data/recipe_db.h`：`ForgeRecipeTemplate`/`PillRecipeTemplate` 结构 + `forgeRecipes()`（72 条 = 6 tier × 12，静态字面量逐字复刻 Kotlin ForgeRecipeDatabase）+ `pillRecipes()`（732 条 = 修炼 138 + 战斗 288 + 功能 306，程序化生成 C++ 等价：TIER_DURATION/TIER_SUCCESS_RATE/TIER_HERB_IDS/herbMat 组合/PillGrade 循环；配方依赖的 ItemDatabase PillTemplate（732 模板）在 detail 内等价生成）+ `forgeRecipeById`/`pillRecipeById`/`pillTierName` 查询辅助
+- **快照生成器** — `scripts/gen-recipe-db.mjs`：Node 侧复刻 PillRecipeDatabase + ItemDatabase 生成逻辑 → `recipe_db_sample.json`（72 锻造 + 732 丹药完整条目，供 Kotlin 守卫测试比对）；格式陷阱已复刻：双属性丹药描述用英文属性键（"增加2点physicalAttack和1点physicalDefense"）、roundToInt 半进位（112.5→113、2.5→3）、突破丹 tier≥3 追加第三味材料、暴击率描述 1.5→"2%"
+- **守卫测试** — C++ `recipe_db_test.cpp`（10 测试：数量/代表性条目/去重/查询辅助/品阶名），已注册 test/CMakeLists.txt
+- **验证** — 桌面 GTest 278/278 全绿（含 RecipeDbTest 10）；临时 JUnit 对拍 3/3（快照 ↔ Kotlin 运行时 804 条逐字段一致，验证后已删）；C++ 表 ↔ JSON 快照全量对拍 804/804 一致
+- **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志留待批次 9（引擎切换）
+
 ## [4.01.09] - 2026-08-23
 
 ### 修复（键盘反复弹出/界面闪烁/界面反复下拉——第四根因根治）

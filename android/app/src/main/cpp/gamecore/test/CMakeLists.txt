@@ -28,8 +28,21 @@ add_executable(game-core-tests
     game_core_test.cpp
     json_codec_test.cpp
     equipment_db_test.cpp
+    trait_db_test.cpp
+    recipe_db_test.cpp
     time_system_test.cpp
     road_system_test.cpp
+    economy_test.cpp
+    inventory_test.cpp
+    spirit_field_test.cpp
+    disciple_test.cpp
+    cultivation_test.cpp
+    breakthrough_test.cpp
+    lifecycle_test.cpp
+    battle_test.cpp
+    government_test.cpp
+    exploration_test.cpp
+    execute_dispatch_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

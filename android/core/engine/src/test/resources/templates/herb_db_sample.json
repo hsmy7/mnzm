@@ -1,0 +1,926 @@
+{
+ "herbCount": 54,
+ "seedCount": 54,
+ "herbs": [
+  {
+   "id": "spiritGrass1",
+   "name": "聚灵草",
+   "tier": 1,
+   "rarity": 1,
+   "category": "grass",
+   "description": "吸收天地灵气而生的灵草，炼丹基础材料"
+  },
+  {
+   "id": "spiritGrass2",
+   "name": "清心草",
+   "tier": 1,
+   "rarity": 1,
+   "category": "grass",
+   "description": "叶片清凉，可清心明目，安神定志"
+  },
+  {
+   "id": "spiritGrass3",
+   "name": "凝气草",
+   "tier": 1,
+   "rarity": 1,
+   "category": "grass",
+   "description": "凝聚灵气的灵草，辅助修炼佳品"
+  },
+  {
+   "id": "spiritFlower1",
+   "name": "云雾花",
+   "tier": 1,
+   "rarity": 1,
+   "category": "flower",
+   "description": "生于云雾间的灵花，清热解毒"
+  },
+  {
+   "id": "spiritFlower2",
+   "name": "白莲",
+   "tier": 1,
+   "rarity": 1,
+   "category": "flower",
+   "description": "洁白无瑕的莲花，清心降火"
+  },
+  {
+   "id": "spiritFlower3",
+   "name": "晨露花",
+   "tier": 1,
+   "rarity": 1,
+   "category": "flower",
+   "description": "清晨露水滋养的灵花，润肺生津"
+  },
+  {
+   "id": "spiritFruit1",
+   "name": "精气果",
+   "tier": 1,
+   "rarity": 1,
+   "category": "fruit",
+   "description": "蕴含精气的灵果，明目养肾"
+  },
+  {
+   "id": "spiritFruit2",
+   "name": "赤心果",
+   "tier": 1,
+   "rarity": 1,
+   "category": "fruit",
+   "description": "形似红心的灵果，补气养血"
+  },
+  {
+   "id": "spiritFruit3",
+   "name": "灵韵果",
+   "tier": 1,
+   "rarity": 1,
+   "category": "fruit",
+   "description": "蕴含灵韵的灵果，滋养经脉"
+  },
+  {
+   "id": "spiritGrass4",
+   "name": "寒霜草",
+   "tier": 2,
+   "rarity": 2,
+   "category": "grass",
+   "description": "冰寒之地生长的灵草，蕴含寒气"
+  },
+  {
+   "id": "spiritGrass5",
+   "name": "烈焰草",
+   "tier": 2,
+   "rarity": 2,
+   "category": "grass",
+   "description": "火山附近生长的灵草，蕴含火力"
+  },
+  {
+   "id": "spiritGrass6",
+   "name": "金灵草",
+   "tier": 2,
+   "rarity": 2,
+   "category": "grass",
+   "description": "吸收金精之气而生，泻火解毒"
+  },
+  {
+   "id": "spiritFlower4",
+   "name": "冰魄莲",
+   "tier": 2,
+   "rarity": 2,
+   "category": "flower",
+   "description": "生于极寒之地的冰属性灵花，花瓣如冰晶"
+  },
+  {
+   "id": "spiritFlower5",
+   "name": "双生花",
+   "tier": 2,
+   "rarity": 2,
+   "category": "flower",
+   "description": "金银双色并蒂而生，可解百毒"
+  },
+  {
+   "id": "spiritFlower6",
+   "name": "紫霄花",
+   "tier": 2,
+   "rarity": 2,
+   "category": "flower",
+   "description": "紫气缭绕的灵花，安神定魄"
+  },
+  {
+   "id": "spiritFruit4",
+   "name": "通灵果",
+   "tier": 2,
+   "rarity": 2,
+   "category": "fruit",
+   "description": "可通经脉的灵果，消肿散结"
+  },
+  {
+   "id": "spiritFruit5",
+   "name": "玄灵果",
+   "tier": 2,
+   "rarity": 2,
+   "category": "fruit",
+   "description": "色如墨玉的灵果，滋补肝肾"
+  },
+  {
+   "id": "spiritFruit6",
+   "name": "五行果",
+   "tier": 2,
+   "rarity": 2,
+   "category": "fruit",
+   "description": "蕴含五行之气的奇果，调和阴阳"
+  },
+  {
+   "id": "spiritGrass7",
+   "name": "龙血草",
+   "tier": 3,
+   "rarity": 3,
+   "category": "grass",
+   "description": "沾染真龙之血而生的灵草，蕴含龙威"
+  },
+  {
+   "id": "spiritGrass8",
+   "name": "风铃草",
+   "tier": 3,
+   "rarity": 3,
+   "category": "grass",
+   "description": "随风摇曳的灵草，祛风除湿"
+  },
+  {
+   "id": "spiritGrass9",
+   "name": "九转灵草",
+   "tier": 3,
+   "rarity": 3,
+   "category": "grass",
+   "description": "九转轮回方可成熟的灵草，蕴含轮回之力"
+  },
+  {
+   "id": "spiritFlower7",
+   "name": "九转仙兰",
+   "tier": 3,
+   "rarity": 3,
+   "category": "flower",
+   "description": "九转轮回方可盛开的仙界灵花"
+  },
+  {
+   "id": "spiritFlower8",
+   "name": "凤凰花",
+   "tier": 3,
+   "rarity": 3,
+   "category": "flower",
+   "description": "凤凰栖息之地生长的灵花，蕴含涅槃之力"
+  },
+  {
+   "id": "spiritFlower9",
+   "name": "青龙花",
+   "tier": 3,
+   "rarity": 3,
+   "category": "flower",
+   "description": "龙气滋养的灵花，强筋健骨"
+  },
+  {
+   "id": "spiritFruit7",
+   "name": "赤阳果",
+   "tier": 3,
+   "rarity": 3,
+   "category": "fruit",
+   "description": "吸收日精月华而生的赤红灵果"
+  },
+  {
+   "id": "spiritFruit8",
+   "name": "玄灵莓",
+   "tier": 3,
+   "rarity": 3,
+   "category": "fruit",
+   "description": "色如墨玉的灵果，滋补肝肾"
+  },
+  {
+   "id": "spiritFruit9",
+   "name": "天元果",
+   "tier": 3,
+   "rarity": 3,
+   "category": "fruit",
+   "description": "天元之力凝结的灵果，补气固本"
+  },
+  {
+   "id": "spiritGrass10",
+   "name": "玄冰草",
+   "tier": 4,
+   "rarity": 4,
+   "category": "grass",
+   "description": "万年玄冰中孕育的冰魄精华"
+  },
+  {
+   "id": "spiritGrass11",
+   "name": "风暴草",
+   "tier": 4,
+   "rarity": 4,
+   "category": "grass",
+   "description": "飓风区域生长的灵草，化风定惊"
+  },
+  {
+   "id": "spiritGrass12",
+   "name": "神命草",
+   "tier": 4,
+   "rarity": 4,
+   "category": "grass",
+   "description": "神山之巅的灵草，起死回生"
+  },
+  {
+   "id": "spiritFlower10",
+   "name": "日月同辉花",
+   "tier": 4,
+   "rarity": 4,
+   "category": "flower",
+   "description": "日月同辉之时方可绽放的神花"
+  },
+  {
+   "id": "spiritFlower11",
+   "name": "紫云花",
+   "tier": 4,
+   "rarity": 4,
+   "category": "flower",
+   "description": "生于紫云深处的灵花，补气安神"
+  },
+  {
+   "id": "spiritFlower12",
+   "name": "玄武花",
+   "tier": 4,
+   "rarity": 4,
+   "category": "flower",
+   "description": "玄武守护之地生长的灵花，蕴含大地之力"
+  },
+  {
+   "id": "spiritFruit10",
+   "name": "长生果",
+   "tier": 4,
+   "rarity": 4,
+   "category": "fruit",
+   "description": "三千年一开花，三千年一结果的仙果"
+  },
+  {
+   "id": "spiritFruit11",
+   "name": "仙灵果",
+   "tier": 4,
+   "rarity": 4,
+   "category": "fruit",
+   "description": "仙界遗落的灵果，蕴含仙气"
+  },
+  {
+   "id": "spiritFruit12",
+   "name": "天灵果",
+   "tier": 4,
+   "rarity": 4,
+   "category": "fruit",
+   "description": "吸收天界灵气而生的神果"
+  },
+  {
+   "id": "spiritGrass13",
+   "name": "仙灵草",
+   "tier": 5,
+   "rarity": 5,
+   "category": "grass",
+   "description": "仙界遗落的灵草，蕴含仙气"
+  },
+  {
+   "id": "spiritGrass14",
+   "name": "天灵草",
+   "tier": 5,
+   "rarity": 5,
+   "category": "grass",
+   "description": "吸收天界灵气而生的神草"
+  },
+  {
+   "id": "spiritGrass15",
+   "name": "混沌草",
+   "tier": 5,
+   "rarity": 5,
+   "category": "grass",
+   "description": "混沌初开时诞生的神草，蕴含混沌本源之力"
+  },
+  {
+   "id": "spiritFlower13",
+   "name": "涅槃凤仙花",
+   "tier": 5,
+   "rarity": 5,
+   "category": "flower",
+   "description": "凤凰涅槃之地孕育的仙花，花瓣如凤羽般绚烂"
+  },
+  {
+   "id": "spiritFlower14",
+   "name": "龙鳞仙莲",
+   "tier": 5,
+   "rarity": 5,
+   "category": "flower",
+   "description": "真龙栖息之池生长的仙莲，莲瓣如龙鳞般坚韧"
+  },
+  {
+   "id": "spiritFlower15",
+   "name": "白虎幽兰",
+   "tier": 5,
+   "rarity": 5,
+   "category": "flower",
+   "description": "白虎栖息之谷生长的幽兰，花香蕴含杀伐之气"
+  },
+  {
+   "id": "spiritFruit13",
+   "name": "九叶还魂果",
+   "tier": 5,
+   "rarity": 5,
+   "category": "fruit",
+   "description": "九叶齐生，有还魂续命之效的仙果"
+  },
+  {
+   "id": "spiritFruit14",
+   "name": "玄天灵果",
+   "tier": 5,
+   "rarity": 5,
+   "category": "fruit",
+   "description": "玄天之上孕育的灵果，通体玄光流转"
+  },
+  {
+   "id": "spiritFruit15",
+   "name": "星陨神果",
+   "tier": 5,
+   "rarity": 5,
+   "category": "fruit",
+   "description": "星辰陨落后凝结的神果，蕴含星力"
+  },
+  {
+   "id": "spiritGrass16",
+   "name": "鸿蒙草",
+   "tier": 6,
+   "rarity": 6,
+   "category": "grass",
+   "description": "鸿蒙初开时诞生的神草，蕴含鸿蒙本源"
+  },
+  {
+   "id": "spiritGrass17",
+   "name": "太初草",
+   "tier": 6,
+   "rarity": 6,
+   "category": "grass",
+   "description": "太古时期诞生的神草，蕴含太初之力"
+  },
+  {
+   "id": "spiritGrass18",
+   "name": "永恒草",
+   "tier": 6,
+   "rarity": 6,
+   "category": "grass",
+   "description": "永恒不灭的神草，时间法则的化身"
+  },
+  {
+   "id": "spiritFlower16",
+   "name": "永恒花",
+   "tier": 6,
+   "rarity": 6,
+   "category": "flower",
+   "description": "永恒不谢的仙花，时间法则的化身"
+  },
+  {
+   "id": "spiritFlower17",
+   "name": "混沌仙莲",
+   "tier": 6,
+   "rarity": 6,
+   "category": "flower",
+   "description": "混沌中诞生的仙莲，蕴含混沌本源"
+  },
+  {
+   "id": "spiritFlower18",
+   "name": "造化神花",
+   "tier": 6,
+   "rarity": 6,
+   "category": "flower",
+   "description": "天地造化孕育的神花，蕴含造化之力"
+  },
+  {
+   "id": "spiritFruit16",
+   "name": "瑞麟仙果",
+   "tier": 6,
+   "rarity": 6,
+   "category": "fruit",
+   "description": "瑞兽麒麟守护万年的仙果，已生灵智"
+  },
+  {
+   "id": "spiritFruit17",
+   "name": "玄武帝果",
+   "tier": 6,
+   "rarity": 6,
+   "category": "fruit",
+   "description": "玄武守护之地生长的天品灵果，蕴含大地精华"
+  },
+  {
+   "id": "spiritFruit18",
+   "name": "混沌神果",
+   "tier": 6,
+   "rarity": 6,
+   "category": "fruit",
+   "description": "混沌初开时诞生的神果，蕴含混沌本源"
+  }
+ ],
+ "seeds": [
+  {
+   "id": "spiritGrass1Seed",
+   "name": "聚灵草种",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 5,
+   "description": "种植后可收获聚灵草"
+  },
+  {
+   "id": "spiritGrass2Seed",
+   "name": "清心草种",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 5,
+   "description": "种植后可收获清心草"
+  },
+  {
+   "id": "spiritGrass3Seed",
+   "name": "凝气草种",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 4,
+   "description": "种植后可收获凝气草"
+  },
+  {
+   "id": "spiritFlower1Seed",
+   "name": "云雾花种",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 5,
+   "description": "种植后可收获云雾花"
+  },
+  {
+   "id": "spiritFlower2Seed",
+   "name": "白莲种",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 4,
+   "description": "种植后可收获白莲"
+  },
+  {
+   "id": "spiritFlower3Seed",
+   "name": "晨露花种",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 5,
+   "description": "种植后可收获晨露花"
+  },
+  {
+   "id": "spiritFruit1Seed",
+   "name": "精气果核",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 5,
+   "description": "种植后可收获精气果"
+  },
+  {
+   "id": "spiritFruit2Seed",
+   "name": "赤心果核",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 4,
+   "description": "种植后可收获赤心果"
+  },
+  {
+   "id": "spiritFruit3Seed",
+   "name": "灵韵果核",
+   "tier": 1,
+   "rarity": 1,
+   "growTime": 36,
+   "yield": 5,
+   "description": "种植后可收获灵韵果"
+  },
+  {
+   "id": "spiritGrass4Seed",
+   "name": "寒霜草种",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获寒霜草"
+  },
+  {
+   "id": "spiritGrass5Seed",
+   "name": "烈焰草种",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获烈焰草"
+  },
+  {
+   "id": "spiritGrass6Seed",
+   "name": "金灵草种",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获金灵草"
+  },
+  {
+   "id": "spiritFlower4Seed",
+   "name": "冰魄莲种",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 3,
+   "description": "种植后可收获冰魄莲"
+  },
+  {
+   "id": "spiritFlower5Seed",
+   "name": "双生花种",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获双生花"
+  },
+  {
+   "id": "spiritFlower6Seed",
+   "name": "紫霄花种",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获紫霄花"
+  },
+  {
+   "id": "spiritFruit4Seed",
+   "name": "通灵果核",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获通灵果"
+  },
+  {
+   "id": "spiritFruit5Seed",
+   "name": "玄灵果核",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 4,
+   "description": "种植后可收获玄灵果"
+  },
+  {
+   "id": "spiritFruit6Seed",
+   "name": "五行果核",
+   "tier": 2,
+   "rarity": 2,
+   "growTime": 72,
+   "yield": 3,
+   "description": "种植后可收获五行果"
+  },
+  {
+   "id": "spiritGrass7Seed",
+   "name": "龙血草种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获龙血草"
+  },
+  {
+   "id": "spiritGrass8Seed",
+   "name": "风铃草种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获风铃草"
+  },
+  {
+   "id": "spiritGrass9Seed",
+   "name": "九转灵草种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获九转灵草"
+  },
+  {
+   "id": "spiritFlower7Seed",
+   "name": "九转仙兰种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获九转仙兰"
+  },
+  {
+   "id": "spiritFlower8Seed",
+   "name": "凤凰花种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获凤凰花"
+  },
+  {
+   "id": "spiritFlower9Seed",
+   "name": "青龙花种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获青龙花"
+  },
+  {
+   "id": "spiritFruit7Seed",
+   "name": "赤阳果核",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获赤阳果"
+  },
+  {
+   "id": "spiritFruit8Seed",
+   "name": "玄灵莓种",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获玄灵莓"
+  },
+  {
+   "id": "spiritFruit9Seed",
+   "name": "天元果核",
+   "tier": 3,
+   "rarity": 3,
+   "growTime": 240,
+   "yield": 2,
+   "description": "种植后可收获天元果"
+  },
+  {
+   "id": "spiritGrass10Seed",
+   "name": "玄冰草种",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获玄冰草"
+  },
+  {
+   "id": "spiritGrass11Seed",
+   "name": "风暴草种",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获风暴草"
+  },
+  {
+   "id": "spiritGrass12Seed",
+   "name": "神命草种",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获神命草"
+  },
+  {
+   "id": "spiritFlower10Seed",
+   "name": "日月同辉种",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获日月同辉花"
+  },
+  {
+   "id": "spiritFlower11Seed",
+   "name": "紫云花种",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获紫云花"
+  },
+  {
+   "id": "spiritFlower12Seed",
+   "name": "玄武花种",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获玄武花"
+  },
+  {
+   "id": "spiritFruit10Seed",
+   "name": "长生果核",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获长生果"
+  },
+  {
+   "id": "spiritFruit11Seed",
+   "name": "仙灵果核",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获仙灵果"
+  },
+  {
+   "id": "spiritFruit12Seed",
+   "name": "天灵果核",
+   "tier": 4,
+   "rarity": 4,
+   "growTime": 540,
+   "yield": 1,
+   "description": "种植后可收获天灵果"
+  },
+  {
+   "id": "spiritGrass13Seed",
+   "name": "仙灵草种",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获仙灵草"
+  },
+  {
+   "id": "spiritGrass14Seed",
+   "name": "天灵草种",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获天灵草"
+  },
+  {
+   "id": "spiritGrass15Seed",
+   "name": "混沌草种",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获混沌草"
+  },
+  {
+   "id": "spiritFlower13Seed",
+   "name": "凤仙花种",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获涅槃凤仙花"
+  },
+  {
+   "id": "spiritFlower14Seed",
+   "name": "龙鳞莲种",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获龙鳞仙莲"
+  },
+  {
+   "id": "spiritFlower15Seed",
+   "name": "白虎幽兰种",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获白虎幽兰"
+  },
+  {
+   "id": "spiritFruit13Seed",
+   "name": "还魂果核",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获九叶还魂果"
+  },
+  {
+   "id": "spiritFruit14Seed",
+   "name": "玄天灵果核",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获玄天灵果"
+  },
+  {
+   "id": "spiritFruit15Seed",
+   "name": "星陨神果核",
+   "tier": 5,
+   "rarity": 5,
+   "growTime": 840,
+   "yield": 1,
+   "description": "种植后可收获星陨神果"
+  },
+  {
+   "id": "spiritGrass16Seed",
+   "name": "鸿蒙草种",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获鸿蒙草"
+  },
+  {
+   "id": "spiritGrass17Seed",
+   "name": "太初草种",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获太初草"
+  },
+  {
+   "id": "spiritGrass18Seed",
+   "name": "永恒草种",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获永恒草"
+  },
+  {
+   "id": "spiritFlower16Seed",
+   "name": "永恒花种",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获永恒花"
+  },
+  {
+   "id": "spiritFlower17Seed",
+   "name": "混沌仙莲种",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获混沌仙莲"
+  },
+  {
+   "id": "spiritFlower18Seed",
+   "name": "造化神花种",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获造化神花"
+  },
+  {
+   "id": "spiritFruit16Seed",
+   "name": "瑞麟仙果核",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获瑞麟仙果"
+  },
+  {
+   "id": "spiritFruit17Seed",
+   "name": "玄武帝果核",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获玄武帝果"
+  },
+  {
+   "id": "spiritFruit18Seed",
+   "name": "混沌神果核",
+   "tier": 6,
+   "rarity": 6,
+   "growTime": 1440,
+   "yield": 1,
+   "description": "种植后可收获混沌神果"
+  }
+ ]
+}

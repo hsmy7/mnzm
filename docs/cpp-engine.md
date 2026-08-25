@@ -90,7 +90,19 @@ android/app/src/main/cpp/
 | 对拍测试 | `DiffStateTest`（JUnit 跨语言快照往返逐字段相等：gameData 90 标量 + 10 嵌套类型样本 / 弟子+全物品 / 空状态）+ C++ `json_codec_test`（38 测试全绿） |
 | 验证 | 桌面 GTest 38/38；JUnit 对拍 10/10；NDK `externalNativeBuildRelease` 通过 |
 
-> 批次 1 剩余（后续回合）：低频嵌套类型（秘境/血炼/探索队伍/功法精通/侦查信息等 ~20 个）与重型 @Transient 字段（aiSectDisciples 等）——随批次 3-8 子系统迁移配套补齐。
+> 批次 1 剩余（核心已完成）：低频嵌套类型
+>
+> | 项 | 说明 |
+> |---|---|
+> | C++ 模型补齐 | `state/models.h` 新增：`BloodRefinementProgress`/`BloodRefinementBonusTotal`/`BloodRefinementPctTotal`（血炼三件套）、`ManualProficiencyData`（功法熟练度）、`SpiritMineSlot`（矿脉槽位 7 字段）、`PatrolSlot`（巡视槽位）；`PatrolConfig` 补 `requireFullStatus`；GameData 接入 `manualProficiencies`/`spiritMineSlots`/`bloodRefinement*Totals`/`activeBloodRefinements`/`patrolSlots` |
+> | JSON 编解码 | `json_codec.cpp` 为上述类型实现 to_json/from_json 并接入 GameData 快照 |
+> | 对拍测试 | `DiffNestedTypesTest`（3：血炼嵌套/功法精通+矿脉/空字段——快照往返逐字段一致） |
+> | 根因修复 | **发现并修复**：`json_codec.cpp` 中 `worldMapSects` 与 `manualProficiencies/spiritMineSlots` 的 GC_TO/GC_FROM 行因"中文注释与代码同行"被注释掉——嵌套对象序列化缺失导致快照往返丢字段（调试中暴露）；修复后 DiffStateTest 等全量回归通过 |
+> | 验证 | 桌面 GTest 268/268；JUnit 对拍累计 71/71；NDK 构建通过 |
+>
+> 批次 1 剩余验收达成：低频嵌套类型核心补齐。
+> 剩余（登记随后续批次）：秘境（SecretRealmState/ExplorationSession/MemberState/EventRecord/Option/Backpack 等 ~12 类型）、
+> 探索队伍/侦查信息等重型状态——随批次 8 探索/秘境状态机落地配套。
 
 ### 批次 2（第一子步已完成）：静态数据/注册表（装备表）
 
@@ -102,6 +114,31 @@ android/app/src/main/cpp/
 | 验证 | 桌面 GTest 43/43；JUnit nativebridge 11/11（含守卫）；NDK 构建通过 |
 
 > 批次 2 剩余（后续回合）：丹药配方/功法/天赋/体质/词缀/材料/锻造配方/妖兽材料等 Registry 的提取器扩展（格式差异逐表适配）。
+
+### 批次 2 剩余（核心已完成）：天赋/体质/词条静态表
+
+| 项 | 说明 |
+|---|---|
+| C++ 特质表 | `data/trait_db.h`：`TalentTemplate`/`PhysiqueTemplate`/`AffixTemplate` + 生成函数 `talentTemplates()`（109 条 = 正面 104 + 负面 5）/`physiqueTemplates()`（24 = 21 + 3）/`affixTemplates()`（71 = 68 + 3）+ `talentById`/`physiqueById`/`affixById` 查询辅助 |
+| 等价生成器 | `scripts/gen-trait-db.mjs`：Node 侧复刻 Kotlin 程序化生成逻辑（config 梯度 + 循环拼接 + talentGrade 旧 1-6→新 1-3 品映射 + `%.0f`/`%.1f` 百分比格式化 + 全角逗号混合描述 + 职务「之印」命名）→ trait_db_sample.json |
+| 守卫测试（双端锚定） | Kotlin `TraitRegistryGuardTest`（快照 ↔ 三 Registry 实时数据逐字段：id/name/rarity/effects/positionBonus 等，4 测试）；C++ `trait_db_test`（数量/代表性条目/职务/去重/查询辅助，9 测试） |
+| 验证 | 桌面 GTest 225/225（含 TraitDbTest 9）；JUnit 守卫 4/4；NDK 构建通过 |
+
+> 批次 2 剩余验收达成：天赋/体质/词条静态表 C++ 化 + 双端守卫完成（Kotlin 改数据 → 重跑 `node scripts/gen-trait-db.mjs`）。
+> 剩余（登记随后续批次）：丹药配方/锻造配方/功法/材料/妖兽材料表——其中配方类为**程序化生成**（依赖 ItemDatabase 模板，
+> 随批次 7 生产/内政落地时以 C++ 等价生成器补齐）。
+
+### 批次 2 剩余（已完成）：丹药/锻造配方表
+
+| 项 | 说明 |
+|---|---|
+| C++ 配方表 | `data/recipe_db.h`：`ForgeRecipeTemplate`（id/name/type/tier/rarity/description/materials/duration/successRate）+ `PillRecipeTemplate`（含 breakthroughChance/targetRealm/全部效果字段）+ `forgeRecipes()`（72 条静态字面量逐字复刻）+ `pillRecipes()`（732 条程序化生成：TIER_DURATION/TIER_SUCCESS_RATE/TIER_HERB_IDS/herbMat/PillGrade 循环；配方依赖的 ItemDatabase PillTemplate 在 detail 内等价生成 732 模板）+ `forgeRecipeById`/`pillRecipeById`/`pillTierName` 查询辅助 |
+| 等价生成器 | `scripts/gen-recipe-db.mjs`：Node 侧复刻 PillRecipeDatabase + ItemDatabase 生成逻辑（含 `%.0f` roundToInt 半进位、双属性描述英文属性键格式陷阱、突破丹 tier≥3 追加第三味材料）→ recipe_db_sample.json（72 锻造 + 732 丹药完整条目） |
+| 守卫测试（双端锚定） | Kotlin 守卫（TemplateRegistryGuardTest 模式，快照 ↔ ForgeRecipeDatabase/PillRecipeDatabase 实时数据逐字段）；C++ `recipe_db_test`（数量/代表性条目/去重/查询辅助/品阶名，10 测试） |
+| 验证 | 桌面 GTest 278/278（含 RecipeDbTest 10）；临时 JUnit 对拍 3/3（快照 ↔ Kotlin 运行时 804 条逐字段一致，验证后已删）；C++ 表 ↔ 快照全量对拍 804/804 一致；NDK 构建不受影响 |
+
+> 批次 2 剩余验收达成：丹药/锻造配方表 C++ 化 + 快照锚点完成（Kotlin 改数据 → 重跑 `node scripts/gen-recipe-db.mjs`）。
+> 剩余（登记随后续批次）：功法/材料/妖兽材料表。
 
 ### 批次 3（已完成）：时间系统 + 惰性结算引擎
 
@@ -115,6 +152,91 @@ android/app/src/main/cpp/
 
 > 批次 3 验收达成：同档 1000 旬推进时间逐位一致 + 空档非时间状态不变（灵石/玉符/设置等）。
 > 月变/年变结算钩子的系统实现依赖批次 4-7 子系统（登记 C-10），随各批次填充。
+
+### 批次 4（已完成）：经济/库存/生产系统
+
+| 项 | 说明 |
+|---|---|
+| C++ 经济系统 | `system/economy.h`：`SpiritStoneExchange`（RATIO=10,000、EFFECTIVE_RATIO=8,000、safeAdd/safeMultiply 溢出回绕、totalSellValue/toLowGrade/fromLowGrade/exchange/splitToGrades）+ `SpiritStoneWallet`（add/deduct/batch、自动售卖中/上品补差价、预检查整体回滚、年度报告累积）——Kotlin SpiritStoneWallet 纯逻辑逐行等价 |
+| C++ 库存系统 | `system/inventory.h`：`StackableItemStore<T>`（多堆叠合并/最近使用优先/分块创建保首 id/Partial-Failure 语义）等价移植；`InventorySystem` addXxx/removeXxx/canAdd（槽位预算 = 仓库容量 - 其他类型、各类型 maxStack 表、溢出转邮件 `OverflowDraft`、年度物品来源追踪） |
+| C++ 灵田收获 | `system/spirit_field.h`：`processSpiritFieldHarvest`（成熟判定、种子名→灵草反查、灵草/种子入库、续种消耗、无种子清地、跨宗门隔离、SYSTEM 分区 RNG 种子奖励） |
+| 灵草/种子静态表 | `scripts/gen-templates.mjs` 扩展 → `data/herb_db.h`（54 灵草 + 54 种子，与 Kotlin HerbDatabase 同源）+ 守卫快照 `herb_db_sample.json` |
+| 对拍测试 | `DiffEconomyTest`（8 测试：add/deduct/batch/autoConvert/溢出回绕 与 Kotlin 钱包逻辑逐位一致）+ `DiffInventoryTest`（5 测试：合并/分块/移除/丹药品阶键/满仓 与 Kotlin 真实 StackableItemStore 一致）+ `DiffSpiritFieldTest`（4 测试：成熟收获/清地/续种/未成熟 与 Kotlin 收获语义一致） |
+| GTest | `economy_test`（19）/`inventory_test`（15）/`spirit_field_test`（9）+ herb_db（4）——桌面 GTest 合计 127/127 |
+| 验证 | 桌面 GTest 127/127；JUnit 对拍 17/17；NDK `externalNativeBuildRelease` 通过（arm64-v8a + armeabi-v7a） |
+
+> 批次 4 验收达成：经济/库存/灵田核心逻辑 C++ 化完成，跨语言对拍全绿。
+> 剩余（登记随后续批次）：炼丹/锻造配方为**程序化生成**（PillRecipeDatabase/ForgeRecipeDatabase 循环 + ItemDatabase 模板），
+> 无法正则提取——批次 5 起以 C++ 等价生成器方式落地；光环/政策加成（HerbGardenAuraService/ZoneCalculator）批次 7 接入。
+
+### 批次 5（核心已完成）：弟子系统
+
+| 项 | 说明 |
+|---|---|
+| C++ 属性乘区法 | `system/disciple.h`：`computeBaseStats`（境界基值 × 方差乘区 × 层数乘区 × (1+天赋%+血炼%)，roundToInt 语义）、`calculateCultivationPerPhase`（5 乘区连乘 + 下限 1.0）、`calculateBreakthroughChance`（baseZone × (1+指导+自身) × (1-惩罚) + adFlat）、寿命/魂力/师徒/父母/丧亲公式、Realm 配置表 10 境界 + 突破概率表（层数线性插值） |
+| C++ 修炼推进 | `system/cultivation.h`：`accumulateCultivationPerPhase`（修为 + rate 钳制上限）、`computeMaxCultivation`（base + (layer-1)×(nextBase-base)/maxLayers；仙人返回自身）、`checkpointDisciple`/`getEffectiveCultivation`（checkpoint + rate×Δmonth×3）、`checkpointAllDisciples`、绝对月份编码 |
+| C++ 突破系统 | `system/breakthrough.h`：`tryBreakthrough`（BREAKTHROUGH 分区 RNG 判定）、`applyBreakthroughSuccess/Failure`（修为清零、层数+1/大境界+1 寿命增益、失败 HP/MP 打一折）、`performBreakthrough` 连续突破循环（迭代保护）、`estimateMonthsToNextBreakthrough`（ceil 旬数 → 整数月） |
+| C++ 生命周期 | `system/lifecycle.h`：`computeMaxAge`（max(lifespan, realmMaxAge, realmMaxAge×(1+寿命加成))，硬上限 20000）、`ageDisciple`/`ageAliveDisciple`（年龄+1、5 岁 realmLayer 回正、寿元耗尽判定） |
+| 对拍测试 | `DiffDiscipleTest`（13：基础属性/修炼乘区/突破乘区/寿命/师徒/父母/魂力/资质）+ `DiffCultivationTest`（9：maxCultivation/累积/投影/绝对月份）+ `DiffBreakthroughTest`（5：成功/失败应用/时间预估）+ `DiffLifecycleTest`（3：寿元/老化/回正）——与 Kotlin 真实实现逐位一致 |
+| GTest | `disciple_test`（28）/`cultivation_test`（16）/`breakthrough_test`（11）/`lifecycle_test`（11）——桌面 GTest 合计 192/192 |
+| 验证 | 桌面 GTest 192/192；JUnit 对拍 30/30（含批次 4 累计 47/47）；NDK `externalNativeBuildRelease` 通过 |
+
+> 批次 5 验收达成：弟子属性/修炼/突破/生命周期核心公式 C++ 化完成。
+> 剩余（登记随后续批次）：11 槽分配、死亡物化（依赖 DiscipleTables 列式 + InventorySystem 物化链路，批次 9 转发层接线）；
+> 天赋/体质/词条 effects 依赖批次 2 剩余 Registry（C++ 等价生成器，随批次 2 剩余落地后接线）。
+
+### 批次 6（核心已完成）：战斗系统
+
+| 项 | 说明 |
+|---|---|
+| C++ 战斗计算 | `system/battle.h`：`calculateFinalDamage`（乘区法：攻防减伤 DEFENSE_CONSTANT=500、暴击 ×1.5、体质/词条/境界压制独立乘算因子、波动、MIN_DAMAGE 钳制）、`calculateDamageVariance`（±20% 抖动 1 位小数）、`calculateDodgeChance`（速度差/总速度 × modifier，上限 0.5）、`calculateRealmGapFactors`（小层 ±30%/层 + 大境界 +100%，Long 中间运算 + safeRealm/safeLayer 篡改钳制）、`checkInstantKill`（高 1 大境界斩杀）、`calculateShieldAbsorption`（护盾钳制 [0,1]）、`applyDotDamage`、`updateCooldowns` |
+| 对拍测试 | `DiffBattleTest`（7：最终伤害全乘区/暴击/境界压制/斩杀/闪避/护盾——与 Kotlin BattleCalculator 真实实现逐位一致） |
+| GTest | `battle_test`（24）——桌面 GTest 合计 225/225 |
+| 验证 | 桌面 GTest 225/225；JUnit 对拍累计 54/54；NDK 构建通过 |
+
+> 批次 6 验收达成：战斗乘区法核心公式 C++ 化完成。
+> 剩余（登记随后续批次）：BattleSystem 回合编排/AI 选技能/目标选择（依赖 Combatant 完整模型 + Buff 列表，批次 6b 落地）；
+> 宗门战/妖兽战结算（AISectAttackManager/BeastAttackProcessor）批次 6c。
+
+### 批次 7（核心已完成）：世界/内政
+
+| 项 | 说明 |
+|---|---|
+| C++ 内政系统 | `system/government.h`：`zoneCalculate`（乘区法通用）/`calculateProbability`/`calculateReducedDuration`/`calculateAcceleratedTime`（ZoneCalculator 全量等价）、`processPolicyCosts`（固定/按弟子数/周期性三模式，灵石不足自动关闭政策）、`policyMonthlyDeltas`（6 政策忠诚/道德月度净变化）、`buildSpiritMineZones`/`calculateSpiritMineMonthly`/`settleSpiritMineProduction`（灵矿时间戳差分结算 + 采矿技能/执事道德/政策乘区）、`calculateSalaryPlan`/`payAnnualSalary`（年俸：开源节流 -30%、灵石不足不发） |
+| 对拍测试 | `DiffGovernmentTest`（6：乘区法/概率/时间缩减加速/政策月度/灵矿产出——与 Kotlin ZoneCalculator 真实实现逐位一致） |
+| GTest | `government_test`（20）——桌面 GTest 合计 245/245 |
+| 验证 | 桌面 GTest 245/245；JUnit 对拍累计 60/60；NDK 构建通过 |
+
+> 批次 7 验收达成：内政核心公式 C++ 化完成。
+> 剩余（登记随后续批次）：政策 toggle 与事件处理器（CultivationEventProcessor 月度事件编排）、外交/宗门等级/兑换码（RedeemCodeManager/MailService 状态链路）、年度报告归档（onYearChange 钩子）——批次 9 转发层接线。
+
+### 批次 8（核心已完成）：探索/世界关卡
+
+| 项 | 说明 |
+|---|---|
+| C++ 世界关卡 | `system/exploration.h`：`checkLevelExpired`（defeated/年份/月份含等号过期判定）、`filterExpiredLevels`（清理）、`shouldRefreshLevels`（每 3 月含等号）、`moveBeasts`（EXPLORATION 分区 RNG 极坐标偏移 + 边界钳制 [34,1698-34]×[34,926-34]、洞府/已击败/已过期不动）、`processWorldLevelsMonthly`（清理 + 刷新判定 + 移动编排） |
+| 对拍测试 | `DiffExplorationTest`（2：过期判定/刷新判定——与 Kotlin WorldLevel.checkExpired + 复刻刷新语义一致） |
+| GTest | `exploration_test`（9）——桌面 GTest 合计 254/254 |
+| 验证 | 桌面 GTest 254/254；JUnit 对拍累计 62/62；NDK 构建通过 |
+
+> 批次 8 验收达成：世界关卡核心逻辑 C++ 化完成。
+> 剩余（登记随后续批次）：LevelGenerator 关卡生成（依赖世界地图生成算法）、SecretRealm/Cave/HeavenlyTrial/Patrol 状态机
+> （依赖完整状态模型 + 事件系统，批次 9 转发层接线后随剩余 @Transient 字段补齐）。
+
+### 批次 9（核心已完成）：ActionId 协议 + execute 分发表
+
+| 项 | 说明 |
+|---|---|
+| ActionId 协议 | `scripts/gen-action-ids.mjs` 填充 **46 个动作**（批次 4-8 已落地系统全覆盖：钱包 5 / 库存 17 / 灵田 1 / 弟子 9 / 战斗 7 / 内政 5 / 探索 2）→ `action_ids.h` + `ActionIds.kt` 双产物 |
+| C++ execute 分发表 | `src/execute_dispatch.cpp`：`GameCore::execute` 完整实现——JSON 参数解析 → 按动作段分发到各 handler（`handleWallet`/`handleInventory`/`handleSpiritField`/`handleDisciple`/`handleBattle`/`handleGovernment`/`handleExploration`），统一 `{"status":"success"/"failure","code":...}` 信封；未注册动作 → NOT_IMPLEMENTED；异常 → INTERNAL |
+| GTest | `execute_dispatch_test`（13：钱包增扣/库存增删/灵田收获/弟子寿元/突破预估/战斗伤害/斩杀/政策成本/灵矿产出/关卡过期/未知动作）——桌面 GTest 合计 268/268 |
+| JUnit 对拍 | `DiffExecuteTest`（6：ActionIds 编号一致性 + 钱包/库存经 execute 与 Kotlin 语义一致 + 未知动作 NOT_IMPLEMENTED）——累计对拍 68/68 |
+| 验证 | 桌面 GTest 268/268；JUnit 对拍累计 68/68；NDK 构建通过 |
+
+> 批次 9 验收达成：C++ 侧 execute 统一入口完成——Kotlin 转发层（GameEngine 族方法体改转发 + StateSyncService 镜像 +
+> feature flag 切换）已具备全部底层动作。剩余（登记随后续批次）：Kotlin GameEngine 275 方法逐一转发（方法签名保留、
+> 方法体改 JNI nativeExecute 调用）、StateSyncService 全量快照→增量变更集同步、tick 桥接、feature flag 与性能基准——
+> 为超大工作量批次，需与 UI 回归测试协同推进。 
 
 ## 6. 后续批次（详见实施计划）
 
@@ -132,4 +254,17 @@ android/app/src/main/cpp/
 > - C++ Vulkan：`NativeBridge.cpp drawAllTiles` 道路段（按传入 `roadUVMap` 用 `SpriteBatcher` 合成）
 >
 > 且二者都**深耦合**于生成式图集（`build-atlas.mjs` → `SpriteAtlasDef.kt`/`TextureAtlas.h` + 运行时 `SectAtlasAssembler`），并各自维护 `RoadTiling.tileTypeForBitmask`/C++ `roadTypeForMask` 的同语义双份实现。**待完成批次 R 目标**：把道路位掩码→形态、边框判定、逐格合成收敛为**单一权威**（下沉到 `gamecore/map/road_system.h` 已就位的求解器 + 统一的 C++ 渲染合成），Kotlin 侧仅做数据装配，消除双端重复与图集强耦合（对照"单数据源"原则）。完成前本系统暂以"双端并行 + 生成图集 + 运行时拼装"运行。
+
+### 批次 R（求解器权威性已达成）：石板道路渲染深耦合
+
+| 项 | 说明 |
+|---|---|
+| C++ 求解器（已就位） | `map/road_system.h`：`tileTypeForBitmask`（16 种掩码 → 12 形态全覆盖）、`roadBorderMask`（外缘描边 = 掩码补集）、`RoadGrid`（放置/删除 O(1) 邻域重算、读档全量 rebuild、`canPlaceRoad`/`canPlaceBuilding` 可建造判定）——与 Kotlin `RoadTiling` 逐位同语义 |
+| 对拍测试 | `DiffRoadTest`（3：全 16 掩码形态/全 16 描边掩码/任意坐标四邻位掩码——与 Kotlin RoadTiling 真实实现逐位一致）；C++ `road_system_test`（12，既有） |
+| 验证 | JUnit 对拍累计 74/74；NDK 构建通过 |
+
+> 批次 R 验收达成：道路**求解器权威性**双端对拍守护完成（掩码→形态/描边/邻接计算逐位一致）。
+> 剩余（登记随后续批次）：**渲染合成收敛**——Kotlin Canvas `SoftwareCanvasBackend.drawRoadsToCanvas` 与 C++ Vulkan
+> `NativeBridge.drawAllTiles` 道路段的逐格合成逻辑统一为单一 C++ 合成器（下沉 road_system.h），Kotlin 侧仅做数据装配；
+> 同时解除与生成式图集的强耦合。此为渲染层大工程，需与 Vulkan/Canvas 双路径回归协同推进。 
 

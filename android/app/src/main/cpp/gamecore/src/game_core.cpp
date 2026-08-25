@@ -79,19 +79,6 @@ system::TickResult GameCore::advancePhases(int phaseCount) {
     if (!initialized_) return {};
     return settlement_.advancePhases(state_, phaseCount);
 }
-
-std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
-                              int64_t nowMs) {
-    (void)paramsJson;
-    (void)nowMs;
-    if (!initialized_) {
-        return R"({"status":"failure","code":"kInternal","message":"GameCore not initialized"})";
-    }
-    // 批次 1+：ActionId 分发表。当前全部返回"未实现"。
-    return std::string(R"({"status":"failure","code":"kGeneric","message":"action not implemented yet: )") +
-           std::to_string(actionId) + R"("})";
-}
-
 std::string GameCore::exportStateJson() {
     if (!initialized_) return "{}";
     try {
