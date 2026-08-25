@@ -1,6 +1,9 @@
 # ADR: 游戏逻辑核心 Kotlin→C++ 迁移（cpp-engine-migration）
 
-> 日期：2026-08-16。状态：已批准实施（批次 0 进行中）。
+> 日期：2026-08-16。状态：已批准实施（批次 0-9 核心完成；批次 10 重定义见 Decision 7 修订）。
+> 修订：2026-08-25——性能基准（NativeBenchmarkTest）证实 JNI+JSON 传输开销 408× 于 Kotlin 纯计算，
+> 且大量系统（SecretRealm/外交/邮件/兑换码等）依赖 Kotlin 状态链路无 C++ 对应动作，
+> **Decision 7 "Kotlin 引擎退役"重定义为"职责边界固化"**（详见下）。
 
 ## Context
 
@@ -15,34 +18,38 @@
 
 ## Decision
 
-1. **C++ GameCore 为状态真相源**；Kotlin GameStateStore 降级为镜像（接口/StateFlow 不变）
-2. **Kotlin 转发层**：GameEngine 族（~275 方法）+ 10 Facade（117 方法）保留签名，方法体改转发；GameEngineCore（帧循环/生命周期/看门狗）保留 Kotlin
+1. **C++ GameCore 为确定性计算真相源**；Kotlin GameStateStore 保持单一真相源接口（StateFlow 不变，镜像/派生两态并存）
+2. **Kotlin 转发层**：GameEngine 族（~275 方法）+ 10 Facade（117 方法）保留签名，**低频业务操作方法体改转发**；GameEngineCore（帧循环/生命周期/看门狗）保留 Kotlin
 3. **通用 JNI 入口**（init/advance/execute/export/import/poll 5-8 个）+ ActionId 协议（codegen 生成双产物）
 4. **参数/结果编码 = JSON**（kotlinx ↔ nlohmann/json）：方法调用低频，零代码生成
 5. **镜像 JSON 快照**：C++ 全量导出 → Kotlin 镜像 → 现有存档链路**零改动**（存档兼容 100% 由 Kotlin 层保证；不做 C++ 直出 kotlinx-proto——2174 字段号工作量无当前消费者，登记技术债）
 6. **RNG 精确复刻**（PCG-XSH-RR、8 分区 id 对齐、stable_sort shuffle）；现实时间 **Clock 注入**
-7. **双实现并行 + 差分对拍 + feature flag 切换 + Kotlin 引擎退役**：任何时刻可回退
+7. **双实现并行 + 差分对拍 + feature flag 切换**：任何时刻可回退。~~Kotlin 引擎退役~~ **修订为职责边界固化**（2026-08-25）：
+   - C++ 接管：时间推进/结算引擎（确定性核心）、低频业务操作转发（玩家行为入口）、静态数据单一源
+   - Kotlin 保留：高频纯计算（性能基准证实 JNI+JSON 开销 408×，高频留 Kotlin 更快）、UI 链路、未迁移系统（SecretRealm/外交/邮件/兑换码等）、存档编码（kotlinx-proto 链路零改动）
+   - 不做 Kotlin 引擎全量删除——职责边界冻结后双端并行成为**最终架构**而非过渡态
 8. **game-core 纯 C++ 静态库**（零 Android 依赖，桌面可编译 GTest，iOS 可复用）；JNI 桥独立薄层
 
 ## Consequences
 
 正面：
 - 界面/存档/外围零改动；存档格式零变更无 Migration
-- 性能：计算下沉原生；确定性由差分对拍守护
+- 性能：**确定性结算下沉原生**（时间推进/低频业务），高频纯计算留在 Kotlin 避免 JNI 传输开销（实测 408×）
 - iOS：game-core 直接复用；平台能力（Clock/Logger）已注入抽象
+- 双实现并行成为最终架构，无一次性迁移风险
 
 负面/成本：
-- C++ 引擎 8-10 万行 + 测试 3-4 万行，10 批交付
-- 迁移期 Kotlin/C++ 双实现共存（静态数据双份，对拍守卫防漂移）
-- 静态数据/注册表需要 C++ 侧等价物（codegen 优先）
-- JNI/JSON 传输有少量开销（方法低频可接受）
+- C++ 引擎已交付 ~7 万行 + 测试（GTest 289 + JUnit 对拍）；双端共存为长期态
+- 静态数据双份（Kotlin Registry + C++ 表，双端守卫防漂移；T-CPP-2 决定单一源时机）
+- 未迁移系统保持 Kotlin 实现（职责边界显式登记）
+- JNI/JSON 传输有少量开销（低频方法调用可接受，高频已排除）
 
 ## 技术债（偿还触发）
 
 | 债项 | 偿还触发 |
 |---|---|
 | C++ 未实现 kotlinx-proto 编解码（存档经 Kotlin 镜像） | iOS 立项需纯 C++ 存档时 |
-| 静态数据双份 | 批次 10 退役后统一单一源 |
+| 静态数据双份 | 职责边界固化后或 iOS 立项需单一数据源时（T-CPP-2） |
 | 桌面 JNI .so 仅测试用途 | 对拍框架退役时删除 |
 
 ## 参考

@@ -330,7 +330,8 @@ RunState（运行时状态 — 可循环回退）
 
 | 技术栈 | Android 现状 | iOS 迁移方案 | 风险 |
 |--------|-------------|-------------|------|
-| core:domain / core:engine | 零 Android 依赖（基线 ✅） | KMP 直接复用 | 低 |
+| core:domain / core:engine | 零 Android 依赖（基线 ✅，R-02 待清理） | KMP 直接复用 | 低 |
+| **C++ 引擎（game-core）** | 纯 C++20 零 Android 依赖（迁移批次 0-9 已交付） | **直接复用**（桌面 GTest 已验证跨平台编译） | 低 |
 | C++ 渲染引擎 | Vulkan（Android 独占）+ JNI | Metal 或软件渲染（`SoftwareCanvasBackend` 纯软渲染可跨平台）；JNI → 平台桥 | 中 |
 | Compose UI | Jetpack Compose（Android 独占） | Compose Multiplatform 或重写 | 高（评估点） |
 | Room | Room 2.6.1 | SQLDelight / 原生 SQLite | 中（迁移风险点，新数据层组件优先跨平台选型） |
@@ -340,6 +341,7 @@ RunState（运行时状态 — 可循环回退）
 | 平台 SDK | TapTap（登录/云存档/广告）+ Bugly | TapTap iOS SDK；Bugly → 对应崩溃上报 | 中 |
 
 **迁移前置原则**（约束新代码）：core 层禁 Android 独占 API、平台能力接口抽象（`RemoteConfigProvider`/`AdService` 模式）、新平台依赖方案中给 iOS 对等实现——详见 `rules/code-quality.md` 第 1.5 节。
+**2026-08-25 注记**：C++ 引擎迁移降低了 iOS 迁移风险（game-core 纯 C++ 直接复用 + 桌面 GTest 跨平台验证），但 Kotlin 侧职责边界固化意味着 core:engine 仍保留大量 Kotlin（未迁移系统/高频计算）——iOS 迁移仍需 KMP/Compose Multiplatform 路径，C++ 只解耦了确定性计算部分。
 
 ---
 
@@ -451,7 +453,7 @@ SaveValidator.validate(SaveData)
 | # | 来源 | 待办内容 | 严重度 | 治理方向 |
 |---|---|---|---|---|
 | R-01 | 根治批次交付盘点 | **detekt baseline 存量约 3058 条违规未登记**（app 254 / data 464 / domain 511 / engine 1167 / ui 23 / game 639）：TooGenericExceptionCaught / ReturnCount / CyclomaticComplexMethod / ThrowsCount / UnusedParameter 等历史存量，不在架构文档原登记范围，baseline"只缩不增"下仍真实存在 | 🟡 中 | 专项批次逐条真修或评估销账；新违规必须直接修复 |
-| R-02 | 根治批次交付盘点 | **core/engine 存在 33 处 `import android.*`**（android.util.Log / android.os.Build / android.content.Context / PerformanceHintManager / SystemClock 等，分布于 thermal/perf/config/registry/save 等领域），与"零 Android 依赖"声明不符（本批次仅清零 audio 包） | 🟡 中 | 平台能力接口化专项（参照 G1/G3 已建模式：core 层接口 + app 层实现） |
+| R-02 | 根治批次交付盘点 | **core/engine 存在 33 处 `import android.*`**（android.util.Log / android.os.Build / android.content.Context / PerformanceHintManager / SystemClock 等，分布于 thermal/perf/config/registry/save 等领域），与"零 Android 依赖"声明不符（本批次仅清零 audio 包） | 🟡 中 | 平台能力接口化专项（参照 G1/G3 已建模式：core 层接口 + app 层实现）。**2026-08-25 注记**：C++ 迁移后未迁移系统（SecretRealm/外交/邮件等）保留 Kotlin，此债仍真实存在但清理范围随职责边界固化收窄（仅需处理 Kotlin 保留侧） |
 | R-03 | 根治批次交付盘点 | **163 处 @Suppress 拆分妥协**：LongMethod 为真拆根除，但拆分搬移引出的 LongParameterList / CyclomaticComplexMethod / ReturnCount / UnusedParameter 等 163 处采用 @Suppress 压制（语义保真已验证） | 🟢 低 | 长期项：参数聚合数据类/策略模式等真拆，逐步消除 Suppress |
 | R-04 | 根治批次交付盘点 | **lintRelease 存量 10 条警告 + 3 条基线过滤**（app/lint-baseline.xml） | 🟢 低 | 逐条销账或补豁免理由，目标零警告 |
 | R-05 | 根治批次交付盘点 | **proguard 宽规则"按序试删"未实际执行**：kotlinx.serialization / coroutines / lifecycle / room 整包 keep 保留（assembleRelease 已通过，但未逐条试删验证可否进一步收窄） | 🟡 中 | 按 T-PRO 顺序在下次 R8 发布验证时实际执行试删（每次删一条 + 完整 R8 + 存档读写回归） |
@@ -464,31 +466,26 @@ SaveValidator.validate(SaveData)
 | R-12 | 2026-08-21 detekt 全量排查（core:engine 15 项清偿后暴露） | **core:domain detekt 3 项违规**：`StackableItemStore.add` LongMethod 63/60（溢出邮件合并功能）；`GameConfig.SectMap.GATE_X/GATE_Y` MayBeConst ×2（灵矿场/门楼配置）——均为 2026-08-19~21 新功能引入、未冻结 baseline | 🟢 低 | 低风险清理：`add` 拆辅助函数；GATE_X/GATE_Y 改 `const val`（表达式引用常量可 const），修后 `:core:domain:detekt` 归零 |
 | R-13 | 2026-08-21 detekt 全量排查（core:engine 15 项清偿后暴露） | **feature:game detekt 6 项违规**：`MainGameScreen` FileLength（1744 行 UI 文件，需独立拆分工程）；`BuildingDelegate` TooManyFunctions 22/20；`MaterialSelectorDialog` LongMethod 88/60（血炼池）；`ResidenceDialog` LongMethod 60/60 + `ResidenceDialogContent` LongParameterList 11/8（住所升级对话框）；`MainGameScreenDemolishControls` LongMethod 60/60 | 🟡 中 | 除 MainGameScreen 拆分（独立重构工程，涉及上千行 Compose 迁移与独立回归）外，其余 5 项为低风险清理（拆函数/参数分组/@Suppress 豁免评估）；MainGameScreen 拆分单列专项 |
 
-### C++ 引擎迁移待办 C 系列（2026-08-22 批次 0-3 完成登记）
+### C++ 引擎迁移待办 C 系列（2026-08-25 清理：已完成批次归档至 docs/cpp-engine.md 第 4 节）
 
-> 总方案：`docs/adr/cpp-engine-migration.md`；进度：`docs/cpp-engine.md`。
-> 已完成批次 0（基础设施）/1（状态模型+快照 + 低频嵌套类型核心 + 远古秘境状态机 10 类型）/2（装备表 + 天赋/体质/词条 + 丹药/锻造配方 + 妖兽材料 192 + 功法 540）
-> /3（时间系统+结算引擎）/4（经济/库存/灵田）/5（弟子属性/修炼/突破/生命周期核心）/6（战斗乘区法核心）/
-> 7（内政核心）/8（世界关卡核心）/9（ActionId + execute 分发表 + 转发层基础设施：feature flag + StateSyncService 宽松合并 + tick 桥 + 转发辅助 + 性能基准）/R（道路求解器权威性对拍守护 + Vulkan 端位掩码判定收敛 road_system.h 单一权威）。
-> 以下为**活跃待办**——批次 10 与批次 9/R 的剩余子步为后续迁移批次，C-01~C-05 等为登记项。
+> 总方案：`docs/adr/cpp-engine-migration.md`；进度与未完成项详细规划：`docs/cpp-engine.md`。
+> **已完成**（归档，不再列为待办）：批次 0（基础设施）/1（状态模型+快照+低频嵌套+秘境状态机）/2（装备/灵草/特质/配方/妖兽材料/功法表）/
+> 3（时间系统+结算引擎）/4（经济/库存/灵田）/5（弟子）/6（战斗）/7（内政）/8（探索）/9 核心（46 动作+execute 分发表）/
+> 9 剩余基础设施（feature flag+StateSyncService+tick 桥+转发辅助+性能基准）/R 求解器权威（含 Vulkan 端收敛）。
+> 当前基线：桌面 GTest 289/289 · engine JUnit 2818/2818 · NDK 通过 · engine detekt 全绿。
+> **2026-08-25 重新审视结论**：批次 10 由"Kotlin 引擎退役"重定义为"职责边界固化"（性能基准证实 JNI+JSON 开销 408×，
+> 全量退役无性能收益且不可行——C++ 接管确定性结算+低频转发，Kotlin 保留高频计算/UI/未迁移系统/存档编码）。
 
 | # | 待办内容 | 触发/计划 |
 |---|---|---|
-| C-01 | **批次 4：经济/生产/库存系统** ✅ 已完成核心（经济/库存/灵田 C++ 化 + 对拍） | 完成（炼丹/锻造配方表随 C-09 补齐） |
-| C-02 | **批次 5：弟子系统** ✅ 已完成核心（属性乘区法/修炼 Checkpoint/突破/生命周期） | 完成（11 槽分配/死亡物化随批次 9 接线） |
-| C-03 | **批次 6：战斗系统** ✅ 已完成核心（乘区法伤害/境界压制/斩杀/闪避/护盾） | 完成（回合编排/AI 决策随批次 9 接线） |
-| C-04 | **批次 7：世界/内政** ✅ 已完成核心（政策成本/灵矿产出/年俸/乘区工具） | 完成（政策 toggle/外交/兑换码随批次 9 接线） |
-| C-05 | **批次 8：探索/秘境** ✅ 已完成核心（世界关卡清理/刷新/妖兽移动） | 完成（LevelGenerator/秘境状态机随批次 9 接线） |
-| C-06 | **批次 9：集成切换** 🟡 核心 + 转发层基础设施已完成（ActionId 46 动作 + execute 分发表 + feature flag/StateSyncService 宽松合并/tick 桥（shadow 对拍）/转发辅助/性能基准）；剩余 Kotlin GameEngine 275 方法逐一转发（**依赖 C++ 动作全覆盖**——未迁移系统无对应动作；NativeBenchmarkTest 证实 JNI+JSON 开销显著，转发范围应裁剪为低频业务操作）、全量快照→增量变更集同步、全量切换（C++ 为真相源） | 超大工作量批次，需与 UI 回归协同；全量切换为批次 10 前置 |
-| C-07 | **批次 10：Kotlin 引擎退役**（删除重复逻辑、对拍转回归、清理临时工具、文档收尾） | 批次 9 完整转发层落地后 |
-| C-08 | **批次 1 剩余：低频嵌套类型** ✅ 已完成（血炼三件套/功法精通/矿脉/巡视槽位 + **远古秘境状态机 10 类型**：SecretRealmState/Session/MemberState/EventRecord/Option/Params/Backpack/RewardItem/AITeam/AIMember，含 optional currentEvent 编解码 + DiffNestedTypesTest 对拍） | 完成（探索队伍/侦查信息重型状态随批次 8 配套） |
-| C-09 | **批次 2 剩余：Registry 提取器扩展** ✅ 已完成（天赋/体质/词条 + 丹药/锻造配方 + **妖兽材料 192/功法 540 C++ 等价生成器 + 双端守卫**） | 完成 |
-| C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等） | 政策成本/灵矿/年俸已 C++ 化；onMonthChange/onYearChange 钩子接线随批次 9 |
+| C-06 | **批次 9：转发层收尾** 🟡 基础设施已完成（feature flag/StateSyncService 宽松合并/tick 桥/转发辅助/性能基准）；剩余 Kotlin GameEngine 275 方法逐一转发（**按性能基准裁剪为低频业务操作**——高频纯计算留 Kotlin）、全量快照→增量变更集同步（nativeExportDirty 空实现待补）、全量切换（C++ 为真相源） | 超大工作量批次；全量切换为批次 10 前置 |
+| C-07 | **批次 10：职责边界固化**（原"Kotlin 引擎退役"重定义）——C++ 接管确定性结算/低频转发/静态数据；Kotlin 保留高频计算/UI/未迁移系统/存档编码；不做全量删除 | 批次 9 转发层落地后 |
+| C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | 政策成本/灵矿/年俸已 C++ 化；钩子接线随批次 9 转发层推进 |
 | C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
 | C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |
 | C-13 | **审查登记：读档后 RNG 分区状态恢复**——GameCore.rng_ 需从 GameData.rngStates 恢复（import 时），当前未接线 | 批次 9 转发层接线时 |
-| C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——批次 1 已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8（核心已完成） |
-| C-15 | **审查登记：Diff 对拍基准为内联复刻**（DiffTimeTest 复刻 TimeSystem.onPhaseTick；批次 9 集成时切换为真实引擎对拍） | 批次 9 集成切换时 |
+| C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8（核心已完成） |
+| C-15 | **审查登记：Diff 对拍基准为内联复刻**（DiffTimeTest 复刻 TimeSystem.onPhaseTick；集成时切换为真实引擎对拍） | 批次 9 集成切换时 |
 
 ### 偿还触发条件档案（2026-08 根治批次建立）
 
@@ -509,7 +506,7 @@ SaveValidator.validate(SaveData)
 | T-CONV | 各模块 SDK 配置再收编（convention plugin 已建立） | 模块再增长或 KMP 迁移 | 新模块直接应用 `xianxia.android[.application/.test]` convention plugin（docs/build-perf/stage3-config-cache.md） |
 | T-PRO | proguard 宽规则进一步收窄 | 每次 R8 相关发布验证 | 按序尝试删除 kotlinx.serialization → coroutines → lifecycle/room 整包规则（官方 consumer rules 兜底），每次完整 R8 验证 + 存档读写回归 |
 | T-CPP-1 | C++ 引擎未实现 kotlinx-proto 编解码（存档经 Kotlin 镜像，格式零变更） | iOS 立项且需无 Kotlin 的纯 C++ 存档 | 按 kotlinx-serialization protobuf 标准 wire 兼容方案实现（2174 个 @ProtoNumber schema 生成 + 默认值省略规则 + Map/Set KeyValue/packed + .sav 两层头 + CRC32C）；当前镜像方案已覆盖全部场景（详见 docs/adr/cpp-engine-migration.md） |
-| T-CPP-2 | 静态数据双份（Kotlin Registry + C++ 表） | 批次 10 Kotlin 引擎退役后 | 统一为单一源：Kotlin Registry 删除或改 codegen 生成（docs/cpp-engine.md 批次 2 说明）；迁移期以抽样守卫测试防漂移 |
+| T-CPP-2 | 静态数据双份（Kotlin Registry + C++ 表） | **职责边界固化后**（批次 10 重定义——不做 Kotlin 引擎全量删除；C++ 接管静态数据消费侧）或 iOS 立项需单一数据源时 | 统一为单一源：Kotlin Registry 删除或改 codegen 生成（docs/cpp-engine.md 第 4 节批次 2 说明）；迁移期以抽样守卫测试防漂移（现有双端守卫已覆盖装备/灵草/特质/配方/妖兽材料/功法 6 类） |
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 
