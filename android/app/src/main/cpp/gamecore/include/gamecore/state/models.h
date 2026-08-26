@@ -118,6 +118,124 @@ struct ManualInstance : ManualBase {
     bool isLearned = false;
 };
 
+// ── 储物袋条目体系（计划 v2 阶段 2 / T2.1：每旬结算需要） ────────────────
+
+/// EquipmentNurtureData（Kotlin EquipmentNurtureData，字段名一致）
+struct EquipmentNurtureData {
+    std::string equipmentId;
+    int32_t rarity = 0;
+    int32_t nurtureLevel = 0;
+    double nurtureProgress = 0.0;
+};
+
+/// BagStackedData（储物袋堆叠类物品的取回/物化重建补充数据）
+struct BagStackedData {
+    int32_t minRealm = 0;
+    std::string slot;
+    std::string manualType;
+};
+
+/// ItemEffect（丹药/物品效果——与 Kotlin ItemEffect 字段一一对应）
+struct ItemEffect {
+    int32_t tier = 0;                     // 丹药品阶（永久属性丹去重）
+    double cultivationSpeedPercent = 0.0;
+    double skillExpSpeedPercent = 0.0;
+    double nurtureSpeedPercent = 0.0;
+    double breakthroughChance = 0.0;
+    int32_t targetRealm = 0;
+    int32_t cultivationAdd = 0;
+    int32_t skillExpAdd = 0;
+    int32_t nurtureAdd = 0;
+    double healMaxHpPercent = 0.0;
+    double mpRecoverMaxMpPercent = 0.0;
+    int32_t hpAdd = 0;
+    int32_t mpAdd = 0;
+    int32_t extendLife = 0;
+    int32_t physicalAttackAdd = 0;
+    int32_t magicAttackAdd = 0;
+    int32_t physicalDefenseAdd = 0;
+    int32_t magicDefenseAdd = 0;
+    int32_t speedAdd = 0;
+    double critRateAdd = 0.0;
+    double critEffectAdd = 0.0;
+    int32_t intelligenceAdd = 0;
+    int32_t charmAdd = 0;
+    int32_t loyaltyAdd = 0;
+    int32_t comprehensionAdd = 0;
+    int32_t artifactRefiningAdd = 0;
+    int32_t pillRefiningAdd = 0;
+    int32_t spiritPlantingAdd = 0;
+    int32_t teachingAdd = 0;
+    int32_t moralityAdd = 0;
+    int32_t miningAdd = 0;
+    bool revive = false;
+    bool clearAll = false;
+    bool isAscension = false;
+    int32_t duration = 0;
+    bool cannotStack = true;
+    int32_t minRealm = 9;
+    std::string pillCategory;
+    std::string pillType;
+};
+
+/// StorageBagItem（弟子储物袋条目；effect/payload 为可选）
+struct StorageBagItem {
+    std::string itemId;
+    std::string itemType;
+    std::string name;
+    int32_t rarity = 0;
+    int32_t quantity = 1;
+    int32_t obtainedYear = 1;
+    int32_t obtainedMonth = 1;
+    std::optional<ItemEffect> effect;                 // ItemEffect?
+    std::optional<std::string> grade;                 // String?
+    std::optional<int32_t> forgetYear;                // Int?
+    std::optional<int32_t> forgetMonth;               // Int?
+    std::optional<int32_t> forgetPhase;               // Int?
+    std::optional<EquipmentInstance> equipmentInstance;   // 已物化装备实例
+    std::optional<BagStackedData> stackedData;            // 堆叠类重建数据
+    std::optional<ManualInstance> manualInstance;         // 忘功法实例
+};
+
+/// PillEffect（仓库丹药 Pill.effects 嵌套——突破自动服药读取 targetRealm/chance）
+struct PillEffect {
+    double breakthroughChance = 0.0;
+    int32_t targetRealm = 0;
+    bool isAscension = false;
+    double cultivationSpeedPercent = 0.0;
+    double skillExpSpeedPercent = 0.0;
+    double nurtureSpeedPercent = 0.0;
+    int32_t cultivationAdd = 0;
+    int32_t skillExpAdd = 0;
+    int32_t nurtureAdd = 0;
+    int32_t duration = 3;
+    bool cannotStack = true;
+    int32_t physicalAttackAdd = 0;
+    int32_t magicAttackAdd = 0;
+    int32_t physicalDefenseAdd = 0;
+    int32_t magicDefenseAdd = 0;
+    int32_t hpAdd = 0;
+    int32_t mpAdd = 0;
+    int32_t speedAdd = 0;
+    double critRateAdd = 0.0;
+    double critEffectAdd = 0.0;
+    int32_t extendLife = 0;
+    int32_t intelligenceAdd = 0;
+    int32_t charmAdd = 0;
+    int32_t loyaltyAdd = 0;
+    int32_t comprehensionAdd = 0;
+    int32_t artifactRefiningAdd = 0;
+    int32_t pillRefiningAdd = 0;
+    int32_t spiritPlantingAdd = 0;
+    int32_t teachingAdd = 0;
+    int32_t moralityAdd = 0;
+    int32_t miningAdd = 0;
+    double healMaxHpPercent = 0.0;
+    double mpRecoverMaxMpPercent = 0.0;
+    bool revive = false;
+    bool clearAll = false;
+};
+
 struct Pill {
     std::string id;
     int32_t slotId = 0;
@@ -127,7 +245,7 @@ struct Pill {
     std::string category = "CULTIVATION"; // PillCategory.name
     std::string grade = "MEDIUM";         // PillGrade.name
     std::string pillType;
-    // effects: PillEffect 嵌套——后续子步补充（宽松忽略）
+    PillEffect effects;                   // @Embedded 嵌套效果（T2.1 突破自动服药）
     int32_t minRealm = 9;
     int32_t quantity = 1;
     bool isLocked = false;
@@ -212,8 +330,97 @@ struct Disciple {
     int32_t manualCompletionPhase = 1;
     int32_t equipmentNurturingCompletionMonth = 0;
     int32_t equipmentNurturingCompletionPhase = 1;
-    // 注：lifeEvents / monthlyUsedPillIds 是 Kotlin Disciple 的**类体属性**
-    // （非 @Serializable 构造参数，不参与 JSON 序列化）——不纳入快照协议
+
+    // ── CombatAttributes（@Embedded 平铺；字段名与 Kotlin 序列化一致） ──
+    int32_t baseHp = 120;
+    int32_t baseMp = 60;
+    int32_t basePhysicalAttack = 12;
+    int32_t baseMagicAttack = 12;
+    int32_t basePhysicalDefense = 10;
+    int32_t baseMagicDefense = 8;
+    int32_t baseSpeed = 15;
+    int32_t hpVariance = 0;
+    int32_t mpVariance = 0;
+    int32_t physicalAttackVariance = 0;
+    int32_t magicAttackVariance = 0;
+    int32_t physicalDefenseVariance = 0;
+    int32_t magicDefenseVariance = 0;
+    int32_t speedVariance = 0;
+    int64_t totalCultivation = 0;
+    int32_t breakthroughCount = 0;        // combat.breakthroughCount（历史成功次数）
+    int32_t breakthroughFailCount = 0;
+    int32_t currentHp = -1;               // -1 = 满血（向后兼容语义）
+    int32_t currentMp = -1;
+
+    // ── PillEffects（@Embedded 平铺） ──
+    int32_t pillPhysicalAttackBonus = 0;
+    int32_t pillMagicAttackBonus = 0;
+    int32_t pillPhysicalDefenseBonus = 0;
+    int32_t pillMagicDefenseBonus = 0;
+    int32_t pillHpBonus = 0;
+    int32_t pillMpBonus = 0;
+    int32_t pillSpeedBonus = 0;
+    double pillCritRateBonus = 0.0;
+    double pillCritEffectBonus = 0.0;
+    double pillCultivationSpeedBonus = 0.0;
+    double pillSkillExpSpeedBonus = 0.0;
+    double pillNurtureSpeedBonus = 0.0;
+    int32_t pillEffectDuration = 0;
+    std::vector<std::string> activePillTypes;   // 生效中丹药 pillType 集合
+    std::string activePillCategory;             // 旧字段，仅旧存档兼容
+
+    // ── EquipmentSet（@Embedded 平铺） ──
+    std::string weaponId;
+    std::string armorId;
+    std::string bootsId;
+    std::string accessoryId;
+    EquipmentNurtureData weaponNurture;
+    EquipmentNurtureData armorNurture;
+    EquipmentNurtureData bootsNurture;
+    EquipmentNurtureData accessoryNurture;
+    std::vector<StorageBagItem> storageBagItems;
+    int64_t storageBagSpiritStones = 0;
+    int32_t spiritStones = 0;             // 弟子随身灵石
+
+    // ── SocialData（@Embedded 平铺；""=null，-1=null 哨兵） ──
+    std::string partnerId;
+    std::string partnerSectId;
+    std::string parentId1;
+    std::string parentId2;
+    int32_t lastChildYear = 0;
+    int32_t childBirthMonth = 0;          // 0 = null 哨兵
+    int32_t griefEndYear = -1;            // -1 = null 哨兵（无丧亲期）
+    std::string masterId;
+
+    // ── SkillStats（@Embedded 平铺） ──
+    int32_t intelligence = 50;
+    int32_t charm = 50;
+    int32_t loyalty = 50;
+    int32_t comprehension = 50;
+    int32_t artifactRefining = 50;
+    int32_t pillRefining = 50;            // 炼丹技能（SkillStats.pillRefining）
+    int32_t spiritPlanting = 50;
+    int32_t mining = 50;
+    int32_t teaching = 50;
+    int32_t morality = 50;
+    int32_t aptitude = 50;
+    int32_t salaryPaidCount = 0;
+    int32_t salaryMissedCount = 0;
+    int32_t alchemyLevel = 0;
+    int32_t alchemyPromotionCount = 0;
+    int32_t forgeLevel = 0;
+    int32_t forgePromotionCount = 0;
+
+    // ── UsageTracking（@Embedded 平铺） ──
+    std::vector<std::string> usedPermanentPillKeys;    // "tier#field" 去重 key
+    std::vector<std::string> usedExtendLifePillTypes;  // 延寿丹按 pillType 去重
+    std::vector<std::string> usedFunctionalPillTypes;  // 旧字段，兼容保留
+    std::vector<std::string> usedExtendLifePillIds;    // 旧字段，兼容保留
+    int32_t recruitedMonth = 0;
+    bool hasReviveEffect = false;
+    bool hasClearAllEffect = false;
+
+    // 注：lifeEvents 是 Kotlin 类体属性（非序列化），不纳入快照协议
 };
 
 // ── 嵌套类型（批次 1 第二子步；字段名与 Kotlin @Serializable 一致） ──
@@ -370,6 +577,7 @@ struct SectRelation {
 
 /// WorldSect（世界地图宗门）
 struct WorldSect {
+    std::string id;                         // T2.2 补齐（Kotlin @ProtoNumber(1)；gameOverCheck 占领判定需要）
     std::string name;
     int32_t level = 0;
     std::string levelName;
@@ -669,6 +877,30 @@ struct SpiritMineSlot {
     std::string buildingInstanceId;
 };
 
+/// LibrarySlot（藏经阁槽位——Kotlin LibrarySlot）
+struct LibrarySlot {
+    int32_t index = 0;
+    std::string buildingInstanceId;
+    std::string discipleId;
+    std::string discipleName;
+};
+
+/// GameEventRecord（消息栏游戏事件记录——Kotlin GameEventRecord）
+/// 注：timestamp 为现实墙钟（Kotlin 默认 System.currentTimeMillis()），
+/// 对拍不比较该字段（Clock 注入边界）。
+struct GameEventRecord {
+    int64_t timestamp = 0;
+    int32_t year = 1;
+    int32_t month = 1;
+    int32_t phase = 0;
+    std::string category = "SECT";        // "WORLD" / "SECT"
+    std::string eventType;
+    std::string summary;
+    std::string relatedEntityId;
+    std::string relatedEntityName;
+    int64_t sequenceId = 0;
+};
+
 // ── GameData（核心标量 + 简单集合字段） ─────────────────────────────
 struct GameData {
     // 基础/时间
@@ -810,6 +1042,9 @@ struct GameData {
     std::map<std::string, BloodRefinementPctTotal> bloodRefinementPctTotals;
     std::map<std::string, BloodRefinementProgress> activeBloodRefinements;
     std::vector<PatrolSlot> patrolSlots;
+    // ── T2.1 每旬结算依赖字段 ──
+    std::vector<LibrarySlot> librarySlots;             // 藏经阁槽位（熟练度加成）
+    std::vector<GameEventRecord> gameEventRecords;     // 消息栏事件（突破记录）
 };
 
 // ── 完整状态快照（GameCore 持有的真相状态） ────────────────────────

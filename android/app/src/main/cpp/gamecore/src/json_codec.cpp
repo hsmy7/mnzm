@@ -166,13 +166,13 @@ void to_json(nlohmann::json& j, const Pill& v) {
     GC_TO(v, j, id); GC_TO(v, j, slotId); GC_TO(v, j, name);
     GC_TO(v, j, rarity); GC_TO(v, j, description);
     GC_TO(v, j, category); GC_TO(v, j, grade); GC_TO(v, j, pillType);
-    GC_TO(v, j, minRealm); GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
+    GC_TO(v, j, effects); GC_TO(v, j, minRealm); GC_TO(v, j, quantity); GC_TO(v, j, isLocked);
 }
 void from_json(const nlohmann::json& j, Pill& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, slotId); GC_FROM(j, v, name);
     GC_FROM(j, v, rarity); GC_FROM(j, v, description);
     GC_FROM(j, v, category); GC_FROM(j, v, grade); GC_FROM(j, v, pillType);
-    GC_FROM(j, v, minRealm); GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
+    GC_FROM(j, v, effects); GC_FROM(j, v, minRealm); GC_FROM(j, v, quantity); GC_FROM(j, v, isLocked);
 }
 
 void to_json(nlohmann::json& j, const Material& v) {
@@ -226,12 +226,19 @@ void from_json(const nlohmann::json& j, StorageBag& v) {
 }
 
 // ── Disciple ─────────────────────────────────────────────────────────
+// 字段名与 Kotlin DiscipleSerializer.DiscipleSurrogate 的 JSON 键一致（平铺）：
+// combat/pillEffects/equipment/social/skills/usage 六个 @Embedded 段在
+// JSON 层均为顶层字段。""=null（社交字符串），-1/0=null 哨兵见 models.h 注释。
 
 void to_json(nlohmann::json& j, const Disciple& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id); GC_TO(v, j, name); GC_TO(v, j, surname);
     GC_TO(v, j, realm); GC_TO(v, j, realmLayer); GC_TO(v, j, cultivation);
-    GC_TO(v, j, cultivationCheckpoint); GC_TO(v, j, cultivationCheckpointGameMonth);
+    // cultivationCheckpoint：Kotlin 序列化为 Long（DiscipleSurrogate toLong 向零
+    // 截断）——导出按同语义输出整数，防 kotlinx 流式解码器拒绝小数字面量；
+    // 运行期两侧均为 double（DiscipleTables.cultivationCheckpoints 列），一致
+    j["cultivationCheckpoint"] = static_cast<int64_t>(v.cultivationCheckpoint);
+    GC_TO(v, j, cultivationCheckpointGameMonth);
     GC_TO(v, j, spiritRootType); GC_TO(v, j, age); GC_TO(v, j, lifespan);
     GC_TO(v, j, isAlive); GC_TO(v, j, gender); GC_TO(v, j, portraitRes);
     GC_TO(v, j, manualIds); GC_TO(v, j, talentIds); GC_TO(v, j, physiqueIds);
@@ -243,7 +250,53 @@ void to_json(nlohmann::json& j, const Disciple& v) {
     GC_TO(v, j, manualCompletionMonth); GC_TO(v, j, manualCompletionPhase);
     GC_TO(v, j, equipmentNurturingCompletionMonth);
     GC_TO(v, j, equipmentNurturingCompletionPhase);
-    
+    // CombatAttributes
+    GC_TO(v, j, baseHp); GC_TO(v, j, baseMp);
+    GC_TO(v, j, basePhysicalAttack); GC_TO(v, j, baseMagicAttack);
+    GC_TO(v, j, basePhysicalDefense); GC_TO(v, j, baseMagicDefense);
+    GC_TO(v, j, baseSpeed);
+    GC_TO(v, j, hpVariance); GC_TO(v, j, mpVariance);
+    GC_TO(v, j, physicalAttackVariance); GC_TO(v, j, magicAttackVariance);
+    GC_TO(v, j, physicalDefenseVariance); GC_TO(v, j, magicDefenseVariance);
+    GC_TO(v, j, speedVariance);
+    GC_TO(v, j, totalCultivation);
+    GC_TO(v, j, breakthroughCount); GC_TO(v, j, breakthroughFailCount);
+    GC_TO(v, j, currentHp); GC_TO(v, j, currentMp);
+    // PillEffects
+    GC_TO(v, j, pillPhysicalAttackBonus); GC_TO(v, j, pillMagicAttackBonus);
+    GC_TO(v, j, pillPhysicalDefenseBonus); GC_TO(v, j, pillMagicDefenseBonus);
+    GC_TO(v, j, pillHpBonus); GC_TO(v, j, pillMpBonus);
+    GC_TO(v, j, pillSpeedBonus);
+    GC_TO(v, j, pillCritRateBonus); GC_TO(v, j, pillCritEffectBonus);
+    GC_TO(v, j, pillCultivationSpeedBonus); GC_TO(v, j, pillSkillExpSpeedBonus);
+    GC_TO(v, j, pillNurtureSpeedBonus); GC_TO(v, j, pillEffectDuration);
+    GC_TO(v, j, activePillTypes); GC_TO(v, j, activePillCategory);
+    // EquipmentSet
+    GC_TO(v, j, weaponId); GC_TO(v, j, armorId);
+    GC_TO(v, j, bootsId); GC_TO(v, j, accessoryId);
+    GC_TO(v, j, weaponNurture); GC_TO(v, j, armorNurture);
+    GC_TO(v, j, bootsNurture); GC_TO(v, j, accessoryNurture);
+    GC_TO(v, j, storageBagItems); GC_TO(v, j, storageBagSpiritStones);
+    GC_TO(v, j, spiritStones);
+    // SocialData
+    GC_TO(v, j, partnerId); GC_TO(v, j, partnerSectId);
+    GC_TO(v, j, parentId1); GC_TO(v, j, parentId2);
+    GC_TO(v, j, lastChildYear); GC_TO(v, j, childBirthMonth);
+    GC_TO(v, j, griefEndYear); GC_TO(v, j, masterId);
+    // SkillStats
+    GC_TO(v, j, intelligence); GC_TO(v, j, charm); GC_TO(v, j, loyalty);
+    GC_TO(v, j, comprehension); GC_TO(v, j, artifactRefining);
+    GC_TO(v, j, pillRefining); GC_TO(v, j, spiritPlanting);
+    GC_TO(v, j, mining); GC_TO(v, j, teaching); GC_TO(v, j, morality);
+    GC_TO(v, j, aptitude);
+    GC_TO(v, j, salaryPaidCount); GC_TO(v, j, salaryMissedCount);
+    GC_TO(v, j, alchemyLevel); GC_TO(v, j, alchemyPromotionCount);
+    GC_TO(v, j, forgeLevel); GC_TO(v, j, forgePromotionCount);
+    // UsageTracking
+    GC_TO(v, j, usedPermanentPillKeys); GC_TO(v, j, usedExtendLifePillTypes);
+    GC_TO(v, j, usedFunctionalPillTypes); GC_TO(v, j, usedExtendLifePillIds);
+    GC_TO(v, j, recruitedMonth);
+    GC_TO(v, j, hasReviveEffect); GC_TO(v, j, hasClearAllEffect);
 }
 void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, name); GC_FROM(j, v, surname);
@@ -260,7 +313,53 @@ void from_json(const nlohmann::json& j, Disciple& v) {
     GC_FROM(j, v, manualCompletionMonth); GC_FROM(j, v, manualCompletionPhase);
     GC_FROM(j, v, equipmentNurturingCompletionMonth);
     GC_FROM(j, v, equipmentNurturingCompletionPhase);
-    
+    // CombatAttributes
+    GC_FROM(j, v, baseHp); GC_FROM(j, v, baseMp);
+    GC_FROM(j, v, basePhysicalAttack); GC_FROM(j, v, baseMagicAttack);
+    GC_FROM(j, v, basePhysicalDefense); GC_FROM(j, v, baseMagicDefense);
+    GC_FROM(j, v, baseSpeed);
+    GC_FROM(j, v, hpVariance); GC_FROM(j, v, mpVariance);
+    GC_FROM(j, v, physicalAttackVariance); GC_FROM(j, v, magicAttackVariance);
+    GC_FROM(j, v, physicalDefenseVariance); GC_FROM(j, v, magicDefenseVariance);
+    GC_FROM(j, v, speedVariance);
+    GC_FROM(j, v, totalCultivation);
+    GC_FROM(j, v, breakthroughCount); GC_FROM(j, v, breakthroughFailCount);
+    GC_FROM(j, v, currentHp); GC_FROM(j, v, currentMp);
+    // PillEffects
+    GC_FROM(j, v, pillPhysicalAttackBonus); GC_FROM(j, v, pillMagicAttackBonus);
+    GC_FROM(j, v, pillPhysicalDefenseBonus); GC_FROM(j, v, pillMagicDefenseBonus);
+    GC_FROM(j, v, pillHpBonus); GC_FROM(j, v, pillMpBonus);
+    GC_FROM(j, v, pillSpeedBonus);
+    GC_FROM(j, v, pillCritRateBonus); GC_FROM(j, v, pillCritEffectBonus);
+    GC_FROM(j, v, pillCultivationSpeedBonus); GC_FROM(j, v, pillSkillExpSpeedBonus);
+    GC_FROM(j, v, pillNurtureSpeedBonus); GC_FROM(j, v, pillEffectDuration);
+    GC_FROM(j, v, activePillTypes); GC_FROM(j, v, activePillCategory);
+    // EquipmentSet
+    GC_FROM(j, v, weaponId); GC_FROM(j, v, armorId);
+    GC_FROM(j, v, bootsId); GC_FROM(j, v, accessoryId);
+    GC_FROM(j, v, weaponNurture); GC_FROM(j, v, armorNurture);
+    GC_FROM(j, v, bootsNurture); GC_FROM(j, v, accessoryNurture);
+    GC_FROM(j, v, storageBagItems); GC_FROM(j, v, storageBagSpiritStones);
+    GC_FROM(j, v, spiritStones);
+    // SocialData
+    GC_FROM(j, v, partnerId); GC_FROM(j, v, partnerSectId);
+    GC_FROM(j, v, parentId1); GC_FROM(j, v, parentId2);
+    GC_FROM(j, v, lastChildYear); GC_FROM(j, v, childBirthMonth);
+    GC_FROM(j, v, griefEndYear); GC_FROM(j, v, masterId);
+    // SkillStats
+    GC_FROM(j, v, intelligence); GC_FROM(j, v, charm); GC_FROM(j, v, loyalty);
+    GC_FROM(j, v, comprehension); GC_FROM(j, v, artifactRefining);
+    GC_FROM(j, v, pillRefining); GC_FROM(j, v, spiritPlanting);
+    GC_FROM(j, v, mining); GC_FROM(j, v, teaching); GC_FROM(j, v, morality);
+    GC_FROM(j, v, aptitude);
+    GC_FROM(j, v, salaryPaidCount); GC_FROM(j, v, salaryMissedCount);
+    GC_FROM(j, v, alchemyLevel); GC_FROM(j, v, alchemyPromotionCount);
+    GC_FROM(j, v, forgeLevel); GC_FROM(j, v, forgePromotionCount);
+    // UsageTracking
+    GC_FROM(j, v, usedPermanentPillKeys); GC_FROM(j, v, usedExtendLifePillTypes);
+    GC_FROM(j, v, usedFunctionalPillTypes); GC_FROM(j, v, usedExtendLifePillIds);
+    GC_FROM(j, v, recruitedMonth);
+    GC_FROM(j, v, hasReviveEffect); GC_FROM(j, v, hasClearAllEffect);
 }
 
 // ── 嵌套类型（批次 1 第二子步） ─────────────────────────────────────
@@ -415,6 +514,7 @@ void from_json(const nlohmann::json& j, SectRelation& v) {
 
 void to_json(nlohmann::json& j, const WorldSect& v) {
     j = nlohmann::json::object();
+    GC_TO(v, j, id);
     GC_TO(v, j, name); GC_TO(v, j, level); GC_TO(v, j, levelName);
     GC_TO(v, j, x); GC_TO(v, j, y); GC_TO(v, j, distance);
     GC_TO(v, j, isPlayerSect); GC_TO(v, j, discovered); GC_TO(v, j, isKnown);
@@ -427,6 +527,7 @@ void to_json(nlohmann::json& j, const WorldSect& v) {
     GC_TO(v, j, attackerSectId); GC_TO(v, j, occupierSectId);
 }
 void from_json(const nlohmann::json& j, WorldSect& v) {
+    GC_FROM(j, v, id);
     GC_FROM(j, v, name); GC_FROM(j, v, level); GC_FROM(j, v, levelName);
     GC_FROM(j, v, x); GC_FROM(j, v, y); GC_FROM(j, v, distance);
     GC_FROM(j, v, isPlayerSect); GC_FROM(j, v, discovered); GC_FROM(j, v, isKnown);
@@ -727,6 +828,144 @@ void from_json(const nlohmann::json& j, SecretRealmAITeam& v) {
     GC_FROM(j, v, members); GC_FROM(j, v, sectLevel);
 }
 
+// ── T2.1：储物袋条目体系 ──────────────────────────────────────────────
+
+void to_json(nlohmann::json& j, const EquipmentNurtureData& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, equipmentId); GC_TO(v, j, rarity);
+    GC_TO(v, j, nurtureLevel); GC_TO(v, j, nurtureProgress);
+}
+void from_json(const nlohmann::json& j, EquipmentNurtureData& v) {
+    GC_FROM(j, v, equipmentId); GC_FROM(j, v, rarity);
+    GC_FROM(j, v, nurtureLevel); GC_FROM(j, v, nurtureProgress);
+}
+
+void to_json(nlohmann::json& j, const BagStackedData& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, minRealm); GC_TO(v, j, slot); GC_TO(v, j, manualType);
+}
+void from_json(const nlohmann::json& j, BagStackedData& v) {
+    GC_FROM(j, v, minRealm); GC_FROM(j, v, slot); GC_FROM(j, v, manualType);
+}
+
+void to_json(nlohmann::json& j, const ItemEffect& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, tier);
+    GC_TO(v, j, cultivationSpeedPercent); GC_TO(v, j, skillExpSpeedPercent);
+    GC_TO(v, j, nurtureSpeedPercent); GC_TO(v, j, breakthroughChance);
+    GC_TO(v, j, targetRealm);
+    GC_TO(v, j, cultivationAdd); GC_TO(v, j, skillExpAdd); GC_TO(v, j, nurtureAdd);
+    GC_TO(v, j, healMaxHpPercent); GC_TO(v, j, mpRecoverMaxMpPercent);
+    GC_TO(v, j, hpAdd); GC_TO(v, j, mpAdd); GC_TO(v, j, extendLife);
+    GC_TO(v, j, physicalAttackAdd); GC_TO(v, j, magicAttackAdd);
+    GC_TO(v, j, physicalDefenseAdd); GC_TO(v, j, magicDefenseAdd);
+    GC_TO(v, j, speedAdd); GC_TO(v, j, critRateAdd); GC_TO(v, j, critEffectAdd);
+    GC_TO(v, j, intelligenceAdd); GC_TO(v, j, charmAdd); GC_TO(v, j, loyaltyAdd);
+    GC_TO(v, j, comprehensionAdd); GC_TO(v, j, artifactRefiningAdd);
+    GC_TO(v, j, pillRefiningAdd); GC_TO(v, j, spiritPlantingAdd);
+    GC_TO(v, j, teachingAdd); GC_TO(v, j, moralityAdd); GC_TO(v, j, miningAdd);
+    GC_TO(v, j, revive); GC_TO(v, j, clearAll); GC_TO(v, j, isAscension);
+    GC_TO(v, j, duration); GC_TO(v, j, cannotStack); GC_TO(v, j, minRealm);
+    GC_TO(v, j, pillCategory); GC_TO(v, j, pillType);
+}
+void from_json(const nlohmann::json& j, ItemEffect& v) {
+    GC_FROM(j, v, tier);
+    GC_FROM(j, v, cultivationSpeedPercent); GC_FROM(j, v, skillExpSpeedPercent);
+    GC_FROM(j, v, nurtureSpeedPercent); GC_FROM(j, v, breakthroughChance);
+    GC_FROM(j, v, targetRealm);
+    GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd); GC_FROM(j, v, nurtureAdd);
+    GC_FROM(j, v, healMaxHpPercent); GC_FROM(j, v, mpRecoverMaxMpPercent);
+    GC_FROM(j, v, hpAdd); GC_FROM(j, v, mpAdd); GC_FROM(j, v, extendLife);
+    GC_FROM(j, v, physicalAttackAdd); GC_FROM(j, v, magicAttackAdd);
+    GC_FROM(j, v, physicalDefenseAdd); GC_FROM(j, v, magicDefenseAdd);
+    GC_FROM(j, v, speedAdd); GC_FROM(j, v, critRateAdd); GC_FROM(j, v, critEffectAdd);
+    GC_FROM(j, v, intelligenceAdd); GC_FROM(j, v, charmAdd); GC_FROM(j, v, loyaltyAdd);
+    GC_FROM(j, v, comprehensionAdd); GC_FROM(j, v, artifactRefiningAdd);
+    GC_FROM(j, v, pillRefiningAdd); GC_FROM(j, v, spiritPlantingAdd);
+    GC_FROM(j, v, teachingAdd); GC_FROM(j, v, moralityAdd); GC_FROM(j, v, miningAdd);
+    GC_FROM(j, v, revive); GC_FROM(j, v, clearAll); GC_FROM(j, v, isAscension);
+    GC_FROM(j, v, duration); GC_FROM(j, v, cannotStack); GC_FROM(j, v, minRealm);
+    GC_FROM(j, v, pillCategory); GC_FROM(j, v, pillType);
+}
+
+void to_json(nlohmann::json& j, const StorageBagItem& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, itemId); GC_TO(v, j, itemType); GC_TO(v, j, name);
+    GC_TO(v, j, rarity); GC_TO(v, j, quantity);
+    GC_TO(v, j, obtainedYear); GC_TO(v, j, obtainedMonth);
+    GC_TO_OPT(v, j, effect); GC_TO_OPT(v, j, grade);
+    GC_TO_OPT(v, j, forgetYear); GC_TO_OPT(v, j, forgetMonth); GC_TO_OPT(v, j, forgetPhase);
+    GC_TO_OPT(v, j, equipmentInstance); GC_TO_OPT(v, j, stackedData);
+    GC_TO_OPT(v, j, manualInstance);
+}
+void from_json(const nlohmann::json& j, StorageBagItem& v) {
+    GC_FROM(j, v, itemId); GC_FROM(j, v, itemType); GC_FROM(j, v, name);
+    GC_FROM(j, v, rarity); GC_FROM(j, v, quantity);
+    GC_FROM(j, v, obtainedYear); GC_FROM(j, v, obtainedMonth);
+    GC_FROM_OPT(j, v, effect); GC_FROM_OPT(j, v, grade);
+    GC_FROM_OPT(j, v, forgetYear); GC_FROM_OPT(j, v, forgetMonth); GC_FROM_OPT(j, v, forgetPhase);
+    GC_FROM_OPT(j, v, equipmentInstance); GC_FROM_OPT(j, v, stackedData);
+    GC_FROM_OPT(j, v, manualInstance);
+}
+
+void to_json(nlohmann::json& j, const PillEffect& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, breakthroughChance); GC_TO(v, j, targetRealm); GC_TO(v, j, isAscension);
+    GC_TO(v, j, cultivationSpeedPercent); GC_TO(v, j, skillExpSpeedPercent);
+    GC_TO(v, j, nurtureSpeedPercent);
+    GC_TO(v, j, cultivationAdd); GC_TO(v, j, skillExpAdd); GC_TO(v, j, nurtureAdd);
+    GC_TO(v, j, duration); GC_TO(v, j, cannotStack);
+    GC_TO(v, j, physicalAttackAdd); GC_TO(v, j, magicAttackAdd);
+    GC_TO(v, j, physicalDefenseAdd); GC_TO(v, j, magicDefenseAdd);
+    GC_TO(v, j, hpAdd); GC_TO(v, j, mpAdd); GC_TO(v, j, speedAdd);
+    GC_TO(v, j, critRateAdd); GC_TO(v, j, critEffectAdd); GC_TO(v, j, extendLife);
+    GC_TO(v, j, intelligenceAdd); GC_TO(v, j, charmAdd); GC_TO(v, j, loyaltyAdd);
+    GC_TO(v, j, comprehensionAdd); GC_TO(v, j, artifactRefiningAdd);
+    GC_TO(v, j, pillRefiningAdd); GC_TO(v, j, spiritPlantingAdd);
+    GC_TO(v, j, teachingAdd); GC_TO(v, j, moralityAdd); GC_TO(v, j, miningAdd);
+    GC_TO(v, j, healMaxHpPercent); GC_TO(v, j, mpRecoverMaxMpPercent);
+    GC_TO(v, j, revive); GC_TO(v, j, clearAll);
+}
+void from_json(const nlohmann::json& j, PillEffect& v) {
+    GC_FROM(j, v, breakthroughChance); GC_FROM(j, v, targetRealm); GC_FROM(j, v, isAscension);
+    GC_FROM(j, v, cultivationSpeedPercent); GC_FROM(j, v, skillExpSpeedPercent);
+    GC_FROM(j, v, nurtureSpeedPercent);
+    GC_FROM(j, v, cultivationAdd); GC_FROM(j, v, skillExpAdd); GC_FROM(j, v, nurtureAdd);
+    GC_FROM(j, v, duration); GC_FROM(j, v, cannotStack);
+    GC_FROM(j, v, physicalAttackAdd); GC_FROM(j, v, magicAttackAdd);
+    GC_FROM(j, v, physicalDefenseAdd); GC_FROM(j, v, magicDefenseAdd);
+    GC_FROM(j, v, hpAdd); GC_FROM(j, v, mpAdd); GC_FROM(j, v, speedAdd);
+    GC_FROM(j, v, critRateAdd); GC_FROM(j, v, critEffectAdd); GC_FROM(j, v, extendLife);
+    GC_FROM(j, v, intelligenceAdd); GC_FROM(j, v, charmAdd); GC_FROM(j, v, loyaltyAdd);
+    GC_FROM(j, v, comprehensionAdd); GC_FROM(j, v, artifactRefiningAdd);
+    GC_FROM(j, v, pillRefiningAdd); GC_FROM(j, v, spiritPlantingAdd);
+    GC_FROM(j, v, teachingAdd); GC_FROM(j, v, moralityAdd); GC_FROM(j, v, miningAdd);
+    GC_FROM(j, v, healMaxHpPercent); GC_FROM(j, v, mpRecoverMaxMpPercent);
+    GC_FROM(j, v, revive); GC_FROM(j, v, clearAll);
+}
+
+void to_json(nlohmann::json& j, const LibrarySlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, index); GC_TO(v, j, buildingInstanceId);
+    GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+}
+void from_json(const nlohmann::json& j, LibrarySlot& v) {
+    GC_FROM(j, v, index); GC_FROM(j, v, buildingInstanceId);
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+}
+
+void to_json(nlohmann::json& j, const GameEventRecord& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, timestamp); GC_TO(v, j, year); GC_TO(v, j, month); GC_TO(v, j, phase);
+    GC_TO(v, j, category); GC_TO(v, j, eventType); GC_TO(v, j, summary);
+    GC_TO(v, j, relatedEntityId); GC_TO(v, j, relatedEntityName); GC_TO(v, j, sequenceId);
+}
+void from_json(const nlohmann::json& j, GameEventRecord& v) {
+    GC_FROM(j, v, timestamp); GC_FROM(j, v, year); GC_FROM(j, v, month); GC_FROM(j, v, phase);
+    GC_FROM(j, v, category); GC_FROM(j, v, eventType); GC_FROM(j, v, summary);
+    GC_FROM(j, v, relatedEntityId); GC_FROM(j, v, relatedEntityName); GC_FROM(j, v, sequenceId);
+}
+
 // ── GameData ─────────────────────────────────────────────────────────
 
 void to_json(nlohmann::json& j, const GameData& v) {
@@ -800,6 +1039,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, manualProficiencies); GC_TO(v, j, spiritMineSlots);
     GC_TO(v, j, bloodRefinementBonusTotals); GC_TO(v, j, bloodRefinementPctTotals);
     GC_TO(v, j, activeBloodRefinements); GC_TO(v, j, patrolSlots);
+    // T2.1：每旬结算依赖字段
+    GC_TO(v, j, librarySlots); GC_TO(v, j, gameEventRecords);
 }
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
@@ -871,6 +1112,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, manualProficiencies); GC_FROM(j, v, spiritMineSlots);
     GC_FROM(j, v, bloodRefinementBonusTotals); GC_FROM(j, v, bloodRefinementPctTotals);
     GC_FROM(j, v, activeBloodRefinements); GC_FROM(j, v, patrolSlots);
+    // T2.1：每旬结算依赖字段
+    GC_FROM(j, v, librarySlots); GC_FROM(j, v, gameEventRecords);
 }
 
 // ── Full snapshot ────────────────────────────────────────────────────
@@ -909,7 +1152,7 @@ void from_json(const nlohmann::json& j, GameState& v) {
 // emitted as plain integers (12000), which Kotlin decodes into Double fine;
 // non-integral values (12345.6) keep the decimal point.
 
-static void normalizeIntegralFloats(nlohmann::json& j) {
+void normalizeIntegralFloats(nlohmann::json& j) {
     if (j.is_object()) {
         for (auto it = j.begin(); it != j.end(); ++it) normalizeIntegralFloats(it.value());
     } else if (j.is_array()) {

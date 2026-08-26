@@ -45,6 +45,9 @@ object GameSystemRegistryDefaults {
         register("engine.service", "AISectBattleProcessor")
         register("engine.service", "AISectOccupationResolver")
         register("engine.service", "JadeSymbolService")
+        register("engine.service", "MonthSettlementExecutor")
+        register("engine.service", "PhaseSettlementExecutor")
+        register("engine.service", "YearSettlementExecutor")
         register("engine.service", "PlayerDefenseProcessor")
         register("engine.service", "SecretRealmService")
 

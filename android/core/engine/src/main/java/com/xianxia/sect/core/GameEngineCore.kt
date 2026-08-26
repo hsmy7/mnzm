@@ -5,8 +5,12 @@ import android.os.Build
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.JadeSymbolService
+import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
+import com.xianxia.sect.core.engine.service.YearSettlementExecutor
+import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -16,16 +20,13 @@ import com.xianxia.sect.core.loop.JitterSmoother
 import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.ResidenceSlot
-import com.xianxia.sect.core.model.secretRealmMemberIds
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.thermal.BatteryStatusProvider
 import com.xianxia.sect.core.thermal.NoopBatteryStatus
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.monitor.GameTimeProgressMonitor
 import com.xianxia.sect.core.engine.monitor.GameTimeProgressSnapshot
 import com.xianxia.sect.core.engine.monitor.StallVerdict
@@ -79,22 +80,24 @@ private data class LoopState(val phase: LoopPhase, val epoch: Int)
  * ```
  * ┌─────────────────────────────────────────────────────────────────┐
  * │ Layer 2: UI (ViewModel/Compose)                                 │
- * │   - 通过 StateFlow 订阅 GameStateStore.unifiedState              │
+ * │   - 通过 StateFlow 订阅 GameStateStore 逐字段流 / 三层派生流       │
+ * │     (highFreqState / entityState / configState)                 │
  * │   - 开销: collectAsState() 触发 Compose 重组                     │
  * ├─────────────────────────────────────────────────────────────────┤
  * │ Layer 1: GameEngineCore + GameEngine                             │
  * │   - EngineCore: 游戏循环控制 (start/stop/tick)                   │
  * │   - Engine: 核心业务逻辑 (修炼/战斗/生产等)                        │
- * │   - 状态写入 GameStateStore → unifiedState Flow 自动派生          │
+ * │   - 状态写入 GameStateStore → 逐字段 StateFlow 自动发射            │
  * │   - 开销: MutableStateFlow.value 赋值触发下游订阅者               │
  * └─────────────────────────────────────────────────────────────────┘
  * ```
  *
  * ### 状态同步机制
  *
- * GameEngine 直接写入 GameStateStore 的各个 MutableStateFlow，
- * GameStateStore.unifiedState 通过 combine 自动派生，
- * UI 层订阅 unifiedState 即可获得最新状态，无需手动同步。
+ * GameEngine 直接写入 GameStateStore 的各个逐字段 MutableStateFlow；
+ * 高频 UI 消费走三层派生流（highFreqState/entityState/configState，
+ * distinctUntilChanged + sample + stateIn 节流合并），
+ * UI 层订阅对应流即可获得最新状态，无需手动同步。
  */
 /** D-17 帧循环跨帧累计状态（gameLoopIteration 参数/返回值，替代多参数漂移） */
 private data class LoopIterationState(
@@ -106,7 +109,7 @@ private data class LoopIterationState(
 @Suppress("LongParameterList") // 引擎核心 14 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
 class GameEngineCore @Inject constructor(
 
-    private val stateStore: GameStateStore,
+    internal val stateStore: GameStateStore,
     private val eventBus: EventBusPort,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager,
@@ -114,7 +117,7 @@ class GameEngineCore @Inject constructor(
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
     private val aiSectBeastAttackProcessor: com.xianxia.sect.core.exploration.AISectBeastAttackProcessor,
-    private val gameClock: GameTimeClock,
+    internal val gameClock: GameTimeClock,
     private val thermalController: ThermalController,
     private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
     private val spiritStoneWallet: SpiritStoneWallet,
@@ -125,7 +128,13 @@ class GameEngineCore @Inject constructor(
     /** 电池状态感知（低电量未充电时主动降帧/提前降载；默认 Noop 供测试） */
     private val batteryStatusProvider: BatteryStatusProvider = NoopBatteryStatus,
     /** 溢出邮件处理器（D-01 崩溃恢复：启动时排空持久化草稿；默认 Noop 供测试） */
-    private val overflowMailHandler: OverflowMailHandler = NoOpOverflowMailHandler
+    private val overflowMailHandler: OverflowMailHandler = NoOpOverflowMailHandler,
+    /**
+     * RNG 分区管理器（T2.4 AUTHORITATIVE 委托通道挂载点；Hilt 单例与
+     * GameEngine/存档链路同实例）。默认新建仅供测试直构——生产由 Hilt
+     * 注入全局单例。
+     */
+    internal val gameRngManager: GameRngManager = GameRngManager()
 ) : EngineContextDispatcher {
 
     /**
@@ -312,7 +321,6 @@ class GameEngineCore @Inject constructor(
         private const val TAG = "GameEngineCore"
         private const val TICK_INTERVAL_MS = 100L
         private const val MIN_TICK_DELAY_MS = 16L
-        private const val TICK_WARNING_THRESHOLD_MS = 100f
         // isSaving/isLoading 病理级死锁最终兜底超时（90s，T12 2026-08-05）。
         // 历史教训：10s 会把低端机正常慢保存（>3-5s）误判为卡死并打断，导致反复冻结。
         // 正常保存的豁免由 GameTimeProgressMonitor（lastLoopActivityMs 判据）承担。
@@ -1495,29 +1503,6 @@ class GameEngineCore @Inject constructor(
         onUserActivity()
     }
 
-    private suspend fun tick() {
-        val tickStartTime = System.currentTimeMillis()
-        val tickStartNanos = System.nanoTime()
-
-        tickInternal()
-
-        val tickDurationNanos = System.nanoTime() - tickStartNanos
-
-        val tickTime = (System.currentTimeMillis() - tickStartTime).toFloat()
-        unifiedPerformanceMonitor.recordTick(tickTime)
-
-        val entityCount = stateStore.disciplesSnapshot.size
-        unifiedPerformanceMonitor.recordEntityCount(entityCount)
-
-        if (tickTime > TICK_TIME_BUDGET_MS) {
-            DomainLog.w(TAG, "Tick over budget: ${tickTime}ms (budget=${TICK_TIME_BUDGET_MS}ms)")
-        }
-
-        if (tickTime > TICK_WARNING_THRESHOLD_MS) {
-            DomainLog.w(TAG, "Slow tick detected: ${tickTime}ms")
-        }
-    }
-    
     private suspend fun tickInternal() {
         if (skipTickIfNeeded()) return
         _tickCount.value++
@@ -1526,19 +1511,26 @@ class GameEngineCore @Inject constructor(
             System.currentTimeMillis() else 0L
         // 进度快照采样：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs）
         sampleProgressSnapshot()
-        // 批次 9 tick 桥（shadow 对拍模式）：推进 C++ 影子状态，不镜像覆盖 Kotlin
-        //（Kotlin 仍为真相源；全量切换登记批次 10 前置，见 docs/cpp-engine.md）
+        // 批次 9 tick 桥：SHADOW 对拍模式下推进 C++ 影子状态，不镜像覆盖
+        // Kotlin（Kotlin 仍为真相源）；AUTHORITATIVE 模式下 C++ 即真相源，
+        // 影子推进停用（避免双份推进）
         tickNativeShadow(LOGIC_DT_NS, gameClock.nowMs())
         val tickResult = gameClock.tick(isSettlementPending = false)
         // 电量感知热控阈值偏移（低电量未充电提前 2°C 降载）；checkAndAdjust 10s 间隔检查，
         // 此处仅浮点赋值无锁开销
         thermalController.setThresholdOffsetC(batteryStatusProvider.thermalThresholdOffsetC)
         thermalController.checkAndAdjust(_fps.value)
-        val tickFlags = processTickPhases(tickResult.phasesToAdvance)
-        processMonthYearChange(
-            monthChanged = (tickFlags and FLAG_MONTH_CHANGED) != 0,
-            yearChanged = (tickFlags and FLAG_YEAR_CHANGED) != 0
-        )
+        if (NativeEngineFlag.authoritative && ensureAuthoritativeNative()) {
+            // T2.4（计划 v2 阶段 2d）：过渡期真相源切换——每旬标量通道 +
+            // 残留执行器互插；初始化/镜像失败自动回退纯 Kotlin 路径
+            processAuthoritativeTick(tickResult.phasesToAdvance)
+        } else {
+            val tickFlags = processTickPhases(tickResult.phasesToAdvance)
+            processMonthYearChange(
+                monthChanged = (tickFlags and FLAG_MONTH_CHANGED) != 0,
+                yearChanged = (tickFlags and FLAG_YEAR_CHANGED) != 0
+            )
+        }
         // L3a 年变分帧：延迟组按 30ms 预算逐 tick drain（1 月重活分摊到后续 tick；
         // 非 1 月残留由 forceDrain 兜底不跨月）
         cultivationService.drainYearlyOpsQueue()
@@ -1608,34 +1600,26 @@ class GameEngineCore @Inject constructor(
         return flags
     }
     
-    private suspend fun processMonthYearChange(monthChanged: Boolean, yearChanged: Boolean) {
+    internal suspend fun processMonthYearChange(monthChanged: Boolean, yearChanged: Boolean) {
         if (yearChanged) {
-            cultivationService.processYearlyEvents()
-            if (stateStore.gameData.value.gameMonth == 1) {
-                cultivationService.processAnnualSalary(
-                    stateStore.gameData.value.gameYear
-                )
-            }
+            // 两步年变编排（processYearlyEvents 分帧 + 1 月年俸）已提取至
+            // YearSettlementExecutor（T2.3，生产 tick 与跨语言对拍测试共用
+            // 同一入口）；本方法仅保留委托。
+            val gd = stateStore.gameData.value
+            yearSettlementExecutor.execute(
+                gameYear = gd.gameYear,
+                isJanuary = gd.gameMonth == 1
+            )
         }
         if (monthChanged) {
-            // 第一步：计算策略成本 + 触发系统月变 + 血炼完成检测（单事务）
+            // 八步月变编排（政策扣除/月效/AI 预计算/七系统扇出/血炼/排班忠诚/
+            // 月衰减/月度事件）已提取至 MonthSettlementExecutor（T2.2，
+            // 生产 tick 与跨语言对拍测试共用同一入口）；本方法仅保留委托与
+            // 事务外三件。
             // 策略成本结果需要在事务外检查以决定是否重算生产 checkpoints
             var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
             stateStore.update {
-                policyResult = cultivationService.processPolicyCosts(this)
-                // 政策月度非消耗效果（道德/忠诚增减等，与扣费同事务）
-                cultivationService.processPolicyMonthlyEffects(this)
-                // AI 预计算进攻目标（写入 aiSectBeastDirectTargets），巡视楼处理时会查看
-                aiSectBeastAttackProcessor.precomputeTargets(this, gameData.gameYear, gameData.gameMonth)
-                systemManager.onMonthlyEvent(this)
-                processBloodRefinementCompletions()
-                // P0.2: 自动排班 + 住所忠诚度合入同一事务，减少月度独立事务数量
-                cultivationService.processMonthlyAutoAssignments(this)
-                // 月结丹药持续效果衰减（2026-08 修复：原无调用点的死代码，
-                // 接回后丹药 duration 按每月 3 旬衰减，"持续9旬"语义生效）
-                cultivationService.applyMonthlyDurationDecayAll(this)
-                // ★ 月度事件合并到同一事务（单原子提交 policy + 月变 + 重算 checkpoints）
-                cultivationService.processMonthlyEventsOnState(this)
+                policyResult = monthSettlementExecutor.execute(this)
             }
             if (policyResult is PolicyCostResult.SomeDisabled) {
                 val disabledList = (policyResult as PolicyCostResult.SomeDisabled).disabledPolicies
@@ -1658,69 +1642,30 @@ class GameEngineCore @Inject constructor(
      * 3) 修炼经验累积（确保月中速率变化自动生效）
      * 4) 自动丹药到期补服
      * 5) 突破检测
+     *
+     * T2.1（计划 v2 阶段 2）：编排逻辑已提取至
+     * [com.xianxia.sect.core.engine.service.PhaseSettlementExecutor]，
+     * 生产 tick 与跨语言对拍测试共用同一入口；本方法仅保留委托。
      */
     private fun checkBreakthroughsAndPills(state: MutableGameState) {
-        cultivationService.processAutoFromWarehouseRealtime(state)
+        phaseSettlementExecutor.execute(state)
+    }
 
-        // 合并遍历：HP/MP 恢复 + 修炼累积 + 功法熟练度 + 装备孕养
-        // 原 7 次独立遍历 → 1 次合并遍历（P0.1 优化）
-        // 每旬共享映射：所有弟子复用同一份，避免每弟子 O(N) 重建（O(D×N) → O(D+N)）
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
-        val manualMap = state.manualInstances.associateBy { it.id }
-        val manualProficiencies = state.gameData.manualProficiencies
-        // P-1：藏经阁弟子预构建 Set（替代每弟子 O(L) 线性扫描）+ 熟练度批量累积
-        val libraryDiscipleIds = state.gameData.librarySlots.mapTo(HashSet()) { it.discipleId }
-        val pendingProficiencies = mutableMapOf<String, List<ManualProficiencyData>?>()
-        // P-2：装备孕养共享累积 Map（循环后单次 List 重建，O(D×E) → O(E)）
-        val pendingEquipmentUpdates = mutableMapOf<String, EquipmentInstance>()
-        // P-4：住所/建筑预构建索引（消除每弟子 O(R)+O(B) 线性扫描 + id.toString() 分配）
-        val residenceByDiscipleId = HashMap<Int, ResidenceSlot>()
-        for (r in state.gameData.residenceSlots) {
-            val rid = r.discipleId.toIntOrNull() ?: continue
-            if (rid !in residenceByDiscipleId) residenceByDiscipleId[rid] = r
-        }
-        val buildingByInstanceId = state.gameData.placedBuildings.associateBy { it.instanceId }
-        // P-6：realtimeCultivation 投影批量累积（D 次发射 → 1 次）
-        val pendingRealtime = mutableMapOf<String, Double>()
-        // 远古秘境：探索中弟子不参与恢复/修炼/熟练度/孕养（不可突破、不可恢复状态）
-        val secretRealmMemberIds = state.gameData.secretRealmMemberIds()
+    /** 每旬结算纯编排器（无状态，懒初始化复用同一实例；AUTHORITATIVE 残留路径复用）。 */
+    internal val phaseSettlementExecutor: PhaseSettlementExecutor by lazy {
+        PhaseSettlementExecutor(cultivationService)
+    }
 
-        for (id in state.discipleTables.ids) {
-            // 存活 + 非秘境成员才参与恢复/修炼（合并跳转条件，保持循环单跳转）
-            if (state.discipleTables.isAlive[id] != 1 ||
-                id in secretRealmMemberIds
-            ) continue
-            // 1) HP/MP 恢复（2026-08-01 列直读版：无 assemble，满血提前退出）
-            cultivationService.recoverHpMpSingleColumn(
-                state, id, phasesToSettle = 1,
-                equipmentMap = equipmentMap, manualMap = manualMap,
-                manualProficiencies = manualProficiencies
-            )
-            // 2) 修炼累积（列级快速跳过：cultivation >= 1e8 表示已满，凡界最大值约 2e7）
-            if (state.discipleTables.cultivations.getOrDefault(id, 0.0) < 1e8) {
-                cultivationService.accumulateCultivationPerPhase(
-                    id, state, pendingRealtime, residenceByDiscipleId, buildingByInstanceId
-                )
-            }
-            // 3) 功法熟练度增长（P-1 批量模式：只累积不写 state）
-            cultivationService.processManualProficiencySingle(
-                state, id, manualMap, pendingProficiencies, libraryDiscipleIds
-            )
-            // 4) 装备孕养增长（P-2 批量模式：只累积不重建 List）
-            cultivationService.processEquipmentNurtureSingle(
-                state, id, equipmentMap, pendingEquipmentUpdates
-            )
-        }
+    /** 月变结算纯编排器（无状态，懒初始化复用同一实例；T2.2 提取）。 */
+    private val monthSettlementExecutor: MonthSettlementExecutor by lazy {
+        MonthSettlementExecutor(
+            cultivationService, aiSectBeastAttackProcessor, systemManager
+        )
+    }
 
-        // P-1：单次提交熟练度（O(D²) 全量 Map 拷贝 → O(D)）
-        cultivationService.commitManualProficiencies(state, pendingProficiencies)
-        // P-2：单次重建装备实例列表（O(D×E) → O(E)）
-        cultivationService.applyEquipmentUpdates(state, pendingEquipmentUpdates)
-        // P-6：单次发射 realtimeCultivation 投影（D 次发射 → 1 次）
-        cultivationService.flushRealtimeCultivation(pendingRealtime)
-
-        cultivationService.processAutoPillsRealtime(state)
-        cultivationService.processBreakthroughs(state)
+    /** 年变结算纯编排器（无状态，懒初始化复用同一实例；T2.3 提取）。 */
+    private val yearSettlementExecutor: YearSettlementExecutor by lazy {
+        YearSettlementExecutor(cultivationService)
     }
 
     /**

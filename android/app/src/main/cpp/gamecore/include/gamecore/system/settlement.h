@@ -38,12 +38,26 @@ struct TickResult {
     bool yearChanged = false;
 };
 
+/// settleOnePhase 返回的边界标志位（T2.4 AUTHORITATIVE tick 标量通道）
+constexpr int kSettleFlagNone = 0;
+constexpr int kSettleFlagMonthChanged = 1;
+constexpr int kSettleFlagYearChanged = 2;
+
 class SettlementEngine {
 public:
     /// 结算钩子（可注入；默认空实现——批次 4+ 按子系统注册）
     std::function<void(state::GameState&, state::GameData&)> onPhaseSettle;
     std::function<void(state::GameState&, state::GameData&)> onMonthChange;
     std::function<void(state::GameState&, state::GameData&)> onYearChange;
+    /// 核心每旬结算钩子（T2.4 core 模式专用：零 RNG 步骤 1-5 批量；
+    /// 月/年边界结算由 Kotlin 残留执行器按 settleOnePhase 标志处理）
+    std::function<void(state::GameState&, state::GameData&)> onCoreSettle;
+
+    /// core 模式（T2.4 AUTHORITATIVE 过渡语义）：每旬只跑时间推进 +
+    /// onCoreSettle；月/年结算钩子不触发（标志仍记录，供标量通道返回）。
+    /// 常规模式（shadow 对拍/diff 测试）行为与批次 3 起逐位一致。
+    void setCoreMode(bool on) { coreMode_ = on; }
+    bool coreMode() const { return coreMode_; }
 
     /// 推进墙钟增量（等价 GameTimeClock.tick + processTickPhases 时间部分）
     /// wallDeltaMs：自上次 tick 的墙钟毫秒增量（由桥层传入，保证对拍可控）
@@ -77,6 +91,18 @@ public:
         return result;
     }
 
+    /// 单旬推进（T2.4 AUTHORITATIVE tick 标量通道）：恰好一次
+    /// advanceOnePhase，返回本旬边界标志位（kSettleFlag* 位组合）。
+    int settleOnePhase(state::GameState& state) {
+        monthChanged_ = false;
+        yearChanged_ = false;
+        advanceOnePhase(state);
+        int flags = kSettleFlagNone;
+        if (monthChanged_) flags |= kSettleFlagMonthChanged;
+        if (yearChanged_) flags |= kSettleFlagYearChanged;
+        return flags;
+    }
+
     /// 设置游戏速度（0=暂停 1=正常 2=双倍；等价 GameTimeClock.setSpeed）
     void setSpeed(int speed) { speed_ = speed < 0 ? 0 : (speed > 2 ? 2 : speed); }
     int speed() const { return speed_; }
@@ -95,14 +121,24 @@ private:
         const int prevMonth = gd.gameMonth;
         const int prevYear = gd.gameYear;
         advancePhase(gd);                       // 时间推进（time_system.h）
-        if (onPhaseSettle) onPhaseSettle(state, gd);  // 旬结算钩子（批次 4+）
-        if (gd.gameMonth != prevMonth) {
-            monthChanged_ = true;
-            if (onMonthChange) onMonthChange(state, gd);  // 月变钩子
+        if (gd.gameYear != prevYear) yearChanged_ = true;
+        if (gd.gameMonth != prevMonth) monthChanged_ = true;
+        // 年月同界（12 月下旬 → 新年 1 月）时钩子序对齐 Kotlin
+        // processMonthYearChange：年变分支先于月变分支执行
+        if (coreMode_) {
+            // T2.4 过渡语义：只跑核心每旬结算；月/年结算钩子不触发
+            //（Kotlin 残留执行器按 settleOnePhase 标志处理，保证未迁移
+            // 系统（偷盗钩子/AI 预计算/七系统扇出/十三月度子事件等）
+            // 行为零丢失）
+            if (onCoreSettle) onCoreSettle(state, gd);
+            return;
         }
+        if (onPhaseSettle) onPhaseSettle(state, gd);  // 旬结算钩子（批次 4+）
         if (gd.gameYear != prevYear) {
-            yearChanged_ = true;
-            if (onYearChange) onYearChange(state, gd);    // 年变钩子
+            if (onYearChange) onYearChange(state, gd);    // 年变钩子（先）
+        }
+        if (gd.gameMonth != prevMonth) {
+            if (onMonthChange) onMonthChange(state, gd);  // 月变钩子（后）
         }
     }
 
@@ -110,6 +146,7 @@ private:
     int speed_ = 1;
     bool monthChanged_ = false;
     bool yearChanged_ = false;
+    bool coreMode_ = false;
 };
 
 }  // namespace gamecore::system

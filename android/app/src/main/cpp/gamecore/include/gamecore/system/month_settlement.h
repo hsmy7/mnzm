@@ -1,0 +1,589 @@
+#pragma once
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+
+#include "gamecore/rng/rng_manager.h"
+#include "gamecore/state/models.h"
+#include "gamecore/system/blood_refinement.h"
+#include "gamecore/system/economy.h"
+#include "gamecore/system/exploration.h"
+#include "gamecore/system/government.h"
+#include "gamecore/system/inventory.h"
+#include "gamecore/system/settlement_detail.h"
+#include "gamecore/system/spirit_field.h"
+
+// ============================================================
+// 月变结算钩子（计划 v2 阶段 2 / T2.2）
+//
+// 等价移植 Kotlin GameEngineCore.processMonthYearChange 的 monthChanged 分支
+// 单事务编排（Kotlin 侧由 MonthSettlementExecutor 提取同构），注册进
+// SettlementEngine::onMonthChange 钩子。
+//
+// 八步事务序（语义权威 = 各被调方法源码）：
+//   1. 政策月度灵石扣除        ← government.h::processPolicyCosts（原语接线）
+//   2. 政策月度忠诚/道德效果     ← CultivationSettlement.processPolicyMonthlyEffects
+//   3. AI 兽袭目标预计算        ← 未下沉（见下方范围边界）
+//   4. systemManager.onMonthlyEvent 七系统扇出（@SystemPriority 升序）：
+//      Alchemy(210) → Forge(211) → Planting(214) → ChildBirth(235) →
+//      Exploration(240) → Partner(240，稳定排序居后) → Mail(960)
+//   5. 血炼完成检测            ← blood_refinement 原语 + 本文件结算段
+//   6. 月度自动排班 + 住所忠诚   ← processResidenceLoyalty（排班未下沉）
+//   7. 丹药持续效果月度衰减      ← HpMpRecoveryService.applyMonthlyDurationDecay
+//   8. processMonthlyEventsOnState 十六子事件（可下沉三件 + 其余未下沉）
+//
+// RNG 消耗点核对表（分区 / 触发条件 / 抽取次数——对拍命门，逐点核对自源码）：
+//   - EXPLORATION：妖兽移动 moveBeasts，每活跃妖兽 2 次 nextDouble（角度+距离）
+//   - SYSTEM：灵田收获种子 roll nextInt(5)，每收获地块 1 次
+//   - SYSTEM：伴侣配对 nextDouble，每通过过滤的 (男,女) 组合 1 次
+//   - BREAKTHROUGH / BATTLE / 其他：本钩子零消耗（旬结算是 BREAKTHROUGH 唯一入口）
+//   已知未下沉扇出的抽取点（场景规避 + 登记后续批次，见 t2-2-report.md）：
+//   执法堂偷盗/叛退（S2/S8）、AI 兽袭 EXPLORATION（S3）、关卡刷新生成
+//   （S4-Exploration）、生产完成 SYSTEM（S4-Alchemy 同步段）、生育/招募/
+//   购买/附赋/商人等 SYSTEM（S8 子事件）。
+//
+// 已知范围边界（详见 .superpowers/sdd/t2-2-report.md 覆盖矩阵）：
+//   - S3 precomputeTargets：依赖 aiSectDisciples/aiSectBeastDirectTargets 等
+//     AI 宗门域字段，不在 C++ 快照协议——属阶段 4 AI 宗门批次；
+//     对拍场景 worldMapSects 为空 → 双端零抽取零写入
+//   - S4 关卡刷新生成（LevelGenerator）/巡视楼战斗/妖兽攻击检测：战斗与
+//     生成域未迁移；场景无玩家宗门 → 刷新不触发、检测/巡视纯早退
+//   - S4 生育（DiscipleFactory 弟子生成批次）：场景 childBirthMonth 全空 → 双端零效果
+//   - S4 炼丹/锻造自动排班与完成结算（Room 仓储/物品数据库域）：
+//     场景无到期槽位且自动政策全关；ForgeSystem 本为异步 launch（事务内零效果）
+//   - S4 邮件（MailService.processMonthlyMails 为异步网络拉取，事务内零状态效果）
+//   - S6 自动排班 processAutoAssign（11 槽占用扫描跨多未迁移域）：
+//     场景自动政策全关 → 双端纯早退；住所忠诚已实现
+//   - S8 子事件仅下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck 三件，
+//     其余十三件（招募/执法/任务/洞天/侦察/AI 兽战/12 月自动购买/购买/附赋/
+//     任务刷新/秘境×2）场景规避 + 登记对应批次
+//   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
+//     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
+// ============================================================
+namespace gamecore::system {
+
+/// 伴侣配对基础概率（Kotlin PartnerSystem.PAIRING_PROBABILITY）
+constexpr double kPairingProbability = 0.006;
+/// 配对资格年龄下限（Kotlin PartnerSystem 过滤 age >= 18）
+constexpr int32_t kPairingMinAge = 18;
+/// 丹药月度衰减旬数（每月 3 旬；HpMpRecoveryService.applyMonthlyDurationDecay）
+constexpr int32_t kMonthlyDecayPhases = 3;
+// 忠诚/道德上限与月度增量常量单一定义于 government.h
+//（kMaxLoyalty/kMoralEducationMax/kMoralEducationPerMonth 及各政策忠诚增量）
+
+namespace detail {
+
+using gamecore::state::Disciple;
+using gamecore::state::GameData;
+using gamecore::state::GameState;
+
+// 共享小工具（toIntOrNull/containsString/indexById/spiritRootCount/
+// kotlinCharLength/isBlankString）单一定义于 settlement_detail.h
+namespace settle_util = gamecore::system::settle_util;
+using settle_util::containsString;
+using settle_util::indexById;
+using settle_util::isBlankString;
+using settle_util::kotlinCharLength;
+using settle_util::spiritRootCount;
+using settle_util::toIntOrNull;
+
+/// 消息栏事件记录（MutableGameState.recordGameEvent 完整守卫对齐：
+/// summary/eventType blank 拒绝 + 四字段 Kotlin String.length 口径长度上限 +
+/// P-9 序号 max+1 溢出回 1 + takeLast(MAX_EVENT_LOGS) 裁剪）
+inline void recordGameEvent(GameState& state, const std::string& category,
+                            const std::string& eventType,
+                            const std::string& summary,
+                            const std::string& relatedEntityId = "",
+                            const std::string& relatedEntityName = "") {
+    if (isBlankString(summary) || isBlankString(eventType)) return;
+    if (kotlinCharLength(summary) > 200) return;
+    if (kotlinCharLength(eventType) > 50) return;
+    if (kotlinCharLength(relatedEntityId) > 50) return;
+    if (kotlinCharLength(relatedEntityName) > 50) return;
+
+    state::GameEventRecord event;
+    event.year = state.gameData.gameYear;
+    event.month = state.gameData.gameMonth;
+    event.phase = state.gameData.gamePhase;
+    event.category = category;
+    event.eventType = eventType;
+    event.summary = summary;
+    event.relatedEntityId = relatedEntityId;
+    event.relatedEntityName = relatedEntityName;
+    int64_t maxSeq = 0;
+    for (const auto& r : state.gameData.gameEventRecords) {
+        maxSeq = std::max(maxSeq, r.sequenceId);
+    }
+    event.sequenceId = (maxSeq >= INT64_MAX - 1) ? 1 : maxSeq + 1;
+    auto& records = state.gameData.gameEventRecords;
+    records.push_back(event);
+    constexpr std::size_t kMaxEventLogs = 200;   // GameConfig.Logs.MAX_EVENT_LOGS
+    if (records.size() > kMaxEventLogs) {
+        records.erase(records.begin(),
+                      records.end() - static_cast<std::ptrdiff_t>(kMaxEventLogs));
+    }
+}
+
+// ── 步骤 2：政策月度忠诚/道德效果 ──────────────────────────────────
+// （CultivationSettlement.processPolicyMonthlyEffects：单次遍历合并净变化；
+//   偷盗判定钩子未下沉——见文件头范围边界）
+
+inline void processPolicyMonthlyEffects(GameState& state) {
+    const GameData& gd = state.gameData;
+    const auto& policies = gd.sectPolicies;
+
+    // 忠诚净变化（各政策月度增减汇总，与 Kotlin 合并口径一致）
+    int32_t loyaltyDelta = 0;
+    if (policies.benevolentGovernance) loyaltyDelta += kBenevolentLoyaltyPerMonth;
+    if (policies.relaxedMgmt) loyaltyDelta += kRelaxedMgmtLoyaltyPerMonth;
+    if (policies.strictTraining) loyaltyDelta += kStrictTrainingLoyaltyPerMonth;
+    if (policies.enhancedSecurity) loyaltyDelta += kEnhancedSecurityLoyaltyPerMonth;
+    if (policies.curfew) loyaltyDelta += kCurfewLoyaltyPerMonth;
+
+    for (auto& d : state.disciples) {
+        if (!d.isAlive) continue;
+        // 忠诚：delta != 0 时 clamp 写回（getOrDefault 缺省 50 —— C++ 字段恒存在）
+        if (loyaltyDelta != 0) {
+            d.loyalty = std::max(0, std::min(kMaxLoyalty, d.loyalty + loyaltyDelta));
+        }
+        // 道德（教化之道）：仅当前低于上限时 +1 并 clamp；
+        // 新道德仍低于偷盗阈值的判定钩子属执法堂批次（未下沉，见文件头）
+        if (policies.moralEducation && d.morality < kMoralEducationMax) {
+            d.morality = std::max(0, std::min(kMoralEducationMax,
+                                              d.morality + kMoralEducationPerMonth));
+        }
+    }
+}
+
+// ── 步骤 4c：灵田收获（spirit_field.h 原语接线） ───────────────────
+// Kotlin ProductionProcessor.processSpiritFieldHarvest 已在批次 4c 移植；
+// 溢出邮件收集器结果在 C++ 侧丢弃（邮件实体不在快照协议——溢出转邮件的
+// 可见面为零；仓库容量充足的对拍场景双端均无溢出）
+
+inline void processSpiritFieldHarvestStep(GameState& state, rng::RngManager& rng) {
+    OverflowMailCollector overflowMail;
+    processSpiritFieldHarvest(state, rng, overflowMail);
+    // overflowMail 内容即 Kotlin sendOverflowMail 的邮件草稿——C++ 无邮件协议，
+    // 显式弃用（与"邮件域阶段 4 迁移"边界一致）
+}
+
+// ── 步骤 4f：伴侣配对（PartnerSystem.processPartnerMatching 完整移植） ──
+// RNG 契约：每对通过过滤的 (male, female) 组合恰好一次 SYSTEM nextDouble；
+// 遍历序 = eligibleMales 外层 × eligibleFemales 内层（assembleAll 快照序 ==
+// C++ disciples 向量序）；pairedFemaleIds 跳过不改写快照。
+
+inline bool hasBloodRelation(const Disciple& a, const Disciple& b) {
+    const auto& aP1 = a.parentId1;
+    const auto& aP2 = a.parentId2;
+    const auto& bP1 = b.parentId1;
+    const auto& bP2 = b.parentId2;
+    return a.id == bP1 || a.id == bP2 ||
+           b.id == aP1 || b.id == aP2 ||
+           (!aP1.empty() && aP1 == bP1) ||
+           (!aP1.empty() && aP1 == bP2) ||
+           (!aP2.empty() && aP2 == bP1) ||
+           (!aP2.empty() && aP2 == bP2);
+}
+
+inline void processPartnerMatching(GameState& state, rng::RngManager& rng,
+                                   const std::map<int32_t, std::size_t>& idx) {
+    // assembleAll 快照等价：循环期间只写 live 向量，资格判定全部读入口快照副本
+    const std::vector<Disciple> snapshot = state.disciples;
+
+    // 失效提议清理：pendingMarriageProposals 不在 C++ 快照协议（同意模式
+    // 提案列表属 UI 域），本步为空操作——对拍场景以 consentRequired=false
+    // （自动配对模式）保证双端一致（见文件头范围边界）
+
+    const auto& bannedRootCounts = state.gameData.daoCompanionBannedRootCounts;
+    const auto isBannedRoot = [&](const Disciple& d) {
+        return std::find(bannedRootCounts.begin(), bannedRootCounts.end(),
+                         spiritRootCount(d)) != bannedRootCounts.end();
+    };
+
+    std::vector<const Disciple*> eligibleMales;
+    std::vector<const Disciple*> eligibleFemales;
+    for (const auto& d : snapshot) {
+        if (!d.isAlive || d.age < kPairingMinAge) continue;
+        if (!d.partnerId.empty() || isBannedRoot(d)) continue;
+        if (d.gender == "male") eligibleMales.push_back(&d);
+        else if (d.gender == "female") eligibleFemales.push_back(&d);
+    }
+
+    if (eligibleMales.empty() || eligibleFemales.empty()) return;
+
+    std::set<std::string> pairedFemaleIds;
+    for (const Disciple* male : eligibleMales) {
+        for (const Disciple* female : eligibleFemales) {
+            if (pairedFemaleIds.count(female->id)) continue;
+            if (hasBloodRelation(*male, *female)) continue;
+
+            if (rng.getRng(rng::RngPartition::kSystem).nextDouble() <
+                kPairingProbability) {
+                // 同意模式提案分支未下沉（提案列表不在协议）——场景固定关闭；
+                // 此处直接走自动配对分支（consentRequired=false 的 Kotlin 行为）
+                const auto maleId = toIntOrNull(male->id);
+                const auto femaleId = toIntOrNull(female->id);
+                if (!maleId.has_value() || !femaleId.has_value()) continue;
+                const auto mit = idx.find(*maleId);
+                const auto fit = idx.find(*femaleId);
+                if (mit == idx.end() || fit == idx.end()) continue;
+                state.disciples[mit->second].partnerId = female->id;
+                state.disciples[fit->second].partnerId = male->id;
+                pairedFemaleIds.insert(female->id);
+                recordGameEvent(state, "SECT", "marriage",
+                                "弟子" + male->name + "与弟子" + female->name +
+                                    "结为道侣",
+                                male->id, male->name);
+            }
+        }
+    }
+}
+
+// ── 步骤 5：血炼完成检测（processBloodRefinementCompletions） ──────
+
+/// 单条到期血炼结算（settleSingleRefinement）
+inline void settleSingleRefinement(GameState& state, const std::string& buildingId,
+                                   const state::BloodRefinementProgress& progress,
+                                   const std::map<int32_t, std::size_t>& idx) {
+    (void)buildingId;
+    const auto dId = toIntOrNull(progress.discipleId);
+    if (!dId.has_value() || idx.find(*dId) == idx.end()) return;
+    if (progress.selectedStat.empty()) return;
+    // 防御：血炼期间弟子可能因其他系统死亡（isAlive[dId] == 0 直接返回）
+    Disciple& d = state.disciples[idx.at(*dId)];
+    if (!d.isAlive) return;
+
+    // NaN 无法被 coerceAtLeast 拦下——先 isFinite 归零再取非负
+    const double safeBonusPct =
+        std::isfinite(progress.bonusPercent)
+            ? std::max(progress.bonusPercent, 0.0)
+            : 0.0;
+
+    auto& totals = state.gameData.bloodRefinementPctTotals;
+    const auto existing = totals.find(progress.discipleId);
+    state::BloodRefinementPctTotal updatedTotal =
+        addPctToTotal(existing != totals.end()
+                          ? existing->second
+                          : state::BloodRefinementPctTotal{},
+                      progress.selectedStat, safeBonusPct);
+    updatedTotal.discipleId = progress.discipleId;
+    totals[progress.discipleId] = updatedTotal;
+
+    // 材料记录追加（bloodRefinements[id] += materialId）
+    auto& refinements = state.gameData.bloodRefinements[progress.discipleId];
+    refinements.push_back(progress.materialId);
+
+    // 仅清除 statusData["buildingId"]（status 保持 REFINING——Kotlin 怪癖保留）
+    d.statusData.erase("buildingId");
+
+    recordGameEvent(state, "SECT", "blood_refinement",
+                    progress.discipleName + "的血练已完成！属性「" +
+                        bloodRefinementStatDisplayName(progress.selectedStat) +
+                        "」获得提升。",
+                    "", progress.discipleName);
+}
+
+inline void processBloodRefinementCompletions(
+        GameState& state, const std::map<int32_t, std::size_t>& idx) {
+    auto& active = state.gameData.activeBloodRefinements;
+    if (active.empty()) return;
+    std::map<std::string, state::BloodRefinementProgress> remaining;
+    for (const auto& [buildingId, progress] : active) {
+        const int32_t elapsed = calculateElapsedMonths(
+            progress.startYear, progress.startMonth,
+            state.gameData.gameYear, state.gameData.gameMonth);
+        if (elapsed < progress.durationMonths) {
+            remaining.emplace(buildingId, progress);
+        } else {
+            settleSingleRefinement(state, buildingId, progress, idx);
+        }
+    }
+    if (remaining.size() != active.size()) {
+        active = std::move(remaining);
+    }
+}
+
+// ── 步骤 6b：住所忠诚度（processResidenceLoyalty） ─────────────────
+
+inline void processResidenceLoyalty(GameState& state) {
+    std::set<std::string> residentIds;
+    for (const auto& slot : state.gameData.residenceSlots) {
+        // Kotlin isActive 为计算属性 == discipleId.isNotEmpty()
+        if (!slot.discipleId.empty()) residentIds.insert(slot.discipleId);
+    }
+    for (auto& d : state.disciples) {
+        // Kotlin: id.toString() in residentIds && loyalties[id] < max
+        if (residentIds.count(d.id) && d.loyalty < kMaxLoyalty) {
+            d.loyalty = std::min(d.loyalty + 1, kMaxLoyalty);
+        }
+    }
+}
+
+// ── 步骤 7：丹药持续效果月度衰减（applyMonthlyDurationDecayAll） ───
+
+/// 单弟子月衰减（HpMpRecoveryService.applyMonthlyDurationDecay，
+/// focusedPhaseCount=0 → monthlyDecay=3）
+inline void applyMonthlyDurationDecay(Disciple& d) {
+    if (d.pillEffectDuration <= 0) return;
+    const int32_t newDuration = d.pillEffectDuration - kMonthlyDecayPhases;
+    if (newDuration <= 0) {
+        d.pillHpBonus = 0;
+        d.pillMpBonus = 0;
+        d.pillPhysicalAttackBonus = 0;
+        d.pillMagicAttackBonus = 0;
+        d.pillPhysicalDefenseBonus = 0;
+        d.pillMagicDefenseBonus = 0;
+        d.pillSpeedBonus = 0;
+        d.pillCritRateBonus = 0.0;
+        d.pillCritEffectBonus = 0.0;
+        d.pillCultivationSpeedBonus = 0.0;
+        d.pillSkillExpSpeedBonus = 0.0;
+        d.pillNurtureSpeedBonus = 0.0;
+        d.activePillCategory.clear();
+        d.activePillTypes.clear();
+        d.pillEffectDuration = 0;
+    } else {
+        d.pillEffectDuration = newDuration;
+    }
+}
+
+inline void applyMonthlyDurationDecayAll(GameState& state) {
+    for (auto& d : state.disciples) {
+        if (!d.isAlive) continue;
+        applyMonthlyDurationDecay(d);
+    }
+}
+
+// ── 步骤 8c：灵矿月度产出结算（processSpiritMineProductionMonthly） ─
+
+/// 执事道德基准（GameConfig.PolicyConfig.ELDER_SKILL_BASELINE）
+constexpr int32_t kElderSkillBaselineConst = 80;
+
+/// 构建灵矿乘区（buildSpiritMineZones：矿工采矿列直读 + 执事基础道德 +
+/// 政策倍率；天赋/词条注册表为空表占位 → 基础道德 == morality 字段值，
+/// 与 T2.1 D7 口径一致，填表后经 stats:: 聚合接入）
+inline SpiritMineZones buildMonthSpiritMineZones(const GameState& state,
+                                                 const std::map<int32_t, std::size_t>& idx) {
+    const GameData& gd = state.gameData;
+    const auto& slots = gd.spiritMineSlots;
+    const int32_t minerCount = static_cast<int32_t>(std::count_if(
+        slots.begin(), slots.end(),
+        [](const state::SpiritMineSlot& s) { return !s.discipleId.empty(); }));
+
+    double miningBonus = 0.0;
+    for (const auto& slot : slots) {
+        if (slot.discipleId.empty()) continue;
+        const auto id = detail::toIntOrNull(slot.discipleId);
+        if (!id.has_value()) continue;
+        const auto it = idx.find(*id);
+        if (it == idx.end()) continue;
+        const Disciple& d = state.disciples[it->second];
+        if (!d.isAlive) continue;
+        if (d.mining > kSpiritMineMiningThreshold) {
+            miningBonus += (d.mining - kSpiritMineMiningThreshold) *
+                           kSpiritMineMiningBonusRate;
+        }
+    }
+    const double avgMiningBonus =
+        (minerCount > 0) ? miningBonus / minerCount : 0.0;
+
+    const double boostMultiplier =
+        gd.sectPolicies.spiritMineBoost ? kSpiritMineBoostMultiplier : 1.0;
+
+    double deaconBonus = 0.0;
+    for (const auto& slot : gd.elderSlots.spiritMineDeaconDisciples) {
+        if (slot.discipleId.empty()) continue;
+        const auto id = detail::toIntOrNull(slot.discipleId);
+        if (!id.has_value()) continue;
+        const auto it = idx.find(*id);
+        if (it == idx.end()) continue;
+        const Disciple& d = state.disciples[it->second];
+        if (!d.isAlive) continue;
+        const int32_t diff = std::max(d.morality - kElderSkillBaselineConst, 0);
+        deaconBonus += diff * kDeaconMoralityBonusRate;
+    }
+
+    SpiritMineZones zones;
+    zones.minerCount = minerCount;
+    zones.avgMiningSkillBonus = avgMiningBonus;
+    zones.deaconMoralityBonus = deaconBonus;
+    zones.policyBoost = multiplierToZone(boostMultiplier);
+    return zones;
+}
+
+/// 矿工忠诚衰减（applyMinerLoyaltyDecay：连续挖矿满 3 月 -1 忠诚并归零计数；
+/// 无效/空槽位计数归零；弟子查无此人仅按 ids.contains 判定——死亡也衰减）
+inline void applyMinerLoyaltyDecay(GameState& state,
+                                   const std::map<int32_t, std::size_t>& idx) {
+    for (auto& slot : state.gameData.spiritMineSlots) {
+        if (slot.discipleId.empty()) {
+            slot.consecutiveMiningMonths = 0;
+            continue;
+        }
+        const auto id = detail::toIntOrNull(slot.discipleId);
+        if (!id.has_value() || idx.find(*id) == idx.end()) {
+            slot.consecutiveMiningMonths = 0;
+            continue;
+        }
+        const int32_t newMonths = slot.consecutiveMiningMonths + 1;
+        if (newMonths >= 3) {
+            Disciple& d = state.disciples[idx.at(*id)];
+            d.loyalty = std::max(d.loyalty - 1, 0);
+            slot.consecutiveMiningMonths = 0;
+        } else {
+            slot.consecutiveMiningMonths = newMonths;
+        }
+    }
+}
+
+/// 灵矿月产结算主体：乘区构建 → 差分产出入账（钱包 Mine 来源）→
+/// 引导计数 → lastSettledMonth 推进 → 矿工忠诚衰减
+inline void processSpiritMineProductionMonthly(
+        GameState& state, const std::map<int32_t, std::size_t>& idx) {
+    GameData& gd = state.gameData;
+    const int32_t currentMonth = toAbsoluteMonth(gd.gameYear, gd.gameMonth);
+    const SpiritMineZones zones = buildMonthSpiritMineZones(state, idx);
+    const int64_t monthlyRate = calculateSpiritMineMonthly(
+        zones, kSpiritMineBaseOutputPerMiner);
+    const int32_t lastSettled = gd.spiritMineLastSettledMonth;
+    if (currentMonth > lastSettled && monthlyRate > 0) {
+        const int64_t totalOutput = monthlyRate * (currentMonth - lastSettled);
+        SpiritStoneWallet::add(gd, totalOutput, SpiritStoneGrade::LOW, "Mine");
+        int64_t& counter = gd.guideCounters["miningOutput"];
+        counter += totalOutput;
+    }
+    gd.spiritMineLastSettledMonth = currentMonth;
+    applyMinerLoyaltyDecay(state, idx);
+}
+
+// ── 步骤 8e：游戏结束检查（checkGameOverCondition） ────────────────
+
+inline void checkGameOverCondition(GameState& state) {
+    const GameData& gd = state.gameData;
+    if (gd.isGameOver) return;
+    // 玩家宗门定义：isPlayerSect 的宗门；无玩家宗门 → 不判定
+    std::string playerSectId;
+    bool hasPlayerSect = false;
+    for (const auto& sect : gd.worldMapSects) {
+        if (sect.isPlayerSect) {
+            playerSectId = sect.id;
+            hasPlayerSect = true;
+            break;
+        }
+    }
+    if (!hasPlayerSect) return;
+    // 玩家仍控制任意宗门：本宗未被占领，或占领了其他宗门
+    for (const auto& sect : gd.worldMapSects) {
+        const bool controls =
+            (sect.isPlayerSect && sect.occupierSectId.empty()) ||
+            (sect.occupierSectId == playerSectId && !sect.isPlayerSect);
+        if (controls) return;
+    }
+    state.gameData.isGameOver = true;
+}
+
+// ── 步骤 8：processMonthlyEventsOnState 可下沉子集 ────────────────
+// Kotlin 十六子事件全序：recruitReset → autoRecruit → theft → lawEnforcement →
+// completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
+// aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
+// vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
+// 本批下沉三件（recruitReset/spiritMine/gameOverCheck），其余场景规避 +
+// 登记批次（文件头范围边界）；三件的相对序与 Kotlin 一致。
+
+inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
+                                 const std::map<int32_t, std::size_t>& idx) {
+    // 子事件 1：招募月度计数归零
+    state.gameData.recruitCountThisMonth = 0;
+    // 子事件 7：游戏结束检查
+    detail::checkGameOverCondition(state);
+    // 子事件 11：灵矿月度产出结算
+    detail::processSpiritMineProductionMonthly(state, idx);
+    // 其余子事件未下沉——见文件头范围边界（rng 参数供后续批次接线）
+    (void)rng;
+}
+
+}  // namespace detail
+
+// ── 主入口：月变结算（注册进 SettlementEngine::onMonthChange） ─────
+
+/// 月变事务编排结果（Kotlin policyResult 等价——事务外 checkpointAllProduction
+/// 决策依据；当前真相源仍在 Kotlin，本结果仅供测试断言与未来接线）
+struct MonthSettlementResult {
+    PolicyCostResult policyCosts;
+};
+
+/// 执行一次月变结算（时间推进与月界检测由 SettlementEngine 负责）。
+/// @param state 完整游戏状态（就地修改）
+/// @param rng   RNG 分区管理器（EXPLORATION：妖兽移动；SYSTEM：收获 roll/伴侣配对）
+inline MonthSettlementResult runMonthSettlement(state::GameState& state,
+                                                rng::RngManager& rng) {
+    MonthSettlementResult out;
+    const auto idx = detail::indexById(state.disciples);
+
+    // 步骤 1：政策月度灵石扣除
+    {
+        int32_t discipleCount = 0;
+        int32_t huashenBelowCount = 0;
+        for (const auto& d : state.disciples) {
+            if (!d.isAlive) continue;
+            ++discipleCount;
+            if (d.realm > 5) ++huashenBelowCount;   // realm 5=化神，>5=化神下
+        }
+        out.policyCosts = processPolicyCosts(state.gameData, discipleCount,
+                                             huashenBelowCount);
+    }
+
+    // 步骤 2：政策月度忠诚/道德效果
+    detail::processPolicyMonthlyEffects(state);
+
+    // 步骤 3：AI 兽袭目标预计算——未下沉（AI 宗门域，阶段 4 批次；
+    // 场景 worldMapSects 为空 → Kotlin 同样零抽取零写入）
+
+    // 步骤 4：七系统扇出（@SystemPriority 升序；稳定排序 Exploration(240)
+    // 先于 Partner(240)，对齐 Dagger Set 注入序的现行生产行为）
+    // 4a Alchemy(210)：异步自动炼丹 launch + 同步完成结算——均未下沉
+    //   （Room 仓储/物品数据库域；场景无到期槽位；launch 本身事务内零效果）
+    // 4b Forge(211)：异步自动锻造 launch——事务内零效果（未下沉无影响面）
+    // 4c Planting(214)：灵田成熟收获 + 续种（SYSTEM 种子 roll）
+    detail::processSpiritFieldHarvestStep(state, rng);
+    // 4d ChildBirth(235)：生育——未下沉（弟子生成批次；场景 childBirthMonth
+    //   全空 → 双端零效果零抽取）
+    // 4e Exploration(240)：世界关卡惰性管理（清理 + 移动；刷新生成属
+    //   LevelGenerator 批次未下沉 → allowRefresh 恒 false，与"无玩家宗门"
+    //   路径语义一致：不生成、不推进 lastRefreshMonth）
+    {
+        const auto monthly = processWorldLevelsMonthly(
+            state.gameData.worldLevels,
+            state.gameData.worldLevelLastRefreshMonth,
+            state.gameData.gameYear, state.gameData.gameMonth,
+            rng, /*allowRefresh=*/false);
+        state.gameData.worldLevels = std::move(monthly.levels);
+        // refreshed 恒 false（生成未下沉）→ lastRefreshMonth 保持不变
+    }
+    // 巡视楼战斗 / 妖兽攻击检测：战斗域未下沉；场景 patrolSlots 为空 +
+    // 无玩家宗门 → 双端纯早退零抽取
+    // 4f Partner(240)：道侣配对（SYSTEM 配对概率抽卡）
+    detail::processPartnerMatching(state, rng, idx);
+    // 4g Mail(960)：异步网络邮件拉取——事务内零状态效果（C++ 空操作等价）
+
+    // 步骤 5：血炼完成检测
+    detail::processBloodRefinementCompletions(state, idx);
+
+    // 步骤 6：月度自动排班（未下沉，场景自动政策全关纯早退）+ 住所忠诚
+    detail::processResidenceLoyalty(state);
+
+    // 步骤 7：丹药持续效果月度衰减
+    detail::applyMonthlyDurationDecayAll(state);
+
+    // 步骤 8：月度事件（三件已下沉子事件）
+    detail::processMonthlyEvents(state, rng, idx);
+
+    return out;
+}
+
+}  // namespace gamecore::system

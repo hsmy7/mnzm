@@ -12,11 +12,16 @@ import kotlinx.serialization.Serializable
  * 状态仅 16 字节（2 个 Long），存档时直接序列化到 GameData.rngStates。
  * 相同初始种子在相同调用次数下保证产出完全相同的结果序列。
  *
+ * open 说明（T2.4）：[NativeBackedRng] 子类把原始 [nextInt]/[snapshot]/[restore]
+ * 委托到 C++ 单一真相源（AUTHORITATIVE 模式跨语言序列统一）；
+ * nextLong/nextDouble/nextGaussian 在子类中保持本类公式、经虚分派消费
+ * 委托后的原始流——消耗次数与产出逐位不变。
+ *
  * 参考：PCG 算法由 Melissa O'Neill 设计 (pcg-random.org)
  */
 @Serializable
-class DeterministicRng(
-    @Volatile private var state: Long,
+open class DeterministicRng(
+    @Volatile internal var state: Long,
     private val increment: Long = 1L
 ) {
     companion object {
@@ -34,7 +39,7 @@ class DeterministicRng(
 
     /** 产生下一个 32 位随机整数 */
     @Synchronized
-    fun nextInt(): Int {
+    open fun nextInt(): Int {
         val oldState = state
         state = oldState * MULTIPLIER + increment
         // 标准 PCG-XSH-RR 64→32：xorshifted 必须截断为 32 位后再做 32 位循环旋转。
@@ -49,7 +54,7 @@ class DeterministicRng(
 
     /** [0, bound) 范围随机整数 */
     @Synchronized
-    fun nextInt(bound: Int): Int {
+    open fun nextInt(bound: Int): Int {
         require(bound > 0) { "bound must be positive, was $bound" }
         // Lemire 无偏回绝采样
         val t = (nextInt().toLong() and 0xFFFFFFFFL) * bound.toLong()
@@ -100,11 +105,11 @@ class DeterministicRng(
 
     /** 当前状态快照（用于序列化到存档） */
     @Synchronized
-    fun snapshot(): Long = state
+    open fun snapshot(): Long = state
 
     /** 从快照恢复状态 */
     @Synchronized
-    fun restore(savedState: Long) {
+    open fun restore(savedState: Long) {
         state = savedState
     }
 

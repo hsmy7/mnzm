@@ -27,6 +27,7 @@ add_library(game-core STATIC
     src/game_core.cpp
     src/json_codec.cpp
     src/execute_dispatch.cpp
+    src/dirty_tracker.cpp
 )
 
 target_include_directories(game-core PUBLIC

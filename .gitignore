@@ -135,3 +135,6 @@ android/.kotlin/sessions/
 # 鍗庝负 AGC 鍑瘉
 android/app/agconnect-services.json
 .claude/worktrees/
+
+# SDD 工作区（简报/报告/补丁，不入库）
+.superpowers/

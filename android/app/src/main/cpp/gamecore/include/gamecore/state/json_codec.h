@@ -97,6 +97,22 @@ void from_json(const nlohmann::json& j, SpiritMineSlot& v);
 void to_json(nlohmann::json& j, const PatrolSlot& v);
 void from_json(const nlohmann::json& j, PatrolSlot& v);
 
+// T2.1：储物袋条目体系 + 藏经阁槽位 + 游戏事件记录
+void to_json(nlohmann::json& j, const EquipmentNurtureData& v);
+void from_json(const nlohmann::json& j, EquipmentNurtureData& v);
+void to_json(nlohmann::json& j, const BagStackedData& v);
+void from_json(const nlohmann::json& j, BagStackedData& v);
+void to_json(nlohmann::json& j, const ItemEffect& v);
+void from_json(const nlohmann::json& j, ItemEffect& v);
+void to_json(nlohmann::json& j, const StorageBagItem& v);
+void from_json(const nlohmann::json& j, StorageBagItem& v);
+void to_json(nlohmann::json& j, const PillEffect& v);
+void from_json(const nlohmann::json& j, PillEffect& v);
+void to_json(nlohmann::json& j, const LibrarySlot& v);
+void from_json(const nlohmann::json& j, LibrarySlot& v);
+void to_json(nlohmann::json& j, const GameEventRecord& v);
+void from_json(const nlohmann::json& j, GameEventRecord& v);
+
 // 批次 1 剩余：远古秘境状态机
 void to_json(nlohmann::json& j, const SecretRealmState& v);
 void from_json(const nlohmann::json& j, SecretRealmState& v);
@@ -131,5 +147,9 @@ void from_json(const nlohmann::json& j, GameState& v);
 /// kotlinx.serialization 的流式解码器（1.7.x）对 "N.0" 格式数字有缺陷
 /// （Unexpected symbol '.' in numeric literal），非整数值（12345.6）保留。
 std::string dumpStateJson(const GameState& v);
+
+/// 就地规范化 JSON 树中的整数值 double 为 int64（供变更集等所有
+/// 面向 kotlinx 解码器的导出通道复用——见 dumpStateJson 说明）。
+void normalizeIntegralFloats(nlohmann::json& j);
 
 }  // namespace gamecore::state

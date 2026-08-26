@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.nativebridge
 
+import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -8,16 +12,16 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /**
- * DiffTimeTest — 时间推进跨语言差分对拍（批次 3 验收核心）。
+ * DiffTimeTest — 时间推进跨语言差分对拍（批次 3 验收核心；C-15 已切换真实引擎基准）。
  *
  * 守护目标：C++ SettlementEngine/TimeSystem 的时间推进（年/月/旬进位、
- * 边界检测）与 Kotlin TimeSystem.onPhaseTick 语义**逐位一致**。
+ * 边界检测）与 Kotlin [TimeSystem].onPhaseTick 语义**逐位一致**。
  *
- * Kotlin 基准：TimeSystemPureLogicTest 已守护的推进逻辑（内联复刻
- * TimeSystem.onPhaseTick 计算，与 Kotlin 源码逐行一致）。
+ * Kotlin 基准：真实 [TimeSystem] 实例驱动 [MutableGameState]
+ * （C-15 计划 v2 阶段 1——原内联复刻已删除，杜绝"复刻漂移"盲区）。
  *
- * 流程：Kotlin 内联推进 N 旬 → 期望 (y,m,p)；C++ 经 JNI advancePhases(N)
- * → export 读 (y,m,p)；断言相等。
+ * 流程：Kotlin 真实 TimeSystem 推进 N 旬 → 期望 (y,m,p)；C++ 经 JNI
+ * advancePhases(N) → export 读 (y,m,p)；断言相等。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */
@@ -25,26 +29,32 @@ class DiffTimeTest {
 
     private val json = Json { encodeDefaults = true }
 
-    // Kotlin 基准：复刻 TimeSystem.onPhaseTick 的计算（与 TimeSystemPureLogicTest 同源）
-    private fun advancePhase(currentPhase: Int, currentMonth: Int, currentYear: Int): Triple<Int, Int, Int> {
-        var newPhase = currentPhase + 1
-        var newMonth = currentMonth
-        var newYear = currentYear
-        if (newPhase >= 3) {
-            newPhase = 0
-            newMonth++
-            if (newMonth > 12) {
-                newMonth = 1
-                newYear++
-            }
-        }
-        return Triple(newYear, newMonth, newPhase)
-    }
-
+    /** Kotlin 基准：真实 TimeSystem 推进 N 旬（不再内联复刻——C-15）。 */
     private fun kotlinAdvanceN(start: Triple<Int, Int, Int>, n: Int): Triple<Int, Int, Int> {
-        var (y, m, p) = start
-        repeat(n) { val r = advancePhase(p, m, y); y = r.first; m = r.second; p = r.third }
-        return Triple(y, m, p)
+        val store = FakeGameStateStore()
+        val mutableState = MutableGameState(
+            gameData = GameData().apply {
+                gameYear = start.first; gameMonth = start.second; gamePhase = start.third
+            },
+            discipleTables = DiscipleTables().also { it.writeAllowed = true },
+            equipmentStacks = EntityStore(emptyList()),
+            equipmentInstances = EntityStore(emptyList()),
+            manualStacks = EntityStore(emptyList()),
+            manualInstances = EntityStore(emptyList()),
+            pills = EntityStore(emptyList()),
+            materials = EntityStore(emptyList()),
+            herbs = EntityStore(emptyList()),
+            seeds = EntityStore(emptyList()),
+            storageBags = EntityStore(emptyList()),
+            battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
+        val timeSystem = TimeSystem(store)
+        repeat(n) { timeSystem.onPhaseTick(mutableState, 1) }
+        val gd = mutableState.gameData
+        return Triple(gd.gameYear, gd.gameMonth, gd.gamePhase)
     }
 
     private fun cppAdvanceN(start: Triple<Int, Int, Int>, n: Int): Triple<Int, Int, Int> {

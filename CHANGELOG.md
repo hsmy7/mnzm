@@ -1,10 +1,40 @@
 ## [4.01.10] - 2026-08-24
 
+### 新增（C++ 引擎迁移计划 v2 阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE 过渡管线）
+
+> 纯引擎内部迁移与基础设施加固（T2.1~T2.4a 批次），`NativeEngineFlag` 默认 OFF，玩家行为零变化；AUTHORITATIVE 由灰度开关显式开启、任何时刻可回退纯 Kotlin 路径。
+
+- **每旬核心批次 C++ 化（T2.1）**：C++ `runPhaseCoreBatch`（步骤 1-5 零 RNG：恢复/修炼累积/熟练度/孕养批量提交 = 阶段 0 实测的每旬热点 327µs@1000 弟子）注册 `SettlementEngine::onPhaseSettle`；Kotlin `PhaseSettlementExecutor` 提取为生产 tick 与对拍共用入口
+- **月变钩子 C++ 化（T2.2）**：`month_settlement.h` 八步编排（政策扣除/月效/血炼/伴侣配对/灵田收获/住所忠诚/丹药月衰减/灵矿月产/游戏结束检查），RNG 分区调用点逐位对齐；未下沉扇出（偷盗钩子/AI 预计算/七系统大部分/十三月度子事件）场景规避 + 登记批次
+- **年变钩子 C++ 化（T2.3）**：`year_settlement.h` 年报快照段（YearlyReport(year-1) + annual* 十四项清零，MAX=100）+ 年俸全逻辑（含不足分支忠诚惩罚）；**钩子序调整为年变先于月变**（年月同界与 Kotlin processMonthYearChange 分支序一致）；`YearSettlementExecutor` 提取
+- **tick 真相源切换（T2.4）**：`settleOnePhase` 标量通道（kSettleFlagMonth/YearChanged 位）+ `SettlementEngine` core 模式（月/年钩子抑制）；`NativeEngineFlag` 三态 OFF/SHADOW/AUTHORITATIVE；AUTHORITATIVE 过渡管线 `GameEngineCoreAuthoritativeOps.processAuthoritativeTick`（每旬：C++ 单旬推进 → applyDirty 增量镜像 → Kotlin 残留执行器（自动装备/丹药/突破 + 完整月变/年变）→ importNoRng 每旬回导）；时钟语义保持 Kotlin GameTimeClock 独占（C++ 累积器推迟阶段 5）
+- **RNG 单一真相源接缝（T2.4）**：`DeterministicRng` 虚化原始三件套 → `NativeBackedRng` 子类经 `NativeRngChannel` 委托 native 分区标量通道（raw nextInt + snapshot/restore + initSeed；bound/double/gaussian 公式继承本地组合，消耗次数与产出逐位不变）；`GameRngManager.attach/detachNativeChannel`（detach 经 export→reseed 无缝续接）；150 处 RNG 调用点零改动；事务回滚守卫（RngSnapshotPort）与存档导出自动走通道语义
+- **D7 三注册表效果聚合填表（T2.4a）**：C++ `disciple_stats.h` 天赋/词条/体质聚合函数从 trait_db.h（204 条）真实读取（原空占位——真实存档天赋弟子速率在 AUTHORITATIVE 下不再漂移）；**comprehension 词条 flat 合并分叉修复**（t2-1-review:77 登记潜伏分叉）
+- **根因修复（对拍揭示的生产缺陷）**：
+  1. 残留副作用每旬回导——突破清零若不写回 C++，月内多旬窗口从旧修为继续累积导致跨语言漂移（100 旬对拍实测 breakthroughCount 7 vs 8）
+  2. 回导不得恢复 RNG——委托模式下 native RNG 即真相源，镜像 rngStates 滞后于残留抽取，恢复会把分区回卷（新增 `importStateJsonNoRng` 通道 + `importToNative(restoreRng=false)`）
+  3. 测试装配：镜像必须预播种完整初始状态（dirty 只推变更字段；生产侧 stateStore 天然已读档无此问题）
+- **测试**：新增 GTest `settle_phase_test` 5 + `trait_effects_test` 17；`DiffAuthoritativeTickTest`（100 旬逐旬互锁全量结构对拍 PASS：33 次月变/3 次年变/年俸×3/年报×3/真实突破链）+ `DiffTraitEffectsTest`（全量 204 注册表跨语言对拍 5/5）+ `NativeBackedRngTest`（Fake 通道 4/4）；桌面 GTest **359/359** · engine JUnit 全量绿 · :core:engine:detekt 绿
+- **兼容性**：无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志同条目追加一行
+- **待办递进**：阶段 2 完成后，阶段 3（实体存储 SoA + 静态数据单一源 + 反向增量通道取代每旬全量回导）为下一步
+
+### 新增（C++ 引擎迁移计划 v2 阶段 1：增量变更集通道 + RNG 读档恢复）
+
+> 纯引擎内部迁移与基础设施加固，feature flag 默认关闭，玩家行为零变化。
+
+- **增量变更集（C-06/S-06 根治）**：C++ `state::DirtyTracker`（基线快照 diff；协议 `{version, changed, removed}`——gameData 字段级覆盖 + 10 实体集合按 id upsert/remove；输出经浮点规范化对齐 kotlinx 流式解码）；Kotlin `StateSyncService.applyDirty/applyDirtyFromNative` 单事务增量镜像（空变更集零写入零发射、未知路径宽松忽略、结构违例返回 null 降级、native 异常降级可回退全量同步）；桌面 JNI 对拍通道 `nativeCoreExportDirty`。导出即消费（基线推进），全量导出重置基线
+- **RNG 读档恢复接线（C-13/S-05 根治）**：`importStateJson` 从 `GameData.rngStates` 恢复 8 分区 PCG 状态；`exportStateJson/exportDirtyJson` 导出前回写活动状态——"存档→读档→推进"与不中断运行逐位一致；DiffStateTest 快照契约同步更新（样本分区原样往返 + 全活动分区覆盖）
+- **对拍基准真实化（C-15）**：`DiffTimeTest` Kotlin 基准由内联复刻改为真实 `TimeSystem` 实例驱动（消除复刻漂移盲区）
+- **S 系列清理**：S-01 死代码 `GameEngineCore.tick()`（含孤儿常量 TICK_WARNING_THRESHOLD_MS）、S-02 unifiedState 过时文档修正（KDoc + docs/architecture.md 双层状态模型节）、S-03 地图渲染文档"每帧更新"帧率门控勘误、S-04 SavePipeline 旧名注释清理
+- **预存缺陷修复**：`ThermalMonitor` 构造期 `performance_hint` 服务缺失直接崩溃（ServiceNotFoundException 无守卫，与其测试自述"服务不可用→null"契约相悖）→ 降级 null 自动停用 ADPF 路径（无该服务的低端真机同样受益）
+- **测试**：新增 GTest `dirty_tracker_test` 9 用例 + `DiffDirtyTest` 7（普通 JUnit）+ `DiffDirtyDisciplesTest` 3（Robolectric）；桌面 GTest 298/298 · engine JUnit 全量绿 · detekt 绿 · NDK externalNativeBuildRelease 通过。平台约束登记：DiscipleTables/SparseArray 普通 JVM 静默失效（returnDefaultValues=true）——弟子集合纯 Kotlin 测试必须 Robolectric 且不得加载桌面 .so
+- **共享测试基建**：`FakeGameStateStore` 自 DiffStateSyncTest 提取为顶级 Fake
+
 ### 新增（C++ 引擎迁移批次 9 剩余：转发层基础设施 + 批次 1/2 剩余 + 批次 R 收敛）
 
 > 纯工程内部引擎迁移，无玩家可见行为变化（Kotlin 引擎照常运营，feature flag 默认关闭，任何时刻可回退）。
 
-- **批次 9 剩余（转发层基础设施）** — `NativeEngineFlag`（feature flag，默认关闭 + `withNativeEngine` 测试临时开关）；`StateSyncService`（C++→Kotlin 镜像：`syncFromNative`/`applySnapshot` 单事务原子 + **字段级宽松合并** `mergeGameData`——C++ 只导出已迁移字段，白名单外字段保留 Kotlin 值，镜像永不丢未迁移字段；`buildNativeState`/`importToNative` 读档基线）；GameEngineCore `stateSyncServiceRef` 接入 + **tick 桥（shadow 对拍模式）**（flag 开启时 `nativeAdvance` 推进 C++ 影子状态，不镜像覆盖——Kotlin 仍为真相源）+ `loadSnapshot` 后 `importToNative` 基线对齐；`GameEngineNativeOps`（`tryExecuteNative` 转发辅助：flag 开启 + native 可用 → `nativeExecute` + 镜像，否则返回 null 走 Kotlin 原实现）；`GameCoreBridge.isLoaded` 暴露；`NativeBenchmarkTest` 性能基准（wallet add 1000 次 native 含 JNI+JSON 开销 10.2ms vs Kotlin 17µs——确认**高频纯计算应留 Kotlin 侧**，转发范围裁剪为低频业务操作，登记批次 10）
+- **批次 9 剩余（转发层基础设施）** — `NativeEngineFlag`（feature flag，默认关闭 + `withNativeEngine` 测试临时开关）；`StateSyncService`（C++→Kotlin 镜像：`syncFromNative`/`applySnapshot` 单事务原子 + **字段级宽松合并** `mergeGameData`——C++ 只导出已迁移字段，白名单外字段保留 Kotlin 值，镜像永不丢未迁移字段；`buildNativeState`/`importToNative` 读档基线）；GameEngineCore `stateSyncServiceRef` 接入 + **tick 桥（shadow 对拍模式）**（flag 开启时 `nativeAdvance` 推进 C++ 影子状态，不镜像覆盖——Kotlin 仍为真相源）+ `loadSnapshot` 后 `importToNative` 基线对齐；`GameEngineNativeOps`（`tryExecuteNative` 转发辅助：flag 开启 + native 可用 → `nativeExecute` + 镜像，否则返回 null 走 Kotlin 原实现）；`GameCoreBridge.isLoaded` 暴露；`NativeBenchmarkTest` 性能基准（**2026-08-25 复核**：旧基准 Kotlin 侧为空操作循环且无预热，属非公平对比，曾误引为"408×"现已弃用；新增正确方法论基准 `wallet add corrected benchmark`——真实实现对比（Kotlin `SpiritStoneWallet` vs C++ execute）逐操作 1.1×、批量打平，**转发成本可忽略**；高频留 Kotlin 的决策保留但论据修正为工程性：C++ 未实现对应系统逻辑 + 批量通道未验证，登记批次 10）
 - **批次 1 剩余（远古秘境状态机）** — `models.h` 新增 10 类型（`SecretRealmState`/`SecretRealmExplorationSession`/`SecretRealmMemberState`/`SecretRealmEventRecord`/`SecretRealmOption`/`SecretRealmEventParams`/`SecretRealmBackpack`/`SecretRealmRewardItem`/`SecretRealmAITeam`/`SecretRealmAIMember`）+ `json_codec.cpp` 编解码（含 currentEvent optional）+ GameData 三字段（secretRealmState/secretRealmSession/secretRealmAITeams）；`DiffNestedTypesTest.secret realm state machine round trip` 对拍
 - **批次 2 剩余（妖兽材料/功法表）** — `data/beast_material_db.h`（192 条 = 8 妖兽 × 4 材料 × 6 品阶，含派生 price/materialCategory）+ `data/manual_db.h`（540 条 = attack 108 + defense 162 + support 234 + mind 36，全 27 字段含 skillBuffs）+ 生成器 `gen-beast-material-db.mjs`/`gen-manual-db.mjs` + 双端守卫（`BeastMaterialRegistryGuardTest` 3 / `ManualRegistryGuardTest` 2 / C++ `beast_material_db_test` 5 / `manual_db_test` 6）
 - **批次 R（求解器权威收敛）** — `NativeBridge.cpp` 删除本地双份 `roadTypeForMask`/描边计算，收敛为 `gamecore/map/road_system.h` 单一权威（`tileTypeForBitmask`/`roadBorderMask`）；渲染合成器物理下沉（Canvas/Vulkan 逐格合成统一）登记随后续批次
@@ -34,6 +64,15 @@
 - **守卫测试** — C++ `recipe_db_test.cpp`（10 测试：数量/代表性条目/去重/查询辅助/品阶名），已注册 test/CMakeLists.txt
 - **验证** — 桌面 GTest 278/278 全绿（含 RecipeDbTest 10）；临时 JUnit 对拍 3/3（快照 ↔ Kotlin 运行时 804 条逐字段一致，验证后已删）；C++ 表 ↔ JSON 快照全量对拍 804/804 一致
 - **兼容性** — 无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；玩家可见更新日志留待批次 9（引擎切换）
+
+### 变更（2026-08-25）：C++ 迁移方向二次决策——彻底单引擎
+
+> 纯工程内部架构决策，无玩家可见行为变化。
+
+- **408× 数据复核** — `NativeBenchmarkTest` 旧基准（Kotlin 侧为空操作循环且无预热）属非公平对比，曾误引为"JNI+JSON 开销 408×"，实测不可复现（421×~768× 波动）已弃用；新增正确方法论基准 `wallet add corrected benchmark`（预热 + Blackhole + 真实 `SpiritStoneWallet` 实现对比）：逐操作 1.1×、批量打平——**转发成本可忽略**
+- **阶段 0 测量** — 新增 `Phase0SettlementBenchmarkTest`：C++ 批量通道（标量参数 `advancePhases`）单次往返 **0.1µs**（JSON 编解码是 12µs 协议往返的成本大头）；Kotlin 每旬核心路径 1000 弟子 ≈327µs、5000 弟子 ≈1189µs；批量下沉传输占比 **<0.1%**——整批下沉无传输障碍
+- **架构决策** — ADR Decision 7 由"职责边界固化（双端并行=最终态）"改回"**彻底单引擎（选项 A：Kotlin 引擎退役，C++ 唯一真相源=最终态）**"；执行路径见 `docs/cpp-engine.md` 第 7 节（阶段 1-7：增量变更集 → 批量结算下沉 → 数据导向存储 → 未迁移系统 C++ 化 → 引擎循环入 C++ → 渲染 RHI → Kotlin 降级纯平台层）；架构待办（C 系列调整触发、T-CPP-2 提前、T-CPP-1 保持、R 系列保留）已合并入计划
+- **存量问题登记（S 系列）** — 迁移途中发现的死代码/过时文档统一登记 `docs/cpp-engine.md` 第 8 节：S-01 `GameEngineCore.tick()` 死代码（无调用点）、S-02 `UnifiedGameState` 过时文档、S-03 地图渲染文档滞后、S-04 `SavePipeline` 旧名注释、S-05/S-06 RNG 恢复/exportDirty 功能缺口（并入阶段 1）、S-07 `DomainLog` logger getter 设计限制
 
 ## [4.01.09] - 2026-08-23
 

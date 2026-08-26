@@ -7,6 +7,9 @@
 #include <nlohmann/json.hpp>
 
 #include "gamecore/state/json_codec.h"
+#include "gamecore/system/month_settlement.h"
+#include "gamecore/system/phase_settlement.h"
+#include "gamecore/system/year_settlement.h"
 
 namespace gamecore {
 
@@ -55,6 +58,36 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     if (config.seedInitialized) {
         rng_.initSystemSeed(config.systemSeed);
     }
+    // T2.1（计划 v2 阶段 2）：每旬弟子结算钩子——六步结算（恢复/修炼/熟练度/
+    // 孕养/丹药/突破），RNG 仅消耗 BREAKTHROUGH 分区，抽取顺序与 Kotlin
+    // checkBreakthroughsAndPills 逐位一致
+    settlement_.onPhaseSettle = [this](state::GameState& s, state::GameData&) {
+        system::runPhaseSettlement(s, rng_);
+    };
+    // T2.2（计划 v2 阶段 2）：月变结算钩子——八步事务编排（政策/月效/七系统
+    // 扇出/血炼/排班忠诚/月衰减/月度事件），RNG 消耗 EXPLORATION（妖兽移动）
+    // 与 SYSTEM（收获 roll/伴侣配对），抽取顺序与 Kotlin processMonthYearChange
+    // 的 monthChanged 分支逐位一致（未下沉扇出见 month_settlement.h 文件头）
+    settlement_.onMonthChange = [this](state::GameState& s, state::GameData&) {
+        system::runMonthSettlement(s, rng_);
+    };
+    // T2.3（计划 v2 阶段 2）：年变结算钩子——年报快照 + annual* 清零 +
+    // gameMonth==1 年俸；年变全程零 RNG 抽取（场景规避后）。钩子调用序
+    // （年变先于月变）在 settlement.h advanceOnePhase 中对齐 Kotlin。
+    settlement_.onYearChange = [this](state::GameState& s, state::GameData&) {
+        system::runYearSettlement(s, rng_);
+    };
+    if (config.authoritativeTickMode) {
+        // T2.4（计划 v2 阶段 2d）：AUTHORITATIVE 过渡模式——core 模式下每旬
+        // 只跑核心批次（步骤 1-5，零 RNG），月/年结算由 Kotlin 残留执行器
+        // 按 settleOnePhase 标志处理
+        settlement_.setCoreMode(true);
+        settlement_.onCoreSettle = [this](state::GameState& s, state::GameData&) {
+            system::runPhaseCoreBatch(s);
+        };
+    }
+    syncRngStates();
+    dirtyTracker_.resetBaseline(state_);
     initialized_ = true;
     logger_->log(LogLevel::kInfo, "GameCore",
                  "initialized (schema=" + config.snapshotSchemaVersion + ")");
@@ -79,10 +112,54 @@ system::TickResult GameCore::advancePhases(int phaseCount) {
     if (!initialized_) return {};
     return settlement_.advancePhases(state_, phaseCount);
 }
+
+int GameCore::settleOnePhase() {
+    if (!initialized_) return system::kSettleFlagNone;
+    return settlement_.settleOnePhase(state_);
+}
+
+int32_t GameCore::rngNextInt(int partitionId) {
+    if (!initialized_ || partitionId < 0 ||
+        partitionId > static_cast<int>(rng::RngPartition::kSecretRealm)) {
+        logger_->log(LogLevel::kWarn, "GameCore",
+                     "rngNextInt: invalid partition " + std::to_string(partitionId));
+        return 0;
+    }
+    return rng_.getRng(static_cast<rng::RngPartition>(partitionId)).nextInt();
+}
+
+int64_t GameCore::rngSnapshotPartition(int partitionId) {
+    if (!initialized_ || partitionId < 0 ||
+        partitionId > static_cast<int>(rng::RngPartition::kSecretRealm)) {
+        return 0;
+    }
+    return rng_.getRng(static_cast<rng::RngPartition>(partitionId)).snapshot();
+}
+
+bool GameCore::rngRestorePartition(int partitionId, int64_t state) {
+    if (!initialized_ || partitionId < 0 ||
+        partitionId > static_cast<int>(rng::RngPartition::kSecretRealm)) {
+        logger_->log(LogLevel::kWarn, "GameCore",
+                     "rngRestorePartition: invalid partition " + std::to_string(partitionId));
+        return false;
+    }
+    rng_.getRng(static_cast<rng::RngPartition>(partitionId)).restore(state);
+    return true;
+}
+
+void GameCore::rngInitSystemSeed(int64_t seed) {
+    if (!initialized_) return;
+    rng_.initSystemSeed(seed);
+    syncRngStates();
+}
 std::string GameCore::exportStateJson() {
     if (!initialized_) return "{}";
+    syncRngStates();
     try {
-        return state::dumpStateJson(state_);
+        std::string out = state::dumpStateJson(state_);
+        // 全量导出即完整基线：接收方已拿到全部状态，变更集从此刻起算
+        dirtyTracker_.resetBaseline(state_);
+        return out;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
                      std::string("exportStateJson failed: ") + e.what());
@@ -91,6 +168,14 @@ std::string GameCore::exportStateJson() {
 }
 
 bool GameCore::importStateJson(const std::string& json) {
+    return importStateInternal(json, /*restoreRng=*/true);
+}
+
+bool GameCore::importStateJsonNoRng(const std::string& json) {
+    return importStateInternal(json, /*restoreRng=*/false);
+}
+
+bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
     if (!initialized_) return false;
     try {
         const auto j = nlohmann::json::parse(json);
@@ -98,6 +183,15 @@ bool GameCore::importStateJson(const std::string& json) {
         // 对抗性审查 A1（2026-08-22）：读档后必须复位结算引擎累积——
         // 否则旧会话残留的墙钟累积会在下一 tick 多推进旬数
         settlement_.reset();
+        // C-13（计划 v2 阶段 1）：读档后从 GameData.rngStates 恢复 RNG 分区
+        // 状态——C++ 真相源语义下，"存档→读档→推进"必须与不中断逐位一致。
+        // T2.4（计划 v2 阶段 2d）：AUTHORITATIVE 每旬回导走 restoreRng=false
+        // 分支——委托模式下 Kotlin 残留执行器的抽取已直接推进 native 分区，
+        // 镜像 rngStates 可能滞后，恢复会造成分区回卷与跨语言漂移。
+        if (restoreRng) {
+            rng_.restoreStates(state_.gameData.rngStates);
+        }
+        dirtyTracker_.resetBaseline(state_);
         return true;
     } catch (const std::exception& e) {
         logger_->log(LogLevel::kError, "GameCore",
@@ -107,13 +201,24 @@ bool GameCore::importStateJson(const std::string& json) {
 }
 
 std::string GameCore::exportDirtyJson() {
-    // 批次 1 实现：变更集增量
-    return R"({"version":0,"changed":{},"removed":[]})";
+    if (!initialized_) return R"({"version":0,"changed":{},"removed":{}})";
+    syncRngStates();
+    try {
+        return dirtyTracker_.diffToJson(state_);
+    } catch (const std::exception& e) {
+        logger_->log(LogLevel::kError, "GameCore",
+                     std::string("exportDirtyJson failed: ") + e.what());
+        return R"({"version":0,"changed":{},"removed":{}})";
+    }
 }
 
 std::string GameCore::pollEventsJson() {
     // 批次 1 实现：事件队列
     return "[]";
+}
+
+void GameCore::syncRngStates() {
+    state_.gameData.rngStates = rng_.exportStates();
 }
 
 }  // namespace gamecore

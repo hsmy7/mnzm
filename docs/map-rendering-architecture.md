@@ -45,7 +45,8 @@ MainGameScreen.kt
   ├─ rawTileData + effectivePlacedBuildings → tileData (含 TILE_BUILDING)
   ├─ flatTileData: IntArray → JNI 传递
   ├─ buildingData: FloatArray → JNI 传递 (gridX, gridY, width, height, nameIndex)
-  └─ NativeRenderConfig / FrameRenderState → 每帧更新
+  └─ NativeRenderConfig / FrameRenderState → RenderFrame 帧率门控推送
+        （SectMapViewport 限流：SOFTWARE 路径限频、Vulkan 路径 ≤60fps；非每帧）
         ↓
 NativeSurfaceView (SurfaceView + RenderThread)
   ├─ surfaceCreated → NativeBridge.initAtlas()
@@ -258,7 +259,7 @@ MainGameScreen (Compose)
   ├── onLongPress → building drag / gold finger
   └── onBuildingDragUpdate → movingWorldX/Y → grid snapping
        ↓
-NativeSurfaceView.updateRenderState() (每帧 Compose 重组)
+NativeSurfaceView.updateRenderState() (RenderFrame 帧率门控推送——非每帧 Compose 重组)
   └── @Volatile camX/camY → RenderThread → NativeBridge.setCamera()
 ```
 

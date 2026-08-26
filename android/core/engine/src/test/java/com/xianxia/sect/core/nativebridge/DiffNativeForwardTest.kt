@@ -16,7 +16,7 @@ import org.junit.Test
  *   1. feature flag 关闭时 tryExecuteNative 静默降级 null（Kotlin 引擎照常）
  *   2. feature flag 开启但 native 未加载时同样降级 null（不崩溃）
  *   3. StateSyncService 字段级宽松合并不丢未迁移字段（镜像安全）
- *   4. withNativeEngine 临时开关自动恢复旧值
+ *   4. withMode 临时开关自动恢复旧值
  *
  * 注：GameEngineNativeOps 走生产桥 GameCoreBridge；单测桌面 JNI 加载的是
  * 对拍桥 DiffRngBridge（符号不同），故生产桥 isLoaded=false → 降级路径。
@@ -26,7 +26,7 @@ class DiffNativeForwardTest {
 
     @Before
     fun setUp() {
-        NativeEngineFlag.enabled = false
+        NativeEngineFlag.mode = NativeEngineFlag.Mode.OFF
     }
 
     @Test
@@ -43,7 +43,7 @@ class DiffNativeForwardTest {
     @Test
     fun `flag on but native unavailable returns null`() {
         // 生产桥未加载（单测环境）→ 降级 null 不崩溃
-        NativeEngineFlag.withNativeEngine(enabled = true) {
+        NativeEngineFlag.withMode(NativeEngineFlag.Mode.SHADOW) {
             val service = StateSyncService(FakeAtomicStateStore())
             val result = GameEngineNativeOps.tryExecuteNative(
                 service, ActionIds.WALLET_ADD,
@@ -55,11 +55,11 @@ class DiffNativeForwardTest {
 
     @Test
     fun `flag lifecycle restores previous value`() {
-        NativeEngineFlag.enabled = true
-        NativeEngineFlag.withNativeEngine(enabled = false) {
+        NativeEngineFlag.mode = NativeEngineFlag.Mode.SHADOW
+        NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             assertTrue(!NativeEngineFlag.enabled)
         }
-        assertTrue("withNativeEngine 应恢复旧值", NativeEngineFlag.enabled)
+        assertTrue("withMode 应恢复旧值", NativeEngineFlag.enabled)
     }
 
     @Test

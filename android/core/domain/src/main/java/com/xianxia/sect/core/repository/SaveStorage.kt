@@ -36,7 +36,7 @@ data class SaveSnapshot(
 
 /**
  * Save storage port — defined in domain, implemented in data module.
- * SavePipeline depends on this interface, not on StorageFacade or SaveData directly.
+ * 存档门面（StorageFacade）依赖此接口，不直接依赖具体存储实现或 SaveData 编码。
  */
 interface SaveStorage {
     suspend fun save(slot: Int, snapshot: SaveSnapshot): Boolean

@@ -1,7 +1,10 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> 更新日期：2026-08-25。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
+> 更新日期：2026-08-26。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
+> 当前基线：**桌面 GTest 359/359 · engine JUnit 全绿 · NDK externalNativeBuildRelease 通过 · engine detekt 全绿**。
+> **计划 v2 阶段 0、1、2 已完成**（阶段 2：批量结算下沉——每旬核心批次/月变/年变钩子 C++
+> 化 + tick 真相源切换 AUTHORITATIVE 过渡管线，详见 .superpowers/sdd/t2-1~t2-4 报告）。
 
 ## 1. 目标架构
 
@@ -21,9 +24,10 @@ Kotlin StateSyncService → GameStateStore（镜像写入，接口/StateFlow 不
 Room 34 表 + .sav/云存档 —— 保留，链路零改动
 ```
 
-> **职责边界（2026-08-25 性能基准后修正）**：C++ 接管**时间推进/结算引擎（确定性核心）+ 低频业务操作（经 JNI 转发）+ 静态数据（单一源）**；
-> Kotlin 保留**高频纯计算（NativeBenchmarkTest 证实 JNI+JSON 开销 408× 于 Kotlin 纯计算，高频留 Kotlin 更快）+ UI 链路 + 未迁移系统 + 存档编码**。
-> 详见第 6 节批次 10 重新审视。
+> **终态决策（2026-08-25 二次修订，选项 A：彻底单引擎）**：C++ 为**唯一**引擎核心（游戏循环 + 结算 + 实体存储数据导向 + 渲染），
+> Kotlin 最终降级为**纯平台层**（Activity/生命周期/权限/输入桥/平台 SDK/Compose UI 消费只读镜像）+ 存档编码（低频，可选迁移）。
+> 推翻 2026-08-25 上午的"职责边界固化（双端并行=最终态）"——依据阶段 0 实测：批量通道往返 0.1µs、传输占比 <0.1%，
+> 双实现并行的镜像/对拍开销是纯浪费。详见第 6 节（阶段 0 数据）与第 7 节（计划 v2）。
 
 ## 2. 目录结构
 
@@ -86,24 +90,24 @@ android/app/src/main/cpp/
 
 | 项 | 说明 |
 |---|---|
-| 已完成 | feature flag / StateSyncService（宽松合并防丢字段）/ tick 桥（shadow 对拍）/ 转发辅助 / 性能基准（见 4.9 剩余·基础设施） |
-| 剩余·GameEngine 方法转发 | Kotlin GameEngine 275 方法逐一转发——**范围必须按性能基准裁剪**：NativeBenchmarkTest 证实 JNI+JSON 开销显著（wallet add 1000 次 11.8ms vs Kotlin 28µs），**高频纯计算应留在 Kotlin 侧**；仅低频业务操作（玩家行为入口）适合转发 |
-| 剩余·增量变更集同步 | `nativeExportDirty` 当前为空实现，需 C++ 侧变更集追踪（对比上次导出，`changed`/`removed` 增量） |
-| 剩余·全量切换 | C++ 为真相源的全量切换登记为批次 10 前置；shadow 对拍期 Kotlin 引擎仍是运行时真相源 |
-| 阻塞依赖 | 未迁移系统（SecretRealm 状态机/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator 等）无 C++ 对应动作，转发无从谈起——**这些系统不迁移，保持 Kotlin 实现**（职责边界见第 1 节） |
+| 已完成 | feature flag / StateSyncService（宽松合并防丢字段）/ tick 桥（shadow 对拍）/ 转发辅助 / 性能基准（见 4.9 剩余·基础设施）；**阶段 1 新增**：增量变更集通道（C++ `state::DirtyTracker` + Kotlin `StateSyncService.applyDirty/applyDirtyFromNative`，DiffDirtyTest / DiffDirtyDisciplesTest / GTest dirty_tracker_test 三层守护）、RNG 读档恢复接线（C-13，含导出前活动状态回写） |
+| 剩余·GameEngine 方法转发 | Kotlin GameEngine 275 方法逐一转发——转发范围按计划 v2 阶段 2-4 决定：**C++ 侧实现对应逻辑后即可转发**（正确基准：真实实现对比 1.1×、批量打平，转发成本可忽略），不再按"低频/高频"裁剪 |
+| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；**计划 v2 阶段 2 起逐系统切换**（每阶段 C++ 真相源 + 对拍守护）；阶段 7 完成后 Kotlin 引擎退役，shadow 对拍转回归基线 |
+| 阻塞依赖 | 未迁移系统（SecretRealm 状态机/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator 等）——**纳入计划 v2 阶段 4 逐批 C++ 化**（不再"保持 Kotlin 实现"） |
 
-### 5.2 批次 10：职责边界固化（C-07，重新审视后重定义）
+### 5.2 批次 10：彻底单引擎（C-07，2026-08-25 二次重定义）
 
-> **2026-08-25 重新审视**：原计划"Kotlin 引擎退役（删除 6.9 万行 Kotlin 引擎逻辑）"与性能基准数据冲突——
-> NativeBenchmarkTest 证实 JNI+JSON 传输开销 408× 于 Kotlin 纯计算；且大量系统（SecretRealm/外交/邮件/兑换码等）
-> 依赖 Kotlin 状态链路，C++ 无对应动作。**全量退役既无性能收益也不可行**。批次 10 重定义为**职责边界固化**：
+> **2026-08-25 二次重新审视**：上午"职责边界固化"结论基于"批量通道未验证 + 全量退役无收益"的保守假设；
+> 阶段 0 实测（第 6 节）推翻该假设——批量通道（标量参数）往返仅 0.1µs、传输占比 <0.1%，
+> 且双实现并行 = 每 tick 双倍计算 + 全量快照同步 = 纯浪费。用户决策采纳**选项 A：彻底单引擎**。
+> 批次 10 重定义为**阶段化退役 Kotlin 引擎**（计划 v2 见第 7 节），不再保留"Kotlin 永久保留"清单。
 
 | 项 | 说明 |
 |---|---|
-| C++ 接管 | 时间推进/结算引擎（确定性核心）+ 低频业务操作转发（玩家行为入口）+ 静态数据单一源 |
-| Kotlin 保留 | 高频纯计算（性能基准）+ UI 链路 + 未迁移系统 + 存档编码（kotlinx-proto 链路零改动） |
-| 落地动作 | ① 按性能基准确定转发方法清单（低频操作）并接线；② 未迁移系统显式登记为"Kotlin 永久保留"；③ 对拍框架转回归基线；④ 静态数据双份（T-CPP-2）决定保留或 codegen 单一源 |
-| 验收 | 转发清单全部接线 + 对拍守护 + 文档职责边界冻结；**不做 Kotlin 引擎全量删除** |
+| C++ 接管（终态） | 游戏循环 + 时间推进/结算引擎 + 实体存储（数据导向/ECS）+ 未迁移系统逐批 + 静态数据单一源 + 渲染 RHI |
+| Kotlin 保留（终态） | UI/Compose + 平台能力（SDK/广告/合规/看门狗接口化）+ 存档编码（可选 T-CPP-1 迁移）+ 输入桥 |
+| 落地动作 | ① 增量变更集（exportDirty）实现——C++ 真相源 → Kotlin 镜像核心通道；② 未迁移系统按第 7 节逐批 C++ 化（不再"永久保留"）；③ 游戏循环平台能力接口化后迁 C++；④ 静态数据单一源（T-CPP-2 提前触发）；⑤ 对拍框架全程守护 |
+| 验收 | 每阶段 C++ 真相源切换 + 对拍全绿 + 性能对比（对阶段 0 基线） |
 
 ### 5.3 批次 R 剩余：渲染合成器物理下沉
 
@@ -117,9 +121,54 @@ android/app/src/main/cpp/
 
 | # | 项 | 触发/计划 |
 |---|---|---|
-| C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | 政策成本/灵矿/年俸已 C++ 化；钩子接线随批次 9 转发层推进 |
+| C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | 政策成本/灵矿/年俸已 C++ 化；钩子接线随**计划 v2 阶段 2**（批量结算下沉）推进 |
 | C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
 | C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |
-| C-13 | **审查登记：读档后 RNG 分区状态恢复**——GameCore.rng_ 需从 GameData.rngStates 恢复（import 时），当前未接线 | 批次 9 转发层接线时 |
+| ~~C-13~~ ✅ | **RNG 读档恢复已接线**：`importStateJson` 从 `GameData.rngStates` 恢复分区状态，`exportStateJson/exportDirtyJson` 导出前回写活动状态（守护：dirty_tracker_test.ImportRestoresRngPartitionStates + DiffStateTest 契约更新） | 完成（计划 v2 阶段 1） |
 | C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8（核心已完成） |
-| C-15 | **审查登记：Diff 对拍基准为内联复刻**（DiffTimeTest 复刻 TimeSystem.onPhaseTick；集成时切换为真实引擎对拍） | 批次 9 集成切换时 |
+| ~~C-15~~ ✅ | **Diff 对拍基准已切换真实引擎**：DiffTimeTest Kotlin 侧改为真实 `TimeSystem` 实例驱动（内联复刻删除）；DiffExecute 等其余对拍本就走真实通道 | 完成（计划 v2 阶段 1） |
+
+## 6. 阶段 0 测量基线（2026-08-25，彻底单引擎决策依据）
+
+> 测试：`Phase0SettlementBenchmarkTest`（纯 JVM，真实 CultivationCore + 桌面对拍桥，预热+多次采样取最小）。
+
+| 测量 | 结果 | 结论 |
+|---|---|---|
+| C++ 批量通道 `advancePhases(1)`（标量参数，含 JNI 往返） | **0.1µs/次** | 标量/二进制协议下 JNI 往返可忽略；JSON 编解码才是 12µs 往返的成本大头——**高频批量必须走标量/二进制协议，禁用 JSON 逐操作** |
+| Kotlin 每旬核心路径（HP/MP 恢复+修炼累积，真实 CultivationCore） | 100 弟子 167µs · 1000 弟子 **327µs** · 5000 弟子 1189µs（O(D)，每弟子 ~0.3µs 收敛） | 每旬检查是真实 CPU 热点（月 30 旬 ≈ 10ms+，叠加月变/年变更高）；未含熟练度/孕养/丹药/突破（同量级 O(D)） |
+| 批量下沉传输占比 | **<0.1%** | 每旬整批下沉 C++ 的传输成本可忽略——阶段 2 收益最高且最可行 |
+
+**收益排序（据此安排阶段）**：阶段 2 批量结算下沉（传输无碍，C++ 结算替代 Kotlin 每旬热点）> 阶段 1 增量变更集（消除全量快照镜像）> 阶段 3 数据导向存储（降每弟子成本）> 阶段 4-5 系统迁移/引擎循环（确定性/平台化）。
+
+## 7. 彻底单引擎计划 v2（选项 A 执行路径，合并架构待办）
+
+> 每阶段验收：C++ 真相源切换 + 对拍守护全绿（GTest 289 + JUnit 对拍）+ 性能对比对阶段 0 基线 + 可运行可回退。
+> 待办合并规则：C 系列 = 迁移主线（调整触发）；R 系列 = Kotlin 侧质量债务（保留，随 Kotlin 面收窄部分自然消除）；T 系列 = 触发条件调整（T-CPP-2 提前、T-CPP-1 保持）。
+
+| 阶段 | 内容 | 合并的待办 |
+|---|---|---|
+| 0 ✅ | 测量基线（已完成：热点 + 批量原型） | — |
+| 1 ✅ | **增量变更集 + RNG 恢复**（已完成：`state::DirtyTracker` changed/removed/version 协议 + `StateSyncService.applyDirty` 单事务增量镜像 + import 恢复 rngStates（C-13）+ 对拍基准切换真实引擎（C-15）+ S-01~S-04 清理） | C-13、C-15 |
+| 2 ✅ | **批量结算下沉**（已完成 2026-08-26）：每旬核心批次（步骤 1-5 零 RNG）C++ 化（T2.1）、月变钩子（T2.2）、年变钩子（T2.3，含钩子序年先于月对齐）、tick 真相源切换 AUTHORITATIVE 过渡管线（T2.4：settleOnePhase 标量通道 + NativeEngineFlag 三态 + 残留执行器 + NativeBackedRng 委托式 RNG 单一真相源 + 每旬双向同步）；D7 三注册表效果聚合填表 + comprehension 分叉修复（T2.4a）。**AUTHORITATIVE 默认 OFF（灰度开关）**；100 旬逐旬互锁对拍验收 PASS | C-10、C-06 增量部分、T-CPP-2（部分触发：注册表消费侧已统一） |
+| 3 | **实体存储数据导向化**：DiscipleTables/AI 池 → C++ SoA/轻量 ECS；静态数据单一源（T-CPP-2 触发，codegen 权威） | T-CPP-2 |
+| 4 | **未迁移系统逐批 C++ 化**：SecretRealm 状态机剩余/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator（原"永久保留"清单全部纳入，不再保留） | 原 C-06 阻塞依赖清单 |
+| 5 | **游戏循环入 C++**：平台能力接口化（Clock/Input/IO/Telemetry/热控/电量——ADR Clock/Logger 注入先例扩展）；引擎循环 + 看门狗判据迁 C++ | R-02（core/engine Android 依赖随引擎退役自然消除） |
+| 6 | **渲染 RHI + 合成器统一**：Renderer2D → RHI（Vulkan 现有 + Metal/iOS）；渲染合成器物理下沉（批次 R 剩余） | 批次 R 剩余、iOS 预留 |
+| 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
+
+**保持不动（与迁移方向无关）**：R-01/03~13（detekt/lint/测试质量债务）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
+
+## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
+
+> 来源：迁移架构报告与子代理深潜途中发现（死代码/过时文档/设计缺口），统一登记并分配清理时机，防止遗漏。
+> 原则：死代码清理必须是低风险最小修改（删除前确认无引用 + 全量测试守护）；文档勘误不阻塞阶段，可随时执行。
+
+| # | 问题 | 位置 | 类型 | 清理时机 |
+|---|---|---|---|---|
+| ~~S-01~~ ✅ | **死代码 `GameEngineCore.tick()` 已删除**（连同仅其使用的 `TICK_WARNING_THRESHOLD_MS` 常量；删除前确认全仓库无调用点） | `GameEngineCore.kt` | 死代码 | 完成（阶段 1 前置） |
+| ~~S-02~~ ✅ | **过时文档 `UnifiedGameState` 已修正**：KDoc 与 docs/architecture.md 改为"逐字段流 + 三层派生流"现状描述 | `GameEngineCore.kt` + `docs/architecture.md` | 文档过时 | 完成 |
+| ~~S-03~~ ✅ | **地图渲染文档勘误完成**：`docs/map-rendering-architecture.md` 两处"每帧更新"改为 RenderFrame 帧率门控推送（与 SectMapViewport 实现一致） | `docs/map-rendering-architecture.md` | 文档滞后 | 完成 |
+| ~~S-04~~ ✅ | **SavePipeline 旧名注释已清理**：SaveStorage.kt KDoc + StorageSystemBenchmark.kt 三处输出文案改为现行组件名 | `core/domain/.../repository/SaveStorage.kt` 等 | 注释过时 | 完成 |
+| ~~S-05~~ ✅ | **RNG 读档恢复已接线**（并入 C-13，见 §5.4） | `game_core.cpp` | 功能缺口 | 完成（计划 v2 阶段 1） |
+| ~~S-06~~ ✅ | **exportDirty 变更集已实现**（C++ DirtyTracker + Kotlin applyDirty，见 §5.1/§7 阶段 1） | `GameCoreBridge` / `game_core.h` | 功能缺口 | 完成（计划 v2 阶段 1） |
+| S-07 | **设计限制 `DomainLog` 无 logger getter**：`setLogger` 后无法恢复旧 logger（基准测试需行为等价替代） | `core/domain/.../util/DomainLog.kt` | 设计改进（低优先） | 可选：暴露 `currentLogger()` 或 `setLogger` 返回旧值；不阻塞任何阶段 |

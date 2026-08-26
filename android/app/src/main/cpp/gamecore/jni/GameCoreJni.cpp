@@ -26,6 +26,7 @@
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
+#include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/government.h"
@@ -166,11 +167,27 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportState(
     return g_core->importStateJson(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportStateNoRng(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray stateJson) {
+    if (!g_core) return JNI_FALSE;
+    return g_core->importStateJsonNoRng(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportState(
     JNIEnv* env, jobject /*thiz*/) {
     if (!g_core) return stringToJbytes(env, "{}");
     return stringToJbytes(env, g_core->exportStateJson());
+}
+
+// ── 变更集通道（计划 v2 阶段 1：exportDirty 对拍用）────────────
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportDirty(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_core) return stringToJbytes(env, R"({"version":0,"changed":{},"removed":{}})");
+    return stringToJbytes(env, g_core->exportDirtyJson());
 }
 
 // ── 时间推进通道（批次 3：对拍用）──────────────────────────────
@@ -180,6 +197,64 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreAdvancePhases(
     JNIEnv* /*env*/, jobject /*thiz*/, jint phaseCount) {
     if (!g_core) return 0;
     return static_cast<jint>(g_core->advancePhases(static_cast<int>(phaseCount)).phasesAdvanced);
+}
+
+// ── AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d：对拍用）────────
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreSettlePhase(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (!g_core) return 0;
+    return static_cast<jint>(g_core->settleOnePhase());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreRngNextInt(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId) {
+    if (!g_core) return 0;
+    return g_core->rngNextInt(static_cast<int>(partitionId));
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreRngSnapshotPartition(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId) {
+    if (!g_core) return 0L;
+    return static_cast<jlong>(g_core->rngSnapshotPartition(static_cast<int>(partitionId)));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreRngRestorePartition(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId, jlong state) {
+    if (!g_core) return;
+    g_core->rngRestorePartition(static_cast<int>(partitionId),
+                                static_cast<int64_t>(state));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreRngInitSeed(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong seed) {
+    if (!g_core) return;
+    g_core->rngInitSystemSeed(static_cast<int64_t>(seed));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreInitMode(
+    JNIEnv* /*env*/, jobject /*thiz*/, jboolean authoritativeTickMode) {
+    // 按 tick 模式（重）创建引擎：模式一致时复用既有单例；
+    // AUTHORITATIVE 对拍需要 core 模式引擎，常规对拍不受影响
+    const bool wantMode = (authoritativeTickMode == JNI_TRUE);
+    if (g_core && g_core->settlement().coreMode() == wantMode) return;
+    if (g_core) {
+        g_core->shutdown();
+        delete g_core;
+        g_core = nullptr;
+    }
+    g_core = new gamecore::GameCore(&g_coreClock, &g_coreLogger);
+    gamecore::GameCoreConfig config;
+    config.seedInitialized = true;
+    config.systemSeed = 42;
+    config.authoritativeTickMode = wantMode;
+    g_core->initialize(config);
 }
 
 // ============================================================
@@ -205,6 +280,26 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreAdvancePhases(
 //   {"op":"parentSpiritRootBonus", "rootCount":1}
 //   {"op":"soulPowerBreakthroughBonus", "soulPower":40}
 //   {"op":"aptitudeCultivationBonus", "aptitude":90}
+//
+// 天赋/词条/体质注册表通道（T2.4a 填表：trait_db → 聚合函数，对拍用）：
+//   {"op":"talentEffects", "talentIds":["r1_bat_hp",...]}
+//       → {"effects":{"maxHp":0.1,...}}（TalentDatabase.calculateTalentEffects 对拍）
+//   {"op":"affixEffects", "affixIds":["r1_aff_bat_hp",...]}
+//       → {"effects":{...}}（AffixDatabase.calculateAffixEffects 对拍）
+//   {"op":"physiqueEffects", "physiqueIds":["r1_phys_cult_speed",...]}
+//       → 五分量聚合（PhysiqueDatabase.aggregatePhysiqueEffects 对拍）
+//   {"op":"mergedTraitEffects", "talentIds":[...], "affixIds":[...]}
+//       → {"effects":{...}}（getMergedEffects 合并语义对拍）
+//   {"op":"baseComprehension", "comprehension":50, "talentIds":[...], "affixIds":[...]}
+//       → {"value":N}（baseComprehension：合并 flat 截断，含词条分叉修复对拍）
+//   {"op":"breakthroughLifespanGain", "newRealm":8, "talentIds":[...], "affixIds":[...]}
+//       → {"value":N}（calculateBreakthroughLifespanGain 对拍）
+//   {"op":"baseHpMpFromTraits", "realm":9, "realmLayer":1, "hpVariance":0,
+//    "mpVariance":0, "talentIds":[...], "affixIds":[...]}
+//       → {"maxHp":N,"maxMp":N}（getMaxHpMpColumn 无装备/功法/丹药段对拍）
+//   {"op":"cultivationRateFromTraits", "realm":9, "rootCount":1, "aptitude":50,
+//    "talentIds":[...], "affixIds":[...], "physiqueIds":[...]}
+//       → {"value":D}（calculateCultivationPerPhaseColumn 无外部加成段对拍）
 // ============================================================
 
 namespace {
@@ -224,9 +319,91 @@ std::map<std::string, double> effectsFromJson(const nlohmann::json& j) {
     return out;
 }
 
+/// 字符串数组解析（["id1","id2",...] → std::vector；缺省为空）
+std::vector<std::string> stringListFromJson(const nlohmann::json& op,
+                                            const char* key) {
+    std::vector<std::string> out;
+    if (op.contains(key) && op.at(key).is_array()) {
+        for (const auto& id : op.at(key)) out.push_back(id.get<std::string>());
+    }
+    return out;
+}
+
+/// 天赋/词条/体质注册表通道（T2.4a 填表）：id 列表 → 效果聚合对拍
+nlohmann::json execTraitEffectsOp(const nlohmann::json& op,
+                                  const std::string& opName) {
+    namespace stats = gamecore::stats;
+    nlohmann::json result;
+    if (opName == "talentEffects") {
+        result["effects"] = stats::talentEffectsFor(
+            stringListFromJson(op, "talentIds"));
+    } else if (opName == "affixEffects") {
+        result["effects"] = stats::affixEffectsFor(
+            stringListFromJson(op, "affixIds"));
+    } else if (opName == "physiqueEffects") {
+        const auto p = stats::physiqueEffectsFor(
+            stringListFromJson(op, "physiqueIds"));
+        result = {
+            {"cultivationSpeedBonus", p.cultivationSpeedBonus},
+            {"damageAmplification", p.damageAmplification},
+            {"damageReduction", p.damageReduction},
+            {"critDamageBonus", p.critDamageBonus},
+            {"defenseBonus", p.defenseBonus},
+        };
+    } else if (opName == "mergedTraitEffects") {
+        result["effects"] = stats::mergeEffects(
+            stats::talentEffectsFor(stringListFromJson(op, "talentIds")),
+            stats::affixEffectsFor(stringListFromJson(op, "affixIds")));
+    } else if (opName == "baseComprehension") {
+        gamecore::state::Disciple d;
+        d.comprehension = op.value("comprehension", 0);
+        d.talentIds = stringListFromJson(op, "talentIds");
+        d.affixIds = stringListFromJson(op, "affixIds");
+        result["value"] = stats::baseComprehension(d);
+    } else if (opName == "breakthroughLifespanGain") {
+        result["value"] = stats::calculateBreakthroughLifespanGain(
+            op.value("newRealm", 8),
+            stringListFromJson(op, "talentIds"),
+            stringListFromJson(op, "affixIds"));
+    } else if (opName == "baseHpMpFromTraits") {
+        const auto effects = stats::mergeEffects(
+            stats::talentEffectsFor(stringListFromJson(op, "talentIds")),
+            stats::affixEffectsFor(stringListFromJson(op, "affixIds")));
+        int32_t maxHp = 0, maxMp = 0;
+        stats::computeBaseHpMp(
+            op.value("realm", 9), op.value("realmLayer", 1),
+            op.value("hpVariance", 0), op.value("mpVariance", 0),
+            effects, nullptr, maxHp, maxMp);
+        result = {{"maxHp", maxHp}, {"maxMp", maxMp}};
+    } else if (opName == "cultivationRateFromTraits") {
+        // 无外部加成段（建筑/社交/政策/丹药恒零/默认）的纯特质修炼速率，
+        // 对拍 Kotlin calculateCultivationPerPhaseColumn 默认参数路径
+        gamecore::state::GameData gd;          // 政策全关 → 状态乘区政策分量 0
+        gamecore::state::Disciple d;
+        d.realm = op.value("realm", 9);
+        const int32_t rootCount = op.value("rootCount", 1);
+        for (int32_t i = 0; i < rootCount; ++i) {
+            if (i > 0) d.spiritRootType += ",";
+            d.spiritRootType += "metal";
+        }
+        d.age = op.value("age", 16);
+        d.lifespan = op.value("lifespan", 80);
+        d.aptitude = op.value("aptitude", 50);
+        d.talentIds = stringListFromJson(op, "talentIds");
+        d.physiqueIds = stringListFromJson(op, "physiqueIds");
+        d.affixIds = stringListFromJson(op, "affixIds");
+        result["value"] = stats::calculateCultivationPerPhaseColumn(
+            d, gd, {}, {}, stats::CultivationRateInput{});
+    }
+    return result;
+}
+
 /// 执行弟子属性计算操作（返回结果 JSON 片段）
 nlohmann::json execDiscipleOp(const nlohmann::json& op) {
     const std::string opName = op.at("op").get<std::string>();
+    // T2.4a 注册表通道先行分派（未命中返回空 → 落入既有公式通道）
+    nlohmann::json traitResult = execTraitEffectsOp(op, opName);
+    if (!traitResult.empty()) return traitResult;
     nlohmann::json result;
     if (opName == "baseStats") {
         BaseStatsInput in;

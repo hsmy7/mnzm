@@ -72,7 +72,8 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInit(
     JNIEnv* env, jobject /*thiz*/,
     jstring snapshotSchemaVersion,
-    jlong systemSeed, jboolean seedInitialized) {
+    jlong systemSeed, jboolean seedInitialized,
+    jboolean authoritativeTickMode) {
 
     if (g_gameCore) {
         LOGW("nativeInit: already initialized, ignored");
@@ -89,6 +90,7 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInit(
     }
     config.systemSeed = static_cast<int64_t>(systemSeed);
     config.seedInitialized = (seedInitialized == JNI_TRUE);
+    config.authoritativeTickMode = (authoritativeTickMode == JNI_TRUE);
 
     g_gameCore = new gamecore::GameCore(&g_systemClock, &g_androidLogger);
     const bool ok = g_gameCore->initialize(config);
@@ -97,7 +99,9 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInit(
         g_gameCore = nullptr;
         return JNI_FALSE;
     }
-    LOGI("nativeInit ok (schema=%s)", config.snapshotSchemaVersion.c_str());
+    LOGI("nativeInit ok (schema=%s, authoritativeTick=%d)",
+         config.snapshotSchemaVersion.c_str(),
+         config.authoritativeTickMode ? 1 : 0);
     return JNI_TRUE;
 }
 
@@ -130,6 +134,46 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAdvance(
                                static_cast<int64_t>(nowMs))
                ? JNI_TRUE
                : JNI_FALSE;
+}
+
+// ============================================================
+// AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d）
+// ============================================================
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettlePhase(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (!g_gameCore) return 0;
+    return static_cast<jint>(g_gameCore->settleOnePhase());
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRngNextInt(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId) {
+    if (!g_gameCore) return 0;
+    return g_gameCore->rngNextInt(static_cast<int>(partitionId));
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRngSnapshotPartition(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId) {
+    if (!g_gameCore) return 0;
+    return static_cast<jlong>(g_gameCore->rngSnapshotPartition(static_cast<int>(partitionId)));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRngRestorePartition(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId, jlong state) {
+    if (!g_gameCore) return;
+    g_gameCore->rngRestorePartition(static_cast<int>(partitionId),
+                                    static_cast<int64_t>(state));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRngInitSeed(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong seed) {
+    if (!g_gameCore) return;
+    g_gameCore->rngInitSystemSeed(static_cast<int64_t>(seed));
 }
 
 // ============================================================
@@ -169,10 +213,22 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeImportState(
                : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeImportStateNoRng(
+    JNIEnv* env, jobject /*thiz*/,
+    jbyteArray stateJson) {
+    if (!g_gameCore) return JNI_FALSE;
+    return g_gameCore->importStateJsonNoRng(jbytesToString(env, stateJson))
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeExportDirty(
     JNIEnv* env, jobject /*thiz*/) {
-    if (!g_gameCore) return stringToJbytes(env, R"({"version":0,"changed":{},"removed":[]})");
+    if (!g_gameCore) {
+        return stringToJbytes(env, R"({"version":0,"changed":{},"removed":{}})");
+    }
     return stringToJbytes(env, g_gameCore->exportDirtyJson());
 }
 

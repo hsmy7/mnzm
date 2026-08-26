@@ -317,6 +317,24 @@ class DiffStateTest {
         val exported = DiffRngBridge.nativeCoreExportState()
         val decoded = json.decodeFromString(NativeGameState.serializer(), exported.decodeToString())
 
-        assertEquals("快照往返后必须逐字段相等", sample, decoded)
+        // 计划 v2 阶段 1 起，导出前会把 RNG 分区**活动状态**回写 rngStates
+        // （C-13 配套：镜像/存档必须拿到引擎当前确定性状态）——因此导出值
+        // 除样本声明的分区外还会含其余分区的活动状态。契约更新为：
+        //   1) 样本声明的分区：导入恢复后原样往返（逐键相等）
+        //   2) 其余字段：逐字段相等
+        assertEquals(
+            "rngStates 样本分区必须原样往返（C-13 恢复保真）",
+            sample.gameData.rngStates,
+            decoded.gameData.rngStates.filterKeys { it in sample.gameData.rngStates },
+        )
+        assertTrue(
+            "导出 rngStates 必须覆盖全部活动分区（≥样本声明数）",
+            decoded.gameData.rngStates.size >= sample.gameData.rngStates.size,
+        )
+        assertEquals(
+            "快照往返后必须逐字段相等",
+            sample.copy(gameData = sample.gameData.copy(rngStates = decoded.gameData.rngStates)),
+            decoded,
+        )
     }
 }

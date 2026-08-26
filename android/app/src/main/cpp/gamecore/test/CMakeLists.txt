@@ -27,18 +27,24 @@ add_executable(game-core-tests
     result_test.cpp
     game_core_test.cpp
     json_codec_test.cpp
+    dirty_tracker_test.cpp
     equipment_db_test.cpp
     trait_db_test.cpp
+    trait_effects_test.cpp
     recipe_db_test.cpp
     beast_material_db_test.cpp
     manual_db_test.cpp
     time_system_test.cpp
+    settle_phase_test.cpp
     road_system_test.cpp
     economy_test.cpp
     inventory_test.cpp
     spirit_field_test.cpp
     disciple_test.cpp
     cultivation_test.cpp
+    phase_settlement_test.cpp
+    month_settlement_test.cpp
+    year_settlement_test.cpp
     breakthrough_test.cpp
     lifecycle_test.cpp
     battle_test.cpp

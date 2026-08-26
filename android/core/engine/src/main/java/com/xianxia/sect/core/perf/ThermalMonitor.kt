@@ -41,7 +41,16 @@ class ThermalMonitor @Inject constructor(
     // lazy 不能作为 var 委托，故直接初始化
     internal var hintManager: PerformanceHintManager? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            context.getSystemService(PerformanceHintManager::class.java)
+            // ADPF 为可选能力：部分 ROM/老设备未发布 performance_hint 服务，
+            // getSystemService(Class) 会抛 ServiceNotFoundException——降级 null
+            // （hintSession 保持 null，创建/上报路径已有空守卫，功能自动停用）
+            @Suppress("TooGenericExceptionCaught")
+            try {
+                context.getSystemService(PerformanceHintManager::class.java)
+            } catch (e: Exception) {
+                DomainLog.w("ThermalMonitor", "performance_hint unavailable: ${e.message}")
+                null
+            }
         } else null
 
     // PerformanceHintManager.Session on API 31+
