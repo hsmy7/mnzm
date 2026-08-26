@@ -172,3 +172,4 @@ android/app/src/main/cpp/
 | ~~S-05~~ ✅ | **RNG 读档恢复已接线**（并入 C-13，见 §5.4） | `game_core.cpp` | 功能缺口 | 完成（计划 v2 阶段 1） |
 | ~~S-06~~ ✅ | **exportDirty 变更集已实现**（C++ DirtyTracker + Kotlin applyDirty，见 §5.1/§7 阶段 1） | `GameCoreBridge` / `game_core.h` | 功能缺口 | 完成（计划 v2 阶段 1） |
 | S-07 | **设计限制 `DomainLog` 无 logger getter**：`setLogger` 后无法恢复旧 logger（基准测试需行为等价替代） | `core/domain/.../util/DomainLog.kt` | 设计改进（低优先） | 可选：暴露 `currentLogger()` 或 `setLogger` 返回旧值；不阻塞任何阶段 |
+| S-08 | **NDK 编译验证待办**：阶段 2 新增 Android JNI 入口（`GameCoreBridge.cpp`：nativeInit 四参签名 + nativeSettlePhase/nativeRng*/nativeImportStateNoRng 等 6 新入口）尚未在真机/NDK 链路验证——桌面同源码（GameCoreJni.cpp 对拍镜像）编译与 GTest 已绿，模式完全一致，风险低 | `GameCoreBridge.cpp` + `GameCoreBridge.kt` | 验证缺口 | 发布前必跑 `externalNativeBuildRelease` + 存档读写回归；随阶段 2 收尾清单执行 |
