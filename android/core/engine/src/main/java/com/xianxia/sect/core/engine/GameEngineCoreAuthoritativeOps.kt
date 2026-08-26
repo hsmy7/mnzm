@@ -53,6 +53,8 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
             if (applied == null && !stateSyncServiceRef.syncFromNative()) {
                 error("AUTHORITATIVE 镜像失败（增量+全量均不可用）")
             }
+            // ②' 重置反向捕获窗口：② 的变更由 C++ 产生、无需回导（阶段 3 反向通道）
+            stateStore.resetReverseAccumulator()
             // ③ Kotlin 残留执行器（单事务：自动装备/丹药/突破）
             stateStore.update { phaseSettlementExecutor.executeResidual(this) }
             // ④ 月/年边界：完整编排（年变先于月变）
@@ -62,11 +64,13 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
                     yearChanged = (settleFlags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0
                 )
             }
-            // ⑤ 每旬全量回导 C++（残留 + 边界效果写回真相源；阶段 3 反向增量取代）。
-            // restoreRng=false：委托模式下 native RNG 即真相源，镜像 rngStates
-            // 滞后于残留执行器抽取，恢复会造成分区回卷与跨语言漂移
-            if (!stateSyncServiceRef.importToNative(restoreRng = false)) {
-                DomainLog.w(TAG, "AUTHORITATIVE 每旬回导失败（下一旬重试）")
+            // ⑤ 反向增量回导 C++（残留 + 边界效果写回真相源；阶段 3 取代每旬全量回导）。
+            // restoreRng=false 语义保留：增量信封剔除 rngStates；容量拒绝/失败降级全量
+            if (!stateSyncServiceRef.applyDirtyToNative()) {
+                DomainLog.w(TAG, "AUTHORITATIVE 反向增量回导失败（降级全量回导）")
+                if (!stateSyncServiceRef.importToNative(restoreRng = false)) {
+                    DomainLog.w(TAG, "AUTHORITATIVE 全量回导失败（下一旬重试）")
+                }
             }
         }
     } catch (e: CancellationException) {
@@ -100,6 +104,9 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)
             if (!stateSyncServiceRef.importToNative()) return false
+            // 全量导入成功后清空反向捕获窗口——读档/加载路径的事务捕获若残留，
+            // 首个 ⑤ 会把陈旧变更误发 C++（阶段 3 反向通道窗口管理）
+            stateStore.resetReverseAccumulator()
             DomainLog.i(TAG, "AUTHORITATIVE native 引擎已初始化（seed=${stateStore.gameData.value.mapSeed}）")
         }
         true

@@ -70,6 +70,7 @@ constexpr std::size_t kMaxEventLogs = 200;
 namespace detail {
 
 using gamecore::state::Disciple;
+using gamecore::state::DiscipleStore;
 using gamecore::state::EquipmentInstance;
 using gamecore::state::GameData;
 using gamecore::state::GameState;
@@ -133,6 +134,16 @@ inline void finalMaxHpMp(const Disciple& d, const GameData& gd,
                       gd.manualProficiencies, outMaxHp, outMaxMp);
 }
 
+/// 含血炼口径最终 maxHp/maxMp（DiscipleStore SoA 版，阶段 3 热路径用）
+inline void finalMaxHpMp(const DiscipleStore& ds, std::size_t row,
+                         const GameData& gd,
+                         const std::map<std::string, EquipmentInstance>& eqMap,
+                         const std::map<std::string, ManualInstance>& mnMap,
+                         int32_t& outMaxHp, int32_t& outMaxMp) {
+    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]), eqMap,
+                      mnMap, gd.manualProficiencies, outMaxHp, outMaxMp);
+}
+
 /// HP/MP 是否均已满（isDiscipleFullHpMp；负值视为满）。
 /// 映射重建时机对齐 Kotlin battleWritebackMaxHpMp——每次从**当前 state**现场
 /// 重建装备/功法映射（孕养升级当旬的候选判定即依赖最新 nurtureLevel）；
@@ -146,6 +157,20 @@ inline bool isFullHpMp(const Disciple& d, const GameState& state) {
                       gd.manualProficiencies, maxHp, maxMp);
     const int32_t hp = d.currentHp < 0 ? maxHp : d.currentHp;
     const int32_t mp = d.currentMp < 0 ? maxMp : d.currentMp;
+    return hp >= maxHp && mp >= maxMp;
+}
+
+/// HP/MP 是否均已满（DiscipleStore SoA 版，阶段 3 候选筛选用）
+inline bool isFullHpMp(const DiscipleStore& ds, std::size_t row,
+                       const GameState& state) {
+    const GameData& gd = state.gameData;
+    const auto eqMap = equipmentMapOf(state.equipmentInstances);
+    const auto mnMap = manualMapOf(state.manualInstances);
+    int32_t maxHp = 0, maxMp = 0;
+    stats::getMaxHpMp(ds, row, findBloodRefinementPct(gd, ds.ids[row]), eqMap,
+                      mnMap, gd.manualProficiencies, maxHp, maxMp);
+    const int32_t hp = ds.currentHps[row] < 0 ? maxHp : ds.currentHps[row];
+    const int32_t mp = ds.currentMps[row] < 0 ? maxMp : ds.currentMps[row];
     return hp >= maxHp && mp >= maxMp;
 }
 
@@ -179,6 +204,27 @@ inline void recoverHpMp(Disciple& d, const GameData& gd,
     if (curMp >= 0) d.currentMp = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
 }
 
+/// HP/MP 恢复（DiscipleStore SoA 版，阶段 3 热路径用——列直读直写）
+inline void recoverHpMp(DiscipleStore& ds, std::size_t row, const GameData& gd,
+                        const std::map<std::string, EquipmentInstance>& eqMap,
+                        const std::map<std::string, ManualInstance>& mnMap) {
+    const int32_t curHp = ds.currentHps[row];
+    const int32_t curMp = ds.currentMps[row];
+    if (curHp < 0 && curMp < 0) return;   // 特殊状态（负值=满）整体跳过
+
+    int32_t maxHp = 0, maxMp = 0;
+    finalMaxHpMp(ds, row, gd, eqMap, mnMap, maxHp, maxMp);
+
+    // 满血提前退出（负值视为满，语义与对象版一致）
+    const int32_t effHp = curHp < 0 ? maxHp : curHp;
+    const int32_t effMp = curMp < 0 ? maxMp : curMp;
+    if (effHp >= maxHp && effMp >= maxMp) return;
+
+    const double multiplier = 1.0;   // phasesToSettle = 1
+    if (curHp >= 0) ds.currentHps[row] = std::min(curHp + recoveryAmount(maxHp, multiplier), maxHp);
+    if (curMp >= 0) ds.currentMps[row] = std::min(curMp + recoveryAmount(maxMp, multiplier), maxMp);
+}
+
 // ── 步骤 2：修炼累积（accumulateCultivationPerPhase） ───────────────
 
 /// 有效教学值 = 基础教学 + teachingFlat 天赋加成截断（getEffectiveTeaching；
@@ -186,6 +232,13 @@ inline void recoverHpMp(Disciple& d, const GameData& gd,
 inline int32_t effectiveTeaching(const Disciple& elder) {
     const auto effects = stats::talentEffectsFor(elder.talentIds);
     return elder.teaching +
+           static_cast<int32_t>(stats::effectValue(effects, "teachingFlat"));
+}
+
+/// 有效教学值（DiscipleStore 行版，阶段 3 列访问）
+inline int32_t effectiveTeaching(const DiscipleStore& ds, std::size_t row) {
+    const auto effects = stats::talentEffectsFor(ds.talentIds[row]);
+    return ds.teachings[row] +
            static_cast<int32_t>(stats::effectValue(effects, "teachingFlat"));
 }
 
@@ -208,7 +261,8 @@ inline double residenceBuildingBonus(const GameData& gd,
     return 1.0;
 }
 
-/// 讲道长老/师兄加成（calculatePreachingBonusesColumn；inner=false 外门 / true 青云内门）
+/// 讲道长老/师兄加成（calculatePreachingBonusesColumn；inner=false 外门 / true 青云内门）。
+/// DiscipleStore SoA 版（阶段 3）：长老/师兄经 id→行查列直读。
 inline void preachingBonuses(
         const GameState& state, const std::map<int32_t, std::size_t>& idx,
         int32_t discipleRealm, const std::string& discipleType, bool inner,
@@ -218,23 +272,25 @@ inline void preachingBonuses(
     const std::string& targetType = inner ? "inner" : "outer";
     if (discipleType != targetType) return;
     const auto& slots = state.gameData.elderSlots;
+    const DiscipleStore& ds = state.disciples;
 
-    const auto elderById = [&](const std::string& elderId) -> const Disciple* {
+    // 长老/师兄行查找（names.contains 校验 + isAlive 存活校验）
+    const auto elderRow = [&](const std::string& elderId)
+            -> std::optional<std::size_t> {
         const auto id = toIntOrNull(elderId);
-        if (!id.has_value()) return nullptr;
+        if (!id.has_value()) return std::nullopt;
         const auto it = idx.find(*id);
-        if (it == idx.end()) return nullptr;              // names.contains 校验
-        const Disciple& e = state.disciples[it->second];
-        if (!e.isAlive) return nullptr;
-        return &e;
+        if (it == idx.end()) return std::nullopt;
+        if (ds.isAlive[it->second] == 0) return std::nullopt;
+        return it->second;
     };
 
     // 长老加成：教学 ≥80 且弟子境界不低于长老 → ((教学-80)×0.0025).cap(0.10) × (1+职务加成)
-    const Disciple* elder = elderById(inner ? slots.qingyunPreachingElder
-                                            : slots.preachingElder);
-    if (elder != nullptr) {
-        const int32_t teaching = effectiveTeaching(*elder);
-        if (discipleRealm >= elder->realm && teaching >= 80) {
+    const auto elder = elderRow(inner ? slots.qingyunPreachingElder
+                                      : slots.preachingElder);
+    if (elder.has_value()) {
+        const int32_t teaching = effectiveTeaching(ds, *elder);
+        if (discipleRealm >= ds.realms[*elder] && teaching >= 80) {
             const double base = gamecore::disciple::coerceAtMost(
                 (teaching - 80) * 0.0025, 0.10);
             // 职务加成 PositionBonus（天赋/词条注册表未迁移 → 恒 0，见文件头注释）
@@ -246,17 +302,17 @@ inline void preachingBonuses(
     const auto& masters = inner ? slots.qingyunPreachingMasters
                                 : slots.preachingMasters;
     for (const auto& slot : masters) {
-        const Disciple* master = elderById(slot.discipleId);
-        if (master == nullptr) continue;
-        const int32_t teaching = effectiveTeaching(*master);
-        if (discipleRealm >= master->realm && teaching >= 60) {
+        const auto master = elderRow(slot.discipleId);
+        if (!master.has_value()) continue;
+        const int32_t teaching = effectiveTeaching(ds, *master);
+        if (discipleRealm >= ds.realms[*master] && teaching >= 60) {
             mastersOut += gamecore::disciple::coerceAtMost(
                 (teaching - 60) * 0.001, 0.05);
         }
     }
 }
 
-/// 父母灵根加成（calculateParentBonusColumn）
+/// 父母灵根加成（calculateParentBonusColumn；DiscipleStore 列直读版）
 inline double parentBonusFor(const GameState& state,
                              const std::map<int32_t, std::size_t>& idx,
                              const std::string& parentId) {
@@ -264,57 +320,66 @@ inline double parentBonusFor(const GameState& state,
     if (!id.has_value()) return 0.0;
     const auto it = idx.find(*id);
     if (it == idx.end()) return 0.0;
-    const Disciple& p = state.disciples[it->second];
-    if (!p.isAlive) return 0.0;
-    return gamecore::disciple::getParentSpiritRootBonus(spiritRootCount(p));
+    const DiscipleStore& ds = state.disciples;
+    if (ds.isAlive[it->second] == 0) return 0.0;
+    return gamecore::disciple::getParentSpiritRootBonus(
+        spiritRootCount(ds.spiritRootTypes[it->second]));
 }
 
-/// 师徒修炼加成（calculateMasterDiscipleBonusColumn：师父存活按大境界差加成）
+/// 师徒修炼加成（calculateMasterDiscipleBonusColumn：师父存活按大境界差加成；
+/// DiscipleStore 列直读版——masterId 与弟子境界由调用方列直读传入）
 inline double masterBonusFor(const GameState& state,
                              const std::map<int32_t, std::size_t>& idx,
-                             const Disciple& d) {
-    const auto mid = toIntOrNull(d.masterId);
+                             const std::string& masterId,
+                             int32_t discipleRealm) {
+    const auto mid = toIntOrNull(masterId);
     if (!mid.has_value()) return 0.0;
     const auto it = idx.find(*mid);
     if (it == idx.end()) return 0.0;
-    const Disciple& master = state.disciples[it->second];
-    if (!master.isAlive) return 0.0;
+    const DiscipleStore& ds = state.disciples;
+    if (ds.isAlive[it->second] == 0) return 0.0;
     return gamecore::disciple::getMasterDiscipleCultivationBonus(
-        d.realm, master.realm);
+        discipleRealm, ds.realms[it->second]);
 }
 
 /// 步骤 2：单弟子每旬修炼累积（速率计算 + 上限钳制；不更新检查点——
-/// checkpoint 只在速率变化点同步）
+/// checkpoint 只在速率变化点同步）。DiscipleStore SoA 版（阶段 3 热路径）：
+/// 全链路列直读直写，零对象物化。
 inline void accumulateCultivation(
-        GameState& state, Disciple& d,
+        GameState& state, std::size_t row,
         const std::map<int32_t, std::size_t>& idx,
         const std::map<std::string, ManualInstance>& mnMap) {
+    DiscipleStore& ds = state.disciples;
     const GameData& gd = state.gameData;
+    const int32_t realm = ds.realms[row];
+    const int32_t realmLayer = ds.realmLayers[row];
+    const double cultivation = ds.cultivations[row];
     const double maxCultivation = computeMaxCultivation(
-        d.realm, d.realmLayer, d.cultivation);
-    if (d.cultivation >= maxCultivation) return;
+        realm, realmLayer, cultivation);
+    if (cultivation >= maxCultivation) return;
 
     stats::CultivationRateInput extra;
-    extra.buildingBonus = residenceBuildingBonus(gd, d.id);
+    extra.buildingBonus = residenceBuildingBonus(gd, ds.ids[row]);
 
     double wenDaoElder = 0.0, wenDaoMasters = 0.0;
-    preachingBonuses(state, idx, d.realm, d.discipleType, false,
+    preachingBonuses(state, idx, realm, ds.discipleTypes[row], false,
                      wenDaoElder, wenDaoMasters);
     double qingyunElder = 0.0, qingyunMasters = 0.0;
-    preachingBonuses(state, idx, d.realm, d.discipleType, true,
+    preachingBonuses(state, idx, realm, ds.discipleTypes[row], true,
                      qingyunElder, qingyunMasters);
     extra.preachingElderBonus = wenDaoElder + qingyunElder;
     extra.preachingMastersBonus = wenDaoMasters + qingyunMasters;
     extra.parentCultivationBonus =
-        parentBonusFor(state, idx, d.parentId1) +
-        parentBonusFor(state, idx, d.parentId2);
-    extra.masterDiscipleBonus = masterBonusFor(state, idx, d);
+        parentBonusFor(state, idx, ds.parentId1s[row]) +
+        parentBonusFor(state, idx, ds.parentId2s[row]);
+    extra.masterDiscipleBonus =
+        masterBonusFor(state, idx, ds.masterIds[row], realm);
 
     const double rate = stats::calculateCultivationPerPhaseColumn(
-        d, gd, mnMap, gd.manualProficiencies, extra);
+        ds, row, gd, mnMap, gd.manualProficiencies, extra);
     if (rate <= 0.0) return;
-    d.cultivation = gamecore::disciple::coerceAtMost(d.cultivation + rate,
-                                                     maxCultivation);
+    ds.cultivations[row] = gamecore::disciple::coerceAtMost(
+        cultivation + rate, maxCultivation);
 }
 
 // ── 步骤 3：功法熟练度（批量暂存 + 单次提交） ────────────────────────
@@ -398,6 +463,55 @@ inline void processManualProficiency(
     }
 }
 
+/// 步骤 3：单弟子熟练度增长（DiscipleStore 行版，阶段 3 列直读 manualIds/id）
+inline void processManualProficiency(
+        const GameData& gd, const DiscipleStore& ds, std::size_t row,
+        const std::map<std::string, ManualInstance>& mnMap,
+        bool inLibrary, PendingProficiencies& pending) {
+    const std::vector<std::string>& manualIds = ds.manualIds[row];
+    const std::string& id = ds.ids[row];
+    if (manualIds.empty()) return;
+    const double libraryBonus =
+        inLibrary ? kLibraryProficiencyBonusRate : 0.0;
+    const double profGain = kBaseProficiencyRate * (1.0 + libraryBonus) *
+                            kMsPerPhase1x / 1000.0;
+    if (profGain <= 0.0) return;
+
+    std::vector<ManualProficiencyData> profList;
+    const auto pit = pending.find(id);
+    if (pit != pending.end()) {
+        if (pit->second.has_value()) profList = *pit->second;
+    } else {
+        const auto git = gd.manualProficiencies.find(id);
+        if (git != gd.manualProficiencies.end()) profList = git->second;
+    }
+
+    bool changed = false;
+    for (const std::string& manualId : manualIds) {
+        const auto mit = mnMap.find(manualId);
+        if (mit == mnMap.end()) continue;
+        if (accumulateProficiencyForManual(profList, manualId, mit->second,
+                                           profGain)) {
+            changed = true;
+        }
+    }
+    // 清理已替换/遗忘功法的残留条目（防僵尸条目累积）
+    const auto newEnd = std::remove_if(profList.begin(), profList.end(),
+        [&](const ManualProficiencyData& p) {
+            return !containsString(manualIds, p.manualId);
+        });
+    if (newEnd != profList.end()) {
+        profList.erase(newEnd, profList.end());
+        changed = true;
+    }
+
+    if (changed) {
+        pending[id] = profList.empty()
+            ? std::nullopt
+            : std::optional<std::vector<ManualProficiencyData>>(profList);
+    }
+}
+
 /// 批量提交熟练度（commitManualProficiencies：null 条目移除，其余覆盖）
 inline void commitManualProficiencies(
         GameData& gd, const PendingProficiencies& pending) {
@@ -461,6 +575,23 @@ inline void processEquipmentNurture(
         std::map<std::string, EquipmentInstance>& updates) {
     for (const std::string& eqId :
          {d.weaponId, d.armorId, d.bootsId, d.accessoryId}) {
+        if (eqId.empty()) continue;
+        const auto sit = eqMap.find(eqId);
+        if (sit == eqMap.end()) continue;
+        EquipmentInstance working = sit->second;
+        if (applyNurtureExp(working, kNurtureGainPerPhase)) {
+            updates[eqId] = working;
+        }
+    }
+}
+
+/// 步骤 4：单弟子四槽孕养增长（DiscipleStore 行版，阶段 3 列直读四槽 id）
+inline void processEquipmentNurture(
+        const DiscipleStore& ds, std::size_t row,
+        const std::map<std::string, EquipmentInstance>& eqMap,
+        std::map<std::string, EquipmentInstance>& updates) {
+    for (const std::string& eqId :
+         {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row], ds.accessoryIds[row]}) {
         if (eqId.empty()) continue;
         const auto sit = eqMap.find(eqId);
         if (sit == eqMap.end()) continue;
@@ -603,18 +734,23 @@ inline void writePillResult(Disciple& d, const Disciple& r, GameData& gd) {
     d.cultivationCheckpointGameMonth = gd.gameYear * 12 + gd.gameMonth;
 }
 
-/// 步骤 6 主流程：遍历存活非秘境弟子，自动补服储物袋丹药
+/// 步骤 6 主流程：遍历存活非秘境弟子，自动补服储物袋丹药。
+/// DiscipleStore SoA 版（阶段 3）：逐行物化工作副本 → 服用 → upsert 原位写回
+///（保序；upsertDisciple 对既有 id 原位覆盖）。仅实际服用时写回。
 inline void processAutoPills(GameState& state,
                              const std::set<int32_t>& secretIds) {
-    for (auto& d : state.disciples) {
-        if (!d.isAlive) continue;
-        const auto id = toIntOrNull(d.id);
+    DiscipleStore& ds = state.disciples;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        const auto id = toIntOrNull(ds.ids[row]);
         if (!id.has_value() || secretIds.count(*id)) continue;
-        if (!hasUsablePills(d)) continue;
 
+        Disciple d = ds.materialize(row);
+        if (!hasUsablePills(d)) continue;
         Disciple working = d;
         if (!autoUsePills(working)) continue;   // result.disciple == disciple → 跳过
         writePillResult(d, working, state.gameData);
+        ds.upsertDisciple(d);                   // 原位写回（保序）
     }
 }
 
@@ -646,14 +782,16 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
         if (!eid.has_value()) return {0, 0.0};
         const auto it = idx.find(*eid);
         if (it == idx.end()) return {0, 0.0};
-        const Disciple& liveElder = state.disciples[it->second];
-        if (!liveElder.isAlive || d.realm < liveElder.realm) return {0, 0.0};
+        const DiscipleStore& ds = state.disciples;
+        if (ds.isAlive[it->second] == 0 || d.realm < ds.realms[it->second]) {
+            return {0, 0.0};
+        }
         // Kotlin: allDisciples[elderId]?.getBaseStats()?.comprehension
         //         ?: tables.comprehensions[elderId] —— 快照优先、live 列兜底
         if (it->second < committed.size()) {
             return {stats::baseComprehension(committed[it->second]), 0.0};
         }
-        return {stats::baseComprehension(liveElder), 0.0};
+        return {stats::baseComprehension(ds, it->second), 0.0};
     };
 
     const auto innerPair = elderEntry(slots.innerElder, "inner");
@@ -684,10 +822,11 @@ inline stats::BreakthroughChanceInput breakthroughChanceInput(
     const auto mid = toIntOrNull(d.masterId);
     if (mid.has_value()) {
         const auto it = idx.find(*mid);
-        if (it != idx.end() && state.disciples[it->second].isAlive) {
+        const DiscipleStore& ds = state.disciples;
+        if (it != idx.end() && ds.isAlive[it->second] != 0) {
             in.masterDiscipleBonus =
                 gamecore::disciple::getMasterDiscipleBreakthroughBonus(
-                    d.realm, state.disciples[it->second].realm);
+                    d.realm, ds.realms[it->second]);
         }
     }
     return in;
@@ -856,7 +995,8 @@ inline void updateCompletionEstimate(Disciple& d, GameState& state,
     extra.parentCultivationBonus =
         parentBonusFor(state, idx, d.parentId1) +
         parentBonusFor(state, idx, d.parentId2);
-    extra.masterDiscipleBonus = masterBonusFor(state, idx, d);
+    extra.masterDiscipleBonus =
+        masterBonusFor(state, idx, d.masterId, d.realm);
 
     const double rate = stats::calculateCultivationPerPhaseColumn(
         d, gd, mnMap, gd.manualProficiencies, extra);
@@ -945,46 +1085,52 @@ inline void performBreakthrough(
 
 /// 步骤 7 主流程：候选筛选 → 按 ids 顺序逐弟子执行突破 → 亲属赠送钩子 +
 /// 大境界日志（候选级前后比对，与 Kotlin processRealtimeBreakthroughs 同构）。
+/// DiscipleStore SoA 版（阶段 3）：候选为行索引，逐候选物化工作副本 →
+/// performBreakthrough（原地改 live）→ upsert 原位写回；RNG 抽取序 = 行序。
 /// @param committed 结算入口时的弟子快照（长老悟性等 store 已提交视图读取源）
 inline void processBreakthroughs(
         GameState& state, rng::RngManager& rng,
         const std::map<int32_t, std::size_t>& idx,
         const std::vector<Disciple>& committed,
         const std::set<int32_t>& secretIds) {
+    DiscipleStore& ds = state.disciples;
     // 1. 列级直读筛选候选（存活 + 非秘境 + realm>0 + 修为满 + HP/MP 满；
     //    满血判定现场重建映射——对齐 battleWritebackMaxHpMp 语义）
-    std::vector<Disciple*> candidates;
-    for (auto& d : state.disciples) {
-        if (!d.isAlive) continue;
-        const auto id = toIntOrNull(d.id);
+    std::vector<std::size_t> candidates;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        const auto id = toIntOrNull(ds.ids[row]);
         if (!id.has_value() || secretIds.count(*id)) continue;
-        if (d.realm <= 0) continue;
+        if (ds.realms[row] <= 0) continue;
         const double maxCult = computeMaxCultivation(
-            d.realm, d.realmLayer, d.cultivation);
-        if (d.cultivation < maxCult) continue;
-        if (!isFullHpMp(d, state)) continue;
-        candidates.push_back(&d);
+            ds.realms[row], ds.realmLayers[row], ds.cultivations[row]);
+        if (ds.cultivations[row] < maxCult) continue;
+        if (!isFullHpMp(ds, row, state)) continue;
+        candidates.push_back(row);
     }
     if (candidates.empty()) return;
 
     // 记录候选突破前境界/层数（亲属赠送与日志的比对基准）
-    std::map<Disciple*, std::pair<int32_t, int32_t>> before;
-    for (Disciple* c : candidates) {
-        before[c] = {c->realm, c->realmLayer};
+    std::map<std::size_t, std::pair<int32_t, int32_t>> before;
+    for (std::size_t row : candidates) {
+        before[row] = {ds.realms[row], ds.realmLayers[row]};
     }
 
     // 2. 仅候选弟子按需处理（顺序 == ids 顺序 → RNG 抽取序列逐位一致）
-    for (Disciple* candidate : candidates) {
-        performBreakthrough(*candidate, state, idx, committed, rng);
+    for (std::size_t row : candidates) {
+        Disciple live = ds.materialize(row);   // 工作副本（语义 == 旧向量元素）
+        performBreakthrough(live, state, idx, committed, rng);
+        ds.upsertDisciple(live);               // 原位写回（保序）
     }
 
     // 3. 亲属智能赠送（社交系统，SYSTEM RNG——未随本批下沉，见文件头注释）
     // 4. 大境界变化日志：仅大境界（realm）变化记录一条消息栏事件
-    for (Disciple* candidate : candidates) {
-        const auto& oldVals = before[candidate];
-        if (oldVals.first == candidate->realm) continue;
-        recordGameEvent(state, *candidate,
-                        gamecore::disciple::realmConfig(candidate->realm).name);
+    for (std::size_t row : candidates) {
+        const auto& oldVals = before[row];
+        if (oldVals.first == ds.realms[row]) continue;
+        Disciple after = ds.materialize(row);
+        recordGameEvent(state, after,
+                        gamecore::disciple::realmConfig(after.realm).name);
     }
 }
 
@@ -995,6 +1141,7 @@ inline void processBreakthroughs(
 /// 核心每旬批次（步骤 1-5：恢复/修炼累积/熟练度/孕养 + 批量提交）。
 /// 零 RNG 消耗——T2.4 AUTHORITATIVE 过渡模式下由 onCoreSettle 注册执行；
 /// 完整版 [runPhaseSettlement] 复用本函数后追加丹药/突破两步。
+/// DiscipleStore SoA 版（阶段 3）：合并遍历全链路列直读直写，零对象物化。
 inline void runPhaseCoreBatch(state::GameState& state) {
     const auto eqMap = detail::equipmentMapOf(state.equipmentInstances);
     const auto mnMap = detail::manualMapOf(state.manualInstances);
@@ -1009,23 +1156,24 @@ inline void runPhaseCoreBatch(state::GameState& state) {
     detail::PendingProficiencies pendingProficiencies;
     std::map<std::string, state::EquipmentInstance> pendingEquipmentUpdates;
 
+    state::DiscipleStore& ds = state.disciples;
     // 合并遍历：恢复 + 修炼累积 + 熟练度暂存 + 孕养暂存（P0.1 优化语义保留）
-    for (auto& d : state.disciples) {
-        if (!d.isAlive) continue;
-        const auto id = detail::toIntOrNull(d.id);
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        const auto id = detail::toIntOrNull(ds.ids[row]);
         if (!id.has_value() || secretIds.count(*id)) continue;
-        // 1) HP/MP 恢复
-        detail::recoverHpMp(d, state.gameData, eqMap, mnMap);
+        // 1) HP/MP 恢复（列直读直写）
+        detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
         // 2) 修炼累积（≥1e8 视为异常满值跳过）
-        if (d.cultivation < kCultivationSkipThreshold) {
-            detail::accumulateCultivation(state, d, idx, mnMap);
+        if (ds.cultivations[row] < kCultivationSkipThreshold) {
+            detail::accumulateCultivation(state, row, idx, mnMap);
         }
         // 3) 功法熟练度增长（批量模式）
         detail::processManualProficiency(
-            state.gameData, d, mnMap,
-            libraryIds.count(d.id) > 0, pendingProficiencies);
+            state.gameData, ds, row, mnMap,
+            libraryIds.count(ds.ids[row]) > 0, pendingProficiencies);
         // 4) 装备孕养增长（批量模式）
-        detail::processEquipmentNurture(d, eqMap, pendingEquipmentUpdates);
+        detail::processEquipmentNurture(ds, row, eqMap, pendingEquipmentUpdates);
     }
 
     // 5a) 单次提交熟练度；5b) 单次重建装备列表
@@ -1040,8 +1188,13 @@ inline void runPhaseSettlement(state::GameState& state,
                                rng::RngManager& rng) {
     // 结算入口弟子快照：突破概率的长老悟性等字段对齐 Kotlin
     // stateStore.disciples.value（事务前已提交视图）——同旬长老属性变更
-    // 不影响本旬突破判定（与 Kotlin 逐位一致）
-    const std::vector<state::Disciple> committedDisciples = state.disciples;
+    // 不影响本旬突破判定（与 Kotlin 逐位一致）。
+    // DiscipleStore 版：逐行物化快照列表（语义 == 旧整向量拷贝）
+    std::vector<state::Disciple> committedDisciples;
+    committedDisciples.reserve(state.disciples.size());
+    for (std::size_t i = 0; i < state.disciples.size(); ++i) {
+        committedDisciples.push_back(state.disciples.materialize(i));
+    }
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
 
     runPhaseCoreBatch(state);

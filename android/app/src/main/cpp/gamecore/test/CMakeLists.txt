@@ -28,7 +28,11 @@ add_executable(game-core-tests
     game_core_test.cpp
     json_codec_test.cpp
     dirty_tracker_test.cpp
+    apply_reverse_dirty_test.cpp
+    disciple_store_test.cpp
+    disciple_store_bench_test.cpp
     equipment_db_test.cpp
+    herb_db_test.cpp
     trait_db_test.cpp
     trait_effects_test.cpp
     recipe_db_test.cpp

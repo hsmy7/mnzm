@@ -329,7 +329,7 @@ class DiffAuthoritativeTickTest {
             it.gameDataValue = snapshot.gameData
             it.disciplesValue = snapshot.disciples
         }
-        val syncA = StateSyncService(storeA)
+        val syncA = StateSyncService(storeA) { DiffRngBridge.nativeCoreApplyReverseDirty(it) }
         val (_, _, exA) = buildHarness(storeA, snapshot.gameData.rngStates, delegating = true)
 
         // 逐旬互锁：两侧各推进一旬后比较，首次分歧即报旬号与字段路径
@@ -352,18 +352,18 @@ class DiffAuthoritativeTickTest {
                 val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
                 val applyResult = syncA.applyDirty(dirty)
                 assertEquals("镜像失败", false, applyResult == null)
+                // ②' 重置反向捕获窗口（生产同构：② 变更由 C++ 产生、无需回导）
+                storeA.resetReverseAccumulator()
                 storeA.update { exA.phase.executeResidual(this) }
                 if (flags != 0) {
                     val yearChangedA = (flags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0
                     val monthChangedA = (flags and GameCoreBridge.FLAG_MONTH_CHANGED) != 0
                     runBoundary(exA, storeA, yearChangedA, monthChangedA)
                 }
-                // 每旬回导（残留/边界效果写回 C++ 真相源——生产同构；
-                // 不恢复 RNG：委托模式下 native 即真相源，恢复会回卷分区）
-                DiffRngBridge.nativeCoreImportStateNoRng(
-                    json.encodeToString(NativeGameState.serializer(), syncA.buildNativeState())
-                        .encodeToByteArray()
-                )
+                // ⑤ 反向增量回导（阶段 3：取代每旬全量 importToNative——残留/边界
+                // 效果经 applyReverseDirty 增量写回 C++ 真相源；生产侧失败降级全量，
+                // 本测试断言增量通道成功）
+                assertTrue("反向增量回导失败", syncA.applyDirtyToNative())
                 // 逐旬对拍（每 5 旬一次全量结构）
                 if (tick % 5 == 4) {
                     val actualEl = json.parseToJsonElement(

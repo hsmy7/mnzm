@@ -478,6 +478,29 @@ class DiscipleTables {
         }
 
         /**
+         * 非消费快照：读取当前已修改的 ID 集合（不清除）。
+         *
+         * 计划 v2 阶段 3（反向增量通道）用：AUTHORITATIVE tick 残留窗口的
+         * 脏弟子捕获点在 [GameStateStoreImpl.commitUpdateState] 锁内读取本快照
+         * 累积到 store 级槽位，[dispatchAssemble] 随后按原路径消费（互不干扰）。
+         */
+        fun snapshotChangedIds(): Set<Int> {
+            synchronized(lock) {
+                if (changedBits.isEmpty) return emptySet()
+                val result = LinkedHashSet<Int>()
+                var bit = changedBits.nextSetBit(0)
+                while (bit >= 0) {
+                    result.add(bit)
+                    bit = changedBits.nextSetBit(bit + 1)
+                }
+                return result
+            }
+        }
+
+        /** 非消费快照：当前是否置位强制全量标志（不清除）。 */
+        fun snapshotRejectedRecord(): Boolean = synchronized(lock) { rejectedRecord }
+
+        /**
          * 消费并清除已修改的 ID 集合。
          * @return 自上次消费以来被修改过的所有弟子 ID（升序）
          */

@@ -174,6 +174,15 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreImportStateNoRng
     return g_core->importStateJsonNoRng(jbytesToString(env, stateJson)) ? JNI_TRUE : JNI_FALSE;
 }
 
+// ── 反向增量通道（计划 v2 阶段 3：applyReverseDirty 对拍用）──────
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreApplyReverseDirty(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray dirtyJson) {
+    if (!g_core) return JNI_FALSE;
+    return g_core->applyReverseDirty(jbytesToString(env, dirtyJson)) ? JNI_TRUE : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExportState(
     JNIEnv* env, jobject /*thiz*/) {

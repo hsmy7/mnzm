@@ -223,6 +223,16 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeImportStateNoRng(
                : JNI_FALSE;
 }
 
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeApplyReverseDirty(
+    JNIEnv* env, jobject /*thiz*/,
+    jbyteArray dirtyJson) {
+    if (!g_gameCore) return JNI_FALSE;
+    return g_gameCore->applyReverseDirty(jbytesToString(env, dirtyJson))
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+
 extern "C" JNIEXPORT jbyteArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeExportDirty(
     JNIEnv* env, jobject /*thiz*/) {

@@ -185,15 +185,15 @@ TEST(MonthSettlementTest, PolicyMonthlyEffectsLoyaltyMoralityGolden) {
     Disciple capped = baseDisciple("2");
     capped.loyalty = 99;
     capped.morality = kMoralEducationMax;
-    st.disciples.push_back(mid);
-    st.disciples.push_back(capped);
+    st.disciples.appendDisciple(mid);
+    st.disciples.appendDisciple(capped);
 
     system::runMonthSettlement(st, core->rng());
 
-    EXPECT_EQ(53, st.disciples[0].loyalty);                  // 50 + 3
-    EXPECT_EQ(kMaxLoyalty, st.disciples[1].loyalty);         // 99 + 3 → clamp 100
-    EXPECT_EQ(69, st.disciples[0].morality);                 // 68 + 1
-    EXPECT_EQ(kMoralEducationMax, st.disciples[1].morality); // 上限不再增长
+    EXPECT_EQ(53, st.disciples.materialize(0).loyalty);                  // 50 + 3
+    EXPECT_EQ(kMaxLoyalty, st.disciples.materialize(1).loyalty);         // 99 + 3 → clamp 100
+    EXPECT_EQ(69, st.disciples.materialize(0).morality);                 // 68 + 1
+    EXPECT_EQ(kMoralEducationMax, st.disciples.materialize(1).morality); // 上限不再增长
 }
 
 TEST(MonthSettlementTest, NegativeLoyaltyDeltaClampsAtZero) {
@@ -205,10 +205,10 @@ TEST(MonthSettlementTest, NegativeLoyaltyDeltaClampsAtZero) {
 
     Disciple d = baseDisciple("1");
     d.loyalty = 1;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     system::runMonthSettlement(st, core->rng());
-    EXPECT_EQ(0, st.disciples[0].loyalty);
+    EXPECT_EQ(0, st.disciples.materialize(0).loyalty);
 }
 
 // ── 步骤 6b：住所忠诚度 ────────────────────────────────────────────
@@ -225,13 +225,13 @@ TEST(MonthSettlementTest, ResidenceLoyaltyGolden) {
     resident.loyalty = 50;
     Disciple outsider = baseDisciple("2");
     outsider.loyalty = 50;
-    st.disciples.push_back(resident);
-    st.disciples.push_back(outsider);
+    st.disciples.appendDisciple(resident);
+    st.disciples.appendDisciple(outsider);
 
     crossMonth(core);
 
-    EXPECT_EQ(51, st.disciples[0].loyalty);      // 住户 +1
-    EXPECT_EQ(50, st.disciples[1].loyalty);      // 非住户不变
+    EXPECT_EQ(51, st.disciples.materialize(0).loyalty);      // 住户 +1
+    EXPECT_EQ(50, st.disciples.materialize(1).loyalty);      // 非住户不变
 }
 
 // ── 步骤 5：血炼完成检测 ───────────────────────────────────────────
@@ -243,7 +243,7 @@ TEST(MonthSettlementTest, BloodRefinementDueSettlesWithEvent) {
     auto& st = core->state();
     Disciple d = baseDisciple("1");
     d.statusData["buildingId"] = "pool-1";
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     BloodRefinementProgress progress;
     progress.discipleId = "1";
@@ -263,7 +263,7 @@ TEST(MonthSettlementTest, BloodRefinementDueSettlesWithEvent) {
     EXPECT_DOUBLE_EQ(5.0, st.gameData.bloodRefinementPctTotals["1"].hpBonusPct);
     ASSERT_EQ(1u, st.gameData.bloodRefinements["1"].size());
     EXPECT_STREQ("mat-1", st.gameData.bloodRefinements["1"][0].c_str());
-    EXPECT_EQ(0, st.disciples[0].statusData.count("buildingId"));
+    EXPECT_EQ(0, st.disciples.materialize(0).statusData.count("buildingId"));
     ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
     EXPECT_STREQ("blood_refinement",
                  st.gameData.gameEventRecords[0].eventType.c_str());
@@ -278,7 +278,7 @@ TEST(MonthSettlementTest, BloodRefinementNotDueRetainedAndNaNDefended) {
     // coerceAtLeast 拦下，先 isFinite 归零）
     auto core = makeCore(42);
     auto& st = core->state();
-    st.disciples.push_back(baseDisciple("1"));
+    st.disciples.appendDisciple(baseDisciple("1"));
 
     BloodRefinementProgress pending;
     pending.discipleId = "1";
@@ -318,21 +318,21 @@ TEST(MonthSettlementTest, PillDurationDecayGoldenSequence) {
     d.pillCritRateBonus = 0.05;
     d.pillCultivationSpeedBonus = 0.2;
     d.activePillTypes = {"qiTonic"};
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     crossMonth(core);
-    EXPECT_EQ(4, st.disciples[0].pillEffectDuration);
-    EXPECT_EQ(30, st.disciples[0].pillHpBonus);       // 未归零不动组件
+    EXPECT_EQ(4, st.disciples.materialize(0).pillEffectDuration);
+    EXPECT_EQ(30, st.disciples.materialize(0).pillHpBonus);       // 未归零不动组件
 
     crossMonth(core);
-    EXPECT_EQ(1, st.disciples[0].pillEffectDuration);
+    EXPECT_EQ(1, st.disciples.materialize(0).pillEffectDuration);
 
     crossMonth(core);
-    EXPECT_EQ(0, st.disciples[0].pillEffectDuration);
-    EXPECT_EQ(0, st.disciples[0].pillHpBonus);
-    EXPECT_DOUBLE_EQ(0.0, st.disciples[0].pillCritRateBonus);
-    EXPECT_DOUBLE_EQ(0.0, st.disciples[0].pillCultivationSpeedBonus);
-    EXPECT_TRUE(st.disciples[0].activePillTypes.empty());
+    EXPECT_EQ(0, st.disciples.materialize(0).pillEffectDuration);
+    EXPECT_EQ(0, st.disciples.materialize(0).pillHpBonus);
+    EXPECT_DOUBLE_EQ(0.0, st.disciples.materialize(0).pillCritRateBonus);
+    EXPECT_DOUBLE_EQ(0.0, st.disciples.materialize(0).pillCultivationSpeedBonus);
+    EXPECT_TRUE(st.disciples.materialize(0).activePillTypes.empty());
 }
 
 // ── 步骤 4f：道侣配对（SYSTEM RNG 审计） ───────────────────────────
@@ -344,13 +344,13 @@ TEST(MonthSettlementTest, PartnerMatchingPairedWithRngAudit) {
     ASSERT_GT(seed, 0);
     auto core = makeCore(seed);
     auto& st = core->state();
-    st.disciples.push_back(adultDisciple("1", "male"));
-    st.disciples.push_back(adultDisciple("2", "female"));
+    st.disciples.appendDisciple(adultDisciple("1", "male"));
+    st.disciples.appendDisciple(adultDisciple("2", "female"));
 
     crossMonth(core);
 
-    EXPECT_STREQ("2", st.disciples[0].partnerId.c_str());
-    EXPECT_STREQ("1", st.disciples[1].partnerId.c_str());
+    EXPECT_STREQ("2", st.disciples.materialize(0).partnerId.c_str());
+    EXPECT_STREQ("1", st.disciples.materialize(1).partnerId.c_str());
     ASSERT_GE(st.gameData.gameEventRecords.size(), 1u);
     const bool hasMarriageEvent = [&] {
         for (const auto& e : st.gameData.gameEventRecords) {
@@ -372,13 +372,13 @@ TEST(MonthSettlementTest, PartnerMatchingNotPairedWithRngAudit) {
     ASSERT_GT(seed, 0);
     auto core = makeCore(seed);
     auto& st = core->state();
-    st.disciples.push_back(adultDisciple("1", "male"));
-    st.disciples.push_back(adultDisciple("2", "female"));
+    st.disciples.appendDisciple(adultDisciple("1", "male"));
+    st.disciples.appendDisciple(adultDisciple("2", "female"));
 
     crossMonth(core);
 
-    EXPECT_TRUE(st.disciples[0].partnerId.empty());
-    EXPECT_TRUE(st.disciples[1].partnerId.empty());
+    EXPECT_TRUE(st.disciples.materialize(0).partnerId.empty());
+    EXPECT_TRUE(st.disciples.materialize(1).partnerId.empty());
     EXPECT_TRUE(st.gameData.gameEventRecords.empty());
 
     auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 3);
@@ -395,8 +395,8 @@ TEST(MonthSettlementTest, PartnerMatchingSkipsUnderageAndPairedFemales) {
     boy.age = 17;                          // 未成年：男候选为空 → 整体早退
     Disciple girl = adultDisciple("2", "female");
     girl.partnerId = "9";                  // 已有道侣：不入女候选
-    st.disciples.push_back(boy);
-    st.disciples.push_back(girl);
+    st.disciples.appendDisciple(boy);
+    st.disciples.appendDisciple(girl);
 
     crossMonth(core);
 
@@ -556,7 +556,7 @@ TEST(MonthSettlementTest, SpiritMineProductionAndLoyaltyDecayGolden) {
     miner.mining = 80;                      // (80-70)×0.02 = 0.2
     miner.morality = 90;                    // 执事：(90-80)×0.01 = 0.1
     miner.loyalty = 50;
-    st.disciples.push_back(miner);
+    st.disciples.appendDisciple(miner);
     st.gameData.spiritStones = 0;           // 显式清零（模型默认开局 1000）
 
     SpiritMineSlot slot;
@@ -580,7 +580,7 @@ TEST(MonthSettlementTest, SpiritMineProductionAndLoyaltyDecayGolden) {
     EXPECT_EQ(kExpectedMonthlyRate, st.gameData.spiritStones);
     EXPECT_EQ(kExpectedMonthlyRate, st.gameData.guideCounters["miningOutput"]);
     EXPECT_EQ(1, st.gameData.spiritMineSlots[0].consecutiveMiningMonths);
-    EXPECT_EQ(50, st.disciples[0].loyalty);
+    EXPECT_EQ(50, st.disciples.materialize(0).loyalty);
 
     crossMonth(core);
     EXPECT_EQ(2 * kExpectedMonthlyRate, st.gameData.spiritStones);
@@ -589,7 +589,7 @@ TEST(MonthSettlementTest, SpiritMineProductionAndLoyaltyDecayGolden) {
     crossMonth(core);
     EXPECT_EQ(3 * kExpectedMonthlyRate, st.gameData.spiritStones);
     EXPECT_EQ(0, st.gameData.spiritMineSlots[0].consecutiveMiningMonths);  // 归零
-    EXPECT_EQ(49, st.disciples[0].loyalty);                                 // -1
+    EXPECT_EQ(49, st.disciples.materialize(0).loyalty);                                 // -1
 }
 
 // ── 步骤 8e：游戏结束检查 ──────────────────────────────────────────
@@ -644,8 +644,8 @@ TEST(MonthSettlementTest, RecruitResetAndSystemDrawOrderLock) {
     warehouse.instanceId = "wh-1";
     st.gameData.placedBuildings.push_back(warehouse);
     st.gameData.spiritFieldPlants.push_back(maturePlant());
-    st.disciples.push_back(adultDisciple("1", "male"));
-    st.disciples.push_back(adultDisciple("2", "female"));
+    st.disciples.appendDisciple(adultDisciple("1", "male"));
+    st.disciples.appendDisciple(adultDisciple("2", "female"));
     st.gameData.recruitCountThisMonth = 7;
 
     // 预演执行序：nextInt(5)（收获）→ nextDouble（配对，1 男×1 女 = 1 组合）
@@ -665,7 +665,7 @@ TEST(MonthSettlementTest, RecruitResetAndSystemDrawOrderLock) {
         EXPECT_EQ(roll, st.seeds[0].quantity);
     }
     EXPECT_EQ(pairDraw < kPairingProbability,
-              !st.disciples[0].partnerId.empty());
+              !st.disciples.materialize(0).partnerId.empty());
 }
 
 // ── 回归守护 ───────────────────────────────────────────────────────

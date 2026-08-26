@@ -46,6 +46,7 @@ constexpr std::size_t kMaxYearlyReports = 100;
 namespace detail {
 
 using gamecore::state::Disciple;
+using gamecore::state::DiscipleStore;
 using gamecore::state::GameData;
 using gamecore::state::GameState;
 using settle_util::toIntOrNull;
@@ -110,19 +111,20 @@ inline void runYearlyReportSnapshot(GameState& state) {
 /// 保留 name.isBlank 跳过；enabledConfig[realm]==true 且 salary>0 过滤一致）
 inline SalaryPlan buildYearSalaryPlan(const GameState& state) {
     const GameData& gd = state.gameData;
+    const DiscipleStore& ds = state.disciples;
     SalaryPlan plan;
-    for (const auto& d : state.disciples) {
-        if (!d.isAlive) continue;
-        if (yearIsBlankString(d.name)) continue;   // 幽灵防御：空名跳过
-        const auto enabledIt = gd.yearlySalaryEnabled.find(d.realm);
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        if (yearIsBlankString(ds.names[row])) continue;   // 幽灵防御：空名跳过
+        const auto enabledIt = gd.yearlySalaryEnabled.find(ds.realms[row]);
         if (enabledIt == gd.yearlySalaryEnabled.end() || !enabledIt->second) {
             continue;
         }
-        const auto salaryIt = gd.yearlySalary.find(d.realm);
+        const auto salaryIt = gd.yearlySalary.find(ds.realms[row]);
         if (salaryIt == gd.yearlySalary.end()) continue;
         const int64_t salary = salaryIt->second;
         if (salary <= 0) continue;
-        const auto id = toIntOrNull(d.id);
+        const auto id = toIntOrNull(ds.ids[row]);
         if (!id.has_value()) continue;   // Kotlin id.toIntOrNull ?: skip
         plan.eligibleSalaries.emplace_back(*id, salary);
         plan.totalRequired += salary;
@@ -134,10 +136,10 @@ inline SalaryPlan buildYearSalaryPlan(const GameState& state) {
     return plan;
 }
 
-/// idx 查找辅助（返回向量下标；不存在返回 size）
+/// idx 查找辅助（返回行下标；不存在返回 size）
 inline std::size_t idx_find(const GameState& state, int32_t id) {
     for (std::size_t i = 0; i < state.disciples.size(); ++i) {
-        const auto cur = toIntOrNull(state.disciples[i].id);
+        const auto cur = toIntOrNull(state.disciples.idAt(i));
         if (cur.has_value() && *cur == id) return i;
     }
     return state.disciples.size();
@@ -150,18 +152,18 @@ inline void paySalariesToDisciples(GameState& state, const SalaryPlan& plan,
                                    bool frugality) {
     const double multiplier =
         frugality ? (1.0 - kFrugalitySalaryReduction) : 1.0;
+    DiscipleStore& ds = state.disciples;
     for (const auto& [id, salary] : plan.eligibleSalaries) {
         const auto it = idx_find(state, id);
-        if (it == state.disciples.size()) continue;   // ids.contains 校验等价
-        Disciple& d = state.disciples[it];
-        if (!d.isAlive) continue;
+        if (it == ds.size()) continue;   // ids.contains 校验等价
+        if (ds.isAlive[it] == 0) continue;
         const int64_t actualSalary = static_cast<int64_t>(
             std::round(static_cast<double>(salary) * multiplier));
-        d.storageBagSpiritStones += actualSalary;
-        d.salaryPaidCount += 1;
+        ds.storageBagSpiritStones[it] += actualSalary;
+        ds.salaryPaidCounts[it] += 1;
         // 开源节流政策下不发忠诚
         if (!frugality) {
-            d.loyalty = std::min(d.loyalty + 1, kMaxLoyalty);
+            ds.loyalties[it] = std::min(ds.loyalties[it] + 1, kMaxLoyalty);
         }
     }
 }
@@ -179,12 +181,12 @@ inline void processAnnualSalary(state::GameState& state) {
     // canAfford：LOW 品口径（场景锁定 autoSell 开关 false → 纯 spiritStones）
     if (state.gameData.spiritStones < plan.totalRequired) {
         // 灵石不足 → 应得弟子 loyalty -1（coerceAtLeast MIN_LOYALTY=0），不发俸禄
+        state::DiscipleStore& ds = state.disciples;
         for (const auto& [id, salary] : plan.eligibleSalaries) {
             const auto i = detail::idx_find(state, id);
-            if (i == state.disciples.size()) continue;
-            state::Disciple& d = state.disciples[i];
-            if (!d.isAlive) continue;
-            d.loyalty = std::max(d.loyalty - 1, 0);
+            if (i == ds.size()) continue;
+            if (ds.isAlive[i] == 0) continue;
+            ds.loyalties[i] = std::max(ds.loyalties[i] - 1, 0);
         }
         return;
     }

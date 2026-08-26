@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 /**
- * gen-trait-db.mjs — 天赋/体质/词条快照生成器（Kotlin→C++ 迁移批次 2 剩余子步）
+ * gen-trait-db.mjs — 天赋/体质/词条快照生成器（计划 v2 阶段 3 / T-CPP-2）
  *
- * 与 gen-templates.mjs 不同，TalentDatabase/PhysiqueDatabase/AffixDatabase 的数据
- * 是**程序化生成**的（config 梯度列表 + 循环拼接字符串），正则无法提取字面量。
- * 因此本脚本在 Node 侧**等价复刻 Kotlin 的生成逻辑**，产出 JSON 快照锚点：
+ * 数据权威为中性源 scripts/data/trait_db_sample.json（由本脚本早期的 Node 侧
+ * 等价复刻逻辑一次性展开落位；此后改动数据必须改中性源）。本脚本只读中性源
+ * 校验并刷新测试快照锚点：
  *   android/core/engine/src/test/resources/templates/trait_db_sample.json
  *
- * 该快照供后续 Kotlin 守卫测试（TemplateRegistryGuardTest 模式）对比 Kotlin 实时数据，
+ * 该快照供 Kotlin 守卫测试（TraitRegistryGuardTest）对比 Kotlin 实时数据，
  * 并间接锚定 C++ 表（trait_db.h 用同样的梯度/拼接规则生成）。
  *
  * 用法：node scripts/gen-trait-db.mjs
  */
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -284,9 +284,19 @@ function buildAffixes() {
 }
 
 // ── main ─────────────────────────────────────────────────────────
-const talents = buildTalents();
-const physiques = buildPhysiques();
-const affixes = buildAffixes();
+// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+//（中性源），生成器只读中性源；Kotlin Registry 由单一源守卫测试全量比对兜底。
+const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'data');
+
+const traitJson = JSON.parse(
+  readFileSync(join(DATA_DIR, 'trait_db_sample.json'), 'utf-8'));
+const talents = traitJson.talents;
+const physiques = traitJson.physiques;
+const affixes = traitJson.affixes;
+if (!Array.isArray(talents) || !Array.isArray(physiques) || !Array.isArray(affixes)) {
+  console.error('错误：中性源 trait_db_sample.json 缺少 talents/physiques/affixes 数组');
+  process.exit(1);
+}
 
 // 去重校验（id 唯一）
 for (const [name, list] of [['天赋', talents], ['体质', physiques], ['词条', affixes]]) {

@@ -17,7 +17,7 @@
  *
  * 用法：node scripts/gen-recipe-db.mjs
  */
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -566,10 +566,23 @@ for (let tier = 1; tier <= 6; tier++) {
 }
 
 // ── 校验 ──────────────────────────────────────────────────────────────
-if (pillTemplates.length !== 732) {
-  console.error(`错误：PillTemplate 数量应为 732（修炼 138 + 战斗 288 + 功能 306），实际 ${pillTemplates.length}`);
+// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+//（中性源），生成器只读中性源校验并刷新测试快照。
+const DATA_DIR = join(ROOT, 'scripts/data');
+const recipeJson = JSON.parse(
+  readFileSync(join(DATA_DIR, 'recipe_db_sample.json'), 'utf-8'));
+const neutralForgeRecipes = recipeJson.forgeRecipes;
+const neutralPillRecipes = recipeJson.pillRecipes;
+if (!Array.isArray(neutralForgeRecipes) || !Array.isArray(neutralPillRecipes)) {
+  console.error('错误：中性源 recipe_db_sample.json 缺少 forgeRecipes/pillRecipes 数组');
   process.exit(1);
 }
+// 中性源覆盖内嵌生成结果（单一源权威）
+forgeRecipes.length = 0;
+forgeRecipes.push(...neutralForgeRecipes);
+pillRecipes.length = 0;
+pillRecipes.push(...neutralPillRecipes);
+
 for (const [name, list] of [['锻造配方', forgeRecipes], ['丹药配方', pillRecipes]]) {
   const seen = new Set();
   for (const e of list) {

@@ -65,18 +65,18 @@ TEST(PhaseSettlementTest, CultivationAccumulatesWithCapGoldenSequence) {
     // BreakthroughTriggersSamePhaseAsReachingCap 单独守护）
     auto core = makeCore(42);
     auto& st = core->state();
-    st.disciples.push_back(baseDisciple("1"));
-    st.disciples[0].cultivation = 50.0;
+    st.disciples.appendDisciple(baseDisciple("1"));
+    st.disciples.cultivations[0] = 50.0;
     // 低血量：三旬恢复窗口内 HP/MP 恒不满（0→40→80→120 / 0→15→30→45），
     // 防止第三旬累积到满值后当旬触发突破（该交互由
     // BreakthroughTriggersSamePhaseAsReachingCap 单独守护）
-    st.disciples[0].currentHp = 0;
-    st.disciples[0].currentMp = 0;
+    st.disciples.currentHps[0] = 0;
+    st.disciples.currentMps[0] = 0;
 
     const double seq[] = {69.0, 88.0, 98.0};
     for (int i = 0; i < 3; ++i) {
         core->advancePhases(1);
-        EXPECT_DOUBLE_EQ(seq[i], st.disciples[0].cultivation) << "phase " << i;
+        EXPECT_DOUBLE_EQ(seq[i], st.disciples.materialize(0).cultivation) << "phase " << i;
     }
 }
 
@@ -91,10 +91,10 @@ TEST(PhaseSettlementTest, BreakthroughTriggersSamePhaseAsReachingCap) {
     d.cultivation = 80.0;
     d.currentHp = -1;   // -1 = 满（血量哨兵）
     d.currentMp = -1;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
-    const auto& after = st.disciples[0];
+    const auto after = st.disciples.materialize(0);
     EXPECT_DOUBLE_EQ(0.0, after.cultivation);
     EXPECT_EQ(0, after.breakthroughCount);
     EXPECT_EQ(1, after.breakthroughFailCount);
@@ -108,16 +108,16 @@ TEST(PhaseSettlementTest, HpMpRecoveryGoldenSequence) {
     // → hp+40 / mp+15；超限钳制
     auto core = makeCore(42);
     auto& st = core->state();
-    st.disciples.push_back(baseDisciple("1"));
-    st.disciples[0].currentHp = 100;
-    st.disciples[0].currentMp = 50;
+    st.disciples.appendDisciple(baseDisciple("1"));
+    st.disciples.currentHps[0] = 100;
+    st.disciples.currentMps[0] = 50;
 
     struct Exp { int hp; int mp; };
     const Exp seq[] = {{140, 65}, {180, 78}, {203, 78}};
     for (int i = 0; i < 3; ++i) {
         core->advancePhases(1);
-        EXPECT_EQ(seq[i].hp, st.disciples[0].currentHp) << "phase " << i;
-        EXPECT_EQ(seq[i].mp, st.disciples[0].currentMp) << "phase " << i;
+        EXPECT_EQ(seq[i].hp, st.disciples.materialize(0).currentHp) << "phase " << i;
+        EXPECT_EQ(seq[i].mp, st.disciples.materialize(0).currentMp) << "phase " << i;
     }
 }
 
@@ -129,8 +129,8 @@ TEST(PhaseSettlementTest, ManualProficiencyBatchCommitGoldenSequence) {
     plain.manualIds = {"m1"};
     Disciple scholar = baseDisciple("2");
     scholar.manualIds = {"m1"};
-    st.disciples.push_back(plain);
-    st.disciples.push_back(scholar);
+    st.disciples.appendDisciple(plain);
+    st.disciples.appendDisciple(scholar);
     st.gameData.librarySlots.push_back(
         {0, "", "2", "弟子2"});   // 弟子2 在藏经阁
 
@@ -156,7 +156,7 @@ TEST(PhaseSettlementTest, EquipmentNurtureLevelsUpGoldenSequence) {
     auto& st = core->state();
     Disciple d = baseDisciple("1");
     d.weaponId = "w1";
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     EquipmentInstance eq;
     eq.id = "w1";
@@ -191,19 +191,19 @@ TEST(PhaseSettlementTest, AutoPillConsumptionAndCheckpoint) {
     pillItem.effect->cultivationAdd = 30;
     pillItem.effect->minRealm = 9;
     d.storageBagItems.push_back(pillItem);
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
     // 结算顺序：先恢复/累积（10+19=29）→ 丹药 +30 → 59
-    EXPECT_DOUBLE_EQ(59.0, st.disciples[0].cultivation);
-    EXPECT_TRUE(st.disciples[0].storageBagItems.empty());
+    EXPECT_DOUBLE_EQ(59.0, st.disciples.materialize(0).cultivation);
+    EXPECT_TRUE(st.disciples.materialize(0).storageBagItems.empty());
     // checkpoint 读写回后的修为；绝对月份 = 年1月1 → 13
-    EXPECT_DOUBLE_EQ(59.0, st.disciples[0].cultivationCheckpoint);
-    EXPECT_EQ(13, st.disciples[0].cultivationCheckpointGameMonth);
+    EXPECT_DOUBLE_EQ(59.0, st.disciples.materialize(0).cultivationCheckpoint);
+    EXPECT_EQ(13, st.disciples.materialize(0).cultivationCheckpointGameMonth);
 
     // 第二旬：袋子已空，不再服用（仅修炼累积 59+19=78）
     core->advancePhases(1);
-    EXPECT_DOUBLE_EQ(78.0, st.disciples[0].cultivation);
+    EXPECT_DOUBLE_EQ(78.0, st.disciples.materialize(0).cultivation);
 }
 
 TEST(PhaseSettlementTest, BreakthroughBothBranchesAndRngAudit) {
@@ -216,14 +216,14 @@ TEST(PhaseSettlementTest, BreakthroughBothBranchesAndRngAudit) {
     d.cultivation = 98.0;          // maxCult(9,1) = 98 满
     d.currentHp = -1;              // -1 = 满（血量哨兵）
     d.currentMp = -1;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     // 预演同种子 BREAKTHROUGH 分区（fromSeed(seed+1)）的首个抽取值
     auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 1);
     const double firstDraw = probe.nextDouble();
 
     core->advancePhases(1);
-    auto& after = st.disciples[0];
+    const auto after = st.disciples.materialize(0);
     if (firstDraw < 0.90) {
         // 成功：层数 +1，修为清零，引导计数 +1
         EXPECT_EQ(2, after.realmLayer);
@@ -267,10 +267,10 @@ TEST(PhaseSettlementTest, MajorRealmBreakthroughRecordsEvent) {
     d.cultivation = 98.0 + 8.0 * (390.0 - 98.0) / 9.0;   // 层9满值
     d.currentHp = -1;
     d.currentMp = -1;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
-    auto& after = st.disciples[0];
+    const auto after = st.disciples.materialize(0);
     EXPECT_EQ(8, after.realm);      // 大境界推进：炼气 → 筑基
     EXPECT_EQ(1, after.realmLayer);
     EXPECT_DOUBLE_EQ(0.0, after.cultivation);
@@ -295,7 +295,7 @@ TEST(PhaseSettlementTest, SecretRealmMembersAreSkipped) {
     d.cultivation = 50.0;
     d.currentHp = 100;
     d.currentMp = 50;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     state::SecretRealmMemberState member;
     member.discipleId = "1";
@@ -303,9 +303,9 @@ TEST(PhaseSettlementTest, SecretRealmMembersAreSkipped) {
     st.gameData.secretRealmSession.members.push_back(member);
 
     core->advancePhases(2);
-    EXPECT_DOUBLE_EQ(50.0, st.disciples[0].cultivation);
-    EXPECT_EQ(100, st.disciples[0].currentHp);
-    EXPECT_EQ(50, st.disciples[0].currentMp);
+    EXPECT_DOUBLE_EQ(50.0, st.disciples.materialize(0).cultivation);
+    EXPECT_EQ(100, st.disciples.materialize(0).currentHp);
+    EXPECT_EQ(50, st.disciples.materialize(0).currentMp);
 }
 
 TEST(PhaseSettlementTest, DeadDisciplesAreSkipped) {
@@ -315,11 +315,11 @@ TEST(PhaseSettlementTest, DeadDisciplesAreSkipped) {
     d.isAlive = false;
     d.cultivation = 50.0;
     d.currentHp = 100;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     core->advancePhases(2);
-    EXPECT_DOUBLE_EQ(50.0, st.disciples[0].cultivation);
-    EXPECT_EQ(100, st.disciples[0].currentHp);
+    EXPECT_DOUBLE_EQ(50.0, st.disciples.materialize(0).cultivation);
+    EXPECT_EQ(100, st.disciples.materialize(0).currentHp);
 }
 
 TEST(PhaseSettlementTest, EmptyStateIsSafe) {

@@ -376,29 +376,38 @@ nlohmann::json handleDisciple(GameCore* core, int32_t actionId,
                            params.value("lifespan", 0), params.value("realmMaxAge", 0),
                            params.value("lifespanBonus", 0.0))}});
         case action::DISCIPLE_CHECKPOINT: {
-            auto& disciples = core->state().disciples;
+            auto& ds = core->state().disciples;
             const std::string id = params.at("id").get<std::string>();
             const int32_t currentMonth = params.at("currentMonth").get<int32_t>();
-            for (auto& d : disciples) {
-                if (d.id == id) {
-                    gamecore::system::checkpointDisciple(d, currentMonth);
-                    return ok({{"checkpointed", true}});
-                }
+            const auto row = ds.rowOf(id);
+            if (!row.has_value()) return ok({{"checkpointed", false}});
+            // checkpointDisciple 列直写（isAlive 守卫）
+            if (ds.isAlive[*row] != 0) {
+                ds.cultivationCheckpoints[*row] = ds.cultivations[*row];
+                ds.cultivationCheckpointGameMonths[*row] = currentMonth;
             }
-            return ok({{"checkpointed", false}});
+            return ok({{"checkpointed", true}});
         }
         case action::DISCIPLE_ACCUMULATE_CULTIVATION: {
-            auto& disciples = core->state().disciples;
+            auto& ds = core->state().disciples;
             const std::string id = params.at("id").get<std::string>();
             const double rate = params.value("rate", 0.0);
-            for (auto& d : disciples) {
-                if (d.id == id) {
-                    const double updated =
-                        gamecore::system::accumulateCultivationPerPhase(d, rate);
-                    return ok({{"cultivation", updated}});
+            const auto row = ds.rowOf(id);
+            if (!row.has_value()) {
+                return fail("NOT_FOUND", "disciple " + id);
+            }
+            // accumulateCultivationPerPhase 列直写
+            double cultivation = ds.cultivations[*row];
+            if (ds.isAlive[*row] != 0 && rate > 0.0) {
+                const double maxCultivation =
+                    gamecore::system::computeMaxCultivation(
+                        ds.realms[*row], ds.realmLayers[*row], cultivation);
+                if (cultivation < maxCultivation) {
+                    cultivation = std::min(cultivation + rate, maxCultivation);
+                    ds.cultivations[*row] = cultivation;
                 }
             }
-            return fail("NOT_FOUND", "disciple " + id);
+            return ok({{"cultivation", cultivation}});
         }
         case action::DISCIPLE_AGE: {
             const auto out = gamecore::system::ageDisciple(

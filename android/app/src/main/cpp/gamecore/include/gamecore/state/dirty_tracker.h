@@ -40,6 +40,11 @@ public:
     /// （标准增量同步语义：导出即消费）。无变化时 changed/removed 为空对象。
     std::string diffToJson(const GameState& current);
 
+    /// 把基线同步为当前状态（版本号不递增）。
+    /// 计划 v2 阶段 3：反向增量（Kotlin → C++）应用后调用——C++ 状态已与
+    /// Kotlin 一致，防下一旬 exportDirty 把反向应用值当变更重发回 Kotlin。
+    void syncBaselineToCurrent(const GameState& current);
+
     /// 当前版本号（每次 diffToJson 后递增；初始 0）
     uint64_t version() const { return version_; }
 

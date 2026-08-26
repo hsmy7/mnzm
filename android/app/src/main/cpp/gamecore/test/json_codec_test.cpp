@@ -142,9 +142,9 @@ TEST(JsonCodecTest, GameStateRoundTrip) {
     GameState st;
     st.gameData.gameYear = 5;
     st.gameData.spiritStones = 777;
-    st.disciples.push_back(Disciple{});
-    st.disciples[0].id = "d-1";
-    st.disciples[0].name = "张三";
+    st.disciples.appendDisciple(Disciple{});
+    st.disciples.ids[0] = "d-1";
+    st.disciples.names[0] = "张三";
     st.pills.push_back(Pill{});
     st.pills[0].id = "p-1";
     st.seeds.push_back(Seed{});
@@ -155,8 +155,8 @@ TEST(JsonCodecTest, GameStateRoundTrip) {
     EXPECT_EQ(st.gameData.gameYear, decoded.gameData.gameYear);
     EXPECT_EQ(st.gameData.spiritStones, decoded.gameData.spiritStones);
     ASSERT_EQ(decoded.disciples.size(), 1u);
-    EXPECT_EQ(decoded.disciples[0].id, "d-1");
-    EXPECT_EQ(decoded.disciples[0].name, "张三");
+    EXPECT_EQ(decoded.disciples.materialize(0).id, "d-1");
+    EXPECT_EQ(decoded.disciples.materialize(0).name, "张三");
     ASSERT_EQ(decoded.pills.size(), 1u);
     EXPECT_EQ(decoded.pills[0].id, "p-1");
     ASSERT_EQ(decoded.seeds.size(), 1u);
@@ -335,9 +335,9 @@ TEST(JsonCodecTest, DumpStateNormalizesIntegralDoubles) {
     GameState st;
     st.gameData.gameYear = 5;
     st.gameData.sectCultivation = 0.0;       // 整值 → "0"
-    st.disciples.push_back(Disciple{});
-    st.disciples[0].cultivationCheckpoint = 12000.0;  // 整值 → "12000"
-    st.disciples[0].cultivation = 12345.6;             // 非整值保留
+    st.disciples.appendDisciple(Disciple{});
+    st.disciples.cultivationCheckpoints[0] = 12000.0;  // 整值 → "12000"
+    st.disciples.cultivations[0] = 12345.6;             // 非整值保留
 
     const std::string dumped = dumpStateJson(st);
     EXPECT_NE(std::string::npos, dumped.find("\"cultivationCheckpoint\":12000"));
@@ -348,8 +348,8 @@ TEST(JsonCodecTest, DumpStateNormalizesIntegralDoubles) {
 
     // 规范化后仍是合法 JSON 且往返值不变
     const auto parsed = nlohmann::json::parse(dumped).get<GameState>();
-    EXPECT_DOUBLE_EQ(parsed.disciples[0].cultivationCheckpoint, 12000.0);
-    EXPECT_DOUBLE_EQ(parsed.disciples[0].cultivation, 12345.6);
+    EXPECT_DOUBLE_EQ(parsed.disciples.materialize(0).cultivationCheckpoint, 12000.0);
+    EXPECT_DOUBLE_EQ(parsed.disciples.materialize(0).cultivation, 12345.6);
 }
 
 }  // namespace

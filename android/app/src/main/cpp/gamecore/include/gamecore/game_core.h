@@ -104,6 +104,12 @@ public:
     /// 委托模式下 native RNG 即真相源，镜像 rngStates 可能滞后于残留执行器
     /// 的抽取——恢复会把分区回卷导致跨语言漂移）
     bool importStateJsonNoRng(const std::string& json);
+    /// 应用 Kotlin 侧反向增量变更集（计划 v2 阶段 3：取代 AUTHORITATIVE 每旬
+    /// 全量回导）。协议见 applyReverseDirty 实现——{version, changed, removed}，
+    /// changed 含 gameData（全量，不含 rngStates）/disciples/实体集合 upsert，
+    /// removed 含按 id 删除。应用成功返回 true 并同步 DirtyTracker 基线；
+    /// 版本乱序/解析失败返回 false（调用方降级全量回导）。
+    bool applyReverseDirty(const std::string& dirtyJson);
     /// 导出自上次导出以来的变更集（增量同步协议，见 DirtyTracker——阶段 1 实现）
     std::string exportDirtyJson();
     /// 导出事件队列（JSON；Kotlin 侧 poll 消费——批次 3+ 实现）
@@ -128,6 +134,7 @@ private:
     state::GameState state_;    // 游戏状态真相源
     system::SettlementEngine settlement_;  // 惰性结算引擎（批次 3）
     state::DirtyTracker dirtyTracker_;     // 变更集追踪（计划 v2 阶段 1）
+    uint64_t reverseVersion_ = 0;          // 反向增量版本（阶段 3；严格递增校验）
 
     /// 把 RNG 分区当前状态回写进 gameData.rngStates（导出/变更集前调用，
     /// 保证镜像与存档拿到最新确定性状态）

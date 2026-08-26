@@ -51,6 +51,7 @@ $staticArgs = @('-static', '-static-libgcc', '-static-libstdc++')
     (Join-Path $src 'src\json_codec.cpp') `
     (Join-Path $src 'src\execute_dispatch.cpp') `
     (Join-Path $src 'src\dirty_tracker.cpp') `
+    (Join-Path $src 'src\disciple_store.cpp') `
     -o $out
 
 if ($LASTEXITCODE -ne 0) { throw "Build failed (exit=$LASTEXITCODE)" }

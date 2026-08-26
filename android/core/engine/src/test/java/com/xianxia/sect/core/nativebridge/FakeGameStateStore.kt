@@ -4,6 +4,7 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
@@ -48,19 +49,101 @@ open class FakeGameStateStore : GameStateStore {
     // 记录 update 调用（验证单事务）
     var updateCallCount = 0
 
+    // ── 反向增量通道（计划 v2 阶段 3）：镜像生产 GameStateStoreImpl 的事务级捕获 ──
+
+    private class ReverseAcc {
+        val discipleIds = LinkedHashSet<Int>()
+        var rejectedRecord = false
+        var gameDataChanged = false
+        val collections = LinkedHashMap<String, GameStateStore.CollectionCapture>()
+
+        fun clear() {
+            discipleIds.clear()
+            rejectedRecord = false
+            gameDataChanged = false
+            collections.clear()
+        }
+    }
+
+    private val reverseAcc = ReverseAcc()
+
     override fun update(block: MutableGameState.() -> Unit) {
         updateCallCount++
         val mgs = mutableState()
+        val baseline = CaptureBaseline(gameDataValue, collectionValues())
         mgs.block()
         persistFrom(mgs)
+        captureReverse(baseline, mgs)
     }
 
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
         updateCallCount++
         val mgs = mutableState()
+        val baseline = CaptureBaseline(gameDataValue, collectionValues())
         val result = mgs.block()
         persistFrom(mgs)
+        captureReverse(baseline, mgs)
         return result
+    }
+
+    private data class CaptureBaseline(
+        val gameData: GameData,
+        val collections: List<List<*>>
+    )
+
+    private fun collectionValues(): List<List<*>> = listOf(
+        equipmentStacksValue, equipmentInstancesValue, manualStacksValue,
+        manualInstancesValue, pillsValue, materialsValue, herbsValue,
+        seedsValue, storageBagsValue
+    )
+
+    private fun collectionNames(): List<String> = listOf(
+        "equipmentStacks", "equipmentInstances", "manualStacks",
+        "manualInstances", "pills", "materials", "herbs",
+        "seeds", "storageBags"
+    )
+
+    /** 镜像生产 captureReverseDirty：弟子脏 id（peek）+ gameData 引用 + 集合引用。 */
+    private fun captureReverse(baseline: CaptureBaseline, mgs: MutableGameState) {
+        if (mgs.gameData !== baseline.gameData) reverseAcc.gameDataChanged = true
+        val current = listOf(
+            mgs.equipmentStacks.items, mgs.equipmentInstances.items, mgs.manualStacks.items,
+            mgs.manualInstances.items, mgs.pills.items, mgs.materials.items,
+            mgs.herbs.items, mgs.seeds.items, mgs.storageBags.items
+        )
+        for (i in collectionNames().indices) {
+            if (baseline.collections[i] === current[i]) continue
+            val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
+                current[i].mapTo(HashSet()) { (it as HasId).id }
+            @Suppress("UNCHECKED_CAST")
+            reverseAcc.collections[collectionNames()[i]] = GameStateStore.CollectionCapture(
+                upserts = current[i] as List<HasId>,
+                removedIds = removedIds
+            )
+        }
+        val tracker = mgs.discipleTables.changedIdTracker
+        val ids = tracker.snapshotChangedIds()
+        if (ids.isNotEmpty()) {
+            reverseAcc.discipleIds += ids
+            if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
+        }
+    }
+
+    override fun consumeReverseDirty(): GameStateStore.ReverseDirtySnapshot? {
+        val snap = GameStateStore.ReverseDirtySnapshot(
+            discipleIds = reverseAcc.discipleIds.toSet(),
+            rejectedRecord = reverseAcc.rejectedRecord,
+            gameDataChanged = reverseAcc.gameDataChanged,
+            collections = reverseAcc.collections.toMap()
+        )
+        // 空窗口不产生快照（消费方零发送）
+        if (snap.isEmpty) return null
+        reverseAcc.clear()
+        return snap
+    }
+
+    override fun resetReverseAccumulator() {
+        reverseAcc.clear()
     }
 
     /** 构建可写事务态（与生产 store 相同的字段面）。 */
@@ -69,6 +152,10 @@ open class FakeGameStateStore : GameStateStore {
         discipleTables = DiscipleTables().also {
             it.writeAllowed = true
             it.replaceAll(disciplesValue)
+            // 丢弃构造期 replaceAll 的记录——模拟生产 COW 已提交态（生产表
+            // 的 changedIdTracker 在上次事务后已被 dispatchAssemble 消费）；
+            // 反向捕获只应看到本事务 block 的真实写入
+            it.changedIdTracker.consumeChangedIds()
         },
         equipmentStacks = EntityStore(equipmentStacksValue),
         equipmentInstances = EntityStore(equipmentInstancesValue),

@@ -2,9 +2,10 @@
 
 > 更新日期：2026-08-26。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 359/359 · engine JUnit 全绿 · NDK externalNativeBuildRelease 通过 · engine detekt 全绿**。
-> **计划 v2 阶段 0、1、2 已完成**（阶段 2：批量结算下沉——每旬核心批次/月变/年变钩子 C++
-> 化 + tick 真相源切换 AUTHORITATIVE 过渡管线，详见 .superpowers/sdd/t2-1~t2-4 报告）。
+> 当前基线：**桌面 GTest 382/382 · engine JUnit 2856/2856 · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · lintRelease 通过**。
+> **计划 v2 阶段 0、1、2、3 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
+> 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源，详见
+> .superpowers/sdd/t3-design.md 与 t3-1/t3-2 报告）。
 
 ## 1. 目标架构
 
@@ -150,7 +151,10 @@ android/app/src/main/cpp/
 | 0 ✅ | 测量基线（已完成：热点 + 批量原型） | — |
 | 1 ✅ | **增量变更集 + RNG 恢复**（已完成：`state::DirtyTracker` changed/removed/version 协议 + `StateSyncService.applyDirty` 单事务增量镜像 + import 恢复 rngStates（C-13）+ 对拍基准切换真实引擎（C-15）+ S-01~S-04 清理） | C-13、C-15 |
 | 2 ✅ | **批量结算下沉**（已完成 2026-08-26）：每旬核心批次（步骤 1-5 零 RNG）C++ 化（T2.1）、月变钩子（T2.2）、年变钩子（T2.3，含钩子序年先于月对齐）、tick 真相源切换 AUTHORITATIVE 过渡管线（T2.4：settleOnePhase 标量通道 + NativeEngineFlag 三态 + 残留执行器 + NativeBackedRng 委托式 RNG 单一真相源 + 每旬双向同步）；D7 三注册表效果聚合填表 + comprehension 分叉修复（T2.4a）。**AUTHORITATIVE 默认 OFF（灰度开关）**；100 旬逐旬互锁对拍验收 PASS | C-10、C-06 增量部分、T-CPP-2（部分触发：注册表消费侧已统一） |
-| 3 | **实体存储数据导向化**：DiscipleTables/AI 池 → C++ SoA/轻量 ECS；静态数据单一源（T-CPP-2 触发，codegen 权威） | T-CPP-2 |
+| 3 ✅ | **反向增量通道 + SoA 实体存储 + 静态数据单一源**（2026-08-26 完成）：
+  - **反向增量通道**（T3.1）：AUTHORITATIVE tick 步骤 ⑤ 由全量 importToNative 改为 `applyDirtyToNative` 增量回导——GameStateStoreImpl 事务级反向脏捕获（弟子脏 id peek + gameData 引用 + 集合引用全量/消失 id）+ StateSyncService 信封 {version,changed,removed}（gameData 全量剔除 rngStates + 弟子变化 id 全实体/removed + 集合变化全量/removed）+ C++ `GameCore::applyReverseDirty`（版本严格递增 + 基线同步）；失败降级全量。100 旬互锁对拍 PASS
+  - **DiscipleStore SoA**（T3.2）：`GameState.disciples` 由 `std::vector<Disciple>` 改为 SoA 列式存储（~124 列 + idToRow + materialize/append/loadFrom/upsert 保序/removeById/swapRows 旋转同步索引）；JSON 协议零变更；每旬核心批次/月变/年变/突破/丹药路径全列化；快照语义保留；**性能：runPhaseCoreBatch 1000 弟子 180µs vs 阶段 0 Kotlin 基线 327µs（1.8x）**
+  - **静态数据单一源**（T3.3 / T-CPP-2）：`scripts/data/*.json`（6 类中性源，唯一权威）→ 6 个 gen-*.mjs 只读中性源 → C++ 表 + 测试快照（重跑零漂移）；Kotlin Registry 由各 RegistryGuardTest + 新增 `StaticDataSingleSourceGuardTest`（中性源 ↔ 快照逐字节）兜底；补齐灵草/种子双端守卫（HerbRegistryGuardTest + herb_db_test.cpp，预存缺口）；修复 beast_material_db.h 中文妖兽名映射漂移（收敛进生成器） | T-CPP-2（Kotlin Registry 文件级生成余项登记，偿还触发：阶段 7/iOS 立项） |
 | 4 | **未迁移系统逐批 C++ 化**：SecretRealm 状态机剩余/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator（原"永久保留"清单全部纳入，不再保留） | 原 C-06 阻塞依赖清单 |
 | 5 | **游戏循环入 C++**：平台能力接口化（Clock/Input/IO/Telemetry/热控/电量——ADR Clock/Logger 注入先例扩展）；引擎循环 + 看门狗判据迁 C++ | R-02（core/engine Android 依赖随引擎退役自然消除） |
 | 6 | **渲染 RHI + 合成器统一**：Renderer2D → RHI（Vulkan 现有 + Metal/iOS）；渲染合成器物理下沉（批次 R 剩余） | 批次 R 剩余、iOS 预留 |

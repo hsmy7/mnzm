@@ -1,5 +1,17 @@
 ## [4.01.10] - 2026-08-24
 
+### 新增（C++ 引擎迁移计划 v2 阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源）
+
+> 纯引擎内部迁移与基础设施加固（T3.1~T3.3 批次），`NativeEngineFlag` 默认 OFF，玩家行为零变化；AUTHORITATIVE 由灰度开关显式开启、任何时刻可回退纯 Kotlin 路径。
+
+- **反向增量通道（T3.1）**：AUTHORITATIVE 每旬回导由"全量 JSON 导入"改为 `applyDirtyToNative` 增量回导——`GameStateStoreImpl` 事务级反向脏捕获（弟子脏 id 非消费 peek + gameData 引用 + 集合引用全量/消失 id）→ `StateSyncService` 信封 `{version, changed, removed}`（gameData 全量剔除 rngStates——native RNG 真相源；弟子仅发窗口内变化 id 全实体/removed；集合引用变化全量 upsert + 消失 id）→ C++ `GameCore::applyReverseDirty`（版本严格递增 + `DirtyTracker::syncBaselineToCurrent` 防 forward 重发）；失败自动降级全量回导。消除每旬全量 JSON 序列化/解析开销（100 旬互锁对拍 PASS）
+- **DiscipleStore SoA 实体存储（T3.2）**：`GameState.disciples` 由 `std::vector<Disciple>`（AoS）改为 SoA 列式存储（~124 列并行数组 + id→行索引 + materialize 物化；行序 == Kotlin ids 序为 RNG 对拍红线，upsert 原位覆盖/删除保序/swapRows 旋转同步索引）；JSON 快照协议零变更；每旬核心批次（恢复/修炼累积/熟练度/孕养）全链路列直读直写零对象物化，月变/年变/自动丹药/突破路径适配（候选行迭代 + 工作副本 + 原位写回）；**性能实测：C++ runPhaseCoreBatch 1000 弟子 180µs vs 阶段 0 Kotlin 基线 327µs（1.8x）**
+- **静态数据单一源（T3.3 / T-CPP-2 触发）**：`scripts/data/*.json`（装备/灵草/特质/配方/妖兽材料/功法 6 类中性源，唯一权威）→ 6 个 `gen-*.mjs` 只读中性源生成 C++ 表 + 测试快照（重跑零漂移）；Kotlin Registry 由 6 类 RegistryGuardTest 全量比对 + 新增 `StaticDataSingleSourceGuardTest`（中性源↔快照逐字节）兜底防漂移；补齐预存缺口：灵草/种子双端守卫（Kotlin `HerbRegistryGuardTest` + C++ `herb_db_test.cpp`）；修复预存漂移：`beast_material_db.h` 中文妖兽名映射（"虎妖"→"tiger" 等）收敛进生成器
+- **测试**：新增 GTest `apply_reverse_dirty_test` 7 + `disciple_store_test` 8 + `disciple_store_bench` + `herb_db_test` 6；JUnit `StateSyncServiceReverseTest` 8（Robolectric）+ `GameStateStoreReverseDirtyTest` 6（Robolectric）+ 守卫测试 4；`DiffAuthoritativeTickTest` 100 旬互锁改走反向增量通道 PASS；桌面 GTest **382/382** · engine JUnit **2856/2856** · detekt 全绿 · lintRelease 通过 · NDK externalNativeBuildRelease 通过
+- **预存环境问题修复**：普通 JVM 下 `android.util.SparseArray` 静默 no-op（`returnDefaultValues=true`）导致 DiffAuthoritativeTickTest 等普通 JUnit 弟子测试 NPE——新增测试影子实现 `android/util/SparseArray.java`（engine 测试源集；Robolectric 沙箱仍用真实现）
+- **兼容性**：无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；JSON 快照协议零变更；玩家可见更新日志同条目追加一行
+- **待办递进**：阶段 3 完成后，阶段 4（未迁移系统逐批 C++ 化：SecretRealm/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator + AI 域）为下一步
+
 ### 新增（C++ 引擎迁移计划 v2 阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE 过渡管线）
 
 > 纯引擎内部迁移与基础设施加固（T2.1~T2.4a 批次），`NativeEngineFlag` 默认 OFF，玩家行为零变化；AUTHORITATIVE 由灰度开关显式开启、任何时刻可回退纯 Kotlin 路径。

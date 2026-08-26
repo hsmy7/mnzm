@@ -28,6 +28,7 @@ add_library(game-core STATIC
     src/json_codec.cpp
     src/execute_dispatch.cpp
     src/dirty_tracker.cpp
+    src/disciple_store.cpp
 )
 
 target_include_directories(game-core PUBLIC

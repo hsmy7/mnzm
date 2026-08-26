@@ -53,6 +53,10 @@ void DirtyTracker::resetBaseline(const GameState& s) {
     baseline_ = s;
 }
 
+void DirtyTracker::syncBaselineToCurrent(const GameState& current) {
+    baseline_ = current;
+}
+
 std::string DirtyTracker::diffToJson(const GameState& current) {
     ++version_;
 

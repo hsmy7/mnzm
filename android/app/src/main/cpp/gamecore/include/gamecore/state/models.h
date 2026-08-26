@@ -1047,10 +1047,18 @@ struct GameData {
     std::vector<GameEventRecord> gameEventRecords;     // 消息栏事件（突破记录）
 };
 
+}  // namespace gamecore::state
+
 // ── 完整状态快照（GameCore 持有的真相状态） ────────────────────────
+// DiscipleStore（SoA 列式存储）定义于 disciple_store.h——此处 Disciple 及
+// 全部嵌套类型已完整定义（include guard 防循环；在命名空间外包含避免嵌套）。
+#include "gamecore/state/disciple_store.h"
+
+namespace gamecore::state {
+
 struct GameState {
     GameData gameData;
-    std::vector<Disciple> disciples;
+    DiscipleStore disciples;                    // SoA 列式存储（计划 v2 阶段 3）
     std::vector<EquipmentStack> equipmentStacks;
     std::vector<EquipmentInstance> equipmentInstances;
     std::vector<ManualStack> manualStacks;

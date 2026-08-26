@@ -17,51 +17,53 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GAMECORE = join(ROOT, 'android/app/src/main/cpp/gamecore');
-const SRC_JSON = join(ROOT, 'android/app/src/main/assets/data/manuals.json');
+// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——中性源 scripts/data/*.json；
+// 原始数据源（assets/data/manuals.json）经 gen-manual 抽样快照落位后，
+// 此处以 scripts/data/manual_db_sample.json 为权威（Kotlin Registry 由
+// 单一源守卫测试全量比对兜底防漂移）
+const SRC_JSON = join(ROOT, 'scripts/data/manual_db_sample.json');
 
 const MANUAL_TYPES = ['attack', 'defense', 'support', 'mind'];
 
 function loadManuals() {
   const root = JSON.parse(readFileSync(SRC_JSON, 'utf-8'));
   const out = [];
-  for (const type of MANUAL_TYPES) {
-    const list = root[`${type}Manuals`];
-    if (!Array.isArray(list)) {
-      console.error(`错误：manuals.json 缺少 ${type}Manuals 数组`);
-      process.exit(1);
-    }
-    for (const m of list) {
-      out.push({
-        id: m.id, name: m.name, type: m.type, rarity: Number(m.rarity),
-        description: m.description ?? '',
-        stats: m.stats ?? {},
-        skillName: m.skillName ?? null,
-        skillDescription: m.skillDescription ?? null,
-        skillType: m.skillType ?? 'attack',
-        skillDamageType: m.skillDamageType ?? 'physical',
-        skillHits: Number(m.skillHits ?? 1),
-        skillDamageMultiplier: Number(m.skillDamageMultiplier ?? 1.0),
-        skillCooldown: Number(m.skillCooldown ?? 3),
-        skillMpCost: Number(m.skillMpCost ?? 10),
-        skillHealPercent: Number(m.skillHealPercent ?? 0.0),
-        skillHealFixed: Number(m.skillHealFixed ?? 0),
-        skillHealType: m.skillHealType ?? 'hp',
-        skillBuffType: m.skillBuffType ?? null,
-        skillBuffValue: Number(m.skillBuffValue ?? 0.0),
-        skillBuffDuration: Number(m.skillBuffDuration ?? 0),
-        skillBuffs: (m.skillBuffs ?? []).map((b) => ({
-          type: b.type, value: Number(b.value), duration: Number(b.duration),
-        })),
-        price: Number(m.price ?? 0),
-        minRealm: Number(m.minRealm ?? 9),
-        skillIsAoe: Boolean(m.skillIsAoe ?? false),
-        skillTargetScope: m.skillTargetScope ?? 'self',
-        skillShieldPercent: Number(m.skillShieldPercent ?? 0.0),
-        skillTurnAdvancePercent: Number(m.skillTurnAdvancePercent ?? 0.0),
-        skillDamageSharePercent: Number(m.skillDamageSharePercent ?? 0.0),
-        skillDamageLinkPercent: Number(m.skillDamageLinkPercent ?? 0.0),
-      });
-    }
+  // 中性源为 {count, entries:[...]}（抽样快照格式）——直接全量读取
+  if (!Array.isArray(root.entries)) {
+    console.error(`错误：中性源 manual_db_sample.json 缺少 entries 数组`);
+    process.exit(1);
+  }
+  for (const m of root.entries) {
+    out.push({
+      id: m.id, name: m.name, type: m.type, rarity: Number(m.rarity),
+      description: m.description ?? '',
+      stats: m.stats ?? {},
+      skillName: m.skillName ?? null,
+      skillDescription: m.skillDescription ?? null,
+      skillType: m.skillType ?? 'attack',
+      skillDamageType: m.skillDamageType ?? 'physical',
+      skillHits: Number(m.skillHits ?? 1),
+      skillDamageMultiplier: Number(m.skillDamageMultiplier ?? 1.0),
+      skillCooldown: Number(m.skillCooldown ?? 3),
+      skillMpCost: Number(m.skillMpCost ?? 10),
+      skillHealPercent: Number(m.skillHealPercent ?? 0.0),
+      skillHealFixed: Number(m.skillHealFixed ?? 0),
+      skillHealType: m.skillHealType ?? 'hp',
+      skillBuffType: m.skillBuffType ?? null,
+      skillBuffValue: Number(m.skillBuffValue ?? 0.0),
+      skillBuffDuration: Number(m.skillBuffDuration ?? 0),
+      skillBuffs: (m.skillBuffs ?? []).map((b) => ({
+        type: b.type, value: Number(b.value), duration: Number(b.duration),
+      })),
+      price: Number(m.price ?? 0),
+      minRealm: Number(m.minRealm ?? 9),
+      skillIsAoe: Boolean(m.skillIsAoe ?? false),
+      skillTargetScope: m.skillTargetScope ?? 'self',
+      skillShieldPercent: Number(m.skillShieldPercent ?? 0.0),
+      skillTurnAdvancePercent: Number(m.skillTurnAdvancePercent ?? 0.0),
+      skillDamageSharePercent: Number(m.skillDamageSharePercent ?? 0.0),
+      skillDamageLinkPercent: Number(m.skillDamageLinkPercent ?? 0.0),
+    });
   }
   return out;
 }

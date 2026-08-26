@@ -8,6 +8,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -140,6 +141,17 @@ class GameStateStoreImpl @Inject constructor(
     companion object {
         private const val TAG = "GameStateStore"
         private const val UPDATE_WARN_THRESHOLD_MS = 500L
+
+        // ── 反向增量通道集合名（与 forward 信封协议/StateSyncService 同名） ──
+        private const val COLLECTION_EQUIPMENT_STACKS = "equipmentStacks"
+        private const val COLLECTION_EQUIPMENT_INSTANCES = "equipmentInstances"
+        private const val COLLECTION_MANUAL_STACKS = "manualStacks"
+        private const val COLLECTION_MANUAL_INSTANCES = "manualInstances"
+        private const val COLLECTION_PILLS = "pills"
+        private const val COLLECTION_MATERIALS = "materials"
+        private const val COLLECTION_HERBS = "herbs"
+        private const val COLLECTION_SEEDS = "seeds"
+        private const val COLLECTION_STORAGE_BAGS = "storageBags"
     }
 
     private var _discipleTables = DiscipleTables().also {
@@ -153,7 +165,68 @@ class GameStateStoreImpl @Inject constructor(
     private var lastDirtyColumns: Set<Int> = emptySet()
     override val discipleTables: DiscipleTables get() = _discipleTables
 
+    // ── 反向增量通道（计划 v2 阶段 3）────────────────────────────────
+
+    /** 反向增量累加器：事务级捕获累积，AUTHORITATIVE tick 步骤 ⑤ flush 消费 */
+    private val reverseDirtyAccumulator = ReverseDirtyAccumulator()
+
     private val transactionLock = ReentrantLock()
+
+    /**
+     * 反向增量累加器（计划 v2 阶段 3）：事务级捕获累积 + 旬末 flush 消费。
+     *
+     * 同步契约：捕获在 transactionLock 内（update 提交阶段），消费在引擎线程
+     * （AUTHORITATIVE tick 步骤 ⑤）——异步系统事务（Alchemy/Forge scope.launch）
+     * 提交可能与消费并发，内部方法全同步保证无竞态。
+     */
+    private class ReverseDirtyAccumulator {
+        private val discipleIds = LinkedHashSet<Int>()
+        private var rejectedRecord = false
+        private var gameDataChanged = false
+        private val collections = LinkedHashMap<String, GameStateStore.CollectionCapture>()
+
+        /** 捕获弟子脏 id（非消费 peek 结果；rejected=容量拒绝置位）。 */
+        fun captureDisciples(ids: Set<Int>, rejected: Boolean) {
+            synchronized(this) {
+                discipleIds += ids
+                if (rejected) rejectedRecord = true
+            }
+        }
+
+        /** 捕获 gameData 整对象引用变化。 */
+        fun captureGameDataChanged() {
+            synchronized(this) { gameDataChanged = true }
+        }
+
+        /** 捕获集合变化（同名集合以最近一次捕获为准——flush 发送最新态）。 */
+        fun captureCollection(name: String, capture: GameStateStore.CollectionCapture) {
+            synchronized(this) { collections[name] = capture }
+        }
+
+        /** 消费并清空（返回窗口快照；空窗口消费后仍清空）。 */
+        fun consume(): GameStateStore.ReverseDirtySnapshot = synchronized(this) {
+            val snap = GameStateStore.ReverseDirtySnapshot(
+                discipleIds = discipleIds.toSet(),
+                rejectedRecord = rejectedRecord,
+                gameDataChanged = gameDataChanged,
+                collections = collections.toMap()
+            )
+            clearLocked()
+            snap
+        }
+
+        /** 清空（② 后/全量导入后调用，防 forward 变更污染窗口）。 */
+        fun reset() {
+            synchronized(this) { clearLocked() }
+        }
+
+        private fun clearLocked() {
+            discipleIds.clear()
+            rejectedRecord = false
+            gameDataChanged = false
+            collections.clear()
+        }
+    }
 
     // ── D-01 事务世代号与观察者（溢出草稿按事务提交/回滚落盘/丢弃） ──
 
@@ -998,7 +1071,82 @@ class GameStateStoreImpl @Inject constructor(
         // P-3：捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
         // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
         lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
+        // 阶段 3：反向增量捕获（锁内提交阶段；非消费 peek，dispatchAssemble 随后正常消费）
+        captureReverseDirty(baseline = baseline, disciplesNeedReassemble = disciplesNeedReassemble)
         return disciplesNeedReassemble
+    }
+
+    /**
+     * 捕获本事务的反向增量（计划 v2 阶段 3；锁内提交阶段调用）。
+     *
+     * 三通道：弟子脏 id（changedIdTracker 非消费 peek）/ gameData 整对象引用变化 /
+     * 实体集合引用变化（全量实体 + 消失 id）。捕获产物累积到 [reverseDirtyAccumulator]，
+     * 由 AUTHORITATIVE tick 步骤 ⑤ 经 [consumeReverseDirty] 消费回导 C++。
+     */
+    private fun captureReverseDirty(baseline: UpdateBaseline, disciplesNeedReassemble: Boolean) {
+        val acc = reverseDirtyAccumulator
+        // 1. 弟子脏 id（非消费 peek——dispatchAssemble 按原路径 consume，互不干扰）
+        if (disciplesNeedReassemble) {
+            val tracker = reusableMutableState.discipleTables.changedIdTracker
+            acc.captureDisciples(
+                ids = tracker.snapshotChangedIds(),
+                rejected = tracker.snapshotRejectedRecord()
+            )
+        }
+        // 2. gameData 整对象引用变化（任一字段 copy 即新实例）
+        if (reusableMutableState.gameData !== baseline.gameData) {
+            acc.captureGameDataChanged()
+        }
+        // 3. 实体集合引用变化 → 捕获（upsert 全量 + 消失 id）
+        captureCollection(acc, COLLECTION_EQUIPMENT_STACKS,
+            baseline.equipmentStacks, reusableMutableState.equipmentStacks.items)
+        captureCollection(acc, COLLECTION_EQUIPMENT_INSTANCES,
+            baseline.equipmentInstances, reusableMutableState.equipmentInstances.items)
+        captureCollection(acc, COLLECTION_MANUAL_STACKS,
+            baseline.manualStacks, reusableMutableState.manualStacks.items)
+        captureCollection(acc, COLLECTION_MANUAL_INSTANCES,
+            baseline.manualInstances, reusableMutableState.manualInstances.items)
+        captureCollection(acc, COLLECTION_PILLS,
+            baseline.pills, reusableMutableState.pills.items)
+        captureCollection(acc, COLLECTION_MATERIALS,
+            baseline.materials, reusableMutableState.materials.items)
+        captureCollection(acc, COLLECTION_HERBS,
+            baseline.herbs, reusableMutableState.herbs.items)
+        captureCollection(acc, COLLECTION_SEEDS,
+            baseline.seeds, reusableMutableState.seeds.items)
+        captureCollection(acc, COLLECTION_STORAGE_BAGS,
+            baseline.storageBags, reusableMutableState.storageBags.items)
+    }
+
+    /** 单集合反向捕获：引用变化时记录（upsert=当前全量实体，removed=基线消失 id）。 */
+    private fun captureCollection(
+        acc: ReverseDirtyAccumulator,
+        name: String,
+        baseline: List<*>,
+        current: List<*>
+    ) {
+        if (baseline === current) return
+        val removedIds = baseline.mapTo(HashSet()) { (it as HasId).id } -
+            current.mapTo(HashSet()) { (it as HasId).id }
+        @Suppress("UNCHECKED_CAST")
+        acc.captureCollection(
+            name,
+            GameStateStore.CollectionCapture(
+                upserts = current as List<HasId>,
+                removedIds = removedIds
+            )
+        )
+    }
+
+    // === 反向增量通道公开 API（阶段 3） ===
+
+    override fun consumeReverseDirty(): GameStateStore.ReverseDirtySnapshot? {
+        val snap = reverseDirtyAccumulator.consume()
+        return snap.takeIf { !it.isEmpty }
+    }
+
+    override fun resetReverseAccumulator() {
+        reverseDirtyAccumulator.reset()
     }
 
     /** ANR 诊断（update 拆分）：记录锁内耗时超过阈值的 update 调用 */

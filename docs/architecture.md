@@ -472,7 +472,8 @@ SaveValidator.validate(SaveData)
 > **已完成**（归档，不再列为待办）：批次 0（基础设施）/1（状态模型+快照+低频嵌套+秘境状态机）/2（装备/灵草/特质/配方/妖兽材料/功法表）/
 > 3（时间系统+结算引擎）/4（经济/库存/灵田）/5（弟子）/6（战斗）/7（内政）/8（探索）/9 核心（46 动作+execute 分发表）/
 > 9 剩余基础设施（feature flag+StateSyncService+tick 桥+转发辅助+性能基准）/R 求解器权威（含 Vulkan 端收敛）。
-> 当前基线：桌面 GTest 289/289 · engine JUnit 2818/2818 · NDK 通过 · engine detekt 全绿。
+> 当前基线：桌面 GTest 382/382 · engine JUnit 2856/2856 · NDK 通过 · engine detekt 全绿 · lintRelease 通过。
+> **计划 v2 阶段 0-3 已完成**（阶段 3：反向增量通道 + DiscipleStore SoA + 静态数据单一源，见 docs/cpp-engine.md 第 7 节）。
 > **2026-08-25 二次重新审视结论**：批次 10 由"职责边界固化"改回"**彻底单引擎（Kotlin 引擎退役，选项 A）**"（性能基准复核：旧"408×"弃用；正确基准显示 JNI 转发 vs Kotlin 真实实现仅 1.1×，批量通道往返 0.1µs、传输占比 <0.1%——双实现并行开销是纯浪费，性能最大化要求单真相源），
 > 全量退役可行——C++ 接管结算/实体存储/引擎循环/渲染，Kotlin 保留 UI/平台能力/存档编码）。执行路径见 docs/cpp-engine.md 第 7 节。
 
@@ -480,12 +481,12 @@ SaveValidator.validate(SaveData)
 |---|---|---|
 | C-06 | **批次 9：转发层收尾** 🟡 基础设施已完成（feature flag/StateSyncService 宽松合并/tick 桥/转发辅助/性能基准）；剩余 Kotlin GameEngine 275 方法逐一转发（**按性能基准裁剪为低频业务操作**——高频纯计算留 Kotlin）、全量快照→增量变更集同步（nativeExportDirty 空实现待补）、全量切换（C++ 为真相源） | 超大工作量批次；全量切换为批次 10 前置 |
 | C-07 | **批次 10：彻底单引擎**（原"职责边界固化"二次重定义）——C++ 唯一真相源（结算/实体存储/引擎循环/渲染），Kotlin 降级纯平台层（UI/平台能力/存档编码）；阶段化退役见 docs/cpp-engine.md 第 7 节 | 计划 v2 阶段 1-7 逐阶段 |
-| C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | 政策成本/灵矿/年俸已 C++ 化；钩子接线随批次 9 转发层推进 |
+| ~~C-10~~ ✅ | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | **已完成**（计划 v2 阶段 2 T2.2/T2.3：月变八步编排 + 年变年报/年俸全逻辑 C++ 化，100 旬互锁对拍 PASS；剩余 S8 子事件/AI 域随阶段 4 逐批） |
 | C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
 | C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |
-| C-13 | **审查登记：读档后 RNG 分区状态恢复**——GameCore.rng_ 需从 GameData.rngStates 恢复（import 时），当前未接线 | **计划 v2 阶段 1 前置**（见 docs/cpp-engine.md 第 7 节） |
+| ~~C-13~~ ✅ | **审查登记：读档后 RNG 分区状态恢复** | **已完成**（计划 v2 阶段 1） |
 | C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8（核心已完成） |
-| C-15 | **审查登记：Diff 对拍基准为内联复刻**（DiffTimeTest 复刻 TimeSystem.onPhaseTick；集成时切换为真实引擎对拍） | 计划 v2 阶段 1 集成切换时 |
+| ~~C-15~~ ✅ | **审查登记：Diff 对拍基准为内联复刻** | **已完成**（计划 v2 阶段 1：切换真实引擎） |
 
 ### 存量问题 S 系列（迁移途中发现，2026-08-25 登记）
 
@@ -512,7 +513,7 @@ SaveValidator.validate(SaveData)
 | T-CONV | 各模块 SDK 配置再收编（convention plugin 已建立） | 模块再增长或 KMP 迁移 | 新模块直接应用 `xianxia.android[.application/.test]` convention plugin（docs/build-perf/stage3-config-cache.md） |
 | T-PRO | proguard 宽规则进一步收窄 | 每次 R8 相关发布验证 | 按序尝试删除 kotlinx.serialization → coroutines → lifecycle/room 整包规则（官方 consumer rules 兜底），每次完整 R8 验证 + 存档读写回归 |
 | T-CPP-1 | C++ 引擎未实现 kotlinx-proto 编解码（存档经 Kotlin 镜像，格式零变更） | iOS 立项且需无 Kotlin 的纯 C++ 存档 | 按 kotlinx-serialization protobuf 标准 wire 兼容方案实现（2174 个 @ProtoNumber schema 生成 + 默认值省略规则 + Map/Set KeyValue/packed + .sav 两层头 + CRC32C）；当前镜像方案已覆盖全部场景（详见 docs/adr/cpp-engine-migration.md） |
-| T-CPP-2 | 静态数据双份（Kotlin Registry + C++ 表） | **彻底单引擎计划 v2 阶段 3**（C++ 为消费侧单一权威，提前触发）或 iOS 立项需单一数据源时 | 统一为单一源：Kotlin Registry 删除或改 codegen 生成（docs/cpp-engine.md 第 4 节批次 2 说明）；迁移期以抽样守卫测试防漂移（现有双端守卫已覆盖装备/灵草/特质/配方/妖兽材料/功法 6 类） |
+| T-CPP-2 | 静态数据双份（Kotlin Registry + C++ 表） | **计划 v2 阶段 3 已部分触发**（codegen 权威落地：中性源 scripts/data/*.json + 6 生成器只读中性源，重跑零漂移；Kotlin Registry 由各 RegistryGuardTest + StaticDataSingleSourceGuardTest 全量比对兜底；灵草/种子双端守卫补齐）；**余项（Kotlin Registry 文件级生成）偿还触发**：阶段 7（Kotlin 退役）或 iOS 立项需单一数据源时 | 余项：Kotlin Registry 文件改由 gen-*.mjs 直接生成（API 保持）；迁移期以守卫测试防漂移（现有守卫已覆盖 6 类全量比对） |
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 

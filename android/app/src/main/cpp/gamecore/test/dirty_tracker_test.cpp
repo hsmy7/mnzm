@@ -122,10 +122,10 @@ TEST_F(DirtyTrackerTest, DiscipleFieldChangeUpsertsWholeEntity) {
     Disciple d;
     d.id = "d-1";
     d.cultivation = 1.0;
-    s.disciples.push_back(d);
+    s.disciples.appendDisciple(d);
     t.resetBaseline(s);
 
-    s.disciples[0].cultivation = 7.5;
+    s.disciples.cultivations[0] = 7.5;
     const auto j = nlohmann::json::parse(t.diffToJson(s));
     ASSERT_TRUE(j.at("changed").contains("disciples"));
     ASSERT_EQ(1u, j.at("changed").at("disciples").size());

@@ -1,16 +1,27 @@
 package com.xianxia.sect.core.nativebridge
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.HasId
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -78,9 +89,15 @@ private data class DirtyEnvelope(
  *   - tick 后/execute 后：C++ 状态已变 → 本服务 export+镜像 → UI 可见
  *   - 存档前：C++ export → 现有存档链路编码（格式不变）
  */
+@Suppress("TooManyFunctions")  // 镜像同步服务：正/反两向各通道各一函数（+反向 4 个），属同步协议职责边界
 @Singleton
 class StateSyncService @Inject constructor(
     private val stateStore: GameStateStore,
+    /**
+     * 反向增量发送器（计划 v2 阶段 3）：默认走 [GameCoreBridge.nativeApplyReverseDirty]；
+     * 对拍测试注入桌面通道（DiffRngBridge.nativeCoreApplyReverseDirty）。
+     */
+    private val reverseSender: (ByteArray) -> Boolean = { GameCoreBridge.nativeApplyReverseDirty(it) },
 ) {
 
     private val json = Json { encodeDefaults = true; ignoreUnknownKeys = true }
@@ -218,6 +235,141 @@ class StateSyncService @Inject constructor(
             }
         } catch (e: Throwable) {
             false
+        }
+    }
+
+    // ============================================================
+    // 反向增量回导（计划 v2 阶段 3：取代 AUTHORITATIVE 每旬全量 importToNative）
+    // ============================================================
+
+    /** Kotlin → C++ 反向增量回导版本号（单调递增；C++ 侧校验严格递增防乱序） */
+    private var reverseVersion = 0L
+
+    /**
+     * 反向增量回导：把 AUTHORITATIVE 残留窗口内 Kotlin 侧的状态变化增量发给 C++。
+     *
+     * 数据来源 [GameStateStore.consumeReverseDirty]（事务级捕获累积，见
+     * GameStateStoreImpl.captureReverseDirty）。协议与 forward 对称：
+     * ```
+     * { "version": N,
+     *   "changed": {
+     *     "gameData": { ...全量 gameData，不含 rngStates... },
+     *     "disciples": [ {全实体}... ],
+     *     "equipmentStacks": [ {全实体}... ]   // 窗口内引用变化的集合
+     *   },
+     *   "removed": { "disciples": ["id"...], "equipmentStacks": ["id"...] } }
+     * ```
+     * 空窗口（无捕获）零发送返回 true；容量拒绝（超大 id 未记录）时弟子侧无法
+     * 精确增量 → 整体降级全量回导。native 不可用/失败返回 false（调用方降级
+     * [importToNative] 全量兜底，与 forward 的 applyDirty→syncFromNative 对称）。
+     */
+    fun applyDirtyToNative(): Boolean {
+        val snapshot = stateStore.consumeReverseDirty()
+        return when {
+            // 空窗口零发送
+            snapshot == null -> true
+            // 容量拒绝（超大 id 未记录）→ 弟子侧无法精确增量，整体全量回导兜底
+            snapshot.rejectedRecord -> importToNative(restoreRng = false)
+            else -> sendReverseEnvelope(snapshot)
+        }
+    }
+
+    /** 构建反向信封并发送（版本单调递增；native 失败返回 false 由调用方降级全量）。 */
+    private fun sendReverseEnvelope(snapshot: GameStateStore.ReverseDirtySnapshot): Boolean {
+        val envelope = buildReverseEnvelope(
+            snapshot = snapshot,
+            tables = stateStore.discipleTables,
+            gameData = stateStore.gameData.value
+        )
+        val encoded = envelope.toString().encodeToByteArray()
+        // 双实现并行契约：native 失败降级 false（调用方回退全量）
+        @Suppress("TooGenericExceptionCaught", "SwallowedException")
+        return try {
+            val ok = reverseSender(encoded)
+            if (ok) {
+                reverseVersion++
+                true
+            } else {
+                false
+            }
+        } catch (e: Throwable) {
+            false
+        }
+    }
+
+    /** 构建反向信封（version 单调递增；无任何通道内容时返回空 changed/removed）。 */
+    internal fun buildReverseEnvelope(
+        snapshot: GameStateStore.ReverseDirtySnapshot,
+        tables: DiscipleTables,
+        gameData: GameData,
+    ): JsonObject {
+        val changed = mutableMapOf<String, JsonElement>()
+        val removed = mutableMapOf<String, JsonElement>()
+
+        // gameData：整对象引用变化 → 全量发送（排除 rngStates——native RNG 真相源）
+        if (snapshot.gameDataChanged) {
+            changed["gameData"] = gameDataJsonWithoutRng(gameData)
+        }
+
+        // 弟子：窗口内变化 id → 当前表组装全实体（upsert，id 升序）；
+        // 组装失败（已移除/幽灵）→ removed
+        val upserted = tables.assembleAllIncremental(emptyList(), snapshot.discipleIds)
+        val upsertedIds = upserted.mapTo(HashSet()) { it.id.toIntOrNull() ?: Int.MIN_VALUE }
+        val removedDiscipleIds = snapshot.discipleIds - upsertedIds
+        if (upserted.isNotEmpty()) {
+            changed["disciples"] = JsonArray(
+                upserted.map { json.encodeToJsonElement(Disciple.serializer(), it) }
+            )
+        }
+        if (removedDiscipleIds.isNotEmpty()) {
+            removed["disciples"] = JsonArray(removedDiscipleIds.map { JsonPrimitive(it.toString()) })
+        }
+
+        // 实体集合：引用变化的集合 → 全量实体 upsert + 消失 id
+        for ((name, capture) in snapshot.collections) {
+            if (capture.upserts.isNotEmpty()) {
+                changed[name] = encodeCollectionEntities(name, capture.upserts)
+            }
+            if (capture.removedIds.isNotEmpty()) {
+                removed[name] = JsonArray(capture.removedIds.map { JsonPrimitive(it) })
+            }
+        }
+
+        return buildJsonObject {
+            put("version", reverseVersion + 1)
+            put("changed", buildJsonObject { changed.forEach { (k, v) -> put(k, v) } })
+            put("removed", buildJsonObject { removed.forEach { (k, v) -> put(k, v) } })
+        }
+    }
+
+    /** gameData 全量 JSON（剔除 rngStates 键——委托模式下 native RNG 即真相源）。 */
+    private fun gameDataJsonWithoutRng(gameData: GameData): JsonElement {
+        val full = json.encodeToJsonElement(GameData.serializer(), gameData).jsonObject
+        return buildJsonObject {
+            full.forEach { (k, v) -> if (k != RNG_STATES_FIELD) put(k, v) }
+        }
+    }
+
+    /** 集合实体按具体类型序列化（与 applyCollection 同名分发）。 */
+    private fun encodeCollectionEntities(name: String, upserts: List<HasId>): JsonArray = buildJsonArray {
+        for (entity in upserts) {
+            val element: JsonElement? = when (name) {
+                COLLECTION_EQUIPMENT_STACKS ->
+                    json.encodeToJsonElement(EquipmentStack.serializer(), entity as EquipmentStack)
+                COLLECTION_EQUIPMENT_INSTANCES ->
+                    json.encodeToJsonElement(EquipmentInstance.serializer(), entity as EquipmentInstance)
+                COLLECTION_MANUAL_STACKS ->
+                    json.encodeToJsonElement(ManualStack.serializer(), entity as ManualStack)
+                COLLECTION_MANUAL_INSTANCES ->
+                    json.encodeToJsonElement(ManualInstance.serializer(), entity as ManualInstance)
+                COLLECTION_PILLS -> json.encodeToJsonElement(Pill.serializer(), entity as Pill)
+                COLLECTION_MATERIALS -> json.encodeToJsonElement(Material.serializer(), entity as Material)
+                COLLECTION_HERBS -> json.encodeToJsonElement(Herb.serializer(), entity as Herb)
+                COLLECTION_SEEDS -> json.encodeToJsonElement(Seed.serializer(), entity as Seed)
+                COLLECTION_STORAGE_BAGS -> json.encodeToJsonElement(StorageBag.serializer(), entity as StorageBag)
+                else -> null
+            }
+            if (element != null) add(element)
         }
     }
 
@@ -448,6 +600,8 @@ class StateSyncService @Inject constructor(
 
     companion object {
         private const val GAMEDATA_PATH_PREFIX = "gameData."
+        /** gameData 中 RNG 分区状态字段——反向回导必须剔除（native RNG 真相源） */
+        private const val RNG_STATES_FIELD = "rngStates"
         private const val COLLECTION_DISCIPLES = "disciples"
         private const val COLLECTION_EQUIPMENT_STACKS = "equipmentStacks"
         private const val COLLECTION_EQUIPMENT_INSTANCES = "equipmentInstances"

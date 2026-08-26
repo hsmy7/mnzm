@@ -46,10 +46,25 @@ inline std::map<int32_t, std::size_t> indexById(const std::vector<state::Discipl
     return m;
 }
 
+/// 弟子 Int id → 行下标（DiscipleStore SoA 版，计划 v2 阶段 3；行序 == 数组序）
+inline std::map<int32_t, std::size_t> indexById(const state::DiscipleStore& ds) {
+    std::map<int32_t, std::size_t> m;
+    for (std::size_t i = 0; i < ds.size(); ++i) {
+        const auto id = toIntOrNull(ds.idAt(i));
+        if (id.has_value()) m[*id] = i;
+    }
+    return m;
+}
+
+/// 灵根数量（split(",")；空串 → [""] → 1）——字符串直读版（列访问）
+inline int32_t spiritRootCount(const std::string& spiritRootType) {
+    return static_cast<int32_t>(std::count(spiritRootType.begin(),
+                                           spiritRootType.end(), ',')) + 1;
+}
+
 /// 灵根数量（split(",")；空串 → [""] → 1）
 inline int32_t spiritRootCount(const state::Disciple& d) {
-    return static_cast<int32_t>(std::count(d.spiritRootType.begin(),
-                                           d.spiritRootType.end(), ',')) + 1;
+    return spiritRootCount(d.spiritRootType);
 }
 
 /// UTF-8 串的 Kotlin String.length 口径长度（BMP 内码点数 == UTF-16 code unit 数；

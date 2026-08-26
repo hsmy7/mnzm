@@ -79,6 +79,7 @@ constexpr int32_t kMonthlyDecayPhases = 3;
 namespace detail {
 
 using gamecore::state::Disciple;
+using gamecore::state::DiscipleStore;
 using gamecore::state::GameData;
 using gamecore::state::GameState;
 
@@ -145,17 +146,20 @@ inline void processPolicyMonthlyEffects(GameState& state) {
     if (policies.enhancedSecurity) loyaltyDelta += kEnhancedSecurityLoyaltyPerMonth;
     if (policies.curfew) loyaltyDelta += kCurfewLoyaltyPerMonth;
 
-    for (auto& d : state.disciples) {
-        if (!d.isAlive) continue;
+    for (std::size_t row = 0; row < state.disciples.size(); ++row) {
+        DiscipleStore& ds = state.disciples;
+        if (ds.isAlive[row] == 0) continue;
         // 忠诚：delta != 0 时 clamp 写回（getOrDefault 缺省 50 —— C++ 字段恒存在）
         if (loyaltyDelta != 0) {
-            d.loyalty = std::max(0, std::min(kMaxLoyalty, d.loyalty + loyaltyDelta));
+            ds.loyalties[row] = std::max(
+                0, std::min(kMaxLoyalty, ds.loyalties[row] + loyaltyDelta));
         }
         // 道德（教化之道）：仅当前低于上限时 +1 并 clamp；
         // 新道德仍低于偷盗阈值的判定钩子属执法堂批次（未下沉，见文件头）
-        if (policies.moralEducation && d.morality < kMoralEducationMax) {
-            d.morality = std::max(0, std::min(kMoralEducationMax,
-                                              d.morality + kMoralEducationPerMonth));
+        if (policies.moralEducation && ds.moralities[row] < kMoralEducationMax) {
+            ds.moralities[row] = std::max(
+                0, std::min(kMoralEducationMax,
+                            ds.moralities[row] + kMoralEducationPerMonth));
         }
     }
 }
@@ -192,8 +196,13 @@ inline bool hasBloodRelation(const Disciple& a, const Disciple& b) {
 
 inline void processPartnerMatching(GameState& state, rng::RngManager& rng,
                                    const std::map<int32_t, std::size_t>& idx) {
-    // assembleAll 快照等价：循环期间只写 live 向量，资格判定全部读入口快照副本
-    const std::vector<Disciple> snapshot = state.disciples;
+    // assembleAll 快照等价：循环期间只写 live 列，资格判定全部读入口快照副本
+    //（DiscipleStore 版：逐行物化快照列表，语义 == 旧整向量拷贝）
+    std::vector<Disciple> snapshot;
+    snapshot.reserve(state.disciples.size());
+    for (std::size_t i = 0; i < state.disciples.size(); ++i) {
+        snapshot.push_back(state.disciples.materialize(i));
+    }
 
     // 失效提议清理：pendingMarriageProposals 不在 C++ 快照协议（同意模式
     // 提案列表属 UI 域），本步为空操作——对拍场景以 consentRequired=false
@@ -232,8 +241,8 @@ inline void processPartnerMatching(GameState& state, rng::RngManager& rng,
                 const auto mit = idx.find(*maleId);
                 const auto fit = idx.find(*femaleId);
                 if (mit == idx.end() || fit == idx.end()) continue;
-                state.disciples[mit->second].partnerId = female->id;
-                state.disciples[fit->second].partnerId = male->id;
+                state.disciples.partnerIds[mit->second] = female->id;
+                state.disciples.partnerIds[fit->second] = male->id;
                 pairedFemaleIds.insert(female->id);
                 recordGameEvent(state, "SECT", "marriage",
                                 "弟子" + male->name + "与弟子" + female->name +
@@ -255,8 +264,9 @@ inline void settleSingleRefinement(GameState& state, const std::string& building
     if (!dId.has_value() || idx.find(*dId) == idx.end()) return;
     if (progress.selectedStat.empty()) return;
     // 防御：血炼期间弟子可能因其他系统死亡（isAlive[dId] == 0 直接返回）
-    Disciple& d = state.disciples[idx.at(*dId)];
-    if (!d.isAlive) return;
+    DiscipleStore& ds = state.disciples;
+    const std::size_t row = idx.at(*dId);
+    if (ds.isAlive[row] == 0) return;
 
     // NaN 无法被 coerceAtLeast 拦下——先 isFinite 归零再取非负
     const double safeBonusPct =
@@ -279,7 +289,7 @@ inline void settleSingleRefinement(GameState& state, const std::string& building
     refinements.push_back(progress.materialId);
 
     // 仅清除 statusData["buildingId"]（status 保持 REFINING——Kotlin 怪癖保留）
-    d.statusData.erase("buildingId");
+    ds.statusData[row].erase("buildingId");
 
     recordGameEvent(state, "SECT", "blood_refinement",
                     progress.discipleName + "的血练已完成！属性「" +
@@ -316,10 +326,11 @@ inline void processResidenceLoyalty(GameState& state) {
         // Kotlin isActive 为计算属性 == discipleId.isNotEmpty()
         if (!slot.discipleId.empty()) residentIds.insert(slot.discipleId);
     }
-    for (auto& d : state.disciples) {
+    for (std::size_t row = 0; row < state.disciples.size(); ++row) {
+        DiscipleStore& ds = state.disciples;
         // Kotlin: id.toString() in residentIds && loyalties[id] < max
-        if (residentIds.count(d.id) && d.loyalty < kMaxLoyalty) {
-            d.loyalty = std::min(d.loyalty + 1, kMaxLoyalty);
+        if (residentIds.count(ds.ids[row]) && ds.loyalties[row] < kMaxLoyalty) {
+            ds.loyalties[row] = std::min(ds.loyalties[row] + 1, kMaxLoyalty);
         }
     }
 }
@@ -352,10 +363,36 @@ inline void applyMonthlyDurationDecay(Disciple& d) {
     }
 }
 
+/// 单弟子月衰减（DiscipleStore 行版，阶段 3 列直写；语义与 Disciple& 版一致）
+inline void applyMonthlyDurationDecay(DiscipleStore& ds, std::size_t row) {
+    if (ds.pillEffectDurations[row] <= 0) return;
+    const int32_t newDuration = ds.pillEffectDurations[row] - kMonthlyDecayPhases;
+    if (newDuration <= 0) {
+        ds.pillHpBonuses[row] = 0;
+        ds.pillMpBonuses[row] = 0;
+        ds.pillPhysicalAttackBonuses[row] = 0;
+        ds.pillMagicAttackBonuses[row] = 0;
+        ds.pillPhysicalDefenseBonuses[row] = 0;
+        ds.pillMagicDefenseBonuses[row] = 0;
+        ds.pillSpeedBonuses[row] = 0;
+        ds.pillCritRateBonuses[row] = 0.0;
+        ds.pillCritEffectBonuses[row] = 0.0;
+        ds.pillCultivationSpeedBonuses[row] = 0.0;
+        ds.pillSkillExpSpeedBonuses[row] = 0.0;
+        ds.pillNurtureSpeedBonuses[row] = 0.0;
+        ds.activePillCategories[row].clear();
+        ds.activePillTypes[row].clear();
+        ds.pillEffectDurations[row] = 0;
+    } else {
+        ds.pillEffectDurations[row] = newDuration;
+    }
+}
+
 inline void applyMonthlyDurationDecayAll(GameState& state) {
-    for (auto& d : state.disciples) {
-        if (!d.isAlive) continue;
-        applyMonthlyDurationDecay(d);
+    DiscipleStore& ds = state.disciples;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] == 0) continue;
+        applyMonthlyDurationDecay(ds, row);
     }
 }
 
@@ -376,16 +413,16 @@ inline SpiritMineZones buildMonthSpiritMineZones(const GameState& state,
         [](const state::SpiritMineSlot& s) { return !s.discipleId.empty(); }));
 
     double miningBonus = 0.0;
+    const DiscipleStore& ds = state.disciples;
     for (const auto& slot : slots) {
         if (slot.discipleId.empty()) continue;
         const auto id = detail::toIntOrNull(slot.discipleId);
         if (!id.has_value()) continue;
         const auto it = idx.find(*id);
         if (it == idx.end()) continue;
-        const Disciple& d = state.disciples[it->second];
-        if (!d.isAlive) continue;
-        if (d.mining > kSpiritMineMiningThreshold) {
-            miningBonus += (d.mining - kSpiritMineMiningThreshold) *
+        if (ds.isAlive[it->second] == 0) continue;
+        if (ds.minings[it->second] > kSpiritMineMiningThreshold) {
+            miningBonus += (ds.minings[it->second] - kSpiritMineMiningThreshold) *
                            kSpiritMineMiningBonusRate;
         }
     }
@@ -402,9 +439,9 @@ inline SpiritMineZones buildMonthSpiritMineZones(const GameState& state,
         if (!id.has_value()) continue;
         const auto it = idx.find(*id);
         if (it == idx.end()) continue;
-        const Disciple& d = state.disciples[it->second];
-        if (!d.isAlive) continue;
-        const int32_t diff = std::max(d.morality - kElderSkillBaselineConst, 0);
+        if (ds.isAlive[it->second] == 0) continue;
+        const int32_t diff = std::max(
+            ds.moralities[it->second] - kElderSkillBaselineConst, 0);
         deaconBonus += diff * kDeaconMoralityBonusRate;
     }
 
@@ -432,8 +469,9 @@ inline void applyMinerLoyaltyDecay(GameState& state,
         }
         const int32_t newMonths = slot.consecutiveMiningMonths + 1;
         if (newMonths >= 3) {
-            Disciple& d = state.disciples[idx.at(*id)];
-            d.loyalty = std::max(d.loyalty - 1, 0);
+            DiscipleStore& ds = state.disciples;
+            const std::size_t row = idx.at(*id);
+            ds.loyalties[row] = std::max(ds.loyalties[row] - 1, 0);
             slot.consecutiveMiningMonths = 0;
         } else {
             slot.consecutiveMiningMonths = newMonths;
@@ -529,10 +567,11 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     {
         int32_t discipleCount = 0;
         int32_t huashenBelowCount = 0;
-        for (const auto& d : state.disciples) {
-            if (!d.isAlive) continue;
+        const state::DiscipleStore& ds = state.disciples;
+        for (std::size_t row = 0; row < ds.size(); ++row) {
+            if (ds.isAlive[row] == 0) continue;
             ++discipleCount;
-            if (d.realm > 5) ++huashenBelowCount;   // realm 5=化神，>5=化神下
+            if (ds.realms[row] > 5) ++huashenBelowCount;   // realm 5=化神，>5=化神下
         }
         out.policyCosts = processPolicyCosts(state.gameData, discipleCount,
                                              huashenBelowCount);

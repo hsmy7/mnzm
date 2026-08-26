@@ -9,6 +9,7 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualStack
@@ -315,4 +316,58 @@ interface GameStateStore : GameStateSnapshotProvider {
     suspend fun resetForSlot(slotId: Int) {
         reset()
     }
+
+    // === 反向增量通道（计划 v2 阶段 3：Kotlin → C++ 增量回导） ===
+
+    /**
+     * 单集合反向捕获：upsert 实体全量 + 自捕获基线消失的 id。
+     *
+     * @property upserts 捕获时刻该集合的完整实体列表（幂等覆盖语义）
+     * @property removedIds 捕获基线中存在、捕获时刻已消失的 id（删除语义）
+     */
+    @Immutable
+    data class CollectionCapture(
+        val upserts: List<HasId>,
+        val removedIds: Set<String>
+    )
+
+    /**
+     * 反向增量捕获快照：AUTHORITATIVE tick 残留窗口（自上次消费以来全部事务）的
+     * Kotlin 侧状态变化汇总，供 StateSyncService 增量回导 C++（取代每旬全量回导）。
+     *
+     * @property discipleIds 窗口内被修改过的弟子 id（消费方 flush 时从当前表组装
+     *           最新值；已从表中移除的 id 由消费方核对后进 removed）
+     * @property rejectedRecord 任一事务因 id 超上限拒绝记录 → 弟子侧必须全量兜底
+     * @property gameDataChanged gameData 整对象引用变化 → 消费方全量发送（排除 rngStates）
+     * @property collections 集合名 → 该集合最近一次捕获
+     */
+    @Immutable
+    data class ReverseDirtySnapshot(
+        val discipleIds: Set<Int> = emptySet(),
+        val rejectedRecord: Boolean = false,
+        val gameDataChanged: Boolean = false,
+        val collections: Map<String, CollectionCapture> = emptyMap()
+    ) {
+        /** 窗口内是否无任何可回导变化。 */
+        val isEmpty: Boolean
+            get() = discipleIds.isEmpty() && !rejectedRecord && !gameDataChanged &&
+                collections.isEmpty()
+    }
+
+    /**
+     * 消费并清空反向增量捕获。
+     *
+     * 由 StateSyncService 在 AUTHORITATIVE tick 步骤 ⑤ 调用；无捕获时返回 null
+     * （空窗口零发送）。默认实现（无捕获能力）返回 null。
+     */
+    fun consumeReverseDirty(): ReverseDirtySnapshot? = null
+
+    /**
+     * 清空反向增量捕获。
+     *
+     * 由 AUTHORITATIVE tick 在步骤 ②（forward 增量镜像）后调用——forward 通道
+     * 自身的变更由 C++ 产生、无需回导，重置窗口避免其污染反向增量；
+     * 全量导入成功后同样调用（防陈旧捕获误发）。默认实现为无操作。
+     */
+    fun resetReverseAccumulator() {}
 }

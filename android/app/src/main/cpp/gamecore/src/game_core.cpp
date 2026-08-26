@@ -1,5 +1,6 @@
 #include "gamecore/game_core.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -12,6 +13,79 @@
 #include "gamecore/system/year_settlement.h"
 
 namespace gamecore {
+
+// ── 反向增量应用辅助（计划 v2 阶段 3） ──────────────────────────────
+
+namespace {
+
+/// 实体集合按 id upsert：已存在原位覆盖（保序），新实体追加末尾（保序）。
+/// 与 Kotlin StateSyncService.applyToStore 的"先删后插"不同——原位覆盖保留
+/// 既有顺序（RNG 对拍红线：弟子向量序 == Kotlin ids 序）。
+template <typename T>
+void upsertEntities(std::vector<T>& vec, const nlohmann::json& upserts) {
+    for (const auto& e : upserts) {
+        if (!e.is_object() || !e.contains("id")) continue;
+        T entity = e.get<T>();
+        const auto it = std::find_if(vec.begin(), vec.end(),
+            [&](const T& x) { return x.id == entity.id; });
+        if (it != vec.end()) {
+            *it = std::move(entity);
+        } else {
+            vec.push_back(std::move(entity));
+        }
+    }
+}
+
+/// 实体集合按 id 删除（其余顺序保留）。
+template <typename T>
+void removeEntities(std::vector<T>& vec, const nlohmann::json& removed) {
+    for (const auto& idEl : removed) {
+        if (!idEl.is_string()) continue;
+        const std::string id = idEl.get<std::string>();
+        vec.erase(std::remove_if(vec.begin(), vec.end(),
+            [&](const T& x) { return x.id == id; }), vec.end());
+    }
+}
+
+/// 集合名分发：upsert（disciples + 9 实体集合；未知集合宽松忽略——前向兼容）。
+/// disciples 走 DiscipleStore（SoA）：已存在原位覆盖（保序）、新弟子追加（保序）。
+void applyCollectionUpsert(state::GameState& s, const std::string& name,
+                           const nlohmann::json& arr) {
+    if (name == "disciples") {
+        for (const auto& e : arr) {
+            if (!e.is_object() || !e.contains("id")) continue;
+            s.disciples.upsertDisciple(e.get<state::Disciple>());
+        }
+    } else if (name == "equipmentStacks") upsertEntities(s.equipmentStacks, arr);
+    else if (name == "equipmentInstances") upsertEntities(s.equipmentInstances, arr);
+    else if (name == "manualStacks") upsertEntities(s.manualStacks, arr);
+    else if (name == "manualInstances") upsertEntities(s.manualInstances, arr);
+    else if (name == "pills") upsertEntities(s.pills, arr);
+    else if (name == "materials") upsertEntities(s.materials, arr);
+    else if (name == "herbs") upsertEntities(s.herbs, arr);
+    else if (name == "seeds") upsertEntities(s.seeds, arr);
+    else if (name == "storageBags") upsertEntities(s.storageBags, arr);
+}
+
+/// 集合名分发：remove
+void applyCollectionRemove(state::GameState& s, const std::string& name,
+                           const nlohmann::json& arr) {
+    if (name == "disciples") {
+        for (const auto& idEl : arr) {
+            if (idEl.is_string()) s.disciples.removeById(idEl.get<std::string>());
+        }
+    } else if (name == "equipmentStacks") removeEntities(s.equipmentStacks, arr);
+    else if (name == "equipmentInstances") removeEntities(s.equipmentInstances, arr);
+    else if (name == "manualStacks") removeEntities(s.manualStacks, arr);
+    else if (name == "manualInstances") removeEntities(s.manualInstances, arr);
+    else if (name == "pills") removeEntities(s.pills, arr);
+    else if (name == "materials") removeEntities(s.materials, arr);
+    else if (name == "herbs") removeEntities(s.herbs, arr);
+    else if (name == "seeds") removeEntities(s.seeds, arr);
+    else if (name == "storageBags") removeEntities(s.storageBags, arr);
+}
+
+}  // namespace
 
 // ── SystemClock ────────────────────────────────────────────────────
 // 跨平台兜底实现（chrono steady/system clock）。
@@ -215,6 +289,57 @@ std::string GameCore::exportDirtyJson() {
 std::string GameCore::pollEventsJson() {
     // 批次 1 实现：事件队列
     return "[]";
+}
+
+bool GameCore::applyReverseDirty(const std::string& dirtyJson) {
+    if (!initialized_) return false;
+    try {
+        const auto j = nlohmann::json::parse(dirtyJson);
+        // 版本严格递增校验（防乱序/重复应用——Kotlin 侧单线程发送天然有序，
+        // 但全量回导兜底路径可能交错，防御性拒绝）
+        const uint64_t v = j.value("version", 0ULL);
+        if (v != reverseVersion_ + 1) {
+            logger_->log(LogLevel::kWarn, "GameCore",
+                "applyReverseDirty: version mismatch v=" + std::to_string(v) +
+                " expected=" + std::to_string(reverseVersion_ + 1));
+            return false;
+        }
+        reverseVersion_ = v;
+
+        // changed：gameData 全量覆盖（不含 rngStates——Kotlin 侧已剔除，
+        // 缺失键保持 native 分区真相）+ 实体集合按 id upsert
+        if (j.contains("changed") && j.at("changed").is_object()) {
+            const auto& changed = j.at("changed");
+            for (auto it = changed.begin(); it != changed.end(); ++it) {
+                const std::string& name = it.key();
+                const auto& value = it.value();
+                if (name == "gameData") {
+                    if (value.is_object()) {
+                        state_.gameData = value.get<state::GameData>();
+                    }
+                } else if (value.is_array()) {
+                    applyCollectionUpsert(state_, name, value);
+                }
+            }
+        }
+        // removed：按 id 删除
+        if (j.contains("removed") && j.at("removed").is_object()) {
+            const auto& removed = j.at("removed");
+            for (auto it = removed.begin(); it != removed.end(); ++it) {
+                if (it.value().is_array()) {
+                    applyCollectionRemove(state_, it.key(), it.value());
+                }
+            }
+        }
+        // 基线同步：C++ 状态已与 Kotlin 一致——防下一旬 exportDirty 把反向
+        // 应用值当变更重发回 Kotlin（冗余镜像写）
+        dirtyTracker_.syncBaselineToCurrent(state_);
+        return true;
+    } catch (const std::exception& e) {
+        logger_->log(LogLevel::kError, "GameCore",
+                     std::string("applyReverseDirty failed: ") + e.what());
+        return false;
+    }
 }
 
 void GameCore::syncRngStates() {

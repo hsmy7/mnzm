@@ -129,6 +129,20 @@ object GameCoreBridge {
      */
     external fun nativeImportStateNoRng(stateJson: ByteArray): Boolean
 
+    /**
+     * 应用 Kotlin 侧反向增量变更集（计划 v2 阶段 3：取代 AUTHORITATIVE 每旬
+     * 全量回导）。协议与 forward 一致 {version, changed, removed}：
+     * - changed["gameData"]  → 全量 gameData（不含 rngStates——native RNG 真相源）
+     * - changed["disciples"] → 按 id 全实体 upsert
+     * - changed["<集合名>"]  → 该集合全量实体（幂等覆盖）
+     * - removed["disciples"] / removed["<集合名>"] → 按 id 删除
+     * 应用后 C++ 侧同步 DirtyTracker 基线（防下一旬 forward 重发）。
+     *
+     * @param dirtyJson 反向变更集 JSON 字节
+     * @return true 应用成功；false 版本乱序/解析失败（调用方降级全量回导）
+     */
+    external fun nativeApplyReverseDirty(dirtyJson: ByteArray): Boolean
+
     /** 导出自上次导出以来的变更集（JSON；UI 镜像增量同步） */
     external fun nativeExportDirty(): ByteArray
 

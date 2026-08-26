@@ -209,14 +209,18 @@ function genCppHerbTable(herbs, seeds) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────
+// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+//（中性源），生成器只读中性源产出 C++ 表 + 测试快照；Kotlin Registry 由
+// 单一源守卫测试（StaticDataSingleSourceGuardTest）全量比对兜底防漂移。
 
-const equipSrcPath = join(
-  ROOT, 'android/core/domain/src/main/java/com/xianxia/sect/core/registry/EquipmentDatabase.kt');
-const source = readFileSync(equipSrcPath, 'utf-8');
+const DATA_DIR = join(ROOT, 'scripts/data');
 
-const entries = extractEquipment(source);
-if (entries.length === 0) {
-  console.error('错误：装备表提取为空（正则可能不匹配当前源码格式）');
+// ── 装备表（中性源）──────────────────────────────────────────────────
+const equipJson = JSON.parse(
+  readFileSync(join(DATA_DIR, 'equipment_db_sample.json'), 'utf-8'));
+const entries = equipJson.entries;
+if (!Array.isArray(entries) || entries.length === 0) {
+  console.error('错误：中性源 equipment_db_sample.json 无条目');
   process.exit(1);
 }
 
@@ -238,19 +242,18 @@ mkdirSync(sampleDir, { recursive: true });
 writeFileSync(join(sampleDir, 'equipment_db_sample.json'),
   JSON.stringify({ count: entries.length, entries }, null, 1));
 
-console.log(`装备表提取完成：${entries.length} 条`);
+console.log(`装备表生成完成：${entries.length} 条`);
 console.log(`  -> ${join(cppDir, 'equipment_db.h')}`);
 console.log(`  -> ${join(sampleDir, 'equipment_db_sample.json')}`);
 
-// ── 灵草/种子表（HerbDatabase.kt）─────────────────────────────────────
-const herbSrcPath = join(
-  ROOT, 'android/core/domain/src/main/java/com/xianxia/sect/core/registry/HerbDatabase.kt');
-const herbSource = readFileSync(herbSrcPath, 'utf-8');
-
-const herbs = extractHerbs(herbSource);
-const seeds = extractSeeds(herbSource);
-if (herbs.length === 0 || seeds.length === 0) {
-  console.error('错误：灵草/种子表提取为空（正则可能不匹配当前源码格式）');
+// ── 灵草/种子表（中性源）─────────────────────────────────────────────
+const herbJson = JSON.parse(
+  readFileSync(join(DATA_DIR, 'herb_db_sample.json'), 'utf-8'));
+const herbs = herbJson.herbs;
+const seeds = herbJson.seeds;
+if (!Array.isArray(herbs) || herbs.length === 0 ||
+    !Array.isArray(seeds) || seeds.length === 0) {
+  console.error('错误：中性源 herb_db_sample.json 无条目');
   process.exit(1);
 }
 
@@ -272,6 +275,6 @@ writeFileSync(join(cppDir, 'herb_db.h'), genCppHerbTable(herbs, seeds));
 writeFileSync(join(sampleDir, 'herb_db_sample.json'),
   JSON.stringify({ herbCount: herbs.length, seedCount: seeds.length, herbs, seeds }, null, 1));
 
-console.log(`灵草/种子表提取完成：${herbs.length} 灵草 + ${seeds.length} 种子`);
+console.log(`灵草/种子表生成完成：${herbs.length} 灵草 + ${seeds.length} 种子`);
 console.log(`  -> ${join(cppDir, 'herb_db.h')}`);
 console.log(`  -> ${join(sampleDir, 'herb_db_sample.json')}`);

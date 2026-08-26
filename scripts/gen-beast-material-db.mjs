@@ -102,14 +102,23 @@ function genCppTable(entries) {
   lines.push('    return nullptr;');
   lines.push('}');
   lines.push('');
-  lines.push('/// 按妖兽类型前缀查询（如 "tiger" → tiger* 系列；Kotlin getMaterialsByBeastType）');
+  lines.push('/// 按妖兽类型查询（Kotlin getMaterialsByBeastType：接受中文妖兽名如"虎妖"，');
+  lines.push('/// 也接受英文前缀如 "tiger"；按 id 前缀匹配，如 tigerHide/tigerBlood/tigerTooth/tigerCore）');
   lines.push('inline std::vector<const BeastMaterialTemplate*> beastMaterialsByBeastType(');
   lines.push('    const std::string& beastType) {');
+  lines.push('    std::string prefix;');
+  lines.push('    if (beastType == "虎妖") prefix = "tiger";');
+  lines.push('    else if (beastType == "狼妖") prefix = "wolf";');
+  lines.push('    else if (beastType == "蛇妖") prefix = "snake";');
+  lines.push('    else if (beastType == "熊妖") prefix = "bear";');
+  lines.push('    else if (beastType == "鹰妖") prefix = "eagle";');
+  lines.push('    else if (beastType == "狐妖") prefix = "fox";');
+  lines.push('    else if (beastType == "龙妖") prefix = "dragon";');
+  lines.push('    else if (beastType == "龟妖") prefix = "turtle";');
+  lines.push('    else prefix = beastType;  // 已传英文前缀');
   lines.push('    std::vector<const BeastMaterialTemplate*> out;');
-  lines.push('    const std::string prefix = beastType + "Hide";');
-  lines.push('    const std::string prefixLower = beastType + "hide";');
   lines.push('    for (const auto& m : beastMaterialTemplates()) {');
-  lines.push('        if (m.id.rfind(prefix, 0) == 0 || m.id.rfind(prefixLower, 0) == 0) {');
+  lines.push('        if (m.id.rfind(prefix, 0) == 0) {');
   lines.push('            out.push_back(&m);');
   lines.push('        }');
   lines.push('    }');
@@ -122,14 +131,16 @@ function genCppTable(entries) {
 }
 
 // ── main ──────────────────────────────────────────────────────────────
+// 计划 v2 阶段 3（T-CPP-2）：静态数据单一源——数据权威在 scripts/data/*.json
+//（中性源），生成器只读中性源；Kotlin Registry 由单一源守卫测试全量比对兜底。
 
-const srcPath = join(
-  ROOT, 'android/core/domain/src/main/java/com/xianxia/sect/core/registry/BeastMaterialDatabase.kt');
-const source = readFileSync(srcPath, 'utf-8');
+const DATA_DIR = join(ROOT, 'scripts/data');
 
-const entries = extract(source);
-if (entries.length === 0) {
-  console.error('错误：妖兽材料表提取为空（正则可能不匹配当前源码格式）');
+const beastJson = JSON.parse(
+  readFileSync(join(DATA_DIR, 'beast_material_db_sample.json'), 'utf-8'));
+const entries = beastJson.entries;
+if (!Array.isArray(entries) || entries.length === 0) {
+  console.error('错误：中性源 beast_material_db_sample.json 无条目');
   process.exit(1);
 }
 

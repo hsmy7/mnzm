@@ -143,7 +143,7 @@ class SpriteCodegenSyncTest {
     }
 
     @Test
-    fun `TextureAtlas 头 - MAP_SPRITES 39 条与期望全等`() {
+    fun `TextureAtlas 头 - MAP_SPRITES 49 条与期望全等`() {
         val src = headerSource()
         val spriteRegex = Regex("""\{ "([^"]+)",\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\},\s*""")
         val sprites = spriteRegex.findAll(src).map { m ->
@@ -154,8 +154,8 @@ class SpriteCodegenSyncTest {
             )
         }.toList()
         assertEquals(
-            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 5 地砖 + 1 结构 + 5 云层 = 39）",
-            39, sprites.size
+            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 5 地砖 + 1 结构 + 5 云层 + 10 道路 = 49）",
+            49, sprites.size
         )
         // 抽查关键条目（数据与 Kotlin LAYOUT 同源，见 build-atlas.mjs）
         assertContains(sprites, SpriteEntry("ground_tile", 0, 0, 64, 64))

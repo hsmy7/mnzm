@@ -1121,7 +1121,12 @@ void from_json(const nlohmann::json& j, GameData& v) {
 void to_json(nlohmann::json& j, const GameState& v) {
     j = nlohmann::json::object();
     j["gameData"] = v.gameData;
-    j["disciples"] = v.disciples;
+    // 弟子：SoA 列存储 → 平铺对象数组（协议零变更；行序 == 数组序）
+    nlohmann::json disciplesArr = nlohmann::json::array();
+    for (std::size_t i = 0; i < v.disciples.size(); ++i) {
+        disciplesArr.push_back(v.disciples.materialize(i));
+    }
+    j["disciples"] = std::move(disciplesArr);
     j["equipmentStacks"] = v.equipmentStacks;
     j["equipmentInstances"] = v.equipmentInstances;
     j["manualStacks"] = v.manualStacks;
@@ -1134,7 +1139,11 @@ void to_json(nlohmann::json& j, const GameState& v) {
 }
 void from_json(const nlohmann::json& j, GameState& v) {
     if (j.contains("gameData")) j.at("gameData").get_to(v.gameData);
-    if (j.contains("disciples")) j.at("disciples").get_to(v.disciples);
+    if (j.contains("disciples") && j.at("disciples").is_array()) {
+        std::vector<Disciple> tmp;
+        j.at("disciples").get_to(tmp);
+        v.disciples.loadFromVector(tmp);
+    }
     if (j.contains("equipmentStacks")) j.at("equipmentStacks").get_to(v.equipmentStacks);
     if (j.contains("equipmentInstances")) j.at("equipmentInstances").get_to(v.equipmentInstances);
     if (j.contains("manualStacks")) j.at("manualStacks").get_to(v.manualStacks);

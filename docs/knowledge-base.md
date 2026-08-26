@@ -43,6 +43,18 @@
 | `GameSystemRegistry` / `GameSystemRegistryDefaults` | `core/engine/.../registry/` | @GameService 静态注册中心（39 系统；守卫测试锚） |
 | 资源管线 codegen | `android/scripts/resource-manifest.mjs` + `build-atlas.mjs` | 扫描 drawable-nodpi → atlas-manifest.json + 三产物（SpriteRegistryData/SpriteAtlasDef/TextureAtlas.h）+ `sprite-uid-map.json` 持久 UID；生成物 build/generated 不入库 |
 
+## C++ 引擎同步通道关键类（计划 v2 阶段 1-3，2026-08-26）
+
+| 组件 | 位置 | 职责 |
+|------|------|------|
+| `GameCoreBridge` | `core/engine/.../nativebridge/`（Kotlin）+ `app/src/main/cpp/GameCoreBridge.cpp`（JNI） | 引擎 JNI 通用入口（init/advance/settleOnePhase/execute/export/import/exportDirty/applyReverseDirty/poll + RNG 标量通道）；桌面对拍镜像 `gamecore/jni/GameCoreJni.cpp` |
+| `StateSyncService` | `core/engine/.../nativebridge/` | C++→Kotlin 增量镜像（applyDirtyFromNative/applyDirty + 全量 syncFromNative 兜底）+ **Kotlin→C++ 反向增量回导**（applyDirtyToNative：事务级捕获窗口 → 信封 {version,changed,removed}：gameData 全量剔除 rngStates + 弟子变化 id 全实体/removed + 集合引用变化全量/removed；失败降级全量 importToNative） |
+| `GameStateStore.reverseDirtyAccumulator` | `app/.../state/GameStateStoreImpl.kt` | 事务级反向脏捕获（commitUpdateState 锁内：弟子脏 id 非消费 peek + gameData 引用 + 集合引用全量/消失 id）；`consumeReverseDirty()`/`resetReverseAccumulator()` 公开 API（窗口 = 自上次消费以来全部事务） |
+| `DirtyTracker` | `gamecore/state/dirty_tracker.h/.cpp` | C++ 变更集（基线 JSON diff：gameData 字段级 + 实体按 id upsert/remove）；`syncBaselineToCurrent`（阶段 3：反向应用后同步基线防重发） |
+| `DiscipleStore` | `gamecore/state/disciple_store.h/.cpp` | **SoA 列式实体存储**（阶段 3：~124 列 + idToRow；materialize/append/loadFrom/upsert 保序/removeById/swapRows 旋转同步索引；行序 == Kotlin ids 序为 RNG 红线）；GameState.disciples 唯一存储 |
+| `PhaseSettlementExecutor` | `core/engine/.../service/` | 每旬结算入口（executeResidual = 自动装备/丹药/突破 = AUTHORITATIVE Kotlin 残留；executeCultivationBatch = 核心批次 OFF/SHADOW 路径） |
+| 静态数据单一源 | `scripts/data/*.json` + `scripts/gen-*.mjs`（6 个） | T-CPP-2：中性源（唯一权威）→ 生成器 → C++ 表 + 测试快照；Kotlin Registry 由 RegistryGuardTest（6 类全量）+ StaticDataSingleSourceGuardTest（中性源↔快照逐字节）兜底 |
+
 **双端共享渲染常量**（LOD 阈值/阴影常量/瓦片索引/语义建筑索引）单一数据源 = build-atlas.mjs LAYOUT——修改布局只改 LAYOUT，运行 codegen 后 Kotlin/C++ 双产物自动一致（守卫：SpriteCodegenSyncTest 头文本 ↔ 编译产物全等）。
 
 ## Building Y-Sort Rule

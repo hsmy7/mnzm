@@ -98,13 +98,14 @@ TEST(YearSettlementTest, AnnualSalaryPaidWithLoyaltyAndLedger) {
         d.name = std::string("弟子") + id;
         d.realm = 9;
         d.isAlive = true;
-        st.disciples.push_back(d);
+        st.disciples.appendDisciple(d);
     }
 
     core->advancePhases(1);
 
     EXPECT_EQ(9000L, st.gameData.spiritStones);   // 10000 - Σ原额 1000
-    for (const auto& d : st.disciples) {
+    for (std::size_t i = 0; i < st.disciples.size(); ++i) {
+        const auto d = st.disciples.materialize(i);
         EXPECT_EQ(500L, d.storageBagSpiritStones) << d.id;   // round(500×1.0)
         EXPECT_EQ(1, d.salaryPaidCount) << d.id;
         EXPECT_EQ(51, d.loyalty) << d.id;                     // 50+1 cap100
@@ -128,14 +129,14 @@ TEST(YearSettlementTest, AnnualSalaryInsufficientFundsDropsLoyalty) {
     poor.realm = 9;
     poor.isAlive = true;
     poor.loyalty = 5;                              // 触底保护可观察
-    st.disciples.push_back(poor);
+    st.disciples.appendDisciple(poor);
 
     core->advancePhases(1);
 
     EXPECT_EQ(100L, st.gameData.spiritStones);     // 未扣减
-    EXPECT_EQ(4, st.disciples[0].loyalty);          // 5-1=4 ≥ MIN_LOYALTY 0
-    EXPECT_EQ(0L, st.disciples[0].storageBagSpiritStones);
-    EXPECT_EQ(0, st.disciples[0].salaryPaidCount);
+    EXPECT_EQ(4, st.disciples.materialize(0).loyalty);          // 5-1=4 ≥ MIN_LOYALTY 0
+    EXPECT_EQ(0L, st.disciples.materialize(0).storageBagSpiritStones);
+    EXPECT_EQ(0, st.disciples.materialize(0).salaryPaidCount);
 }
 
 TEST(YearSettlementTest, AnnualSalaryFrugalityReducesPayNoLoyalty) {
@@ -156,15 +157,15 @@ TEST(YearSettlementTest, AnnualSalaryFrugalityReducesPayNoLoyalty) {
     d.realm = 9;
     d.isAlive = true;
     d.loyalty = 50;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
 
     // 扣减 Σ原额 500；发放 round(500×0.7)=350
     EXPECT_EQ(9500L, st.gameData.spiritStones);
-    EXPECT_EQ(350L, st.disciples[0].storageBagSpiritStones);
-    EXPECT_EQ(1, st.disciples[0].salaryPaidCount);
-    EXPECT_EQ(50, st.disciples[0].loyalty);         // 开源节流不发忠诚
+    EXPECT_EQ(350L, st.disciples.materialize(0).storageBagSpiritStones);
+    EXPECT_EQ(1, st.disciples.materialize(0).salaryPaidCount);
+    EXPECT_EQ(50, st.disciples.materialize(0).loyalty);         // 开源节流不发忠诚
 }
 
 TEST(YearSettlementTest, AnnualSalaryDisabledRealmSkipped) {
@@ -183,13 +184,13 @@ TEST(YearSettlementTest, AnnualSalaryDisabledRealmSkipped) {
     d.name = "未启用";
     d.realm = 9;
     d.isAlive = true;
-    st.disciples.push_back(d);
+    st.disciples.appendDisciple(d);
 
     core->advancePhases(1);
 
     EXPECT_EQ(10000L, st.gameData.spiritStones);
-    EXPECT_EQ(0L, st.disciples[0].storageBagSpiritStones);
-    EXPECT_EQ(50, st.disciples[0].loyalty);
+    EXPECT_EQ(0L, st.disciples.materialize(0).storageBagSpiritStones);
+    EXPECT_EQ(50, st.disciples.materialize(0).loyalty);
 }
 
 TEST(YearSettlementTest, GhostBlankNameDiscipleSkipped) {
@@ -208,12 +209,12 @@ TEST(YearSettlementTest, GhostBlankNameDiscipleSkipped) {
     ghost.name = "   ";      // 全空白名
     ghost.realm = 9;
     ghost.isAlive = true;
-    st.disciples.push_back(ghost);
+    st.disciples.appendDisciple(ghost);
 
     core->advancePhases(1);
 
     EXPECT_EQ(10000L, st.gameData.spiritStones);   // plan 空 → 整体跳过
-    EXPECT_EQ(0L, st.disciples[0].storageBagSpiritStones);
+    EXPECT_EQ(0L, st.disciples.materialize(0).storageBagSpiritStones);
 }
 
 TEST(YearSettlementTest, YearChangeConsumesZeroRng) {

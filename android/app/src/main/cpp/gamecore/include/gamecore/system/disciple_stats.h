@@ -319,6 +319,50 @@ inline void getMaxHpMp(
     }
 }
 
+/// 列直读 maxHp/maxMp（DiscipleStore SoA 版，计划 v2 阶段 3 热路径用——
+/// 每旬恢复/候选筛选取代逐弟子物化；语义与 Disciple& 版逐位一致）
+inline void getMaxHpMp(
+        const state::DiscipleStore& ds, std::size_t row,
+        const BloodRefinementPctTotal* bloodRefinementPct,
+        const std::map<std::string, EquipmentInstance>& equipmentMap,
+        const std::map<std::string, ManualInstance>& manualMap,
+        const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
+        int32_t& outMaxHp, int32_t& outMaxMp) {
+    std::map<std::string, double> effects = mergeEffects(
+        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
+    computeBaseHpMp(ds.realms[row], ds.realmLayers[row], ds.hpVariances[row],
+                    ds.mpVariances[row], effects, bloodRefinementPct,
+                    outMaxHp, outMaxMp);
+    for (const std::string& eqId :
+         {ds.weaponIds[row], ds.armorIds[row], ds.bootsIds[row], ds.accessoryIds[row]}) {
+        if (eqId.empty()) continue;
+        const auto it = equipmentMap.find(eqId);
+        if (it == equipmentMap.end()) continue;
+        const auto fs = equipmentFinalStats(it->second);
+        outMaxHp += fs.hp;
+        outMaxMp += fs.mp;
+    }
+    const auto profListIt = proficiencies.find(ds.ids[row]);
+    for (const std::string& manualId : ds.manualIds[row]) {
+        const auto it = manualMap.find(manualId);
+        if (it == manualMap.end()) continue;
+        const ManualInstance& manual = it->second;
+        int32_t masteryLevel = 0;
+        if (profListIt != proficiencies.end()) {
+            for (const auto& p : profListIt->second) {
+                if (p.manualId == manualId) { masteryLevel = p.masteryLevel; break; }
+            }
+        }
+        const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
+        outMaxHp += manualStatWithMastery(manual.stats, "hp", "maxHp", bonus);
+        outMaxMp += manualStatWithMastery(manual.stats, "mp", "maxMp", bonus);
+    }
+    if (ds.pillEffectDurations[row] > 0) {
+        outMaxHp += ds.pillHpBonuses[row];
+        outMaxMp += ds.pillMpBonuses[row];
+    }
+}
+
 // ── 基础悟性（getBaseStats().comprehension，突破概率用） ─────────────
 
 /// 基础悟性 = skills.comprehension + 合并（天赋+词条）comprehensionFlat 截断。
@@ -330,6 +374,15 @@ inline int32_t baseComprehension(const Disciple& d) {
     const auto effects = mergeEffects(
         talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
     return d.comprehension +
+           static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
+}
+
+/// 基础悟性（DiscipleStore 行版，阶段 3 突破概率长老读取用）
+inline int32_t baseComprehension(const state::DiscipleStore& ds,
+                                 std::size_t row) {
+    const auto effects = mergeEffects(
+        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
+    return ds.comprehensions[row] +
            static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
 }
 
@@ -410,6 +463,83 @@ inline double calculateCultivationPerPhaseColumn(
     const int32_t clampedRoots = std::max(rootCount, 1);
     const double base =
         gamecore::disciple::realmSpeedPerPhase(d.realm) /
+        static_cast<double>(clampedRoots);
+    return gamecore::disciple::coerceAtLeast(
+        base * (1.0 + aptitudeBonus) * (1.0 + resourceBonus) *
+               (1.0 + socialBonus) * (1.0 + statusBonus) *
+               (1.0 + temporaryBonus),
+        gamecore::disciple::kMinCultivationPerPhase);
+}
+
+/// 每旬修炼速率（DiscipleStore SoA 版，计划 v2 阶段 3 热路径用；
+/// 语义与 Disciple& 版逐位一致——字段改列直读）
+inline double calculateCultivationPerPhaseColumn(
+        const state::DiscipleStore& ds, std::size_t row,
+        const state::GameData& gd,
+        const std::map<std::string, ManualInstance>& manualMap,
+        const std::map<std::string, std::vector<ManualProficiencyData>>& proficiencies,
+        const CultivationRateInput& extra) {
+    // 灵根数量（spiritRootTypes 按 "," 切分；空串按 1 兜底）
+    int32_t rootCount = 1;
+    if (!ds.spiritRootTypes[row].empty()) rootCount = 1;
+    for (char c : ds.spiritRootTypes[row]) {
+        if (c == ',') ++rootCount;
+    }
+
+    // ── 资质乘区：天赋 + 体质 + 资质属性 ──
+    const auto effects = mergeEffects(
+        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
+    double aptitudeBonus = effectValue(effects, "cultivationSpeed") +
+        physiqueCultivationBonusFor(ds.physiqueIds[row]) +
+        gamecore::disciple::aptitudeCultivationBonus(ds.aptitudes[row]);
+
+    // ── 资源乘区：建筑 + 功法（熟练度加成） ──
+    double resourceBonus = extra.buildingBonus - 1.0;
+    const auto profListIt = proficiencies.find(ds.ids[row]);
+    for (const std::string& manualId : ds.manualIds[row]) {
+        const auto it = manualMap.find(manualId);
+        if (it == manualMap.end()) continue;
+        const ManualInstance& manual = it->second;
+        int32_t masteryLevel = 0;
+        if (profListIt != proficiencies.end()) {
+            for (const auto& p : profListIt->second) {
+                if (p.manualId == manualId) { masteryLevel = p.masteryLevel; break; }
+            }
+        }
+        const double bonus = masteryBonusFromProficiencyLevel(masteryLevel);
+        double speedPct = 0.0;
+        const auto s = manual.stats.find("cultivationSpeedPercent");
+        if (s != manual.stats.end()) speedPct = static_cast<double>(s->second);
+        resourceBonus += speedPct * bonus / 100.0;
+    }
+
+    // ── 社交乘区：讲道 + 师徒 + 父母 ──
+    const double socialBonus = extra.preachingElderBonus +
+        extra.preachingMastersBonus + extra.parentCultivationBonus +
+        extra.masterDiscipleBonus;
+
+    // ── 状态乘区：政策 - 丧亲 - 寿命 ──
+    const int32_t griefEndYear = ds.griefEndYears[row];
+    const double griefPenalty = griefEndYear >= 0 &&
+        gd.gameYear < griefEndYear
+        ? gamecore::disciple::kGriefCultivationPenalty : 0.0;
+    const double lifespanPenalty =
+        gamecore::disciple::calculateLifespanCultivationPenalty(
+            ds.ages[row], ds.lifespans[row]);
+
+    const double statusBonus =
+        policyCultivationBonus(ds.realms[row], gd.sectPolicies) -
+        griefPenalty - lifespanPenalty;
+
+    // ── 临时乘区：丹药持续加速（pillEffects 体系） ──
+    double temporaryBonus = 0.0;
+    if (ds.pillEffectDurations[row] > 0 && ds.pillCultivationSpeedBonuses[row] > 0.0) {
+        temporaryBonus += ds.pillCultivationSpeedBonuses[row];
+    }
+
+    const int32_t clampedRoots = std::max(rootCount, 1);
+    const double base =
+        gamecore::disciple::realmSpeedPerPhase(ds.realms[row]) /
         static_cast<double>(clampedRoots);
     return gamecore::disciple::coerceAtLeast(
         base * (1.0 + aptitudeBonus) * (1.0 + resourceBonus) *

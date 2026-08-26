@@ -48,6 +48,9 @@ object DiffRngBridge {
     /** 导入但不恢复 RNG 分区（AUTHORITATIVE 每旬回导对拍用） */
     external fun nativeCoreImportStateNoRng(stateJson: ByteArray): Boolean
 
+    // ── 反向增量通道（计划 v2 阶段 3：applyReverseDirty 对拍用） ──
+    external fun nativeCoreApplyReverseDirty(dirtyJson: ByteArray): Boolean
+
     /** 按模式（重）创建引擎（AUTHORITATIVE 对拍用；模式一致时复用单例） */
     external fun nativeCoreInitMode(authoritativeTickMode: Boolean)
 
