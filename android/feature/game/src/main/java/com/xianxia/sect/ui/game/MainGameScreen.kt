@@ -399,8 +399,12 @@ private fun buildMainGameScreenBuildingList(
         }
         def.displayName to handler
     }
-    // 石板道路（建造栏目标，铺设走 RoadFacade 自动拼接）
-    return buildings + (GameConfig.Road.DISPLAY_NAME to { _ -> Unit })
+    // 石板道路建造入口已隐藏（2026-08 产品决策：暂不开放铺路）：
+    // 不再把"石板路"追加进建造栏建筑列表（玩家无法从建造栏选择铺路）。
+    // 已铺设道路的渲染/拆除/存档逻辑全部保留——拆除模式仍可拆除已铺设道路，
+    // 存档中的道路数据不受影响。未来恢复铺路时，在此将
+    // GameConfig.Road.DISPLAY_NAME 追加回 buildingList 即可。
+    return buildings
 }
 
 /** MainGameScreen 地图静态数据计算（MainGameScreen 拆分） */
