@@ -32,11 +32,21 @@ private const val AUTO_FOCUS_RETRY_INTERVAL_MS = 800L
  * requestFocus 无意义且会触发 ROM 智能输入法反复重弹键盘——已有文本输入焦点即
  * 说明焦点请求已生效，放弃重试交由输入法/系统自行落定。
  *
+ * Compose 场景补充（2026-08 第五根因修复）：Compose 文本字段（OutlinedTextField 等）
+ * 不使用 [EditText]，焦点在 Compose FocusManager 中管理——Android 层 `findFocus()`
+ * 返回 ComposeView（AndroidComposeView，继承 ViewGroup 而非 TextView），原判定恒
+ * false 导致重试守卫失效。Compose 内部聚焦时（IME 连接需要）ComposeView 自身持有
+ * Android 焦点，据此补充 `focused === view` 判定。副作用分析：Compose 非文本节点
+ * （Button）聚焦时若 ComposeView 自持焦点会误判命中——但该场景本无 IME 需求，
+ * 跳过重试无任何副作用（原逻辑重试 requestFocus 同样无 IME 效果）。
+ *
  * internal 供 Robolectric 单测直接驱动判定逻辑。
  */
 internal fun hasTextInputFocus(view: View): Boolean {
     val focused = view.findFocus() ?: return false
-    return focused is EditText || (focused is TextView && focused.inputType != 0)
+    return focused is EditText ||
+        (focused is TextView && focused.inputType != 0) ||
+        (view.hasFocus() && focused === view)
 }
 
 /**

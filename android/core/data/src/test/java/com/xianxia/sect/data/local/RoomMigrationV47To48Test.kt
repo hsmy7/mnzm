@@ -32,6 +32,7 @@ class RoomMigrationV47To48Test {
         )
 
         private val M47_48 = MIGRATION_47_48
+        private val M48_49 = MIGRATION_48_49
     }
 
     /**
@@ -46,7 +47,7 @@ class RoomMigrationV47To48Test {
         try {
             createDatabaseFromSchema(context, dbName, 47).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M47_48)
+                .addMigrations(M47_48, M48_49)
                 .build()
             db.openHelper.writableDatabase
             db.close()

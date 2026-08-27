@@ -552,4 +552,34 @@ class StandardPromptDialogTest {
         composeRule.waitForIdle()
         assertFalse("销毁后应解冻", SystemBarFreezeScope.isFrozen)
     }
+
+    // ── 渲染模式感知双路径（2026-08 第五根因键盘振荡 + 闪退根治）──
+    // 软件渲染设备（真我 neo7 turbo：MTK 被强制关闭 HW 加速）上 Android 15
+    // edge-to-edge 的 IME insets 派发时序不稳定，Activity 层 adjustResize +
+    // imePadding 双重位移反复触发键盘振荡；切换为单一 ADJUST_PAN 避让。
+    // shouldUsePanAvoidance 为纯函数（参数注入），Robolectric 直接覆盖四组合。
+
+    @Test
+    fun `shouldUsePanAvoidance - 平台 Dialog 窗口内恒 false`() {
+        assertFalse(
+            "Dialog 窗口内（外层已有 ADJUST_PAN）不应叠加",
+            shouldUsePanAvoidance(insideDialogWindow = true, hardwareAccelerated = false)
+        )
+        assertFalse(
+            "Dialog 窗口内与渲染模式无关",
+            shouldUsePanAvoidance(insideDialogWindow = true, hardwareAccelerated = true)
+        )
+    }
+
+    @Test
+    fun `shouldUsePanAvoidance - Activity 层软件渲染 true 硬件加速 false`() {
+        assertTrue(
+            "软件渲染 Activity 层应切 ADJUST_PAN 单一避让（第五根因根治）",
+            shouldUsePanAvoidance(insideDialogWindow = false, hardwareAccelerated = false)
+        )
+        assertFalse(
+            "硬件加速 Activity 层保持 adjustResize + imePadding 官方标准组合",
+            shouldUsePanAvoidance(insideDialogWindow = false, hardwareAccelerated = true)
+        )
+    }
 }

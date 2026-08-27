@@ -141,6 +141,34 @@ internal fun SystemBarFreezeEffect(enabled: Boolean) {
 }
 
 /**
+ * 渲染模式感知的 ADJUST_PAN 避让挂载（第五根因键盘振荡 + 闪退根治，
+ * 2026-08 真我 neo7 turbo，见 rules/dialog-soft-input-guard.md）。
+ *
+ * 软件渲染设备（MTK 等被 VulkanPolicy 判定 PROBLEMATIC 强制关闭 HW 加速，如
+ * 真我 neo7 turbo）上，Android 15 强制 edge-to-edge 的 IME insets 派发时序
+ * 不稳定，Activity 层输入框的 adjustResize（窗口 resize）+ imePadding（布局
+ * padding）双重位移反复触发 → IME 状态误报 → 键盘弹出→收起→再弹出振荡回路；
+ * 振荡 × 软件渲染高分屏每帧全屏 CPU 重绘 → 主线程过载 → 进程被杀（直接退出
+ * 无提示）。经 [shouldUsePanAvoidance] 判定后挂载 [DialogSoftInputGuard]
+ * （作用于 Activity 窗口，系统级平移不依赖 IME insets 派发时序）——与平台
+ * Dialog 窗口场景 / [PlantingDialog] 机制一致；平台 Dialog 窗口内 / 硬件加速
+ * Activity 层不挂载（保持官方标准组合，荣耀 X70 等已验证稳定）。
+ *
+ * 提取为独立 composable 避免宿主容器函数体超 detekt LongMethod 阈值。
+ */
+@Composable
+private fun PanAvoidanceGuard(
+    insideDialogWindow: Boolean,
+    hardwareAccelerated: Boolean
+) {
+    if (shouldUsePanAvoidance(insideDialogWindow, hardwareAccelerated)) {
+        // DialogSoftInputGuard 支持 Activity 窗口（无 DialogWindowProvider 时回退
+        // LocalActivity.window），挂载期间切换 softInputMode、销毁自动恢复
+        DialogSoftInputGuard()
+    }
+}
+
+/**
  * 判定给定 [View] 是否处于平台 Dialog 窗口（Compose [Dialog] 创建的独立 Window）内。
  *
  * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。用于决定键盘避让机制：
@@ -152,6 +180,31 @@ internal fun isInsideDialogWindow(view: View): Boolean =
     generateSequence(view) { it.parent as? View }
         .filterIsInstance<DialogWindowProvider>()
         .firstOrNull() != null
+
+/**
+ * 判定 Activity 层输入框是否应使用 ADJUST_PAN 单一避让（第五根因键盘振荡 + 闪退根治）。
+ *
+ * 软件渲染设备（如真我 neo7 turbo——MTK SoC 被 VulkanPolicy 判定 PROBLEMATIC 强制
+ * 关闭 HW 加速）上，Android 15 强制 edge-to-edge 的 IME insets 派发时序不稳定，
+ * `adjustResize`（窗口 resize）+ `imePadding`（布局 padding）双重位移反复触发 → IME
+ * 状态误报 → 键盘弹出→收起→再弹出振荡回路；振荡 × 软件渲染高分屏每帧全屏 CPU 重绘
+ * → 主线程过载 → 进程被杀（直接退出无提示）。软件渲染 Activity 层输入框切换为单一
+ * ADJUST_PAN 避让（系统级平移，不依赖 insets 派发时序），与平台 Dialog 窗口场景 /
+ * [PlantingDialog] 机制一致。硬件加速 Activity 层保持 manifest adjustResize +
+ * imePadding 官方标准组合（Flutter/Unity 同款，荣耀 X70 等已验证稳定）。
+ *
+ * 参数注入为纯函数便于 Robolectric 单测覆盖四种组合（Robolectric 无法直接控制
+ * [View.isHardwareAccelerated] 返回值）。平台 Dialog 窗口内（外层窗口已有
+ * ADJUST_PAN）恒 false，软件渲染判定仅对 Activity 层生效。
+ *
+ * @param insideDialogWindow 是否处于平台 Dialog 窗口内（[isInsideDialogWindow]）
+ * @param hardwareAccelerated 宿主窗口是否硬件加速（[View.isHardwareAccelerated]）
+ * @return true 表示应挂载 [DialogSoftInputGuard]（ADJUST_PAN）并禁用 imePadding
+ */
+internal fun shouldUsePanAvoidance(
+    insideDialogWindow: Boolean,
+    hardwareAccelerated: Boolean
+): Boolean = !insideDialogWindow && !hardwareAccelerated
 
 /**
  * 在 Dialog Window 上应用 hideSystemBars()，使对话框内容全屏无状态栏/导航栏。
@@ -506,6 +559,9 @@ fun InlineStandardPromptDialog(
     // manifest adjustResize + imePadding 官方标准组合。
     val dialogView = LocalView.current
     val insideDialogWindow = remember { isInsideDialogWindow(dialogView) }
+    // 渲染模式感知双路径（第五根因键盘振荡 + 闪退根治，见 PanAvoidanceGuard KDoc）
+    val hardwareAccelerated = remember(dialogView) { dialogView.isHardwareAccelerated }
+    PanAvoidanceGuard(insideDialogWindow, hardwareAccelerated)
 
     // 嵌套传导（2026-08 第四根因根治）：内联输入框渲染于平台 Dialog 窗口内时，
     // 冻结外层 Dialog 窗口的系统栏操作——DialogSystemBarGuard 据此恢复导航栏显示、
@@ -531,7 +587,10 @@ fun InlineStandardPromptDialog(
         onDismissRequest = onDismissRequest,
         scrimEnabled = scrimActuallyEnabled,
         dismissOnClickOutside = dismissOnClickOutside,
-        applyImePadding = !insideDialogWindow
+        // 平台 Dialog 窗口内（外层 ADJUST_PAN）与软件渲染 Activity 层（本组件已挂
+        // ADJUST_PAN）均禁用 imePadding——pan + padding 双重位移是国产 ROM 键盘
+        // 振荡根因；仅硬件加速 Activity 层保持 adjustResize + imePadding 官方标准组合
+        applyImePadding = !insideDialogWindow && hardwareAccelerated
     ) {
         PromptDialogFrame(
             dialogWidth = dialogWidth,

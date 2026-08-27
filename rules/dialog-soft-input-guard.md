@@ -45,14 +45,28 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 - `StandardPromptDialog`/`SmallScreenDialog` 新增 `freezeSystemBars: Boolean = false` 参数（默认 false 向后兼容）；平台 Dialog 窗口直接持输入框的新场景必须显式传 true
 - 输入对话框的导航栏可见为**有意取舍**（行业主流"输入时退出沉浸"）：键盘弹出时导航栏本就应可见（Android 15 系统接管语义），edge-to-edge 下为浮层条，视觉影响最小；非输入对话框沉浸不变
 
+## 第五根因（2026-08 真我 neo7 turbo 键盘反复弹出/闪烁/闪退根治新增）
+
+**软件渲染 × Android 15 edge-to-edge × Activity 层双避让的叠加**：真我 neo7 turbo（realme UI / Android 15+ / 天玑 9300+）为 MTK SoC——`VulkanPolicy.detectTier` 命中 `MEDIATEK_PREFIXES` 判定 `PROBLEMATIC`，Android 15+（API 35）下 `shouldDisableHardwareAcceleration` 为 true → `Theme.XianxiaSect.GameSafe`（`hardwareAccelerated="false"`）→ **全 UI 软件渲染**（第四根因四款机型均为高通 SoC → `WARNING` 档保持硬件加速；真我 neo7 turbo 是首个"MTK + Android 15 + 键盘输入场景"实测机型）。软件渲染下 Android 15 强制 edge-to-edge 的 IME insets 派发时序不稳定（跨框架佐证：Flutter `ImeSyncDeferringInsetsCallback`、Chromium `DeferredIMEWindowInsetApplicationCallback`、Slint #11344 "Android IME broken on some OEMs after WindowInsetsAnimation"），Activity 层输入框的 `adjustResize`（窗口 resize）+ `imePadding`（布局 padding）**双重位移反复触发** → IME 状态误报 → 键盘弹出→收起→再弹出振荡回路（第一根因"双重位移"在软件渲染路径上的新形态）；振荡 × 软件渲染 1.5K 高分屏每帧全屏 CPU 重绘 → 主线程过载 → **进程被杀（直接退出回桌面，无提示）**。辅助放大器：`hasTextInputFocus` 守卫对 Compose 文本字段失效（Compose 焦点在 FocusManager，Android 层 `findFocus()` 返回 AndroidComposeView，非 EditText/TextView）→ 检测信号不稳定时重试逻辑无法识别"已有焦点"→ 每 800ms 重复 `requestFocus` → ROM 智能输入法反复重弹键盘。
+
+**第五根因防御法则：渲染模式感知双路径——软件渲染 Activity 层输入框走单一 ADJUST_PAN。**
+- `InlineStandardPromptDialog` 键盘避让升级为**渲染模式感知双路径**（`shouldUsePanAvoidance` 纯函数判定：`!insideDialogWindow && !hardwareAccelerated`，`hardwareAccelerated` 读 `View.isHardwareAccelerated`，与 VulkanPolicy 决策同源）：
+  - 平台 Dialog 窗口内：ADJUST_PAN（外层窗口已有，内层禁用 imePadding，不变）
+  - **硬件加速 Activity 层：manifest adjustResize + imePadding 官方标准组合（Flutter/Unity 同款，荣耀 X70 等已验证稳定，不变）**
+  - **软件渲染 Activity 层（新增）：挂载 `DialogSoftInputGuard()`（ADJUST_PAN，作用于 Activity 窗口）+ 禁用 imePadding**——窗口级系统平移，不依赖 IME insets 派发时序，切断双重位移振荡触发源；与平台 Dialog 窗口场景 / `PlantingDialog` 机制一致
+- `hasTextInputFocus` 补充 Compose 场景判定：`view.hasFocus() && focused === view`（Compose 内部聚焦时 ComposeView 自持 Android 焦点）——防检测信号不稳定时重试逻辑反复 requestFocus 触发键盘重弹（辅助放大器根治）
+- **不改变 VulkanPolicy 本身**：MTK 一律软件渲染是既有保守策略（天玑 Vulkan 驱动历史问题），放宽风险大；双路径在软件渲染设备上以"系统级平移"规避 insets 依赖，机制正确且无需放宽渲染策略
+- **升级路径（已登记技术债）**：若任一**硬件加速**设备实报键盘振荡复现 → 升级为全局统一 ADJUST_PAN 单一避让（废除 Activity 层 imePadding 路径）；修复后仍有闪退 → 按 Bugly 堆栈独立定位（native crash vs LMK，与 IME 交互可能无关）
+
 ## 双机制避让（2026-08-06 根治后规则）
 
 | 渲染上下文 | 唯一避让机制 | 实现 |
 |-----------|------------|------|
 | **平台 Dialog 窗口内**（Compose `Dialog()` 创建的独立 Window，如 `UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog`） | 窗口级 `SOFT_INPUT_ADJUST_PAN`（不做 resize，仅平移，切断振荡回路） | 容器内置 `DialogSoftInputGuard()`（默认 ADJUST_PAN）；**窗口内严禁再加 `imePadding`** |
-| **Activity 窗口内**（内联 Box 覆盖层，如 `InlineStandardPromptDialog`/`PlantingDialog`） | `adjustResize`（manifest 已配置）+ Compose `imePadding` = Google 官方标准组合 | 无需 `DialogSoftInputGuard`（保持 manifest 默认）；覆盖层挂 `.imePadding()` |
+| **Activity 窗口内（硬件加速）**（内联 Box 覆盖层，如 `InlineStandardPromptDialog`/`PlantingDialog`） | `adjustResize`（manifest 已配置）+ Compose `imePadding` = Google 官方标准组合 | 无需 `DialogSoftInputGuard`（保持 manifest 默认）；覆盖层挂 `.imePadding()` |
+| **Activity 窗口内（软件渲染，第五根因）**（`View.isHardwareAccelerated == false`，如真我 neo7 turbo——MTK 被 VulkanPolicy 强制关闭 HW 加速） | 窗口级 `SOFT_INPUT_ADJUST_PAN` 单一避让（与平台 Dialog 窗口一致） | `InlineStandardPromptDialog` 自动经 `shouldUsePanAvoidance` 判定挂载 `DialogSoftInputGuard()`（作用于 Activity 窗口）+ **禁用 imePadding**——系统级平移不依赖 IME insets 派发时序，切断软件渲染下双重位移振荡 |
 
-`InlineStandardPromptDialog`（含文本输入的对话框统一使用）已内置**双上下文自动检测**：通过 `isInsideDialogWindow(LocalView.current)` 判断是否处于平台 Dialog 窗口内——Activity 层应用 `imePadding`，Dialog 窗口内自动禁用（外层窗口已有 ADJUST_PAN）。**调用方无需关心，也不要手动叠加任何避让。**
+`InlineStandardPromptDialog`（含文本输入的对话框统一使用）已内置**双上下文自动检测**：通过 `isInsideDialogWindow(LocalView.current)` 判断是否处于平台 Dialog 窗口内——Activity 层应用 `imePadding`，Dialog 窗口内自动禁用（外层窗口已有 ADJUST_PAN）。**第五根因起升级为渲染模式感知**：软件渲染 Activity 层（`isHardwareAccelerated == false`）自动切换为单一 ADJUST_PAN 并禁用 imePadding。**调用方无需关心，也不要手动叠加任何避让。**
 
 ## 哪些容器已自带正确避让
 
@@ -84,8 +98,10 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
         ├─ 平台 Dialog 窗口 → 顶部调用 DialogSoftInputGuard()（ADJUST_PAN），
         │    禁止 imePadding；含输入框时 Dialog{} 块内接 DialogSystemBarFreezeEffect(true)
         │    （或 DisposableEffect 经 DialogSystemBarFreezeScope.enterFreeze(本窗口)）
-        └─ Activity 层 Box 覆盖层 → 挂 imePadding()（保持 manifest adjustResize），
-             不要调用 DialogSoftInputGuard()；含输入框时同样接入 SystemBarFreezeScope
+        └─ Activity 层 Box 覆盖层 → 硬件加速挂 imePadding()（保持 manifest adjustResize）、
+             软件渲染（isHardwareAccelerated == false）挂 DialogSoftInputGuard()（ADJUST_PAN）
+             并禁用 imePadding——优先放入 InlineStandardPromptDialog（自动判定），
+             自定义容器按此二选一；含输入框时同样接入 SystemBarFreezeScope
 ```
 
 **社交扩展（2026-08-04 起）：** 未来社交/排行界面的搜索框、好友备注输入框同样按此法则判断——优先放入 `InlineStandardPromptDialog`；自定义容器必须严格二选一 + 输入框冻结。
@@ -100,7 +116,9 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 - **平台 Dialog 窗口持输入框但只传 `freezeSystemBars = true` 未传导到 Dialog 窗口（缺 `DialogSystemBarFreezeEffect` / `DialogSystemBarFreezeScope`）→ HyperOS 2 / MagicOS 8/9 / Android 15 edge-to-edge 上 Dialog 窗口仍隐藏/切换导航栏与 IME 对抗，键盘反复弹出 + 界面反复下拉（第四根因，小米15/荣耀500 Pro/荣耀200 Pro/红米K70 实测复现）**
 - 嵌套内联输入框（平台 Dialog 窗口 overlay 槽位内）未自动冻结外层窗口 → 同第四根因复现（仓库出售场景）
 - 自动聚焦重试在输入框已有焦点时仍重复 requestFocus → 检测信号不稳定 ROM（HyperOS 2/MagicOS 8/9）上键盘反复重弹（第四根因放大器）
-- 复现条件：HyperOS / ColorOS / FuntouchOS / MagicOS（含 Android 12-14 的 MagicOS 7.x）+ 含输入框对话框 + 输入框获得焦点
+- **软件渲染设备（MTK 等被强制关闭 HW 加速）Activity 层输入框仍用 adjustResize + imePadding 双避让 → 软件渲染下 IME insets 派发时序不稳定，双重位移反复触发 → 键盘反复弹出 + 界面闪烁 + 主线程过载进程被杀闪退（第五根因，真我 neo7 turbo 实测复现）**
+- 软件渲染 Activity 层输入框改走 ADJUST_PAN 但 `hasTextInputFocus` 未覆盖 Compose 场景 → 检测信号不稳定时自动聚焦重试每 800ms 重复 requestFocus，ROM 智能输入法反复重弹键盘（第五根因辅助放大器）
+- 复现条件：HyperOS / ColorOS / FuntouchOS / MagicOS（含 Android 12-14 的 MagicOS 7.x）+ 含输入框对话框 + 输入框获得焦点；软件渲染 + Android 15 edge-to-edge（MTK/华为 Kirin 等被 VulkanPolicy 判 PROBLEMATIC 的设备）为第五根因专属组合
 
 ## 注意点
 
@@ -109,4 +127,5 @@ Xiaomi HyperOS / OPPO ColorOS / Vivo FuntouchOS 等国产 ROM 上，键盘弹出
 - 含输入框的对话框应使用 `InlineStandardPromptDialog` 而非平台 Dialog 容器（2026-08-06 根治决策：平台 Dialog 窗口与 IME 的交互在国产 ROM 上不可靠，历史上 OPPO/Vivo/HyperOS 三系均复现，见 `docs/adr/dialog-system-refactoring.md`；自动管理/进攻范围/商人买卖数量因产品形态保留平台 Dialog + 输入框，依赖第三根因防御法则）
 - **Activity 侧必备**（2026-08 荣耀 X70 根治 + GT 系列升级）：`hideSystemBars()` 接入 `SystemBarHidePolicy.shouldSkipHide()` 双守卫 + `ImeVisibilityTracker.attach(window)`（多窗口）+ `SystemBarFreezeScope.addOnUnfreezeListener`（解冻恢复必须延迟 350ms + 二次守卫）；`MainActivity`/`GameActivity` 两个入口都必须具备，缺一即遗留放大器
 - **Dialog 窗口侧必备**（2026-08 第四根因）：含输入框的容器（`freezeSystemBars = true`）必须在 Dialog{} 块内经 `DialogSystemBarFreezeEffect` 冻结本窗口（`DialogSystemBarFreezeScope` 按窗口）；`DialogSystemBarGuard` 冻结态只隐藏状态栏、不隐藏导航栏，键盘可见期间零系统栏切换，解冻延迟 350ms + 二次校验恢复；嵌套内联输入框经 `InlineStandardPromptDialog` 自动传导，无需调用方传参
-- 自动聚焦一律使用 `rememberImeAwareAutoFocusRequester()`（IME 弹出确认 + 有限重试），禁止裸 `LaunchedEffect { requestFocus() }` 单次聚焦（荣耀智慧输入法首次弹出失败场景无恢复）；重试在输入框已有焦点时自动跳过（第四根因：防检测信号不稳定时键盘反复重弹）
+- **渲染模式感知双路径**（2026-08 第五根因）：`InlineStandardPromptDialog` 的 Activity 层避让按 `View.isHardwareAccelerated` 自动二选一——硬件加速保持 adjustResize + imePadding（官方标准组合），软件渲染自动切换 ADJUST_PAN 单一避让（复用 `DialogSoftInputGuard` 的 Activity 窗口支持）+ 禁用 imePadding；`shouldUsePanAvoidance(insideDialogWindow, hardwareAccelerated)` 为纯函数判定（参数注入便于单测）；判定与 VulkanPolicy 决策同源（同受 GameSafe 主题控制），不改变 VulkanPolicy 本身
+- 自动聚焦一律使用 `rememberImeAwareAutoFocusRequester()`（IME 弹出确认 + 有限重试），禁止裸 `LaunchedEffect { requestFocus() }` 单次聚焦（荣耀智慧输入法首次弹出失败场景无恢复）；重试在输入框已有焦点时自动跳过（第四根因：防检测信号不稳定时键盘反复重弹；第五根因起 `hasTextInputFocus` 覆盖 Compose 场景——ComposeView 自持 Android 焦点即视为文本焦点）

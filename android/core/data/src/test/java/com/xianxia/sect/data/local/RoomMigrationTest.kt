@@ -81,6 +81,7 @@ class RoomMigrationTest {
         private val M45_46 = MIGRATION_45_46
         private val M46_47 = MIGRATION_46_47
         private val M47_48 = MIGRATION_47_48
+        private val M48_49 = MIGRATION_48_49
 
         private val SEED_DISCIPLES_V38 = """
             INSERT INTO disciples (
@@ -269,7 +270,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 38).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 47：仅注册 M38_39 时 Room 要求 38→47 迁移路径
-                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48)
+                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -302,7 +303,7 @@ class RoomMigrationTest {
                     M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
                     M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36,
                     M36_37, M37_38, M38_39, M39_40, M40_41, M41_42, M42_43, M43_44,
-                    M44_45, M45_46, M46_47, M47_48
+                    M44_45, M45_46, M46_47, M47_48, M48_49
                 )
                 .build()
             roomDb.openHelper.writableDatabase
@@ -326,7 +327,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 39).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 47：完整迁移路径 39→47
-                .addMigrations(M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48)
+                .addMigrations(M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -379,7 +380,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 40).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48)
+                .addMigrations(M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -401,7 +402,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 41).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48)
+                .addMigrations(M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -418,7 +419,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 42).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M42_43, M43_44, M44_45, M45_46, M46_47, M47_48)
+                .addMigrations(M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
                 .build()
             db.openHelper.writableDatabase
             db.close()

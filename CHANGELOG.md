@@ -100,6 +100,17 @@
 - **架构决策** — ADR Decision 7 由"职责边界固化（双端并行=最终态）"改回"**彻底单引擎（选项 A：Kotlin 引擎退役，C++ 唯一真相源=最终态）**"；执行路径见 `docs/cpp-engine.md` 第 7 节（阶段 1-7：增量变更集 → 批量结算下沉 → 数据导向存储 → 未迁移系统 C++ 化 → 引擎循环入 C++ → 渲染 RHI → Kotlin 降级纯平台层）；架构待办（C 系列调整触发、T-CPP-2 提前、T-CPP-1 保持、R 系列保留）已合并入计划
 - **存量问题登记（S 系列）** — 迁移途中发现的死代码/过时文档统一登记 `docs/cpp-engine.md` 第 8 节：S-01 `GameEngineCore.tick()` 死代码（无调用点）、S-02 `UnifiedGameState` 过时文档、S-03 地图渲染文档滞后、S-04 `SavePipeline` 旧名注释、S-05/S-06 RNG 恢复/exportDirty 功能缺口（并入阶段 1）、S-07 `DomainLog` logger getter 设计限制
 
+### 修复（真我 neo7 turbo 宗门名称输入框键盘反复弹出/闪烁/闪退——第五根因根治）
+
+> 背景：用户实报真我 neo7 turbo（realme UI / Android 15+ / 天玑 9300+）在宗门名称输入框界面出现键盘反复弹出、界面闪烁、直接退出回桌面（无提示）。经审计：全部输入对话框四件套合规、前四根因（双重位移/hideSystemBars 放大器/API<35 传统 flags/Dialog 窗口 freeze 作用域）守卫链零改动——本次为**第五根因**（修复覆盖盲区），非回归。
+
+- **根因（第五根因）** — 真我 neo7 turbo 为 MTK 天玑 9300+ SoC：`VulkanPolicy.detectTier` 命中 `MEDIATEK_PREFIXES` 判定 `PROBLEMATIC`，Android 15+（API 35）下 `shouldDisableHardwareAcceleration` 为 true → `Theme.XianxiaSect.GameSafe`（`hardwareAccelerated="false"`）→ **全 UI 软件渲染**（第四根因四款机型均为高通 SoC → `WARNING` 档保持硬件加速，真我 neo7 turbo 是首个"MTK + Android 15 + 键盘输入场景"实测机型）。软件渲染下 Android 15 强制 edge-to-edge 的 IME insets 派发时序不稳定（跨框架佐证：Flutter `ImeSyncDeferringInsetsCallback` / Chromium `DeferredIMEWindowInsetApplicationCallback` / Slint #11344 OEM WindowInsetsAnimation IME broken），Activity 层输入框的 `adjustResize`（窗口 resize）+ `imePadding`（布局 padding）双重位移反复触发 → IME 状态误报 → 键盘弹出→收起→再弹出振荡回路（第一根因"双重位移"在软件渲染路径上的新形态）；振荡 × 软件渲染 1.5K 高分屏每帧全屏 CPU 重绘 → 主线程过载 → 进程被杀（直接退出无提示）。辅助放大器：`hasTextInputFocus` 守卫对 Compose 文本字段失效（Compose 焦点在 FocusManager，Android 层 `findFocus()` 返回 AndroidComposeView，非 EditText/TextView）→ 检测信号不稳定时重试逻辑无法识别"已有焦点"→ 每 800ms 重复 requestFocus → ROM 智能输入法反复重弹键盘
+- **根治（双路径，对标 Flutter/Unity adjustResize + insets 处理、行业自绘输入为技术债）** — `InlineStandardPromptDialog` 键盘避让升级为**渲染模式感知双路径**：平台 Dialog 窗口内（ADJUST_PAN）/ 硬件加速 Activity 层（adjustResize + imePadding 官方标准组合，荣耀 X70 等已验证稳定）两路径不变；**软件渲染 Activity 层（`View.isHardwareAccelerated == false`）切换为单一 ADJUST_PAN 避让**（复用 `DialogSoftInputGuard` 的 Activity 窗口支持：窗口级系统平移，不依赖 IME insets 派发时序，切断双重位移振荡触发源；与平台 Dialog 窗口场景 / `PlantingDialog` 机制一致）并禁用 imePadding；`hasTextInputFocus` 补充 Compose 场景判定（`view.hasFocus() && focused === view`，ComposeView 自持 Android 焦点即视为文本焦点）
+- **测试** — `ImeAwareAutoFocusTest` +3（ComposeView 自持焦点判定命中/无焦点不命中/判定入口为父容器不误判）；`StandardPromptDialogTest` +2（`shouldUsePanAvoidance` 纯函数四组合：Dialog 窗口内恒 false、Activity 层软件渲染 true / 硬件加速 false）；渲染模式判定提取为 `shouldUsePanAvoidance(insideDialogWindow, hardwareAccelerated)` 纯函数（参数注入，Robolectric 可覆盖）
+- **验证** — 全量 `compileReleaseKotlin` + `testReleaseUnitTest --max-workers=1` 全绿；真机验证清单：真我 neo7 turbo 创建宗门/改名/兑换码/出售数量（logcat `ImeGuard` 振荡日志归零、无新崩溃、`filesDir/crash_logs/` 无新记录、Bugly 无新崩溃）
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；硬件加速设备 `applyImePadding` 条件数学恒等、零行为变化；软件渲染设备从有问题的 imePadding 组合切换为已验证的 ADJUST_PAN 单一避让；不改变 VulkanPolicy 本身（MTK 软件渲染策略不动，避免放宽风险）；`iOS` 标签：仅 Android 窗口层交互，无对等机制，不构成迁移障碍
+- **升级路径（已登记技术债）** — 若任一硬件加速设备实报键盘振荡复现（提供机型 + 复现步骤）→ 升级为全局统一 ADJUST_PAN 单一避让（废除 Activity 层 imePadding 路径）；修复后真机仍有闪退 → 按 Bugly 堆栈独立定位（native crash vs LMK）；自绘输入（GameTextInput 式）登记至 `docs/platform-abilities.md` G 系列缺口，iOS/Compose Multiplatform 评估时重估
+
 ## [4.01.09] - 2026-08-23
 
 ### 修复（键盘反复弹出/界面闪烁/界面反复下拉——第四根因根治）
