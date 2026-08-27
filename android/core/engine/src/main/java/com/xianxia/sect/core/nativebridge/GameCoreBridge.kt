@@ -148,4 +148,121 @@ object GameCoreBridge {
 
     /** 导出事件队列（JSON；Kotlin 侧 poll 消费后转 DomainEvent） */
     external fun nativePollEvents(): ByteArray
+
+    // ============================================================
+    // 引擎循环 + 看门狗（计划 v2 阶段 5：游戏循环入 C++）
+    // ============================================================
+
+    /** 看门狗判定码（C++ ProgressMonitor 数值码；-1 = 引擎未初始化） */
+    const val VERDICT_HEALTHY = 0
+    const val VERDICT_LOOP_STALLED = 1
+    const val VERDICT_FAKE_RUN_DETECTED = 2
+    const val VERDICT_PAUSED_BY_OWNER = 3
+    const val VERDICT_STALE_PAUSE_DETECTED = 4
+
+    /** 循环启动/重启：帧累积清零 + 时钟基准重置（prepareLoopStart 调用） */
+    external fun nativeLoopStart()
+
+    /**
+     * 速度切换（真相源同步）：C++ PhaseClock 按旧速度结算累积（切换零丢失）。
+     * 经 [com.xianxia.sect.core.engine.system.GameTimeClock.onSpeedChanged] 钩子
+     * 自动推送，UI 直接调 gameClock.setSpeed 不感知本通道。
+     */
+    external fun nativeLoopSetSpeed(speed: Int)
+
+    /**
+     * 单帧迭代计划（AUTHORITATIVE 帧驱动入口）：C++ EngineLoop 消费墙钟 →
+     * 帧累积/逻辑步进/时间消费/心跳全部在 native 真相源完成，返回本帧执行指令。
+     *
+     * @param pausedOrLoading isPaused || isLoading（暂停分支：死区消费 + 累积清零）
+     * @param isSaving 保存中（tick 级跳过：不推进计数、消费死区）
+     * @return 17 槽 LongArray（[NativeLoopPlan.unpack]；引擎未初始化返回空数组）
+     */
+    external fun nativeLoopFrame(pausedOrLoading: Boolean, isSaving: Boolean): LongArray
+
+    /** 消耗死区时间（异常恢复/暂停阻塞路径；刷新基准不累积） */
+    external fun nativeLoopConsumeDeadTime()
+
+    /** 归还已消费旬数（native 链路失败整批回滚；对应 gameClock.refundPhases） */
+    external fun nativeLoopRefundPhases(count: Int)
+
+    /** 用户活跃通知（输入端口：onUserActivity → C++ idleNs 维护） */
+    external fun nativeLoopNotifyUserActivity()
+
+    /** 循环紧急重启（换线程）：帧状态清零（performEmergencyRestart 调用） */
+    external fun nativeLoopOnRestart()
+
+    /**
+     * 看门狗统一判据（AUTHORITATIVE 真相源判据）：引擎侧状态
+     * （tickCount/totalPhases/accumulatedGameMs/speed/loopActiveAtMs）由 C++
+     * 组合，平台侧运行态（暂停/保存/加载/秘境租约）由本参数传入。
+     *
+     * @return [VERDICT_*] 判定码；-1 = 引擎未初始化（调用方回退 Kotlin 判据）
+     */
+    external fun nativeWatchdogVerdict(
+        loopActive: Boolean,
+        isPaused: Boolean,
+        isSaving: Boolean,
+        isLoading: Boolean,
+        secretRealmPauseLock: Boolean,
+        secretRealmPauseRenewedAtMs: Long
+    ): Int
+
+    /**
+     * 热控状态推送（平台能力接口化：Kotlin ThermalMonitor 轮询 → C++ Settable 端口）。
+     * severity 数值码：0=None 1=Light 2=Moderate 3=Severe 5=Emergency（C++ ThermalState）
+     */
+    external fun nativeLoopSetThermalStatus(severity: Int)
+
+    /** 电量状态推送（BatteryAwareController 语义镜像 → C++ Settable 端口） */
+    external fun nativeLoopSetBatteryStatus(
+        isLowBattery: Boolean,
+        isPowerSaveMode: Boolean,
+        fpsCap: Int,
+        thermalThresholdOffsetC: Float
+    )
+}
+
+/**
+ * nativeLoopFrame 帧计划（C++ `system::LoopFramePlan` 17 槽 LongArray 解包；
+ * 槽位协议与 engine_loop.h 注释同源）：
+ * [0] paused · [1] tickCount · [2..6] tickKind(1=active/0=isSaving 跳过) ·
+ * [7..11] tickPhases · [12] alpha 位模式 · [13] frameDeltaNs ·
+ * [14] idleNs(<0=从未活跃) · [15] tickTotal · [16] accumulatedGameMs
+ */
+class NativeLoopPlan(
+    val paused: Boolean,
+    val tickCount: Int,
+    /** 每 tick 类型：1=正常执行 0=isSaving 跳过 */
+    val tickKind: IntArray,
+    /** 每 tick 应推进旬数（0=时间不足一旬） */
+    val tickPhases: IntArray,
+    /** 插值因子原始值（JitterSmoother 滤波在 Kotlin 渲染侧） */
+    val alpha: Float,
+    /** 本帧实际间隔（钳制后；ADPF 上报输入） */
+    val frameDeltaNs: Long,
+    /** 距上次用户活跃纳秒（<0 = 从未活跃） */
+    val idleNs: Long,
+    /** 累计逻辑 tick 计数（Kotlin _tickCount 镜像真相源） */
+    val tickTotal: Long,
+    /** 当前旬内累积游戏毫秒（GameTimeClock 镜像推送源） */
+    val accumulatedGameMs: Long
+) {
+    companion object {
+        /** 解包 17 槽 LongArray；长度不符（引擎未初始化等）返回 null */
+        fun unpack(raw: LongArray): NativeLoopPlan? {
+            if (raw.size != 17) return null
+            return NativeLoopPlan(
+                paused = raw[0] != 0L,
+                tickCount = raw[1].toInt(),
+                tickKind = IntArray(5) { raw[2 + it].toInt() },
+                tickPhases = IntArray(5) { raw[7 + it].toInt() },
+                alpha = Float.fromBits(raw[12].toInt()),
+                frameDeltaNs = raw[13],
+                idleNs = raw[14],
+                tickTotal = raw[15],
+                accumulatedGameMs = raw[16]
+            )
+        }
+    }
 }

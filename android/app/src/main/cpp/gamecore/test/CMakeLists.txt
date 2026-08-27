@@ -61,6 +61,8 @@ add_executable(game-core-tests
     slot_cleanup_test.cpp
     redeem_code_test.cpp
     execute_dispatch_test.cpp
+    engine_loop_test.cpp
+    watchdog_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

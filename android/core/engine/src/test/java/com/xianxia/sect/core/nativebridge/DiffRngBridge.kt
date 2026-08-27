@@ -96,5 +96,66 @@ object DiffRngBridge {
     // ── 道路系统通道（批次 R，对拍用） ─────────────────────
     external fun nativeRoadOp(opJson: ByteArray): ByteArray
 
+    // ── 引擎循环 + 看门狗通道（计划 v2 阶段 5，对拍用） ──────
+    /** 循环启动/重启：帧累积清零 + 时钟基准重置 */
+    external fun nativeCoreLoopStart()
+    /** 循环状态完全重置（测试隔离：tick 计数/速度/累积/帧状态清零；
+     *  JUnit 用例间对齐 Kotlin 侧 new GameTimeClock 的干净基准） */
+    external fun nativeCoreLoopReset()
+    /** 速度切换（C++ PhaseClock 旧速度结算语义） */
+    external fun nativeCoreLoopSetSpeed(speed: Int)
+    /** 固定单调时钟推进（对拍脚本驱动 FixedMonotonicClock） */
+    external fun nativeCoreLoopSetMonoMs(nowMs: Long)
+    /** 死区时间消费（刷新基准不累积） */
+    external fun nativeCoreLoopConsumeDeadTime()
+    /** 归还已消费旬数（native 链路失败整批回滚对拍） */
+    external fun nativeCoreLoopRefundPhases(count: Int)
+    /** 用户活跃通知（输入端口 idleNs 维护对拍） */
+    external fun nativeCoreLoopNotifyUserActivity()
+    /** 当前旬内累积游戏毫秒（镜像查询） */
+    external fun nativeCoreLoopAccumulatedGameMs(): Long
+    /** 累计逻辑 tick 计数查询 */
+    external fun nativeCoreLoopTickTotal(): Long
+    /**
+     * 单帧迭代计划（17 槽 LongArray，协议与 NativeLoopPlan.unpack 同源：
+     * [0]paused · [1]tickCount · [2..6]tickKind · [7..11]tickPhases ·
+     * [12]alpha 位模式 · [13]frameDeltaNs · [14]idleNs · [15]tickTotal ·
+     * [16]accumulatedGameMs；引擎未初始化返回空数组）
+     */
+    external fun nativeCoreLoopFrame(pausedOrLoading: Boolean, isSaving: Boolean): LongArray
+    /**
+     * 看门狗统一判据（GameCore 组合通道）：引擎侧状态由 C++ 组合，
+     * 平台侧 flags 由参数传入。返回 0-4 判定码；-1 = 未初始化。
+     */
+    external fun nativeCoreWatchdogVerdict(
+        loopActive: Boolean,
+        isPaused: Boolean,
+        isSaving: Boolean,
+        isLoading: Boolean,
+        secretRealmPauseLock: Boolean,
+        secretRealmPauseRenewedAtMs: Long
+    ): Int
+    /** 独立判据通道重置（每测试用例新建基准） */
+    external fun nativeCoreMonitorReset()
+    /**
+     * 独立判据通道：直接喂快照判定（12 字段与 GameTimeProgressSnapshot 一一对应），
+     * 与 Kotlin GameTimeProgressMonitor 同序列对拍。返回 0-4 判定码。
+     */
+    @Suppress("LongParameterList")  // JNI 快照对拍：12 参数与 ProgressSnapshot 字段一一对应
+    external fun nativeCoreMonitorEvaluate(
+        tickCount: Long,
+        totalPhases: Long,
+        accumulatedGameMs: Long,
+        loopActive: Boolean,
+        isPaused: Boolean,
+        isSaving: Boolean,
+        isLoading: Boolean,
+        speed: Int,
+        secretRealmPauseLock: Boolean,
+        secretRealmPauseRenewedAtMs: Long,
+        loopActiveAtMs: Long,
+        recordedAtMs: Long
+    ): Int
+
     external fun nativeDestroy()
 }

@@ -98,6 +98,16 @@ int64_t SystemClock::nowMs() {
             .count());
 }
 
+// ── SteadyMonotonicClock（阶段 5 平台端口兜底实现） ────────────────
+// Android 桥层注入 CLOCK_BOOTTIME（与 SystemClock.elapsedRealtime 一致，
+// 含深度睡眠）；本实现为桌面/测试兜底（steady_clock，单调但不含休眠）。
+int64_t SteadyMonotonicClock::nowMs() {
+    return static_cast<int64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+}
+
 // ── ConsoleLogger ──────────────────────────────────────────────────
 void ConsoleLogger::log(LogLevel level, const std::string& tag,
                         const std::string& message) {
@@ -190,6 +200,34 @@ system::TickResult GameCore::advancePhases(int phaseCount) {
 int GameCore::settleOnePhase() {
     if (!initialized_) return system::kSettleFlagNone;
     return settlement_.settleOnePhase(state_);
+}
+
+// ── 引擎循环 + 看门狗（计划 v2 阶段 5） ─────────────────────────────
+
+void GameCore::setPlatformProviders(const PlatformProviders& providers) {
+    if (providers.monotonicClock) loop_.setMonotonicClock(providers.monotonicClock);
+    if (providers.telemetry) loop_.setTelemetry(providers.telemetry);
+    if (providers.thermal) loop_.setThermalProvider(providers.thermal);
+    loop_.setLogger(logger_);
+    batteryProvider_ = providers.battery;
+    logger_->log(LogLevel::kInfo, "GameCore", "platform providers injected");
+}
+
+int GameCore::watchdogVerdict(const WatchdogFlags& flags) {
+    system::ProgressSnapshot snapshot;
+    snapshot.tickCount = loop_.tickCount();
+    snapshot.totalPhases = system::totalPhases(state_.gameData);
+    snapshot.accumulatedGameMs = loop_.time().accumulatedGameMs();
+    snapshot.loopActive = flags.loopActive;
+    snapshot.isPaused = flags.isPaused;
+    snapshot.isSaving = flags.isSaving;
+    snapshot.isLoading = flags.isLoading;
+    snapshot.speed = loop_.time().speed();
+    snapshot.secretRealmPauseLock = flags.secretRealmPauseLock;
+    snapshot.secretRealmPauseRenewedAtMs = flags.secretRealmPauseRenewedAtMs;
+    snapshot.loopActiveAtMs = loop_.lastLoopActivityMs();
+    snapshot.recordedAtMs = loop_.nowMs();
+    return static_cast<int>(progressMonitor_.evaluate(snapshot));
 }
 
 int32_t GameCore::rngNextInt(int partitionId) {

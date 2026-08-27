@@ -14,6 +14,7 @@
 // ============================================================
 #include <jni.h>
 
+#include <cstring>
 #include <string>
 
 #include <nlohmann/json.hpp>
@@ -28,11 +29,13 @@
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/economy.h"
+#include "gamecore/system/engine_loop.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/government.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/lifecycle.h"
 #include "gamecore/system/spirit_field.h"
+#include "gamecore/system/watchdog.h"
 
 namespace {
 
@@ -48,6 +51,7 @@ RngManager* g_rngManager = nullptr;
 /// Global GameCore instance for state snapshot diff testing
 gamecore::GameCore* g_core = nullptr;
 gamecore::FixedClock g_coreClock;
+gamecore::FixedMonotonicClock g_coreMono;  // 引擎循环单调时钟（对拍脚本驱动）
 gamecore::ConsoleLogger g_coreLogger;   // 对拍调试期输出异常到 stderr
 
 /// jbyteArray → std::string
@@ -153,6 +157,9 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreInit(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     if (!g_core) {
         g_core = new gamecore::GameCore(&g_coreClock, &g_coreLogger);
+        g_core->setPlatformProviders(
+            {.monotonicClock = &g_coreMono, .telemetry = nullptr,
+             .thermal = nullptr, .battery = nullptr});
         gamecore::GameCoreConfig config;
         config.seedInitialized = true;
         config.systemSeed = 42;
@@ -259,11 +266,153 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreInitMode(
         g_core = nullptr;
     }
     g_core = new gamecore::GameCore(&g_coreClock, &g_coreLogger);
+    g_core->setPlatformProviders(
+        {.monotonicClock = &g_coreMono, .telemetry = nullptr,
+         .thermal = nullptr, .battery = nullptr});
     gamecore::GameCoreConfig config;
     config.seedInitialized = true;
     config.systemSeed = 42;
     config.authoritativeTickMode = wantMode;
     g_core->initialize(config);
+}
+
+// ── 引擎循环 + 看门狗通道（计划 v2 阶段 5：对拍用）────────────────
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopStart(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_core) g_core->loop().start();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopReset(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    // 测试隔离：JUnit 用例间重建循环基准（tick 计数/速度/累积/帧状态清零）。
+    // nativeCoreInit 幂等复用单例（阶段 1 既有设计），EngineLoop 生命周期
+    // 跨用例残留——Kotlin 侧每用例 new GameTimeClock 是干净的，对拍须对齐。
+    if (g_core) g_core->loop().resetForTest();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopSetSpeed(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint speed) {
+    if (g_core) g_core->loop().time().setSpeed(static_cast<int>(speed));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopSetMonoMs(
+    JNIEnv* /*env*/, jobject /*thiz*/, jlong nowMs) {
+    g_coreMono.setNowMs(static_cast<int64_t>(nowMs));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopConsumeDeadTime(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_core) g_core->loop().time().consumeDeadTime();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopRefundPhases(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint count) {
+    if (g_core) g_core->loop().time().refundPhases(static_cast<int>(count));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopNotifyUserActivity(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_core) g_core->loop().notifyUserActivity();
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopAccumulatedGameMs(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    return g_core ? g_core->loop().time().accumulatedGameMs() : 0L;
+}
+
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopTickTotal(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    return g_core ? g_core->loop().tickCount() : 0L;
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreLoopFrame(
+    JNIEnv* env, jobject /*thiz*/,
+    jboolean pausedOrLoading, jboolean isSaving) {
+    constexpr int kLen = 17;
+    jlong buf[kLen] = {0};
+    if (g_core) {
+        const auto plan = g_core->loop().iterate(
+            pausedOrLoading == JNI_TRUE, isSaving == JNI_TRUE);
+        buf[0] = plan.paused ? 1 : 0;
+        buf[1] = plan.tickCount;
+        for (int i = 0; i < 5; ++i) buf[2 + i] = plan.tickKind[i];
+        for (int i = 0; i < 5; ++i) buf[7 + i] = plan.tickPhases[i];
+        int32_t alphaBits = 0;
+        static_assert(sizeof(alphaBits) == sizeof(float), "float bits");
+        std::memcpy(&alphaBits, &plan.alpha, sizeof(float));
+        buf[12] = alphaBits;
+        buf[13] = plan.frameDeltaNs;
+        buf[14] = plan.idleNs;
+        buf[15] = plan.tickTotal;
+        buf[16] = plan.accumulatedGameMs;
+    }
+    jlongArray out = env->NewLongArray(kLen);
+    if (out) env->SetLongArrayRegion(out, 0, kLen, buf);
+    return out;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreWatchdogVerdict(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jboolean loopActive, jboolean isPaused, jboolean isSaving, jboolean isLoading,
+    jboolean secretRealmPauseLock, jlong secretRealmPauseRenewedAtMs) {
+    if (!g_core) return -1;
+    gamecore::WatchdogFlags flags;
+    flags.loopActive = (loopActive == JNI_TRUE);
+    flags.isPaused = (isPaused == JNI_TRUE);
+    flags.isSaving = (isSaving == JNI_TRUE);
+    flags.isLoading = (isLoading == JNI_TRUE);
+    flags.secretRealmPauseLock = (secretRealmPauseLock == JNI_TRUE);
+    flags.secretRealmPauseRenewedAtMs = static_cast<int64_t>(secretRealmPauseRenewedAtMs);
+    return g_core->watchdogVerdict(flags);
+}
+
+// 独立判据通道：不依赖 GameCore 状态，直接对拍 ProgressMonitor 纯函数
+//（Kotlin GameTimeProgressMonitor 同序列快照 → 判定逐位一致守护）
+namespace {
+gamecore::system::ProgressMonitor* g_monitor = nullptr;
+}  // namespace
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorReset(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    delete g_monitor;
+    g_monitor = new gamecore::system::ProgressMonitor();
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreMonitorEvaluate(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jlong tickCount, jlong totalPhases, jlong accumulatedGameMs,
+    jboolean loopActive, jboolean isPaused, jboolean isSaving, jboolean isLoading,
+    jint speed, jboolean secretRealmPauseLock, jlong secretRealmPauseRenewedAtMs,
+    jlong loopActiveAtMs, jlong recordedAtMs) {
+    if (!g_monitor) g_monitor = new gamecore::system::ProgressMonitor();
+    gamecore::system::ProgressSnapshot s;
+    s.tickCount = static_cast<int64_t>(tickCount);
+    s.totalPhases = static_cast<int64_t>(totalPhases);
+    s.accumulatedGameMs = static_cast<int64_t>(accumulatedGameMs);
+    s.loopActive = (loopActive == JNI_TRUE);
+    s.isPaused = (isPaused == JNI_TRUE);
+    s.isSaving = (isSaving == JNI_TRUE);
+    s.isLoading = (isLoading == JNI_TRUE);
+    s.speed = static_cast<int>(speed);
+    s.secretRealmPauseLock = (secretRealmPauseLock == JNI_TRUE);
+    s.secretRealmPauseRenewedAtMs = static_cast<int64_t>(secretRealmPauseRenewedAtMs);
+    s.loopActiveAtMs = static_cast<int64_t>(loopActiveAtMs);
+    s.recordedAtMs = static_cast<int64_t>(recordedAtMs);
+    return static_cast<jint>(g_monitor->evaluate(s));
 }
 
 // ============================================================
@@ -1209,6 +1358,8 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeDestroy(
     g_rng = nullptr;
     delete g_rngManager;
     g_rngManager = nullptr;
+    delete g_monitor;
+    g_monitor = nullptr;
     if (g_core) {
         g_core->shutdown();
         delete g_core;

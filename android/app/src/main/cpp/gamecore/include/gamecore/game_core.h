@@ -6,10 +6,13 @@
 
 #include "gamecore/core/clock.h"
 #include "gamecore/core/logger.h"
+#include "gamecore/core/platform.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/dirty_tracker.h"
 #include "gamecore/state/models.h"
+#include "gamecore/system/engine_loop.h"
 #include "gamecore/system/settlement.h"
+#include "gamecore/system/watchdog.h"
 
 // ============================================================
 // GameCore — 游戏引擎门面（Kotlin→C++ 迁移批次 0 骨架）
@@ -40,6 +43,25 @@ struct GameCoreConfig {
     /// 结算钩子——由 Kotlin 残留执行器（丹药/突破/月变/年变完整编排）处理，
     /// 保证未迁移系统行为零丢失。默认 false（shadow 对拍/diff 测试语义不变）。
     bool authoritativeTickMode = false;
+};
+
+/// 平台能力提供者集合（计划 v2 阶段 5：Clock/Telemetry/热控/电量注入）。
+/// 空指针保留默认实现（SteadyMonotonicClock / NullTelemetry / 不降载档位）。
+struct PlatformProviders {
+    MonotonicClock* monotonicClock = nullptr;      // 引擎循环时间源（elapsedRealtime 语义）
+    TelemetrySink* telemetry = nullptr;            // 循环/看门狗遥测事件
+    ThermalStatusProvider* thermal = nullptr;      // 热状态（遥测记录；判据消费阶段 6+）
+    BatteryStatusProvider* battery = nullptr;      // 电量状态（同上）
+};
+
+/// 看门狗判定输入 flags（Kotlin 平台侧运行态；引擎侧状态由 GameCore 组合）
+struct WatchdogFlags {
+    bool loopActive = false;
+    bool isPaused = false;
+    bool isSaving = false;
+    bool isLoading = false;
+    bool secretRealmPauseLock = false;
+    int64_t secretRealmPauseRenewedAtMs = 0;
 };
 
 /// 游戏引擎门面
@@ -89,6 +111,18 @@ public:
     /// 结算引擎访问器（批次 4+ 注册系统钩子用）
     system::SettlementEngine& settlement() { return settlement_; }
 
+    // ── 引擎循环 + 看门狗（计划 v2 阶段 5：游戏循环入 C++） ────────
+    /// 平台能力注入（nativeInit 后由桥层调用；幂等可重设）
+    void setPlatformProviders(const PlatformProviders& providers);
+    /// AUTHORITATIVE 引擎循环（墙钟消费/速度/暂停/refund 状态机 + 帧迭代计划）
+    system::EngineLoop& loop() { return loop_; }
+    const system::EngineLoop& loop() const { return loop_; }
+    /// 看门狗统一判据：引擎侧状态（tickCount/totalPhases/accumulatedGameMs/
+    /// speed/loopActiveAtMs）由 GameCore 组合，平台侧 flags 由调用方传入。
+    /// 返回 system::StallVerdict 数值码（0=Healthy/1=LoopStalled/
+    /// 2=FakeRunDetected/3=PausedByOwner/4=StalePauseDetected）。
+    int watchdogVerdict(const WatchdogFlags& flags);
+
     // ── 业务操作 ──────────────────────────────────────────
     /// 执行业务操作（ActionId 协议；paramsJson 为参数 JSON）
     /// 返回结果 JSON 字节（含 sealed 结果语义；批次 1+ 实现，当前返回未实现错误）
@@ -133,6 +167,9 @@ private:
     rng::RngManager rng_;
     state::GameState state_;    // 游戏状态真相源
     system::SettlementEngine settlement_;  // 惰性结算引擎（批次 3）
+    system::EngineLoop loop_;              // 引擎循环（阶段 5：AUTHORITATIVE 真相源）
+    system::ProgressMonitor progressMonitor_;  // 看门狗统一判据（阶段 5）
+    BatteryStatusProvider* batteryProvider_ = nullptr;  // 注入（不持有；访问器暴露）
     state::DirtyTracker dirtyTracker_;     // 变更集追踪（计划 v2 阶段 1）
     uint64_t reverseVersion_ = 0;          // 反向增量版本（阶段 3；严格递增校验）
 

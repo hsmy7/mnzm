@@ -1,5 +1,19 @@
 ## [4.01.10] - 2026-08-24
 
+### 新增（C++ 引擎迁移计划 v2 阶段 5：游戏循环入 C++）
+
+> 纯引擎内部迁移（批 5-1~5-5），`NativeEngineFlag` 默认 OFF，玩家行为零变化；帧累积/逻辑步进/墙钟消费（速度/暂停/refund 状态机）/tick 计数/循环心跳/看门狗判据迁入 C++ 真相源，Kotlin 驱动侧保留协程线程本体/delay 与 OEM 反挂起忙等/场景与闲置帧率策略/ADPF 上报/热控电量判据（详见 docs/cpp-engine.md §7 阶段 5 行）。
+
+- **批 5-1 平台能力端口**：`core/platform.h`（MonotonicClock + Steady/Fixed 实现、TelemetrySink + Null、ThermalState 枚举 + Settable 热/电 Provider、BatteryStatus 结构——ADR Clock/Logger 注入先例扩展）；`GameCoreBridge.cpp` 注入 `AndroidMonotonicClock`（CLOCK_BOOTTIME，与 elapsedRealtime 一致含深度睡眠）+ `AndroidTelemetrySink`（logcat）+ Settable 热/电全局实例；`PlatformProviders` + `setPlatformProviders()` 门面
+- **批 5-2 引擎循环**：`system/engine_loop.h`——**PhaseClock**（GameTimeClock 逐位移植：墙钟消费/速度切换旧速度结算/追补上限 3×speed 余量丢弃/consumeDeadTime/forceConsumeOnePhase/refundPhases，accumulatedGameMs/speed atomic 镜像 Kotlin @Volatile）+ **EngineLoop**（gameLoopIteration 判据移植：iterate(pausedOrLoading, isSaving) 返回 LoopFramePlan；kLogicDtNs=100ms、kMaxAccumulatorNs=5 步、kMaxStepsPerFrame=5；心跳 lastLoopActivityMs；notifyUserActivity；onLoopRestart）；**17 槽 LongArray 帧计划协议**（每帧一次 JNI 标量通道，禁 JSON——阶段 0 基准 JSON 往返 12µs 为成本大头）；GTest 31 + JUnit DiffEngineLoopTest 15 双端对拍（时钟状态机 + 帧计划语义）
+- **批 5-3 看门狗判据**：`system/watchdog.h`——**ProgressMonitor**（GameTimeProgressMonitor 逐位移植：ProgressSnapshot 12 字段/StallVerdict 数值码 0-4/evaluate/classify/classifyFlags/三阈值 45s·90s·20s/std::mutex 线程安全；S1/S4/S5/F2/V1/V6 修复分支随行移植）；GameCore 组合通道 `watchdogVerdict(flags)`（引擎侧状态 C++ 组合 + 平台侧 6 flags；-1 未初始化回退 Kotlin）；GTest 25 + JUnit DiffWatchdogTest 24 全矩阵对拍
+- **批 5-4 AUTHORITATIVE 接线**：`GameEngineCoreLoopOps.kt`（authoritativeLoopIteration 帧迭代 AUTHORITATIVE 化 + tickAuthoritativeStep + nativeVerdictToStall + thermalSeverityCode）；`GameEngineCore.kt`（gameLoopIteration 顶部 AUTHORITATIVE 分流、onSpeedChanged→nativeLoopSetSpeed 钩子、nativeLoopPipelineActive refund 分流、prepareLoopStart→nativeLoopStart、performEmergencyRestart→nativeLoopOnRestart、onUserActivity→nativeLoopNotifyUserActivity、progressVerdict native 判据分支 + 8 共享辅助提取）；`GameEngineCoreAuthoritativeOps.kt` refund 按真相源分流（native 管线活跃只还 native，镜像每帧覆盖）；回退契约：帧计划不可用→下一帧走纯 Kotlin 累积器路径
+- **批 5-5 R-02 循环路径清除**：`GameTimeClock.kt` 删 `SystemClock/Log` import（SystemTimeSource 移 app 层 `di/PlatformTimeModule.kt`，AndroidTimeSource = SystemClock.elapsedRealtime）；`GameEngineCore.kt` 删 `Build` import（doBusyWait SDK_INT≥33 改 supportsOnSpinWait 反射探测）；engine 模块 33 处 Android import 剩 ~30 处随阶段 7 Kotlin 引擎退役时移 app 层
+- **测试**：桌面 GTest **538/538**（新增 engine_loop 31 + watchdog 25 + resetForTest 2）· engine JUnit 全量 **2922/2922**（含 DiffEngineLoopTest 15 + DiffWatchdogTest 24 双端对拍，与真实 Kotlin 同序列逐位一致）· NDK externalNativeBuildRelease 通过 · engine detekt 通过
+- **途中发现修复（S-09）**：对拍测试隔离缺口——C++ `nativeCoreInit` 幂等复用引擎单例（阶段 1 既有设计），`EngineLoop.tickCount/speed/累积` 跨 JUnit 用例残留，与 Kotlin 侧每用例 `new GameTimeClock` 干净基准不对称（首轮 DiffEngineLoopTest 8/15 失败：tickTotal 残留 65、speed 残留致 catch-up cap 3→6 等）；根因修复 `EngineLoop::resetForTest()`（生产路径不调用，与 Kotlin 单例语义一致）+ 桌面桥 `nativeCoreLoopReset` + GTest 2 用例守护；另修测试自身 2 处（死区消费缺暂停帧刷新帧基准、2x 断言算术错）
+- **兼容性**：无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；帧计划为新增 JNI 标量通道（未初始化/协议异常回退 Kotlin 路径，无存档影响）；玩家可见更新日志同条目追加一行
+- **待办递进**：阶段 5 完成后，阶段 6（渲染 RHI + 合成器统一：Renderer2D → RHI，Vulkan 现有 + Metal/iOS）与阶段 7（Kotlin 降级纯平台层 + 存档决策）为下一步
+
 ### 新增（C++ 引擎迁移计划 v2 阶段 4：未迁移系统逐批 C++ 化）
 
 > 纯引擎内部迁移（批 4-1~4-6），`NativeEngineFlag` 默认 OFF，玩家行为零变化；原"永久保留"清单全部纳入逐批下沉，仅确定性判定与 RNG 消费核心下沉，平台/注册表边界保留 Kotlin（详见 docs/cpp-engine.md §7 阶段 4 行）。

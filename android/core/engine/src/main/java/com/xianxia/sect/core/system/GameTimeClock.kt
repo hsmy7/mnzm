@@ -1,11 +1,6 @@
 package com.xianxia.sect.core.engine.system
 
-import android.os.SystemClock
-import android.util.Log
-import dagger.Module
-import dagger.Provides
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
+import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,28 +8,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 单调时钟抽象（2026-08-01 注入化）。
+ * 单调时钟抽象（2026-08-01 注入化；2026-08-27 R-02：Android 实现移出引擎模块）。
  *
- * 生产使用 [SystemTimeSource]（SystemClock.elapsedRealtime()）；
- * 测试注入 FakeTimeSource 手工推进——修复旧测试依赖
- * returnDefaultValues 下 SystemClock 恒 0 的"算术恒等式假绿"。
+ * 生产绑定见 app 模块 `di/PlatformTimeModule`（SystemClock.elapsedRealtime）；
+ * 测试注入 FakeTimeSource 手工推进——修复旧测试依赖 returnDefaultValues 下
+ * SystemClock 恒 0 的"算术恒等式假绿"。
  */
 fun interface TimeSource {
     fun elapsedRealtime(): Long
-}
-
-/** 生产实现：Android 单调时钟。 */
-object SystemTimeSource : TimeSource {
-    override fun elapsedRealtime(): Long = SystemClock.elapsedRealtime()
-}
-
-/** TimeSource Hilt 绑定（生产恒为 [SystemTimeSource]；测试直接构造 GameTimeClock(Fake)）。 */
-@Module
-@InstallIn(SingletonComponent::class)
-object TimeSourceModule {
-    @Provides
-    @Singleton
-    fun provideTimeSource(): TimeSource = SystemTimeSource
 }
 
 /**
@@ -125,6 +106,27 @@ class GameTimeClock @Inject constructor(
         lastWallMs = now
         speed = newSpeed.coerceIn(0, 2)
         _speedFlow.value = speed
+        // 阶段 5（计划 v2）：AUTHORITATIVE 下速度真相源在 native 引擎循环——
+        // 经钩子同步推送（GameEngineCore init 注册；OFF 模式无消费者）
+        onSpeedChanged?.invoke(speed)
+    }
+
+    /**
+     * 速度变更监听（计划 v2 阶段 5）：AUTHORITATIVE 模式下由 GameEngineCore
+     * 注册，推送 native PhaseClock 真相源（旧速度结算语义在两端各自保证）。
+     * UI 直接调 [setSpeed] 不感知本钩子。
+     */
+    @Volatile
+    var onSpeedChanged: ((Int) -> Unit)? = null
+
+    /**
+     * AUTHORITATIVE 镜像推送（计划 v2 阶段 5）：native 引擎循环为时间真相源，
+     * 本时钟降级为 UI 展示镜像（phaseProgress/remainingPhaseMs/speedFlow 消费方
+     * 不变）。镜像同时刷新墙钟基准——回退 OFF 模式时无缝接管。
+     */
+    fun mirrorFromNative(newAccumulatedGameMs: Long) {
+        accumulatedGameMsInternal = newAccumulatedGameMs
+        lastWallMs = timeSource.elapsedRealtime()
     }
 
     /**
@@ -161,7 +163,7 @@ class GameTimeClock @Inject constructor(
         // 缩放后按真实时间对称（两种速度下均约 6s 阻塞触发）。
         val phaseCap = MAX_PHASES_PER_TICK * speed.coerceAtLeast(1)
         if (phases > phaseCap) {
-            Log.w(TAG, "tick catch-up capped at $phaseCap phases, dropped ${phases - phaseCap}")
+            DomainLog.w(TAG, "tick catch-up capped at $phaseCap phases, dropped ${phases - phaseCap}")
             phases = phaseCap
             accumulatedGameMsInternal = 0L
         } else if (phases > 0) {

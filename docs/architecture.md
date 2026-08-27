@@ -330,7 +330,7 @@ RunState（运行时状态 — 可循环回退）
 
 | 技术栈 | Android 现状 | iOS 迁移方案 | 风险 |
 |--------|-------------|-------------|------|
-| core:domain / core:engine | 零 Android 依赖（基线 ✅，R-02 待清理） | KMP 直接复用 | 低 |
+| core:domain / core:engine | 零 Android 依赖（基线 ✅；R-02 循环路径已清除，剩余 ~30 处待阶段 7 退役时移出） | KMP 直接复用 | 低 |
 | **C++ 引擎（game-core）** | 纯 C++20 零 Android 依赖（迁移批次 0-9 已交付） | **直接复用**（桌面 GTest 已验证跨平台编译） | 低 |
 | C++ 渲染引擎 | Vulkan（Android 独占）+ JNI | Metal 或软件渲染（`SoftwareCanvasBackend` 纯软渲染可跨平台）；JNI → 平台桥 | 中 |
 | Compose UI | Jetpack Compose（Android 独占） | Compose Multiplatform 或重写 | 高（评估点） |
@@ -453,7 +453,7 @@ SaveValidator.validate(SaveData)
 | # | 来源 | 待办内容 | 严重度 | 治理方向 |
 |---|---|---|---|---|
 | R-01 | 根治批次交付盘点 | **detekt baseline 存量约 3058 条违规未登记**（app 254 / data 464 / domain 511 / engine 1167 / ui 23 / game 639）：TooGenericExceptionCaught / ReturnCount / CyclomaticComplexMethod / ThrowsCount / UnusedParameter 等历史存量，不在架构文档原登记范围，baseline"只缩不增"下仍真实存在 | 🟡 中 | 专项批次逐条真修或评估销账；新违规必须直接修复 |
-| R-02 | 根治批次交付盘点 | **core/engine 存在 33 处 `import android.*`**（android.util.Log / android.os.Build / android.content.Context / PerformanceHintManager / SystemClock 等，分布于 thermal/perf/config/registry/save 等领域），与"零 Android 依赖"声明不符（本批次仅清零 audio 包） | 🟡 中 | 平台能力接口化专项（参照 G1/G3 已建模式：core 层接口 + app 层实现）。**2026-08-25 注记**：彻底单引擎下随计划 v2 阶段 5（引擎循环入 C++）逐批自然消除，保留侧（UI/平台层）无需此清理 |
+| R-02 | 根治批次交付盘点 | **core/engine 存在 33 处 `import android.*`**（android.util.Log / android.os.Build / android.content.Context / PerformanceHintManager / SystemClock 等，分布于 thermal/perf/config/registry/save 等领域），与"零 Android 依赖"声明不符（本批次仅清零 audio 包） | 🟡 中 | 平台能力接口化专项（参照 G1/G3 已建模式：core 层接口 + app 层实现）。**2026-08-25 注记**：彻底单引擎下随计划 v2 阶段 5（引擎循环入 C++）逐批自然消除，保留侧（UI/平台层）无需此清理。**2026-08-27 阶段 5 更新**：循环路径 3 处已消除（`GameTimeClock` 的 `SystemClock`+`Log`——TimeSource 移 app 层 `di/PlatformTimeModule.kt`；`GameEngineCore` 的 `Build`——doBusyWait 改 supportsOnSpinWait 反射探测）；剩余 ~30 处（perf/thermal/registry/config/service/domain）随阶段 7 Kotlin 引擎退役时移 app 层，保留侧无需清理的结论不变 |
 | R-03 | 根治批次交付盘点 | **163 处 @Suppress 拆分妥协**：LongMethod 为真拆根除，但拆分搬移引出的 LongParameterList / CyclomaticComplexMethod / ReturnCount / UnusedParameter 等 163 处采用 @Suppress 压制（语义保真已验证） | 🟢 低 | 长期项：参数聚合数据类/策略模式等真拆，逐步消除 Suppress |
 | R-04 | 根治批次交付盘点 | **lintRelease 存量 10 条警告 + 3 条基线过滤**（app/lint-baseline.xml） | 🟢 低 | 逐条销账或补豁免理由，目标零警告 |
 | R-05 | 根治批次交付盘点 | **proguard 宽规则"按序试删"未实际执行**：kotlinx.serialization / coroutines / lifecycle / room 整包 keep 保留（assembleRelease 已通过，但未逐条试删验证可否进一步收窄） | 🟡 中 | 按 T-PRO 顺序在下次 R8 发布验证时实际执行试删（每次删一条 + 完整 R8 + 存档读写回归） |
@@ -480,7 +480,7 @@ SaveValidator.validate(SaveData)
 | # | 待办内容 | 触发/计划 |
 |---|---|---|
 | C-06 | **批次 9：转发层收尾** 🟡 基础设施已完成（feature flag/StateSyncService 宽松合并/tick 桥/转发辅助/性能基准）；剩余 Kotlin GameEngine 275 方法逐一转发（**按性能基准裁剪为低频业务操作**——高频纯计算留 Kotlin）、全量快照→增量变更集同步（nativeExportDirty 空实现待补）、全量切换（C++ 为真相源） | 超大工作量批次；全量切换为批次 10 前置 |
-| C-07 | **批次 10：彻底单引擎**（原"职责边界固化"二次重定义）——C++ 唯一真相源（结算/实体存储/引擎循环/渲染），Kotlin 降级纯平台层（UI/平台能力/存档编码）；阶段化退役见 docs/cpp-engine.md 第 7 节 | 计划 v2 阶段 1-7 逐阶段 |
+| C-07 | **批次 10：彻底单引擎**（原"职责边界固化"二次重定义）——C++ 唯一真相源（结算/实体存储/~~引擎循环~~/渲染），Kotlin 降级纯平台层（UI/平台能力/存档编码）；阶段化退役见 docs/cpp-engine.md 第 7 节。**2026-08-27 阶段 5 更新**：引擎循环（帧累积/逻辑步进/墙钟消费/tick 计数/心跳/看门狗判据）已入 C++，批次 10 剩余阶段 6（渲染 RHI）与阶段 7（Kotlin 退役 + 存档决策） | 计划 v2 阶段 1-7 逐阶段（阶段 5 ✅ 已完成） |
 | ~~C-10~~ ✅ | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | **已完成**（计划 v2 阶段 2 T2.2/T2.3：月变八步编排 + 年变年报/年俸全逻辑 C++ 化，100 旬互锁对拍 PASS；剩余 S8 子事件/AI 域随阶段 4 逐批） |
 | C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
 | C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |

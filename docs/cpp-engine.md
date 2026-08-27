@@ -2,11 +2,13 @@
 
 > 更新日期：2026-08-27。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 478/478 · engine JUnit 2396/2396（testReleaseUnitTest 全量，2026-08-27 实测） · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · compileReleaseKotlin 通过**。
-> **计划 v2 阶段 0、1、2、3、4 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
+> 当前基线：**桌面 GTest 538/538 · engine JUnit 2922/2922（testReleaseUnitTest 全量，2026-08-27 实测） · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · compileReleaseKotlin 通过**。
+> **计划 v2 阶段 0、1、2、3、4、5 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
-> 11 槽分配/兑换码+邮件附件，详见 §7 阶段 4 行）。
+> 11 槽分配/兑换码+邮件附件；阶段 5：游戏循环入 C++——平台能力接口化（Clock/Telemetry/
+> 热控/电量端口）+ 引擎循环（PhaseClock/EngineLoop）+ 看门狗判据（ProgressMonitor），
+> 详见 §7 阶段 5 行）。
 
 ## 1. 目标架构
 
@@ -40,14 +42,15 @@ android/app/src/main/cpp/
 ├── gamecore/                   # 纯 C++ 引擎（零 Android 依赖）
 │   ├── CMakeLists.txt          # 静态库 game-core（GAMECORE_BUILD_TESTS=ON 构建桌面测试）
 │   ├── include/gamecore/
-│   │   ├── core/    types.h / result.h / clock.h / logger.h
+│   │   ├── core/    types.h / result.h / clock.h / logger.h / platform.h（阶段 5：Clock/Telemetry/热控/电量端口）
 │   │   ├── rng/     pcg_xsh_rr.h（DeterministicRng 复刻）/ rng_manager.h（8 分区）
 │   │   ├── state/   models.h / json_codec.h（状态模型 + 快照编解码）
 │   │   ├── data/    equipment_db / herb_db / trait_db / recipe_db / beast_material_db / manual_db
 │   │   ├── map/     road_system.h（道路求解器单一权威）
 │   │   ├── system/  economy / inventory / spirit_field / disciple / cultivation /
 │   │   │            breakthrough / lifecycle / battle / government / exploration /
-│   │   │            time_system / settlement
+│   │   │            time_system / settlement / engine_loop.h（阶段 5：PhaseClock+EngineLoop）/
+│   │   │            watchdog.h（阶段 5：ProgressMonitor 判据）
 │   │   ├── game_core.h         # 引擎门面（execute/advance/export/import/poll）
 │   │   └── action_ids.h        # 生成产物（scripts/gen-action-ids.mjs）
 │   ├── src/  rng.cpp / game_core.cpp / json_codec.cpp / execute_dispatch.cpp
@@ -108,7 +111,7 @@ android/app/src/main/cpp/
 |---|---|
 | C++ 接管（终态） | 游戏循环 + 时间推进/结算引擎 + 实体存储（数据导向/ECS）+ 未迁移系统逐批 + 静态数据单一源 + 渲染 RHI |
 | Kotlin 保留（终态） | UI/Compose + 平台能力（SDK/广告/合规/看门狗接口化）+ 存档编码（可选 T-CPP-1 迁移）+ 输入桥 |
-| 落地动作 | ① 增量变更集（exportDirty）实现——C++ 真相源 → Kotlin 镜像核心通道；② 未迁移系统按第 7 节逐批 C++ 化（不再"永久保留"）；③ 游戏循环平台能力接口化后迁 C++；④ 静态数据单一源（T-CPP-2 提前触发）；⑤ 对拍框架全程守护 |
+| 落地动作 | ① 增量变更集（exportDirty）实现——C++ 真相源 → Kotlin 镜像核心通道；② 未迁移系统按第 7 节逐批 C++ 化（不再"永久保留"）；③ ~~游戏循环平台能力接口化后迁 C++~~（✅ **阶段 5 已完成**：Clock/Telemetry/热控/电量端口 + PhaseClock/EngineLoop + 看门狗判据全部入 C++，Kotlin 驱动侧仅剩协程线程本体/delay/帧率策略/ADPF 上报等平台机制）；④ 静态数据单一源（T-CPP-2 提前触发，✅ 阶段 3 已完成）；⑤ 对拍框架全程守护 |
 | 验收 | 每阶段 C++ 真相源切换 + 对拍全绿 + 性能对比（对阶段 0 基线） |
 
 ### 5.3 批次 R 剩余：渲染合成器物理下沉
@@ -163,7 +166,12 @@ android/app/src/main/cpp/
   - **批 4-4 外交**：`system/sect_decision.h`（四因素概率模型 + 脱离 + 战力分档，SectDecisionConfig 同源）+ `system/sect_power.h`（弟子/妖兽战力 + fingerprint，Java hashCode 语义见 `system/java_hash.h` UTF-16 解码）+ `system/rarity_progression.h`（品阶时间曲线，3000 年后爬升轨道）+ `system/sect_trade.h`（交易确定性种子/库存曲线/价格波动/灵石映射）；ActionId 1420~1432；GTest 20 + JUnit DiffSectDiplomacyTest 7
   - **批 4-5 11 槽分配**：`system/slot_cleanup.h`（clearAllSlotsDataOnly 11 类槽位纯数据变换）；补齐缺失模型（GarrisonSlot/BattleTeam/BattleTeamSlot/WarehouseGarrisonSlot/CaveExplorationTeam/ActiveMissionLite + GameData/WorldSect 字段 + JSON 协议）；边界：Gate 注册表与完整 ActiveMission 保留 Kotlin；ActionId 1433；GTest 9 + JUnit DiffSlotCleanupTest 2
   - **批 4-6 兑换码+邮件附件**：`system/redeem_code.h`（格式校验/灵根生成含 java.util.Random 48 位 LCG 复现/灵根阶梯/年龄寿元/方差）+ `MailAttachment` 模型与 kotlinx 对齐的附件 JSON 编码；边界：名字/体质/词条/天赋注册表与服务器验证保留 Kotlin；ActionId 1434~1439；GTest 13 + JUnit DiffRedeemCodeTest 3 | 原 C-06 阻塞依赖清单（原"永久保留"清单全部纳入，不再保留） |
-| 5 | **游戏循环入 C++**：平台能力接口化（Clock/Input/IO/Telemetry/热控/电量——ADR Clock/Logger 注入先例扩展）；引擎循环 + 看门狗判据迁 C++ | R-02（core/engine Android 依赖随引擎退役自然消除） |
+| 5 ✅ | **游戏循环入 C++**（2026-08-27 完成，GTest 538/538 + JUnit 对拍全绿 + NDK 构建通过）：
+  - **批 5-1 平台能力端口**：`core/platform.h`（MonotonicClock + Steady/Fixed 实现、TelemetrySink + Null、ThermalState 枚举 + Settable 热/电 Provider、BatteryStatus 结构）——ADR Clock/Logger 注入先例扩展；GameCoreBridge.cpp 注入 `AndroidMonotonicClock`（CLOCK_BOOTTIME，与 elapsedRealtime 一致含深度睡眠）+ `AndroidTelemetrySink`（logcat）+ Settable 热/电全局实例；`PlatformProviders` + `setPlatformProviders()` 门面
+  - **批 5-2 引擎循环**：`system/engine_loop.h`——**PhaseClock**（GameTimeClock 逐位移植：墙钟消费/速度切换旧速度结算/追补上限 3×speed 余量丢弃/consumeDeadTime/forceConsumeOnePhase/refundPhases/msPerPhase/phaseProgress，accumulatedGameMs/speed atomic 镜像 Kotlin @Volatile）+ **EngineLoop**（gameLoopIteration 判据移植：iterate(pausedOrLoading, isSaving) 返回 LoopFramePlan；kLogicDtNs=100ms、kMaxAccumulatorNs=5 步、kMaxStepsPerFrame=5；心跳 lastLoopActivityMs；notifyUserActivity；onLoopRestart）；**17 槽 LongArray 帧计划协议**（每帧一次 JNI 标量通道，禁 JSON——阶段 0 基准 JSON 往返 12µs 为成本大头）；GTest 31（PhaseClock 19 + EngineLoop 10 + 平台端口 2）+ JUnit DiffEngineLoopTest 15 双端对拍（时钟状态机 + 帧计划语义）
+  - **批 5-3 看门狗判据**：`system/watchdog.h`——**ProgressMonitor**（GameTimeProgressMonitor 逐位移植：ProgressSnapshot 12 字段/StallVerdict 数值码 0-4/evaluate/classify/classifyFlags/三阈值 45s·90s·20s/std::mutex 线程安全；S1/S4/S5/F2/V1/V6 修复分支随行移植）；GameCore 组合通道 `watchdogVerdict(flags)`（引擎侧状态 C++ 组合 + 平台侧 6 flags）；-1 未初始化回退 Kotlin；GTest 25 + JUnit DiffWatchdogTest 24 全矩阵对拍
+  - **批 5-4 AUTHORITATIVE 接线**：`GameEngineCoreLoopOps.kt`（authoritativeLoopIteration 帧迭代 AUTHORITATIVE 化 + tickAuthoritativeStep + nativeVerdictToStall + thermalSeverityCode）+ `GameEngineCore.kt`（gameLoopIteration 顶部 AUTHORITATIVE 分流、onSpeedChanged→nativeLoopSetSpeed 钩子、nativeLoopPipelineActive refund 分流、prepareLoopStart→nativeLoopStart、performEmergencyRestart→nativeLoopOnRestart、onUserActivity→nativeLoopNotifyUserActivity、progressVerdict native 判据分支 + 6 内部辅助/共享辅助提取）；`GameEngineCoreAuthoritativeOps.kt` refund 按真相源分流；回退契约：帧计划不可用→纯 Kotlin 累积器路径；**AUTHORITATIVE 默认 OFF（灰度开关）不变**
+  - **批 5-5 R-02 循环路径清除**：`GameTimeClock.kt` 删 `SystemClock/Log` import（SystemTimeSource/TimeSourceModule 移 app 层 `di/PlatformTimeModule.kt`）；`GameEngineCore.kt` 删 `Build` import（doBusyWait SDK_INT≥33 改 supportsOnSpinWait 反射探测）；engine 模块 33 处 Android import 剩 ~30 处（perf/thermal/registry/config/service/domain）随阶段 7 Kotlin 引擎退役时移 app 层 | R-02（core/engine Android 依赖随引擎退役自然消除——循环路径 3 处已清除，剩余 ~30 处阶段 7 退役时移出） |
 | 6 | **渲染 RHI + 合成器统一**：Renderer2D → RHI（Vulkan 现有 + Metal/iOS）；渲染合成器物理下沉（批次 R 剩余） | 批次 R 剩余、iOS 预留 |
 | 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
 
@@ -184,3 +192,4 @@ android/app/src/main/cpp/
 | ~~S-06~~ ✅ | **exportDirty 变更集已实现**（C++ DirtyTracker + Kotlin applyDirty，见 §5.1/§7 阶段 1） | `GameCoreBridge` / `game_core.h` | 功能缺口 | 完成（计划 v2 阶段 1） |
 | S-07 | **设计限制 `DomainLog` 无 logger getter**：`setLogger` 后无法恢复旧 logger（基准测试需行为等价替代） | `core/domain/.../util/DomainLog.kt` | 设计改进（低优先） | 可选：暴露 `currentLogger()` 或 `setLogger` 返回旧值；不阻塞任何阶段 |
 | ~~S-08~~ ✅ | **NDK 编译验证已通过**：2026-08-27 `externalNativeBuildRelease` 成功（阶段 2 新增 JNI 入口 + 阶段 4 新增 6 系统头文件/模型在 NDK 工具链下编译通过） | `GameCoreBridge.cpp` + `GameCoreBridge.kt` | 验证缺口 | 完成（计划 v2 阶段 4） |
+| ~~S-09~~ ✅ | **对拍测试隔离缺口已修复**：JUnit 对拍测试中 C++ `nativeCoreInit` 幂等复用引擎单例（阶段 1 既有设计），`EngineLoop.tickCount/speed/累积` 跨用例残留，与 Kotlin 侧每用例 `new GameTimeClock` 的干净基准不对称——首轮 DiffEngineLoopTest 8/15 失败（tickTotal 残留 65、speed 残留致 catch-up cap 3→6 等）。根因修复：`EngineLoop::resetForTest()`（tick 计数/速度/累积/帧状态/活跃基准全清，生产路径不调用——与 Kotlin 单例语义一致）+ 桌面对拍桥 `nativeCoreLoopReset` + GTest 2 用例守护；另修测试自身 2 处（死区消费缺暂停帧刷新帧基准、2x 断言算术错） | `engine_loop.h` + `GameCoreJni.cpp` + `DiffEngineLoopTest.kt` | 测试基建缺口 | 完成（计划 v2 阶段 5） |

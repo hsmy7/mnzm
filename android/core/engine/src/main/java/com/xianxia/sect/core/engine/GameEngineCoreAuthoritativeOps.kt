@@ -76,7 +76,14 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        gameClock.refundPhases(capped)
+        // 阶段 5：refund 按时间真相源分流——native 帧计划管线活跃时归还
+        // native PhaseClock（阶段 2d 遗留路径仍归还 Kotlin gameClock）
+        if (nativeLoopPipelineActive) {
+            runCatching { GameCoreBridge.nativeLoopRefundPhases(capped) }
+            gameClock.consumeDeadTime()
+        } else {
+            gameClock.refundPhases(capped)
+        }
         throw e
     }
 }
@@ -104,6 +111,9 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)
             if (!stateSyncServiceRef.importToNative()) return false
+            // 阶段 5：引擎循环时钟基准启动（防 PhaseClock 残留 lastWallMs 造成
+            // 首帧巨量 delta → 追补上限截断丢时间）
+            GameCoreBridge.nativeLoopStart()
             // 全量导入成功后清空反向捕获窗口——读档/加载路径的事务捕获若残留，
             // 首个 ⑤ 会把陈旧变更误发 C++（阶段 3 反向通道窗口管理）
             stateStore.resetReverseAccumulator()

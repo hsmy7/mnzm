@@ -1,9 +1,12 @@
 #include "GameCoreBridge.h"
 
 #include <android/log.h>
+#include <cstring>
 #include <string>
+#include <time.h>
 
 #include "gamecore/game_core.h"
+#include "gamecore/system/engine_loop.h"
 
 // ============================================================
 // GameCoreBridge — JNI 实现（Android 专用）
@@ -11,6 +14,10 @@
 //
 // 日志直接走 logcat（桥层是唯一允许依赖 android/log.h 的 C++ 文件；
 // game-core 本体零 Android 依赖）。
+//
+// 计划 v2 阶段 5：平台能力注入——MonotonicClock（CLOCK_BOOTTIME，与
+// SystemClock.elapsedRealtime 一致含深度睡眠）/ Telemetry（logcat）/
+// 热控+电量（Settable 端口，Kotlin 平台层轮询推送）。
 // ============================================================
 
 #define LOG_TAG "GameCoreBridge"
@@ -37,10 +44,61 @@ public:
     }
 };
 
+/// 单调时钟适配器——CLOCK_BOOTTIME 与 SystemClock.elapsedRealtime 一致
+/// （单调递增 + 含深度睡眠；steady_clock 不含休眠会低估挂机时长）
+class AndroidMonotonicClock final : public gamecore::MonotonicClock {
+public:
+    int64_t nowMs() override {
+#if defined(CLOCK_BOOTTIME)
+        struct timespec ts {};
+        clock_gettime(CLOCK_BOOTTIME, &ts);
+        return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1'000'000;
+#else
+        struct timespec ts {};
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1'000'000;
+#endif
+    }
+};
+
+/// 遥测适配器（阶段 5 落 logcat；接 Bugly/TapDB 上报由平台层后续消费）
+class AndroidTelemetrySink final : public gamecore::TelemetrySink {
+public:
+    void event(const std::string& name, const std::string& propsJson) override {
+        __android_log_print(ANDROID_LOG_INFO, "GameCoreTelemetry", "%s %s",
+                            name.c_str(), propsJson.c_str());
+    }
+};
+
 /// 全局引擎实例（仿 NativeBridge 全局态模式：单消费者线程 + JNI 串行）
 gamecore::GameCore* g_gameCore = nullptr;
 AndroidLogger g_androidLogger;
 gamecore::SystemClock g_systemClock;
+AndroidMonotonicClock g_androidMonoClock;
+AndroidTelemetrySink g_androidTelemetry;
+gamecore::SettableThermalStatusProvider g_thermalProvider;
+gamecore::SettableBatteryStatusProvider g_batteryProvider;
+
+/// LoopFramePlan → jlongArray（17 槽标量协议；见 engine_loop.h 注释）
+jlongArray packLoopFramePlan(JNIEnv* env, const gamecore::system::LoopFramePlan& p) {
+    constexpr int kLen = 17;
+    jlong buf[kLen] = {0};
+    buf[0] = p.paused ? 1 : 0;
+    buf[1] = p.tickCount;
+    for (int i = 0; i < 5; ++i) buf[2 + i] = p.tickKind[i];
+    for (int i = 0; i < 5; ++i) buf[7 + i] = p.tickPhases[i];
+    int32_t alphaBits = 0;
+    static_assert(sizeof(alphaBits) == sizeof(float), "float bits");
+    std::memcpy(&alphaBits, &p.alpha, sizeof(float));
+    buf[12] = alphaBits;
+    buf[13] = p.frameDeltaNs;
+    buf[14] = p.idleNs;
+    buf[15] = p.tickTotal;
+    buf[16] = p.accumulatedGameMs;
+    jlongArray out = env->NewLongArray(kLen);
+    if (out) env->SetLongArrayRegion(out, 0, kLen, buf);
+    return out;
+}
 
 /// JNI jbyteArray → std::string（copy；execute 参数/结果用）
 std::string jbytesToString(JNIEnv* env, jbyteArray array) {
@@ -93,6 +151,13 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeInit(
     config.authoritativeTickMode = (authoritativeTickMode == JNI_TRUE);
 
     g_gameCore = new gamecore::GameCore(&g_systemClock, &g_androidLogger);
+    // 计划 v2 阶段 5：平台能力注入（引擎循环时间源/遥测/热控/电量端口）
+    gamecore::PlatformProviders providers;
+    providers.monotonicClock = &g_androidMonoClock;
+    providers.telemetry = &g_androidTelemetry;
+    providers.thermal = &g_thermalProvider;
+    providers.battery = &g_batteryProvider;
+    g_gameCore->setPlatformProviders(providers);
     const bool ok = g_gameCore->initialize(config);
     if (!ok) {
         delete g_gameCore;
@@ -247,4 +312,84 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativePollEvents(
     JNIEnv* env, jobject /*thiz*/) {
     if (!g_gameCore) return stringToJbytes(env, "[]");
     return stringToJbytes(env, g_gameCore->pollEventsJson());
+}
+
+// ============================================================
+// 引擎循环 + 看门狗（计划 v2 阶段 5：游戏循环入 C++）
+// ============================================================
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopStart(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_gameCore) g_gameCore->loop().start();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetSpeed(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint speed) {
+    if (g_gameCore) g_gameCore->loop().time().setSpeed(static_cast<int>(speed));
+}
+
+extern "C" JNIEXPORT jlongArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopFrame(
+    JNIEnv* env, jobject /*thiz*/,
+    jboolean pausedOrLoading, jboolean isSaving) {
+    if (!g_gameCore) return env->NewLongArray(0);
+    const auto plan = g_gameCore->loop().iterate(
+        pausedOrLoading == JNI_TRUE, isSaving == JNI_TRUE);
+    return packLoopFramePlan(env, plan);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopConsumeDeadTime(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_gameCore) g_gameCore->loop().time().consumeDeadTime();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopRefundPhases(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint count) {
+    if (g_gameCore) g_gameCore->loop().time().refundPhases(static_cast<int>(count));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopNotifyUserActivity(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_gameCore) g_gameCore->loop().notifyUserActivity();
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopOnRestart(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (g_gameCore) g_gameCore->loop().onLoopRestart();
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeWatchdogVerdict(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jboolean loopActive, jboolean isPaused, jboolean isSaving, jboolean isLoading,
+    jboolean secretRealmPauseLock, jlong secretRealmPauseRenewedAtMs) {
+    if (!g_gameCore) return -1;
+    gamecore::WatchdogFlags flags;
+    flags.loopActive = (loopActive == JNI_TRUE);
+    flags.isPaused = (isPaused == JNI_TRUE);
+    flags.isSaving = (isSaving == JNI_TRUE);
+    flags.isLoading = (isLoading == JNI_TRUE);
+    flags.secretRealmPauseLock = (secretRealmPauseLock == JNI_TRUE);
+    flags.secretRealmPauseRenewedAtMs = static_cast<int64_t>(secretRealmPauseRenewedAtMs);
+    return g_gameCore->watchdogVerdict(flags);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetThermalStatus(
+    JNIEnv* /*env*/, jobject /*thiz*/, jint severity) {
+    g_thermalProvider.set(static_cast<gamecore::ThermalState>(severity));
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetBatteryStatus(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jboolean isLowBattery, jboolean isPowerSaveMode, jint fpsCap, jfloat offsetC) {
+    g_batteryProvider.set(isLowBattery == JNI_TRUE, isPowerSaveMode == JNI_TRUE,
+                          static_cast<int>(fpsCap), static_cast<float>(offsetC));
 }

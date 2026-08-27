@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.util.DomainLog
-import android.os.Build
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.JadeSymbolService
@@ -10,6 +9,7 @@ import com.xianxia.sect.core.engine.service.YearSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.nativebridge.StateSyncService
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -99,8 +99,9 @@ private data class LoopState(val phase: LoopPhase, val epoch: Int)
  * distinctUntilChanged + sample + stateIn 节流合并），
  * UI 层订阅对应流即可获得最新状态，无需手动同步。
  */
-/** D-17 帧循环跨帧累计状态（gameLoopIteration 参数/返回值，替代多参数漂移） */
-private data class LoopIterationState(
+/** D-17 帧循环跨帧累计状态（gameLoopIteration 参数/返回值，替代多参数漂移）。
+ *  internal（阶段 5：GameEngineCoreLoopOps AUTHORITATIVE 帧迭代复用同一载体） */
+internal data class LoopIterationState(
     val accumulatorNs: Long,
     val lastFrameTimeNs: Long
 )
@@ -114,19 +115,19 @@ class GameEngineCore @Inject constructor(
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val systemManager: SystemManager,
     private val scopeProvider: CoroutineScopeProvider,
-    private val cultivationService: CultivationService,
-    private val explorationService: ExplorationService,
+    internal val cultivationService: CultivationService,
+    internal val explorationService: ExplorationService,
     private val aiSectBeastAttackProcessor: com.xianxia.sect.core.exploration.AISectBeastAttackProcessor,
     internal val gameClock: GameTimeClock,
-    private val thermalController: ThermalController,
-    private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
+    internal val thermalController: ThermalController,
+    internal val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
     private val spiritStoneWallet: SpiritStoneWallet,
     /** 玉符（氪金货币）在线时长结算服务 */
     private val jadeSymbolService: JadeSymbolService,
     /** 引擎异常上报端口（app 层提供 Bugly 实现；默认 Noop 供测试/无基建场景） */
     private val engineCrashReporter: EngineCrashReporter = NoopEngineCrashReporter,
     /** 电池状态感知（低电量未充电时主动降帧/提前降载；默认 Noop 供测试） */
-    private val batteryStatusProvider: BatteryStatusProvider = NoopBatteryStatus,
+    internal val batteryStatusProvider: BatteryStatusProvider = NoopBatteryStatus,
     /** 溢出邮件处理器（D-01 崩溃恢复：启动时排空持久化草稿；默认 Noop 供测试） */
     private val overflowMailHandler: OverflowMailHandler = NoOpOverflowMailHandler,
     /**
@@ -136,6 +137,24 @@ class GameEngineCore @Inject constructor(
      */
     internal val gameRngManager: GameRngManager = GameRngManager()
 ) : EngineContextDispatcher {
+
+    init {
+        // 阶段 5（计划 v2）：AUTHORITATIVE 下速度真相源在 native 引擎循环——
+        // UI/看门狗经 gameClock.setSpeed 的变更由钩子推送（OFF 模式无消费者）
+        gameClock.onSpeedChanged = { speed ->
+            if (NativeEngineFlag.authoritative && GameCoreBridge.isLoaded) {
+                runCatching { GameCoreBridge.nativeLoopSetSpeed(speed) }
+            }
+        }
+    }
+
+    /**
+     * AUTHORITATIVE 帧计划管线活跃标志（阶段 5）：refund 语义按真相源分流——
+     * native 管线活跃时归还 native PhaseClock；否则归还 Kotlin gameClock
+     * （阶段 2d 遗留路径）。引擎线程写/看门狗线程不读，volatile 仅作安全发布。
+     */
+    @Volatile
+    internal var nativeLoopPipelineActive: Boolean = false
 
     /**
      * 任务完成检测回调，由 GameEngine 在构造后注入。
@@ -245,8 +264,9 @@ class GameEngineCore @Inject constructor(
 
     /**
      * 计算有效渲染帧率：场景 × 性能模式 × 热控/电量 三者取 min（降级优先）。
+     * internal（阶段 5：AUTHORITATIVE 帧迭代复用）。
      */
-    private fun updateRenderFrameRate() {
+    internal fun updateRenderFrameRate() {
         val thermalFps = thermalController.recommendedTargetFps
         val mode = performanceMode
         val sceneFps = sceneFpsFor(mode, currentScene)
@@ -276,6 +296,10 @@ class GameEngineCore @Inject constructor(
     /** 通知引擎用户有操作 */
     fun onUserActivity() {
         lastUserActivityTimeNs = System.nanoTime()
+        // 阶段 5：输入端口——AUTHORITATIVE 下用户活跃通知 native 引擎循环
+        if (NativeEngineFlag.authoritative) {
+            runCatching { GameCoreBridge.nativeLoopNotifyUserActivity() }
+        }
         if (currentScene == GameScene.IDLE || currentScene == GameScene.GAMEPLAY_IDLE) {
             onSceneChanged(GameScene.GAMEPLAY)
         }
@@ -305,8 +329,9 @@ class GameEngineCore @Inject constructor(
         else -> null
     }
 
-    /** 检查是否需要因闲置而降帧（两级降档：5s 静止 → 30fps，30s 深闲置 → 10fps） */
-    private fun checkIdleTimeout(nowNs: Long) {
+    /** 检查是否需要因闲置而降帧（两级降档：5s 静止 → 30fps，30s 深闲置 → 10fps）。
+     *  internal（阶段 5：AUTHORITATIVE 帧迭代复用） */
+    internal fun checkIdleTimeout(nowNs: Long) {
         if (lastUserActivityTimeNs <= 0) return
         val target = evaluateIdleTransition(currentScene, nowNs - lastUserActivityTimeNs, performanceMode)
         if (target != null) {
@@ -458,10 +483,11 @@ class GameEngineCore @Inject constructor(
     // ★ 插值因子（供 UI 平滑渲染，由 frame-driven 循环维护）
     @Volatile
     var currentAlpha: Float = 0f
-        private set
+        internal set
 
     // ★ 插值因子时间平滑器（2026-08-13 批次 3；循环重启时 reset 防残留滤波状态）
-    private val jitterSmoother = JitterSmoother()
+    //   internal（阶段 5：共享辅助 publishNativeAlpha 同包访问）
+    internal val jitterSmoother = JitterSmoother()
 
     // ── 自适应忙等 ──
     @Volatile
@@ -469,6 +495,13 @@ class GameEngineCore @Inject constructor(
     private var antiFreezeTriggerCount = 0
     private var consecutiveNormalTicks = 0
     private var lastActualElapsedMs = 0L
+
+    /**
+     * Thread.onSpinWait 可用性（API 33+ / JDK 9+；R-02：反射探测替代
+     * android.os.Build.VERSION.SDK_INT——消除 engine 模块 Android 依赖）
+     */
+    private val supportsOnSpinWait: Boolean =
+        try { Thread::class.java.getMethod("onSpinWait"); true } catch (_: NoSuchMethodException) { false }
 
     private val engineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
@@ -498,10 +531,14 @@ class GameEngineCore @Inject constructor(
     private var gameLoopJob: Job? = null
     private var gameLoopStoppedSignal = CompletableDeferred<Unit>()
     
-    private val _tickCount = MutableStateFlow(0L)
+    /** tick 计数真相源（AUTHORITATIVE 下由 native 帧计划镜像回推；internal：共享辅助 publishNativeTickTotal 使用） */
+    @Suppress("VariableNaming")  // 下划线前缀沿袭 Kotlin 内部状态惯例（MutableStateFlow 私有后备字段，public 读经 tickCount）
+    internal val _tickCount = MutableStateFlow(0L)
     val tickCount: StateFlow<Long> = _tickCount.asStateFlow()
     
-    private val _fps = MutableStateFlow(0f)
+    /** 帧率上报值（internal：共享辅助 tickThermalControl 使用） */
+    @Suppress("VariableNaming")  // 同上：_fps 为私有后备字段，public 读经 fps
+    internal val _fps = MutableStateFlow(0f)
     val fps: StateFlow<Float> = _fps.asStateFlow()
     
     private var lastFrameTime = System.currentTimeMillis()
@@ -547,9 +584,9 @@ class GameEngineCore @Inject constructor(
     /** 停滞判定器（纯函数组件，三层看门狗共享同一判定出口） */
     private val gameTimeProgressMonitor = GameTimeProgressMonitor()
 
-    /** 游戏循环体最近活动墙钟（每次迭代更新，含暂停/保存跳过路径） */
+    /** 游戏循环体最近活动墙钟（每次迭代更新，含暂停/保存跳过路径；internal：共享辅助 notifyLoopActivity 使用） */
     @Volatile
-    private var lastLoopActivityMs: Long = 0L
+    internal var lastLoopActivityMs: Long = 0L
 
     /** 上次 tick 实际耗时（异常上报上下文用） */
     @Volatile
@@ -682,6 +719,11 @@ class GameEngineCore @Inject constructor(
         }
 
         gameClock.start()
+        // 阶段 5：AUTHORITATIVE 引擎循环时钟基准同步重置（native 未初始化时为
+        // 安全空操作；ensureAuthoritativeNative 初始化完成后同样调用）
+        if (NativeEngineFlag.authoritative) {
+            runCatching { GameCoreBridge.nativeLoopStart() }
+        }
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
         // D-08 接线（2026-08-08）：热状态监控绑定当前 engineScope——start 与
@@ -783,10 +825,18 @@ class GameEngineCore @Inject constructor(
      * @param state 跨帧累计状态（accumulatorNs/lastFrameTimeNs）
      * @return 更新后的累计状态（暂停分支与异常路径会清零 accumulatorNs，语义同原 continue）
      */
+    @Suppress("ReturnCount")  // 阶段 5：AUTHORITATIVE 分流提前返回（第 3 个 return）——判据已迁 C++，本方法仅剩回退路径
     private suspend fun gameLoopIteration(state: LoopIterationState): LoopIterationState {
         var accumulatorNs = state.accumulatorNs
         var lastFrameTimeNs = state.lastFrameTimeNs
         try {
+            // 阶段 5（计划 v2）：AUTHORITATIVE 模式下帧迭代判据（累积/步进/
+            // 墙钟消费/心跳）由 C++ EngineLoop 真相源驱动；帧计划不可用自动
+            // 回退本方法剩余的纯 Kotlin 路径（零行为变化）
+            if (NativeEngineFlag.authoritative && ensureAuthoritativeNative()) {
+                return authoritativeLoopIteration()
+            }
+            nativeLoopPipelineActive = false
             // 循环活动心跳：每次迭代更新（含暂停分支与 skip 路径），
             // 供看门狗区分"正常慢保存/暂停"与"循环停滞/引擎死亡"
             lastLoopActivityMs = gameClock.nowMs()
@@ -838,8 +888,9 @@ class GameEngineCore @Inject constructor(
         return LoopIterationState(accumulatorNs = accumulatorNs, lastFrameTimeNs = lastFrameTimeNs)
     }
 
-    /** D-17 单帧崩溃兜底（gameLoopIteration 拆分）：归因上下文采集 + 日志 + 异常上报，自身永不抛异常 */
-    private fun handleTickCrash(e: Exception) {
+    /** D-17 单帧崩溃兜底（gameLoopIteration 拆分）：归因上下文采集 + 日志 + 异常上报，自身永不抛异常。
+     *  internal（阶段 5：AUTHORITATIVE 帧迭代复用） */
+    internal fun handleTickCrash(e: Exception) {
         // 第一性原理：catch 块自身必须永不抛异常——任何状态读取失败
         // 都不能杀死游戏循环（测试曾复现：catch 内读 isPaused 抛异常 → 协程死亡）
         @Suppress("TooGenericExceptionCaught") // 防御性兜底：状态读取异常类型不可预期
@@ -896,8 +947,9 @@ class GameEngineCore @Inject constructor(
         return LoopIterationState(accumulatorNs = 0L, lastFrameTimeNs = lastFrameTimeNs)
     }
 
-    /** D-17 场景感知自适应等待（gameLoopIteration 拆分，P1.3）：无 tick 按帧预算等待，有 tick 防超预算 */
-    private suspend fun adaptiveWait(stepsExecuted: Int, deltaNs: Long, nowNs: Long) {
+    /** D-17 场景感知自适应等待（gameLoopIteration 拆分，P1.3）：无 tick 按帧预算等待，有 tick 防超预算。
+     *  internal（阶段 5：AUTHORITATIVE 帧迭代复用——delay/忙等为平台线程机制保留 Kotlin） */
+    internal suspend fun adaptiveWait(stepsExecuted: Int, deltaNs: Long, nowNs: Long) {
         if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
             // 无 tick 执行 → 按场景帧预算等待
             val budgetMs = currentScene.targetFrameTimeMs
@@ -1093,6 +1145,24 @@ class GameEngineCore @Inject constructor(
      * isPaused 卡死（StalePauseDetected）与 speed=0 假运行（FakeRunDetected）。
      */
     fun progressVerdict(): StallVerdict {
+        // 阶段 5（计划 v2）：AUTHORITATIVE 下看门狗统一判据走 native 真相源
+        // （C++ ProgressMonitor 逐位移植 + 引擎侧状态组合）；native 不可用
+        // （未加载/未初始化/未知码）自动回退 Kotlin 判据
+        if (NativeEngineFlag.authoritative && GameCoreBridge.isLoaded &&
+            GameCoreBridge.nativeIsInitialized()
+        ) {
+            val code = runCatching {
+                GameCoreBridge.nativeWatchdogVerdict(
+                    loopActive = gameLoopJob?.isActive == true,
+                    isPaused = stateStore.isPaused.value,
+                    isSaving = stateStore.isSaving.value,
+                    isLoading = stateStore.isLoading.value,
+                    secretRealmPauseLock = secretRealmPauseLock,
+                    secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs
+                )
+            }.getOrDefault(-1)
+            nativeVerdictToStall(code)?.let { return it }
+        }
         val snapshot = lastProgressSnapshot
             ?: sampleProgressSnapshot()  // 循环从未 tick：flags-only 快照（暂停租约等仍可判定）
         val current = snapshot.copy(
@@ -1111,8 +1181,9 @@ class GameEngineCore @Inject constructor(
     /**
      * 采样进度快照：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs + flags）。
      * 循环体每次迭代（含暂停/加载分支）调用，保证快照新鲜。
+     * internal（阶段 5：GameEngineCoreLoopOps AUTHORITATIVE 帧迭代复用）。
      */
-    private fun sampleProgressSnapshot(): GameTimeProgressSnapshot {
+    internal fun sampleProgressSnapshot(): GameTimeProgressSnapshot {
         // V4：getSystem 缺失时抛 IllegalStateException（不是返回 null——`?: 0L` 是死代码），
         // 采样本身不得成为崩溃源——回退上次快照值
         val totalPhases = try {
@@ -1332,6 +1403,10 @@ class GameEngineCore @Inject constructor(
 
             // 4. 消耗死区时间，防止时间跳变
             gameClock.consumeDeadTime()
+            // 阶段 5：native 引擎循环帧状态清零（换线程重启——首帧 delta 归零）
+            if (NativeEngineFlag.authoritative) {
+                runCatching { GameCoreBridge.nativeLoopOnRestart() }
+            }
 
             // 5. 重启循环——保留降级计数（F6：startGameLoop 不清零，
             //    否则每次紧急重启后的新看门狗都从激进模式起步，降级模式永不生效）
@@ -1516,10 +1591,9 @@ class GameEngineCore @Inject constructor(
         // 影子推进停用（避免双份推进）
         tickNativeShadow(LOGIC_DT_NS, gameClock.nowMs())
         val tickResult = gameClock.tick(isSettlementPending = false)
-        // 电量感知热控阈值偏移（低电量未充电提前 2°C 降载）；checkAndAdjust 10s 间隔检查，
-        // 此处仅浮点赋值无锁开销
-        thermalController.setThresholdOffsetC(batteryStatusProvider.thermalThresholdOffsetC)
-        thermalController.checkAndAdjust(_fps.value)
+        // 电量感知热控阈值偏移 + 帧率驱动降级（阶段 5 提取共享：AUTHORITATIVE
+        // 帧迭代每 tick 复用；checkAndAdjust 10s 间隔检查，此处仅浮点赋值无锁开销）
+        tickThermalControl()
         if (NativeEngineFlag.authoritative && ensureAuthoritativeNative()) {
             // T2.4（计划 v2 阶段 2d）：过渡期真相源切换——每旬标量通道 +
             // 残留执行器互插；初始化/镜像失败自动回退纯 Kotlin 路径
@@ -1533,11 +1607,7 @@ class GameEngineCore @Inject constructor(
         }
         // L3a 年变分帧：延迟组按 30ms 预算逐 tick drain（1 月重活分摊到后续 tick；
         // 非 1 月残留由 forceDrain 兜底不跨月）
-        cultivationService.drainYearlyOpsQueue()
-        val patrolResults = explorationService.consumePendingPatrolResults()
-        for (result in patrolResults) {
-            stateStore.setPendingBattleResult(result)
-        }
+        postTickResidualDuties()
         lastTickDurationMs = (System.nanoTime() - tickStartNanos) / 1_000_000
         if (tickStartDiagnostic > 0) {
             val tickDuration = System.currentTimeMillis() - tickStartDiagnostic
@@ -1870,11 +1940,8 @@ class GameEngineCore @Inject constructor(
             if (remaining > 0 && cycleCount % busyInterval == 0L) {
                 val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
                 while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
-                    if (Build.VERSION.SDK_INT >= 33) {
+                    if (supportsOnSpinWait) {
                         Thread.onSpinWait()
-                    } else {
-                        @Suppress("UNUSED_EXPRESSION")
-                        _tickCount.value
                     }
                 }
             }
