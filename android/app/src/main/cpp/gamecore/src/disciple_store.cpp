@@ -157,6 +157,7 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     ages.push_back(d.age);
     lifespans.push_back(d.lifespan);
     isAlive.push_back(d.isAlive ? 1 : 0);
+    deathYears.push_back(0);  // 新弟子无死亡年份（Kotlin 稀疏表无条目语义）
     soulPowers.push_back(d.soulPower);
 
     cultivationSpeedBonuses.push_back(d.cultivationSpeedBonus);
@@ -281,11 +282,16 @@ void DiscipleStore::upsertDisciple(const Disciple& d) {
     // 已有弟子：原位覆盖（保持行序——RNG 对拍红线）。
     // 实现：移除旧行 → 末尾追加 → 将 [row, last) 段右旋一格，使新行回到原位。
     const std::size_t row = it->second;
+    // ★ 保存 deathYears（Kotlin replaceAll 恢复语义——writeAllFields 不清此列：
+    //   "assembleAll → map 标记 → replaceAll → 补 deathYears" 流水线依赖
+    //   replaceAll 保留已写 deathYears；appendDisciple 新行默认 0，需旋转后写回）
+    const int32_t savedDeathYear = deathYears[row];
     eraseAt(row);
     appendDisciple(d);
     for (std::size_t i = ids.size() - 1; i > row; --i) {
         swapRows(i, i - 1);
     }
+    deathYears[row] = savedDeathYear;
 }
 
 void DiscipleStore::removeById(const std::string& id) {
@@ -310,6 +316,7 @@ void DiscipleStore::clear() {
     ages.clear();
     lifespans.clear();
     isAlive.clear();
+    deathYears.clear();
     soulPowers.clear();
     cultivationSpeedBonuses.clear();
     cultivationSpeedDurations.clear();
@@ -423,6 +430,7 @@ void DiscipleStore::eraseAt(std::size_t row) {
     ages.erase(ages.begin() + static_cast<std::ptrdiff_t>(row));
     lifespans.erase(lifespans.begin() + static_cast<std::ptrdiff_t>(row));
     isAlive.erase(isAlive.begin() + static_cast<std::ptrdiff_t>(row));
+    deathYears.erase(deathYears.begin() + static_cast<std::ptrdiff_t>(row));
     soulPowers.erase(soulPowers.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedBonuses.erase(cultivationSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedDurations.erase(cultivationSpeedDurations.begin() + static_cast<std::ptrdiff_t>(row));
@@ -543,6 +551,7 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(ages[a], ages[b]);
     swap(lifespans[a], lifespans[b]);
     swap(isAlive[a], isAlive[b]);
+    swap(deathYears[a], deathYears[b]);
     swap(soulPowers[a], soulPowers[b]);
     swap(cultivationSpeedBonuses[a], cultivationSpeedBonuses[b]);
     swap(cultivationSpeedDurations[a], cultivationSpeedDurations[b]);

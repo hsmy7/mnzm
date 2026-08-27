@@ -1,11 +1,12 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> 更新日期：2026-08-26。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
+> 更新日期：2026-08-27。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 382/382 · engine JUnit 2856/2856 · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · lintRelease 通过**。
-> **计划 v2 阶段 0、1、2、3 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
-> 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源，详见
-> .superpowers/sdd/t3-design.md 与 t3-1/t3-2 报告）。
+> 当前基线：**桌面 GTest 478/478 · engine JUnit 2396/2396（testReleaseUnitTest 全量，2026-08-27 实测） · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · compileReleaseKotlin 通过**。
+> **计划 v2 阶段 0、1、2、3、4 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
+> 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
+> 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
+> 11 槽分配/兑换码+邮件附件，详见 §7 阶段 4 行）。
 
 ## 1. 目标架构
 
@@ -155,7 +156,13 @@ android/app/src/main/cpp/
   - **反向增量通道**（T3.1）：AUTHORITATIVE tick 步骤 ⑤ 由全量 importToNative 改为 `applyDirtyToNative` 增量回导——GameStateStoreImpl 事务级反向脏捕获（弟子脏 id peek + gameData 引用 + 集合引用全量/消失 id）+ StateSyncService 信封 {version,changed,removed}（gameData 全量剔除 rngStates + 弟子变化 id 全实体/removed + 集合变化全量/removed）+ C++ `GameCore::applyReverseDirty`（版本严格递增 + 基线同步）；失败降级全量。100 旬互锁对拍 PASS
   - **DiscipleStore SoA**（T3.2）：`GameState.disciples` 由 `std::vector<Disciple>` 改为 SoA 列式存储（~124 列 + idToRow + materialize/append/loadFrom/upsert 保序/removeById/swapRows 旋转同步索引）；JSON 协议零变更；每旬核心批次/月变/年变/突破/丹药路径全列化；快照语义保留；**性能：runPhaseCoreBatch 1000 弟子 180µs vs 阶段 0 Kotlin 基线 327µs（1.8x）**
   - **静态数据单一源**（T3.3 / T-CPP-2）：`scripts/data/*.json`（6 类中性源，唯一权威）→ 6 个 gen-*.mjs 只读中性源 → C++ 表 + 测试快照（重跑零漂移）；Kotlin Registry 由各 RegistryGuardTest + 新增 `StaticDataSingleSourceGuardTest`（中性源 ↔ 快照逐字节）兜底；补齐灵草/种子双端守卫（HerbRegistryGuardTest + herb_db_test.cpp，预存缺口）；修复 beast_material_db.h 中文妖兽名映射漂移（收敛进生成器） | T-CPP-2（Kotlin Registry 文件级生成余项登记，偿还触发：阶段 7/iOS 立项） |
-| 4 | **未迁移系统逐批 C++ 化**：SecretRealm 状态机剩余/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator（原"永久保留"清单全部纳入，不再保留） | 原 C-06 阻塞依赖清单 |
+| 4 ✅ | **未迁移系统逐批 C++ 化**（2026-08-27 完成，5 批 6 模块，GTest 478/478 + JUnit 对拍全绿 + NDK 构建通过）：
+  - **批 4-1 LevelGenerator**：`system/level_generator.h`（妖兽类型/境界属性表 + selectBeastRealm 年份加权 + generateBeastLevel/CaveLevel/WorldLevels 位置去重与距离校验 + 属性预生成 + 洞府奖励）；ActionId 1402/1403；`WorldLevel.beastSpeed` 协议补齐；GTest 15 + JUnit DiffLevelGeneratorTest 3
+  - **批 4-2 死亡物化**：`system/death_handler.h`（markDead 三字段 + 年死亡计数 + 装备断言 + backfillDeathYears）；`DiscipleStore.deathYears` 列（纯内存，不进 JSON 协议，upsert 保留语义对齐 Kotlin replaceAll）；ActionId 1404/1405；GTest 11 + JUnit DiffDeathHandlerTest 4
+  - **批 4-3 SecretRealm 状态机核心**：`system/secret_realm.h`（playerAvgRealm/rollBeastRealm/事件生成 beast·rest·ruins·direction·AI 遭遇/rollNextEvent 一次 nextDouble 分段/buildBeastPreGenStats/rollBeastLoot/遗迹结算/applyLootLoss 洗牌/AI 队伍派遣/位置寻找 Float 精度/体力 clamp/年变现世判定）；模型复用批次 1；边界：战斗执行（BattleSystem）与秘宝模板实例化保留 Kotlin；ActionId 1406~1419；GTest 29 + JUnit DiffSecretRealmTest 8
+  - **批 4-4 外交**：`system/sect_decision.h`（四因素概率模型 + 脱离 + 战力分档，SectDecisionConfig 同源）+ `system/sect_power.h`（弟子/妖兽战力 + fingerprint，Java hashCode 语义见 `system/java_hash.h` UTF-16 解码）+ `system/rarity_progression.h`（品阶时间曲线，3000 年后爬升轨道）+ `system/sect_trade.h`（交易确定性种子/库存曲线/价格波动/灵石映射）；ActionId 1420~1432；GTest 20 + JUnit DiffSectDiplomacyTest 7
+  - **批 4-5 11 槽分配**：`system/slot_cleanup.h`（clearAllSlotsDataOnly 11 类槽位纯数据变换）；补齐缺失模型（GarrisonSlot/BattleTeam/BattleTeamSlot/WarehouseGarrisonSlot/CaveExplorationTeam/ActiveMissionLite + GameData/WorldSect 字段 + JSON 协议）；边界：Gate 注册表与完整 ActiveMission 保留 Kotlin；ActionId 1433；GTest 9 + JUnit DiffSlotCleanupTest 2
+  - **批 4-6 兑换码+邮件附件**：`system/redeem_code.h`（格式校验/灵根生成含 java.util.Random 48 位 LCG 复现/灵根阶梯/年龄寿元/方差）+ `MailAttachment` 模型与 kotlinx 对齐的附件 JSON 编码；边界：名字/体质/词条/天赋注册表与服务器验证保留 Kotlin；ActionId 1434~1439；GTest 13 + JUnit DiffRedeemCodeTest 3 | 原 C-06 阻塞依赖清单（原"永久保留"清单全部纳入，不再保留） |
 | 5 | **游戏循环入 C++**：平台能力接口化（Clock/Input/IO/Telemetry/热控/电量——ADR Clock/Logger 注入先例扩展）；引擎循环 + 看门狗判据迁 C++ | R-02（core/engine Android 依赖随引擎退役自然消除） |
 | 6 | **渲染 RHI + 合成器统一**：Renderer2D → RHI（Vulkan 现有 + Metal/iOS）；渲染合成器物理下沉（批次 R 剩余） | 批次 R 剩余、iOS 预留 |
 | 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
@@ -176,4 +183,4 @@ android/app/src/main/cpp/
 | ~~S-05~~ ✅ | **RNG 读档恢复已接线**（并入 C-13，见 §5.4） | `game_core.cpp` | 功能缺口 | 完成（计划 v2 阶段 1） |
 | ~~S-06~~ ✅ | **exportDirty 变更集已实现**（C++ DirtyTracker + Kotlin applyDirty，见 §5.1/§7 阶段 1） | `GameCoreBridge` / `game_core.h` | 功能缺口 | 完成（计划 v2 阶段 1） |
 | S-07 | **设计限制 `DomainLog` 无 logger getter**：`setLogger` 后无法恢复旧 logger（基准测试需行为等价替代） | `core/domain/.../util/DomainLog.kt` | 设计改进（低优先） | 可选：暴露 `currentLogger()` 或 `setLogger` 返回旧值；不阻塞任何阶段 |
-| S-08 | **NDK 编译验证待办**：阶段 2 新增 Android JNI 入口（`GameCoreBridge.cpp`：nativeInit 四参签名 + nativeSettlePhase/nativeRng*/nativeImportStateNoRng 等 6 新入口）尚未在真机/NDK 链路验证——桌面同源码（GameCoreJni.cpp 对拍镜像）编译与 GTest 已绿，模式完全一致，风险低 | `GameCoreBridge.cpp` + `GameCoreBridge.kt` | 验证缺口 | 发布前必跑 `externalNativeBuildRelease` + 存档读写回归；随阶段 2 收尾清单执行 |
+| ~~S-08~~ ✅ | **NDK 编译验证已通过**：2026-08-27 `externalNativeBuildRelease` 成功（阶段 2 新增 JNI 入口 + 阶段 4 新增 6 系统头文件/模型在 NDK 工具链下编译通过） | `GameCoreBridge.cpp` + `GameCoreBridge.kt` | 验证缺口 | 完成（计划 v2 阶段 4） |

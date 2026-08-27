@@ -3,15 +3,25 @@
 #include <nlohmann/json.hpp>
 
 #include "gamecore/action_ids.h"
+#include "gamecore/state/json_codec.h"
 #include "gamecore/system/battle.h"
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
+#include "gamecore/system/death_handler.h"
 #include "gamecore/system/disciple.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/government.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/lifecycle.h"
+#include "gamecore/system/level_generator.h"
+#include "gamecore/system/rarity_progression.h"
+#include "gamecore/system/redeem_code.h"
+#include "gamecore/system/secret_realm.h"
+#include "gamecore/system/sect_decision.h"
+#include "gamecore/system/sect_power.h"
+#include "gamecore/system/sect_trade.h"
+#include "gamecore/system/slot_cleanup.h"
 #include "gamecore/system/spirit_field.h"
 
 // ============================================================
@@ -627,6 +637,572 @@ nlohmann::json handleExploration(GameCore* core, int32_t actionId,
     }
 }
 
+/// 关卡生成操作（计划 v2 阶段 4 批 4-1：ActionIds.LEVEL_*）
+nlohmann::json handleLevelGeneration(GameCore* core, int32_t actionId,
+                                     const nlohmann::json& params) {
+    switch (actionId) {
+        case action::LEVEL_SELECT_BEAST_REALM: {
+            const int32_t* avg = nullptr;
+            int32_t avgValue = 0;
+            if (params.contains("playerAvgRealm") &&
+                !params.at("playerAvgRealm").is_null()) {
+                avgValue = params.at("playerAvgRealm").get<int32_t>();
+                avg = &avgValue;
+            }
+            const int32_t realm = gamecore::system::selectBeastRealm(
+                core->rng(), params.value("year", 1), avg);
+            return ok({{"realm", realm}});
+        }
+        case action::LEVEL_GENERATE_LEVELS: {
+            std::vector<gamecore::state::WorldSect> sects;
+            if (params.contains("sects")) {
+                for (const auto& s : params.at("sects")) {
+                    sects.push_back(s.get<gamecore::state::WorldSect>());
+                }
+            }
+            std::vector<gamecore::state::WorldLevel> existing;
+            if (params.contains("existingLevels")) {
+                for (const auto& l : params.at("existingLevels")) {
+                    existing.push_back(l.get<gamecore::state::WorldLevel>());
+                }
+            }
+            const int32_t* avg = nullptr;
+            int32_t avgValue = 0;
+            if (params.contains("playerAvgRealm") &&
+                !params.at("playerAvgRealm").is_null()) {
+                avgValue = params.at("playerAvgRealm").get<int32_t>();
+                avg = &avgValue;
+            }
+            const auto r = gamecore::system::generateWorldLevels(
+                core->rng(), sects, params.value("year", 1),
+                params.value("month", 1), existing,
+                params.value("maxNewLevels", gamecore::system::kDefaultMaxNewLevels),
+                avg);
+            nlohmann::json levels = nlohmann::json::array();
+            for (const auto& l : r.levels) {
+                levels.push_back(l);
+            }
+            return ok({{"levels", levels}, {"generated", r.generated}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "level generation action " + std::to_string(actionId));
+    }
+}
+
+/// 兑换码与邮件附件（计划 v2 阶段 4 批 4-6：ActionIds.REDEEM_* / MAIL_*）
+nlohmann::json handleRedeemCode(GameCore* core, int32_t actionId,
+                                const nlohmann::json& params) {
+    using gamecore::state::MailAttachment;
+    auto& sr = core->rng().getRng(gamecore::rng::RngPartition::kMail);
+    switch (actionId) {
+        case action::REDEEM_VALIDATE_INPUT: {
+            const std::string message = gamecore::system::validateRedeemInput(
+                params.at("code").get<std::string>());
+            return ok({{"valid", message.empty()}, {"message", message}});
+        }
+        case action::REDEEM_ROLL_SPIRIT_ROOT: {
+            const std::string* typePtr = nullptr;
+            std::string typeValue;
+            if (params.contains("spiritRootType") && !params.at("spiritRootType").is_null()) {
+                typeValue = params.at("spiritRootType").get<std::string>();
+                typePtr = &typeValue;
+            }
+            int32_t* countPtr = nullptr;
+            int32_t countValue = 0;
+            if (params.contains("spiritRootCount") && !params.at("spiritRootCount").is_null()) {
+                countValue = params.at("spiritRootCount").get<int32_t>();
+                countPtr = &countValue;
+            }
+            return ok({{"spiritRoot", gamecore::system::resolveSpiritRoot(
+                                          sr, typePtr, countPtr)}});
+        }
+        case action::REDEEM_RESOLVE_AGE_LIFESPAN: {
+            const auto r = gamecore::system::resolveAgeAndLifespan(
+                sr, params.at("minAge").get<int32_t>(),
+                params.at("maxAge").get<int32_t>(), params.at("realm").get<int32_t>());
+            return ok({{"age", r.first}, {"lifespan", r.second}});
+        }
+        case action::REDEEM_ROLL_SKILLS: {
+            const int32_t roll = gamecore::system::rollBySpiritRootCount(
+                sr, params.at("spiritRootCount").get<int32_t>());
+            return ok({{"roll", roll},
+                       {"aptitude", gamecore::system::avoidSentinel50(roll)}});
+        }
+        case action::REDEEM_GENERATE_VARIANCE: {
+            return ok({{"variance", gamecore::system::generateVariance(sr)}});
+        }
+        case action::MAIL_ATTACHMENT_ENCODE: {
+            std::vector<MailAttachment> attachments;
+            if (params.contains("attachments")) {
+                for (const auto& a : params.at("attachments")) {
+                    attachments.push_back(a.get<MailAttachment>());
+                }
+            }
+            // kotlinx 保持字段声明顺序（type/name/quantity/rarity/itemId/extra）——
+            // 用 ordered_json 逐字段构造，字符串输出与 Kotlin encodeToString 逐字一致
+            nlohmann::ordered_json arr = nlohmann::ordered_json::array();
+            for (const auto& a : attachments) {
+                nlohmann::ordered_json o;
+                o["type"] = a.type;
+                o["name"] = a.name;
+                o["quantity"] = a.quantity;
+                o["rarity"] = a.rarity;
+                if (a.itemId.has_value()) {
+                    o["itemId"] = *a.itemId;
+                } else {
+                    o["itemId"] = nullptr;
+                }
+                nlohmann::ordered_json extra = nlohmann::ordered_json::object();
+                for (const auto& [k, v] : a.extra) extra[k] = v;
+                o["extra"] = std::move(extra);
+                arr.push_back(std::move(o));
+            }
+            return ok({{"encoded", arr.dump()}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "redeem action " + std::to_string(actionId));
+    }
+}
+
+/// 弟子槽位清理（计划 v2 阶段 4 批 4-5：ActionIds.SLOT_CLEAR_ALL）
+nlohmann::json handleSlotCleanup(GameCore* core, const nlohmann::json& params) {
+    (void)core;
+    using gamecore::system::SlotCleanupInput;
+    SlotCleanupInput in;
+    const auto& p = params;
+    if (p.contains("spiritMineSlots")) {
+        for (const auto& e : p.at("spiritMineSlots")) {
+            in.spiritMineSlots.push_back(e.get<gamecore::state::SpiritMineSlot>());
+        }
+    }
+    if (p.contains("librarySlots")) {
+        for (const auto& e : p.at("librarySlots")) {
+            in.librarySlots.push_back(e.get<gamecore::state::LibrarySlot>());
+        }
+    }
+    if (p.contains("elderSlots")) {
+        in.elderSlots = p.at("elderSlots").get<gamecore::state::ElderSlots>();
+    }
+    if (p.contains("residenceSlots")) {
+        for (const auto& e : p.at("residenceSlots")) {
+            in.residenceSlots.push_back(e.get<gamecore::state::ResidenceSlot>());
+        }
+    }
+    if (p.contains("activeBloodRefinements")) {
+        for (auto it = p.at("activeBloodRefinements").begin();
+             it != p.at("activeBloodRefinements").end(); ++it) {
+            in.activeBloodRefinements[it.key()] =
+                it.value().get<gamecore::state::BloodRefinementProgress>();
+        }
+    }
+    if (p.contains("patrolSlots")) {
+        for (const auto& e : p.at("patrolSlots")) {
+            in.patrolSlots.push_back(e.get<gamecore::state::PatrolSlot>());
+        }
+    }
+    if (p.contains("warehouseGarrisons")) {
+        for (const auto& e : p.at("warehouseGarrisons")) {
+            in.warehouseGarrisons.push_back(e.get<gamecore::state::WarehouseGarrisonSlot>());
+        }
+    }
+    if (p.contains("battleTeams")) {
+        for (const auto& e : p.at("battleTeams")) {
+            in.battleTeams.push_back(e.get<gamecore::state::BattleTeam>());
+        }
+    }
+    if (p.contains("worldMapSects")) {
+        for (const auto& e : p.at("worldMapSects")) {
+            in.worldMapSects.push_back(e.get<gamecore::state::WorldSect>());
+        }
+    }
+    if (p.contains("productionSlots")) {
+        for (const auto& e : p.at("productionSlots")) {
+            in.productionSlots.push_back(e.get<gamecore::state::ProductionSlot>());
+        }
+    }
+    if (p.contains("caveExplorationTeams")) {
+        for (const auto& e : p.at("caveExplorationTeams")) {
+            in.caveExplorationTeams.push_back(e.get<gamecore::state::CaveExplorationTeam>());
+        }
+    }
+    if (p.contains("activeMissions")) {
+        for (const auto& e : p.at("activeMissions")) {
+            in.activeMissions.push_back(e.get<gamecore::state::ActiveMissionLite>());
+        }
+    }
+    const auto out = gamecore::system::clearAllSlotsDataOnly(
+        in, params.at("discipleId").get<std::string>(),
+        params.value("includeResidence", false));
+    nlohmann::json data = {
+        {"spiritMineSlots", out.spiritMineSlots},
+        {"librarySlots", out.librarySlots},
+        {"elderSlots", out.elderSlots},
+        {"residenceSlots", out.residenceSlots},
+        {"activeBloodRefinements", out.activeBloodRefinements},
+        {"patrolSlots", out.patrolSlots},
+        {"warehouseGarrisons", out.warehouseGarrisons},
+        {"battleTeams", out.battleTeams},
+        {"worldMapSects", out.worldMapSects},
+        {"productionSlots", out.productionSlots},
+        {"caveExplorationTeams", out.caveExplorationTeams},
+        {"activeMissions", out.activeMissions},
+    };
+    return ok(std::move(data));
+}
+
+/// 外交/宗门决策操作（计划 v2 阶段 4 批 4-4：ActionIds.SECT_*）
+nlohmann::json handleSectDiplomacy(GameCore* core, int32_t actionId,
+                                   const nlohmann::json& params) {
+    using gamecore::system::SectDecisionKind;
+    switch (actionId) {
+        case action::SECT_DECISION_CHANCE: {
+            const std::string profileName = params.value("profile", "attack");
+            const auto* profile = &gamecore::system::attackDecisionProfile();
+            if (profileName == "alliance") {
+                profile = &gamecore::system::allianceDecisionProfile();
+            } else if (profileName == "vassal") {
+                profile = &gamecore::system::vassalDecisionProfile();
+            }
+            const double chance = gamecore::system::sectDecisionChance(
+                *profile, params.at("powerRatio").get<double>(),
+                params.value("conquestCount", 0), params.value("lostSectCount", 0),
+                params.value("battleWinCount", 0), params.value("battleLossCount", 0),
+                params.at("favorLevel").get<int32_t>(),
+                params.value("personality", -1));
+            return ok({{"chance", chance}});
+        }
+        case action::SECT_DECISION_BREAKAWAY: {
+            const double chance = gamecore::system::sectBreakawayChance(
+                params.at("powerRatio").get<double>(),
+                params.value("conquestCount", 0), params.value("lostSectCount", 0),
+                params.value("battleWinCount", 0), params.value("battleLossCount", 0),
+                params.at("favorLevel").get<int32_t>());
+            return ok({{"chance", chance}});
+        }
+        case action::SECT_POWER_DISCIPLE: {
+            return ok({{"power", gamecore::system::discipleCombatPower(
+                                     params.at("physicalAttack").get<int32_t>(),
+                                     params.at("magicAttack").get<int32_t>(),
+                                     params.at("maxHp").get<int32_t>(),
+                                     params.at("physicalDefense").get<int32_t>(),
+                                     params.at("magicDefense").get<int32_t>(),
+                                     params.at("speed").get<int32_t>())}});
+        }
+        case action::SECT_POWER_BEAST: {
+            return ok({{"power", gamecore::system::beastCombatPower(
+                                     params.at("maxHp").get<int32_t>(),
+                                     params.at("physicalAttack").get<int32_t>(),
+                                     params.at("magicAttack").get<int32_t>(),
+                                     params.at("physicalDefense").get<int32_t>(),
+                                     params.at("magicDefense").get<int32_t>(),
+                                     params.at("speed").get<int32_t>())}});
+        }
+        case action::SECT_POWER_FINGERPRINT: {
+            std::vector<std::string> talentIds;
+            if (params.contains("talentIds")) {
+                for (const auto& t : params.at("talentIds")) {
+                    talentIds.push_back(t.get<std::string>());
+                }
+            }
+            gamecore::system::BloodRefinementPctTotalCpp blood;
+            const gamecore::system::BloodRefinementPctTotalCpp* bloodPtr = nullptr;
+            if (params.contains("bloodPct") && !params.at("bloodPct").is_null()) {
+                const auto& b = params.at("bloodPct");
+                blood.hpBonusPct = b.value("hpBonusPct", 0.0);
+                blood.physicalAttackBonusPct = b.value("physicalAttackBonusPct", 0.0);
+                blood.magicAttackBonusPct = b.value("magicAttackBonusPct", 0.0);
+                blood.physicalDefenseBonusPct = b.value("physicalDefenseBonusPct", 0.0);
+                blood.magicDefenseBonusPct = b.value("magicDefenseBonusPct", 0.0);
+                blood.speedBonusPct = b.value("speedBonusPct", 0.0);
+                bloodPtr = &blood;
+            }
+            const int32_t fp = gamecore::system::sectPowerFingerprint(
+                params.at("realm").get<int32_t>(), params.at("realmLayer").get<int32_t>(),
+                params.value("hpVariance", 0), params.value("physicalAttackVariance", 0),
+                params.value("magicAttackVariance", 0), params.value("physicalDefenseVariance", 0),
+                params.value("magicDefenseVariance", 0), params.value("speedVariance", 0),
+                talentIds, bloodPtr);
+            return ok({{"fingerprint", fp}});
+        }
+        case action::SECT_RARITY_ROLL: {
+            auto& sr = core->rng().getRng(gamecore::rng::RngPartition::kSystem);
+            int32_t rarity;
+            if (params.contains("seed") && !params.at("seed").is_null()) {
+                gamecore::rng::DeterministicRng local =
+                    gamecore::rng::DeterministicRng::fromSeed(params.at("seed").get<int64_t>());
+                rarity = gamecore::system::rollRarity(local, params.at("year").get<int32_t>());
+            } else {
+                rarity = gamecore::system::rollRarity(sr, params.at("year").get<int32_t>());
+            }
+            return ok({{"rarity", rarity}});
+        }
+        case action::SECT_RARITY_MAX: {
+            return ok({{"max", gamecore::system::maxRarityForYear(params.at("year").get<int32_t>())}});
+        }
+        case action::SECT_RARITY_PITY: {
+            return ok({{"pity", gamecore::system::pityRarityForYear(params.at("year").get<int32_t>())}});
+        }
+        case action::SECT_RARITY_WEIGHTS: {
+            const auto weights = gamecore::system::rarityWeightsForYear(params.at("year").get<int32_t>());
+            nlohmann::json w = nlohmann::json::object();
+            for (const auto& [r, p] : weights) {
+                w[std::to_string(r)] = p;
+            }
+            return ok({{"weights", w}});
+        }
+        case action::SECT_TRADE_SEED: {
+            return ok({{"seed", gamecore::system::sectTradeSeed(
+                                   params.at("sectId").get<std::string>(),
+                                   params.at("year").get<int32_t>())}});
+        }
+        case action::SECT_TRADE_STOCK: {
+            gamecore::rng::DeterministicRng local =
+                gamecore::rng::DeterministicRng::fromSeed(params.at("seed").get<int64_t>());
+            return ok({{"stock", gamecore::system::sectTradeStock(
+                                     local, params.at("type").get<std::string>(),
+                                     params.at("rarity").get<int32_t>())}});
+        }
+        case action::SECT_TRADE_PRICE: {
+            gamecore::rng::DeterministicRng local =
+                gamecore::rng::DeterministicRng::fromSeed(params.at("seed").get<int64_t>());
+            return ok({{"price", gamecore::system::sectTradePriceFluctuation(
+                                     params.at("basePrice").get<int64_t>(), local)}});
+        }
+        case action::SECT_TRADE_SPIRIT_STONE: {
+            const auto r = gamecore::system::sectTradeSpiritStone(
+                params.at("rarity").get<int32_t>(), params.at("year").get<int32_t>());
+            if (!r.has_value()) return ok({{"present", false}});
+            return ok({{"present", true}, {"itemRarity", r->first}, {"basePrice", r->second}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "sect diplomacy action " + std::to_string(actionId));
+    }
+}
+
+/// 远古秘境操作（计划 v2 阶段 4 批 4-3：ActionIds.SECRET_REALM_*）
+nlohmann::json handleSecretRealm(GameCore* core, int32_t actionId,
+                                 const nlohmann::json& params) {
+    using gamecore::system::SecretRealmTypeCandidates;
+    using gamecore::state::SecretRealmBackpack;
+    using gamecore::state::SecretRealmEventRecord;
+    using gamecore::state::SecretRealmMemberState;
+    using gamecore::state::SecretRealmAITeam;
+    using gamecore::state::WorldSect;
+    using gamecore::state::Disciple;
+    switch (actionId) {
+        case action::SECRET_REALM_PLAYER_AVG_REALM: {
+            std::vector<SecretRealmMemberState> members;
+            for (const auto& m : params.at("members")) {
+                members.push_back(m.get<SecretRealmMemberState>());
+            }
+            return ok({{"avgRealm", gamecore::system::secretRealmPlayerAvgRealm(members)}});
+        }
+        case action::SECRET_REALM_ROLL_BEAST_REALM: {
+            return ok({{"realm", gamecore::system::rollSecretRealmBeastRealm(
+                                     core->rng(), params.at("playerAvgRealm").get<int32_t>())}});
+        }
+        case action::SECRET_REALM_GENERATE_BEAST_EVENT: {
+            const auto event = gamecore::system::generateSecretRealmBeastEvent(
+                core->rng(), params.at("playerAvgRealm").get<int32_t>());
+            return ok({{"event", event}});
+        }
+        case action::SECRET_REALM_ROLL_NEXT_EVENT: {
+            std::vector<SecretRealmAITeam> teams;
+            if (params.contains("aiTeams")) {
+                for (const auto& t : params.at("aiTeams")) {
+                    teams.push_back(t.get<SecretRealmAITeam>());
+                }
+            }
+            const auto event = gamecore::system::rollSecretRealmNextEvent(
+                core->rng(), params.at("playerAvgRealm").get<int32_t>(), teams);
+            return ok({{"event", event}});
+        }
+        case action::SECRET_REALM_BUILD_BEAST_STATS: {
+            const auto stats = gamecore::system::buildSecretRealmBeastPreGenStats(
+                core->rng(), params.at("realm").get<int32_t>(),
+                params.at("beastTypeName").get<std::string>(),
+                params.value("ambushSucceeded", false),
+                params.value("beastLayer", 1));
+            return ok({
+                {"maxHp", stats.maxHp}, {"maxMp", stats.maxMp},
+                {"physicalAttack", stats.physicalAttack}, {"magicAttack", stats.magicAttack},
+                {"physicalDefense", stats.physicalDefense}, {"magicDefense", stats.magicDefense},
+                {"speed", stats.speed}, {"realmLayer", stats.realmLayer},
+            });
+        }
+        case action::SECRET_REALM_ROLL_BEAST_LOOT: {
+            const auto rewards = gamecore::system::rollSecretRealmBeastLoot(
+                core->rng(), params.at("beastTypeName").get<std::string>(),
+                params.at("beastRealm").get<int32_t>(),
+                params.at("beastCount").get<int32_t>());
+            return ok({{"rewards", rewards}});
+        }
+        case action::SECRET_REALM_GENERATE_RUINS_TREASURE: {
+            SecretRealmTypeCandidates candidates;
+            if (params.contains("candidates")) {
+                for (auto tit = params.at("candidates").begin();
+                     tit != params.at("candidates").end(); ++tit) {
+                    for (auto rit = tit.value().begin(); rit != tit.value().end(); ++rit) {
+                        std::vector<std::pair<std::string, std::string>> list;
+                        for (const auto& tpl : rit.value()) {
+                            list.emplace_back(tpl.at(0).get<std::string>(),
+                                              tpl.at(1).get<std::string>());
+                        }
+                        candidates[tit.key()][std::stoi(rit.key())] = std::move(list);
+                    }
+                }
+            }
+            const auto rewards = gamecore::system::generateSecretRealmRuinsTreasure(
+                core->rng(), params.at("minCount").get<int32_t>(),
+                params.at("maxCount").get<int32_t>(),
+                params.at("minRarity").get<int32_t>(),
+                params.at("maxRarity").get<int32_t>(), candidates);
+            return ok({{"rewards", rewards}});
+        }
+        case action::SECRET_REALM_RESOLVE_RUINS: {
+            std::vector<SecretRealmMemberState> members;
+            for (const auto& m : params.at("members")) {
+                members.push_back(m.get<SecretRealmMemberState>());
+            }
+            SecretRealmBackpack backpack;
+            if (params.contains("backpack")) {
+                backpack = params.at("backpack").get<SecretRealmBackpack>();
+            }
+            SecretRealmTypeCandidates candidates;
+            if (params.contains("candidates")) {
+                for (auto tit = params.at("candidates").begin();
+                     tit != params.at("candidates").end(); ++tit) {
+                    for (auto rit = tit.value().begin(); rit != tit.value().end(); ++rit) {
+                        std::vector<std::pair<std::string, std::string>> list;
+                        for (const auto& tpl : rit.value()) {
+                            list.emplace_back(tpl.at(0).get<std::string>(),
+                                              tpl.at(1).get<std::string>());
+                        }
+                        candidates[tit.key()][std::stoi(rit.key())] = std::move(list);
+                    }
+                }
+            }
+            const auto resolution = gamecore::system::resolveSecretRealmRuinsExplore(
+                params.at("optionIndex").get<int32_t>(), members, backpack, core->rng(),
+                candidates);
+            return ok({{"resultText", resolution.resultText},
+                       {"nextEvent", resolution.nextEvent},
+                       {"params", resolution.params}});
+        }
+        case action::SECRET_REALM_LOOT_LOSS: {
+            SecretRealmBackpack backpack;
+            if (params.contains("backpack")) {
+                backpack = params.at("backpack").get<SecretRealmBackpack>();
+            }
+            const auto r = gamecore::system::applySecretRealmLootLoss(backpack, core->rng());
+            return ok({{"backpack", r.backpack},
+                       {"lostItemCount", r.lostItemCount},
+                       {"lostSpiritStones", r.lostSpiritStones}});
+        }
+        case action::SECRET_REALM_AI_DISPATCH: {
+            std::vector<gamecore::system::SecretRealmAiPool> pools;
+            if (params.contains("pools")) {
+                for (const auto& p : params.at("pools")) {
+                    gamecore::system::SecretRealmAiPool pool;
+                    pool.sectId = p.value("sectId", "");
+                    pool.sectName = p.value("sectName", "");
+                    pool.sectFound = p.value("sectFound", true);
+                    pool.sectLevel = p.value("sectLevel", 0);
+                    if (p.contains("disciples")) {
+                        for (const auto& d : p.at("disciples")) {
+                            pool.disciples.push_back(d.get<Disciple>());
+                        }
+                    }
+                    pools.push_back(std::move(pool));
+                }
+            }
+            const auto teams = gamecore::system::dispatchSecretRealmAiTeams(pools);
+            return ok({{"teams", teams}});
+        }
+        case action::SECRET_REALM_FIND_POSITION: {
+            std::vector<WorldSect> sects;
+            if (params.contains("sects")) {
+                for (const auto& s : params.at("sects")) {
+                    sects.push_back(s.get<WorldSect>());
+                }
+            }
+            const auto pos = gamecore::system::findSecretRealmPosition(core->rng(), sects);
+            return ok({{"x", pos.first}, {"y", pos.second}});
+        }
+        case action::SECRET_REALM_STAMINA: {
+            const int32_t stamina = params.at("stamina").get<int32_t>();
+            SecretRealmEventRecord event;
+            if (params.contains("event")) {
+                event = params.at("event").get<SecretRealmEventRecord>();
+            }
+            gamecore::state::SecretRealmExplorationSession session;
+            session.stamina = stamina;
+            return ok({{"stamina", gamecore::system::secretRealmStaminaAfterChoice(
+                                       session, event, params.at("optionIndex").get<int32_t>())}});
+        }
+        case action::SECRET_REALM_YEARLY_SPAWN_CHECK: {
+            return ok({{"eligible", gamecore::system::secretRealmYearlySpawnEligible(
+                                        params.at("year").get<int32_t>(),
+                                        params.at("cooldown").get<int32_t>())}});
+        }
+        case action::SECRET_REALM_ROLL_SPRITE: {
+            return ok({{"spriteIndex", gamecore::system::rollSecretRealmSpriteIndex(core->rng())}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "secret realm action " + std::to_string(actionId));
+    }
+}
+
+/// 死亡物化操作（计划 v2 阶段 4 批 4-2：ActionIds.DISCIPLE_MARK_DEAD /
+/// DISCIPLE_BACKFILL_DEATH_YEARS）
+nlohmann::json handleDeathHandler(GameCore* core, int32_t actionId,
+                                  const nlohmann::json& params) {
+    auto& state = core->state();
+    auto& store = state.disciples;
+    switch (actionId) {
+        case action::DISCIPLE_MARK_DEAD: {
+            const std::string id = params.at("discipleId").get<std::string>();
+            const int32_t deathYear = params.at("deathYear").get<int32_t>();
+            const auto r = gamecore::system::markDead(
+                store, id, deathYear, state.gameData.annualDeceasedDisciples);
+            nlohmann::json data = {
+                {"marked", r.marked},
+                {"hadEquipment", r.hadEquipment},
+                {"annualDeceasedDisciples", state.gameData.annualDeceasedDisciples},
+            };
+            if (r.marked) {
+                const std::size_t row = *store.rowOf(id);
+                data["isAlive"] = store.isAlive[row];
+                data["status"] = store.statuses[row];
+                data["deathYears"] = store.deathYears[row];
+            }
+            return ok(std::move(data));
+        }
+        case action::DISCIPLE_BACKFILL_DEATH_YEARS: {
+            std::vector<gamecore::state::Disciple> disciples;
+            if (params.contains("disciples")) {
+                for (const auto& d : params.at("disciples")) {
+                    disciples.push_back(d.get<gamecore::state::Disciple>());
+                }
+            }
+            const int32_t deathYear = params.at("deathYear").get<int32_t>();
+            const int32_t count = gamecore::system::backfillDeathYears(
+                store, disciples, deathYear);
+            nlohmann::json entries = nlohmann::json::array();
+            for (const auto& d : disciples) {
+                if (d.isAlive) continue;
+                const auto rowOpt = store.rowOf(d.id);
+                if (!rowOpt.has_value()) continue;
+                entries.push_back(
+                    {{"id", d.id}, {"deathYears", store.deathYears[*rowOpt]}});
+            }
+            return ok({{"backfilled", count}, {"entries", entries}});
+        }
+        default:
+            return fail("UNKNOWN_ACTION", "death handler action " + std::to_string(actionId));
+    }
+}
+
 }  // namespace
 
 std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
@@ -663,6 +1239,23 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::WORLD_LEVEL_MONTHLY &&
                    actionId <= action::WORLD_LEVEL_CHECK_EXPIRED) {
             result = handleExploration(this, actionId, params);
+        } else if (actionId >= action::LEVEL_SELECT_BEAST_REALM &&
+                   actionId <= action::LEVEL_GENERATE_LEVELS) {
+            result = handleLevelGeneration(this, actionId, params);
+        } else if (actionId >= action::DISCIPLE_MARK_DEAD &&
+                   actionId <= action::DISCIPLE_BACKFILL_DEATH_YEARS) {
+            result = handleDeathHandler(this, actionId, params);
+        } else if (actionId >= action::SECRET_REALM_PLAYER_AVG_REALM &&
+                   actionId <= action::SECRET_REALM_ROLL_SPRITE) {
+            result = handleSecretRealm(this, actionId, params);
+        } else if (actionId >= action::SECT_DECISION_CHANCE &&
+                   actionId <= action::SECT_TRADE_SPIRIT_STONE) {
+            result = handleSectDiplomacy(this, actionId, params);
+        } else if (actionId == action::SLOT_CLEAR_ALL) {
+            result = handleSlotCleanup(this, params);
+        } else if (actionId >= action::REDEEM_VALIDATE_INPUT &&
+                   actionId <= action::MAIL_ATTACHMENT_ENCODE) {
+            result = handleRedeemCode(this, actionId, params);
         } else {
             result = fail("NOT_IMPLEMENTED",
                           "action not implemented yet: " + std::to_string(actionId));

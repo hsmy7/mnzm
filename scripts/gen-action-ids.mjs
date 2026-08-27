@@ -90,6 +90,56 @@ const ACTION_CATALOG = [
   // ── 批次 8：探索/世界关卡 ──
   { id: 1400, name: 'WORLD_LEVEL_MONTHLY', desc: '世界关卡月度处理（清理+刷新+移动）' },
   { id: 1401, name: 'WORLD_LEVEL_CHECK_EXPIRED', desc: '关卡过期判定' },
+
+  // ── 计划 v2 阶段 4 批 4-1：LevelGenerator（世界关卡生成） ──
+  { id: 1402, name: 'LEVEL_SELECT_BEAST_REALM', desc: '按年份加权随机选取妖兽境界' },
+  { id: 1403, name: 'LEVEL_GENERATE_LEVELS', desc: '生成世界关卡（妖兽/洞府，含属性预生成）' },
+
+  // ── 计划 v2 阶段 4 批 4-2：DiscipleDeathHandler（死亡物化） ──
+  { id: 1404, name: 'DISCIPLE_MARK_DEAD', desc: '标记弟子死亡（isAlive/status/deathYears + 年死亡计数 + 装备断言）' },
+  { id: 1405, name: 'DISCIPLE_BACKFILL_DEATH_YEARS', desc: '列表 copy 模式补写 deathYears（replaceAll 清空后恢复）' },
+
+  // ── 计划 v2 阶段 4 批 4-3：SecretRealm（远古秘境状态机核心） ──
+  { id: 1406, name: 'SECRET_REALM_PLAYER_AVG_REALM', desc: '存活成员平均境界（全灭取上限）' },
+  { id: 1407, name: 'SECRET_REALM_ROLL_BEAST_REALM', desc: '秘境妖兽境界随机 [avg-1, avg+2] clamp 0..9' },
+  { id: 1408, name: 'SECRET_REALM_GENERATE_BEAST_EVENT', desc: '生成遭遇妖兽事件（类型/境界/层数/数量）' },
+  { id: 1409, name: 'SECRET_REALM_ROLL_NEXT_EVENT', desc: '方向选择后下一事件（一次 nextDouble 分段判定）' },
+  { id: 1410, name: 'SECRET_REALM_BUILD_BEAST_STATS', desc: '妖兽最终属性预生成（层数倍率+随机方差+偷袭减血）' },
+  { id: 1411, name: 'SECRET_REALM_ROLL_BEAST_LOOT', desc: '妖兽战斗胜利掉落（加权选取，每只 2 材料）' },
+  { id: 1412, name: 'SECRET_REALM_GENERATE_RUINS_TREASURE', desc: '遗迹秘宝描述符生成（候选模板列表参数化）' },
+  { id: 1413, name: 'SECRET_REALM_RESOLVE_RUINS', desc: '遗迹探索结算（离开/搜寻判定+结果文本+方向事件）' },
+  { id: 1414, name: 'SECRET_REALM_LOOT_LOSS', desc: '战斗失败丢失背包物品（比例+洗牌选取）' },
+  { id: 1415, name: 'SECRET_REALM_AI_DISPATCH', desc: 'AI 宗门探索队伍派遣（存活境界最高 4 名）' },
+  { id: 1416, name: 'SECRET_REALM_FIND_POSITION', desc: '秘境空闲位置寻找（避宗门随机+兜底最远扫描）' },
+  { id: 1417, name: 'SECRET_REALM_STAMINA', desc: '选择选项后体力计算（非法消耗 clamp 防篡改）' },
+  { id: 1418, name: 'SECRET_REALM_YEARLY_SPAWN_CHECK', desc: '年变现世冷却判据（负冷却 clamp 防篡改）' },
+  { id: 1419, name: 'SECRET_REALM_ROLL_SPRITE', desc: '秘境精灵变体随机（1×nextInt）' },
+
+  // ── 计划 v2 阶段 4 批 4-4：外交（决策引擎/战力/品阶曲线/宗门交易） ──
+  { id: 1420, name: 'SECT_DECISION_CHANCE', desc: 'AI 四因素加权判定概率（攻击/结盟/附属）' },
+  { id: 1421, name: 'SECT_DECISION_BREAKAWAY', desc: '附属脱离概率（战力/丢失/胜负/好感度反向）' },
+  { id: 1422, name: 'SECT_POWER_DISCIPLE', desc: '弟子战力（永久基础属性公式）' },
+  { id: 1423, name: 'SECT_POWER_BEAST', desc: '妖兽战力（同公式 + 防篡改 clamp）' },
+  { id: 1424, name: 'SECT_POWER_FINGERPRINT', desc: '永久基础属性缓存指纹（Java hashCode）' },
+  { id: 1425, name: 'SECT_RARITY_ROLL', desc: '品阶时间曲线抽样（1×nextDouble）' },
+  { id: 1426, name: 'SECT_RARITY_MAX', desc: '年份可出最高品阶' },
+  { id: 1427, name: 'SECT_RARITY_PITY', desc: '年份保底品阶（下一分段）' },
+  { id: 1428, name: 'SECT_RARITY_WEIGHTS', desc: '年份品阶权重表（归一化）' },
+  { id: 1429, name: 'SECT_TRADE_SEED', desc: '宗门交易确定性种子（sectId.hashCode + year）' },
+  { id: 1430, name: 'SECT_TRADE_STOCK', desc: '商品库存量抽样（消耗品/耐用品两档曲线）' },
+  { id: 1431, name: 'SECT_TRADE_PRICE', desc: '商品价格波动（±20% 一位小数截断）' },
+  { id: 1432, name: 'SECT_TRADE_SPIRIT_STONE', desc: '灵石商品映射（上品/中品 + 年份上限判定）' },
+
+  // ── 计划 v2 阶段 4 批 4-5：11 槽分配清理（DiscipleSlotCleanup） ──
+  { id: 1433, name: 'SLOT_CLEAR_ALL', desc: '清除弟子全部槽位引用（11 类槽位纯数据变换）' },
+
+  // ── 计划 v2 阶段 4 批 4-6：兑换码 + 邮件附件（RedeemCodeManager） ──
+  { id: 1434, name: 'REDEEM_VALIDATE_INPUT', desc: '兑换码格式校验（trim/长度/字符集）' },
+  { id: 1435, name: 'REDEEM_ROLL_SPIRIT_ROOT', desc: '灵根类型解析（配置/数量随机/权重生成 + java.util.Random 洗牌）' },
+  { id: 1436, name: 'REDEEM_RESOLVE_AGE_LIFESPAN', desc: '年龄区间 + 境界寿元 ±10% 波动' },
+  { id: 1437, name: 'REDEEM_ROLL_SKILLS', desc: '灵根阶梯属性掷点 + 避开哨兵 50' },
+  { id: 1438, name: 'REDEEM_GENERATE_VARIANCE', desc: '属性方差生成（-50..50）' },
+  { id: 1439, name: 'MAIL_ATTACHMENT_ENCODE', desc: '邮件附件列表 → JSON 字符串（kotlinx 对齐）' },
 ];
 
 const MAX_ID = ACTION_CATALOG.reduce((m, a) => Math.max(m, a.id), 0);

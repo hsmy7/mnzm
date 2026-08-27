@@ -512,6 +512,92 @@ void from_json(const nlohmann::json& j, SectRelation& v) {
     GC_FROM(j, v, favor); GC_FROM(j, v, lastInteractionYear); GC_FROM(j, v, noGiftYears);
 }
 
+// ── 批 4-5：槽位清理补充模型（定义于 WorldSect 前，WorldSect 引用） ──
+
+void to_json(nlohmann::json& j, const GarrisonSlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, discipleRealm); GC_TO(v, j, discipleSpiritRootColor); GC_TO(v, j, portraitRes);
+}
+void from_json(const nlohmann::json& j, GarrisonSlot& v) {
+    GC_FROM(j, v, index); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, discipleRealm); GC_FROM(j, v, discipleSpiritRootColor); GC_FROM(j, v, portraitRes);
+}
+
+void to_json(nlohmann::json& j, const BattleTeamSlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, discipleRealm); GC_TO(v, j, slotType); GC_TO(v, j, isAlive);
+}
+void from_json(const nlohmann::json& j, BattleTeamSlot& v) {
+    GC_FROM(j, v, index); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, discipleRealm); GC_FROM(j, v, slotType); GC_FROM(j, v, isAlive);
+}
+
+void to_json(nlohmann::json& j, const BattleTeam& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); GC_TO(v, j, name); GC_TO(v, j, teamNumber); GC_TO(v, j, slots);
+    GC_TO(v, j, isAtSect); GC_TO(v, j, currentX); GC_TO(v, j, currentY);
+    GC_TO(v, j, targetX); GC_TO(v, j, targetY); GC_TO(v, j, status);
+    GC_TO(v, j, targetSectId); GC_TO(v, j, originSectId); GC_TO(v, j, route);
+    GC_TO(v, j, currentRouteIndex); GC_TO(v, j, moveProgress);
+    GC_TO(v, j, isOccupying); GC_TO(v, j, occupiedSectId); GC_TO(v, j, isReturning);
+}
+void from_json(const nlohmann::json& j, BattleTeam& v) {
+    GC_FROM(j, v, id); GC_FROM(j, v, name); GC_FROM(j, v, teamNumber); GC_FROM(j, v, slots);
+    GC_FROM(j, v, isAtSect); GC_FROM(j, v, currentX); GC_FROM(j, v, currentY);
+    GC_FROM(j, v, targetX); GC_FROM(j, v, targetY); GC_FROM(j, v, status);
+    GC_FROM(j, v, targetSectId); GC_FROM(j, v, originSectId); GC_FROM(j, v, route);
+    GC_FROM(j, v, currentRouteIndex); GC_FROM(j, v, moveProgress);
+    GC_FROM(j, v, isOccupying); GC_FROM(j, v, occupiedSectId); GC_FROM(j, v, isReturning);
+}
+
+void to_json(nlohmann::json& j, const WarehouseGarrisonSlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, buildingInstanceId); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, sectId); GC_TO(v, j, slotIndex);
+}
+void from_json(const nlohmann::json& j, WarehouseGarrisonSlot& v) {
+    GC_FROM(j, v, buildingInstanceId); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, sectId); GC_FROM(j, v, slotIndex);
+}
+
+void to_json(nlohmann::json& j, const CaveExplorationTeam& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); GC_TO(v, j, caveId); GC_TO(v, j, caveName);
+    GC_TO(v, j, memberIds); GC_TO(v, j, memberNames);
+    GC_TO(v, j, startYear); GC_TO(v, j, startMonth); GC_TO(v, j, duration); GC_TO(v, j, status);
+    GC_TO(v, j, startX); GC_TO(v, j, startY); GC_TO(v, j, targetX); GC_TO(v, j, targetY);
+    GC_TO(v, j, currentX); GC_TO(v, j, currentY); GC_TO(v, j, moveProgress);
+}
+void from_json(const nlohmann::json& j, CaveExplorationTeam& v) {
+    GC_FROM(j, v, id); GC_FROM(j, v, caveId); GC_FROM(j, v, caveName);
+    GC_FROM(j, v, memberIds); GC_FROM(j, v, memberNames);
+    GC_FROM(j, v, startYear); GC_FROM(j, v, startMonth); GC_FROM(j, v, duration); GC_FROM(j, v, status);
+    GC_FROM(j, v, startX); GC_FROM(j, v, startY); GC_FROM(j, v, targetX); GC_FROM(j, v, targetY);
+    GC_FROM(j, v, currentX); GC_FROM(j, v, currentY); GC_FROM(j, v, moveProgress);
+}
+
+void to_json(nlohmann::json& j, const ActiveMissionLite& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); GC_TO(v, j, discipleIds); GC_TO(v, j, discipleNames);
+}
+void from_json(const nlohmann::json& j, ActiveMissionLite& v) {
+    GC_FROM(j, v, id); GC_FROM(j, v, discipleIds); GC_FROM(j, v, discipleNames);
+}
+
+void to_json(nlohmann::json& j, const MailAttachment& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, type); GC_TO(v, j, name); GC_TO(v, j, quantity); GC_TO(v, j, rarity);
+    GC_TO_OPT(v, j, itemId);
+    GC_TO(v, j, extra);
+}
+void from_json(const nlohmann::json& j, MailAttachment& v) {
+    GC_FROM(j, v, type); GC_FROM(j, v, name); GC_FROM(j, v, quantity); GC_FROM(j, v, rarity);
+    GC_FROM_OPT(j, v, itemId);
+    GC_FROM(j, v, extra);
+}
+
 void to_json(nlohmann::json& j, const WorldSect& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id);
@@ -525,6 +611,7 @@ void to_json(nlohmann::json& j, const WorldSect& v) {
     GC_TO(v, j, allianceId); GC_TO(v, j, allianceStartYear);
     GC_TO(v, j, isRighteous); GC_TO(v, j, isPlayerOccupied); GC_TO(v, j, isUnderAttack);
     GC_TO(v, j, attackerSectId); GC_TO(v, j, occupierSectId);
+    GC_TO(v, j, garrisonSlots);
 }
 void from_json(const nlohmann::json& j, WorldSect& v) {
     GC_FROM(j, v, id);
@@ -538,6 +625,7 @@ void from_json(const nlohmann::json& j, WorldSect& v) {
     GC_FROM(j, v, allianceId); GC_FROM(j, v, allianceStartYear);
     GC_FROM(j, v, isRighteous); GC_FROM(j, v, isPlayerOccupied); GC_FROM(j, v, isUnderAttack);
     GC_FROM(j, v, attackerSectId); GC_FROM(j, v, occupierSectId);
+    GC_FROM(j, v, garrisonSlots);
 }
 
 void to_json(nlohmann::json& j, const ResidenceSlot& v) {
@@ -584,6 +672,7 @@ void to_json(nlohmann::json& j, const WorldLevel& v) {
     GC_TO(v, j, beastMaxHp); GC_TO(v, j, beastMaxMp);
     GC_TO(v, j, beastPhysicalAttack); GC_TO(v, j, beastMagicAttack);
     GC_TO(v, j, beastPhysicalDefense); GC_TO(v, j, beastMagicDefense);
+    GC_TO(v, j, beastSpeed);
 }
 void from_json(const nlohmann::json& j, WorldLevel& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, type); GC_FROM_OPT(j, v, beastType);
@@ -596,6 +685,7 @@ void from_json(const nlohmann::json& j, WorldLevel& v) {
     GC_FROM(j, v, beastMaxHp); GC_FROM(j, v, beastMaxMp);
     GC_FROM(j, v, beastPhysicalAttack); GC_FROM(j, v, beastMagicAttack);
     GC_FROM(j, v, beastPhysicalDefense); GC_FROM(j, v, beastMagicDefense);
+    GC_FROM(j, v, beastSpeed);
 }
 
 void to_json(nlohmann::json& j, const MailClaimRecord& v) {
@@ -1114,6 +1204,9 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, activeBloodRefinements); GC_FROM(j, v, patrolSlots);
     // T2.1：每旬结算依赖字段
     GC_FROM(j, v, librarySlots); GC_FROM(j, v, gameEventRecords);
+    // 批 4-5：槽位清理补充字段
+    GC_FROM(j, v, battleTeams); GC_FROM(j, v, warehouseGarrisons);
+    GC_FROM(j, v, caveExplorationTeams); GC_FROM(j, v, activeMissions);
 }
 
 // ── Full snapshot ────────────────────────────────────────────────────

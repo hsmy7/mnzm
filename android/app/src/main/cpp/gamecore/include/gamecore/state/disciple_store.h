@@ -51,6 +51,7 @@ public:
     std::vector<int32_t> ages;
     std::vector<int32_t> lifespans;
     std::vector<int8_t> isAlive;                 // 0/1（Int 语义避免 bool 填充）
+    std::vector<int32_t> deathYears;             // 0 = 无条目（Kotlin 稀疏组件表语义：仅已故弟子有值；不进 JSON 协议）
     std::vector<int32_t> soulPowers;
     // ── 修炼加速 ──
     std::vector<double> cultivationSpeedBonuses;

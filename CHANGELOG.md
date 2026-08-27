@@ -1,5 +1,19 @@
 ## [4.01.10] - 2026-08-24
 
+### 新增（C++ 引擎迁移计划 v2 阶段 4：未迁移系统逐批 C++ 化）
+
+> 纯引擎内部迁移（批 4-1~4-6），`NativeEngineFlag` 默认 OFF，玩家行为零变化；原"永久保留"清单全部纳入逐批下沉，仅确定性判定与 RNG 消费核心下沉，平台/注册表边界保留 Kotlin（详见 docs/cpp-engine.md §7 阶段 4 行）。
+
+- **批 4-1 LevelGenerator**：`system/level_generator.h`（妖兽类型/境界属性表 + selectBeastRealm 年份加权 + 妖兽/洞府关卡生成与位置校验 + 属性预生成）；ActionId 1402/1403；`WorldLevel.beastSpeed` 协议补齐；GTest 15 + JUnit DiffLevelGeneratorTest 3
+- **批 4-2 死亡物化**：`system/death_handler.h`（markDead 三字段 + 年死亡计数 + 装备断言 + backfillDeathYears）；`DiscipleStore.deathYears` 列（纯内存，不进 JSON 协议，upsert 保留语义对齐 Kotlin replaceAll）；ActionId 1404/1405；GTest 11 + JUnit DiffDeathHandlerTest 4
+- **批 4-3 SecretRealm 状态机核心**：`system/secret_realm.h`（平均境界/妖兽境界与事件生成/下一事件一次 nextDouble 分派/妖兽属性预生成/掉落/遗迹结算/丢失物品洗牌/AI 队伍派遣/位置 Float 精度/体力 clamp/年变现世判定）；模型复用批次 1；边界：战斗执行（BattleSystem）与秘宝模板实例化保留 Kotlin；ActionId 1406~1419；GTest 29 + JUnit DiffSecretRealmTest 8
+- **批 4-4 外交**：`sect_decision.h`（四因素概率模型 + 脱离 + 战力分档）+ `sect_power.h`（弟子/妖兽战力 + fingerprint，Java hashCode 语义见 `java_hash.h` UTF-16 解码）+ `rarity_progression.h`（品阶时间曲线，3000 年后爬升轨道）+ `sect_trade.h`（交易种子/库存/价格/灵石映射）；ActionId 1420~1432；GTest 20 + JUnit DiffSectDiplomacyTest 7
+- **批 4-5 11 槽分配**：`system/slot_cleanup.h`（clearAllSlotsDataOnly 11 类槽位纯数据变换）；补齐缺失模型（GarrisonSlot/BattleTeam/BattleTeamSlot/WarehouseGarrisonSlot/CaveExplorationTeam/ActiveMissionLite + JSON 协议）；边界：Gate 注册表与完整 ActiveMission 保留 Kotlin；ActionId 1433；GTest 9 + JUnit DiffSlotCleanupTest 2
+- **批 4-6 兑换码+邮件附件**：`system/redeem_code.h`（格式校验/灵根生成含 java.util.Random 48 位 LCG 复现/灵根阶梯/年龄寿元/方差）+ MailAttachment 模型与 kotlinx 对齐的附件 JSON 编码（ordered_json）；边界：名字/体质/词条/天赋注册表与服务器验证保留 Kotlin；ActionId 1434~1439；GTest 13 + JUnit DiffRedeemCodeTest 3
+- **测试**：桌面 GTest **478/478** · engine JUnit 全量 **2396/2396**（含 5 类 24 个 Diff 对拍用例，与真实 Kotlin 类同种子逐位一致）· NDK externalNativeBuildRelease 通过 · engine detekt 通过
+- **途中发现修复**：Java `String.hashCode` 按 UTF-16 code unit 计算（C++ 初版按 UTF-8 字节导致中文 sectId 种子对拍失败）——`java_hash.h` 实现 UTF-8→UTF-16 解码（含 surrogate pair）并附中文字符/emoji GTest 守卫；Kotlin `markDead(Int)` 对不存在 id 的幽灵条目边界（C++ 稠密 SoA 静默跳过）；nlohmann 默认字典序 vs kotlinx 声明序（附件编码改 ordered_json）
+- **兼容性**：无 Entity/Migration/存档/序列化/UI 变更（DATABASE_VERSION 不变）；C++ 快照协议仅新增字段（WorldLevel.beastSpeed/槽位补充模型，宽松 from_json 兼容旧档）；玩家可见更新日志同条目追加一行
+
 ### 新增（C++ 引擎迁移计划 v2 阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源）
 
 > 纯引擎内部迁移与基础设施加固（T3.1~T3.3 批次），`NativeEngineFlag` 默认 OFF，玩家行为零变化；AUTHORITATIVE 由灰度开关显式开启、任何时刻可回退纯 Kotlin 路径。

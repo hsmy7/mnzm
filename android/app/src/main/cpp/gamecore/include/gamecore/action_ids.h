@@ -147,6 +147,120 @@ inline constexpr int32_t WORLD_LEVEL_MONTHLY = 1400;
 /// 关卡过期判定
 inline constexpr int32_t WORLD_LEVEL_CHECK_EXPIRED = 1401;
 
+/// 按年份加权随机选取妖兽境界
+inline constexpr int32_t LEVEL_SELECT_BEAST_REALM = 1402;
+
+/// 生成世界关卡（妖兽/洞府，含属性预生成）
+inline constexpr int32_t LEVEL_GENERATE_LEVELS = 1403;
+
+/// 标记弟子死亡（isAlive/status/deathYears + 年死亡计数 + 装备断言）
+inline constexpr int32_t DISCIPLE_MARK_DEAD = 1404;
+
+/// 列表 copy 模式补写 deathYears（replaceAll 清空后恢复）
+inline constexpr int32_t DISCIPLE_BACKFILL_DEATH_YEARS = 1405;
+
+/// 存活成员平均境界（全灭取上限）
+inline constexpr int32_t SECRET_REALM_PLAYER_AVG_REALM = 1406;
+
+/// 秘境妖兽境界随机 [avg-1, avg+2] clamp 0..9
+inline constexpr int32_t SECRET_REALM_ROLL_BEAST_REALM = 1407;
+
+/// 生成遭遇妖兽事件（类型/境界/层数/数量）
+inline constexpr int32_t SECRET_REALM_GENERATE_BEAST_EVENT = 1408;
+
+/// 方向选择后下一事件（一次 nextDouble 分段判定）
+inline constexpr int32_t SECRET_REALM_ROLL_NEXT_EVENT = 1409;
+
+/// 妖兽最终属性预生成（层数倍率+随机方差+偷袭减血）
+inline constexpr int32_t SECRET_REALM_BUILD_BEAST_STATS = 1410;
+
+/// 妖兽战斗胜利掉落（加权选取，每只 2 材料）
+inline constexpr int32_t SECRET_REALM_ROLL_BEAST_LOOT = 1411;
+
+/// 遗迹秘宝描述符生成（候选模板列表参数化）
+inline constexpr int32_t SECRET_REALM_GENERATE_RUINS_TREASURE = 1412;
+
+/// 遗迹探索结算（离开/搜寻判定+结果文本+方向事件）
+inline constexpr int32_t SECRET_REALM_RESOLVE_RUINS = 1413;
+
+/// 战斗失败丢失背包物品（比例+洗牌选取）
+inline constexpr int32_t SECRET_REALM_LOOT_LOSS = 1414;
+
+/// AI 宗门探索队伍派遣（存活境界最高 4 名）
+inline constexpr int32_t SECRET_REALM_AI_DISPATCH = 1415;
+
+/// 秘境空闲位置寻找（避宗门随机+兜底最远扫描）
+inline constexpr int32_t SECRET_REALM_FIND_POSITION = 1416;
+
+/// 选择选项后体力计算（非法消耗 clamp 防篡改）
+inline constexpr int32_t SECRET_REALM_STAMINA = 1417;
+
+/// 年变现世冷却判据（负冷却 clamp 防篡改）
+inline constexpr int32_t SECRET_REALM_YEARLY_SPAWN_CHECK = 1418;
+
+/// 秘境精灵变体随机（1×nextInt）
+inline constexpr int32_t SECRET_REALM_ROLL_SPRITE = 1419;
+
+/// AI 四因素加权判定概率（攻击/结盟/附属）
+inline constexpr int32_t SECT_DECISION_CHANCE = 1420;
+
+/// 附属脱离概率（战力/丢失/胜负/好感度反向）
+inline constexpr int32_t SECT_DECISION_BREAKAWAY = 1421;
+
+/// 弟子战力（永久基础属性公式）
+inline constexpr int32_t SECT_POWER_DISCIPLE = 1422;
+
+/// 妖兽战力（同公式 + 防篡改 clamp）
+inline constexpr int32_t SECT_POWER_BEAST = 1423;
+
+/// 永久基础属性缓存指纹（Java hashCode）
+inline constexpr int32_t SECT_POWER_FINGERPRINT = 1424;
+
+/// 品阶时间曲线抽样（1×nextDouble）
+inline constexpr int32_t SECT_RARITY_ROLL = 1425;
+
+/// 年份可出最高品阶
+inline constexpr int32_t SECT_RARITY_MAX = 1426;
+
+/// 年份保底品阶（下一分段）
+inline constexpr int32_t SECT_RARITY_PITY = 1427;
+
+/// 年份品阶权重表（归一化）
+inline constexpr int32_t SECT_RARITY_WEIGHTS = 1428;
+
+/// 宗门交易确定性种子（sectId.hashCode + year）
+inline constexpr int32_t SECT_TRADE_SEED = 1429;
+
+/// 商品库存量抽样（消耗品/耐用品两档曲线）
+inline constexpr int32_t SECT_TRADE_STOCK = 1430;
+
+/// 商品价格波动（±20% 一位小数截断）
+inline constexpr int32_t SECT_TRADE_PRICE = 1431;
+
+/// 灵石商品映射（上品/中品 + 年份上限判定）
+inline constexpr int32_t SECT_TRADE_SPIRIT_STONE = 1432;
+
+/// 清除弟子全部槽位引用（11 类槽位纯数据变换）
+inline constexpr int32_t SLOT_CLEAR_ALL = 1433;
+
+/// 兑换码格式校验（trim/长度/字符集）
+inline constexpr int32_t REDEEM_VALIDATE_INPUT = 1434;
+
+/// 灵根类型解析（配置/数量随机/权重生成 + java.util.Random 洗牌）
+inline constexpr int32_t REDEEM_ROLL_SPIRIT_ROOT = 1435;
+
+/// 年龄区间 + 境界寿元 ±10% 波动
+inline constexpr int32_t REDEEM_RESOLVE_AGE_LIFESPAN = 1436;
+
+/// 灵根阶梯属性掷点 + 避开哨兵 50
+inline constexpr int32_t REDEEM_ROLL_SKILLS = 1437;
+
+/// 属性方差生成（-50..50）
+inline constexpr int32_t REDEEM_GENERATE_VARIANCE = 1438;
+
+/// 邮件附件列表 → JSON 字符串（kotlinx 对齐）
+inline constexpr int32_t MAIL_ATTACHMENT_ENCODE = 1439;
+
 }  // namespace action
 
 }  // namespace gamecore

@@ -54,6 +54,12 @@ add_executable(game-core-tests
     battle_test.cpp
     government_test.cpp
     exploration_test.cpp
+    level_generator_test.cpp
+    death_handler_test.cpp
+    secret_realm_test.cpp
+    sect_diplomacy_test.cpp
+    slot_cleanup_test.cpp
+    redeem_code_test.cpp
     execute_dispatch_test.cpp
 )
 

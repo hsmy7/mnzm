@@ -425,6 +425,97 @@ struct Disciple {
 
 // ── 嵌套类型（批次 1 第二子步；字段名与 Kotlin @Serializable 一致） ──
 
+/// GarrisonSlot（宗门驻防槽位；Kotlin GarrisonSlot）
+struct GarrisonSlot {
+    int32_t index = 0;
+    std::string discipleId;
+    std::string discipleName;
+    std::string discipleRealm;
+    std::string discipleSpiritRootColor = "#E0E0E0";
+    std::string portraitRes;
+};
+
+/// BattleTeamSlot（战斗队伍槽位；Kotlin BattleTeamSlot；slotType 存 name）
+struct BattleTeamSlot {
+    int32_t index = 0;
+    std::string discipleId;
+    std::string discipleName;
+    std::string discipleRealm;
+    std::string slotType = "DISCIPLE";  // BattleSlotType.name
+    bool isAlive = true;
+};
+
+/// BattleTeam（战斗队伍；Kotlin BattleTeam）
+struct BattleTeam {
+    std::string id;
+    std::string name = "战斗队伍";
+    int32_t teamNumber = 0;
+    std::vector<BattleTeamSlot> slots;
+    bool isAtSect = true;
+    float currentX = 0.0f;
+    float currentY = 0.0f;
+    float targetX = 0.0f;
+    float targetY = 0.0f;
+    std::string status = "idle";
+    std::string targetSectId;
+    std::string originSectId;
+    std::vector<std::string> route;
+    int32_t currentRouteIndex = 0;
+    float moveProgress = 0.0f;
+    bool isOccupying = false;
+    std::string occupiedSectId;
+    bool isReturning = false;
+};
+
+/// WarehouseGarrisonSlot（仓库驻守槽位；Kotlin WarehouseGarrisonSlot）
+struct WarehouseGarrisonSlot {
+    std::string buildingInstanceId;
+    std::string discipleId;
+    std::string discipleName;
+    std::string sectId;
+    int32_t slotIndex = 0;
+};
+
+/// CaveExplorationTeam（洞府探索队；Kotlin CaveExplorationTeam；
+/// status 存 CaveExplorationStatus.name）
+struct CaveExplorationTeam {
+    std::string id;
+    std::string caveId;
+    std::string caveName;
+    std::vector<std::string> memberIds;
+    std::vector<std::string> memberNames;
+    int32_t startYear = 1;
+    int32_t startMonth = 1;
+    int32_t duration = 1;
+    std::string status = "TRAVELING";  // CaveExplorationStatus.name
+    float startX = 2000.0f;
+    float startY = 1750.0f;
+    float targetX = 0.0f;
+    float targetY = 0.0f;
+    float currentX = 2000.0f;
+    float currentY = 1750.0f;
+    float moveProgress = 0.0f;
+};
+
+/// ActiveMission 精简版（批 4-5 槽位清理协议内部用）：
+/// Kotlin ActiveMission 依赖 MissionTemplate/MissionRewardConfig 等重模型，
+/// 清理仅需 id + 成员两列表——C++ 侧只做成员过滤，完整模型由 Kotlin 保留。
+struct ActiveMissionLite {
+    std::string id;
+    std::vector<std::string> discipleIds;
+    std::vector<std::string> discipleNames;
+};
+
+/// MailAttachment（邮件附件；Kotlin MailAttachment）
+struct MailAttachment {
+    std::string type;
+    std::string name;
+    int32_t quantity = 0;
+    int32_t rarity = 0;
+    std::optional<std::string> itemId;              // String?（null = 无）
+    std::map<std::string, std::string> extra;       // Map<String, String>
+};
+
 /// DirectDiscipleSlot（亲传弟子槽位）
 struct DirectDiscipleSlot {
     int32_t index = 0;
@@ -600,6 +691,7 @@ struct WorldSect {
     bool isUnderAttack = false;
     std::string attackerSectId;
     std::string occupierSectId;
+    std::vector<GarrisonSlot> garrisonSlots;   // 玩家宗门驻防槽位（批 4-5）
 };
 
 /// ResidenceSlot（住所槽位）
@@ -777,6 +869,7 @@ struct WorldLevel {
     int32_t beastMagicAttack = 0;
     int32_t beastPhysicalDefense = 0;
     int32_t beastMagicDefense = 0;
+    int32_t beastSpeed = 0;
 };
 
 // ── GameData.kt 内定义的轻量记录类型 ────────────────────────────────
@@ -1045,6 +1138,11 @@ struct GameData {
     // ── T2.1 每旬结算依赖字段 ──
     std::vector<LibrarySlot> librarySlots;             // 藏经阁槽位（熟练度加成）
     std::vector<GameEventRecord> gameEventRecords;     // 消息栏事件（突破记录）
+    // ── 批 4-5：槽位清理补充模型（宽松 from_json 默认空，旧档兼容） ──
+    std::vector<BattleTeam> battleTeams;
+    std::vector<WarehouseGarrisonSlot> warehouseGarrisons;
+    std::vector<CaveExplorationTeam> caveExplorationTeams;
+    std::vector<ActiveMissionLite> activeMissions;
 };
 
 }  // namespace gamecore::state
