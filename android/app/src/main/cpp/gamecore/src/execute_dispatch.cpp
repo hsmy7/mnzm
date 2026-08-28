@@ -304,6 +304,20 @@ nlohmann::json handleInventory(GameCore* core, int32_t actionId,
             return fail("UNKNOWN_ACTION", "inventory action " + std::to_string(actionId));
     }
     data["overflowMails"] = mail.all().size();
+    if (!mail.empty()) {
+        // 溢出邮件草稿回传（批 8-2：Kotlin wrapper 经 OverflowMailSender 落库，
+        // 与 Kotlin 原路径同一解析/投递通道——否则溢出物品在 native 通道丢失）
+        nlohmann::json drafts = nlohmann::json::array();
+        for (const auto& d : mail.all()) {
+            drafts.push_back({
+                {"source", d.source}, {"itemType", d.itemType}, {"itemName", d.itemName},
+                {"itemId", d.itemId}, {"rarity", d.rarity}, {"quantity", d.quantity},
+                {"category", d.category}, {"grade", d.grade}, {"slot", d.slot},
+                {"type", d.type}, {"growTime", d.growTime}, {"yield", d.yield}
+            });
+        }
+        data["overflowDrafts"] = std::move(drafts);
+    }
     return ok(data);
 }
 

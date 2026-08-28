@@ -510,6 +510,14 @@ struct OverflowDraft {
     std::string itemId;      // 模板 id（精确还原；空串 = 按稀有度随机生成）
     int32_t rarity = 0;
     int32_t quantity = 0;
+    // 模板反查区分字段（Kotlin wrapper 重建最小模型走 InventorySystem 同一
+    // 解析路径保证邮件领取精度；各类型仅相关字段有值，N/A 保持空串/0）
+    std::string category;    // pill/material/herb
+    std::string grade;       // pill
+    std::string slot;        // equipment（EquipmentSlot 枚举名）
+    std::string type;        // manual（ManualType 枚举名）
+    int32_t growTime = 0;    // seed
+    int32_t yield = 0;       // seed
 };
 
 /// 溢出邮件草稿收集器（单线程契约；批次 9 由桥层导出给 Kotlin 落库）
@@ -573,6 +581,27 @@ inline bool validationPassed(const InventoryResult<T>& r) {
     return r.error.type == InventoryErrorType::kNone;
 }
 
+// 模板反查区分字段提取（按类型重载；storageBag 无反查字段）
+inline void fillOverflowExtras(OverflowDraft& d, const state::Pill& item) {
+    d.category = item.category; d.grade = item.grade;
+}
+inline void fillOverflowExtras(OverflowDraft& d, const state::Material& item) {
+    d.category = item.category;
+}
+inline void fillOverflowExtras(OverflowDraft& d, const state::Herb& item) {
+    d.category = item.category;
+}
+inline void fillOverflowExtras(OverflowDraft& d, const state::Seed& item) {
+    d.growTime = item.growTime; d.yield = item.yield;
+}
+inline void fillOverflowExtras(OverflowDraft& d, const state::EquipmentStack& item) {
+    d.slot = item.slot;
+}
+inline void fillOverflowExtras(OverflowDraft& d, const state::ManualStack& item) {
+    d.type = item.type;
+}
+inline void fillOverflowExtras(OverflowDraft&, const state::StorageBag&) {}
+
 /// 溢出收尾（Kotlin handleOverflowResult 等价：Partial/Failure(Full) → 邮件草稿）
 template <typename T>
 inline void handleOverflow(const InventoryResult<T>& result, const std::string& itemType,
@@ -593,9 +622,10 @@ inline void handleOverflow(const InventoryResult<T>& result, const std::string& 
     draft.source = source;
     draft.itemType = itemType;
     draft.itemName = item.name;
-    draft.itemId = "";  // 模板 id 解析（resolveOverflowItemId）批次 2 注册表就绪后接线
+    draft.itemId = "";  // 模板 id 反查在 Kotlin wrapper 侧（复用 InventorySystem 解析路径，保精度）
     draft.rarity = item.rarity;
     draft.quantity = overflowQty;
+    fillOverflowExtras(draft, item);
     overflowMail.add(std::move(draft));
 }
 

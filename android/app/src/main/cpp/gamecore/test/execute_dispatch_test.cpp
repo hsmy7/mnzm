@@ -181,6 +181,60 @@ TEST_F(GameCoreFixture, WorldLevelCheckExpired) {
     EXPECT_TRUE(r.at("data").at("value").get<bool>());  // 含等号 → 过期
 }
 
+// ── 库存溢出邮件草稿回传（批 8-2：add 家族生产接线前置）────────
+
+TEST_F(GameCoreFixture, InvOverflowPartialEmitsDrafts) {
+    // 堆叠上限 999：先填满，再溢出 5 → partial + 草稿回传
+    const auto full = exec(action::INV_ADD_EQUIPMENT_STACK,
+                           {{"id", "eq-1"}, {"name", "木剑"}, {"rarity", 1},
+                            {"slot", "WEAPON"}, {"quantity", 999}, {"source", "battle"}});
+    ASSERT_EQ(full.at("status"), "success");
+    const auto r = exec(action::INV_ADD_EQUIPMENT_STACK,
+                        {{"id", "eq-2"}, {"name", "木剑"}, {"rarity", 1},
+                         {"slot", "WEAPON"}, {"quantity", 5}, {"source", "battle"}});
+    ASSERT_EQ(r.at("status"), "success");
+    EXPECT_EQ(r.at("data").at("status"), "partial");
+    EXPECT_EQ(r.at("data").at("overflow"), 5);
+    ASSERT_EQ(r.at("data").at("overflowMails"), 1);
+    const auto& drafts = r.at("data").at("overflowDrafts");
+    ASSERT_EQ(drafts.size(), 1u);
+    EXPECT_EQ(drafts[0].at("itemType"), "equipment");
+    EXPECT_EQ(drafts[0].at("itemName"), "木剑");
+    EXPECT_EQ(drafts[0].at("rarity"), 1);
+    EXPECT_EQ(drafts[0].at("quantity"), 5);
+    EXPECT_EQ(drafts[0].at("source"), "battle");
+    EXPECT_EQ(drafts[0].at("slot"), "WEAPON");
+}
+
+TEST_F(GameCoreFixture, InvOverflowFullEmitsDrafts) {
+    // 仓库 50 槽（无仓库建筑）：填满后新物品入仓失败 → 全量转草稿
+    for (int i = 0; i < 50; ++i) {
+        const auto r = exec(action::INV_ADD_EQUIPMENT_STACK,
+                            {{"id", "eq-" + std::to_string(i)},
+                             {"name", "填充剑" + std::to_string(i)}, {"rarity", 1},
+                             {"slot", "WEAPON"}, {"quantity", 1}, {"source", "battle"}});
+        ASSERT_EQ(r.at("status"), "success");
+    }
+    const auto r = exec(action::INV_ADD_EQUIPMENT_STACK,
+                        {{"id", "eq-x"}, {"name", "溢出丹炼制材料"}, {"rarity", 2},
+                         {"slot", "ARMOR"}, {"quantity", 7}, {"source", "alchemy"}});
+    ASSERT_EQ(r.at("status"), "success");
+    EXPECT_EQ(r.at("data").at("status"), "failure");
+    ASSERT_EQ(r.at("data").at("overflowDrafts").size(), 1u);
+    EXPECT_EQ(r.at("data").at("overflowDrafts")[0].at("quantity"), 7);
+    EXPECT_EQ(r.at("data").at("overflowDrafts")[0].at("itemType"), "equipment");
+}
+
+TEST_F(GameCoreFixture, InvRemoveSuccessHasNoDrafts) {
+    exec(action::INV_ADD_EQUIPMENT_STACK,
+         {{"id", "eq-1"}, {"name", "木剑"}, {"rarity", 1},
+          {"slot", "WEAPON"}, {"quantity", 5}, {"source", "battle"}});
+    const auto r = exec(action::INV_REMOVE_EQUIPMENT, {{"id", "eq-1"}});
+    ASSERT_EQ(r.at("status"), "success");
+    EXPECT_TRUE(r.at("data").at("removed").get<bool>());
+    EXPECT_FALSE(r.at("data").contains("overflowDrafts"));
+}
+
 // ── 未实现动作 ─────────────────────────────────────────────────
 
 TEST_F(GameCoreFixture, UnknownActionReturnsFailure) {

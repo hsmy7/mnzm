@@ -1940,6 +1940,9 @@ class GameEngineCore @Inject constructor(
             if (remaining > 0 && cycleCount % busyInterval == 0L) {
                 val busyEnd = android.os.SystemClock.elapsedRealtime() + busyDuration
                 while (android.os.SystemClock.elapsedRealtime() < busyEnd) {
+                    // supportsOnSpinWait 经反射探测（批 5-5 R-02：去 Build import），
+                    // lint 无法推断运行时守卫——API < 33 时探测为 false 不会触达本调用
+                    @Suppress("NewApi")
                     if (supportsOnSpinWait) {
                         Thread.onSpinWait()
                     }

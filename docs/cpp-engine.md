@@ -12,7 +12,10 @@
 > Renderer2D → Rhi.h 形式化（Metal/iOS 预留）；阶段 7：AUTHORITATIVE 生产默认切换
 > （C++ 真相源验收）+ 存档编码决策（T-CPP-1 保持 Kotlin）+ engine 平台能力接口化
 > 收尾（Android import 36→11），详见 §7 阶段 7 行；**Kotlin 引擎逻辑全量退役随 C-06
-> 续作（阶段 7 批 7-4 登记）**）。
+> 续作（阶段 7 批 7-4 登记）**）。**计划 v2 批 8（C-06 续作）进行中**：批 8-1 完成
+> ThermalMonitor/FrameMetricsMonitor 平台能力接口化（engine `import android.*` 11→0）；
+> 批 8-2 完成首个生产接线家族（库存 add/remove 7 动作 AUTHORITATIVE 路由 + 溢出邮件
+> 草稿回传通道 + 行为审计登记），见 §7.1。
 
 ## 1. 目标架构
 
@@ -186,6 +189,23 @@ android/app/src/main/cpp/
   - **批 7-3 存档决策（T-CPP-1 正式定案）**：**保持 Kotlin kotlinx-proto 存档编码**（Room 34 表 + .sav + 云存档链路零改动；kotlinx-proto 2174 字段号 schema 的 C++ 直出无当前消费者）——偿还触发不变：iOS 立项且需无 Kotlin 纯 C++ 存档时（ADR 技术债表登记）
   - **批 7-4 R-14 全量清偿 + 剩余项登记**：验证门补 `:feature:game:detekt`，10 项存量 + 接口化迁移暴露项全部真修（提取拆函数/折行/RenderFrame 收参/手势簇 467 行拆出 `MainGameScreenGestures.kt`——R-13 拆分专项首阶段；GpuTierDetector 分档规则链 + EglGpuProbe 拆分）；**剩余项（依赖 C-06，登记为阶段 7 续作）**：① `ThermalMonitor`（ADPF，4 处 import）+ `FrameMetricsMonitor`（7 处）接口化——深度耦合引擎循环/看门狗测试面（Bugly #3114 并发敏感守卫），随 C-06 退役批次专项重构；② **Kotlin 引擎逻辑全量退役**：GameEngine 族 ~289 方法中 84 动作协议已建未接线、其余 ~200 操作待 C++ 化（C-06 转发收尾），完成后 Kotlin 双实现删除 + shadow 对拍转回归基线 + 剩余 11 处 import 随迁 | T-CPP-1（定案保持）、C-07 验收（C++ 真相源切换完成；全量退役随 C-06） |
 
+### 7.1 计划 v2 批 8（C-06 转发收尾续作，2026-08-29 启动）
+
+> 范围：批 7-4 登记的剩余项——GameEngine 方法全量转发接线（84 已建未接线 + ~200 待 C++ 化）→
+> Kotlin 双实现删除 + shadow 对拍转回归基线。按家族逐批接线，每批 = 逐动作行为审计（C++ handler ↔
+> Kotlin 生产路径全语义比对）+ 接线 + 守护测试；**无 C++ 对应动作或行为不等价的一律不接线**（保持 Kotlin 回退）。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| 8-1 ✅ | **监控器平台能力接口化**（engine `import android.*` 11→0 处，R-02 收尾完成）：`core/perf/ThermalPorts.kt`（ThermalStatusReader + PerformanceHintPort 不透明句柄端口）；ThermalMonitor 重写——轮询/映射/线程绑定守卫（Bugly #3114）全留引擎，Android API 移 app `platform/AndroidThermalPorts.kt`（hintManager internal 接缝随端口化消失）；`core/perf/FrameMetricsSession.kt` + FrameMetricsMonitor 重写（卡顿判定/统计留引擎，Window/FrameMetrics 采集移 app `WindowFrameMetricsSession.kt`）；CoreModule 绑定 + GameActivity 调用点改造；ThermalMonitorTest 重写为 fake port 纯 JVM（守卫语义断言逐条对应，脱离 Robolectric） | compileReleaseKotlin + lintRelease + engine/app detekt + ThermalMonitorTest 全绿 |
+| 8-2 ✅ | **库存 add/remove 家族生产接线**（首批 7 动作：INV_ADD_{EQUIPMENT_STACK,MANUAL_STACK,PILL,MATERIAL,HERB,SEED} + INV_REMOVE_EQUIPMENT）：逐动作行为审计（C++ `gamecore::system::inventory.h` ↔ Kotlin `InventorySystem` 全语义比对：合并/分块/槽位跨类型容量/溢出邮件/annual 追踪/锁语义逐项等价，登记缺口见下）；GameEngineInventoryOps 7 方法 AUTHORITATIVE 路由（`InventoryNativeForward.tryForward`：flag 三态守卫——SHADOW 保持 Kotlin 执行真相源；顶层失败/native 不可用回退 Kotlin；**data.status=partial 不回退**——C++ 状态已变更，回退会二次入仓复制物品）；**溢出邮件草稿回传通道**（批 8-2 前置缺口修复：C++ handleInventory 信封新增 overflowDrafts 数组 + OverflowDraft 扩展 grade/category/slot/type/growTime/yield 反查区分字段，Kotlin 侧重建最小模型走 `InventorySystem.resolveOverflowItemId` 同一解析路径 + sendOverflowMail 投递，精度与 Kotlin 原路径一致）；GTest 3 用例（partial/full/remover 无草稿）+ JUnit GameEngineInventoryForwardTest 5 用例（OFF/AUTHORITATIVE 回退契约） | NDK externalNativeBuildRelease 通过 + engine 全量 JUnit + detekt + ThermalMonitorTest 回归；**GTest 3 新用例待 CI 桌面构建执行（本机无桌面工具链）** |
+
+**批 8-2 行为审计登记缺口**（不阻塞接线，登记偿还）：
+- **S-10**：C++ 库存容量常量硬编码（`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`，inventory.h），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移（偿还：配置对象注入 C++ 或 codegen 常量单源）
+- **S-11**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名——空白名行为差异（低风险）
+- 未接线（无 C++ 对应动作）：sortWarehouse/consolidateStacks/consumeMaterialByName/toggleItemLock/sell*/merchant 交易族——保持 Kotlin；待 C++ 化批次补 ActionId + handler 后接线
+- INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler（顶层 UNKNOWN_ACTION → 天然回退 Kotlin，正确性无损）
+
 **保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
 
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
@@ -204,3 +224,5 @@ android/app/src/main/cpp/
 | S-07 | **设计限制 `DomainLog` 无 logger getter**：`setLogger` 后无法恢复旧 logger（基准测试需行为等价替代） | `core/domain/.../util/DomainLog.kt` | 设计改进（低优先） | 可选：暴露 `currentLogger()` 或 `setLogger` 返回旧值；不阻塞任何阶段 |
 | ~~S-08~~ ✅ | **NDK 编译验证已通过**：2026-08-27 `externalNativeBuildRelease` 成功（阶段 2 新增 JNI 入口 + 阶段 4 新增 6 系统头文件/模型在 NDK 工具链下编译通过） | `GameCoreBridge.cpp` + `GameCoreBridge.kt` | 验证缺口 | 完成（计划 v2 阶段 4） |
 | ~~S-09~~ ✅ | **对拍测试隔离缺口已修复**：JUnit 对拍测试中 C++ `nativeCoreInit` 幂等复用引擎单例（阶段 1 既有设计），`EngineLoop.tickCount/speed/累积` 跨用例残留，与 Kotlin 侧每用例 `new GameTimeClock` 的干净基准不对称——首轮 DiffEngineLoopTest 8/15 失败（tickTotal 残留 65、speed 残留致 catch-up cap 3→6 等）。根因修复：`EngineLoop::resetForTest()`（tick 计数/速度/累积/帧状态/活跃基准全清，生产路径不调用——与 Kotlin 单例语义一致）+ 桌面对拍桥 `nativeCoreLoopReset` + GTest 2 用例守护；另修测试自身 2 处（死区消费缺暂停帧刷新帧基准、2x 断言算术错） | `engine_loop.h` + `GameCoreJni.cpp` + `DiffEngineLoopTest.kt` | 测试基建缺口 | 完成（计划 v2 阶段 5） |
+| S-10 | **C++ 库存容量常量硬编码**：`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`（`gamecore/include/gamecore/system/inventory.h`），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移 | `inventory.h` | 配置单源缺口 | 偿还时机：库存配置进 C++（config 注入或 codegen）时 |
+| S-11 | **空白名校验差异**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名 | `inventory.h` | 语义差异（低风险） | 偿还时机：随批 8 库存家族复审 |

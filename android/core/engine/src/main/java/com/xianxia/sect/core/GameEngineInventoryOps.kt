@@ -13,16 +13,85 @@ import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
+import com.xianxia.sect.core.nativebridge.ActionIds
+import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.bool
+import kotlinx.serialization.json.put
 
 
 
-suspend fun GameEngine.addEquipmentStack(stack: EquipmentStack) = inventoryFacade.addEquipmentStack(stack)
-suspend fun GameEngine.removeEquipment(equipmentId: String): Boolean = inventoryFacade.removeEquipment(equipmentId)
-suspend fun GameEngine.addManualStackToWarehouse(stack: ManualStack) = inventoryFacade.addManualStackToWarehouse(stack)
-suspend fun GameEngine.addPillToWarehouse(pill: Pill) = inventoryFacade.addPillToWarehouse(pill)
-suspend fun GameEngine.addMaterialToWarehouse(material: Material) = inventoryFacade.addMaterialToWarehouse(material)
-suspend fun GameEngine.addHerbToWarehouse(herb: Herb) = inventoryFacade.addHerbToWarehouse(herb)
-suspend fun GameEngine.addSeedToWarehouse(seed: Seed) = inventoryFacade.addSeedToWarehouse(seed)
+// ── 库存 add/remove 家族 native 转发（计划 v2 批 8-2，C-06 转发收尾）──
+// AUTHORITATIVE 模式经 C++ handleInventory 执行（InventorySystem 全语义对拍），
+// 溢出邮件由 InventoryNativeForward 走 Kotlin 同一解析/投递通道补齐；
+// flag 关闭 / native 不可用 / 顶层失败 → 回退 Kotlin 原实现（双实现并行契约）。
+
+suspend fun GameEngine.addEquipmentStack(stack: EquipmentStack) {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_EQUIPMENT_STACK) {
+        put("id", stack.id)
+        put("name", stack.name)
+        put("rarity", stack.rarity)
+        put("slot", stack.slot.name)
+        put("quantity", stack.quantity)
+    } ?: return inventoryFacade.addEquipmentStack(stack)
+}
+
+suspend fun GameEngine.removeEquipment(equipmentId: String): Boolean {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_REMOVE_EQUIPMENT) {
+        put("id", equipmentId)
+    } ?: return inventoryFacade.removeEquipment(equipmentId)
+    return data.bool("removed") ?: false
+}
+
+suspend fun GameEngine.addManualStackToWarehouse(stack: ManualStack) {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_MANUAL_STACK) {
+        put("id", stack.id)
+        put("name", stack.name)
+        put("rarity", stack.rarity)
+        put("type", stack.type.name)
+        put("quantity", stack.quantity)
+    } ?: return inventoryFacade.addManualStackToWarehouse(stack)
+}
+
+suspend fun GameEngine.addPillToWarehouse(pill: Pill) {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_PILL) {
+        put("id", pill.id)
+        put("name", pill.name)
+        put("rarity", pill.rarity)
+        put("category", pill.category.name)
+        put("grade", pill.grade.name)
+        put("quantity", pill.quantity)
+    } ?: return inventoryFacade.addPillToWarehouse(pill)
+}
+
+suspend fun GameEngine.addMaterialToWarehouse(material: Material) {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_MATERIAL) {
+        put("id", material.id)
+        put("name", material.name)
+        put("rarity", material.rarity)
+        put("category", material.category.name)
+        put("quantity", material.quantity)
+    } ?: return inventoryFacade.addMaterialToWarehouse(material)
+}
+
+suspend fun GameEngine.addHerbToWarehouse(herb: Herb) {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_HERB) {
+        put("id", herb.id)
+        put("name", herb.name)
+        put("rarity", herb.rarity)
+        put("category", herb.category)
+        put("quantity", herb.quantity)
+    } ?: return inventoryFacade.addHerbToWarehouse(herb)
+}
+
+suspend fun GameEngine.addSeedToWarehouse(seed: Seed) {
+    val data = InventoryNativeForward.tryForward(this, ActionIds.INV_ADD_SEED) {
+        put("id", seed.id)
+        put("name", seed.name)
+        put("rarity", seed.rarity)
+        put("growTime", seed.growTime)
+        put("yield", seed.yield)
+        put("quantity", seed.quantity)
+    } ?: return inventoryFacade.addSeedToWarehouse(seed)
+}
 suspend fun GameEngine.sortWarehouse() = inventoryFacade.sortWarehouse()
 suspend fun GameEngine.consolidateStacks() {
     // 测试场景中 inventoryFacade 可能为 null

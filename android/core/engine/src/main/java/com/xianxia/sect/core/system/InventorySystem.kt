@@ -132,7 +132,7 @@ class InventorySystem @Inject constructor(
      * 领取方回退既有随机生成逻辑（仅不精确，不丢失资产）。各类型解析见
      * [resolvePillTemplateId] 等顶层私有函数（按类型拆分，单函数圈复杂度 ≤15）。
      */
-    private fun resolveOverflowItemId(itemType: String, item: StackableItem): String = when (itemType) {
+    internal fun resolveOverflowItemId(itemType: String, item: StackableItem): String = when (itemType) {
         "pill" -> resolvePillTemplateId(item)
         "material" -> resolveMaterialTemplateId(item)
         "herb" -> resolveHerbTemplateId(item)

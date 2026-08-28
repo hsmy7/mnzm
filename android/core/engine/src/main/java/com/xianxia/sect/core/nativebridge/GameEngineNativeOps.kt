@@ -5,6 +5,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.longOrNull
 
@@ -90,4 +91,8 @@ object GameEngineNativeOps {
     /** 从 C++ 结果 JSON 提取数值字段（data 对象内）。 */
     fun JsonElement?.long(name: String): Long? =
         (this as? JsonObject)?.get(name)?.let { (it as? JsonPrimitive)?.longOrNull }
+
+    /** 从 C++ 结果 JSON 提取布尔字段（data 对象内）。 */
+    fun JsonElement?.bool(name: String): Boolean? =
+        (this as? JsonObject)?.get(name)?.let { (it as? JsonPrimitive)?.booleanOrNull }
 }
