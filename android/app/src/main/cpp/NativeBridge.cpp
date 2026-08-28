@@ -8,7 +8,7 @@
 #include <map>
 #include <vector>
 #include <android/log.h>
-#include "Renderer2D.h"
+#include "Rhi.h"
 #include "VulkanBackend.h"
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
@@ -16,9 +16,11 @@
 // 建筑占地尺寸查找表（2026-08-01：由 SpriteAtlasDef.kt 生成，禁止手改——
 // 运行 ./gradlew generateFootprintHeader 重新生成）
 #include "footprint_table.h"
-// 石板道路求解器（批次 R：位掩码→形态/描边判定收敛为单一权威——
-// Kotlin RoadTiling 与 C++ 渲染端统一引用 gamecore/map/road_system.h）
+// 石板道路求解器 + 渲染合成器（计划 v2 阶段 6：位掩码→形态/描边判定与
+// 逐格合成操作序列收敛为单一权威——Kotlin RoadTiling 与双端渲染路径
+// 统一引用 gamecore/map/road_system.h + road_compositor.h）
 #include "gamecore/map/road_system.h"
+#include "gamecore/map/road_compositor.h"
 
 // UV 向内收缩 0.5 texel（匹配 Cocos2d-x CC_FIX_ARTIFACTS_BY_STRECHING_TEXEL）
 // 防止 CLAMP_TO_EDGE + NEAREST 采样下 UV 边界采样到相邻图素，消除彩色缝合线
@@ -119,17 +121,6 @@ static inline bool isRectVisible(float x, float y, float w, float h) {
     // 矩形完全在视口之外才返回 false
     return !(x + w <= g_viewLeft || x >= g_viewRight ||
              y + h <= g_viewTop || y >= g_viewBottom);
-}
-
-/**
- * 位掩码 → 道路形态索引（批次 R 收敛：单一权威 = gamecore/map/road_system.h
- * 的 tileTypeForBitmask，与 Kotlin RoadTiling 逐位同语义，双端对拍守护）。
- * 返回索引：0=SINGLE 1=HORIZONTAL 2=VERTICAL 3..6=转角(TL/TR/BL/BR)
- * 7..10=T 型(UP/RIGHT/DOWN/LEFT) 11=CROSS —— 与 road_system.h RoadTileType
- * 枚举序一致（Kotlin RoadTileType 同序，SpriteAtlasDef.ROAD_RECTS 依赖此序）。
- */
-static int roadTypeForMask(int mask) {
-    return static_cast<int>(gamecore::map::tileTypeForBitmask(mask));
 }
 
 // 瓷砖类型常量（TILE_GROUND / TILE_BUILDING）
@@ -593,19 +584,16 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     }
 
     // ---- 2. 石板道路层（装饰之上、建筑之下 —— 与 Canvas 侧烘焙顺序一致） ----
-    // 每格按位掩码合成：主体（直路用 base，转角/T/十字用 junction）+ 外缘描边条
-    //（roadBorderMask = 掩码补集，内部相邻格不描边）+ 外缘转角件 + 十字中心装饰。
+    // 逐格合成操作序列由单一权威 gamecore/map/road_compositor.h 产出
+    //（主体→描边条→转角件→十字中心；计划 v2 阶段 6 物理下沉——本层只做
+    // 操作 → SpriteBatcher 的数据装配，不再持有合成逻辑/UV 硬编码）。
     if (roadData && roadUVMap) {
         jint* roads = env->GetIntArrayElements(roadData, nullptr);
         jfloat* ruvs = env->GetFloatArrayElements(roadUVMap, nullptr);
         jsize roadArrCount = env->GetArrayLength(roadData);
-        if ((jsize)rows * cols <= roadArrCount) {
-            const float quarter = tileSizeF * 0.25f;
-            // ROAD_RECTS 声明顺序索引（与 SpriteAtlasDef.ROAD_RECTS/ROAD_UV_MAP 同源）
-            // 0 base, 1 base_v, 2 junction, 3 edge_h, 4 edge_v,
-            // 5 corner_tr, 6 corner_tl, 7 corner_br, 8 corner_bl, 9 cross_center
-            const int R_UP = 1, R_RIGHT = 2, R_DOWN = 4, R_LEFT = 8;
-
+        const jsize roadUVCount = env->GetArrayLength(roadUVMap);
+        // 防御：roadUVMap 须容纳 kRoadSpriteCount 组 [u0,v0,u1,v1]（上游 SpriteAtlasDef.ROAD_UV_MAP 恒为 40）
+        if ((jsize)rows * cols <= roadArrCount && roadUVCount >= gamecore::map::kRoadSpriteCount * 4) {
             for (int row = minRow; row <= maxRow; row++) {
                 float wy = (float)(row * tileSize);
                 for (int col = minCol; col <= maxCol; col++) {
@@ -614,57 +602,18 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     float wx = (float)(col * tileSize);
                     if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 
-                    // 形态 + 边框（掩码补集——批次 R 收敛：roadBorderMask 权威）
-                    const int type = roadTypeForMask(mask);
-                    const int border = gamecore::map::roadBorderMask(mask);
-
-                    // 主体
-                    int baseIdx = 2;  // jungle（转角/T/十字）
-                    if (type == 1) baseIdx = 0;        // HORIZONTAL
-                    else if (type == 2) baseIdx = 1;   // VERTICAL
-                    batcher.add(atlasTexId, wx, wy, tileSizeF, tileSizeF,
-                        ruvs[baseIdx*4]+UV_EPSILON, ruvs[baseIdx*4+1]+UV_EPSILON,
-                        ruvs[baseIdx*4+2]-UV_EPSILON, ruvs[baseIdx*4+3]-UV_EPSILON,
-                        1.0f, 1.0f, 1.0f, fadeAlpha);
-
-                    // 外缘描边条（1/4 格厚）
-                    if (border & R_UP)
-                        batcher.add(atlasTexId, wx, wy, tileSizeF, quarter,
-                            ruvs[3*4]+UV_EPSILON, ruvs[3*4+1]+UV_EPSILON,
-                            ruvs[3*4+2]-UV_EPSILON, ruvs[3*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-                    if (border & R_DOWN)
-                        batcher.add(atlasTexId, wx, wy+tileSizeF-quarter, tileSizeF, quarter,
-                            ruvs[3*4]+UV_EPSILON, ruvs[3*4+1]+UV_EPSILON,
-                            ruvs[3*4+2]-UV_EPSILON, ruvs[3*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-                    if (border & R_LEFT)
-                        batcher.add(atlasTexId, wx, wy, quarter, tileSizeF,
-                            ruvs[4*4]+UV_EPSILON, ruvs[4*4+1]+UV_EPSILON,
-                            ruvs[4*4+2]-UV_EPSILON, ruvs[4*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-                    if (border & R_RIGHT)
-                        batcher.add(atlasTexId, wx+tileSizeF-quarter, wy, quarter, tileSizeF,
-                            ruvs[4*4]+UV_EPSILON, ruvs[4*4+1]+UV_EPSILON,
-                            ruvs[4*4+2]-UV_EPSILON, ruvs[4*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-
-                    // 外缘转角件（相邻两外缘相交外角）
-                    if ((border & R_UP) && (border & R_LEFT))
-                        batcher.add(atlasTexId, wx, wy, quarter, quarter,
-                            ruvs[6*4]+UV_EPSILON, ruvs[6*4+1]+UV_EPSILON, ruvs[6*4+2]-UV_EPSILON, ruvs[6*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-                    if ((border & R_UP) && (border & R_RIGHT))
-                        batcher.add(atlasTexId, wx+tileSizeF-quarter, wy, quarter, quarter,
-                            ruvs[5*4]+UV_EPSILON, ruvs[5*4+1]+UV_EPSILON, ruvs[5*4+2]-UV_EPSILON, ruvs[5*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-                    if ((border & R_DOWN) && (border & R_LEFT))
-                        batcher.add(atlasTexId, wx, wy+tileSizeF-quarter, quarter, quarter,
-                            ruvs[8*4]+UV_EPSILON, ruvs[8*4+1]+UV_EPSILON, ruvs[8*4+2]-UV_EPSILON, ruvs[8*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-                    if ((border & R_DOWN) && (border & R_RIGHT))
-                        batcher.add(atlasTexId, wx+tileSizeF-quarter, wy+tileSizeF-quarter, quarter, quarter,
-                            ruvs[7*4]+UV_EPSILON, ruvs[7*4+1]+UV_EPSILON, ruvs[7*4+2]-UV_EPSILON, ruvs[7*4+3]-UV_EPSILON, 1.0f,1.0f,1.0f,fadeAlpha);
-
-                    // 十字中心装饰（居中，约 2×2 格视觉）
-                    if (type == 11) {
-                        const float cs = tileSizeF * 2.0f;
-                        batcher.add(atlasTexId, wx - tileSizeF*0.5f, wy - tileSizeF*0.5f, cs, cs,
-                            ruvs[9*4]+UV_EPSILON, ruvs[9*4+1]+UV_EPSILON, ruvs[9*4+2]-UV_EPSILON, ruvs[9*4+3]-UV_EPSILON,
-                            1.0f,1.0f,1.0f,fadeAlpha);
+                    // 单一权威合成器：格内局部整型几何（运行时 tileSize=32，
+                    // 4 的倍数下与浮点逐位一致——road_compositor.h 几何约定）
+                    gamecore::map::RoadDrawOp ops[gamecore::map::kMaxRoadDrawOpsPerTile];
+                    const int opCount = gamecore::map::emitRoadDrawOps(mask, tileSize, ops);
+                    for (int i = 0; i < opCount; i++) {
+                        const int si = static_cast<int>(ops[i].sprite);
+                        batcher.add(atlasTexId,
+                            wx + (float)ops[i].x, wy + (float)ops[i].y,
+                            (float)ops[i].w, (float)ops[i].h,
+                            ruvs[si*4]+UV_EPSILON, ruvs[si*4+1]+UV_EPSILON,
+                            ruvs[si*4+2]-UV_EPSILON, ruvs[si*4+3]-UV_EPSILON,
+                            1.0f, 1.0f, 1.0f, fadeAlpha);
                     }
                 }
             }

@@ -9,10 +9,9 @@ import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderLodPolicy
 import com.xianxia.sect.core.render.RenderScalePolicy
+import com.xianxia.sect.core.render.RoadCompositorBridge
 import com.xianxia.sect.core.render.SpiritCropRender
 import com.xianxia.sect.core.render.SpriteAtlasDef
-import com.xianxia.sect.core.util.RoadTileType
-import com.xianxia.sect.core.util.RoadTiling
 import kotlin.math.roundToInt
 
 /**
@@ -369,9 +368,14 @@ class SoftwareCanvasBackend(
         /**
          * 石板道路层（装饰之上、建筑之下，烘焙进 chunk）。
          *
-         * 每格按位掩码合成：主体（直路用 base，转角/T/十字用 junction）+ 外缘描边条
-         * （[RoadTiling.roadBorderMask] 决定哪些边描边，内部相邻格不描边）+ 外缘转角件
-         * + 十字中心装饰。并行道路内部不重复描边。
+         * 逐格合成操作序列由 C++ 单一权威 `gamecore/map/road_compositor.h`
+         * 产出（[RoadCompositorBridge.compose]：主体→描边条→转角件→十字中心，
+         * 格内局部整型几何）——本方法仅做数据装配：RoadSprite 枚举序 →
+         * 图集精灵名 → 源矩形，按序绘制（计划 v2 阶段 6 合成器物理下沉）。
+         * 并行道路内部不重复描边由合成器（roadBorderMask 掩码补集）保证。
+         *
+         * 产品契约（2026-08-28）：道路永远显示，无条件渲染——native 通道
+         * 加载失败属安装损坏，直接抛出快速失败，无降级开关。
          */
         private fun drawRoadsToCanvas(
             canvas: Canvas,
@@ -385,7 +389,6 @@ class SoftwareCanvasBackend(
             val endCol = (startCol + CHUNK_SIZE_TILES).coerceAtMost(cols)
             val endRow = (startRow + CHUNK_SIZE_TILES).coerceAtMost(rows)
             val tileSize = kit.tileSize
-            val quarter = tileSize / 4
             val reuseRect = Rect()
 
             for (r in startRow until endRow) {
@@ -394,45 +397,19 @@ class SoftwareCanvasBackend(
                     val mask = roadData[idx]
                     if (mask == 0) continue
 
-                    val type = RoadTiling.tileTypeForBitmask(mask)
-                    val border = RoadTiling.roadBorderMask(mask)
+                    val ops = RoadCompositorBridge.compose(mask, tileSize)
                     val chunkOffX = c * tileSize - startCol * tileSize
                     val chunkOffY = r * tileSize - startRow * tileSize
 
-                    // 主体：直路按朝向，转角/T/十字用路口拼接素材
-                    val baseKey = when (type) {
-                        RoadTileType.HORIZONTAL -> "road_base"
-                        RoadTileType.VERTICAL -> "road_base_v"
-                        else -> "road_junction"
-                    }
-                    drawRoadSprite(canvas, atlas, baseKey, chunkOffX, chunkOffY, tileSize, tileSize, reuseRect)
-
-                    // 外缘描边条（1/4 格厚）：仅无道路邻居的边
-                    if (border and RoadTiling.DIR_UP != 0)
-                        drawRoadSprite(canvas, atlas, "road_edge_h", chunkOffX, chunkOffY, tileSize, quarter, reuseRect)
-                    if (border and RoadTiling.DIR_DOWN != 0)
-                        drawRoadSprite(canvas, atlas, "road_edge_h", chunkOffX, chunkOffY + tileSize - quarter, tileSize, quarter, reuseRect)
-                    if (border and RoadTiling.DIR_LEFT != 0)
-                        drawRoadSprite(canvas, atlas, "road_edge_v", chunkOffX, chunkOffY, quarter, tileSize, reuseRect)
-                    if (border and RoadTiling.DIR_RIGHT != 0)
-                        drawRoadSprite(canvas, atlas, "road_edge_v", chunkOffX + tileSize - quarter, chunkOffY, quarter, tileSize, reuseRect)
-
-                    // 外缘转角件（相邻两外缘相交的外角）
-                    if (border and RoadTiling.DIR_UP != 0 && border and RoadTiling.DIR_LEFT != 0)
-                        drawRoadSprite(canvas, atlas, "road_corner_tl", chunkOffX, chunkOffY, quarter, quarter, reuseRect)
-                    if (border and RoadTiling.DIR_UP != 0 && border and RoadTiling.DIR_RIGHT != 0)
-                        drawRoadSprite(canvas, atlas, "road_corner_tr", chunkOffX + tileSize - quarter, chunkOffY, quarter, quarter, reuseRect)
-                    if (border and RoadTiling.DIR_DOWN != 0 && border and RoadTiling.DIR_LEFT != 0)
-                        drawRoadSprite(canvas, atlas, "road_corner_bl", chunkOffX, chunkOffY + tileSize - quarter, quarter, quarter, reuseRect)
-                    if (border and RoadTiling.DIR_DOWN != 0 && border and RoadTiling.DIR_RIGHT != 0)
-                        drawRoadSprite(canvas, atlas, "road_corner_br", chunkOffX + tileSize - quarter, chunkOffY + tileSize - quarter, quarter, quarter, reuseRect)
-
-                    // 十字中心装饰（居中，约 2×2 格视觉）
-                    if (type == RoadTileType.CROSS) {
-                        val cs = tileSize * 2
-                        val cx = chunkOffX - tileSize / 2
-                        val cy = chunkOffY - tileSize / 2
-                        drawRoadSprite(canvas, atlas, "road_cross_center", cx, cy, cs, cs, reuseRect)
+                    var i = 0
+                    while (i + RoadCompositorBridge.OP_STRIDE <= ops.size) {
+                        val key = RoadCompositorBridge.SPRITE_KEYS[ops[i]]
+                        drawRoadSprite(
+                            canvas, atlas, key,
+                            chunkOffX + ops[i + 1], chunkOffY + ops[i + 2],
+                            ops[i + 3], ops[i + 4], reuseRect
+                        )
+                        i += RoadCompositorBridge.OP_STRIDE
                     }
                 }
             }

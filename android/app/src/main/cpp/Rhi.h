@@ -3,8 +3,22 @@
 #include <cstdint>
 
 // ============================================================
-// Renderer2D — 跨平台 2D 渲染抽象接口
-// 单一实现原则：一个顶点格式、一个 Pipeline、一张纹理图集
+// Rhi — Render Hardware Interface（渲染硬件抽象层）
+//（计划 v2 阶段 6：Renderer2D → RHI 形式化；类名保留 Renderer2D，
+//  Kotlin 侧平台契约 RenderBackend KDoc 同此对接说明）
+//
+// 层级规则：
+//   上层（不得 include 任何图形 API 头）：NativeBridge（场景装配 +
+//   gamecore 合成器消费）、SpriteBatcher——只面向本接口与顶点格式。
+//   下层（RHI 实现）：VulkanBackend（现有）/ MetalBackend（iOS 预留）。
+//
+// 单一实现原则：一个顶点格式、一个 Pipeline、一张纹理图集。
+// Metal 接入指南（iOS）：实现本接口全部纯虚函数，nativeWindow 传
+// CAMetalLayer*，投影矩阵改用 Metal NDC（z∈[0,1]，Y 向上翻转由
+// cameraProjMatrix 层适配）；swapchain 语义对应 submitFrame 内的
+// present，纹理上传对应 uploadTexture（MTLTexture + MTKTextureLoader
+// 语义对齐），其余上层代码（NativeBridge/SpriteBatcher/gamecore）
+// 零改动即可运行——同一渲染循环直接复用。
 // ============================================================
 
 struct RenderConfig {

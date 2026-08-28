@@ -221,6 +221,24 @@ object GameCoreBridge {
         fpsCap: Int,
         thermalThresholdOffsetC: Float
     )
+
+    // ============================================================
+    // 渲染合成器通道（计划 v2 阶段 6：道路逐格合成单一权威）
+    // ============================================================
+
+    /**
+     * 单格道路绘制操作合成（gamecore/map/road_compositor.h 单一权威）。
+     *
+     * 无状态纯函数——不依赖引擎实例，可在 nativeInit 前调用（仅需库已加载）。
+     *
+     * @param mask 4-bit 邻接掩码（0 调用方应跳过；返回仍为主体 1 op）
+     * @param tileSize 格像素尺寸（运行时恒为 GameConfig.TILE_SIZE=32，
+     *   4 的倍数下整型几何与 Vulkan 浮点路径逐位一致）
+     * @return 扁平 IntArray：[sprite, x, y, w, h] × N——sprite 序 =
+     *   RoadSprite 枚举序 = ROAD_RECTS 声明序（RoadCompositorBridge.SPRITE_KEYS
+     *   下标）；x/y/w/h 为格内局部整型像素（十字中心装饰可为负/外溢）
+     */
+    external fun nativeRoadCompose(mask: Int, tileSize: Int): IntArray
 }
 
 /**

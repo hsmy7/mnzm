@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Renderer2D.h"
+#include "Rhi.h"
 
 // ============================================================
 // SpriteBatcher — 精灵批处理构建器

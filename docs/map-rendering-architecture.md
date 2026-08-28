@@ -317,7 +317,7 @@ override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 |------|------|
 | **C++ 渲染引擎** | |
 | `app/src/main/cpp/VulkanBackend.cpp/h` | Vulkan 1.1+ 渲染后端（双缓冲 VBO + Staging Buffer） |
-| `app/src/main/cpp/Renderer2D.h` | 渲染抽象接口 + 正交投影数学 |
+| `app/src/main/cpp/Rhi.h` | RHI 渲染硬件抽象接口 + 正交投影数学（原 Renderer2D.h，计划 v2 阶段 6 形式化；Metal/iOS 预留） |
 | `app/src/main/cpp/SpriteBatcher.h/cpp` | 精灵批处理构建器（小栈+堆扩展） |
 | `app/src/main/cpp/TextureAtlas.h/cpp` | 纹理图集定义 + UV 坐标 |
 | `app/src/main/cpp/NativeBridge.cpp` | JNI 桥接（drawAllTiles 统一绘制） |

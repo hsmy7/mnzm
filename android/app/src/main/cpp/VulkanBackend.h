@@ -5,14 +5,15 @@
 #define VK_USE_PLATFORM_ANDROID_KHR 1
 #endif
 
-#include "Renderer2D.h"
+#include "Rhi.h"
 #include <vulkan/vulkan.h>
 #include <android/native_window.h>
 #include <vector>
 #include <array>
 
 // ============================================================
-// VulkanBackend — Vulkan 1.1+ 2D 渲染后端
+// VulkanBackend — Vulkan 1.1+ 2D 渲染后端（Rhi.h 接口的现有实现；
+// Metal/iOS 实现同接口接入，接入指南见 Rhi.h 头注释）
 // 架构：
 //   - 单 Pipeline（固定功能，无状态切换）
 //   - 单 DescriptorSet（single texture atlas）

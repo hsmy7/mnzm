@@ -41,6 +41,7 @@ add_executable(game-core-tests
     time_system_test.cpp
     settle_phase_test.cpp
     road_system_test.cpp
+    road_compositor_test.cpp
     economy_test.cpp
     inventory_test.cpp
     spirit_field_test.cpp

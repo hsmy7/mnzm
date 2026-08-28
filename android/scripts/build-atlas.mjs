@@ -822,7 +822,7 @@ function generateTextureAtlasH(layout) {
     '// ============================================================',
     '#pragma once',
     '',
-    '#include "Renderer2D.h"',
+    '#include "Rhi.h"',
     '#include <unordered_map>',
     '#include <string>',
     '',

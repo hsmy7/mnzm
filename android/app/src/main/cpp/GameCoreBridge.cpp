@@ -7,6 +7,7 @@
 
 #include "gamecore/game_core.h"
 #include "gamecore/system/engine_loop.h"
+#include "gamecore/map/road_compositor.h"
 
 // ============================================================
 // GameCoreBridge — JNI 实现（Android 专用）
@@ -392,4 +393,31 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetBatteryStatu
     jboolean isLowBattery, jboolean isPowerSaveMode, jint fpsCap, jfloat offsetC) {
     g_batteryProvider.set(isLowBattery == JNI_TRUE, isPowerSaveMode == JNI_TRUE,
                           static_cast<int>(fpsCap), static_cast<float>(offsetC));
+}
+
+// ============================================================
+// 渲染合成器通道（计划 v2 阶段 6：道路逐格合成单一权威）
+// 无状态纯函数——不依赖引擎实例，可在引擎初始化前调用（仅需库已加载）。
+// 返回扁平 IntArray：[sprite, x, y, w, h] × N（sprite 序 = RoadSprite
+// 枚举序 = SpriteAtlasDef.ROAD_RECTS 声明序，Kotlin RoadCompositorBridge
+// .SPRITE_KEYS 同序映射图集名）。
+// ============================================================
+extern "C" JNIEXPORT jintArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRoadCompose(
+    JNIEnv* env, jobject /*thiz*/, jint mask, jint tileSize) {
+    gamecore::map::RoadDrawOp ops[gamecore::map::kMaxRoadDrawOpsPerTile];
+    const int n = gamecore::map::emitRoadDrawOps(mask, tileSize, ops);
+    jintArray arr = env->NewIntArray(n * 5);
+    if (arr == nullptr) return nullptr;
+    jint flat[gamecore::map::kMaxRoadDrawOpsPerTile * 5];
+    for (int i = 0; i < n; i++) {
+        const int base = i * 5;
+        flat[base]     = static_cast<jint>(ops[i].sprite);
+        flat[base + 1] = ops[i].x;
+        flat[base + 2] = ops[i].y;
+        flat[base + 3] = ops[i].w;
+        flat[base + 4] = ops[i].h;
+    }
+    env->SetIntArrayRegion(arr, 0, n * 5, flat);
+    return arr;
 }

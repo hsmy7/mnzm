@@ -1,14 +1,15 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> 更新日期：2026-08-27。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
+> 更新日期：2026-08-28。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 538/538 · engine JUnit 2922/2922（testReleaseUnitTest 全量，2026-08-27 实测） · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · compileReleaseKotlin 通过**。
-> **计划 v2 阶段 0、1、2、3、4、5 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
+> 当前基线：**桌面 GTest 550/550 · JUnit 全模块 7271/7271（engine 2928，testReleaseUnitTest 全量） · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · compileReleaseKotlin 通过（2026-08-28 实测）**。
+> **计划 v2 阶段 0、1、2、3、4、5、6 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
 > 11 槽分配/兑换码+邮件附件；阶段 5：游戏循环入 C++——平台能力接口化（Clock/Telemetry/
-> 热控/电量端口）+ 引擎循环（PhaseClock/EngineLoop）+ 看门狗判据（ProgressMonitor），
-> 详见 §7 阶段 5 行）。
+> 热控/电量端口）+ 引擎循环（PhaseClock/EngineLoop）+ 看门狗判据（ProgressMonitor）；
+> 阶段 6：渲染 RHI + 合成器统一——道路合成器单一权威物理下沉（批次 R 剩余清零）+
+> Renderer2D → Rhi.h 形式化（Metal/iOS 预留），详见 §7 阶段 6 行）。
 
 ## 1. 目标架构
 
@@ -114,13 +115,12 @@ android/app/src/main/cpp/
 | 落地动作 | ① 增量变更集（exportDirty）实现——C++ 真相源 → Kotlin 镜像核心通道；② 未迁移系统按第 7 节逐批 C++ 化（不再"永久保留"）；③ ~~游戏循环平台能力接口化后迁 C++~~（✅ **阶段 5 已完成**：Clock/Telemetry/热控/电量端口 + PhaseClock/EngineLoop + 看门狗判据全部入 C++，Kotlin 驱动侧仅剩协程线程本体/delay/帧率策略/ADPF 上报等平台机制）；④ 静态数据单一源（T-CPP-2 提前触发，✅ 阶段 3 已完成）；⑤ 对拍框架全程守护 |
 | 验收 | 每阶段 C++ 真相源切换 + 对拍全绿 + 性能对比（对阶段 0 基线） |
 
-### 5.3 批次 R 剩余：渲染合成器物理下沉
+### 5.3 ~~批次 R 剩余：渲染合成器物理下沉~~ ✅（计划 v2 阶段 6 完成，见 §7 阶段 6 行）
 
 | 项 | 说明 |
 |---|---|
-| 已完成 | 求解器权威性（掩码→形态/描边/邻接双端对拍）+ Vulkan 端位掩码判定收敛 road_system.h 单一权威 |
-| 剩余 | **渲染合成器物理下沉**：Kotlin Canvas `SoftwareCanvasBackend.drawRoadsToCanvas` 与 C++ Vulkan `NativeBridge.drawAllTiles` 道路段的逐格合成（主体/描边条/转角件/十字中心的摆放顺序）统一为单一 C++ 合成器，Kotlin 侧仅做数据装配；同时解除与生成式图集的强耦合 |
-| 依赖 | 跨模块 JNI 通道 + Vulkan/Canvas 双路径回归——渲染层大工程，需与渲染回归协同推进 |
+| ~~已完成~~ ✅ | 求解器权威性（掩码→形态/描边/邻接双端对拍）+ Vulkan 端位掩码判定收敛 road_system.h 单一权威 |
+| ~~剩余~~ ✅ **渲染合成器物理下沉**（2026-08-28 阶段 6 完成）：逐格合成（主体/描边条/转角件/十字中心的摆放顺序）统一为单一 C++ 合成器 `gamecore/map/road_compositor.h`（RoadSprite 语义枚举 + 格内整型几何操作序列），Kotlin Canvas `drawRoadsToCanvas` 改为纯数据装配（枚举序→精灵名→源矩形），Vulkan `drawAllTiles` 道路段删除 UV 硬编码改消费操作序列；与生成式图集解耦（合成器零 UV/精灵名依赖，图集映射由各端按枚举序号查表）；产品契约：**道路永远显示，无降级开关**（native 通道加载失败属安装损坏，快速失败） |
 
 ### 5.4 审查登记项（C-10 ~ C-15）
 
@@ -172,7 +172,11 @@ android/app/src/main/cpp/
   - **批 5-3 看门狗判据**：`system/watchdog.h`——**ProgressMonitor**（GameTimeProgressMonitor 逐位移植：ProgressSnapshot 12 字段/StallVerdict 数值码 0-4/evaluate/classify/classifyFlags/三阈值 45s·90s·20s/std::mutex 线程安全；S1/S4/S5/F2/V1/V6 修复分支随行移植）；GameCore 组合通道 `watchdogVerdict(flags)`（引擎侧状态 C++ 组合 + 平台侧 6 flags）；-1 未初始化回退 Kotlin；GTest 25 + JUnit DiffWatchdogTest 24 全矩阵对拍
   - **批 5-4 AUTHORITATIVE 接线**：`GameEngineCoreLoopOps.kt`（authoritativeLoopIteration 帧迭代 AUTHORITATIVE 化 + tickAuthoritativeStep + nativeVerdictToStall + thermalSeverityCode）+ `GameEngineCore.kt`（gameLoopIteration 顶部 AUTHORITATIVE 分流、onSpeedChanged→nativeLoopSetSpeed 钩子、nativeLoopPipelineActive refund 分流、prepareLoopStart→nativeLoopStart、performEmergencyRestart→nativeLoopOnRestart、onUserActivity→nativeLoopNotifyUserActivity、progressVerdict native 判据分支 + 6 内部辅助/共享辅助提取）；`GameEngineCoreAuthoritativeOps.kt` refund 按真相源分流；回退契约：帧计划不可用→纯 Kotlin 累积器路径；**AUTHORITATIVE 默认 OFF（灰度开关）不变**
   - **批 5-5 R-02 循环路径清除**：`GameTimeClock.kt` 删 `SystemClock/Log` import（SystemTimeSource/TimeSourceModule 移 app 层 `di/PlatformTimeModule.kt`）；`GameEngineCore.kt` 删 `Build` import（doBusyWait SDK_INT≥33 改 supportsOnSpinWait 反射探测）；engine 模块 33 处 Android import 剩 ~30 处（perf/thermal/registry/config/service/domain）随阶段 7 Kotlin 引擎退役时移 app 层 | R-02（core/engine Android 依赖随引擎退役自然消除——循环路径 3 处已清除，剩余 ~30 处阶段 7 退役时移出） |
-| 6 | **渲染 RHI + 合成器统一**：Renderer2D → RHI（Vulkan 现有 + Metal/iOS）；渲染合成器物理下沉（批次 R 剩余） | 批次 R 剩余、iOS 预留 |
+| 6 ✅ | **渲染 RHI + 合成器统一**（2026-08-28 完成，GTest 550/550 + JUnit 对拍全绿 + NDK 构建通过）：
+  - **批 6-1 合成器单一权威**：`gamecore/map/road_compositor.h`（零依赖纯函数 `emitRoadDrawOps`：掩码 → RoadSprite 语义枚举 + 格内整型几何操作序列，顺序契约 主体→描边条→转角件→十字中心 与双端烘焙顺序一致；与生成式图集解耦——合成器零 UV/精灵名依赖，枚举序 = ROAD_RECTS 声明序 = roadUVMap 索引 = SPRITE_KEYS 下标三端映射锚点）；GTest 12（全 16 掩码操作数守恒/几何有界/顺序契约/枚举序锚点/tileSize=32 整型↔浮点一致性）
+  - **批 6-2 Vulkan 路段接入**：`NativeBridge.drawAllTiles` 道路段删除 roadTypeForMask/UV 硬编码，改消费合成器操作序列（仅做 操作→SpriteBatcher 数据装配）；新增 roadUVMap 长度防御；删本地 roadTypeForMask 包装（road_system.h 直引）
+  - **批 6-3 Canvas 接入**：`SoftwareCanvasBackend.drawRoadsToCanvas` 改纯数据装配（逐格 `RoadCompositorBridge.compose` JNI 通道 → RoadSprite 枚举序→精灵名→图集源矩形，RoadTiling 合成逻辑移除）；生产 JNI `GameCoreBridge.nativeRoadCompose`（无状态纯函数，不依赖引擎实例）；`RoadCompositorBridge`（core/render）+ 守护测试（SpriteAtlasDefGeneratedTest：SPRITE_KEYS ↔ ROAD_RECTS 声明序全等）+ JUnit DiffRoadComposeTest 5（桌面对拍桥 compose op，手算规格 + 全 16 掩码结构不变量）；**产品契约：道路永远显示，无降级开关**（ensureLoaded 幂等自加载，加载失败快速失败）；同批产品回退：恢复建造栏石板路建造入口（回退 8c9b7734，独立提交）
+  - **批 6-4 RHI 形式化**：`Renderer2D.h` → `Rhi.h`（RHI 契约：上层 NativeBridge/SpriteBatcher 不得 include 图形 API 头，下层实现 VulkanBackend 现有 / MetalBackend iOS 预留；类名 Renderer2D 保留）；Metal 接入指南（CAMetalLayer/NDC 差异/uploadTexture/submitFrame 语义映射，见 Rhi.h 头注释）——iOS 立项时零上层改动接入 | 批次 R 剩余（✅ 全部完成）、iOS 预留 |
 | 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
 
 **保持不动（与迁移方向无关）**：R-01/03~13（detekt/lint/测试质量债务）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。

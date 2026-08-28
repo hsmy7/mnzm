@@ -21,6 +21,7 @@
 
 #include "gamecore/game_core.h"
 #include "gamecore/map/road_system.h"
+#include "gamecore/map/road_compositor.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/system/battle.h"
@@ -1337,6 +1338,19 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeRoadOp(
                 if (x - 1 >= 0 && grid.isRoad(x - 1, y)) mask |= gamecore::map::kDirLeft;
             }
             result["value"] = mask;
+        } else if (opName == "compose") {
+            // 道路渲染合成器（计划 v2 阶段 6）：单格绘制操作序列
+            // [[sprite, x, y, w, h], ...]——sprite 序 = RoadSprite 枚举序
+            const int mask = op.at("mask").get<int>();
+            const int tileSize = op.at("tileSize").get<int>();
+            gamecore::map::RoadDrawOp ops[gamecore::map::kMaxRoadDrawOpsPerTile];
+            const int n = gamecore::map::emitRoadDrawOps(mask, tileSize, ops);
+            nlohmann::json arr = nlohmann::json::array();
+            for (int i = 0; i < n; i++) {
+                arr.push_back({static_cast<int>(ops[i].sprite),
+                               ops[i].x, ops[i].y, ops[i].w, ops[i].h});
+            }
+            result["ops"] = arr;
         } else {
             result["error"] = "unknown op: " + opName;
         }

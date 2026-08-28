@@ -360,6 +360,17 @@ class SpriteAtlasDefGeneratedTest {
         return body.split(",").map { it.trim().toInt() }
     }
 
+    @Test
+    fun `道路精灵名与合成器 SPRITE_KEYS 序一致（计划 v2 阶段 6 三端映射锚点）`() {
+        // RoadCompositorBridge.SPRITE_KEYS 下标 = C++ RoadSprite 枚举序
+        //（GTest road_compositor_test.SpriteEnumOrderIsContractAnchor 守护）
+        // = ROAD_RECTS 声明序（roadUVMap 索引同序）——顺序漂移即三端错位。
+        val atlasKeys = SpriteAtlasDef.ROAD_RECTS.map { it.first }
+        assertEquals(atlasKeys, RoadCompositorBridge.SPRITE_KEYS.toList())
+        // 每格操作数上限与枚举数一致（C++ kRoadSpriteCount/kMaxRoadDrawOpsPerTile 同值）
+        assertEquals(RoadCompositorBridge.MAX_OPS_PER_TILE, RoadCompositorBridge.SPRITE_KEYS.size)
+    }
+
     private data class Array5(
         val name: String,
         val key: String,
