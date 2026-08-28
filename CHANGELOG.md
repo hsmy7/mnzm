@@ -1,4 +1,8 @@
-## [Unreleased] - 计划 v2 批 8（C-06 转发收尾续作，进行中）
+## [4.01.11] - 2026-08-29
+
+### 新增（C++ 引擎迁移计划 v2 批 8：C-06 转发收尾续作——监控器接口化 + 库存家族生产接线）
+
+> 范围：批 7-4 登记的剩余项（GameEngine 方法全量转发接线 → Kotlin 双实现删除）首批交付。按家族逐批接线，每批 = 逐动作行为审计 + 接线 + 守护测试；无 C++ 对应动作或行为不等价的一律不接线（保持 Kotlin 回退）。详见 docs/cpp-engine.md §7.1。
 
 > 范围：批 7-4 登记的剩余项（GameEngine 方法全量转发接线 → Kotlin 双实现删除）。按家族逐批接线，每批 = 逐动作行为审计 + 接线 + 守护测试；无 C++ 对应动作或行为不等价的一律不接线（保持 Kotlin 回退）。详见 docs/cpp-engine.md §7.1。
 
@@ -6,7 +10,8 @@
 - **批 8-2 库存 add/remove 家族生产接线（首批 7 动作）**：逐动作行为审计（C++ inventory.h ↔ Kotlin InventorySystem 全语义比对等价）；GameEngineInventoryOps 7 方法 AUTHORITATIVE 路由（`InventoryNativeForward.tryForward` 三态守卫——SHADOW 保持 Kotlin 执行真相源；顶层失败/native 不可用回退；**data.status=partial 不回退**——回退会二次入仓复制物品）；**溢出邮件草稿回传通道**（handleInventory 信封新增 overflowDrafts + OverflowDraft 反查区分字段，Kotlin 侧重建最小模型走 InventorySystem 同一解析路径投递，精度与原路径一致）
 - **批 8-3 库存家族收尾 C++ 化 + 接线**：gen-action-ids 新增 INV_CONSOLIDATE(1027)/INV_SORT(1028)/INV_TOGGLE_LOCK(1029)（87 动作）；C++ consolidateItems（单遍合并/满堆叠跳过防振荡/锁定可作目标禁作来源）+ sortStacks + sortWarehouse（含实例轨道）+ toggleItemLock；Kotlin 3 方法接线；**修复转发层入口 NPE 缺陷**（Kotlin 非空参数内在检查早于 isLoaded 早退——mock 未 stub stateSyncServiceRef 必触，登记 S-12，tryForward 先行空过滤；BootSequenceControllerTest 12 用例暴露）
 - **审计登记缺口**：S-10（C++ 库存容量常量硬编码）、S-11（空白名校验差异）、S-12（转发辅助入口 NPE 语义）；未接线项（无 C++ 对应动作）：consumeMaterialByName/sell*/merchant 交易族等保持 Kotlin
-- **验证**：NDK externalNativeBuildRelease + engine 全量 JUnit + 全模块 detekt + lintRelease + compileReleaseKotlin 全绿；GTest 6 新用例（溢出草稿 3 + 整理动作 3）待 CI 桌面构建执行（本机无桌面工具链）
+- **测试**：GTest 550+3+3（溢出草稿回传 3 + 仓库整理动作 3，待 CI 桌面构建执行）· JUnit 全模块全绿（新增 GameEngineInventoryForwardTest 6 用例回退契约；BootSequenceControllerTest 12 用例暴露并修复转发层 NPE）· NDK externalNativeBuildRelease 通过 · 全模块 detekt + lintRelease + compileReleaseKotlin 通过
+- **兼容性**：无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；AUTHORITATIVE 生产默认不变（新增接线仍受 NativeEngineFlag 三态守卫，OFF/SHADOW 回退契约保留）；新增 ActionId 1027~1029（进程内协议，存档无关）；玩家可见行为不变（溢出邮件投递精度与原路径一致）
 
 ## [4.01.10] - 2026-08-24
 
