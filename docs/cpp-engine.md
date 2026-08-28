@@ -148,7 +148,7 @@ android/app/src/main/cpp/
 ## 7. 彻底单引擎计划 v2（选项 A 执行路径，合并架构待办）
 
 > 每阶段验收：C++ 真相源切换 + 对拍守护全绿（GTest 289 + JUnit 对拍）+ 性能对比对阶段 0 基线 + 可运行可回退。
-> 待办合并规则：C 系列 = 迁移主线（调整触发）；R 系列 = Kotlin 侧质量债务（保留，随 Kotlin 面收窄部分自然消除）；T 系列 = 触发条件调整（T-CPP-2 提前、T-CPP-1 保持）。
+> 待办合并规则：C 系列 = 迁移主线（调整触发）；R 系列 = Kotlin 侧质量债务（保留，随 Kotlin 面收窄部分自然消除；R-14 = 2026-08-28 阶段 6 途中发现的 feature:game detekt 存量 10 项——`feature:game:detekt` 从未进入批次验证门，见 architecture.md R 系列登记表）；T 系列 = 触发条件调整（T-CPP-2 提前、T-CPP-1 保持）。
 
 | 阶段 | 内容 | 合并的待办 |
 |---|---|---|
@@ -179,7 +179,7 @@ android/app/src/main/cpp/
   - **批 6-4 RHI 形式化**：`Renderer2D.h` → `Rhi.h`（RHI 契约：上层 NativeBridge/SpriteBatcher 不得 include 图形 API 头，下层实现 VulkanBackend 现有 / MetalBackend iOS 预留；类名 Renderer2D 保留）；Metal 接入指南（CAMetalLayer/NDC 差异/uploadTexture/submitFrame 语义映射，见 Rhi.h 头注释）——iOS 立项时零上层改动接入 | 批次 R 剩余（✅ 全部完成）、iOS 预留 |
 | 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
 
-**保持不动（与迁移方向无关）**：R-01/03~13（detekt/lint/测试质量债务）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
+**保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
 
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 
