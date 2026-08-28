@@ -56,6 +56,9 @@ const ACTION_CATALOG = [
   { id: 1024, name: 'INV_REMOVE_SEED', desc: '移除种子' },
   { id: 1025, name: 'INV_CAN_ADD_ITEM', desc: '仓库是否有空余槽位' },
   { id: 1026, name: 'INV_CAPACITY_INFO', desc: '仓库容量信息' },
+  { id: 1027, name: 'INV_CONSOLIDATE', desc: '仓库堆叠合并（批 8-3）' },
+  { id: 1028, name: 'INV_SORT', desc: '仓库整理=合并+排序（含实例轨道）' },
+  { id: 1029, name: 'INV_TOGGLE_LOCK', desc: '堆叠锁定翻转（按 id+类型）' },
 
   // ── 批次 4c：灵田收获 ──
   { id: 1030, name: 'SPIRIT_FIELD_HARVEST', desc: '灵田月度收获（成熟判定+续种+年度报告）' },

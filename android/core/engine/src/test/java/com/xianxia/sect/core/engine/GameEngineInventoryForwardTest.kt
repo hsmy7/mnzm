@@ -115,6 +115,18 @@ class GameEngineInventoryForwardTest {
     }
 
     @Test
+    fun `AUTHORITATIVE 且 native 不可用时 sortWarehouse_consolidateStacks_toggleItemLock 静默回退 Kotlin`() = runBlocking {
+        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
+            engine.sortWarehouse()
+            engine.consolidateStacks()
+            engine.toggleItemLock("eq-1", "equipment")
+        }
+        verify(inventoryFacade).sortWarehouse()
+        verify(inventoryFacade).consolidateStacks()
+        verify(inventoryFacade).toggleItemLock("eq-1", "equipment")
+    }
+
+    @Test
     fun `withMode 恢复默认 AUTHORITATIVE`() {
         assertEquals(NativeEngineFlag.Mode.AUTHORITATIVE, NativeEngineFlag.mode)
     }

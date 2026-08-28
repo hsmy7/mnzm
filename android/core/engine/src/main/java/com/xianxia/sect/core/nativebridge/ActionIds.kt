@@ -71,6 +71,15 @@ object ActionIds {
     /** 仓库容量信息 */
     const val INV_CAPACITY_INFO: Int = 1026
 
+    /** 仓库堆叠合并（批 8-3） */
+    const val INV_CONSOLIDATE: Int = 1027
+
+    /** 仓库整理=合并+排序（含实例轨道） */
+    const val INV_SORT: Int = 1028
+
+    /** 堆叠锁定翻转（按 id+类型） */
+    const val INV_TOGGLE_LOCK: Int = 1029
+
     /** 灵田月度收获（成熟判定+续种+年度报告） */
     const val SPIRIT_FIELD_HARVEST: Int = 1030
 

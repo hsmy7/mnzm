@@ -235,6 +235,77 @@ TEST_F(GameCoreFixture, InvRemoveSuccessHasNoDrafts) {
     EXPECT_FALSE(r.at("data").contains("overflowDrafts"));
 }
 
+// ── 仓库整理动作（批 8-3：consolidate/sort/toggleLock）────────
+
+TEST_F(GameCoreFixture, InvConsolidateRespectsFullAndLock) {
+    // merge=false 构造三同键堆叠 [999(full), 100(locked), 50]：
+    // 满堆叠跳过、锁定禁作来源、50 被 primary(=100, 锁定可作目标) 吸收 → [999, 150]
+    auto add = [this](const std::string& id, int32_t qty) {
+        return exec(action::INV_ADD_EQUIPMENT_STACK,
+                    {{"id", id}, {"name", "木剑"}, {"rarity", 1},
+                     {"slot", "WEAPON"}, {"quantity", qty},
+                     {"source", "battle"}, {"merge", false}});
+    };
+    ASSERT_EQ(add("eq-1", 999).at("status"), "success");
+    ASSERT_EQ(add("eq-2", 100).at("status"), "success");
+    ASSERT_EQ(exec(action::INV_TOGGLE_LOCK,
+                   {{"itemId", "eq-2"}, {"itemType", "equipment"}})
+                  .at("data").at("toggled").get<bool>(), true);
+    ASSERT_EQ(add("eq-3", 50).at("status"), "success");
+
+    const auto r = exec(action::INV_CONSOLIDATE, nlohmann::json::object());
+    ASSERT_EQ(r.at("status"), "success");
+    auto& stacks = core_->state().equipmentStacks;
+    ASSERT_EQ(stacks.size(), 2u);
+    EXPECT_EQ(stacks[0].id, "eq-1");
+    EXPECT_EQ(stacks[0].quantity, 999);
+    EXPECT_EQ(stacks[1].id, "eq-2");
+    EXPECT_EQ(stacks[1].quantity, 150);
+    EXPECT_TRUE(stacks[1].isLocked);  // 目标可锁定：吸收后锁语义不变
+}
+
+TEST_F(GameCoreFixture, InvSortRarityDescNameAsc) {
+    auto add = [this](const std::string& id, const std::string& name, int rarity) {
+        return exec(action::INV_ADD_EQUIPMENT_STACK,
+                    {{"id", id}, {"name", name}, {"rarity", rarity},
+                     {"slot", "WEAPON"}, {"quantity", 1},
+                     {"source", "battle"}, {"merge", false}});
+    };
+    ASSERT_EQ(add("a", "飞剑", 2).at("status"), "success");
+    ASSERT_EQ(add("b", "木剑", 1).at("status"), "success");
+    ASSERT_EQ(add("c", "青莲", 2).at("status"), "success");
+
+    const auto r = exec(action::INV_SORT, nlohmann::json::object());
+    ASSERT_EQ(r.at("status"), "success");
+    auto& stacks = core_->state().equipmentStacks;
+    ASSERT_EQ(stacks.size(), 3u);
+    // rarity desc, name asc（rarity=2 组在前，组内按名称码点序；同键稳定序不交换）
+    EXPECT_EQ(stacks[0].name, "青莲");
+    EXPECT_EQ(stacks[1].name, "飞剑");
+    EXPECT_EQ(stacks[2].name, "木剑");
+}
+
+TEST_F(GameCoreFixture, InvToggleLockFlipAndUnknown) {
+    exec(action::INV_ADD_EQUIPMENT_STACK,
+         {{"id", "eq-1"}, {"name", "木剑"}, {"rarity", 1},
+          {"slot", "WEAPON"}, {"quantity", 5}, {"source", "battle"}});
+    EXPECT_EQ(exec(action::INV_TOGGLE_LOCK,
+                   {{"itemId", "eq-1"}, {"itemType", "equipment"}})
+                  .at("data").at("toggled").get<bool>(), true);
+    EXPECT_TRUE(core_->state().equipmentStacks[0].isLocked);
+    EXPECT_EQ(exec(action::INV_TOGGLE_LOCK,
+                   {{"itemId", "eq-1"}, {"itemType", "equipment"}})
+                  .at("data").at("toggled").get<bool>(), true);
+    EXPECT_FALSE(core_->state().equipmentStacks[0].isLocked);
+    // 未知 id / 未知类型 → toggled=false
+    EXPECT_FALSE(exec(action::INV_TOGGLE_LOCK,
+                      {{"itemId", "nope"}, {"itemType", "equipment"}})
+                     .at("data").at("toggled").get<bool>());
+    EXPECT_FALSE(exec(action::INV_TOGGLE_LOCK,
+                      {{"itemId", "eq-1"}, {"itemType", "junk"}})
+                     .at("data").at("toggled").get<bool>());
+}
+
 // ── 未实现动作 ─────────────────────────────────────────────────
 
 TEST_F(GameCoreFixture, UnknownActionReturnsFailure) {

@@ -300,6 +300,21 @@ nlohmann::json handleInventory(GameCore* core, int32_t actionId,
                 {"maxSlots", gamecore::system::computeMaxSlots(state)},
             };
             break;
+        case action::INV_CONSOLIDATE:
+            gamecore::system::consolidateAllStacks(state);
+            data = {{"consolidated", true}};
+            break;
+        case action::INV_SORT:
+            gamecore::system::sortWarehouse(state);
+            data = {{"sorted", true}};
+            break;
+        case action::INV_TOGGLE_LOCK: {
+            const bool found = gamecore::system::toggleItemLock(
+                state, params.at("itemId").get<std::string>(),
+                params.value("itemType", ""));
+            data = {{"toggled", found}};
+            break;
+        }
         default:
             return fail("UNKNOWN_ACTION", "inventory action " + std::to_string(actionId));
     }
@@ -1237,7 +1252,7 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         if (actionId >= action::WALLET_ADD && actionId <= action::WALLET_TOTAL_SELL_VALUE) {
             result = handleWallet(this, actionId, params);
         } else if (actionId >= action::INV_ADD_EQUIPMENT_STACK &&
-                   actionId <= action::INV_CAPACITY_INFO) {
+                   actionId <= action::INV_TOGGLE_LOCK) {
             result = handleInventory(this, actionId, params);
         } else if (actionId == action::SPIRIT_FIELD_HARVEST) {
             result = handleSpiritField(this, params);

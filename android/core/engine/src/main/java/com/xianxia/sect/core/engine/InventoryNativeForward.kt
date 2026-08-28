@@ -17,6 +17,7 @@ import com.xianxia.sect.core.nativebridge.GameEngineNativeOps
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.params
 import com.xianxia.sect.core.nativebridge.GameEngineNativeOps.str
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import com.xianxia.sect.core.nativebridge.StateSyncService
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -42,14 +43,19 @@ import kotlinx.serialization.json.long
 internal object InventoryNativeForward {
 
     /** 尝试经 C++ 执行库存动作；成功时投递溢出邮件草稿后返回 data。 */
+    @Suppress("ReturnCount")  // 多 return 为降级契约（flag 关/镜像不可用/成功路径逐级返回）
     internal fun tryForward(
         gameEngine: GameEngine,
         actionId: Int,
         paramsBuilder: JsonObjectBuilder.() -> Unit
     ): JsonElement? {
         if (!NativeEngineFlag.authoritative) return null
+        // 防御性空安全：生产恒非空，但测试 mock（未 stub stateSyncServiceRef）返回 null——
+        // Kotlin 非空参数的内在检查在函数入口（早于 isLoaded 早退）即抛 NPE，必须先过滤
+        val sync: StateSyncService? = gameEngine.stateSyncService
+        if (sync == null) return null
         return GameEngineNativeOps.tryExecuteNative(
-            stateSyncService = gameEngine.stateSyncService,
+            stateSyncService = sync,
             actionId = actionId,
             paramsJson = params(paramsBuilder)
         )?.also { data -> deliverOverflowDrafts(gameEngine, data) }

@@ -15,7 +15,8 @@
 > 续作（阶段 7 批 7-4 登记）**）。**计划 v2 批 8（C-06 续作）进行中**：批 8-1 完成
 > ThermalMonitor/FrameMetricsMonitor 平台能力接口化（engine `import android.*` 11→0）；
 > 批 8-2 完成首个生产接线家族（库存 add/remove 7 动作 AUTHORITATIVE 路由 + 溢出邮件
-> 草稿回传通道 + 行为审计登记），见 §7.1。
+> 草稿回传通道 + 行为审计登记）；批 8-3 完成库存家族收尾（consolidate/sort/toggleLock
+> 新增 3 ActionId C++ 化 + 接线，该家族 10 动作全量接线），见 §7.1。
 
 ## 1. 目标架构
 
@@ -199,11 +200,12 @@ android/app/src/main/cpp/
 |---|---|---|
 | 8-1 ✅ | **监控器平台能力接口化**（engine `import android.*` 11→0 处，R-02 收尾完成）：`core/perf/ThermalPorts.kt`（ThermalStatusReader + PerformanceHintPort 不透明句柄端口）；ThermalMonitor 重写——轮询/映射/线程绑定守卫（Bugly #3114）全留引擎，Android API 移 app `platform/AndroidThermalPorts.kt`（hintManager internal 接缝随端口化消失）；`core/perf/FrameMetricsSession.kt` + FrameMetricsMonitor 重写（卡顿判定/统计留引擎，Window/FrameMetrics 采集移 app `WindowFrameMetricsSession.kt`）；CoreModule 绑定 + GameActivity 调用点改造；ThermalMonitorTest 重写为 fake port 纯 JVM（守卫语义断言逐条对应，脱离 Robolectric） | compileReleaseKotlin + lintRelease + engine/app detekt + ThermalMonitorTest 全绿 |
 | 8-2 ✅ | **库存 add/remove 家族生产接线**（首批 7 动作：INV_ADD_{EQUIPMENT_STACK,MANUAL_STACK,PILL,MATERIAL,HERB,SEED} + INV_REMOVE_EQUIPMENT）：逐动作行为审计（C++ `gamecore::system::inventory.h` ↔ Kotlin `InventorySystem` 全语义比对：合并/分块/槽位跨类型容量/溢出邮件/annual 追踪/锁语义逐项等价，登记缺口见下）；GameEngineInventoryOps 7 方法 AUTHORITATIVE 路由（`InventoryNativeForward.tryForward`：flag 三态守卫——SHADOW 保持 Kotlin 执行真相源；顶层失败/native 不可用回退 Kotlin；**data.status=partial 不回退**——C++ 状态已变更，回退会二次入仓复制物品）；**溢出邮件草稿回传通道**（批 8-2 前置缺口修复：C++ handleInventory 信封新增 overflowDrafts 数组 + OverflowDraft 扩展 grade/category/slot/type/growTime/yield 反查区分字段，Kotlin 侧重建最小模型走 `InventorySystem.resolveOverflowItemId` 同一解析路径 + sendOverflowMail 投递，精度与 Kotlin 原路径一致）；GTest 3 用例（partial/full/remover 无草稿）+ JUnit GameEngineInventoryForwardTest 5 用例（OFF/AUTHORITATIVE 回退契约） | NDK externalNativeBuildRelease 通过 + engine 全量 JUnit + detekt + ThermalMonitorTest 回归；**GTest 3 新用例待 CI 桌面构建执行（本机无桌面工具链）** |
+| 8-3 ✅ | **库存家族收尾 C++ 化 + 接线**（consolidateStacks/sortWarehouse/toggleItemLock，批 8-2 审计登记的"无 C++ 对应动作"三项）：gen-action-ids 新增 INV_CONSOLIDATE(1027)/INV_SORT(1028)/INV_TOGGLE_LOCK(1029)（87 动作）+ 双端产物重生成；`inventory.h` 新增 `consolidateItems`（Kotlin 2026-08-01 对抗性审查语义逐条移植：单遍合并/满堆叠跳过防振荡/锁定可作目标禁作来源/组间独立序无关）+ `sortStacks`（rarity desc name asc，stable_sort 对齐 sortedWith）+ `sortWarehouse`（含装备/功法实例轨道）+ `toggleItemLock`（6 类堆叠轨道，未知类型 no-op 对齐 when 无 else）；handleInventory 3 case + execute 路由范围扩至 1029；GameEngineInventoryOps 3 方法 AUTHORITATIVE 路由（同批 8-2 三态守卫契约）；GTest 3 用例（三同键堆叠合并锁语义/排序双键序/翻转+未知 id/类型）+ JUnit 回退守卫补 1 用例；**途中发现并修复转发层缺陷：`tryExecuteNative` 的 Kotlin 非空参数内在检查在函数入口（早于 isLoaded 早退）即抛 NPE——测试 mock 未 stub `stateSyncServiceRef` 时必触**（tryForward 先行空过滤，登记 S-12：转发辅助的 Kotlin 非空参数在 mock 场景的入口 NPE 语义） | NDK externalNativeBuildRelease + engine 全量 JUnit（BootSequence 12 用例回归确认）+ detekt 全绿；**GTest 6 新用例（8-2 的 3 + 8-3 的 3）待 CI 桌面构建执行** |
 
 **批 8-2 行为审计登记缺口**（不阻塞接线，登记偿还）：
 - **S-10**：C++ 库存容量常量硬编码（`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`，inventory.h），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移（偿还：配置对象注入 C++ 或 codegen 常量单源）
 - **S-11**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名——空白名行为差异（低风险）
-- 未接线（无 C++ 对应动作）：sortWarehouse/consolidateStacks/consumeMaterialByName/toggleItemLock/sell*/merchant 交易族——保持 Kotlin；待 C++ 化批次补 ActionId + handler 后接线
+- ~~未接线（无 C++ 对应动作）：sortWarehouse/consolidateStacks/toggleItemLock~~（✅ 批 8-3 已 C++ 化接线）；consumeMaterialByName（多堆叠跨栈消耗）/sell*/merchant 交易族——保持 Kotlin；待 C++ 化批次补 ActionId + handler 后接线
 - INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler（顶层 UNKNOWN_ACTION → 天然回退 Kotlin，正确性无损）
 
 **保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
@@ -226,3 +228,4 @@ android/app/src/main/cpp/
 | ~~S-09~~ ✅ | **对拍测试隔离缺口已修复**：JUnit 对拍测试中 C++ `nativeCoreInit` 幂等复用引擎单例（阶段 1 既有设计），`EngineLoop.tickCount/speed/累积` 跨用例残留，与 Kotlin 侧每用例 `new GameTimeClock` 的干净基准不对称——首轮 DiffEngineLoopTest 8/15 失败（tickTotal 残留 65、speed 残留致 catch-up cap 3→6 等）。根因修复：`EngineLoop::resetForTest()`（tick 计数/速度/累积/帧状态/活跃基准全清，生产路径不调用——与 Kotlin 单例语义一致）+ 桌面对拍桥 `nativeCoreLoopReset` + GTest 2 用例守护；另修测试自身 2 处（死区消费缺暂停帧刷新帧基准、2x 断言算术错） | `engine_loop.h` + `GameCoreJni.cpp` + `DiffEngineLoopTest.kt` | 测试基建缺口 | 完成（计划 v2 阶段 5） |
 | S-10 | **C++ 库存容量常量硬编码**：`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`（`gamecore/include/gamecore/system/inventory.h`），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移 | `inventory.h` | 配置单源缺口 | 偿还时机：库存配置进 C++（config 注入或 codegen）时 |
 | S-11 | **空白名校验差异**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名 | `inventory.h` | 语义差异（低风险） | 偿还时机：随批 8 库存家族复审 |
+| S-12 | **转发辅助入口 NPE 语义**：`GameEngineNativeOps.tryExecuteNative` 的 Kotlin 非空参数 `stateSyncService` 的内在 null 检查在函数入口即触发（早于 flag/isLoaded 早退）——生产恒非空无影响，测试 mock（未 stub `stateSyncServiceRef`）返回 null 必触；InventoryNativeForward.tryForward 已先行空过滤 | `GameEngineNativeOps.kt` | 降级契约缺口（测试场景） | 偿还时机：tryExecuteNative 参数改可空 + 内部守卫（随后续接线批次顺带） |

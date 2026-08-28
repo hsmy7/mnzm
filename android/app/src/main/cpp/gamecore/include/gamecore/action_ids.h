@@ -75,6 +75,15 @@ inline constexpr int32_t INV_CAN_ADD_ITEM = 1025;
 /// 仓库容量信息
 inline constexpr int32_t INV_CAPACITY_INFO = 1026;
 
+/// 仓库堆叠合并（批 8-3）
+inline constexpr int32_t INV_CONSOLIDATE = 1027;
+
+/// 仓库整理=合并+排序（含实例轨道）
+inline constexpr int32_t INV_SORT = 1028;
+
+/// 堆叠锁定翻转（按 id+类型）
+inline constexpr int32_t INV_TOGGLE_LOCK = 1029;
+
 /// 灵田月度收获（成熟判定+续种+年度报告）
 inline constexpr int32_t SPIRIT_FIELD_HARVEST = 1030;
 

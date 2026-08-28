@@ -551,6 +551,104 @@ inline int32_t getMaxStackSize(const std::string& type) {
     return 9999;  // 默认 maxStackSize（storageBag 等）
 }
 
+// ── 仓库整理（Kotlin InventorySystem.consolidateAllStacks/sortWarehouse 等价，批 8-3）──
+
+/// 按 id 翻转锁定（返回是否找到）
+template <typename T>
+inline bool flipLockById(std::vector<T>& items, const std::string& id) {
+    for (auto& it : items) {
+        if (it.id != id) continue;
+        it.isLocked = !it.isLocked;
+        return true;
+    }
+    return false;
+}
+
+/// 锁定状态翻转（Kotlin InventoryFacadeImpl.toggleItemLock 堆叠轨道等价；
+/// 未知 itemType 无操作返回 false，与 Kotlin when 无 else 分支一致）
+inline bool toggleItemLock(state::GameState& state, const std::string& itemId,
+                           const std::string& itemType) {
+    if (itemType == "equipment") return flipLockById(state.equipmentStacks, itemId);
+    if (itemType == "manual") return flipLockById(state.manualStacks, itemId);
+    if (itemType == "pill") return flipLockById(state.pills, itemId);
+    if (itemType == "material") return flipLockById(state.materials, itemId);
+    if (itemType == "herb") return flipLockById(state.herbs, itemId);
+    if (itemType == "seed") return flipLockById(state.seeds, itemId);
+    return false;
+}
+
+/// 单遍合并分散堆叠（Kotlin InventorySystem.consolidate 等价，2026-08-01 对抗性审查语义）：
+/// 每组以第一个未满堆叠为合并目标（锁定可作目标），顺序吸收后续未满且未锁定堆叠；
+/// 满堆叠跳过（禁"从满堆叠抽回"，否则 ≥3 同键堆叠总数>maxStack 时满/半满振荡）。
+/// 组间相互独立，处理顺序不影响终态。
+template <typename T, typename KeyFn>
+inline void consolidateItems(std::vector<T>& items, KeyFn keyFn, int32_t maxStack) {
+    std::map<StackKey, std::vector<int32_t>> groups;
+    for (int32_t i = 0; i < static_cast<int32_t>(items.size()); ++i) {
+        groups[keyFn(items[i])].push_back(i);
+    }
+    for (auto& [key, idxs] : groups) {
+        if (idxs.size() <= 1) continue;
+        int32_t primary = -1;
+        for (int32_t idx : idxs) {
+            if (items[idx].quantity < maxStack) { primary = idx; break; }
+        }
+        if (primary < 0) continue;
+        for (size_t pos = 1; pos < idxs.size(); ++pos) {
+            const int32_t si = idxs[pos];
+            if (si == primary) continue;
+            if (items[si].isLocked) continue;               // 锁定堆叠禁作合并来源
+            if (items[si].quantity >= maxStack) continue;   // 满堆叠跳过（终止性保证）
+            const int32_t space = maxStack - items[primary].quantity;
+            if (space <= 0) { primary = si; continue; }
+            const int32_t transfer = std::min(space, items[si].quantity);
+            items[primary].quantity += transfer;
+            if (transfer >= items[si].quantity) {
+                items[si].quantity = 0;  // 吸收完毕，标记待删除
+            } else {
+                items[si].quantity -= transfer;
+            }
+        }
+    }
+    items.erase(std::remove_if(items.begin(), items.end(),
+                               [](const T& x) { return x.quantity <= 0; }),
+                items.end());
+}
+
+/// 堆叠排序（Kotlin compareByDescending rarity thenBy name；sortedWith 稳定 → stable_sort）
+template <typename T>
+inline void sortStacks(std::vector<T>& items) {
+    std::stable_sort(items.begin(), items.end(), [](const T& a, const T& b) {
+        if (a.rarity != b.rarity) return a.rarity > b.rarity;
+        return a.name < b.name;
+    });
+}
+
+/// 全仓库合并（Kotlin consolidateAllStacks；7 类堆叠轨道逐一合并）
+inline void consolidateAllStacks(state::GameState& state) {
+    consolidateItems(state.equipmentStacks, equipmentKey, getMaxStackSize("equipment_stack"));
+    consolidateItems(state.manualStacks, manualKey, getMaxStackSize("manual_stack"));
+    consolidateItems(state.pills, pillKey, getMaxStackSize("pill"));
+    consolidateItems(state.materials, materialKey, getMaxStackSize("material"));
+    consolidateItems(state.herbs, herbKey, getMaxStackSize("herb"));
+    consolidateItems(state.seeds, seedKey, getMaxStackSize("seed"));
+    consolidateItems(state.storageBags, storageBagKey, getMaxStackSize("storageBag"));
+}
+
+/// 仓库整理 = 先合并后排序（含装备/功法实例轨道，Kotlin sortWarehouse 同一事务语义）
+inline void sortWarehouse(state::GameState& state) {
+    consolidateAllStacks(state);
+    sortStacks(state.equipmentStacks);
+    sortStacks(state.equipmentInstances);
+    sortStacks(state.manualStacks);
+    sortStacks(state.manualInstances);
+    sortStacks(state.pills);
+    sortStacks(state.materials);
+    sortStacks(state.herbs);
+    sortStacks(state.seeds);
+}
+
+
 /// 校验可堆叠物品参数（Kotlin validateStackableItem）
 template <typename T>
 inline InventoryResult<T> validateStackableItem(const T& item) {

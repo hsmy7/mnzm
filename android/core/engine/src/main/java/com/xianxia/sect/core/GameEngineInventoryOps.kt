@@ -92,11 +92,18 @@ suspend fun GameEngine.addSeedToWarehouse(seed: Seed) {
         put("quantity", seed.quantity)
     } ?: return inventoryFacade.addSeedToWarehouse(seed)
 }
-suspend fun GameEngine.sortWarehouse() = inventoryFacade.sortWarehouse()
+suspend fun GameEngine.sortWarehouse() {
+    InventoryNativeForward.tryForward(this, ActionIds.INV_SORT) { }
+        ?: return inventoryFacade.sortWarehouse()
+}
 suspend fun GameEngine.consolidateStacks() {
-    // 测试场景中 inventoryFacade 可能为 null
-    @Suppress("UNNECESSARY_SAFE_CALL")
-    inventoryFacade?.consolidateStacks()
+    InventoryNativeForward.tryForward(this, ActionIds.INV_CONSOLIDATE) { }
+        ?: run {
+            // 测试场景中 inventoryFacade 可能为 null
+            @Suppress("UNNECESSARY_SAFE_CALL")
+            inventoryFacade?.consolidateStacks()
+            return
+        }
 }
 suspend fun GameEngine.confiscateStorageBagItem(discipleId: String, item: StorageBagItem) = inventoryFacade.confiscateStorageBagItem(discipleId, item)
 fun GameEngine.createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack = inventoryFacade.createEquipmentStackFromRecipe(recipe)
@@ -113,7 +120,12 @@ suspend fun GameEngine.sellMaterial(materialId: String, quantity: Int) = invento
 suspend fun GameEngine.sellHerb(herbId: String, quantity: Int) = inventoryFacade.sellHerb(herbId, quantity)
 suspend fun GameEngine.sellSeed(seedId: String, quantity: Int) = inventoryFacade.sellSeed(seedId, quantity)
 suspend fun GameEngine.consumeMaterialByName(name: String, rarity: Int, quantity: Int) = inventoryFacade.consumeMaterialByName(name, rarity, quantity)
-fun GameEngine.toggleItemLock(itemId: String, itemType: String) = inventoryFacade.toggleItemLock(itemId, itemType)
+fun GameEngine.toggleItemLock(itemId: String, itemType: String) {
+    InventoryNativeForward.tryForward(this, ActionIds.INV_TOGGLE_LOCK) {
+        put("itemId", itemId)
+        put("itemType", itemType)
+    } ?: return inventoryFacade.toggleItemLock(itemId, itemType)
+}
 suspend fun GameEngine.sellToMerchant(acquisitionItemId: String, quantity: Int) = 
     inventoryFacade.sellToMerchant(acquisitionItemId, quantity)
 
