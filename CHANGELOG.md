@@ -2,14 +2,14 @@
 
 ### 新增（C++ 引擎迁移计划 v2 阶段 6：渲染 RHI + 合成器统一）
 
-> 渲染层迁移（批 6-1~6-4）+ 产品契约变更：道路渲染合成收敛为 C++ 单一权威，`NativeEngineFlag` 默认 OFF 不变；**道路永远显示，无降级开关**；铺路功能重新开放（回退 8c9b7734 的建造栏入口隐藏，独立提交）。
+> 渲染层迁移（批 6-1~6-4）+ 产品契约变更：道路渲染合成收敛为 C++ 单一权威，`NativeEngineFlag` 默认 OFF 不变；道路层降级契约（native 通道加载失败时跳过道路层，生产不触达）；铺路功能重新开放（回退 8c9b7734 的建造栏入口隐藏，独立提交）。
 
 - **批 6-1 道路合成器单一权威**：`gamecore/map/road_compositor.h`（零依赖纯函数 `emitRoadDrawOps`：4-bit 邻接掩码 → RoadSprite 语义枚举 + 格内局部整型几何操作序列；顺序契约 主体→描边条→转角件→十字中心 与双端历史烘焙顺序逐位一致；与生成式图集解耦——合成器零 UV/精灵名依赖，RoadSprite 枚举序 = `SpriteAtlasDef.ROAD_RECTS` 声明序 = `roadUVMap` 索引 = `RoadCompositorBridge.SPRITE_KEYS` 下标，三端映射锚点）；GTest 12（全 16 掩码操作数守恒/几何有界/顺序契约/枚举序锚点/tileSize=32 整型↔浮点一致性）
 - **批 6-2 Vulkan 路段接入**：`NativeBridge.drawAllTiles` 道路段删除 `roadTypeForMask`/`ruvs[0..9]` UV 硬编码，改消费合成器操作序列（仅做 操作→SpriteBatcher 数据装配）；新增 roadUVMap 长度防御（≥ kRoadSpriteCount×4）
 - **批 6-3 Canvas 接入**：`SoftwareCanvasBackend.drawRoadsToCanvas` 由 64 行逐格合成逻辑改为纯数据装配（`RoadCompositorBridge.compose` JNI 通道 → 枚举序→精灵名→图集源矩形；RoadTiling 合成分支移除）；生产 JNI `GameCoreBridge.nativeRoadCompose`（无状态纯函数，不依赖引擎实例，AUTHORITATIVE 关闭时由本通道幂等 ensureLoaded）；JUnit `DiffRoadComposeTest` 5（桌面对拍桥 compose op：手算规格 + 全 16 掩码结构不变量）+ `SpriteAtlasDefGeneratedTest` 新增 SPRITE_KEYS↔ROAD_RECTS 声明序守护
 - **批 6-4 RHI 形式化**：`Renderer2D.h` → `Rhi.h`（RHI 契约注释：上层 NativeBridge/SpriteBatcher 不得 include 图形 API 头；下层实现 VulkanBackend 现有 / MetalBackend iOS 预留，类名 Renderer2D 保留）；Metal 接入指南（CAMetalLayer / Metal NDC / uploadTexture / submitFrame 语义映射，见 Rhi.h 头注释）——iOS 立项时上层零改动接入；生成器 `build-atlas.mjs` 模板同步（TextureAtlas.h include 更新）
 - **测试**：桌面 GTest **550/550**（新增 road_compositor_test 12）· JUnit 全模块 **7271/7271**（engine 2928/2928，含 DiffRoadComposeTest 5 双端对拍）· NDK externalNativeBuildRelease 通过 · engine detekt 通过（顺修阶段 5 存量 MaxLineLength 1 条）
-- **兼容性**：无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染产物像素级不变（双端几何在 tileSize=32 下与历史实现逐位一致）；新增 JNI 通道 `nativeRoadCompose`（Canvas 道路层依赖 native-game-core——库缺失属安装损坏，快速失败）；玩家可见更新日志：石板路建造入口恢复 + 底层渲染架构统一
+- **兼容性**：无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；渲染产物像素级不变（双端几何在 tileSize=32 下与历史实现逐位一致）；新增 JNI 通道 `nativeRoadCompose`（Canvas 道路层依赖 native-game-core——库加载失败走降级跳过道路层，生产不触达）；玩家可见更新日志：石板路建造入口恢复 + 底层渲染架构统一
 
 ### 新增（C++ 引擎迁移计划 v2 阶段 5：游戏循环入 C++）
 

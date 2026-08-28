@@ -120,7 +120,7 @@ android/app/src/main/cpp/
 | 项 | 说明 |
 |---|---|
 | ~~已完成~~ ✅ | 求解器权威性（掩码→形态/描边/邻接双端对拍）+ Vulkan 端位掩码判定收敛 road_system.h 单一权威 |
-| ~~剩余~~ ✅ **渲染合成器物理下沉**（2026-08-28 阶段 6 完成）：逐格合成（主体/描边条/转角件/十字中心的摆放顺序）统一为单一 C++ 合成器 `gamecore/map/road_compositor.h`（RoadSprite 语义枚举 + 格内整型几何操作序列），Kotlin Canvas `drawRoadsToCanvas` 改为纯数据装配（枚举序→精灵名→源矩形），Vulkan `drawAllTiles` 道路段删除 UV 硬编码改消费操作序列；与生成式图集解耦（合成器零 UV/精灵名依赖，图集映射由各端按枚举序号查表）；产品契约：**道路永远显示，无降级开关**（native 通道加载失败属安装损坏，快速失败） |
+| ~~剩余~~ ✅ **渲染合成器物理下沉**（2026-08-28 阶段 6 完成）：逐格合成（主体/描边条/转角件/十字中心的摆放顺序）统一为单一 C++ 合成器 `gamecore/map/road_compositor.h`（RoadSprite 语义枚举 + 格内整型几何操作序列），Kotlin Canvas `drawRoadsToCanvas` 改为纯数据装配（枚举序→精灵名→源矩形），Vulkan `drawAllTiles` 道路段删除 UV 硬编码改消费操作序列；与生成式图集解耦（合成器零 UV/精灵名依赖，图集映射由各端按枚举序号查表）；降级契约：native 通道不可用（库加载失败，生产不触达）时跳过道路层，chunk 烘焙其余层不受影响 |
 
 ### 5.4 审查登记项（C-10 ~ C-15）
 
@@ -175,7 +175,7 @@ android/app/src/main/cpp/
 | 6 ✅ | **渲染 RHI + 合成器统一**（2026-08-28 完成，GTest 550/550 + JUnit 对拍全绿 + NDK 构建通过）：
   - **批 6-1 合成器单一权威**：`gamecore/map/road_compositor.h`（零依赖纯函数 `emitRoadDrawOps`：掩码 → RoadSprite 语义枚举 + 格内整型几何操作序列，顺序契约 主体→描边条→转角件→十字中心 与双端烘焙顺序一致；与生成式图集解耦——合成器零 UV/精灵名依赖，枚举序 = ROAD_RECTS 声明序 = roadUVMap 索引 = SPRITE_KEYS 下标三端映射锚点）；GTest 12（全 16 掩码操作数守恒/几何有界/顺序契约/枚举序锚点/tileSize=32 整型↔浮点一致性）
   - **批 6-2 Vulkan 路段接入**：`NativeBridge.drawAllTiles` 道路段删除 roadTypeForMask/UV 硬编码，改消费合成器操作序列（仅做 操作→SpriteBatcher 数据装配）；新增 roadUVMap 长度防御；删本地 roadTypeForMask 包装（road_system.h 直引）
-  - **批 6-3 Canvas 接入**：`SoftwareCanvasBackend.drawRoadsToCanvas` 改纯数据装配（逐格 `RoadCompositorBridge.compose` JNI 通道 → RoadSprite 枚举序→精灵名→图集源矩形，RoadTiling 合成逻辑移除）；生产 JNI `GameCoreBridge.nativeRoadCompose`（无状态纯函数，不依赖引擎实例）；`RoadCompositorBridge`（core/render）+ 守护测试（SpriteAtlasDefGeneratedTest：SPRITE_KEYS ↔ ROAD_RECTS 声明序全等）+ JUnit DiffRoadComposeTest 5（桌面对拍桥 compose op，手算规格 + 全 16 掩码结构不变量）；**产品契约：道路永远显示，无降级开关**（ensureLoaded 幂等自加载，加载失败快速失败）；同批产品回退：恢复建造栏石板路建造入口（回退 8c9b7734，独立提交）
+  - **批 6-3 Canvas 接入**：`SoftwareCanvasBackend.drawRoadsToCanvas` 改纯数据装配（逐格 `RoadCompositorBridge.compose` JNI 通道 → RoadSprite 枚举序→精灵名→图集源矩形，RoadTiling 合成逻辑移除）；生产 JNI `GameCoreBridge.nativeRoadCompose`（无状态纯函数，不依赖引擎实例）；`RoadCompositorBridge`（core/render）+ 守护测试（SpriteAtlasDefGeneratedTest：SPRITE_KEYS ↔ ROAD_RECTS 声明序全等）+ JUnit DiffRoadComposeTest 5（桌面对拍桥 compose op，手算规格 + 全 16 掩码结构不变量）；降级契约：compose 首次调用幂等 ensureLoaded 自加载，仅加载失败（JVM 测试环境/极端损坏）返回 null 跳过道路层（生产不触达，不影响 chunk 其余层）；同批产品回退：恢复建造栏石板路建造入口（回退 8c9b7734，独立提交）
   - **批 6-4 RHI 形式化**：`Renderer2D.h` → `Rhi.h`（RHI 契约：上层 NativeBridge/SpriteBatcher 不得 include 图形 API 头，下层实现 VulkanBackend 现有 / MetalBackend iOS 预留；类名 Renderer2D 保留）；Metal 接入指南（CAMetalLayer/NDC 差异/uploadTexture/submitFrame 语义映射，见 Rhi.h 头注释）——iOS 立项时零上层改动接入 | 批次 R 剩余（✅ 全部完成）、iOS 预留 |
 | 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
 

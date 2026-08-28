@@ -374,8 +374,8 @@ class SoftwareCanvasBackend(
          * 图集精灵名 → 源矩形，按序绘制（计划 v2 阶段 6 合成器物理下沉）。
          * 并行道路内部不重复描边由合成器（roadBorderMask 掩码补集）保证。
          *
-         * 产品契约（2026-08-28）：道路永远显示，无条件渲染——native 通道
-         * 加载失败属安装损坏，直接抛出快速失败，无降级开关。
+         * 降级契约：native 通道不可用（库加载失败，生产不触达）时跳过
+         * 整个道路层，chunk 烘焙其余层不受影响。
          */
         private fun drawRoadsToCanvas(
             canvas: Canvas,
@@ -397,7 +397,7 @@ class SoftwareCanvasBackend(
                     val mask = roadData[idx]
                     if (mask == 0) continue
 
-                    val ops = RoadCompositorBridge.compose(mask, tileSize)
+                    val ops = RoadCompositorBridge.compose(mask, tileSize) ?: return
                     val chunkOffX = c * tileSize - startCol * tileSize
                     val chunkOffY = r * tileSize - startRow * tileSize
 

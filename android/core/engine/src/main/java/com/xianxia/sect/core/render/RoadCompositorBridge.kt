@@ -15,15 +15,38 @@ import com.xianxia.sect.core.nativebridge.GameCoreBridge
  * 声明序（NativeBridge roadUVMap 索引同序）——守护：
  * SpriteAtlasDefGeneratedTest + GTest road_compositor_test。
  *
- * 产品契约（2026-08-28）：道路**永远显示，无降级开关**——生产环境
- * native-game-core 随 APK 必然可加载（引擎 AUTHORITATIVE 灰度默认 OFF
- * 不加载，本通道自行 ensureLoaded，幂等），加载失败属安装损坏，
- * 直接抛出快速失败，不做静默跳过。
- *
  * 线程契约：合成器为无状态纯函数，任意线程可调；生产调用方为
  * Canvas chunk 烘焙（低频，每失效 chunk 一次逐格查询）。
+ *
+ * 降级契约：native 库未加载时 [compose] 返回 null——调用方跳过道路层
+ * （chunk 烘焙其余层不受影响）。生产环境引擎仅在 AUTHORITATIVE 灰度
+ * 开启时加载 native-game-core（默认 OFF），故 [compose] 首次调用自动
+ * [ensureLoaded]（幂等）；仅加载失败（JVM 测试环境/极端损坏）走降级，
+ * 结果缓存 false，进程内不再重试。
  */
 object RoadCompositorBridge {
+
+    /** native 通道可用性缓存（null=未探测；进程级状态，与库加载状态同生命周期） */
+    @Volatile
+    private var channelAvailable: Boolean? = null
+
+    /**
+     * 探测并加载 native 通道（幂等；加载失败缓存 false，进程内不再重试）。
+     */
+    @Suppress("TooGenericExceptionCaught")  // 降级契约：库缺失的任何形态（UnsatisfiedLinkError/SecurityException）都只影响道路层
+    fun ensureAvailable(): Boolean {
+        channelAvailable?.let { return it }
+        val available = try {
+            GameCoreBridge.ensureLoaded()
+            GameCoreBridge.isLoaded
+        } catch (_: Throwable) {
+            // 降级：库缺失（JVM 测试环境/极端损坏）→ 调用方跳过道路层，
+            // 不影响 chunk 烘焙其余层。engine 模块禁 android.util.Log，静默降级。
+            false
+        }
+        channelAvailable = available
+        return available
+    }
 
     /** 每格操作扁平步长：[sprite, x, y, w, h] */
     const val OP_STRIDE = 5
@@ -48,10 +71,11 @@ object RoadCompositorBridge {
     /**
      * 取单格道路绘制操作（格内局部整型像素几何，十字中心可为负/外溢）。
      *
-     * @return 扁平 [sprite, x, y, w, h] × N——道路永远显示，无空返回
+     * @return 扁平 [sprite, x, y, w, h] × N；native 通道不可用返回 null
+     *         （调用方跳过道路层——降级契约，见类 KDoc）
      */
-    fun compose(mask: Int, tileSize: Int): IntArray {
-        GameCoreBridge.ensureLoaded()  // 幂等：AUTHORITATIVE 关闭时由本通道加载
+    fun compose(mask: Int, tileSize: Int): IntArray? {
+        if (!ensureAvailable()) return null
         return GameCoreBridge.nativeRoadCompose(mask, tileSize)
     }
 }
