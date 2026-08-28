@@ -1,6 +1,6 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> 更新日期：2026-08-28。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
+> 更新日期：2026-08-29。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
 > 当前基线：**桌面 GTest 550/550 · JUnit 全模块 7271/7271（engine 2919，testReleaseUnitTest 全量；194 skip 为无 `-Dgamecore.jni.path` 时 Assume 跳过的对拍用例，对应语义由 GTest 侧全量覆盖） · NDK externalNativeBuildRelease 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · compileReleaseKotlin 通过（2026-08-28 阶段 7 实测）**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
@@ -12,11 +12,13 @@
 > Renderer2D → Rhi.h 形式化（Metal/iOS 预留）；阶段 7：AUTHORITATIVE 生产默认切换
 > （C++ 真相源验收）+ 存档编码决策（T-CPP-1 保持 Kotlin）+ engine 平台能力接口化
 > 收尾（Android import 36→11），详见 §7 阶段 7 行；**Kotlin 引擎逻辑全量退役随 C-06
-> 续作（阶段 7 批 7-4 登记）**）。**计划 v2 批 8（C-06 续作）进行中**：批 8-1 完成
+> 续作（阶段 7 批 7-4 登记）**）。**计划 v2 批 8（C-06 续作）**：批 8-1 完成
 > ThermalMonitor/FrameMetricsMonitor 平台能力接口化（engine `import android.*` 11→0）；
 > 批 8-2 完成首个生产接线家族（库存 add/remove 7 动作 AUTHORITATIVE 路由 + 溢出邮件
 > 草稿回传通道 + 行为审计登记）；批 8-3 完成库存家族收尾（consolidate/sort/toggleLock
-> 新增 3 ActionId C++ 化 + 接线，该家族 10 动作全量接线），见 §7.1。
+> 新增 3 ActionId C++ 化 + 接线，该家族 10 动作全量接线）；**批 8-4 完成接线面收口判定**
+> （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，剩余终态收尾为
+> Kotlin 引擎退役专项，见 §7.1 批 8-4 行）。
 
 ## 1. 目标架构
 
@@ -104,8 +106,8 @@ android/app/src/main/cpp/
 | 项 | 说明 |
 |---|---|
 | 已完成 | feature flag / StateSyncService（宽松合并防丢字段）/ tick 桥（shadow 对拍）/ 转发辅助 / 性能基准（见 4.9 剩余·基础设施）；**阶段 1 新增**：增量变更集通道（C++ `state::DirtyTracker` + Kotlin `StateSyncService.applyDirty/applyDirtyFromNative`，DiffDirtyTest / DiffDirtyDisciplesTest / GTest dirty_tracker_test 三层守护）、RNG 读档恢复接线（C-13，含导出前活动状态回写） |
-| 剩余·GameEngine 方法转发 | Kotlin GameEngine 275 方法逐一转发——转发范围按计划 v2 阶段 2-4 决定：**C++ 侧实现对应逻辑后即可转发**（正确基准：真实实现对比 1.1×、批量打平，转发成本可忽略），不再按"低频/高频"裁剪 |
-| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；~~逐系统切换~~（✅ 阶段 2-6 完成）；**AUTHORITATIVE 生产默认已切换**（✅ 阶段 7 批 7-1，OFF 保留为回退契约）；剩余：GameEngine 方法全量转发接线（见上行）→ C++ 化收尾后 **Kotlin 引擎退役**（删除双实现 + shadow 对拍转回归基线，阶段 7 批 7-4 登记，随 C-06 执行） |
+| 剩余·GameEngine 方法转发 | ~~Kotlin GameEngine 275 方法逐一转发~~ **转发接线面已收口（✅ 批 8-4 判定）**：87 个 ActionId 全量清点六类裁决（已接线 10 / 月结年结旬结内部路径 16 / 纯函数·影子对拍基准 46 / 查询留守 4 / 事务内变更原语留守 3 / 无独立生产调用点·嵌套调用面留守 8）——可接线面已穷尽，判定与证据见 §7.1 批 8-4 行；GameEngine 族其余 ~200 非 ActionId 操作（UI 编排/协调逻辑）终态属 Kotlin 输入桥，不迁移 |
+| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；~~逐系统切换~~（✅ 阶段 2-6 完成）；~~AUTHORITATIVE 生产默认~~（✅ 阶段 7 批 7-1，OFF 保留为回退契约）；~~GameEngine 方法全量转发接线~~（✅ 批 8-4 判定收口——可接线面已穷尽，见 §7.1）；**剩余终态收尾：Kotlin 引擎退役专项**（删除 tick/结算双实现 + shadow 对拍转回归基线 + Wallet/Inventory 双实现按退役专项另行评估，阶段 7 批 7-4 登记） |
 | 阻塞依赖 | 未迁移系统（SecretRealm 状态机/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator 等）——**纳入计划 v2 阶段 4 逐批 C++ 化**（不再"保持 Kotlin 实现"） |
 
 ### 5.2 批次 10：彻底单引擎（C-07，2026-08-25 二次重定义）
@@ -201,17 +203,29 @@ android/app/src/main/cpp/
 | 8-1 ✅ | **监控器平台能力接口化**（engine `import android.*` 11→0 处，R-02 收尾完成）：`core/perf/ThermalPorts.kt`（ThermalStatusReader + PerformanceHintPort 不透明句柄端口）；ThermalMonitor 重写——轮询/映射/线程绑定守卫（Bugly #3114）全留引擎，Android API 移 app `platform/AndroidThermalPorts.kt`（hintManager internal 接缝随端口化消失）；`core/perf/FrameMetricsSession.kt` + FrameMetricsMonitor 重写（卡顿判定/统计留引擎，Window/FrameMetrics 采集移 app `WindowFrameMetricsSession.kt`）；CoreModule 绑定 + GameActivity 调用点改造；ThermalMonitorTest 重写为 fake port 纯 JVM（守卫语义断言逐条对应，脱离 Robolectric） | compileReleaseKotlin + lintRelease + engine/app detekt + ThermalMonitorTest 全绿 |
 | 8-2 ✅ | **库存 add/remove 家族生产接线**（首批 7 动作：INV_ADD_{EQUIPMENT_STACK,MANUAL_STACK,PILL,MATERIAL,HERB,SEED} + INV_REMOVE_EQUIPMENT）：逐动作行为审计（C++ `gamecore::system::inventory.h` ↔ Kotlin `InventorySystem` 全语义比对：合并/分块/槽位跨类型容量/溢出邮件/annual 追踪/锁语义逐项等价，登记缺口见下）；GameEngineInventoryOps 7 方法 AUTHORITATIVE 路由（`InventoryNativeForward.tryForward`：flag 三态守卫——SHADOW 保持 Kotlin 执行真相源；顶层失败/native 不可用回退 Kotlin；**data.status=partial 不回退**——C++ 状态已变更，回退会二次入仓复制物品）；**溢出邮件草稿回传通道**（批 8-2 前置缺口修复：C++ handleInventory 信封新增 overflowDrafts 数组 + OverflowDraft 扩展 grade/category/slot/type/growTime/yield 反查区分字段，Kotlin 侧重建最小模型走 `InventorySystem.resolveOverflowItemId` 同一解析路径 + sendOverflowMail 投递，精度与 Kotlin 原路径一致）；GTest 3 用例（partial/full/remover 无草稿）+ JUnit GameEngineInventoryForwardTest 5 用例（OFF/AUTHORITATIVE 回退契约） | NDK externalNativeBuildRelease 通过 + engine 全量 JUnit + detekt + ThermalMonitorTest 回归；**GTest 3 新用例待 CI 桌面构建执行（本机无桌面工具链）** |
 | 8-3 ✅ | **库存家族收尾 C++ 化 + 接线**（consolidateStacks/sortWarehouse/toggleItemLock，批 8-2 审计登记的"无 C++ 对应动作"三项）：gen-action-ids 新增 INV_CONSOLIDATE(1027)/INV_SORT(1028)/INV_TOGGLE_LOCK(1029)（87 动作）+ 双端产物重生成；`inventory.h` 新增 `consolidateItems`（Kotlin 2026-08-01 对抗性审查语义逐条移植：单遍合并/满堆叠跳过防振荡/锁定可作目标禁作来源/组间独立序无关）+ `sortStacks`（rarity desc name asc，stable_sort 对齐 sortedWith）+ `sortWarehouse`（含装备/功法实例轨道）+ `toggleItemLock`（6 类堆叠轨道，未知类型 no-op 对齐 when 无 else）；handleInventory 3 case + execute 路由范围扩至 1029；GameEngineInventoryOps 3 方法 AUTHORITATIVE 路由（同批 8-2 三态守卫契约）；GTest 3 用例（三同键堆叠合并锁语义/排序双键序/翻转+未知 id/类型）+ JUnit 回退守卫补 1 用例；**途中发现并修复转发层缺陷：`tryExecuteNative` 的 Kotlin 非空参数内在检查在函数入口（早于 isLoaded 早退）即抛 NPE——测试 mock 未 stub `stateSyncServiceRef` 时必触**（tryForward 先行空过滤，登记 S-12：转发辅助的 Kotlin 非空参数在 mock 场景的入口 NPE 语义） | NDK externalNativeBuildRelease + engine 全量 JUnit（BootSequence 12 用例回归确认）+ detekt 全绿；**GTest 6 新用例（8-2 的 3 + 8-3 的 3）待 CI 桌面构建执行** |
+| 8-4 ✅ | **接线面收口判定**（2026-08-29 完成，审计/判定批——无生产代码变更，判定依据为全仓库调用点核查）：87 个 ActionId 全量清点**六类裁决**（详表见下"批 8-4 接线面收口判定"节）：① 已接线生产 10（批 8-2/8-3）；② 月结/年结/旬结内部路径 16——AUTHORITATIVE tick 已在 C++ 侧执行，无独立 Kotlin 生产调用点（不接线=已接线）；③ 纯函数/影子对拍基准 46——Kotlin 消费方为系统内部计算（战斗执行/秘宝模板/注册表/服务器校验按批 4-3/4-6 边界保留 Kotlin），随双实现退役自然消失；④ 查询动作留守 4（WALLET_BALANCE/TOTAL_SELL_VALUE、INV_CAN_ADD_ITEM/CAPACITY_INFO——事务内消费 + C++ 只读通道在 tick 间落后 Kotlin，直读精确且零成本）；⑤ **事务内变更原语留守 3（钱包族 WALLET_ADD/DEDUCT/BATCH，行为审计完成）**：C++ `economy.h` 为 Kotlin `SpiritStoneWallet` 纯逻辑忠实移植（add 饱和回绕/deduct 自动售卖补差价/batch 预检查原子回滚/年度报告累积逐项等价），判定留守的依据：a) 钱包是 `stateStore.update` 事务内被组合调用的原语（~数十调用点），`tryExecuteNative` 的 `syncFromNative` store 级镜像在闭包内调用会被外层事务提交覆盖（镜像丢失→反向同步把变更冲回）；b) 可观察契约含 Kotlin 独有平台效应（SpiritStoneLedger 流水 + pendingEvents 事件暂存/flush + DomainLog），转发需在转发层第三次复刻该逻辑，劣于现状双实现 + 逐旬对拍；c) JSON execute 往返 1.1× 慢于 Kotlin 真实实现，无性能收益；C++ 侧钱包收敛由反向增量通道保证（gameData 全量同步，每旬 tick 步骤 ⑤）；⑥ 无独立生产调用点/嵌套调用面留守 8（INV_REMOVE_{MANUAL,PILL,MATERIAL,HERB,SEED} 仅被 InventorySystem 内部 sell*/consume 组合操作消费；INV_ADD_{EQUIPMENT,MANUAL}_INSTANCE 的 ItemAdder 接口无外部生产调用点；INV_ADD_STORAGE_BAG 调用面嵌套形态混杂——引导奖励外层 update 闭包/宗门升级批量发放循环/邮件附件分发，无单一自有事务编排入口）。**结论：可接线面已穷尽，C-06 转发接线阶段终结**；剩余终态收尾 = **Kotlin 引擎退役专项**（删除 tick/结算双实现 + shadow 对拍转回归基线，另行批次规划） | 审计批无测试面变更；判定证据：全仓库 ActionIds 引用核查（生产接线仅库存 10 动作）+ execute_dispatch.cpp 87 case 全覆盖核对 + 钱包/库存调用点形态核查 |
 
-**批 8-4+ 接线面修正（2026-08-29 审计发现）**："84 动作已建未接线"的实际生产接线面小于字面量——
+**批 8-4 接线面收口判定（2026-08-29 完成，87 动作全量清点六类裁决）**："84 动作已建未接线"的实际生产接线面小于字面量——
 - SPIRIT_FIELD_HARVEST / WORLD_LEVEL_* / LEVEL_* / DISCIPLE_MARK_DEAD+BACKFILL 等是**月结/年结内部路径**，阶段 2 AUTHORITATIVE tick 已在 C++ 侧执行，无独立 Kotlin 生产调用点（不接线 = 已接线）；
-- SECRET_REALM_*（8）/ SECT_*（13）/ DISCIPLE_BASE_STATS 等纯函数/查询动作的 Kotlin 消费方是系统内部计算（阶段 4 已 C++ 化系统逻辑，Kotlin 侧为影子对拍基准），随双实现退役自然消失，无需单独接线；
-- 真正需要接线的表面 = **有玩家/系统发起的独立生产调用点的编排操作**（如本批库存 add/remove）+ ~200 个未 C++ 化操作——后者多数是 UI 编排/协调逻辑（终态属 Kotlin 输入桥），逐批判定"转发 vs 留守"而非全量 C++ 化。
+- SECRET_REALM_*（14）/ SECT_*（13）/ BATTLE_*（7）/ DISCIPLE_BASE_STATS 等纯函数/查询动作的 Kotlin 消费方是系统内部计算（阶段 4 已 C++ 化系统逻辑，Kotlin 侧为影子对拍基准），随双实现退役自然消失，无需单独接线；战斗执行（BattleSystem）/秘宝模板实例化/注册表与服务器验证按批 4-3/4-6 边界保留 Kotlin；
+- 真正需要接线的表面 = **有玩家/系统发起的独立生产调用点的编排操作**（如批 8-2 库存 add/remove）+ ~200 个未 C++ 化操作——后者多数是 UI 编排/协调逻辑（终态属 Kotlin 输入桥），逐批判定"转发 vs 留守"而非全量 C++ 化。
+
+六类裁决汇总（合计 87）：
+
+| 类别 | 数量 | 动作 | 判定 |
+|---|---|---|---|
+| ① 已接线生产 | 10 | INV_ADD_{EQUIPMENT_STACK,MANUAL_STACK,PILL,MATERIAL,HERB,SEED} + INV_REMOVE_EQUIPMENT + INV_{CONSOLIDATE,SORT,TOGGLE_LOCK} | ✅ 批 8-2/8-3 AUTHORITATIVE 路由 |
+| ② 月结/年结/旬结内部路径 | 16 | SPIRIT_FIELD_HARVEST、WORLD_LEVEL_MONTHLY/CHECK_EXPIRED、LEVEL_SELECT_BEAST_REALM/GENERATE_LEVELS、DISCIPLE_MARK_DEAD/BACKFILL_DEATH_YEARS、DISCIPLE_{CULTIVATION_PER_PHASE,CHECKPOINT,ACCUMULATE_CULTIVATION,AGE,BREAKTHROUGH}、GOV_{POLICY_COSTS,POLICY_MONTHLY_EFFECTS,SPIRIT_MINE_MONTHLY,ANNUAL_SALARY} | 不接线 = 已接线（AUTHORITATIVE tick C++ 侧执行，ActionId 仅为协议占位/对拍入口） |
+| ③ 纯函数/影子对拍基准 | 46 | DISCIPLE_{BASE_STATS,BREAKTHROUGH_CHANCE,MAX_AGE,ESTIMATE_BREAKTHROUGH_MONTH}、BATTLE_FINAL_DAMAGE~COOLDOWN_UPDATE（7）、GOV_ZONE_CALCULATE、SECRET_REALM_*（14）、SECT_*（13）、SLOT_CLEAR_ALL、REDEEM_*（5）、MAIL_ATTACHMENT_ENCODE | 无需接线（Kotlin 消费方为系统内部计算/对拍基准，随双实现退役自然消失） |
+| ④ 查询动作留守 | 4 | WALLET_{BALANCE,TOTAL_SELL_VALUE}、INV_{CAN_ADD_ITEM,CAPACITY_INFO} | 留守：事务内消费（DiplomacyService/AutoBuyService 在 update 闭包内 canAddItemInTransaction）+ C++ 只读通道在 tick 间落后 Kotlin（反向同步每旬一次），直读精确且零成本 |
+| ⑤ 事务内变更原语留守（钱包族） | 3 | WALLET_{ADD,DEDUCT,BATCH} | 留守（行为审计完成，等价性确认；依据见批 8-4 行 a/b/c 三条——镜像机制不兼容事务内调用/平台效应不可产出/无性能收益；C++ 收敛由反向增量通道保证） |
+| ⑥ 无独立生产调用点/嵌套调用面留守 | 8 | INV_REMOVE_{MANUAL,PILL,MATERIAL,HERB,SEED}、INV_ADD_{EQUIPMENT,MANUAL}_INSTANCE、INV_ADD_STORAGE_BAG | 留守：remove 族仅被 InventorySystem 内部 sell*/consume 组合操作消费；instance 族 ItemAdder 接口无外部调用点；storageBag 调用面嵌套形态混杂，无单一自有事务编排入口 |
 
 **批 8-2 行为审计登记缺口**（不阻塞接线，登记偿还）：
 - **S-10**：C++ 库存容量常量硬编码（`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`，inventory.h），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移（偿还：配置对象注入 C++ 或 codegen 常量单源）
 - **S-11**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名——空白名行为差异（低风险）
-- ~~未接线（无 C++ 对应动作）：sortWarehouse/consolidateStacks/toggleItemLock~~（✅ 批 8-3 已 C++ 化接线）；consumeMaterialByName（多堆叠跨栈消耗）/sell*/merchant 交易族——保持 Kotlin；待 C++ 化批次补 ActionId + handler 后接线
-- INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler（顶层 UNKNOWN_ACTION → 天然回退 Kotlin，正确性无损）
+- ~~未接线（无 C++ 对应动作）：sortWarehouse/consolidateStacks/toggleItemLock~~（✅ 批 8-3 已 C++ 化接线）；consumeMaterialByName（多堆叠跨栈消耗）/sell*/merchant 交易族——保持 Kotlin（批 8-4 判定归入类别 ⑥：组合操作内部路径）
+- INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler（顶层 UNKNOWN_ACTION → 天然回退 Kotlin，正确性无损）——批 8-4 判定确认无生产调用点，无需补 handler
 
 **保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
 
