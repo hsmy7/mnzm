@@ -46,6 +46,7 @@ import com.xianxia.sect.ui.util.ActionModeSafeCallback
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.perf.FrameMetricsMonitor
+import com.xianxia.sect.platform.WindowFrameMetricsSession
 import com.xianxia.sect.data.crypto.SecureKeyManager
 import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
 import com.xianxia.sect.data.facade.StorageFacade
@@ -668,7 +669,7 @@ class GameActivity : ComponentActivity() {
     }
 
     override fun onPause() {
-        frameMetricsMonitor.stopMonitoring(window)
+        frameMetricsMonitor.stopMonitoring()
         // ★ 进入后台 → 先停游戏循环和自定义渲染器，释放 GPU 资源
         // 再通知系统暂停（super.onPause），降低 HardwareRenderer.setStopped 阻塞时间
         audioEngine.pauseBGM()
@@ -709,7 +710,7 @@ class GameActivity : ComponentActivity() {
         // D-42：注册游戏窗口（合规回调宿主转发目标；onStop 清除）
         complianceCallbackHost.registerGameWindow(complianceWindowPort)
         hideSystemBars()
-        frameMetricsMonitor.startMonitoring(window)
+        frameMetricsMonitor.startMonitoring(WindowFrameMetricsSession(window))
         if (audioConfig.musicEnabled) {
             audioEngine.resumeBGM()
         }
@@ -898,7 +899,7 @@ class GameActivity : ComponentActivity() {
         Log.d(TAG, "onDestroy called")
         if (::adServiceImpl.isInitialized) adServiceImpl.detachActivity()
         com.xianxia.sect.taptap.RewardVideoAdManager.destroyAd()
-        frameMetricsMonitor.stopMonitoring(window)
+        frameMetricsMonitor.stopMonitoring()
         SecureKeyManager.recoveryCallback = null
         // 解除与 GameForegroundService 的绑定
         if (isServiceBound) {

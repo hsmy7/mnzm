@@ -1,12 +1,6 @@
 package com.xianxia.sect.core.perf
 
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import com.xianxia.sect.core.util.DomainLog
-import android.view.FrameMetrics
-import android.view.Window
-import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,6 +17,13 @@ data class FrameMetricsEvent(
     val timestampMs: Long = System.currentTimeMillis()
 )
 
+/**
+ * 帧指标监控 — 卡顿判定与统计聚合（引擎侧，零 Android 依赖）。
+ *
+ * 平台能力接口化（计划 v2 批 8-1）：Window/FrameMetrics 采集经
+ * [FrameMetricsSession] 端口注入（app 层 WindowFrameMetricsSession 实现），
+ * 本类只消费纳秒采样做卡顿分类与统计。
+ */
 @Singleton
 class FrameMetricsMonitor @Inject constructor() {
     companion object {
@@ -34,8 +35,7 @@ class FrameMetricsMonitor @Inject constructor() {
     private val _jankEvents = MutableSharedFlow<FrameMetricsEvent>(extraBufferCapacity = 64)
     val jankEvents: SharedFlow<FrameMetricsEvent> = _jankEvents.asSharedFlow()
 
-    private var frameMetrics: FrameMetrics? = null
-    private var observer: Any? = null
+    private var activeSession: FrameMetricsSession? = null
     private var isMonitoring = false
 
     private val totalFrames = AtomicLong(0)
@@ -43,51 +43,11 @@ class FrameMetricsMonitor @Inject constructor() {
     private val severeJankFrames = AtomicLong(0)
     private val totalDurationNs = AtomicLong(0)
 
-    @RequiresApi(Build.VERSION_CODES.N)
-    fun startMonitoring(window: Window) {
+    fun startMonitoring(session: FrameMetricsSession) {
         if (isMonitoring) return
         try {
-            observer = object : Window.OnFrameMetricsAvailableListener {
-                override fun onFrameMetricsAvailable(
-                    window: Window?,
-                    frameMetrics: FrameMetrics?,
-                    dropCount: Int
-                ) {
-                    if (frameMetrics == null) return
-                    val total = frameMetrics.getMetric(FrameMetrics.TOTAL_DURATION)
-                    val draw = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        frameMetrics.getMetric(FrameMetrics.DRAW_DURATION)
-                    } else -1L
-                    val layout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        frameMetrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION)
-                    } else -1L
-
-                    totalFrames.incrementAndGet()
-                    totalDurationNs.addAndGet(total)
-
-                    val isJank = total > JANK_THRESHOLD_NS
-                    if (isJank) {
-                        jankFrames.incrementAndGet()
-                        val isSevere = total > SEVERE_JANK_THRESHOLD_NS
-                        if (isSevere) severeJankFrames.incrementAndGet()
-
-                        _jankEvents.tryEmit(FrameMetricsEvent(
-                            totalDurationNs = total,
-                            drawDurationNs = draw,
-                            layoutDurationNs = layout,
-                            isJank = true
-                        ))
-
-                        if (isSevere) {
-                            DomainLog.w(TAG, "Severe jank: ${total / 1_000_000}ms (draw=${draw / 1_000_000}ms, layout=${layout / 1_000_000}ms)")
-                        }
-                    }
-                }
-            }
-            window.addOnFrameMetricsAvailableListener(
-                observer as Window.OnFrameMetricsAvailableListener,
-                Handler(Looper.getMainLooper())
-            )
+            activeSession = session
+            session.start(::onFrameSample)
             isMonitoring = true
             DomainLog.i(TAG, "FrameMetrics monitoring started")
         } catch (e: Exception) {
@@ -95,17 +55,43 @@ class FrameMetricsMonitor @Inject constructor() {
         }
     }
 
-    fun stopMonitoring(window: Window) {
-        if (!isMonitoring || observer == null) return
+    fun stopMonitoring() {
+        val session = activeSession
+        if (!isMonitoring || session == null) return
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                window.removeOnFrameMetricsAvailableListener(observer as Window.OnFrameMetricsAvailableListener)
-            }
+            session.stop()
         } catch (e: Exception) {
             DomainLog.w(TAG, "Failed to stop FrameMetrics monitoring", e)
         }
+        activeSession = null
         isMonitoring = false
         DomainLog.i(TAG, "FrameMetrics monitoring stopped. Stats: $getStatsSummary")
+    }
+
+    /** 帧采样入口（由 [FrameMetricsSession] 回调）：卡顿分类与统计聚合 */
+    private fun onFrameSample(total: Long, draw: Long, layout: Long) {
+        totalFrames.incrementAndGet()
+        totalDurationNs.addAndGet(total)
+
+        val isJank = total > JANK_THRESHOLD_NS
+        if (isJank) {
+            jankFrames.incrementAndGet()
+            val isSevere = total > SEVERE_JANK_THRESHOLD_NS
+            if (isSevere) severeJankFrames.incrementAndGet()
+
+            _jankEvents.tryEmit(FrameMetricsEvent(
+                totalDurationNs = total,
+                drawDurationNs = draw,
+                layoutDurationNs = layout,
+                isJank = true
+            ))
+
+            if (isSevere) {
+                val drawMs = draw / 1_000_000
+                val layoutMs = layout / 1_000_000
+                DomainLog.w(TAG, "Severe jank: ${total / 1_000_000}ms (draw=${drawMs}ms, layout=${layoutMs}ms)")
+            }
+        }
     }
 
     private val getStatsSummary: String

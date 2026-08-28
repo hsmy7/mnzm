@@ -1,11 +1,6 @@
 package com.xianxia.sect.core.perf
 
-import android.content.Context
-import android.os.Build
-import android.os.PerformanceHintManager
-import android.os.PowerManager
 import com.xianxia.sect.core.util.DomainLog
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -28,34 +23,20 @@ enum class ThermalState {
 /**
  * ADPF Thermal API 集成 — 监控设备热状态，在过热时降低负载
  * 行业依据: https://developer.android.com/games/optimize/adpf
+ *
+ * 平台能力接口化（计划 v2 批 8-1）：Android API（PowerManager/PerformanceHintManager）
+ * 经 [ThermalStatusReader]/[PerformanceHintPort] 端口注入，实现移 app 层；
+ * 全部轮询、映射与会话线程绑定守卫逻辑保留在本类（引擎侧，零 Android 依赖）。
  */
 @Singleton
 class ThermalMonitor @Inject constructor(
-    @ApplicationContext context: Context
+    private val thermalStatusReader: ThermalStatusReader,
+    private val hintPort: PerformanceHintPort
 ) : ThermalStatusProvider {
-    private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
 
-    // D-09 internal 测试接缝（2026-08-08）：Robolectric 下无法通过系统服务
-    // 注入异常/null 场景，测试直接覆写本字段（先例：hintSession/sessionOwnerThread）。
-    // 原 by lazy 与构造期初始化语义等价（属性在 Hilt 单例构造时一并求值）；
-    // lazy 不能作为 var 委托，故直接初始化
-    internal var hintManager: PerformanceHintManager? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // ADPF 为可选能力：部分 ROM/老设备未发布 performance_hint 服务，
-            // getSystemService(Class) 会抛 ServiceNotFoundException——降级 null
-            // （hintSession 保持 null，创建/上报路径已有空守卫，功能自动停用）
-            @Suppress("TooGenericExceptionCaught")
-            try {
-                context.getSystemService(PerformanceHintManager::class.java)
-            } catch (e: Exception) {
-                DomainLog.w("ThermalMonitor", "performance_hint unavailable: ${e.message}")
-                null
-            }
-        } else null
-
-    // PerformanceHintManager.Session on API 31+
-    // internal 供同模块单测直接观测守卫行为
-    // @Volatile：条件复位依赖跨线程可见性（T2 create 写 vs T1 条件复位读）
+    // D-09 internal 测试接缝（2026-08-08）：端口注入 fake 即可控异常/null 场景
+    //（hintManager 接缝随端口化消失——测试注入 PerformanceHintPort fake）。
+    // Session 为不透明句柄（Any），API 类型仅 app 实现层知晓。
     @Volatile
     internal var hintSession: Any? = null
 
@@ -108,14 +89,9 @@ class ThermalMonitor @Inject constructor(
         monitorJob = null
     }
 
-    /** 当前热状态 (0=NONE, 1=LIGHT, 2=MODERATE, 3=SEVERE, 4=Critical, 5=Emergency, 6=Shutdown)
-     *  API 29+ 才支持；低版本始终返回 THERMAL_STATUS_NONE (0) */
+    /** 当前热状态等级（0=NONE … 4=EMERGENCY，PowerManager 语义），由平台端口读取 */
     val currentThermalStatus: Int
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            powerManager?.currentThermalStatus ?: 0  // THERMAL_STATUS_NONE
-        } else {
-            0  // THERMAL_STATUS_NONE not available on API < 29
-        }
+        get() = thermalStatusReader.currentThermalStatus
 
     /** 是否应降低非关键计算负载 (MODERATE 及以上)。
      *  使用 _thermalState 缓存（每 2s 轮询更新），避免热路径上每 tick 触发 binder 调用。 */
@@ -132,11 +108,13 @@ class ThermalMonitor @Inject constructor(
     fun isLightThrottle(): Boolean =
         _thermalState.value == ThermalState.LIGHT
 
+    // PowerManager.THERMAL_STATUS_* 常量值（0-4）；字面量随端口化固化，
+    // 与 app 层 AndroidThermalStatusReader 的 PowerManager 语义对齐
     private fun mapStatusToState(status: Int): ThermalState = when {
-        status >= PowerManager.THERMAL_STATUS_EMERGENCY -> ThermalState.EMERGENCY
-        status >= PowerManager.THERMAL_STATUS_SEVERE -> ThermalState.SEVERE
-        status >= PowerManager.THERMAL_STATUS_MODERATE -> ThermalState.MODERATE
-        status >= PowerManager.THERMAL_STATUS_LIGHT -> ThermalState.LIGHT
+        status >= THERMAL_STATUS_EMERGENCY -> ThermalState.EMERGENCY
+        status >= THERMAL_STATUS_SEVERE -> ThermalState.SEVERE
+        status >= THERMAL_STATUS_MODERATE -> ThermalState.MODERATE
+        status >= THERMAL_STATUS_LIGHT -> ThermalState.LIGHT
         else -> ThermalState.NORMAL
     }
 
@@ -146,19 +124,18 @@ class ThermalMonitor @Inject constructor(
      * synchronized([sessionLock])：与 close 互斥，杜绝"close 守卫通过后被本方法覆盖字段"的交错。
      */
     fun createHintSession(targetDurationNanos: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            synchronized(sessionLock) {
-                try {
-                    hintSession = hintManager?.createHintSession(
-                        intArrayOf(android.os.Process.myTid()),
-                        targetDurationNanos
-                    )
-                    sessionOwnerThread = Thread.currentThread()
-                } catch (e: Exception) {
-                    DomainLog.w(TAG, "createHintSession failed", e)
-                    hintSession = null
-                    sessionOwnerThread = null
-                }
+        if (!hintPort.isSupported) return
+        synchronized(sessionLock) {
+            try {
+                hintSession = hintPort.acquire(
+                    intArrayOf(hintPort.currentThreadId()),
+                    targetDurationNanos
+                )
+                sessionOwnerThread = Thread.currentThread()
+            } catch (e: Exception) {
+                DomainLog.w(TAG, "createHintSession failed", e)
+                hintSession = null
+                sessionOwnerThread = null
             }
         }
     }
@@ -169,14 +146,13 @@ class ThermalMonitor @Inject constructor(
      * synchronized([sessionLock])：与 create/close 互斥，防止守卫与读取之间被覆盖。
      */
     fun reportActualWorkDuration(durationNanos: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            synchronized(sessionLock) {
-                if (Thread.currentThread() !== sessionOwnerThread) return
-                try {
-                    (hintSession as? PerformanceHintManager.Session)?.reportActualWorkDuration(durationNanos)
-                } catch (e: Exception) {
-                    DomainLog.w(TAG, "reportActualWorkDuration failed", e)
-                }
+        if (!hintPort.isSupported) return
+        synchronized(sessionLock) {
+            if (Thread.currentThread() !== sessionOwnerThread) return
+            try {
+                hintSession?.let { hintPort.reportWorkDuration(it, durationNanos) }
+            } catch (e: Exception) {
+                DomainLog.w(TAG, "reportActualWorkDuration failed", e)
             }
         }
     }
@@ -186,20 +162,17 @@ class ThermalMonitor @Inject constructor(
      * 声明真实预算，替代硬编码 60fps 目标——系统按需调度大核，不再为 60fps 保留性能）。
      *
      * 由 GameEngineCore 收集 renderFrameRate StateFlow 联动（场景/模式/热控/电量
-     * 任何一次重算自动生效）。API 31+（Session.updateTargetWorkDuration 与
-     * createHintSession 同版本）；session 未创建时 no-op（仅记录日志）。
+     * 任何一次重算自动生效）。session 未创建时 no-op（仅记录日志）。
      * synchronized([sessionLock])：与 create/close 互斥；updateTargetWorkDuration
      * 为 Session 线程安全 API（官方文档标注），与 owner 线程无关。
      */
     fun setTargetWorkDuration(targetDurationNanos: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            synchronized(sessionLock) {
-                try {
-                    (hintSession as? PerformanceHintManager.Session)
-                        ?.updateTargetWorkDuration(targetDurationNanos)
-                } catch (e: Exception) {
-                    DomainLog.w(TAG, "setTargetWorkDuration failed", e)
-                }
+        if (!hintPort.isSupported) return
+        synchronized(sessionLock) {
+            try {
+                hintSession?.let { hintPort.updateTargetDuration(it, targetDurationNanos) }
+            } catch (e: Exception) {
+                DomainLog.w(TAG, "setTargetWorkDuration failed", e)
             }
         }
     }
@@ -219,7 +192,7 @@ class ThermalMonitor @Inject constructor(
      * 由系统回收，无 double-free 风险。
      */
     fun closeHintSession() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (!hintPort.isSupported) return
         synchronized(sessionLock) {
             if (Thread.currentThread() !== sessionOwnerThread) {
                 DomainLog.w(
@@ -228,9 +201,9 @@ class ThermalMonitor @Inject constructor(
                 )
                 return
             }
-            val closingSession = hintSession as? PerformanceHintManager.Session
+            val closingSession = hintSession
             try {
-                closingSession?.close()
+                closingSession?.let { hintPort.release(it) }
             } catch (e: Exception) {
                 DomainLog.w(TAG, "closeHintSession failed", e)
             }
@@ -245,5 +218,11 @@ class ThermalMonitor @Inject constructor(
 
     private companion object {
         const val TAG = "ThermalMonitor"
+
+        // PowerManager.THERMAL_STATUS_* 数值（PowerManager 语义，随端口化固化）
+        const val THERMAL_STATUS_LIGHT = 1
+        const val THERMAL_STATUS_MODERATE = 2
+        const val THERMAL_STATUS_SEVERE = 3
+        const val THERMAL_STATUS_EMERGENCY = 4
     }
 }

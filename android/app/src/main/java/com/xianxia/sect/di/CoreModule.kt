@@ -243,6 +243,14 @@ object CoreModule {
 
     @Provides
     @Singleton
+    fun provideThermalStatusReader(impl: com.xianxia.sect.platform.AndroidThermalStatusReader): com.xianxia.sect.core.perf.ThermalStatusReader = impl
+
+    @Provides
+    @Singleton
+    fun providePerformanceHintPort(impl: com.xianxia.sect.platform.AndroidPerformanceHintPort): com.xianxia.sect.core.perf.PerformanceHintPort = impl
+
+    @Provides
+    @Singleton
     fun provideThermalCheckIntervalMs(): Long = ThermalController.CHECK_INTERVAL_MS
 
     @Provides
