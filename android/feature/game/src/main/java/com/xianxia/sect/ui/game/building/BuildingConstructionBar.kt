@@ -124,20 +124,14 @@ private fun BuildingConstructionItem(
                     .fillMaxWidth()
                     .background(Color.White.copy(alpha = 0.7f))
             )
-            Image(
-                painter = painterResource(
-                    id = if (name == GameConfig.Road.DISPLAY_NAME) {
-                        R.drawable.road_base  // 石板道路精灵图
-                    } else {
-                        com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal
-                    }
-                ),
-                contentDescription = name,
+            BuildingConstructionIcon(
+                name = name,
+                built = built,
+                canAfford = canAfford,
+                meetsLevel = meetsLevel,
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
-                contentScale = ContentScale.Fit,
-                alpha = if (built || !canAfford || !meetsLevel) 0.4f else 1f
+                    .fillMaxWidth()
             )
             Text(
                 text = "${cost}灵石",
@@ -160,4 +154,29 @@ private fun BuildingConstructionItem(
             )
         }
     }
+}
+
+/** 建筑图标（BuildingConstructionItem 拆分）：不可用/买不起/已建成时置灰 */
+@Composable
+private fun BuildingConstructionIcon(
+    name: String,
+    built: Boolean,
+    canAfford: Boolean,
+    meetsLevel: Boolean,
+    modifier: Modifier
+) {
+    Image(
+        painter = painterResource(
+            id = if (name == GameConfig.Road.DISPLAY_NAME) {
+                R.drawable.road_base  // 石板道路精灵图
+            } else {
+                com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+                    .findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal
+            }
+        ),
+        contentDescription = name,
+        modifier = modifier,
+        contentScale = ContentScale.Fit,
+        alpha = if (built || !canAfford || !meetsLevel) 0.4f else 1f
+    )
 }

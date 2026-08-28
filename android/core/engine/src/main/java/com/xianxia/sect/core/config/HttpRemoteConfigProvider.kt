@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.config
 
-import android.util.Log
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.HttpClientProvider
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
@@ -45,18 +45,18 @@ class HttpRemoteConfigProvider @Inject constructor(
                 httpClient.get(url)
             }
             if (raw == null) {
-                Log.w(TAG, "Remote config fetch timed out (${FETCH_TIMEOUT_MS}ms): $url")
+                DomainLog.w(TAG, "Remote config fetch timed out (${FETCH_TIMEOUT_MS}ms): $url")
                 return null
             }
             if (raw.length < MIN_VALID_RESPONSE_LENGTH) {
-                Log.w(TAG, "Remote config response too short (${raw.length} bytes), likely truncated: $url")
+                DomainLog.w(TAG, "Remote config response too short (${raw.length} bytes), likely truncated: $url")
                 return null
             }
             everSucceeded = true
-            Log.d(TAG, "Remote config fetched successfully (${raw.length} bytes)")
+            DomainLog.d(TAG, "Remote config fetched successfully (${raw.length} bytes)")
             raw
         } catch (e: Exception) {
-            Log.w(TAG, "Remote config fetch failed: ${e.message}")
+            DomainLog.w(TAG, "Remote config fetch failed: ${e.message}")
             null
         }
     }

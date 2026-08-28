@@ -1,10 +1,9 @@
 package com.xianxia.sect.core.config
 
-import android.content.Context
-import android.util.Log
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.platform.AssetSource
 import com.xianxia.sect.core.model.production.BuildingType
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
@@ -44,7 +43,7 @@ data class BuildingConfigModel(
 
 @Singleton
 class BuildingConfigService @Inject constructor(
-    @ApplicationContext private val context: Context
+    private val assetSource: AssetSource
 ) {
     companion object {
         private const val TAG = "BuildingConfigService"
@@ -83,28 +82,33 @@ class BuildingConfigService @Inject constructor(
         try {
             val loadedConfig = loadFromAssets()
             config = loadedConfig ?: createDefaultConfig()
-            Log.d(TAG, "Building config loaded with ${config?.buildings?.size ?: 0} buildings")
+            DomainLog.d(TAG, "Building config loaded with ${config?.buildings?.size ?: 0} buildings")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load building config", e)
+            DomainLog.e(TAG, "Failed to load building config", e)
             config = createDefaultConfig()
         }
     }
 
     private fun loadFromAssets(): BuildingsConfig? {
+        val inputStream = assetSource.open(CONFIG_PATH)
+        if (inputStream == null) {
+            DomainLog.w(TAG, "Could not load config from assets: $CONFIG_PATH not found")
+            return null
+        }
         return try {
-            context.assets.open(CONFIG_PATH).use { inputStream ->
-                val jsonString = inputStream.bufferedReader().use { it.readText() }
+            inputStream.use { stream ->
+                val jsonString = stream.bufferedReader().use { it.readText() }
                 val parsed = json.decodeFromString<BuildingsConfig>(jsonString)
                 val errors = ConfigValidator.validate(parsed)
                 if (errors.isEmpty()) {
-                    Log.d(TAG, "Config validated successfully from assets")
+                    DomainLog.d(TAG, "Config validated successfully from assets")
                 } else {
-                    Log.w(TAG, "Config validation errors: $errors")
+                    DomainLog.w(TAG, "Config validation errors: $errors")
                 }
                 parsed
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not load config from assets: ${e.message}")
+            DomainLog.w(TAG, "Could not load config from assets: ${e.message}")
             null
         }
     }
@@ -230,7 +234,7 @@ class BuildingConfigService @Inject constructor(
 
     fun reload() {
         loadConfig()
-        Log.d(TAG, "Building config reloaded")
+        DomainLog.d(TAG, "Building config reloaded")
     }
 
     private fun normalizeBuildingId(buildingId: String, cfg: BuildingsConfig = ensureConfigLoaded()): String {

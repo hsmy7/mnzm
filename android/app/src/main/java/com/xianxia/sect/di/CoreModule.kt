@@ -227,11 +227,19 @@ object CoreModule {
 
     @Provides
     @Singleton
-    fun provideThermalReader(impl: com.xianxia.sect.core.thermal.AndroidThermalReader): com.xianxia.sect.core.thermal.ThermalReader = impl
+    fun provideThermalReader(impl: com.xianxia.sect.platform.AndroidThermalReader): com.xianxia.sect.core.thermal.ThermalReader = impl
 
     @Provides
     @Singleton
-    fun provideBatteryStatusProvider(impl: com.xianxia.sect.core.thermal.BatteryAwareController): com.xianxia.sect.core.thermal.BatteryStatusProvider = impl
+    fun provideBatteryStatusProvider(impl: com.xianxia.sect.platform.BatteryAwareController): com.xianxia.sect.core.thermal.BatteryStatusProvider = impl
+
+    @Provides
+    @Singleton
+    fun provideAssetSource(impl: com.xianxia.sect.platform.AndroidAssetSource): com.xianxia.sect.core.platform.AssetSource = impl
+
+    @Provides
+    @Singleton
+    fun provideApkSigningCertificateSource(impl: com.xianxia.sect.platform.AndroidApkSigningCertificateSource): com.xianxia.sect.core.platform.ApkSigningCertificateSource = impl
 
     @Provides
     @Singleton

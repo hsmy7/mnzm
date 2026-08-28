@@ -11,6 +11,8 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
+import android.os.Build
+import com.xianxia.sect.core.engine.OemPowerProfileProvider
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.registerDefaults
@@ -86,6 +88,10 @@ class XianxiaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // OEM 厂商识别数据注入引擎层（OemPowerProfileProvider 看门狗/忙等三档策略；
+        // 必须在首次访问 OemPowerProfileProvider.current 之前——lazy 求值锁定结果）
+        OemPowerProfileProvider.injectPlatformManufacturer(Build.MANUFACTURER, Build.BRAND)
 
         injectDomainDependencies()
         initCrashProtection()

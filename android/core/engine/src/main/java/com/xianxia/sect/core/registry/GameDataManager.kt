@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.registry
 
-import android.content.Context
+import com.xianxia.sect.core.platform.AssetSource
 import com.xianxia.sect.core.util.DomainLog
 
 /**
@@ -16,7 +16,7 @@ import com.xianxia.sect.core.util.DomainLog
  *
  * ```kotlin
  * // 1. 应用启动时初始化
- * GameDataManager.initialize(context)
+ * GameDataManager.initialize(assetSource)
  *
  * // 2. 访问各类型数据
  * val equipment = GameDataManager.equipment.getById("ironSword")
@@ -101,12 +101,12 @@ object GameDataManager {
      * 初始化所有数据注册表
      *
      * 此方法应在应用启动时调用（如 Application.onCreate）。
-     * 会按顺序初始化所有注册表，对于需要 Context 的注册表会传入 context。
+     * 会按顺序初始化所有注册表，对于需要资产读取的注册表会传入 [assetSource]。
      *
-     * @param context Android 上下文（用于加载 Assets 资源）
+     * @param assetSource 资产文件源（平台端口，见 [AssetSource]）
      * @return 初始化是否成功
      */
-    fun initialize(context: Context): Boolean {
+    fun initialize(assetSource: AssetSource): Boolean {
         if (_isInitialized) {
             DomainLog.w(TAG, "GameDataManager already initialized, skipping.")
             return true
@@ -134,9 +134,9 @@ object GameDataManager {
                 // 4. 创建锻造配方注册表（依赖装备模板）
                 forgeRecipes = ForgeRecipeRegistry(equipment).also { it.autoInitialize() }
 
-                // 5. 初始化需要 Context 的注册表（JSON 加载）
+                // 5. 初始化需要资产读取的注册表（JSON/PB 加载）
                 manuals = ManualRegistry()
-                val manualResult = manuals.initializeSync(context)
+                val manualResult = manuals.initializeSync(assetSource)
                 if (manualResult.isFailure) {
                     throw RuntimeException("Failed to initialize ManualRegistry", manualResult.exceptionOrNull())
                 }

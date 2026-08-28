@@ -8,6 +8,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.audio.AudioPlayerFacade
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.platform.AssetSource
 import com.xianxia.sect.core.registry.GameDataManager
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.PortraitPool
@@ -40,6 +41,7 @@ import javax.inject.Singleton
 @Singleton
 class ResourcePreloader @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val assetSource: AssetSource,
     private val buildingConfigService: BuildingConfigService,
     private val configLoader: ConfigLoader,
     private val ioDispatcher: IoDispatcher,
@@ -100,7 +102,7 @@ class ResourcePreloader @Inject constructor(
 
         coroutineScope {
             val dataInit = async(Dispatchers.Default) {
-                val ok = GameDataManager.initialize(context)
+                val ok = GameDataManager.initialize(assetSource)
                 if (ok) {
                     GameConfig.initialize(configLoader.load())
                     buildingConfigService.initialize()
@@ -108,7 +110,7 @@ class ResourcePreloader @Inject constructor(
                 ok
             }
             val manualInit = async(ioDispatcher.dispatcher) {
-                val result = ManualDatabase.initializeSync(context)
+                val result = ManualDatabase.initializeSync(assetSource)
                 result.onSuccess { Log.i(TAG, "ManualDatabase preloaded") }
                     .onFailure { Log.w(TAG, "ManualDatabase preload failed", it) }
                 result

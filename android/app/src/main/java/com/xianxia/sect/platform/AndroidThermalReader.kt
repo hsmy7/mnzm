@@ -1,8 +1,10 @@
-package com.xianxia.sect.core.thermal
+package com.xianxia.sect.platform
 
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
+import com.xianxia.sect.core.thermal.ThermalReader
+import com.xianxia.sect.core.thermal.ThermalState
 import androidx.annotation.RequiresApi
 import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -69,6 +71,8 @@ class AndroidThermalReader @Inject constructor(
     // Channel 1: PowerManager.getThermalHeadroom() (API 30+)
     // ──────────────────────────────────────────────────────────
 
+    // getThermalHeadroom 的 OEM ROM 异常面不可枚举（非受检异常），按降级契约 NaN
+    @Suppress("TooGenericExceptionCaught")
     override val thermalHeadroom: Float
         get() {
             val pm = powerManager ?: return Float.NaN
@@ -82,6 +86,7 @@ class AndroidThermalReader @Inject constructor(
                 val hr = pm.getThermalHeadroom(FORECAST_SECONDS)
                 if (hr.isNaN() || hr < 0f) Float.NaN else hr
             } catch (e: Exception) {
+                // OEM ROM 异常面不可枚举（部分厂商 headroom 查询抛非受检异常），按降级契约 NaN
                 DomainLog.w(TAG, "getThermalHeadroom failed: ${e.message}")
                 Float.NaN
             }
@@ -91,6 +96,8 @@ class AndroidThermalReader @Inject constructor(
     // Channel 2: PowerManager.currentThermalStatus (API 29+)
     // ──────────────────────────────────────────────────────────
 
+    // OEM ROM 异常面不可枚举，按降级契约 UNKNOWN
+    @Suppress("TooGenericExceptionCaught")
     override val thermalState: ThermalState
         get() {
             val pm = powerManager ?: return ThermalState.UNKNOWN
@@ -99,6 +106,7 @@ class AndroidThermalReader @Inject constructor(
             return try {
                 thermalStatusToState(pm.currentThermalStatus)
             } catch (e: Exception) {
+                // OEM ROM 异常面不可枚举，按降级契约 UNKNOWN
                 DomainLog.w(TAG, "currentThermalStatus failed: ${e.message}")
                 ThermalState.UNKNOWN
             }
@@ -136,6 +144,10 @@ class AndroidThermalReader @Inject constructor(
         }
 
     /** 从 sysfs 热区文件读取温度 */
+    // sysfs 逐路径探测的固有控制流：不可读 continue + 数值不合理 continue + 异常吞并
+    // （单个热区不可读属正常降级，OEM 差异大）——原 engine detekt 基线条目随平台
+    // 接口化转为显式豁免
+    @Suppress("LoopWithTooManyJumpStatements", "TooGenericExceptionCaught", "SwallowedException")
     private fun readSysfsTemperature(): Float {
         for (path in THERMAL_PATHS) {
             try {
@@ -143,12 +155,18 @@ class AndroidThermalReader @Inject constructor(
                 val temp = content.toFloatOrNull() ?: continue
                 val celsius = if (temp > 1000) temp / 1000f else temp
                 if (celsius in 15f..80f) return celsius // 合理性检查
-            } catch (_: Exception) { continue }
+            } catch (_: Exception) {
+                // 单个热区不可读属正常降级（OEM 差异大），继续探测下一路径
+                continue
+            }
         }
         return -1f
     }
 
     /** 从 BatteryManager 读取电池温度 */
+    // 三 return 为 API 守卫链（SDK 守卫 → 服务缺失守卫 → 结果），反射调用 OEM ROM
+    // 异常面不可枚举，按降级契约统一 -1f（原 engine detekt 基线条目转显式豁免）
+    @Suppress("ReturnCount", "TooGenericExceptionCaught", "SwallowedException")
     private fun readBatteryTemperature(): Float {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return -1f
         return try {
@@ -181,6 +199,9 @@ class AndroidThermalReader @Inject constructor(
     // 回调注册（API 29+）
     // ──────────────────────────────────────────────────────────
 
+    // 三 return 为能力守卫链（服务缺失 → API 版本 → 结果），监听器注册失败按降级
+    // 契约 false（原 engine detekt 基线条目转显式豁免）
+    @Suppress("ReturnCount", "TooGenericExceptionCaught")
     override fun registerThermalCallback(onStateChanged: (ThermalState) -> Unit): Boolean {
         val pm = powerManager ?: return false
         // platformCallback 使用 PowerManager.OnThermalStatusChangedListener（API 30+），

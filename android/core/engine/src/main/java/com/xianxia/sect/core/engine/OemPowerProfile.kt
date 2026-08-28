@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.engine
 
-import android.os.Build
-
 /**
  * OEM 省电策略等级 — 数据驱动，每厂商映射到三档之一。
  *
@@ -60,8 +58,10 @@ enum class OemManufacturer {
 /**
  * OEM 电源管理配置单例（三档映射）。
  *
- * 通过 [Build.MANUFACTURER] / [Build.BRAND] 识别当前设备厂商，
- * 映射到三档 [OemPowerTier] 之一。
+ * 厂商识别数据经 [injectPlatformManufacturer] 由平台层注入（app 层启动时传
+ * `Build.MANUFACTURER`/`Build.BRAND`）——引擎层零 Android 依赖（计划 v2 阶段 7
+ * 平台能力接口化 / R-02）。未注入（纯 JVM/测试）按 [OemManufacturer.OTHER] 安全回退。
+ * **iOS 对等**：iOS 无 OEM 省电档位概念，不注入即 OTHER（LIGHT 档）。
  */
 object OemPowerProfileProvider {
 
@@ -76,15 +76,30 @@ object OemPowerProfileProvider {
         OemManufacturer.OTHER to OemPowerTier.LIGHT,
     )
 
-    /** 测试注入：覆盖厂商检测（纯 JVM 下 Build.MANUFACTURER 为 null，检测不可用） */
+    /** 测试注入：覆盖厂商检测（纯 JVM 下平台厂商串不可用，检测不可用） */
     @Volatile
     internal var manufacturerOverride: OemManufacturer? = null
 
-    /** 当前设备厂商（从 Build 识别，仅计算一次；测试可经 [manufacturerOverride] 覆盖） */
+    /** 平台厂商原始串（manufacturer, brand）；须在首次访问 [current] 前注入 */
+    @Volatile
+    private var platformManufacturerInfo: Pair<String?, String?>? = null
+
+    /**
+     * 平台层注入厂商识别数据（app 层 Application.onCreate 调用：
+     * `injectPlatformManufacturer(Build.MANUFACTURER, Build.BRAND)`）。
+     * 幂等；首次注入后 [currentManufacturer] 的 lazy 求值锁定结果。
+     */
+    fun injectPlatformManufacturer(manufacturer: String?, brand: String?) {
+        platformManufacturerInfo = manufacturer to brand
+    }
+
+    /** 当前设备厂商（平台注入数据识别，仅计算一次；测试可经 [manufacturerOverride] 覆盖） */
     val currentManufacturer: OemManufacturer
         get() = manufacturerOverride ?: detectedManufacturer
 
-    private val detectedManufacturer by lazy { detect() }
+    private val detectedManufacturer by lazy {
+        platformManufacturerInfo?.let { (m, b) -> detect(m, b) } ?: OemManufacturer.OTHER
+    }
 
     /** 当前设备的电源管理配置 */
     val current: OemPowerProfile by lazy {
@@ -92,10 +107,10 @@ object OemPowerProfileProvider {
         OemPowerProfile(mfr, MANUFACTURER_TIERS[mfr] ?: OemPowerTier.LIGHT)
     }
 
-    private fun detect(): OemManufacturer {
-        // null 防御：纯 JVM/极端 ROM 下 Build.MANUFACTURER 可能为 null
-        val m = Build.MANUFACTURER?.lowercase() ?: ""
-        val b = Build.BRAND?.lowercase() ?: ""
+    private fun detect(manufacturer: String?, brand: String?): OemManufacturer {
+        // null 防御：极端 ROM 下平台厂商串可能为 null
+        val m = manufacturer?.lowercase() ?: ""
+        val b = brand?.lowercase() ?: ""
         return when {
             listOf(m, b).any { it.contains("huawei") } -> OemManufacturer.HUAWEI
             listOf(m, b).any { it.contains("honor") } -> OemManufacturer.HONOR

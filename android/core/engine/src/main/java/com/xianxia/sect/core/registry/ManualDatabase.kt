@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.registry
 
-import android.content.Context
+import com.xianxia.sect.core.platform.AssetSource
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.ManualStack
@@ -8,7 +8,6 @@ import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.proto.templates.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -119,12 +118,12 @@ object ManualDatabase {
     val allManuals: Map<String, ManualTemplate>
         get() = _allManuals ?: emptyMap()
     
-    fun initializeSync(context: Context): Result<Unit> {
+    fun initializeSync(assetSource: AssetSource): Result<Unit> {
         return try {
             synchronized(initLock) {
                 if (_isInitialized) return Result.success(Unit)
                 
-                _allManuals = loadManualTemplatesSync(context)
+                _allManuals = loadManualTemplatesSync(assetSource)
                 
                 if (enableProtoValidation && _allManuals != null) {
                     val manuals = _allManuals
@@ -359,10 +358,7 @@ object ManualDatabase {
         supportManuals.forEach { builder.addSupportManuals(convertToProto(it)) }
         mindManuals.forEach { builder.addMindManuals(convertToProto(it)) }
         
-        return android.util.Base64.encodeToString(
-            builder.build().toByteArray(),
-            android.util.Base64.NO_WRAP
-        )
+        return kotlin.io.encoding.Base64.Default.encode(builder.build().toByteArray())
     }
     
     /**
@@ -418,14 +414,15 @@ object ManualDatabase {
         return builder.build()
     }
     
-    private fun loadManualTemplatesSync(context: Context): Map<String, ManualTemplate> {
+    private fun loadManualTemplatesSync(assetSource: AssetSource): Map<String, ManualTemplate> {
         return try {
-            val bytes = context.assets.open("data/manuals.pb").use { it.readBytes() }
+            val bytes = assetSource.open("data/manuals.pb")?.use { it.readBytes() }
+                ?: error("data/manuals.pb not found")
             val proto = ManualDataFileProto.parseFrom(bytes)
             convertProtoToManualMap(proto)
         } catch (e: Exception) {
             DomainLog.w(TAG, "Failed to load manuals.pb, falling back to JSON", e)
-            val jsonString = loadJsonFromAssetsSync(context, "data/manuals.json")
+            val jsonString = loadJsonFromAssetsSync(assetSource, "data/manuals.json")
             val dataFile = json.decodeFromString<ManualJsonDataFile>(jsonString)
 
             val allManuals = mutableMapOf<String, ManualTemplate>()
@@ -563,8 +560,9 @@ object ManualDatabase {
         )
     }
     
-    private fun loadJsonFromAssetsSync(context: Context, fileName: String): String {
-        val inputStream = context.assets.open(fileName)
+    private fun loadJsonFromAssetsSync(assetSource: AssetSource, fileName: String): String {
+        val inputStream = assetSource.open(fileName)
+            ?: error("$fileName not found")
         val reader = BufferedReader(InputStreamReader(inputStream))
         return reader.use { it.readText() }
     }

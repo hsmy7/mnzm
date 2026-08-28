@@ -1,14 +1,12 @@
 package com.xianxia.sect.core.config
 
-import android.content.Context
-import android.content.res.AssetManager
+import com.xianxia.sect.core.platform.AssetSource
 import com.xianxia.sect.core.model.GridBuildingData
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
-import java.io.IOException
 
 /**
  * fixupBuildingSizes 越界钳制测试（D-14，2026-08-06）。
@@ -19,18 +17,16 @@ import java.io.IOException
  * - 尺寸不变的健康数据零副作用（交溢出迁移处理）
  * - 未知显示名回退 2×2
  *
- * 独立文件：BuildingConfigService 实例化需要 mock Context（assets 加载失败 → fallback 配置），
+ * 独立文件：BuildingConfigService 实例化需要 mock AssetSource（资产不存在 → fallback 配置），
  * 若与既有数据类测试同文件共享 @Before 会影响全类。
  */
 class BuildingConfigServiceFixupTest {
 
     private fun newService(): BuildingConfigService {
-        val context = mock<Context>()
-        val assetManager = mock<AssetManager>()
-        whenever(context.assets).thenReturn(assetManager)
-        // assets 加载失败 → 走 createDefaultConfig fallback（灵矿场 4×4 等）
-        whenever(assetManager.open(any())).thenThrow(IOException("no assets in unit test"))
-        return BuildingConfigService(context)
+        val assetSource = mock<AssetSource>()
+        // 资产不存在（open 返回 null）→ 走 createDefaultConfig fallback（灵矿场 4×4 等）
+        whenever(assetSource.open(any())).thenReturn(null)
+        return BuildingConfigService(assetSource)
     }
 
     @Test

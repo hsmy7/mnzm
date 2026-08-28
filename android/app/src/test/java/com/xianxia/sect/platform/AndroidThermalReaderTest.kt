@@ -1,6 +1,8 @@
-package com.xianxia.sect.core.thermal
+package com.xianxia.sect.platform
 
+import android.app.Application
 import android.os.Build
+import com.xianxia.sect.core.thermal.ThermalState
 import android.content.Context
 import org.junit.Assert.*
 import org.junit.Before
@@ -23,8 +25,10 @@ import org.robolectric.annotation.Config
  * 注：PowerManager.getThermalHeadroom() 在 Robolectric 中不可用，
  * 测试验证接口逻辑和降级行为。
  */
-@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
 @RunWith(RobolectricTestRunner::class)
+// app 模块 targetSdk 35 > Robolectric 支持上限 34：类级钉住 sdk 34（app 模块既有约定）；
+// getThermalHeadroom 方法级再覆写 sdk 30（API R）
+@Config(sdk = [34], application = Application::class)  // 禁启真实 XianxiaApplication（SDK/广告全量初始化）
 class AndroidThermalReaderTest {
 
     private lateinit var context: Context
@@ -54,6 +58,9 @@ class AndroidThermalReaderTest {
     }
 
     @Test
+    // SDK 28（< Q）：currentThermalStatus 不可用路径 → UNKNOWN（sdk 34 下
+    // Robolectric PowerManager 返回 THERMAL_STATUS_NONE → NORMAL，语义不同）
+    @Config(sdk = [28])
     fun `initial thermalState is UNKNOWN`() {
         assertEquals("初始热状态应为 UNKNOWN", ThermalState.UNKNOWN, reader.thermalState)
     }

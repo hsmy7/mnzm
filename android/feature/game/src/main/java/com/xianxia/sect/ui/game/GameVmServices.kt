@@ -11,7 +11,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
-import com.xianxia.sect.core.perf.GpuTierDetector
+import com.xianxia.sect.ui.game.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.data.SessionManager
 import javax.inject.Inject

@@ -1,11 +1,10 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
-import android.content.Context
-import android.content.pm.PackageManager
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
+import com.xianxia.sect.core.platform.ApkSigningCertificateSource
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
@@ -28,7 +27,6 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
@@ -62,7 +60,7 @@ class RedeemCodeService @Inject constructor(
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
-    @ApplicationContext private val appContext: Context,
+    private val signingCertificates: ApkSigningCertificateSource,
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     companion object {
@@ -327,27 +325,14 @@ class RedeemCodeService @Inject constructor(
         }
 
         return try {
-            val packageInfo = appContext.packageManager.getPackageInfo(
-                appContext.packageName,
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
-                    PackageManager.GET_SIGNING_CERTIFICATES
-                else @Suppress("DEPRECATION") PackageManager.GET_SIGNATURES
-            )
-
-            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-                packageInfo.signingInfo?.apkContentsSigners
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.signatures
-            }
-
-            if (signatures == null || signatures.isEmpty()) {
+            val certificate = signingCertificates.primarySigningCertificate()
+            if (certificate == null) {
                 DomainLog.w(TAG, "No APK signatures found")
                 return false
             }
 
             val certDigest = MessageDigest.getInstance("SHA-256")
-                .digest(signatures[0].toByteArray())
+                .digest(certificate)
                 .joinToString("") { "%02x".format(it) }
 
             val isValid = certDigest == BuildConfig.APK_SIGNATURE_HASH

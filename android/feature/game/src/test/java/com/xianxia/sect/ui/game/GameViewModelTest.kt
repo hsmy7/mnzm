@@ -37,7 +37,7 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.audio.AudioPlayerFacade
-import com.xianxia.sect.core.perf.GpuTierDetector
+import com.xianxia.sect.ui.game.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.model.WorldSect

@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.registry
 
-import android.content.Context
+import com.xianxia.sect.core.platform.AssetSource
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
@@ -50,15 +50,15 @@ class ManualRegistry : BaseTemplateRegistry<ManualDatabase.ManualTemplate>() {
      * 此方法必须在首次查询前调用。
      * 内部委托给原 ManualDatabase 的实现，保留 Protobuf 校验逻辑。
      *
-     * @param context Android 上下文（用于访问 Assets）
+     * @param assetSource 资产文件源（平台端口，见 [AssetSource]）
      * @return 初始化结果（成功或失败）
      */
-    fun initializeSync(context: Context): Result<Unit> {
+    fun initializeSync(assetSource: AssetSource): Result<Unit> {
         return try {
             synchronized(initLock) {
                 if (_isInitialized) return Result.success(Unit)
 
-                val result = ManualDatabase.initializeSync(context)
+                val result = ManualDatabase.initializeSync(assetSource)
                 if (result.isSuccess) {
                     _isInitialized = true
                     markInitialized()
@@ -177,6 +177,6 @@ class ManualRegistry : BaseTemplateRegistry<ManualDatabase.ManualTemplate>() {
      * 检查是否已初始化
      */
     private fun checkInitialization() {
-        check(_isInitialized) { "ManualRegistry not initialized. Call initializeSync(context) first." }
+        check(_isInitialized) { "ManualRegistry not initialized. Call initializeSync(assetSource) first." }
     }
 }

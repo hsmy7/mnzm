@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.engine.domain.save
 
-import android.util.Log
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.ListenerManager
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.withContext
@@ -68,7 +68,7 @@ class SaveLoadCoordinator @Inject constructor(
             val durationMs = System.currentTimeMillis() - startTime
 
             if (durationMs > SLOW_SAVE_THRESHOLD_MS) {
-                Log.w(TAG, "Slow save operation: $operationType took ${durationMs}ms")
+                DomainLog.w(TAG, "Slow save operation: $operationType took ${durationMs}ms")
             }
 
             val result = SaveLoadResult(
@@ -80,7 +80,7 @@ class SaveLoadCoordinator @Inject constructor(
             result
         } catch (e: Exception) {
             val durationMs = System.currentTimeMillis() - startTime
-            Log.e(TAG, "Save operation failed: $operationType", e)
+            DomainLog.e(TAG, "Save operation failed: $operationType", e)
 
             val result = SaveLoadResult(
                 success = false,
@@ -115,7 +115,7 @@ class SaveLoadCoordinator @Inject constructor(
             val durationMs = System.currentTimeMillis() - startTime
             
             if (durationMs > SLOW_LOAD_THRESHOLD_MS) {
-                Log.w(TAG, "Slow load operation took ${durationMs}ms")
+                DomainLog.w(TAG, "Slow load operation took ${durationMs}ms")
             }
             
             val result = SaveLoadResult(
@@ -129,7 +129,7 @@ class SaveLoadCoordinator @Inject constructor(
             Pair(result, data)
         } catch (e: Exception) {
             val durationMs = System.currentTimeMillis() - startTime
-            Log.e(TAG, "Load operation failed", e)
+            DomainLog.e(TAG, "Load operation failed", e)
             
             val result = SaveLoadResult(
                 success = false,
@@ -166,7 +166,7 @@ class SaveLoadCoordinator @Inject constructor(
                 else -> ValidationResult.VALID
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Save data validation failed", e)
+            DomainLog.e(TAG, "Save data validation failed", e)
             ValidationResult.VALIDATION_ERROR
         }
     }

@@ -122,7 +122,11 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
         true
     } catch (e: CancellationException) {
         throw e
-    } catch (e: Exception) {
+    } catch (e: Throwable) {
+        // 计划 v2 阶段 7 生产默认切换暴露的降级契约缺口：System.loadLibrary 失败抛
+        // UnsatisfiedLinkError（Error 而非 Exception——split APK 损坏/16KB 对齐失败等
+        // 场景，JVM 测试环境同样触达），降级契约"任一步失败返回 false 回退纯 Kotlin"
+        // 必须覆盖 Throwable（CancellationException 仍穿透）
         DomainLog.w(TAG, "AUTHORITATIVE native 初始化失败，本 tick 回退纯 Kotlin: ${e.message}")
         false
     }

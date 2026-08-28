@@ -1,5 +1,21 @@
 ## [4.01.10] - 2026-08-24
 
+### 新增（C++ 引擎迁移计划 v2 阶段 7：Kotlin 降级纯平台层 + 存档决策）
+
+> 迁移终态阶段（批 7-1~7-4）：C++ 引擎真相源切换为生产默认（AUTHORITATIVE），OFF 保留为运行时回退契约；存档编码定案保持 Kotlin kotlinx-proto（链路零改动）；engine 模块平台能力接口化收尾。Kotlin 引擎逻辑全量退役（双实现删除/对拍转回归基线）依赖 C-06 转发收尾，登记于 docs/cpp-engine.md §7 阶段 7 批 7-4。
+
+- **批 7-1 AUTHORITATIVE 生产默认切换**：`NativeEngineFlag` 默认 OFF→AUTHORITATIVE（每旬时间推进+核心结算走 C++ 标量通道、`NativeBackedRng` 委托式单一真相源、Kotlin 残留执行器互插；SHADOW 对拍保留）；**降级契约缺口根因修复**：`ensureAuthoritativeNative` 原只捕 `Exception`，`System.loadLibrary` 失败抛 `UnsatisfiedLinkError`（Error）未被覆盖——OFF 灰度期该路径从未触达，生产同理存在（split APK 损坏/16KB 对齐失败等），改捕 `Throwable`（`CancellationException` 穿透）后 native 不可用严格回退纯 Kotlin；JUnit 首轮 4 失败（玉符重锚 3 + 崩溃上报 1）复验全绿
+- **批 7-2 R-02 收尾（engine 平台能力接口化，`import android.*` 36→11 处）**：
+  - `AndroidThermalReader` 物理移 app 层 `platform/`（`ThermalReader` 接口既有，engine 零直接消费者），Robolectric 测试随迁（类级 sdk 钉 34；UNKNOWN 用例钉 sdk 28 保持"平台不可用"语义）
+  - `BatteryAwareController` 拆分：接口 `BatteryStatusProvider` + `BatteryPolicy` 常量 + `evaluatePowerPolicy` 纯函数 + `NoopBatteryStatus` 留 engine（`BatteryStatusProviderTest` 12 用例），Android sticky 广播/binder 读取移 app（平台回退 2 用例随迁）；`GameEngineCoreFpsPolicyTest` 常量引用同步
+  - `GpuTierDetector` 移 feature/game `ui/game/perf/`（唯一消费域）；`GpuTier`/`GpuRenderConfig` 留 engine 供 `RenderScalePolicy`
+  - `OemPowerProfileProvider` 厂商识别改平台串注入 `injectPlatformManufacturer`（app `XianxiaApplication.onCreate` 注入 `Build.MANUFACTURER`/`Build.BRAND`；未注入按 OTHER→LIGHT 安全回退；测试覆盖 `manufacturerOverride` 既有接缝不变）
+  - `android.util.Log`→`DomainLog`（HttpRemoteConfigProvider/SaveLoadCoordinator/DisciplePillManager/BuildingConfigService）；`android.util.Base64`→`kotlin.io.encoding.Base64`（ManualDatabase，minSdk 24 兼容，NO_WRAP 语义一致）
+  - **资产链端口** `core/platform/AssetSource`（`open` 返回 null=不存在，调用方回退+日志语义保留）：BuildingConfigService/ManualDatabase/ManualRegistry/GameDataManager/ResourcePreloader 全链改造，签名参数 `Context`→`AssetSource`；**签名校验端口** `core/platform/ApkSigningCertificateSource`（RedeemCodeService 证书提取移 app，SHA-256 摘要与 `APK_SIGNATURE_HASH` 比对留 engine 跨平台一致）；app 新增 `AndroidAssetSource`/`AndroidApkSigningCertificateSource` + `CoreModule` 绑定；BuildingConfigService 三测试改 mock `AssetSource`（纯 JVM 无需 Robolectric Context）
+- **批 7-3 存档决策（T-CPP-1 定案）**：保持 Kotlin kotlinx-proto 存档编码（Room 34 表 + .sav + 云存档链路零改动；C++ 直出 proto 2174 字段号 schema 无当前消费者）——偿还触发不变：iOS 立项且需纯 C++ 存档时
+- **批 7-4 R-14 全量清偿（feature:game detekt 首入验证门）**：验证门补 `:feature:game:detekt` 后 10 项存量 + 平台接口化迁移暴露项全部真修——`handleGenericBuildingTap`/`handleDemolishSingleTap`/`BuildingConstructionIcon` 提取；折行 ×2；`SectAtlasAssembler` 5 个无参纯构建函数 fun→val；`rebuild` 改收 `RenderFrame`（8→4 参）+ `drawRoadSprite` 改收目标矩形（8→4 参）+ `renderFrame` 提取 `prepareFrameRenderState`；**手势处理簇 467 行拆出 `MainGameScreenGestures.kt`**（MainGameScreen 2004→1560 行，R-13 拆分专项首阶段）；`GpuTierDetector` 分类器分档规则链 + EGL 管线拆 `EglGpuProbe`；engine detekt-baseline 陈旧条目移除（1167→1155）；R-13 其余 5 项仍登记待清理
+- **阶段 7 剩余项（随 C-06 退役批次，见 cpp-engine.md §7 阶段 7 批 7-4 注）**：`ThermalMonitor`（ADPF，4 处）+ `FrameMetricsMonitor`（7 处）接口化（并发敏感 Bugly #3114 守卫需专项）；GameEngine ~289 方法转发接线（84 动作协议已建未接线、~200 操作待 C++ 化）→ 双实现删除 + shadow 对拍转回归基线
+
 ### 新增（C++ 引擎迁移计划 v2 阶段 6：渲染 RHI + 合成器统一）
 
 > 渲染层迁移（批 6-1~6-4）+ 产品契约变更：道路渲染合成收敛为 C++ 单一权威，`NativeEngineFlag` 默认 OFF 不变；道路层降级契约（native 通道加载失败时跳过道路层，生产不触达）；铺路功能重新开放（回退 8c9b7734 的建造栏入口隐藏，独立提交）。

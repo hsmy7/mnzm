@@ -171,6 +171,15 @@ class SoftwareCanvasBackend(
     )
 
     /** 相机-屏幕变换（chunk 烘焙用固定 viewport = chunk 像素尺寸） */
+    private data class FrameRenderState(
+        val fbW: Int,
+        val fbH: Int,
+        val renderScale: Float,
+        val tileHash: Int,
+        val buildingHash: Int,
+        val roadHash: Int
+    )
+
     private class ViewTransform(
         val camX: Float,
         val camY: Float,
@@ -219,38 +228,41 @@ class SoftwareCanvasBackend(
         /**
          * 重建 chunk 位图。
          *
+         * 帧数据（瓦片/建筑/道路）统一取自 [frame]（RenderFrame 已聚合，避免 8 参
+         * 长参数列表——CLAUDE.md 3.4 参数分组规范）
+         *
          * @param decorSkip 装饰层跳过判定（WP5：由 RenderLodPolicy 在 renderFrame
          * 层合并 scale/热控质量/显式关闭三条件——此处只消费最终布尔值，
          * 保证"判定一处、失效一处"，与 C++ skipDecor 双端对齐）
          */
         fun rebuild(
+            frame: RenderFrame,
             atlas: Bitmap,
-            tileData: IntArray,
-            cols: Int,
-            buildingArray: FloatArray?,
-            buildingCount: Int,
             decorSkip: Boolean,
-            buildingShadows: Boolean,
-            roadData: IntArray?
+            buildingShadows: Boolean
         ) {
             val bmp = bitmap ?: createBitmap(CHUNK_PIXEL, CHUNK_PIXEL, Bitmap.Config.RGB_565).also { bitmap = it }
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
 
-            drawGroundAndDecor(canvas, atlas, tileData, cols, decorSkip)
+            drawGroundAndDecor(canvas, atlas, frame.tileData, frame.cols, decorSkip)
+
+            // 局部值：RenderFrame 属性跨模块公开 API，smart cast 不可用
+            val roadData = frame.roadData
+            val buildingArray = frame.buildingData
 
             // 石板道路层（装饰之上、建筑之下，烘焙进 chunk——与建筑层级一致）
             if (roadData != null) {
-                drawRoadsToCanvas(canvas, atlas, roadData, cols)
+                drawRoadsToCanvas(canvas, atlas, roadData, frame.cols)
             }
 
             // 绘制建筑（使用相对相机 (camX=chunk左上角, scale=1) 达到精确对齐）
-            if (buildingArray != null && buildingCount > 0) {
+            if (buildingArray != null && frame.buildingCount > 0) {
                 drawBuildingsToCanvas(
                     canvas = canvas,
                     atlas = atlas,
                     buildingArray = buildingArray,
-                    buildingCount = buildingCount,
+                    buildingCount = frame.buildingCount,
                     buildingShadows = buildingShadows,
                     view = ViewTransform(
                         camX = (col * CHUNK_SIZE_TILES * kit.tileSize).toFloat(),
@@ -404,31 +416,28 @@ class SoftwareCanvasBackend(
                     var i = 0
                     while (i + RoadCompositorBridge.OP_STRIDE <= ops.size) {
                         val key = RoadCompositorBridge.SPRITE_KEYS[ops[i]]
-                        drawRoadSprite(
-                            canvas, atlas, key,
-                            chunkOffX + ops[i + 1], chunkOffY + ops[i + 2],
-                            ops[i + 3], ops[i + 4], reuseRect
+                        val opX = chunkOffX + ops[i + 1]
+                        val opY = chunkOffY + ops[i + 2]
+                        reuseRect.set(
+                            opX, opY,
+                            opX + ops[i + 3], opY + ops[i + 4]
                         )
+                        drawRoadSprite(canvas, atlas, key, reuseRect)
                         i += RoadCompositorBridge.OP_STRIDE
                     }
                 }
             }
         }
 
-        /** 绘制单个道路精灵（源矩形由 [kit] 查询，目标矩形在 chunk 局部坐标系）。 */
+        /** 绘制单个道路精灵（源矩形由 [kit] 查询，目标矩形 [dst] 已由调用方装配）。 */
         private fun drawRoadSprite(
             canvas: Canvas,
             atlas: Bitmap,
             key: String,
-            left: Int,
-            top: Int,
-            w: Int,
-            h: Int,
-            reuseRect: Rect
+            dst: Rect
         ) {
             val src = kit.roadSrcRects[key] ?: return
-            reuseRect.set(left, top, left + w, top + h)
-            canvas.drawBitmap(atlas, src, reuseRect, rebuildPaint)
+            canvas.drawBitmap(atlas, src, dst, rebuildPaint)
         }
 
         /** 视锥剔除（屏幕矩形与 chunk 视口相交判定——4 条件拆两半规避复杂条件） */
@@ -707,19 +716,11 @@ class SoftwareCanvasBackend(
         // 防"此处比较一处、别处判断另一处"的漂移
         val decorSkip = computeDecorSkip(frame)
 
-        // render scale（2026-08-14 平板省电）：物理视口 → 降采样帧缓冲尺寸。
-        // resizeRequested 在此消费（物理尺寸），再统一乘 renderScale——帧缓冲
-        // 尺寸 = round(物理 × renderScale)，绘制比例 drawScale = scale × renderScale
-        var physW = vpW
-        var physH = vpH
-        if (resizeRequested) {
-            resizeRequested = false
-            physW = resizeRequestedW
-            physH = resizeRequestedH
-        }
-        val rs = renderScale
-        val fbW = (physW * rs).roundToInt().coerceAtLeast(1)
-        val fbH = (physH * rs).roundToInt().coerceAtLeast(1)
+        // render scale（2026-08-14 平板省电）：物理视口 → 降采样帧缓冲尺寸（含
+        // resizeRequested 消费，见 [prepareFrameRenderState]）
+        val frameState = prepareFrameRenderState(vpW, vpH, frame)
+        val fbW = frameState.fbW
+        val fbH = frameState.fbH
         ensureFrameBuffer(fbW, fbH, decorSkip)
         val canvas = frameCanvas
         val fb = frameBuffer
@@ -728,16 +729,11 @@ class SoftwareCanvasBackend(
         if (canvas == null || fb == null || scale == null) return fb
         // 世界→帧缓冲像素的生效比例（fbW/drawScale = physW/scale 比率自洽，
         // 可视世界范围与物理路径逐位一致——render scale 不改变视野）
-        val drawScale = scale * rs
+        val drawScale = scale * frameState.renderScale
         val tileSize = config.tileSize
-        val td = frame.tileData
-        val buildingArray = frame.buildingData
-
-        // 引用缓存优化：跳过 contentHashCode O(n) 遍历当数据引用未变化
-        val tileHash = if (td === cachedTileData) chunkTileHash else td.contentHashCode().also { cachedTileData = td }
-        val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }
-        val roadArray = frame.roadData
-        val roadHash = if (roadArray === cachedRoadData) chunkRoadHash else (roadArray?.contentHashCode() ?: 0).also { cachedRoadData = roadArray }
+        val tileHash = frameState.tileHash
+        val buildingHash = frameState.buildingHash
+        val roadHash = frameState.roadHash
 
         // ═══════════════════════════════════════════════════════
         // Chunk 缓存完整渲染（Scroll Compositing 已废弃）
@@ -762,6 +758,40 @@ class SoftwareCanvasBackend(
         drawGridOverlay(canvas, frame, drawScale, fbW, fbH)
 
         return fb
+    }
+
+    /**
+     * renderFrame 帧前置状态计算（提取）：物理视口 → 帧缓冲尺寸（resizeRequested
+     * 在此消费，帧缓冲尺寸 = round(物理 × renderScale)）+ chunk 哈希（引用缓存优化——
+     * 数据引用未变化时跳过 contentHashCode O(n) 遍历）。
+     *
+     * @return [FrameRenderState]
+     */
+    private fun prepareFrameRenderState(vpW: Int, vpH: Int, frame: RenderFrame): FrameRenderState {
+        var physW = vpW
+        var physH = vpH
+        if (resizeRequested) {
+            resizeRequested = false
+            physW = resizeRequestedW
+            physH = resizeRequestedH
+        }
+        val rs = renderScale
+        val td = frame.tileData
+        val buildingArray = frame.buildingData
+        val roadArray = frame.roadData
+        val tileHash = if (td === cachedTileData) chunkTileHash else td.contentHashCode().also { cachedTileData = td }
+        val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash
+        else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }
+        val roadHash = if (roadArray === cachedRoadData) chunkRoadHash
+        else (roadArray?.contentHashCode() ?: 0).also { cachedRoadData = roadArray }
+        return FrameRenderState(
+            fbW = (physW * rs).roundToInt().coerceAtLeast(1),
+            fbH = (physH * rs).roundToInt().coerceAtLeast(1),
+            renderScale = rs,
+            tileHash = tileHash,
+            buildingHash = buildingHash,
+            roadHash = roadHash
+        )
     }
 
     /**
@@ -853,14 +883,10 @@ class SoftwareCanvasBackend(
                 if (!chunk.isValid) {
                     chunkRebuildCount++
                     chunk.rebuild(
+                        frame = frame,
                         atlas = atlas,
-                        tileData = frame.tileData,
-                        cols = frame.cols,
-                        buildingArray = frame.buildingData,
-                        buildingCount = frame.buildingCount,
                         decorSkip = decorSkip,
-                        buildingShadows = config.renderFlags.buildingShadows,
-                        roadData = frame.roadData
+                        buildingShadows = config.renderFlags.buildingShadows
                     )
                 }
             }

@@ -20,7 +20,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.perf.GpuTierDetector
+import com.xianxia.sect.ui.game.perf.GpuTierDetector
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.data.SessionManager

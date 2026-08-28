@@ -1,9 +1,9 @@
 package com.xianxia.sect.core.engine.service
 
-import android.content.Context
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.platform.ApkSigningCertificateSource
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
@@ -65,7 +65,7 @@ class RedeemCodeServiceTest {
             httpClient = mock(HttpClientProvider::class.java),
             spiritStoneWallet = wallet,
             gameRngManager = rngManager,
-            appContext = mock(Context::class.java),
+            signingCertificates = mock(ApkSigningCertificateSource::class.java),
             inventorySystem = inventorySystem
         )
     }

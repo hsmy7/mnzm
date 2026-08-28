@@ -112,8 +112,8 @@ object SectAtlasAssembler {
     private fun buildSpriteSlots(): List<SpriteSlot> {
         val buildingMap = buildingAtlasDrawableMap()
         return buildTileSlots() + buildBuildingSlots(buildingMap) +
-            buildFloorSlots() + buildCropSlots() + buildStructureSlots() + buildCloudSlots() +
-            buildRoadSlots()
+            buildFloorSlots + buildCropSlots + buildStructureSlots + buildCloudSlots +
+            buildRoadSlots
     }
 
     /**
@@ -155,14 +155,14 @@ object SectAtlasAssembler {
         }
 
     /** 地砖精灵槽位。 */
-    private fun buildFloorSlots(): List<SpriteSlot> =
+    private val buildFloorSlots: List<SpriteSlot> =
         SpriteAtlasDef.FloorTileType.values().map { ft ->
             val r = ft.pixelRect
             SpriteSlot(ft.key, r.x, r.y, r.w, r.h, FLOOR_TILE_DRAWABLE_MAP[ft.key] ?: 0)
         }
 
     /** 灵田作物精灵槽位（WP6 生长动画三阶段）。 */
-    private fun buildCropSlots(): List<SpriteSlot> =
+    private val buildCropSlots: List<SpriteSlot> =
         SpriteAtlasDef.CropStage.values().map { stage ->
             val r = stage.rect
             SpriteSlot(
@@ -172,7 +172,7 @@ object SectAtlasAssembler {
         }
 
     /** 固定结构精灵槽位（宗门入口门楼/阶梯，渲染走建筑层）。 */
-    private fun buildStructureSlots(): List<SpriteSlot> =
+    private val buildStructureSlots: List<SpriteSlot> =
         SpriteAtlasDef.STRUCTURES.map { s ->
             SpriteSlot(
                 s.name, s.rect.x, s.rect.y, s.rect.w, s.rect.h,
@@ -181,7 +181,7 @@ object SectAtlasAssembler {
         }
 
     /** 云层精灵槽位（世界顶部动态云朵——图集槽位，位置/运动由 CloudLayerAnimator 驱动）。 */
-    private fun buildCloudSlots(): List<SpriteSlot> =
+    private val buildCloudSlots: List<SpriteSlot> =
         SpriteAtlasDef.CLOUD_RECTS.mapIndexed { index, (name, rect) ->
             SpriteSlot(
                 name, rect.x, rect.y, rect.w, rect.h,
@@ -190,7 +190,7 @@ object SectAtlasAssembler {
         }
 
     /** 石板道路精灵槽位（按 SpriteAtlasDef.ROAD_RECTS 声明顺序，渲染叠加层取 UV/源矩形）。 */
-    private fun buildRoadSlots(): List<SpriteSlot> =
+    private val buildRoadSlots: List<SpriteSlot> =
         SpriteAtlasDef.ROAD_RECTS.map { (name, rect) ->
             SpriteSlot(
                 name, rect.x, rect.y, rect.w, rect.h,

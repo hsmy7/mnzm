@@ -2,14 +2,17 @@
 
 > 更新日期：2026-08-28。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 550/550 · JUnit 全模块 7271/7271（engine 2928，testReleaseUnitTest 全量） · NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · compileReleaseKotlin 通过（2026-08-28 实测）**。
-> **计划 v2 阶段 0、1、2、3、4、5、6 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
+> 当前基线：**桌面 GTest 550/550 · JUnit 全模块 7271/7271（engine 2919，testReleaseUnitTest 全量；194 skip 为无 `-Dgamecore.jni.path` 时 Assume 跳过的对拍用例，对应语义由 GTest 侧全量覆盖） · NDK externalNativeBuildRelease 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · compileReleaseKotlin 通过（2026-08-28 阶段 7 实测）**。
+> **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
 > 11 槽分配/兑换码+邮件附件；阶段 5：游戏循环入 C++——平台能力接口化（Clock/Telemetry/
 > 热控/电量端口）+ 引擎循环（PhaseClock/EngineLoop）+ 看门狗判据（ProgressMonitor）；
 > 阶段 6：渲染 RHI + 合成器统一——道路合成器单一权威物理下沉（批次 R 剩余清零）+
-> Renderer2D → Rhi.h 形式化（Metal/iOS 预留），详见 §7 阶段 6 行）。
+> Renderer2D → Rhi.h 形式化（Metal/iOS 预留）；阶段 7：AUTHORITATIVE 生产默认切换
+> （C++ 真相源验收）+ 存档编码决策（T-CPP-1 保持 Kotlin）+ engine 平台能力接口化
+> 收尾（Android import 36→11），详见 §7 阶段 7 行；**Kotlin 引擎逻辑全量退役随 C-06
+> 续作（阶段 7 批 7-4 登记）**）。
 
 ## 1. 目标架构
 
@@ -98,7 +101,7 @@ android/app/src/main/cpp/
 |---|---|
 | 已完成 | feature flag / StateSyncService（宽松合并防丢字段）/ tick 桥（shadow 对拍）/ 转发辅助 / 性能基准（见 4.9 剩余·基础设施）；**阶段 1 新增**：增量变更集通道（C++ `state::DirtyTracker` + Kotlin `StateSyncService.applyDirty/applyDirtyFromNative`，DiffDirtyTest / DiffDirtyDisciplesTest / GTest dirty_tracker_test 三层守护）、RNG 读档恢复接线（C-13，含导出前活动状态回写） |
 | 剩余·GameEngine 方法转发 | Kotlin GameEngine 275 方法逐一转发——转发范围按计划 v2 阶段 2-4 决定：**C++ 侧实现对应逻辑后即可转发**（正确基准：真实实现对比 1.1×、批量打平，转发成本可忽略），不再按"低频/高频"裁剪 |
-| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；**计划 v2 阶段 2 起逐系统切换**（每阶段 C++ 真相源 + 对拍守护）；阶段 7 完成后 Kotlin 引擎退役，shadow 对拍转回归基线 |
+| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；~~逐系统切换~~（✅ 阶段 2-6 完成）；**AUTHORITATIVE 生产默认已切换**（✅ 阶段 7 批 7-1，OFF 保留为回退契约）；剩余：GameEngine 方法全量转发接线（见上行）→ C++ 化收尾后 **Kotlin 引擎退役**（删除双实现 + shadow 对拍转回归基线，阶段 7 批 7-4 登记，随 C-06 执行） |
 | 阻塞依赖 | 未迁移系统（SecretRealm 状态机/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator 等）——**纳入计划 v2 阶段 4 逐批 C++ 化**（不再"保持 Kotlin 实现"） |
 
 ### 5.2 批次 10：彻底单引擎（C-07，2026-08-25 二次重定义）
@@ -171,13 +174,17 @@ android/app/src/main/cpp/
   - **批 5-2 引擎循环**：`system/engine_loop.h`——**PhaseClock**（GameTimeClock 逐位移植：墙钟消费/速度切换旧速度结算/追补上限 3×speed 余量丢弃/consumeDeadTime/forceConsumeOnePhase/refundPhases/msPerPhase/phaseProgress，accumulatedGameMs/speed atomic 镜像 Kotlin @Volatile）+ **EngineLoop**（gameLoopIteration 判据移植：iterate(pausedOrLoading, isSaving) 返回 LoopFramePlan；kLogicDtNs=100ms、kMaxAccumulatorNs=5 步、kMaxStepsPerFrame=5；心跳 lastLoopActivityMs；notifyUserActivity；onLoopRestart）；**17 槽 LongArray 帧计划协议**（每帧一次 JNI 标量通道，禁 JSON——阶段 0 基准 JSON 往返 12µs 为成本大头）；GTest 31（PhaseClock 19 + EngineLoop 10 + 平台端口 2）+ JUnit DiffEngineLoopTest 15 双端对拍（时钟状态机 + 帧计划语义）
   - **批 5-3 看门狗判据**：`system/watchdog.h`——**ProgressMonitor**（GameTimeProgressMonitor 逐位移植：ProgressSnapshot 12 字段/StallVerdict 数值码 0-4/evaluate/classify/classifyFlags/三阈值 45s·90s·20s/std::mutex 线程安全；S1/S4/S5/F2/V1/V6 修复分支随行移植）；GameCore 组合通道 `watchdogVerdict(flags)`（引擎侧状态 C++ 组合 + 平台侧 6 flags）；-1 未初始化回退 Kotlin；GTest 25 + JUnit DiffWatchdogTest 24 全矩阵对拍
   - **批 5-4 AUTHORITATIVE 接线**：`GameEngineCoreLoopOps.kt`（authoritativeLoopIteration 帧迭代 AUTHORITATIVE 化 + tickAuthoritativeStep + nativeVerdictToStall + thermalSeverityCode）+ `GameEngineCore.kt`（gameLoopIteration 顶部 AUTHORITATIVE 分流、onSpeedChanged→nativeLoopSetSpeed 钩子、nativeLoopPipelineActive refund 分流、prepareLoopStart→nativeLoopStart、performEmergencyRestart→nativeLoopOnRestart、onUserActivity→nativeLoopNotifyUserActivity、progressVerdict native 判据分支 + 6 内部辅助/共享辅助提取）；`GameEngineCoreAuthoritativeOps.kt` refund 按真相源分流；回退契约：帧计划不可用→纯 Kotlin 累积器路径；**AUTHORITATIVE 默认 OFF（灰度开关）不变**
-  - **批 5-5 R-02 循环路径清除**：`GameTimeClock.kt` 删 `SystemClock/Log` import（SystemTimeSource/TimeSourceModule 移 app 层 `di/PlatformTimeModule.kt`）；`GameEngineCore.kt` 删 `Build` import（doBusyWait SDK_INT≥33 改 supportsOnSpinWait 反射探测）；engine 模块 33 处 Android import 剩 ~30 处（perf/thermal/registry/config/service/domain）随阶段 7 Kotlin 引擎退役时移 app 层 | R-02（core/engine Android 依赖随引擎退役自然消除——循环路径 3 处已清除，剩余 ~30 处阶段 7 退役时移出） |
+  - **批 5-5 R-02 循环路径清除**：`GameTimeClock.kt` 删 `SystemClock/Log` import（SystemTimeSource/TimeSourceModule 移 app 层 `di/PlatformTimeModule.kt`）；`GameEngineCore.kt` 删 `Build` import（doBusyWait SDK_INT≥33 改 supportsOnSpinWait 反射探测）；engine 模块 Android import 的接口化收尾由阶段 7 批 7-2 完成（36→11 处，见 §7 阶段 7 行） | R-02（core/engine Android 依赖随引擎退役自然消除——循环路径 3 处已清除；阶段 7 接口化 36→11，剩余 11 处随 C-06 退役批次移出） |
 | 6 ✅ | **渲染 RHI + 合成器统一**（2026-08-28 完成，GTest 550/550 + JUnit 对拍全绿 + NDK 构建通过）：
   - **批 6-1 合成器单一权威**：`gamecore/map/road_compositor.h`（零依赖纯函数 `emitRoadDrawOps`：掩码 → RoadSprite 语义枚举 + 格内整型几何操作序列，顺序契约 主体→描边条→转角件→十字中心 与双端烘焙顺序一致；与生成式图集解耦——合成器零 UV/精灵名依赖，枚举序 = ROAD_RECTS 声明序 = roadUVMap 索引 = SPRITE_KEYS 下标三端映射锚点）；GTest 12（全 16 掩码操作数守恒/几何有界/顺序契约/枚举序锚点/tileSize=32 整型↔浮点一致性）
   - **批 6-2 Vulkan 路段接入**：`NativeBridge.drawAllTiles` 道路段删除 roadTypeForMask/UV 硬编码，改消费合成器操作序列（仅做 操作→SpriteBatcher 数据装配）；新增 roadUVMap 长度防御；删本地 roadTypeForMask 包装（road_system.h 直引）
   - **批 6-3 Canvas 接入**：`SoftwareCanvasBackend.drawRoadsToCanvas` 改纯数据装配（逐格 `RoadCompositorBridge.compose` JNI 通道 → RoadSprite 枚举序→精灵名→图集源矩形，RoadTiling 合成逻辑移除）；生产 JNI `GameCoreBridge.nativeRoadCompose`（无状态纯函数，不依赖引擎实例）；`RoadCompositorBridge`（core/render）+ 守护测试（SpriteAtlasDefGeneratedTest：SPRITE_KEYS ↔ ROAD_RECTS 声明序全等）+ JUnit DiffRoadComposeTest 5（桌面对拍桥 compose op，手算规格 + 全 16 掩码结构不变量）；降级契约：compose 首次调用幂等 ensureLoaded 自加载，仅加载失败（JVM 测试环境/极端损坏）返回 null 跳过道路层（生产不触达，不影响 chunk 其余层）；同批产品回退：恢复建造栏石板路建造入口（回退 8c9b7734，独立提交）
   - **批 6-4 RHI 形式化**：`Renderer2D.h` → `Rhi.h`（RHI 契约：上层 NativeBridge/SpriteBatcher 不得 include 图形 API 头，下层实现 VulkanBackend 现有 / MetalBackend iOS 预留；类名 Renderer2D 保留）；Metal 接入指南（CAMetalLayer/NDC 差异/uploadTexture/submitFrame 语义映射，见 Rhi.h 头注释）——iOS 立项时零上层改动接入 | 批次 R 剩余（✅ 全部完成）、iOS 预留 |
-| 7 | **Kotlin 降级纯平台层 + 存档决策**：Kotlin 引擎逻辑退役；存档编码决策（T-CPP-1 保持 Kotlin 或迁 C++ 直出 proto）；iOS Swift 平台层 | T-CPP-1、C-07 验收 |
+| 7 ✅ | **Kotlin 降级纯平台层 + 存档决策**（2026-08-28 完成，分批 7-1~7-3；**剩余项批 7-4 依赖 C-06 转发收尾，见下注**）：
+  - **批 7-1 AUTHORITATIVE 生产默认切换**：`NativeEngineFlag` 默认 OFF→**AUTHORITATIVE**（C++ 真相源切换验收——每旬时间推进+核心结算标量通道、委托式 RNG、Kotlin 残留执行器互插；SHADOW 对拍与 OFF 回退契约保留，任一时刻可切回纯 Kotlin）；随批修复降级契约缺口：`ensureAuthoritativeNative` 原只捕 `Exception`，而 `System.loadLibrary` 失败抛 `UnsatisfiedLinkError`（Error）——OFF 灰度期从未触达该路径，生产同理存在（split APK 损坏/16KB 对齐失败），改捕 `Throwable`（CancellationException 穿透）后 native 不可用严格回退纯 Kotlin；JUnit 4 失败复验全绿
+  - **批 7-2 R-02 收尾（engine 平台能力接口化，`import android.*` 36→11 处）**：① `AndroidThermalReader` 物理移 app 层 `platform/`（ThermalReader 接口既有，零 engine 消费者）；② `BatteryAwareController` 拆分——接口 `BatteryStatusProvider`+`BatteryPolicy` 常量+`evaluatePowerPolicy` 纯函数+`NoopBatteryStatus` 留 engine，Android 广播/binder 读取移 app `platform/BatteryAwareController`，测试同步拆分（engine 纯策略 12 用例 + app Robolectric 平台回退 2 用例）；③ `GpuTierDetector` 移 feature/game `ui/game/perf/`（唯一消费域；`GpuTier`/`GpuRenderConfig` 留 engine 供 RenderScalePolicy）；④ `OemPowerProfileProvider` 厂商识别改平台串注入 `injectPlatformManufacturer`（app Application.onCreate 注入 Build.MANUFACTURER/BRAND；未注入按 OTHER 安全回退）；⑤ `android.util.Log`→`DomainLog`（HttpRemoteConfigProvider/SaveLoadCoordinator/DisciplePillManager/BuildingConfigService）；⑥ `android.util.Base64`→`kotlin.io.encoding.Base64`（ManualDatabase，minSdk 24 兼容）；⑦ **资产链端口** `core/platform/AssetSource`（BuildingConfigService/ManualDatabase/ManualRegistry/GameDataManager/ResourcePreloader 全链改造，app `AndroidAssetSource` + CoreModule 绑定；缺失返回 null 由调用方回退，日志语义保留）；⑧ **签名校验端口** `core/platform/ApkSigningCertificateSource`（RedeemCodeService 防篡改校验，证书提取移 app `AndroidApkSigningCertificateSource`，SHA-256 摘要比对留 engine 跨平台一致）
+  - **批 7-3 存档决策（T-CPP-1 正式定案）**：**保持 Kotlin kotlinx-proto 存档编码**（Room 34 表 + .sav + 云存档链路零改动；kotlinx-proto 2174 字段号 schema 的 C++ 直出无当前消费者）——偿还触发不变：iOS 立项且需无 Kotlin 纯 C++ 存档时（ADR 技术债表登记）
+  - **批 7-4 R-14 全量清偿 + 剩余项登记**：验证门补 `:feature:game:detekt`，10 项存量 + 接口化迁移暴露项全部真修（提取拆函数/折行/RenderFrame 收参/手势簇 467 行拆出 `MainGameScreenGestures.kt`——R-13 拆分专项首阶段；GpuTierDetector 分档规则链 + EglGpuProbe 拆分）；**剩余项（依赖 C-06，登记为阶段 7 续作）**：① `ThermalMonitor`（ADPF，4 处 import）+ `FrameMetricsMonitor`（7 处）接口化——深度耦合引擎循环/看门狗测试面（Bugly #3114 并发敏感守卫），随 C-06 退役批次专项重构；② **Kotlin 引擎逻辑全量退役**：GameEngine 族 ~289 方法中 84 动作协议已建未接线、其余 ~200 操作待 C++ 化（C-06 转发收尾），完成后 Kotlin 双实现删除 + shadow 对拍转回归基线 + 剩余 11 处 import 随迁 | T-CPP-1（定案保持）、C-07 验收（C++ 真相源切换完成；全量退役随 C-06） |
 
 **保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
 

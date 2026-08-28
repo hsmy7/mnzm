@@ -56,7 +56,7 @@ class GameEngineCoreFpsPolicyTest {
     private class FakeBatteryStatus(
         override val isLowBattery: Boolean = false,
         override val isPowerSaveMode: Boolean = false,
-        override val fpsCap: Int = com.xianxia.sect.core.thermal.BatteryAwareController.MAX_FPS_CAP,
+        override val fpsCap: Int = com.xianxia.sect.core.thermal.BatteryPolicy.MAX_FPS_CAP,
         override val thermalThresholdOffsetC: Float = 0f
     ) : BatteryStatusProvider
 

@@ -69,8 +69,6 @@
     <ID>CyclomaticComplexMethod:GameEngineCoordination.kt$suspend fun GameEngine.loadData( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt; = emptyList(), herbs: List&lt;Herb&gt; = emptyList(), seeds: List&lt;Seed&gt; = emptyList(), battleLogs: List&lt;BattleLog&gt; = emptyList(), alliances: List&lt;Alliance&gt; = emptyList(), productionSlots: List&lt;ProductionSlot&gt; = emptyList(), storageBags: List&lt;StorageBag&gt; = emptyList() )</ID>
     <ID>CyclomaticComplexMethod:GameEngineSectLevelOps.kt$suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult</ID>
     <ID>CyclomaticComplexMethod:GiftService.kt$GiftService$suspend fun giftSpiritStones( sectId: String, tier: Int, bypassYearLimit: Boolean = false ): GiftResult</ID>
-    <ID>CyclomaticComplexMethod:GpuTierDetector.kt$GpuTierDetector$internal fun classifyRenderer(renderer: String): GpuTier</ID>
-    <ID>CyclomaticComplexMethod:GpuTierDetector.kt$GpuTierDetector$private fun queryGpuRenderer(): String?</ID>
     <ID>CyclomaticComplexMethod:HpMpRecoveryService.kt$HpMpRecoveryService$fun recoverHpMpSingleColumn( state: MutableGameState, id: Int, phasesToSettle: Int = 1, zones: RecoveryZones = RecoveryZones(), equipmentMap: Map&lt;String, EquipmentInstance&gt;? = null, manualMap: Map&lt;String, ManualInstance&gt;? = null, manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt;? = null ): Boolean</ID>
     <ID>CyclomaticComplexMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun buyMerchantItem(itemId: String, quantity: Int)</ID>
     <ID>CyclomaticComplexMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)</ID>
@@ -270,7 +268,6 @@
     <ID>LongParameterList:VassalService.kt$VassalService$( contract: VassalContract, data: com.xianxia.sect.core.model.GameData, playerPower: Double, playerSect: com.xianxia.sect.core.model.WorldSect, conquests: Int, losses: Int, battleWins: Int, battleLosses: Int )</ID>
     <ID>LoopWithTooManyJumpStatements:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$for</ID>
     <ID>LoopWithTooManyJumpStatements:AISectGarrisonManager.kt$AISectGarrisonManager$for</ID>
-    <ID>LoopWithTooManyJumpStatements:AndroidThermalReader.kt$AndroidThermalReader$for</ID>
     <ID>LoopWithTooManyJumpStatements:AutoBuyService.kt$AutoBuyService$for</ID>
     <ID>LoopWithTooManyJumpStatements:AutoPillService.kt$AutoPillService$for</ID>
     <ID>LoopWithTooManyJumpStatements:BattleAI.kt$BattleAI$for</ID>
@@ -595,9 +592,6 @@
     <ID>MaxLineLength:GameEngineSectLevelOps.kt$is DomainResult.Partial -&gt; throw IllegalStateException("材料 ${material.name} 仓库空间不足，溢出 ${r.overflow} 个")</ID>
     <ID>MaxLineLength:GameEngineSectLevelOps.kt$suspend</ID>
     <ID>MaxLineLength:GiftService.kt$GiftService$val deductResult = spiritStoneWallet.deduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)</ID>
-    <ID>MaxLineLength:GpuTierDetector.kt$GpuTierDetector$r.contains("adreno 6") || r.contains("adreno 5") || r.contains("adreno 4") || r.contains("adreno 3") -&gt; return GpuTier.LOW</ID>
-    <ID>MaxLineLength:GpuTierDetector.kt$GpuTierDetector$r.contains("mali-g57") || r.contains("mali-g52") || r.contains("mali-g51") || r.contains("mali-g68") -&gt; return GpuTier.LOW</ID>
-    <ID>MaxLineLength:GpuTierDetector.kt$GpuTierDetector$try { android.opengl.EGL14.eglMakeCurrent(display ?: android.opengl.EGL14.EGL_NO_DISPLAY, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_CONTEXT) } catch (_: Exception) { DomainLog.w("GpuTierDetector", "EGL eglMakeCurrent cleanup failed (non-fatal)") }</ID>
     <ID>MaxLineLength:HpMpRecoveryEquivalenceTest.kt$HpMpRecoveryEquivalenceTest$val prof = ManualProficiencyData(manualId = "m1", proficiency = mastery.toDouble(), masteryLevel = mastery / 20)</ID>
     <ID>MaxLineLength:InventoryFacade.kt$InventoryFacade$BulkSellResult</ID>
     <ID>MaxLineLength:InventoryFacade.kt$InventoryFacade$fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack</ID>
@@ -789,8 +783,6 @@
     <ID>ReturnCount:AISectGarrisonManager.kt$AISectGarrisonManager$fun fillEmptyGarrisonSlots(gameData: GameData): GameData</ID>
     <ID>ReturnCount:AISectGarrisonManager.kt$AISectGarrisonManager$fun rotateGarrisonSlots(gameData: GameData): GameData</ID>
     <ID>ReturnCount:AISectGarrisonManager.kt$AISectGarrisonManager$private fun isSlotVacant(slot: GarrisonSlot, aliveMap: Map&lt;String, Disciple&gt;): Boolean</ID>
-    <ID>ReturnCount:AndroidThermalReader.kt$AndroidThermalReader$override fun registerThermalCallback(onStateChanged: (ThermalState) -&gt; Unit): Boolean</ID>
-    <ID>ReturnCount:AndroidThermalReader.kt$AndroidThermalReader$private fun readBatteryTemperature(): Float</ID>
     <ID>ReturnCount:AudioEngine.kt$AudioEngine$fun playBGM()</ID>
     <ID>ReturnCount:AudioEngine.kt$AudioEngine$fun playSound(name: String)</ID>
     <ID>ReturnCount:AudioEngine.kt$AudioEngine$fun preloadSound(name: String, resId: Int)</ID>
@@ -848,9 +840,6 @@
     <ID>ReturnCount:GameEngineCoordination.kt$suspend fun GameEngine.toggleWatchItem(key: String): DomainResult&lt;Unit&gt;</ID>
     <ID>ReturnCount:GameEngineCoordination.kt$suspend fun GameEngine.unequipItem(discipleId: String, slot: EquipmentSlot): DomainResult&lt;Unit&gt;?</ID>
     <ID>ReturnCount:GiftService.kt$GiftService$suspend fun giftSpiritStones( sectId: String, tier: Int, bypassYearLimit: Boolean = false ): GiftResult</ID>
-    <ID>ReturnCount:GpuTierDetector.kt$GpuTierDetector$internal fun classifyRenderer(renderer: String): GpuTier</ID>
-    <ID>ReturnCount:GpuTierDetector.kt$GpuTierDetector$internal fun detectGpuTier(context: android.content.Context? = null): GpuTier</ID>
-    <ID>ReturnCount:GpuTierDetector.kt$GpuTierDetector$private fun queryGpuRenderer(): String?</ID>
     <ID>ReturnCount:GridSnapHelper.kt$GridSnapHelper$fun validatePlacement( gridX: Int, gridY: Int, width: Int, height: Int, maxGridX: Int, maxGridY: Int, borderPadding: Int = 0, occupiedRects: List&lt;GridRect&gt; = emptyList() ): PlacementValidity</ID>
     <ID>ReturnCount:GridSystem.kt$GridSystem$fun validatePlacement( gridX: Int, gridY: Int, width: Int, height: Int ): GridSnapHelper.PlacementValidity</ID>
     <ID>ReturnCount:HeavenlyTrialService.kt$HeavenlyTrialService$suspend fun claimClearReward(levelIndex: Int): ClaimClearRewardResult</ID>
@@ -928,7 +917,6 @@
     <ID>ThrowsCount:ExplorationService.kt$ExplorationService$fun processMonthlyWorldLevels(state: MutableGameState)</ID>
     <ID>ThrowsCount:SectMapTouchEngine.kt$SectMapTouchEngine$private fun handleDown(data: TouchData)</ID>
     <ID>TooGenericExceptionCaught:AISectTeamComposer.kt$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:AndroidThermalReader.kt$AndroidThermalReader$e: Exception</ID>
     <ID>TooGenericExceptionCaught:AudioEngine.kt$AudioEngine$e: Exception</ID>
     <ID>TooGenericExceptionCaught:BackgroundJobScheduler.kt$BackgroundJobScheduler$e: Exception</ID>
     <ID>TooGenericExceptionCaught:BootSequenceController.kt$BootSequenceController$e: Exception</ID>

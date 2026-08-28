@@ -1,6 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import android.util.Log
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ItemEffect
@@ -213,7 +213,7 @@ class DisciplePillManager @Inject constructor(
                 else if (hasAnyBattleAttrAdd(effect)) PillRule.TEMPORARY_BATTLE
                 else if (hasAnyHealingEffect(effect)) PillRule.INSTANT_CULTIVATION
                 else {
-                    Log.w(TAG, "未分类丹药，默认降级为可重复服用: " +
+                    DomainLog.w(TAG, "未分类丹药，默认降级为可重复服用: " +
                         "pillType=${effect.pillType}, " +
                         "pillCategory=${effect.pillCategory}")
                     PillRule.INSTANT_CULTIVATION
