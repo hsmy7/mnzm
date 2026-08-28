@@ -1,3 +1,12 @@
+## [4.01.12] - 2026-08-29
+
+### 变更（C++ 引擎迁移计划 v2 批 8-4：C-06 转发收尾续作——接线面收口判定）
+
+> 审计/判定批（无生产代码与测试面变更）：批 7-4 登记的"84 动作已建未接线 + ~200 操作待 C++ 化"经全仓库调用点核查后收口——可接线面已穷尽，转发接线阶段终结；剩余终态收尾（Kotlin 引擎退役专项：删除 tick/结算双实现 + shadow 对拍转回归基线）另行批次规划。判定详见 docs/cpp-engine.md §7.1 批 8-4。
+
+- **87 个 ActionId 全量清点六类裁决**：① 已接线生产 10（批 8-2/8-3 库存家族）；② 月结/年结/旬结内部路径 16（AUTHORITATIVE tick 已在 C++ 侧执行，不接线=已接线）；③ 纯函数/影子对拍基准 46（SECRET_REALM_*/SECT_*/BATTLE_* 等，Kotlin 消费方为系统内部计算，随双实现退役自然消失）；④ 查询动作留守 4（WALLET_BALANCE/TOTAL_SELL_VALUE、INV_CAN_ADD_ITEM/CAPACITY_INFO——事务内消费 + C++ 只读通道 tick 间落后 Kotlin）；⑤ **事务内变更原语留守 3（钱包族 WALLET_ADD/DEDUCT/BATCH 行为审计完成）**——C++ economy.h 与 Kotlin SpiritStoneWallet 纯逻辑逐项等价（add 饱和回绕/deduct 自动售卖补差价/batch 预检查原子回滚/年度报告累积），留守依据：syncFromNative store 级镜像与事务内调用不兼容（闭包提交覆盖镜像）、可观察契约含 Kotlin 独有平台效应（Ledger 流水/pendingEvents 事件暂存/flush）、JSON execute 1.1× 无性能收益；C++ 侧收敛由反向增量通道保证；⑥ 无独立生产调用点/嵌套调用面留守 8（remove 5 族仅被 sell*/consume 组合操作内部消费、instance 族 ItemAdder 无外部调用点、INV_ADD_STORAGE_BAG 调用面嵌套形态混杂）
+- **文档收口**：docs/cpp-engine.md 头部基线 + §5.1（"剩余·GameEngine 方法转发"/"剩余·全量切换"两行改判收口）+ §7.1 批 8-4 行与六类裁决表；docs/architecture.md C-06 行更新（转发接线阶段终结，全量退役转退役专项）
+
 ## [4.01.11] - 2026-08-29
 
 ### 新增（C++ 引擎迁移计划 v2 批 8：C-06 转发收尾续作——监控器接口化 + 库存家族生产接线）
