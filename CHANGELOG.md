@@ -1,3 +1,15 @@
+## [4.01.14] - 2026-08-29
+
+### 新增（月变残留执行器增量 C++ 化批 10-1：S8 侦察过期清理下沉 + 宗门详情域协议扩容）
+
+> 退役专项收口后的增量迁移主线首批（cpp-engine.md §7.3）：把 AUTHORITATIVE 生产管线中仍由 Kotlin 残留执行器承担的月变编排逐批下沉 C++。生产默认行为不变（月变真相源仍在 Kotlin，C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。
+
+- **S8 子事件 8 侦察信息过期清理**：Kotlin `applyScoutInfoExpiry` 等价移植 C++（零 RNG 纯数据变换）——过期判定（年/月比较）、无过期纯早退、三段更新逐条对齐 Kotlin 读取顺序（剩余条目明细刷新/新建、被移除明细 scoutInfo 清空且保留其余字段、worldMapSects.isKnown 翻转读原始明细）；接线进 runMonthSettlement 子事件 8 位（gameOverCheck 与 spiritMine 之间），月结未下沉子事件 13→12 件
+- **宗门详情域协议扩容**：SectDetail/SectScoutInfo/MineSlot/SectWarehouse/WarehouseItem 五模型 + GiftPreferenceType 枚举（name-string 约定）入 C++ 快照；GameData 新增 `sectDetails`/`scoutInfo` 两 map 字段 + json_codec 双向编解码；dirty_tracker 对 gameData 顶层字段通用 diff，新字段自动覆盖反向增量通道
+- **途中修复协议默认值缺陷**：giftPreference C++ 默认空串 → "NONE"（Kotlin 枚举默认名，空串不可解码——Diff 对拍首轮暴露）
+- **验证**：GTest 558/558（+2：过期移除/isKnown 翻转/明细保留与新建刷新 + 无过期零写入）· DiffMonthSettlementTest 场景扩展 1/1（AI 宗门×2 + 嵌套 map 键）· engine JUnit 2925/2925（0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿
+- **兼容性**：无 Entity/Migration/存档变更（快照协议为进程内通道，存档编码仍由 Kotlin kotlinx-proto 承担）；玩家可见行为不变
+
 ## [4.01.13] - 2026-08-29
 
 ### 变更（C++ 引擎迁移退役专项批 9-1/9-2：SHADOW 对拍态与纯 Kotlin 旬结算路径退役——tick 结算恒走 C++ 单引擎终态）

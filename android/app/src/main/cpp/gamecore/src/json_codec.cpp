@@ -492,6 +492,70 @@ void from_json(const nlohmann::json& j, Alliance& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectIds); GC_FROM(j, v, startYear); GC_FROM(j, v, initiatorId);
 }
 
+// ── 批 10-1：宗门详情域（S8 侦察过期清理子事件协议扩容） ──
+
+void to_json(nlohmann::json& j, const MineSlot& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
+    GC_TO(v, j, output); GC_TO(v, j, efficiency); GC_TO(v, j, isActive);
+}
+void from_json(const nlohmann::json& j, MineSlot& v) {
+    GC_FROM(j, v, index); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
+    GC_FROM(j, v, output); GC_FROM(j, v, efficiency); GC_FROM(j, v, isActive);
+}
+
+void to_json(nlohmann::json& j, const WarehouseItem& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, itemId); GC_TO(v, j, itemName); GC_TO(v, j, itemType);
+    GC_TO(v, j, rarity); GC_TO(v, j, quantity);
+}
+void from_json(const nlohmann::json& j, WarehouseItem& v) {
+    GC_FROM(j, v, itemId); GC_FROM(j, v, itemName); GC_FROM(j, v, itemType);
+    GC_FROM(j, v, rarity); GC_FROM(j, v, quantity);
+}
+
+void to_json(nlohmann::json& j, const SectWarehouse& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, items); GC_TO(v, j, spiritStones);
+    GC_TO(v, j, midGradeSpiritStones); GC_TO(v, j, highGradeSpiritStones);
+}
+void from_json(const nlohmann::json& j, SectWarehouse& v) {
+    GC_FROM(j, v, items); GC_FROM(j, v, spiritStones);
+    GC_FROM(j, v, midGradeSpiritStones); GC_FROM(j, v, highGradeSpiritStones);
+}
+
+void to_json(nlohmann::json& j, const SectScoutInfo& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, sectId); GC_TO(v, j, sectName);
+    GC_TO(v, j, scoutYear); GC_TO(v, j, scoutMonth);
+    GC_TO(v, j, discipleCount); GC_TO(v, j, maxRealm);
+    GC_TO(v, j, resources); GC_TO(v, j, isKnown); GC_TO(v, j, disciples);
+    GC_TO(v, j, expiryYear); GC_TO(v, j, expiryMonth);
+}
+void from_json(const nlohmann::json& j, SectScoutInfo& v) {
+    GC_FROM(j, v, sectId); GC_FROM(j, v, sectName);
+    GC_FROM(j, v, scoutYear); GC_FROM(j, v, scoutMonth);
+    GC_FROM(j, v, discipleCount); GC_FROM(j, v, maxRealm);
+    GC_FROM(j, v, resources); GC_FROM(j, v, isKnown); GC_FROM(j, v, disciples);
+    GC_FROM(j, v, expiryYear); GC_FROM(j, v, expiryMonth);
+}
+
+void to_json(nlohmann::json& j, const SectDetail& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, sectId); GC_TO(v, j, mineSlots); GC_TO(v, j, occupationTime);
+    GC_TO(v, j, isOwned); GC_TO(v, j, expiryYear); GC_TO(v, j, expiryMonth);
+    GC_TO(v, j, scoutInfo); GC_TO(v, j, tradeItems);
+    GC_TO(v, j, tradeLastRefreshYear); GC_TO(v, j, lastGiftYear);
+    GC_TO(v, j, warehouse); GC_TO(v, j, giftPreference); GC_TO(v, j, portraitRes);
+}
+void from_json(const nlohmann::json& j, SectDetail& v) {
+    GC_FROM(j, v, sectId); GC_FROM(j, v, mineSlots); GC_FROM(j, v, occupationTime);
+    GC_FROM(j, v, isOwned); GC_FROM(j, v, expiryYear); GC_FROM(j, v, expiryMonth);
+    GC_FROM(j, v, scoutInfo); GC_FROM(j, v, tradeItems);
+    GC_FROM(j, v, tradeLastRefreshYear); GC_FROM(j, v, lastGiftYear);
+    GC_FROM(j, v, warehouse); GC_FROM(j, v, giftPreference); GC_FROM(j, v, portraitRes);
+}
+
 void to_json(nlohmann::json& j, const VassalContract& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
@@ -1122,6 +1186,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, residenceSlots); GC_TO(v, j, patrolConfig); GC_TO(v, j, patrolConfigs);
     GC_TO(v, j, alliances); GC_TO(v, j, vassalContracts); GC_TO(v, j, sectRelations);
     GC_TO(v, j, sectPolicies);
+    // 批 10-1：宗门详情域（S8 侦察过期清理子事件）
+    GC_TO(v, j, sectDetails); GC_TO(v, j, scoutInfo);
     GC_TO(v, j, mailRecords); GC_TO(v, j, sectLevelClaimRecords);
     GC_TO(v, j, bloodRefinements);
     GC_TO(v, j, yearlyReports); GC_TO(v, j, pendingTraitAdds);
@@ -1195,6 +1261,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, residenceSlots); GC_FROM(j, v, patrolConfig); GC_FROM(j, v, patrolConfigs);
     GC_FROM(j, v, alliances); GC_FROM(j, v, vassalContracts); GC_FROM(j, v, sectRelations);
     GC_FROM(j, v, sectPolicies);
+    // 批 10-1：宗门详情域（S8 侦察过期清理子事件）
+    GC_FROM(j, v, sectDetails); GC_FROM(j, v, scoutInfo);
     GC_FROM(j, v, mailRecords); GC_FROM(j, v, sectLevelClaimRecords);
     GC_FROM(j, v, bloodRefinements);
     GC_FROM(j, v, yearlyReports); GC_FROM(j, v, pendingTraitAdds);

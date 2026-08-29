@@ -59,9 +59,9 @@
 //   - S4 邮件（MailService.processMonthlyMails 为异步网络拉取，事务内零状态效果）
 //   - S6 自动排班 processAutoAssign（11 槽占用扫描跨多未迁移域）：
 //     场景自动政策全关 → 双端纯早退；住所忠诚已实现
-//   - S8 子事件仅下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck 三件，
-//     其余十三件（招募/执法/任务/洞天/侦察/AI 兽战/12 月自动购买/购买/附赋/
-//     任务刷新/秘境×2）场景规避 + 登记对应批次
+//   - S8 子事件下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
+//     scoutExpiry 四件（批 10-1 补齐侦察过期清理），其余十二件（招募/执法/任务/
+//     洞天/AI 兽战/12 月自动购买/购买/附赋/任务刷新/秘境×2）场景规避 + 登记对应批次
 //   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
 //     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
 // ============================================================
@@ -530,8 +530,64 @@ inline void checkGameOverCondition(GameState& state) {
 // completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
 // aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
 // vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
-// 本批下沉三件（recruitReset/spiritMine/gameOverCheck），其余场景规避 +
-// 登记批次（文件头范围边界）；三件的相对序与 Kotlin 一致。
+// 本批下沉四件（recruitReset/spiritMine/gameOverCheck/scoutExpiry，批 10-1
+// 补齐侦察过期），其余场景规避 + 登记批次（文件头范围边界）；相对序与 Kotlin 一致。
+
+/// 子事件 8：侦察信息过期清理（Kotlin CultivationEventDiplomacyOps.
+/// applyScoutInfoExpiry 等价移植；零 RNG 纯数据变换）。
+///
+/// 语义（逐条对齐 Kotlin 源码）：
+/// - 过期判定：year > expiryYear || (year == expiryYear && month > expiryMonth)
+/// - 无过期 → 纯早退零写入（Lazy 门控等价）
+/// - 三段更新（②③均基于"原始 sectDetails"，对齐 Kotlin 读取顺序）：
+///   ① 剩余条目 → details[sectId].scoutInfo 刷新（无明细则新建 SectDetail(sectId)）；
+///   ② 被移除条目 → 原明细 scoutInfo.sectId 非空者清空为默认值；
+///   ③ worldMapSects：scoutInfo 移除且原明细 scoutInfo.sectId 非空 → isKnown=false
+inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) {
+    auto& gd = state.gameData;
+    const auto expired = [&](const state::SectScoutInfo& info) {
+        return year > info.expiryYear ||
+               (year == info.expiryYear && month > info.expiryMonth);
+    };
+    std::map<std::string, state::SectScoutInfo> updated;
+    bool hasExpired = false;
+    for (const auto& [sectId, info] : gd.scoutInfo) {
+        if (expired(info)) {
+            hasExpired = true;
+            continue;
+        }
+        updated.emplace(sectId, info);
+    }
+    if (!hasExpired) return;
+
+    std::map<std::string, state::SectDetail> updatedDetails = gd.sectDetails;
+    for (const auto& [sectId, info] : updated) {
+        auto it = updatedDetails.find(sectId);
+        if (it == updatedDetails.end()) {
+            state::SectDetail d;
+            d.sectId = sectId;
+            d.scoutInfo = info;
+            updatedDetails.emplace(sectId, std::move(d));
+        } else {
+            it->second.scoutInfo = info;
+        }
+    }
+    for (const auto& [sectId, detail] : gd.sectDetails) {
+        if (updated.find(sectId) == updated.end() &&
+            !detail.scoutInfo.sectId.empty()) {
+            updatedDetails[sectId].scoutInfo = state::SectScoutInfo{};
+        }
+    }
+    for (auto& sect : gd.worldMapSects) {
+        if (updated.find(sect.id) != updated.end()) continue;
+        const auto it = gd.sectDetails.find(sect.id);
+        if (it != gd.sectDetails.end() && !it->second.scoutInfo.sectId.empty()) {
+            sect.isKnown = false;
+        }
+    }
+    gd.scoutInfo = std::move(updated);
+    gd.sectDetails = std::move(updatedDetails);
+}
 
 inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  const std::map<int32_t, std::size_t>& idx) {
@@ -539,6 +595,9 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     state.gameData.recruitCountThisMonth = 0;
     // 子事件 7：游戏结束检查
     detail::checkGameOverCondition(state);
+    // 子事件 8：侦察信息过期清理（批 10-1）
+    detail::applyScoutInfoExpiry(state, state.gameData.gameYear,
+                                 state.gameData.gameMonth);
     // 子事件 11：灵矿月度产出结算
     detail::processSpiritMineProductionMonthly(state, idx);
     // 其余子事件未下沉——见文件头范围边界（rng 参数供后续批次接线）

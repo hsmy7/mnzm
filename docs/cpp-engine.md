@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-29。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 556/556（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过（本批零 C++ 变更）**。
+> 当前基线：**桌面 GTest 558/558（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过（本批零 C++ 变更）**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
@@ -19,7 +19,8 @@
 > 新增 3 ActionId C++ 化 + 接线，该家族 10 动作全量接线）；**批 8-4 完成接线面收口判定**
 > （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，见 §7.1 批 8-4 行）；
 > **退役专项批 9-1/9-2 完成**（SHADOW 对拍态 + 纯 Kotlin 旬结算路径删除——tick 结算
-> 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）。
+> 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）；**月变残留执行器增量
+> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）。
 
 ## 1. 目标架构
 
@@ -246,6 +247,18 @@ android/app/src/main/cpp/
 - 对拍框架长期化：Diff *Test 全套以桌面对拍桥（`-Dgamecore.jni.path`）作为 C++ 回归基线持续运行（CI 桌面 job + 本地 build-desktop-jni.ps1）；Kotlin 臂（残留执行器 + TimeSystem.onPhaseTick 时间驱动）即回归基准，不再承担"迁移验收"职责
 - Wallet/库存未接线动作双实现按批 8-4 判定留守——该双实现即逐动作降级契约本体，不退役
 - 月/年残留执行器（MonthSettlementExecutor/YearSettlementExecutor/PhaseSettlementExecutor.executeResidual）为 AUTHORITATIVE 生产实现的 Kotlin 侧组成（未 C++ 化扇出见 month_settlement.h 范围边界），其 C++ 化属后续增量迁移批次（非退役范畴）
+
+### 7.3 月变/年变残留执行器增量 C++ 化（2026-08-29 启动；非退役范畴）
+
+> 退役专项（§7.2）收口后的主线：把 AUTHORITATIVE 生产管线中仍由 Kotlin 残留执行器
+> 承担的月变/年变编排逐批下沉 C++（月变八步中未下沉扇出 + S8 十六子事件余量，
+> 见 month_settlement.h 文件头范围边界）。每批 = Kotlin 源码逐条审计 → C++ 等价
+> 移植（含协议扩容）→ GTest 黄金序列 + JUnit Diff 对拍守护。真相源切换（月变编排
+> 整体走 C++）待下沉面收敛后单独立批。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| 10-1 ✅ | **S8 子事件 8：侦察信息过期清理**（Kotlin `CultivationEventDiplomacyOps.applyScoutInfoExpiry` 等价移植；零 RNG 纯数据变换）：**协议扩容**——宗门详情域 6 模型入 C++ 快照（SectDetail/SectScoutInfo/MineSlot/SectWarehouse/WarehouseItem + GiftPreferenceType 枚举按 name-string 约定，GameData 新增 `sectDetails`/`scoutInfo` 两 map 字段，json_codec 双向编解码；dirty_tracker 对 gameData 顶层字段为通用 diff，新字段自动覆盖）；C++ `detail::applyScoutInfoExpiry`（过期判定/无过期纯早退/三段更新逐条对齐 Kotlin 读取顺序——剩余条目明细刷新+新建、被移除明细 scoutInfo 清空保留其余字段、worldMapSects.isKnown 翻转读原始明细）；接线进 runMonthSettlement 子事件 8 位（gameOverCheck 与 spiritMine 之间，相对序对齐 Kotlin） | GTest +2（过期移除+isKnown 翻转+明细保留/新建刷新；无过期零写入）558/558 · DiffMonthSettlementTest 场景扩展（AI 宗门×2：过期/未过期+明细保留/新建+嵌套 map 资源/弟子键）1/1 · engine JUnit 2925/2925（0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿。**途中修复协议默认值缺陷：giftPreference C++ 默认空串→"NONE"**（Kotlin 枚举默认名，空串不可解码） |
 
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 

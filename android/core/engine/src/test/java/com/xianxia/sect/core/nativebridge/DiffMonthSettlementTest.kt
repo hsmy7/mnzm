@@ -32,6 +32,9 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectScoutInfo
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -115,6 +118,35 @@ class DiffMonthSettlementTest {
             sectPolicies = sectPolicies.copy(benevolentGovernance = true)
             // 场景②前提：自动配对模式（提案分支不在协议）
             daoCompanionConsentRequired = false
+            // 场景④（批 10-1）：侦察过期清理——ai-1 过期(1,1)、ai-2 未过期(2,2)；
+            // AI 宗门无玩家宗门（gameOverCheck 纯早退）+ worldLevels 空
+            // （precomputeTargets 纯早退）+ aiSectDisciples 空（AI 域路径恒等）
+            scoutInfo = mapOf(
+                "ai-1" to SectScoutInfo(
+                    sectId = "ai-1", sectName = "青岚宗",
+                    expiryYear = 1, expiryMonth = 1,
+                    disciples = mapOf(5 to 3)
+                ),
+                "ai-2" to SectScoutInfo(
+                    sectId = "ai-2", sectName = "赤水宗",
+                    expiryYear = 2, expiryMonth = 2,
+                    resources = mapOf("灵石" to 42)
+                )
+            )
+            sectDetails = mapOf(
+                "ai-1" to SectDetail(
+                    sectId = "ai-1", portraitRes = "sect_ai1", lastGiftYear = 1,
+                    scoutInfo = SectScoutInfo(
+                        sectId = "ai-1", sectName = "青岚宗",
+                        expiryYear = 1, expiryMonth = 1,
+                        disciples = mapOf(5 to 3)
+                    )
+                )
+            )
+            worldMapSects = listOf(
+                WorldSect(id = "ai-1", name = "青岚宗", isKnown = true),
+                WorldSect(id = "ai-2", name = "赤水宗", isKnown = true)
+            )
         }
         return NativeGameState(
             gameData = gameData,
@@ -404,6 +436,29 @@ class DiffMonthSettlementTest {
         for (d in actual.disciples) {
             assertEquals("弟子 ${d.id} 意外配对", null, d.social.partnerId)
         }
+        // ④（批 10-1）侦察过期清理：ai-1 过期移除 + isKnown 翻转 + 明细清空；
+        // ai-2 未过期保留 + 明细新建刷新
+        assertEquals("侦察过期条目未移除", setOf("ai-2"), actualGd.scoutInfo.keys)
+        assertEquals(
+            "未过期侦察信息内容漂移",
+            "赤水宗", actualGd.scoutInfo["ai-2"]?.sectName
+        )
+        assertEquals("ai-1 明细应保留", true, actualGd.sectDetails.containsKey("ai-1"))
+        assertEquals(
+            "ai-1 明细 scoutInfo 应清空为默认",
+            "", actualGd.sectDetails["ai-1"]?.scoutInfo?.sectId
+        )
+        assertEquals(
+            "ai-1 明细非侦察字段应保留",
+            "sect_ai1", actualGd.sectDetails["ai-1"]?.portraitRes
+        )
+        assertEquals(
+            "ai-2 明细应由剩余侦察条目新建刷新",
+            "ai-2", actualGd.sectDetails["ai-2"]?.scoutInfo?.sectId
+        )
+        val sectById = actualGd.worldMapSects.associateBy { it.id }
+        assertEquals("ai-1 isKnown 未翻转", false, sectById["ai-1"]?.isKnown)
+        assertEquals("ai-2 isKnown 应保持", true, sectById["ai-2"]?.isKnown)
     }
 
     // ── JSON 结构对拍（C++ 导出键集为权威覆盖面；与 T2.1 同构） ──────

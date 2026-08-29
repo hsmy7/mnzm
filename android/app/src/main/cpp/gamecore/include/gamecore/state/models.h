@@ -666,6 +666,67 @@ struct SectRelation {
     int32_t noGiftYears = 0;
 };
 
+// ── 宗门详情域（批 10-1：S8 侦察过期清理子事件协议扩容）──────────
+
+/// MineSlot（矿脉槽位）
+struct MineSlot {
+    int32_t index = 0;
+    std::string discipleId;
+    std::string discipleName;
+    int32_t output = 0;
+    double efficiency = 1.0;
+    bool isActive = false;
+};
+
+/// WarehouseItem（宗门仓库物品）
+struct WarehouseItem {
+    std::string itemId;
+    std::string itemName;
+    std::string itemType;
+    int32_t rarity = 1;
+    int32_t quantity = 1;
+};
+
+/// SectWarehouse（宗门仓库）
+struct SectWarehouse {
+    std::vector<WarehouseItem> items;
+    int64_t spiritStones = 0;
+    int64_t midGradeSpiritStones = 0;
+    int64_t highGradeSpiritStones = 0;
+};
+
+/// SectScoutInfo（宗门侦查信息；disciples/resources 为 kotlinx Map 键字符串化）
+struct SectScoutInfo {
+    std::string sectId;
+    std::string sectName;
+    int32_t scoutYear = 0;
+    int32_t scoutMonth = 0;
+    int32_t discipleCount = 0;
+    int32_t maxRealm = 9;
+    std::map<std::string, int32_t> resources;   // Map<String, Int>
+    bool isKnown = false;
+    std::map<std::string, int32_t> disciples;   // Map<Int, Int>
+    int32_t expiryYear = 0;
+    int32_t expiryMonth = 0;
+};
+
+/// SectDetail（宗门详情；giftPreference = GiftPreferenceType.name）
+struct SectDetail {
+    std::string sectId;
+    std::vector<MineSlot> mineSlots;
+    int64_t occupationTime = 0;
+    bool isOwned = false;
+    int32_t expiryYear = 0;
+    int32_t expiryMonth = 0;
+    SectScoutInfo scoutInfo;
+    std::vector<MerchantItem> tradeItems;
+    int32_t tradeLastRefreshYear = 0;
+    int32_t lastGiftYear = 0;
+    SectWarehouse warehouse;
+    std::string giftPreference = "NONE";        // GiftPreferenceType.name（Kotlin 默认 NONE）
+    std::string portraitRes;
+};
+
 /// WorldSect（世界地图宗门）
 struct WorldSect {
     std::string id;                         // T2.2 补齐（Kotlin @ProtoNumber(1)；gameOverCheck 占领判定需要）
@@ -1122,6 +1183,8 @@ struct GameData {
     std::vector<Alliance> alliances;
     std::vector<VassalContract> vassalContracts;
     std::vector<SectRelation> sectRelations;
+    std::map<std::string, SectDetail> sectDetails;      // Map<String, SectDetail>（批 10-1）
+    std::map<std::string, SectScoutInfo> scoutInfo;     // Map<String, SectScoutInfo>（批 10-1）
     SectPolicies sectPolicies;
     std::vector<MailClaimRecord> mailRecords;
     std::vector<SectLevelClaimRecord> sectLevelClaimRecords;

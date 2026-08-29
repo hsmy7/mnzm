@@ -685,4 +685,88 @@ TEST(MonthSettlementTest, EmptyMonthChangeIsSafe) {
     EXPECT_EQ(before, core->rng().exportStates());
 }
 
+// ── S8 子事件 8：侦察信息过期清理（批 10-1）────────────────────────
+
+TEST(MonthSettlementTest, ScoutExpiryRemovesExpiredAndFlipsKnown) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 3;
+
+    // scoutInfo：ai-1 过期(2/2)、ai-2 未过期(2/3 当月边界不算过期)、ai-3 过期(1/12)
+    state::SectScoutInfo expired1;
+    expired1.sectId = "ai-1"; expired1.sectName = "青岚宗";
+    expired1.expiryYear = 2; expired1.expiryMonth = 2;
+    expired1.disciples["5"] = 3;
+    state::SectScoutInfo alive;
+    alive.sectId = "ai-2"; alive.sectName = "赤水宗";
+    alive.expiryYear = 2; alive.expiryMonth = 3;   // month > expiryMonth 为 false
+    alive.resources["灵石"] = 42;
+    state::SectScoutInfo expired2;
+    expired2.sectId = "ai-3"; expired2.sectName = "黄泉宗";
+    expired2.expiryYear = 1; expired2.expiryMonth = 12;
+    st.gameData.scoutInfo["ai-1"] = expired1;
+    st.gameData.scoutInfo["ai-2"] = alive;
+    st.gameData.scoutInfo["ai-3"] = expired2;
+
+    // sectDetails：ai-1 有明细（scoutInfo.sectId 非空 + 保留字段画像）；
+    // ai-2 无明细（剩余条目应新建 SectDetail(sectId) 并刷新 scoutInfo）
+    state::SectDetail detail1;
+    detail1.sectId = "ai-1";
+    detail1.scoutInfo = expired1;
+    detail1.portraitRes = "sect_ai1";
+    detail1.lastGiftYear = 1;
+    st.gameData.sectDetails["ai-1"] = detail1;
+
+    // worldMapSects：ai-1 已知（scout 过期 → isKnown 翻 false）、ai-2 保持已知
+    state::WorldSect sect1; sect1.id = "ai-1"; sect1.isKnown = true;
+    state::WorldSect sect2; sect2.id = "ai-2"; sect2.isKnown = true;
+    st.gameData.worldMapSects.push_back(sect1);
+    st.gameData.worldMapSects.push_back(sect2);
+
+    system::runMonthSettlement(st, core->rng());
+
+    // 过期条目移除、未过期保留
+    ASSERT_EQ(1u, st.gameData.scoutInfo.size());
+    ASSERT_EQ(1u, st.gameData.scoutInfo.count("ai-2"));
+    EXPECT_EQ(42, st.gameData.scoutInfo.at("ai-2").resources.at("灵石"));
+    // ① 剩余条目刷新明细（ai-2 无明细 → 新建）
+    ASSERT_EQ(2u, st.gameData.sectDetails.size());
+    EXPECT_EQ("ai-2", st.gameData.sectDetails.at("ai-2").sectId);
+    EXPECT_EQ("ai-2", st.gameData.sectDetails.at("ai-2").scoutInfo.sectId);
+    // ② 被移除条目：原明细 scoutInfo 清空、其余字段保留
+    EXPECT_EQ("", st.gameData.sectDetails.at("ai-1").scoutInfo.sectId);
+    EXPECT_EQ("sect_ai1", st.gameData.sectDetails.at("ai-1").portraitRes);
+    EXPECT_EQ(1, st.gameData.sectDetails.at("ai-1").lastGiftYear);
+    // ③ isKnown 翻转：ai-1 false、ai-2 true
+    EXPECT_FALSE(st.gameData.worldMapSects[0].isKnown);
+    EXPECT_TRUE(st.gameData.worldMapSects[1].isKnown);
+}
+
+TEST(MonthSettlementTest, ScoutExpiryNoOpWhenNothingExpired) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 3;
+
+    state::SectScoutInfo alive;
+    alive.sectId = "ai-1"; alive.sectName = "青岚宗";
+    alive.expiryYear = 2; alive.expiryMonth = 4;   // 下月才过期
+    st.gameData.scoutInfo["ai-1"] = alive;
+    state::SectDetail detail1;
+    detail1.sectId = "ai-1";
+    detail1.scoutInfo = alive;
+    st.gameData.sectDetails["ai-1"] = detail1;
+    state::WorldSect sect1; sect1.id = "ai-1"; sect1.isKnown = true;
+    st.gameData.worldMapSects.push_back(sect1);
+
+    system::runMonthSettlement(st, core->rng());
+
+    // 无过期 → 零写入（Lazy 门控等价）
+    ASSERT_EQ(1u, st.gameData.scoutInfo.size());
+    EXPECT_EQ("青岚宗", st.gameData.scoutInfo.at("ai-1").sectName);
+    EXPECT_EQ("ai-1", st.gameData.sectDetails.at("ai-1").scoutInfo.sectId);
+    EXPECT_TRUE(st.gameData.worldMapSects[0].isKnown);
+}
+
 }  // namespace
