@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-29。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 558/558（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过（本批零 C++ 变更）**。
+> 当前基线：**桌面 GTest 561/561（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过（本批零 C++ 变更）**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
@@ -20,7 +20,7 @@
 > （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，见 §7.1 批 8-4 行）；
 > **退役专项批 9-1/9-2 完成**（SHADOW 对拍态 + 纯 Kotlin 旬结算路径删除——tick 结算
 > 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）；**月变残留执行器增量
-> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）。
+> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）；**批 10-2 完成**（S8 月度叛逃检测下沉 + 执法堂配置/职务加成辅助入 C++）。
 
 ## 1. 目标架构
 
@@ -260,6 +260,8 @@ android/app/src/main/cpp/
 |---|---|---|
 | 10-1 ✅ | **S8 子事件 8：侦察信息过期清理**（Kotlin `CultivationEventDiplomacyOps.applyScoutInfoExpiry` 等价移植；零 RNG 纯数据变换）：**协议扩容**——宗门详情域 6 模型入 C++ 快照（SectDetail/SectScoutInfo/MineSlot/SectWarehouse/WarehouseItem + GiftPreferenceType 枚举按 name-string 约定，GameData 新增 `sectDetails`/`scoutInfo` 两 map 字段，json_codec 双向编解码；dirty_tracker 对 gameData 顶层字段为通用 diff，新字段自动覆盖）；C++ `detail::applyScoutInfoExpiry`（过期判定/无过期纯早退/三段更新逐条对齐 Kotlin 读取顺序——剩余条目明细刷新+新建、被移除明细 scoutInfo 清空保留其余字段、worldMapSects.isKnown 翻转读原始明细）；接线进 runMonthSettlement 子事件 8 位（gameOverCheck 与 spiritMine 之间，相对序对齐 Kotlin） | GTest +2（过期移除+isKnown 翻转+明细保留/新建刷新；无过期零写入）558/558 · DiffMonthSettlementTest 场景扩展（AI 宗门×2：过期/未过期+明细保留/新建+嵌套 map 资源/弟子键）1/1 · engine JUnit 2925/2925（0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿。**途中修复协议默认值缺陷：giftPreference C++ 默认空串→"NONE"**（Kotlin 枚举默认名，空串不可解码） |
 
+| 10-2 ✅ | **S8 子事件 4：月度叛逃检测**（Kotlin `LawEnforcementProcessor.processLawEnforcementMonthly` 等价移植）：**辅助函数入 C++**——`stats::baseIntelligence`（Disciple/行版双载，同 baseComprehension 口径）+ `stats::positionEffectBonus`（天赋非负面 + 词条 PositionBonus 按 slotType 求和，消费 trait_db 单一数据源）；C++ `detail::processLawEnforcementMonthly`（从众门控整数除法均值/捕获率三段算式 clamp [0,1]（长老智力阶梯×(1+职务加成)+执法弟子阶梯+双政策）/at-risk 行序扫描（存活+非免疫状态+忠诚<阈值+保护期）/SYSTEM 抽取序（每候选 1 次概率判定 + 通过后 1 次捕获判定））/捕获思过（remove+末尾重插 REFLECTING + statusData 思过年限 + guideCounters.discipleImprisoned + DESERTION_CAUGHT 事件）/逃脱清理（clearAllSlotsDataOnly 含住所 → 装备/功法实例移除 → 熟练度移除 → 弟子移除 + 年度计数 + DESERTION 事件）；接线进 processMonthlyEvents 子事件 4 位（招募归零后、gameOverCheck 前）；**S-13 登记**：执法堂配置常量 C++ 取默认值（Kotlin 读远程配置可空覆盖） | GTest +3（从众门控零抽取/逃脱黄金序列含装备功法清理+分区快照锁/捕获黄金序列含长老智力+政策+重插行序+引导计数+事件锁）561/561 · **DiffMonthSettlementTest 场景扩展**：Kotlin 臂换装真实 LawEnforcementProcessor（原 mock 不消耗 RNG 无法对拍）+ 叛逃候选弟子（忠诚 0/未成年避配对扰动/IDLE/保护期外）1/1 跨语言逐位一致（含 rngStates 结构对拍）· engine JUnit 2925/2925（0 skip）· NDK 通过 · detekt 绿 |
+
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 
 > 来源：迁移架构报告与子代理深潜途中发现（死代码/过时文档/设计缺口），统一登记并分配清理时机，防止遗漏。
@@ -278,4 +280,5 @@ android/app/src/main/cpp/
 | ~~S-09~~ ✅ | **对拍测试隔离缺口已修复**：JUnit 对拍测试中 C++ `nativeCoreInit` 幂等复用引擎单例（阶段 1 既有设计），`EngineLoop.tickCount/speed/累积` 跨用例残留，与 Kotlin 侧每用例 `new GameTimeClock` 的干净基准不对称——首轮 DiffEngineLoopTest 8/15 失败（tickTotal 残留 65、speed 残留致 catch-up cap 3→6 等）。根因修复：`EngineLoop::resetForTest()`（tick 计数/速度/累积/帧状态/活跃基准全清，生产路径不调用——与 Kotlin 单例语义一致）+ 桌面对拍桥 `nativeCoreLoopReset` + GTest 2 用例守护；另修测试自身 2 处（死区消费缺暂停帧刷新帧基准、2x 断言算术错） | `engine_loop.h` + `GameCoreJni.cpp` + `DiffEngineLoopTest.kt` | 测试基建缺口 | 完成（计划 v2 阶段 5） |
 | S-10 | **C++ 库存容量常量硬编码**：`kWarehouseBaseCapacity=50`/`kWarehouseCapacityPerBuilding=75`（`gamecore/include/gamecore/system/inventory.h`），Kotlin 读 `gameConfigProvider.warehouse.*`——config 改动时双端漂移 | `inventory.h` | 配置单源缺口 | 偿还时机：库存配置进 C++（config 注入或 codegen）时 |
 | S-11 | **空白名校验差异**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名 | `inventory.h` | 语义差异（低风险） | 偿还时机：随批 8 库存家族复审 |
+| S-13 | **执法堂配置常量 C++ 硬编码默认值**：批 10-2 的 kLaw* 常量取 GameConfig.LawEnforcementConfig 默认值，Kotlin 读远程配置可空覆盖——远程配置改动时双端漂移 | `month_settlement.h` | 配置单源缺口（S-10 同族） | 偿还时机：执法堂配置进 C++（config 注入或 codegen 常量单源）时 |
 | S-12 | **转发辅助入口 NPE 语义**：`GameEngineNativeOps.tryExecuteNative` 的 Kotlin 非空参数 `stateSyncService` 的内在 null 检查在函数入口即触发（早于 flag/isLoaded 早退）——生产恒非空无影响，测试 mock（未 stub `stateSyncServiceRef`）返回 null 必触；InventoryNativeForward.tryForward 已先行空过滤 | `GameEngineNativeOps.kt` | 降级契约缺口（测试场景） | 偿还时机：tryExecuteNative 参数改可空 + 内部守卫（随后续接线批次顺带） |

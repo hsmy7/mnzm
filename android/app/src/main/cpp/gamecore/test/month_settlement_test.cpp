@@ -769,4 +769,122 @@ TEST(MonthSettlementTest, ScoutExpiryNoOpWhenNothingExpired) {
     EXPECT_TRUE(st.gameData.worldMapSects[0].isKnown);
 }
 
+// ── S8 子事件 4：月度叛逃检测（批 10-2）────────────────────────────
+
+/// 系统分区黄金序列：seed+3 播种的独立预演（RNG 审计方法同文件头说明）
+gamecore::rng::DeterministicRng sysReplica(int64_t seed) {
+    return gamecore::rng::DeterministicRng::fromSeed(seed + 3);
+}
+
+TEST(MonthSettlementTest, DesertionHerdGateBlocksAndZeroDraws) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    // 两弟子忠诚 50 → 平均 50 不低于阈值 50 → 门控拦截，零抽取
+    for (const char* id : {"1", "2"}) {
+        Disciple d = adultDisciple(id, "male");
+        d.loyalty = 50;
+        st.disciples.appendDisciple(d);
+    }
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(2u, st.disciples.size());
+    EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, DesertionEscapeGolden) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    // 单弟子：IDLE（默认）、忠诚 0 → 叛逃概率 (30-0)×0.01=0.30；
+    // 入伍月 0 → 2×12+1-0=25 ≥ 12 保护期；无长老/政策 → 捕获率 0
+    // → 抽 2 次时必走逃脱（第二次抽取 < 0 不可能）
+    Disciple d = baseDisciple("1");
+    d.gender = "male";
+    d.loyalty = 0;
+    d.recruitedMonth = 0;
+    state::EquipmentInstance eq;
+    eq.id = "eq-1"; eq.name = "铁剑"; eq.rarity = 1; eq.slot = "WEAPON";
+    st.equipmentInstances.push_back(eq);
+    d.weaponId = "eq-1";
+    state::ManualInstance mn;
+    mn.id = "mn-1"; mn.name = "青云心法"; mn.rarity = 1;
+    st.manualInstances.push_back(mn);
+    d.manualIds.push_back("mn-1");
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(42);
+    const double d1 = sys.nextDouble();
+    const bool triggered = d1 < 0.30;
+    if (triggered) sys.nextDouble();   // 第二次抽取（捕获判定）
+
+    system::runMonthSettlement(st, core->rng());
+
+    if (triggered) {
+        EXPECT_EQ(0u, st.disciples.size());
+        EXPECT_TRUE(st.equipmentInstances.empty());
+        EXPECT_TRUE(st.manualInstances.empty());
+        EXPECT_EQ(1, st.gameData.annualDesertedDisciples);
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ("desertion", st.gameData.gameEventRecords[0].eventType);
+    } else {
+        EXPECT_EQ(1u, st.disciples.size());
+        EXPECT_EQ(0, st.gameData.annualDesertedDisciples);
+    }
+    // SYSTEM 分区快照锁：d1（+ 触发时的 d2）与执行序逐位一致
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, DesertionCaptureGoldenWithElderAndPolicy) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.sectPolicies.rewardPunish = true;   // +0.30
+    // 长老：智力 200 → (200-50)×0.01=1.5，忠诚 50 不在 at-risk
+    Disciple elder = baseDisciple("9");
+    elder.gender = "male";
+    elder.intelligence = 200;
+    elder.loyalty = 50;
+    st.disciples.appendDisciple(elder);
+    // 叛逃者：忠诚 0 → 概率 0.30
+    Disciple d = baseDisciple("1");
+    d.gender = "male";
+    d.loyalty = 0;
+    d.recruitedMonth = 0;
+    st.disciples.appendDisciple(d);
+    st.gameData.elderSlots.lawEnforcementElder = "9";
+    // 捕获率 = 1.5 + 0.3 = 1.8 → clamp 1.0 → 第二次抽取必捕获
+
+    auto sys = sysReplica(42);
+    const double d1 = sys.nextDouble();
+    const bool triggered = d1 < 0.30;
+    if (triggered) sys.nextDouble();
+
+    system::runMonthSettlement(st, core->rng());
+
+    if (triggered) {
+        EXPECT_EQ(2u, st.disciples.size());
+        // 叛逃者被 remove + 末尾重插（行序 [长老, 叛逃者] 保持）
+        const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+        const auto row = idx.at(1);
+        EXPECT_EQ("REFLECTING", st.disciples.statuses[row]);
+        EXPECT_EQ("2", st.disciples.materialize(row).statusData.at("reflectionStartYear"));
+        EXPECT_EQ("7", st.disciples.materialize(row).statusData.at("reflectionEndYear"));
+        EXPECT_EQ(1, st.gameData.guideCounters.at("discipleImprisoned"));
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ("desertion_caught", st.gameData.gameEventRecords[0].eventType);
+        EXPECT_EQ(0, st.gameData.annualDesertedDisciples);
+    } else {
+        EXPECT_EQ(2u, st.disciples.size());
+        EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    }
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
 }  // namespace

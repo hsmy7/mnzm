@@ -32,7 +32,9 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.loyalty
@@ -101,8 +103,11 @@ class DiffMonthSettlementTest {
         /** 仁政爱徒月度忠诚增量（kBenevolentLoyaltyPerMonth） */
         const val BENEVOLENT_LOYALTY_DELTA = 1
 
-        /** 弟子数（2 男 2 女） */
-        const val DISCIPLE_COUNT = 4
+        /** 弟子数（2 男 2 女 + 1 叛逃候选） */
+        const val DISCIPLE_COUNT = 5
+
+        /** 叛逃候选 id（忠诚 0 → 概率 (30-1)×0.01=0.29，月结 step8 判定） */
+        const val DESERTER_ID = "15"
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
@@ -154,7 +159,14 @@ class DiffMonthSettlementTest {
                 pairingDisciple("11", "甲一", "male"),
                 pairingDisciple("12", "甲二", "male"),
                 pairingDisciple("13", "乙一", "female"),
-                pairingDisciple("14", "乙二", "female")
+                pairingDisciple("14", "乙二", "female"),
+                // 场景⑤（批 10-2）：叛逃候选——忠诚 0（政策 +1 后 1 < 30）、
+                // 未成年（16 岁不参与伴侣配对，避免额外 SYSTEM 抽取改变既有
+                // 4 组合序列）、IDLE、recruitedMonth 0（保护期 25-0 ≥ 12）
+                pairingDisciple(DESERTER_ID, "丙一", "male").copy(
+                    age = 16,
+                    skills = SkillStats(loyalty = 0)
+                )
             )
         )
     }
@@ -325,7 +337,14 @@ class DiffMonthSettlementTest {
             vassalService = mockSmart(),
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
-            lawEnforcementProcessor = mockSmart<LawEnforcementProcessor>(),
+            // 批 10-2：真实执法堂处理器（叛逃流对拍主体）——lifecycle 用 mock：
+            // 逃脱路径的 11 槽清理在场景中恒等（叛逃候选无任何槽位引用）
+            lawEnforcementProcessor = LawEnforcementProcessor(
+                stateStore = store,
+                rngManager = gameRng,
+                discipleLifecycleProcessor = mockSmart(),
+                lootCalculator = LootCalculator(gameRng)
+            ),
             rngManager = gameRng,
             secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(),
@@ -417,14 +436,29 @@ class DiffMonthSettlementTest {
             (1 * 12 + 2).toLong(),
             actualGd.spiritMineLastSettledMonth.toLong()
         )
-        // ③ 政策忠诚：仁政爱徒 +1（50 → 51，coerceIn(0,100)）；四弟子全部生效
+        // ③ 政策忠诚：仁政爱徒 +1（50 → 51，coerceIn(0,100)）；原四弟子全部生效
         for (d in actual.disciples) {
+            if (d.id == DESERTER_ID) continue
             assertEquals(
                 "弟子 ${d.id} 忠诚未按仁政爱徒 +1",
                 (BASE_LOYALTY + BENEVOLENT_LOYALTY_DELTA),
                 d.skills.loyalty
             )
         }
+        // ⑤（批 10-2）叛逃候选：忠诚 0 + 政策 +1 = 1（若未叛逃离场）；
+        // 偷盗兜底只归零 theftJudgementsThisMonth（道德 50 ≥ 30 无候选，零抽取）
+        assertEquals(0, actualGd.theftJudgementsThisMonth)
+        actual.disciples.firstOrNull { it.id == DESERTER_ID }?.let {
+            assertEquals("叛逃候选忠诚应为 0+1", 1, it.skills.loyalty)
+        }
+        assertTrue(
+            "叛逃判定后弟子数应为 4 或 5（由 SYSTEM 抽取序列决定）",
+            actual.disciples.size == 4 || actual.disciples.size == 5
+        )
+        assertTrue(
+            "annualDesertedDisciples 应为 0 或 1",
+            actualGd.annualDesertedDisciples == 0 || actualGd.annualDesertedDisciples == 1
+        )
         // ③ S1 政策月费经真实钱包扣除：100 × 4 弟子
         assertEquals(
             "仁政爱徒月费未正确扣除",

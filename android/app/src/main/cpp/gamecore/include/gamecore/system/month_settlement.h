@@ -14,8 +14,10 @@
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/government.h"
+#include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/settlement_detail.h"
+#include "gamecore/system/slot_cleanup.h"
 #include "gamecore/system/spirit_field.h"
 
 // ============================================================
@@ -43,9 +45,9 @@
 //   - SYSTEM：伴侣配对 nextDouble，每通过过滤的 (男,女) 组合 1 次
 //   - BREAKTHROUGH / BATTLE / 其他：本钩子零消耗（旬结算是 BREAKTHROUGH 唯一入口）
 //   已知未下沉扇出的抽取点（场景规避 + 登记后续批次，见 t2-2-report.md）：
-//   执法堂偷盗/叛退（S2/S8）、AI 兽袭 EXPLORATION（S3）、关卡刷新生成
-//   （S4-Exploration）、生产完成 SYSTEM（S4-Alchemy 同步段）、生育/招募/
-//   购买/附赋/商人等 SYSTEM（S8 子事件）。
+//   执法堂偷盗（S2/S8；月度叛逃检测已随批 10-2 下沉）、AI 兽袭 EXPLORATION
+//   （S3）、关卡刷新生成（S4-Exploration）、生产完成 SYSTEM（S4-Alchemy
+//   同步段）、生育/招募/购买/附赋/商人等 SYSTEM（S8 子事件）。
 //
 // 已知范围边界（详见 .superpowers/sdd/t2-2-report.md 覆盖矩阵）：
 //   - S3 precomputeTargets：依赖 aiSectDisciples/aiSectBeastDirectTargets 等
@@ -60,8 +62,9 @@
 //   - S6 自动排班 processAutoAssign（11 槽占用扫描跨多未迁移域）：
 //     场景自动政策全关 → 双端纯早退；住所忠诚已实现
 //   - S8 子事件下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
-//     scoutExpiry 四件（批 10-1 补齐侦察过期清理），其余十二件（招募/执法/任务/
-//     洞天/AI 兽战/12 月自动购买/购买/附赋/任务刷新/秘境×2）场景规避 + 登记对应批次
+//     scoutExpiry（批 10-1）/ 月度叛逃检测（批 10-2）五件，其余十一件（偷盗/
+//     招募/任务/洞天/AI 兽战/12 月自动购买/购买/附赋/任务刷新/秘境×2）场景规避
+//     + 登记对应批次
 //   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
 //     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
 // ============================================================
@@ -530,8 +533,9 @@ inline void checkGameOverCondition(GameState& state) {
 // completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
 // aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
 // vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
-// 本批下沉四件（recruitReset/spiritMine/gameOverCheck/scoutExpiry，批 10-1
-// 补齐侦察过期），其余场景规避 + 登记批次（文件头范围边界）；相对序与 Kotlin 一致。
+// 已下沉五件（recruitReset/spiritMine/gameOverCheck/scoutExpiry 批 10-1/
+// lawEnforcementMonthly 批 10-2），其余场景规避 + 登记批次（文件头范围边界）；
+// 相对序与 Kotlin 一致。
 
 /// 子事件 8：侦察信息过期清理（Kotlin CultivationEventDiplomacyOps.
 /// applyScoutInfoExpiry 等价移植；零 RNG 纯数据变换）。
@@ -589,10 +593,240 @@ inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) 
     gd.sectDetails = std::move(updatedDetails);
 }
 
+// ── 子事件 4：月度叛逃检测（批 10-2：Kotlin LawEnforcementProcessor.
+//    processLawEnforcementMonthly 等价移植）──────────────────────────
+//
+// 配置常量取 Kotlin GameConfig.LawEnforcementConfig 默认值（config() 为
+// 远程配置可空覆盖——C++ 侧暂取默认值，远程配置注入 S-10 同族债务）。
+// RNG 契约（对拍命门）：按 at-risk 行序，每名弟子先 SYSTEM 抽 1 次
+// nextDouble 与叛逃概率比较（≥ 概率跳过）；判定通过再抽第 2 次与捕获率
+// 比较（< 捕获率 → 捕获思过；否则逃脱清理）。捕获/逃脱路径零额外抽取。
+
+// 执法堂配置默认值（GameConfig.LawEnforcementConfig）
+constexpr int32_t kLawLoyaltyThreshold = 30;
+constexpr double kLawDesertionProbPerPoint = 0.01;
+constexpr double kLawDesertionMaxProb = 0.90;
+constexpr double kLawBaseCaptureRate = 0.0;
+constexpr int32_t kLawIntelligenceBase = 50;
+constexpr double kLawElderBonusPerPoint = 0.01;
+constexpr int32_t kLawDiscipleIntelligenceStep = 5;
+constexpr double kLawDiscipleBonusPerStep = 0.01;
+constexpr int32_t kLawReflectionYears = 5;
+constexpr int32_t kLawNewDiscipleProtectionMonths = 12;
+constexpr int32_t kLawHerdLoyaltyThreshold = 50;
+// 政策加成（GameConfig.PolicyConfig）
+constexpr double kEnhancedSecurityEffect = 0.20;
+constexpr double kRewardPunishEffect = 0.30;
+
+/// 叛逃免疫状态（Kotlin DESERTION_IMMUNE_STATUSES；WAREHOUSE_GARRISON 不免疫）
+inline bool isDesertionImmuneStatus(const std::string& status) {
+    return status == "ON_MISSION" || status == "REFLECTING" ||
+           status == "REFINING" || status == "IN_TEAM" ||
+           status == "SECRET_REALM";
+}
+
+/// 从众门控：存活弟子平均忠诚（整数除法截断）< 阈值；无存活弟子 → false
+inline bool isAverageLoyaltyLowEnough(const state::DiscipleStore& ds) {
+    int32_t count = 0;
+    int64_t sum = 0;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        ++count;
+        sum += ds.loyalties[row];
+    }
+    if (count == 0) return false;
+    return (sum / count) < kLawHerdLoyaltyThreshold;
+}
+
+/// 捕获率 = 基础 + 长老智力加成（× 职务乘算因子）+ 执法弟子阶梯加成 + 政策，
+/// clamp [0,1]。Kotlin 无存活/境界校验——按 id 命中即计（无则跳过该贡献项）。
+inline double calculateCaptureRate(GameState& state,
+                                   const std::map<int32_t, std::size_t>& idx) {
+    const auto& gd = state.gameData;
+    const auto& ds = state.disciples;
+    double captureRate = kLawBaseCaptureRate;
+    const auto& elderId = gd.elderSlots.lawEnforcementElder;
+    if (!elderId.empty()) {
+        if (const auto eid = toIntOrNull(elderId)) {
+            const auto it = idx.find(*eid);
+            if (it != idx.end()) {
+                const int32_t intel = stats::baseIntelligence(ds, it->second);
+                const int32_t above = intel > kLawIntelligenceBase
+                                          ? intel - kLawIntelligenceBase : 0;
+                const double posBonus = stats::positionEffectBonus(
+                    ds, it->second, "LAW_ENFORCEMENT");
+                captureRate += above * kLawElderBonusPerPoint * (1.0 + posBonus);
+            }
+        }
+    }
+    for (const auto& slot : gd.elderSlots.lawEnforcementDisciples) {
+        if (slot.discipleId.empty()) continue;
+        if (const auto did = toIntOrNull(slot.discipleId)) {
+            const auto it = idx.find(*did);
+            if (it == idx.end()) continue;
+            const int32_t intel = stats::baseIntelligence(ds, it->second);
+            const int32_t above = intel > kLawIntelligenceBase
+                                      ? intel - kLawIntelligenceBase : 0;
+            captureRate += (static_cast<double>(above) /
+                            kLawDiscipleIntelligenceStep) *
+                           kLawDiscipleBonusPerStep;
+        }
+    }
+    if (gd.sectPolicies.enhancedSecurity) captureRate += kEnhancedSecurityEffect;
+    if (gd.sectPolicies.rewardPunish) captureRate += kRewardPunishEffect;
+    if (captureRate < 0.0) captureRate = 0.0;
+    if (captureRate > 1.0) captureRate = 1.0;
+    return captureRate;
+}
+
+/// 叛逃概率 = (阈值 − 忠诚) × 每点概率，clamp [0, 0.90]
+inline double calcDesertionProbability(int32_t loyal) {
+    double p = (kLawLoyaltyThreshold - loyal) * kLawDesertionProbPerPoint;
+    if (p < 0.0) p = 0.0;
+    if (p > kLawDesertionMaxProb) p = kLawDesertionMaxProb;
+    return p;
+}
+
+/// 捕获思过：remove + 末尾重插（REFLECTING + 思过年限 statusData）+ 引导计数
+/// + 事件（Kotlin captureDiscipleForReflection）
+inline void captureDiscipleForReflection(GameState& state, int32_t id,
+                                         int32_t currentYear,
+                                         const std::map<int32_t, std::size_t>& idx) {
+    const auto it = idx.find(id);
+    if (it == idx.end()) return;   // 已移除 → 跳过（Kotlin assemble null 早退）
+    state::Disciple d = state.disciples.materialize(it->second);
+    state.disciples.removeById(d.id);
+    d.status = "REFLECTING";
+    d.statusData["reflectionStartYear"] = std::to_string(currentYear);
+    d.statusData["reflectionEndYear"] =
+        std::to_string(currentYear + kLawReflectionYears);
+    state.disciples.appendDisciple(d);
+    state.gameData.guideCounters["discipleImprisoned"] += 1;
+    recordGameEvent(state, "SECT", "desertion_caught",
+                    d.name + "企图叛逃，被执法堂捕获思过", d.id, d.name);
+}
+
+/// 逃脱清理：11 类槽位清空（含住所）→ 移除装备/功法实例与熟练度 → 移除弟子
+/// + 年度计数 + 事件（Kotlin desertDiscipleCleanup；忠诚复核对齐）
+inline void desertDiscipleCleanup(GameState& state, int32_t id, int32_t threshold,
+                                  const std::map<int32_t, std::size_t>& idx) {
+    const auto it = idx.find(id);
+    if (it == idx.end()) return;
+    const std::size_t row = it->second;
+    // D-03：储物袋独立存储后随弟子删除，不收集袋条目 itemId（防误删仓库堆叠）
+    if (state.disciples.loyalties[row] >= threshold) return;
+    const state::Disciple snapshot = state.disciples.materialize(row);
+    std::vector<std::string> desertEquipIds;
+    for (const std::string* equipId :
+         {&snapshot.weaponId, &snapshot.armorId,
+          &snapshot.bootsId, &snapshot.accessoryId}) {
+        if (!equipId->empty()) desertEquipIds.push_back(*equipId);
+    }
+
+    // 11 类槽位清理（Kotlin clearAllSlotsState → clearAllSlotsDataOnly 纯数据
+    // 变换；includeResidence=true；生产 Repository 同步为 Kotlin 侧 Room 域，
+    // 不在游戏状态内）
+    {
+        SlotCleanupInput in;
+        in.spiritMineSlots = state.gameData.spiritMineSlots;
+        in.librarySlots = state.gameData.librarySlots;
+        in.elderSlots = state.gameData.elderSlots;
+        in.residenceSlots = state.gameData.residenceSlots;
+        in.activeBloodRefinements = state.gameData.activeBloodRefinements;
+        in.patrolSlots = state.gameData.patrolSlots;
+        in.warehouseGarrisons = state.gameData.warehouseGarrisons;
+        in.battleTeams = state.gameData.battleTeams;
+        in.worldMapSects = state.gameData.worldMapSects;
+        in.productionSlots = state.gameData.productionSlots;
+        in.caveExplorationTeams = state.gameData.caveExplorationTeams;
+        in.activeMissions = state.gameData.activeMissions;
+        const auto out = clearAllSlotsDataOnly(in, snapshot.id, /*includeResidence=*/true);
+        state.gameData.spiritMineSlots = out.spiritMineSlots;
+        state.gameData.librarySlots = out.librarySlots;
+        state.gameData.elderSlots = out.elderSlots;
+        state.gameData.residenceSlots = out.residenceSlots;
+        state.gameData.activeBloodRefinements = out.activeBloodRefinements;
+        state.gameData.patrolSlots = out.patrolSlots;
+        state.gameData.warehouseGarrisons = out.warehouseGarrisons;
+        state.gameData.battleTeams = out.battleTeams;
+        state.gameData.worldMapSects = out.worldMapSects;
+        state.gameData.productionSlots = out.productionSlots;
+        state.gameData.caveExplorationTeams = out.caveExplorationTeams;
+        state.gameData.activeMissions = out.activeMissions;
+    }
+
+    // 装备实例移除（叛逃带走装备）
+    if (!desertEquipIds.empty()) {
+        auto& eq = state.equipmentInstances;
+        eq.erase(std::remove_if(eq.begin(), eq.end(),
+                                [&](const state::EquipmentInstance& e) {
+                                    return std::find(desertEquipIds.begin(),
+                                                     desertEquipIds.end(),
+                                                     e.id) != desertEquipIds.end();
+                                }),
+                 eq.end());
+    }
+    // 功法实例移除
+    if (!snapshot.manualIds.empty()) {
+        auto& mn = state.manualInstances;
+        mn.erase(std::remove_if(mn.begin(), mn.end(),
+                                [&](const state::ManualInstance& m) {
+                                    return std::find(snapshot.manualIds.begin(),
+                                                     snapshot.manualIds.end(),
+                                                     m.id) != snapshot.manualIds.end();
+                                }),
+                 mn.end());
+    }
+    // 功法熟练度移除（键 = 弟子 id 字符串）
+    state.gameData.manualProficiencies.erase(snapshot.id);
+
+    state.disciples.removeById(snapshot.id);
+    state.gameData.annualDesertedDisciples += 1;
+    recordGameEvent(state, "SECT", "desertion", snapshot.name + "脱离宗门",
+                    snapshot.id, snapshot.name);
+}
+
+/// 月度叛逃检测主流程（Kotlin processLawEnforcementMonthly）
+inline void processLawEnforcementMonthly(GameState& state,
+                                         rng::RngManager& rng) {
+    auto& ds = state.disciples;
+    if (!isAverageLoyaltyLowEnough(ds)) return;
+    const int32_t currentMonthValue =
+        state.gameData.gameYear * 12 + state.gameData.gameMonth;
+    const double captureRate = calculateCaptureRate(state, indexById(ds));
+    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        if (isDesertionImmuneStatus(ds.statuses[row])) continue;
+        if (ds.loyalties[row] >= kLawLoyaltyThreshold) continue;
+        if (currentMonthValue - ds.recruitedMonths[row] <
+            kLawNewDiscipleProtectionMonths) {
+            continue;
+        }
+        const int32_t id = toIntOrNull(ds.ids[row]).value_or(-1);
+        if (id < 0) continue;
+        const double prob = calcDesertionProbability(ds.loyalties[row]);
+        if (rngSystem.nextDouble() >= prob) continue;
+        // 第二次抽取：捕获 vs 逃脱
+        if (rngSystem.nextDouble() < captureRate) {
+            captureDiscipleForReflection(state, id, state.gameData.gameYear,
+                                         indexById(ds));
+        } else {
+            desertDiscipleCleanup(state, id, kLawLoyaltyThreshold,
+                                  indexById(ds));
+        }
+    }
+}
+
 inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  const std::map<int32_t, std::size_t>& idx) {
     // 子事件 1：招募月度计数归零
     state.gameData.recruitCountThisMonth = 0;
+    // 子事件 3：月度偷盗兜底——未下沉（执法堂偷盗批次；场景道德 ≥ 阈值规避；
+    // 注意 Kotlin processTheftIfNeeded 首行无条件归零 theftJudgementsThisMonth，
+    // 偷盗批下沉时必须一并移植）
+    // 子事件 4：月度叛逃检测（批 10-2）
+    detail::processLawEnforcementMonthly(state, rng);
     // 子事件 7：游戏结束检查
     detail::checkGameOverCondition(state);
     // 子事件 8：侦察信息过期清理（批 10-1）
@@ -601,7 +835,6 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     // 子事件 11：灵矿月度产出结算
     detail::processSpiritMineProductionMonthly(state, idx);
     // 其余子事件未下沉——见文件头范围边界（rng 参数供后续批次接线）
-    (void)rng;
 }
 
 }  // namespace detail

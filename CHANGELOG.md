@@ -1,3 +1,13 @@
+## [4.01.15] - 2026-08-29
+
+### 新增（月变残留执行器增量 C++ 化批 10-2：S8 月度叛逃检测下沉 + 执法堂辅助函数入 C++）
+
+- **S8 子事件 4 月度叛逃检测**：Kotlin `processLawEnforcementMonthly` 等价移植 C++——从众门控（存活弟子平均忠诚整数除法 < 50）、捕获率三段算式（长老智力阶梯×(1+职务加成) + 执法弟子阶梯 + 增强治安/奖惩政策，clamp [0,1]）、at-risk 行序扫描（存活+非免疫状态+忠诚<阈值+新弟子保护期）、SYSTEM 抽取序（每候选 1 次叛逃概率判定 + 通过后 1 次捕获判定）；捕获思过（remove+末尾重插 REFLECTING + statusData 思过年限 + guideCounters.discipleImprisoned + DESERTION_CAUGHT 事件）；逃脱清理（11 类槽位清理含住所 → 装备/功法实例移除 → 熟练度移除 → 弟子移除 + annualDesertedDisciples + DESERTION 事件）；接线进 processMonthlyEvents 子事件 4 位，月结未下沉子事件 12→11 件
+- **执法堂辅助函数入 C++**：`stats::baseIntelligence`（Disciple/行版双载，同 baseComprehension 口径：skills 值 + 天赋词条 intelligenceFlat）+ `stats::positionEffectBonus`（天赋非负面 + 词条 PositionBonus 按 slotType 求和，消费 trait_db 静态数据单一源）
+- **S-13 登记**：执法堂配置常量 C++ 取默认值（Kotlin 读远程配置可空覆盖，S-10 同族债务）
+- **验证**：GTest 561/561（+3：从众门控零抽取锁/逃脱黄金序列含装备功法清理与 SYSTEM 分区快照锁/捕获黄金序列含长老智力·政策·重插行序·引导计数·事件锁）· **DiffMonthSettlementTest 换装真实 LawEnforcementProcessor**（原 mock 不消耗 RNG 无法对拍叛逃流）+ 叛逃候选场景 1/1 跨语言逐位一致（rngStates 结构对拍覆盖抽取序）· engine JUnit 2925/2925（0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿
+- **兼容性**：无存档/序列化变更；生产月变真相源仍在 Kotlin（C++ 侧经对拍守护）
+
 ## [4.01.14] - 2026-08-29
 
 ### 新增（月变残留执行器增量 C++ 化批 10-1：S8 侦察过期清理下沉 + 宗门详情域协议扩容）

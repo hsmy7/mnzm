@@ -386,6 +386,60 @@ inline int32_t baseComprehension(const state::DiscipleStore& ds,
            static_cast<int32_t>(effectValue(effects, "comprehensionFlat"));
 }
 
+// ── 基础智力（getBaseStats().intelligence，执法堂捕获率用，批 10-2）──
+
+/// 基础智力 = skills.intelligence + 合并（天赋+词条）intelligenceFlat 截断。
+/// Kotlin 权威口径与 baseComprehension 同构（getMergedEffects 同 key 相加后
+/// 取 "intelligenceFlat" toInt()）。
+inline int32_t baseIntelligence(const Disciple& d) {
+    const auto effects = mergeEffects(
+        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
+    return d.intelligence +
+           static_cast<int32_t>(effectValue(effects, "intelligenceFlat"));
+}
+
+/// 基础智力（DiscipleStore 行版）
+inline int32_t baseIntelligence(const state::DiscipleStore& ds,
+                                std::size_t row) {
+    const auto effects = mergeEffects(
+        talentEffectsFor(ds.talentIds[row]), affixEffectsFor(ds.affixIds[row]));
+    return ds.intelligences[row] +
+           static_cast<int32_t>(effectValue(effects, "intelligenceFlat"));
+}
+
+// ── 职务加成（getPositionEffectBonus，执法堂捕获率用，批 10-2）──────
+
+/// 统计弟子（天赋+词条）中指定 slotType 的 PositionBonus 总和。
+/// Kotlin 权威口径：天赋取非负面且 positionBonus.slotType 匹配者求和 +
+/// 词条（AffixDatabase.aggregatePositionBonus）同口径求和。
+inline double positionEffectBonus(const std::vector<std::string>& talentIds,
+                                  const std::vector<std::string>& affixIds,
+                                  const std::string& slotType) {
+    double bonus = 0.0;
+    for (const auto& id : talentIds) {
+        if (auto t = data::talentById(id)) {
+            if (!t->isNegative && t->positionBonus &&
+                t->positionBonus->slotType == slotType) {
+                bonus += t->positionBonus->effectBonus;
+            }
+        }
+    }
+    for (const auto& id : affixIds) {
+        if (auto a = data::affixById(id)) {
+            if (a->positionBonus && a->positionBonus->slotType == slotType) {
+                bonus += a->positionBonus->effectBonus;
+            }
+        }
+    }
+    return bonus;
+}
+
+inline double positionEffectBonus(const state::DiscipleStore& ds,
+                                  std::size_t row,
+                                  const std::string& slotType) {
+    return positionEffectBonus(ds.talentIds[row], ds.affixIds[row], slotType);
+}
+
 // ── 修炼速率乘区（calculateCultivationPerPhaseColumn） ───────────────
 
 /// 每旬修炼速率输入（调用方预计算的社交/建筑/政策分量）
