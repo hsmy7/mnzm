@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-29。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 550/550 · JUnit 全模块 7271/7271（engine 2919，testReleaseUnitTest 全量；194 skip 为无 `-Dgamecore.jni.path` 时 Assume 跳过的对拍用例，对应语义由 GTest 侧全量覆盖） · NDK externalNativeBuildRelease 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · compileReleaseKotlin 通过（2026-08-28 阶段 7 实测）**。
+> 当前基线：**桌面 GTest 550/550 · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过（本批零 C++ 变更）**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
@@ -17,8 +17,9 @@
 > 批 8-2 完成首个生产接线家族（库存 add/remove 7 动作 AUTHORITATIVE 路由 + 溢出邮件
 > 草稿回传通道 + 行为审计登记）；批 8-3 完成库存家族收尾（consolidate/sort/toggleLock
 > 新增 3 ActionId C++ 化 + 接线，该家族 10 动作全量接线）；**批 8-4 完成接线面收口判定**
-> （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，剩余终态收尾为
-> Kotlin 引擎退役专项，见 §7.1 批 8-4 行）。
+> （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，见 §7.1 批 8-4 行）；
+> **退役专项批 9-1/9-2 完成**（SHADOW 对拍态 + 纯 Kotlin 旬结算路径删除——tick 结算
+> 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）。
 
 ## 1. 目标架构
 
@@ -107,7 +108,7 @@ android/app/src/main/cpp/
 |---|---|
 | 已完成 | feature flag / StateSyncService（宽松合并防丢字段）/ tick 桥（shadow 对拍）/ 转发辅助 / 性能基准（见 4.9 剩余·基础设施）；**阶段 1 新增**：增量变更集通道（C++ `state::DirtyTracker` + Kotlin `StateSyncService.applyDirty/applyDirtyFromNative`，DiffDirtyTest / DiffDirtyDisciplesTest / GTest dirty_tracker_test 三层守护）、RNG 读档恢复接线（C-13，含导出前活动状态回写） |
 | 剩余·GameEngine 方法转发 | ~~Kotlin GameEngine 275 方法逐一转发~~ **转发接线面已收口（✅ 批 8-4 判定）**：87 个 ActionId 全量清点六类裁决（已接线 10 / 月结年结旬结内部路径 16 / 纯函数·影子对拍基准 46 / 查询留守 4 / 事务内变更原语留守 3 / 无独立生产调用点·嵌套调用面留守 8）——可接线面已穷尽，判定与证据见 §7.1 批 8-4 行；GameEngine 族其余 ~200 非 ActionId 操作（UI 编排/协调逻辑）终态属 Kotlin 输入桥，不迁移 |
-| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；~~逐系统切换~~（✅ 阶段 2-6 完成）；~~AUTHORITATIVE 生产默认~~（✅ 阶段 7 批 7-1，OFF 保留为回退契约）；~~GameEngine 方法全量转发接线~~（✅ 批 8-4 判定收口——可接线面已穷尽，见 §7.1）；**剩余终态收尾：Kotlin 引擎退役专项**（删除 tick/结算双实现 + shadow 对拍转回归基线 + Wallet/Inventory 双实现按退役专项另行评估，阶段 7 批 7-4 登记） |
+| 剩余·全量切换 | ~~增量变更集~~（✅ 阶段 1 完成）；~~逐系统切换~~（✅ 阶段 2-6 完成）；~~AUTHORITATIVE 生产默认~~（✅ 阶段 7 批 7-1，OFF 保留为回退契约）；~~GameEngine 方法全量转发接线~~（✅ 批 8-4 判定收口——可接线面已穷尽，见 §7.1）；~~SHADOW 对拍模式 + 纯 Kotlin 旬结算路径~~（✅ 退役专项批 9-1/9-2 删除，见 §7.2）；**退役后常态**：逐动作转发降级契约保留（native 不可用回退 Kotlin 原实现）、Diff 对拍框架转长期回归基线（桌面对拍桥全量实跑）、Wallet/Inventory-未接线动作按批 8-4 判定留守（双实现为其降级契约本体） |
 | 阻塞依赖 | 未迁移系统（SecretRealm 状态机/外交/邮件/兑换码/11 槽分配/死亡物化/LevelGenerator 等）——**纳入计划 v2 阶段 4 逐批 C++ 化**（不再"保持 Kotlin 实现"） |
 
 ### 5.2 批次 10：彻底单引擎（C-07，2026-08-25 二次重定义）
@@ -228,6 +229,22 @@ android/app/src/main/cpp/
 - INV_ADD_EQUIPMENT_INSTANCE(1011)/INV_ADD_MANUAL_INSTANCE(1013) 声明无 handler（顶层 UNKNOWN_ACTION → 天然回退 Kotlin，正确性无损）——批 8-4 判定确认无生产调用点，无需补 handler
 
 **保持不动（与迁移方向无关）**：R-01/03~14（detekt/lint/测试质量债务；R-14 = feature:game detekt 存量 10 项 + 验证门缺口，随阶段 7 Kotlin 面收窄与 MainGameScreen/Canvas 拆分专项处置）、T-D46~D49/T-D40/T-A2/T-RB/T-CONV/T-PRO（平台/发行技术债）、P 系列真机验证、扩展性预留（RemoteConfig/商业化/离线收益——离线收益结算接入点在阶段 4 后自动走 C++）。
+
+### 7.2 退役专项（Kotlin 引擎退役，2026-08-29 启动；批 8-4 接线面收口后启动）
+
+> 终态依据：选项 A 彻底单引擎（ADR 二次修订）——C++ 单一真相源，双实现并行的镜像/对拍开销为纯浪费。
+> 退役边界 = **tick/结算层的 Kotlin 并行实现**；逐动作转发降级契约（native 不可用回退 Kotlin 原实现）
+> 是产品降级能力的本体，随单引擎长期保留。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| 9-1 ✅ | **SHADOW 对拍模式退役**：`NativeEngineFlag` 三态→双态（OFF/AUTHORITATIVE，SHADOW 枚举删除）；`tickNativeShadow` 影子推进桥删除（GameEngineCoreNativeOps 重写为读档基线对齐单职责）；tickInternal 影子推进调用点删除；DiffNativeForwardTest SHADOW 用例改 AUTHORITATIVE（语义等价：非 OFF 态 + 生产桥未加载降级）；跨语言语义守护由 Diff 对拍测试以回归基线形态继续承担 | compileReleaseKotlin + detekt |
+| 9-2 ✅ | **纯 Kotlin 旬结算路径删除（tick 层双实现退役）**：`processTickPhases`（OFF 路径多旬合并事务：TimeSystem.onPhaseTick 时间推进 + checkBreakthroughsAndPills 六步结算）删除；`checkBreakthroughsAndPills` 生产入口删除（PhaseSettlementExecutor 完整版 execute 保留为对拍基准）；tickInternal 分支改造——**tick 结算恒走 native**（不再检查 flag：单引擎终态 OFF 不影响 tick），native 未就绪（.so 加载/初始化失败）时本旬跳过结算 + refundPhases 归还未落地旬数（时间不丢），持续不可用由看门狗停滞判据 → 紧急重启自愈（重启重建 native 链路）；私有 FLAG_MONTH/YEAR_CHANGED 常量删除；KDoc 定位更新（NativeEngineFlag OFF 语义收窄为逐动作/循环集成降级；TimeSystem.onPhaseTick 保留为对拍时间驱动器；GameTimeClock.refundPhases 注释随行）；**语义决策**：引擎级"切回纯 Kotlin"回退契约随退役消灭（选项 A 的必然结果），逐动作降级与循环/看门狗 Kotlin 集成路径保留 | **engine JUnit 全量 2925/2925（桌面 JNI 对拍全执行 0 skip）+ engine detekt + app compileReleaseKotlin 全绿，零回归** |
+
+**退役专项剩余（登记）**：
+- 对拍框架长期化：Diff *Test 全套以桌面对拍桥（`-Dgamecore.jni.path`）作为 C++ 回归基线持续运行（CI 桌面 job + 本地 build-desktop-jni.ps1）；Kotlin 臂（残留执行器 + TimeSystem.onPhaseTick 时间驱动）即回归基准，不再承担"迁移验收"职责
+- Wallet/库存未接线动作双实现按批 8-4 判定留守——该双实现即逐动作降级契约本体，不退役
+- 月/年残留执行器（MonthSettlementExecutor/YearSettlementExecutor/PhaseSettlementExecutor.executeResidual）为 AUTHORITATIVE 生产实现的 Kotlin 侧组成（未 C++ 化扇出见 month_settlement.h 范围边界），其 C++ 化属后续增量迁移批次（非退役范畴）
 
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 

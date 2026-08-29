@@ -44,12 +44,16 @@ internal class PhaseSettlementExecutor(
     )
 
     /**
-     * 执行一旬弟子结算（完整版：OFF/SHADOW 模式与对拍路径共用）。
+     * 执行一旬弟子结算（完整版六步：跨语言对拍/回归基准路径）。
      *
      * 六步顺序与提取前的 checkBreakthroughsAndPills 逐行等价：
      * 自动装备/学习 → 核心批次（1-5）→ 丹药补服 + 突破检测。
      *
-     * 必须在 [GameStateStore.update] 事务内调用（与生产 tick 路径一致）。
+     * 退役专项批 9-2 起生产 tick 不再调用本方法（原 OFF 旬结算路径删除，
+     * 生产 AUTHORITATIVE 路径走 [executeResidual]）；完整版保留为
+     * DiffPhaseSettlementTest / DiffAuthoritativeTickTest 的 Kotlin 基准。
+     *
+     * 必须在 [GameStateStore.update] 事务内调用（与原生产 tick 路径一致）。
      *
      * @param state 可变游戏状态（事务内就地修改）
      */

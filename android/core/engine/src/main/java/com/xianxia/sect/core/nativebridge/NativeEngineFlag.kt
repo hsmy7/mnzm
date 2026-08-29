@@ -2,24 +2,26 @@ package com.xianxia.sect.core.nativebridge
 
 /**
  * NativeEngineFlag — C++ 引擎集成 feature flag（批次 9 建立，T2.4 升级三态，
- * 计划 v2 阶段 7 切换生产默认）。
+ * 计划 v2 阶段 7 切换生产默认；退役专项批 9-1 删除 SHADOW 对拍态）。
  *
- * 三态语义（docs/cpp-engine.md 计划 v2 阶段 2d / 阶段 7）：
- * - [Mode.OFF]：纯 Kotlin 路径（阶段 1-6 灰度期生产默认；阶段 7 起降级为
- *   **回退契约**——运行时切回即回到纯 Kotlin 行为）
- * - [Mode.SHADOW]：shadow 对拍——C++ 影子状态随 tick 推进（tickNativeShadow），
- *   不镜像覆盖 Kotlin；GameEngine 已迁移动作经 [GameCoreBridge.nativeExecute]
- *   转发，结果经 [StateSyncService] 镜像
+ * 双态语义（docs/cpp-engine.md 计划 v2 阶段 7 / 退役专项批 9-1~9-2）：
+ * - [Mode.OFF]：转发禁用——已接线动作（库存家族等）回退 Kotlin 原实现；
+ *   引擎循环帧计划与看门狗判据走 Kotlin 侧。退役专项批 9-2 起 tick 结算
+ *   恒走 native（单引擎终态无 Kotlin 路径），OFF 不再影响 tick 也不再有
+ *   引擎级回退语义（仅逐动作/循环集成降级）
  * - [Mode.AUTHORITATIVE]（**生产默认**，计划 v2 阶段 7 真相源切换验收）：
  *   每旬时间推进 + C++ 核心结算（步骤 1-5 零 RNG 批量）走标量通道
  *   nativeSettlePhase；自动装备/丹药/突破/月变/年变由 Kotlin 残留执行器
  *   处理（行为零丢失）；Kotlin RNG 抽取经分区标量通道委托 C++ 单一真相源
  *   （跨语言序列逐位统一）
  *
- * 回退契约：任一时刻切回 [Mode.OFF] 即回到纯 Kotlin 路径（Kotlin 引擎代码
- * 全保留，直至 C-06 转发收尾完成后随阶段 7 续作退役）；native 链路不可用
- * （.so 加载失败/初始化失败）时 AUTHORITATIVE 各分支自动降级纯 Kotlin，
- * 与 [Mode.OFF] 行为一致（见 GameEngineCoreAuthoritativeOps 降级契约）。
+ * ~~原 SHADOW 对拍态已随退役专项批 9-1 删除~~：双实现并行期结束，跨语言
+ * 语义守护由 Diff 对拍测试（桌面对拍桥）以回归基线形态继续承担。
+ *
+ * 逐动作降级契约：native 链路不可用（.so 加载失败/初始化失败）时各转发
+ * 分支自动回退 Kotlin 原实现（见 GameEngineCoreAuthoritativeOps /
+ * InventoryNativeForward 降级契约）；tick 结算层 native 不可用则该旬跳过
+ * 结算，由看门狗判据 → 紧急重启路径自愈（批 9-2 起）。
  *
  * 测试可经 [withMode] 临时设置（自动恢复）。
  */
@@ -27,10 +29,8 @@ object NativeEngineFlag {
 
     /** 引擎集成模式 */
     enum class Mode {
-        /** 纯 Kotlin（阶段 7 起为回退契约，运行时可切） */
+        /** 转发禁用（已接线动作回退 Kotlin 原实现；非引擎级回退——批 9-2 起 tick 无 Kotlin 路径） */
         OFF,
-        /** shadow 对拍（双实现并行，Kotlin 为真相源） */
-        SHADOW,
         /**
          * 真相源切换（C++ 时间推进+核心结算为真相源，Kotlin 残留执行器 +
          * 委托式 RNG；**生产默认**——计划 v2 阶段 7 切换）

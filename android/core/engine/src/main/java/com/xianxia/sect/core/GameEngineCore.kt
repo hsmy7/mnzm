@@ -21,7 +21,6 @@ import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.thermal.BatteryStatusProvider
 import com.xianxia.sect.core.thermal.NoopBatteryStatus
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
@@ -370,10 +369,6 @@ class GameEngineCore @Inject constructor(
         // 自适应忙等等阈值
         private const val ANTI_FREEZE_TRIGGER_THRESHOLD = 3
         private const val ANTI_FREEZE_NORMAL_THRESHOLD = 20
-
-        // processTickPhases 返回值的 bitmask 标志
-        private const val FLAG_MONTH_CHANGED = 1
-        private const val FLAG_YEAR_CHANGED = 2
 
         // 帧率档位（场景 × 性能模式基准，sceneFpsFor 使用）
         private const val FPS_IDLE = 10
@@ -1586,24 +1581,24 @@ class GameEngineCore @Inject constructor(
             System.currentTimeMillis() else 0L
         // 进度快照采样：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs）
         sampleProgressSnapshot()
-        // 批次 9 tick 桥：SHADOW 对拍模式下推进 C++ 影子状态，不镜像覆盖
-        // Kotlin（Kotlin 仍为真相源）；AUTHORITATIVE 模式下 C++ 即真相源，
-        // 影子推进停用（避免双份推进）
-        tickNativeShadow(LOGIC_DT_NS, gameClock.nowMs())
         val tickResult = gameClock.tick(isSettlementPending = false)
         // 电量感知热控阈值偏移 + 帧率驱动降级（阶段 5 提取共享：AUTHORITATIVE
         // 帧迭代每 tick 复用；checkAndAdjust 10s 间隔检查，此处仅浮点赋值无锁开销）
         tickThermalControl()
-        if (NativeEngineFlag.authoritative && ensureAuthoritativeNative()) {
-            // T2.4（计划 v2 阶段 2d）：过渡期真相源切换——每旬标量通道 +
-            // 残留执行器互插；初始化/镜像失败自动回退纯 Kotlin 路径
+        if (ensureAuthoritativeNative()) {
+            // T2.4（计划 v2 阶段 2d）：真相源切换——每旬标量通道 + 残留执行器
+            // 互插。退役专项批 9-2 起 tick 结算恒走 native（单引擎终态，无
+            // Kotlin 回退路径；OFF 仅影响逐动作转发，不影响 tick）
             processAuthoritativeTick(tickResult.phasesToAdvance)
         } else {
-            val tickFlags = processTickPhases(tickResult.phasesToAdvance)
-            processMonthYearChange(
-                monthChanged = (tickFlags and FLAG_MONTH_CHANGED) != 0,
-                yearChanged = (tickFlags and FLAG_YEAR_CHANGED) != 0
-            )
+            // 退役专项批 9-2（彻底单引擎终态）：纯 Kotlin 旬结算路径
+            // （processTickPhases）已删除——native 链路未就绪（.so 加载/初始化
+            // 失败等）时本旬跳过结算并归还未落地旬数（时间不丢，native 恢复后
+            // 自然追进）；持续不可用由看门狗停滞判据 → 紧急重启路径自愈
+            gameClock.refundPhases(tickResult.phasesToAdvance)
+            DomainLog.w(TAG,
+                "tickInternal: native 引擎未就绪，本旬跳过结算 " +
+                    "(refund=${tickResult.phasesToAdvance}，看门狗自愈路径)")
         }
         // L3a 年变分帧：延迟组按 30ms 预算逐 tick drain（1 月重活分摊到后续 tick；
         // 非 1 月残留由 forceDrain 兜底不跨月）
@@ -1633,41 +1628,6 @@ class GameEngineCore @Inject constructor(
                 "(isPaused=$isPaused, isLoading=$isLoading, isSaving=$isSaving)")
         }
         return true
-    }
-    
-    private suspend fun processTickPhases(phasesToAdvance: Int): Int {
-        // 2026-08-01 双保险：时钟层已截断 MAX_PHASES_PER_TICK，此处防御未来
-        // 新调用点绕过时钟直接调用（防止单帧连续执行数十个完整事务卡死）
-        val capped = phasesToAdvance.coerceAtMost(GameTimeClock.MAX_PHASES_PER_TICK)
-        var flags = 0
-        // P1-A（G 项）：掉帧追旬场景 N 次独立事务 → 1 次合并事务。
-        // 省去 N-1 次 COW deepCopy + 锁竞争 + dispatchAssemble；配合 P0-1 的
-        // RNG 事务快照/恢复，任一句异常整批回滚（状态 + RNG 同步恢复），
-        // 与逐句独立事务的确定性语义逐位一致（有确定性对照守卫测试）。
-        try {
-            stateStore.update {
-                for (phaseIndex in 1..capped) {
-                    // ★ 必须在 onPhaseTick 前捕获 prevMonth/prevYear，
-                    // 否则 onPhaseTick 已修改 gameMonth/gameYear，后续比较永远相等。
-                    val prevMonth = this.gameData.gameMonth
-                    val prevYear = this.gameData.gameYear
-                    systemManager.getSystem(TimeSystem::class)
-                        .onPhaseTick(this, phasesToSettle = 1)
-                    checkBreakthroughsAndPills(this)
-                    if (this.gameData.gameMonth != prevMonth) flags = flags or FLAG_MONTH_CHANGED
-                    if (this.gameData.gameYear != prevYear) flags = flags or FLAG_YEAR_CHANGED
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // F2 对抗性审查修复：合并事务整批回滚——状态时间回退 N 旬，
-            // 但时钟已按墙钟消费 N 旬（累积消费模式无自动追补）；
-            // 归还未落地旬数，保持状态时间与墙钟一致（否则永久落后）
-            gameClock.refundPhases(capped)
-            throw e
-        }
-        return flags
     }
     
     internal suspend fun processMonthYearChange(monthChanged: Boolean, yearChanged: Boolean) {
@@ -1703,25 +1663,12 @@ class GameEngineCore @Inject constructor(
         }
     }
 
-    /**
-     * Level 1: 每旬最小检查 — 对标 RimWorld Rare Tick 模式。
+    /** 每旬结算纯编排器（无状态，懒初始化复用同一实例；T2.1 从 checkBreakthroughsAndPills 提取）。
      *
-     * 每旬执行的操作：
-     * 1) HP/MP 恢复
-     * 2) 自动装备/学习
-     * 3) 修炼经验累积（确保月中速率变化自动生效）
-     * 4) 自动丹药到期补服
-     * 5) 突破检测
-     *
-     * T2.1（计划 v2 阶段 2）：编排逻辑已提取至
-     * [com.xianxia.sect.core.engine.service.PhaseSettlementExecutor]，
-     * 生产 tick 与跨语言对拍测试共用同一入口；本方法仅保留委托。
+     * 生产 AUTHORITATIVE 路径调 [PhaseSettlementExecutor.executeResidual]（自动装备/
+     * 丹药/突破残留面）；完整六步 [PhaseSettlementExecutor.execute] 的原生产调用点
+     * （OFF 旬结算路径）已随退役专项批 9-2 删除，完整版现仅对拍/回归基准使用。
      */
-    private fun checkBreakthroughsAndPills(state: MutableGameState) {
-        phaseSettlementExecutor.execute(state)
-    }
-
-    /** 每旬结算纯编排器（无状态，懒初始化复用同一实例；AUTHORITATIVE 残留路径复用）。 */
     internal val phaseSettlementExecutor: PhaseSettlementExecutor by lazy {
         PhaseSettlementExecutor(cultivationService)
     }

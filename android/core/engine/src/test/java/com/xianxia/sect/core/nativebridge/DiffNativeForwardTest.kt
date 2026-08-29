@@ -43,7 +43,7 @@ class DiffNativeForwardTest {
     @Test
     fun `flag on but native unavailable returns null`() {
         // 生产桥未加载（单测环境）→ 降级 null 不崩溃
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.SHADOW) {
+        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
             val service = StateSyncService(FakeAtomicStateStore())
             val result = GameEngineNativeOps.tryExecuteNative(
                 service, ActionIds.WALLET_ADD,
@@ -55,7 +55,7 @@ class DiffNativeForwardTest {
 
     @Test
     fun `flag lifecycle restores previous value`() {
-        NativeEngineFlag.mode = NativeEngineFlag.Mode.SHADOW
+        NativeEngineFlag.mode = NativeEngineFlag.Mode.AUTHORITATIVE
         NativeEngineFlag.withMode(NativeEngineFlag.Mode.OFF) {
             assertTrue(!NativeEngineFlag.enabled)
         }

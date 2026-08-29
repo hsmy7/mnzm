@@ -35,6 +35,13 @@ class TimeSystem @Inject constructor(
 
     override fun clearForSlot(slotId: Int) {}
 
+    /**
+     * Kotlin 时间推进基准（纯时间进位：旬→月→年）。
+     *
+     * 退役专项批 9-2 起**生产 tick 不再调用本方法**（旬结算真相源为 C++
+     * nativeSettlePhase，单引擎终态无 Kotlin 路径）；本方法保留为跨语言
+     * 对拍/回归基准的时间驱动器（DiffTimeTest / DiffAuthoritativeTickTest）。
+     */
     fun onPhaseTick(state: MutableGameState, phasesToSettle: Int) {
         val gd = state.gameData
         var newPhase = gd.gamePhase + 1
