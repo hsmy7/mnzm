@@ -158,6 +158,7 @@ void DiscipleStore::appendDisciple(const Disciple& d) {
     lifespans.push_back(d.lifespan);
     isAlive.push_back(d.isAlive ? 1 : 0);
     deathYears.push_back(0);  // 新弟子无死亡年份（Kotlin 稀疏表无条目语义）
+    lastTheftJudgementYears.push_back(0);  // 新弟子从未判定（Kotlin 稀疏表无条目语义）
     soulPowers.push_back(d.soulPower);
 
     cultivationSpeedBonuses.push_back(d.cultivationSpeedBonus);
@@ -286,12 +287,16 @@ void DiscipleStore::upsertDisciple(const Disciple& d) {
     //   "assembleAll → map 标记 → replaceAll → 补 deathYears" 流水线依赖
     //   replaceAll 保留已写 deathYears；appendDisciple 新行默认 0，需旋转后写回）
     const int32_t savedDeathYear = deathYears[row];
+    // ★ 同法保存 lastTheftJudgementYears（Kotlin tables.update 不触碰稀疏表——
+    //   偷盗年判定标记跨列写存活）
+    const int32_t savedTheftJudgementYear = lastTheftJudgementYears[row];
     eraseAt(row);
     appendDisciple(d);
     for (std::size_t i = ids.size() - 1; i > row; --i) {
         swapRows(i, i - 1);
     }
     deathYears[row] = savedDeathYear;
+    lastTheftJudgementYears[row] = savedTheftJudgementYear;
 }
 
 void DiscipleStore::removeById(const std::string& id) {
@@ -317,6 +322,7 @@ void DiscipleStore::clear() {
     lifespans.clear();
     isAlive.clear();
     deathYears.clear();
+    lastTheftJudgementYears.clear();
     soulPowers.clear();
     cultivationSpeedBonuses.clear();
     cultivationSpeedDurations.clear();
@@ -431,6 +437,7 @@ void DiscipleStore::eraseAt(std::size_t row) {
     lifespans.erase(lifespans.begin() + static_cast<std::ptrdiff_t>(row));
     isAlive.erase(isAlive.begin() + static_cast<std::ptrdiff_t>(row));
     deathYears.erase(deathYears.begin() + static_cast<std::ptrdiff_t>(row));
+    lastTheftJudgementYears.erase(lastTheftJudgementYears.begin() + static_cast<std::ptrdiff_t>(row));
     soulPowers.erase(soulPowers.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedBonuses.erase(cultivationSpeedBonuses.begin() + static_cast<std::ptrdiff_t>(row));
     cultivationSpeedDurations.erase(cultivationSpeedDurations.begin() + static_cast<std::ptrdiff_t>(row));
@@ -552,6 +559,7 @@ void DiscipleStore::swapRows(std::size_t a, std::size_t b) {
     swap(lifespans[a], lifespans[b]);
     swap(isAlive[a], isAlive[b]);
     swap(deathYears[a], deathYears[b]);
+    swap(lastTheftJudgementYears[a], lastTheftJudgementYears[b]);
     swap(soulPowers[a], soulPowers[b]);
     swap(cultivationSpeedBonuses[a], cultivationSpeedBonuses[b]);
     swap(cultivationSpeedDurations[a], cultivationSpeedDurations[b]);

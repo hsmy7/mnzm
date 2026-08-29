@@ -35,6 +35,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.loyalty
@@ -75,10 +76,14 @@ import org.junit.Test
  * ③ 政策忠诚：仁政爱徒 loyalty delta=+1（50→51 coerceIn(0,100)）+
  *    S1 政策月费 100×4 弟子经真实钱包扣除
  *
- * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ 弟子 morality≥阈值
- * （偷盗钩子零触发）/ consentRequired=false / worldLevels·worldMapSects 空 /
- * spiritFieldPlants 空 / activeBloodRefinements 空 / 无秘境·巡逻·任务 /
- * 非 12 月 / timestamp 对拍排除。
+ * ⑥（批 10-3）偷盗兜底：弟子 16 道德 10（候选）但入伍月 13 保护期未满
+ * （绝对月差 14-13=1 < 12，双端口径均 < 12）→ 候选排除，零抽取零标记——
+ * 任何虚假 SYSTEM 抽取都会移位叛逃候选抽取序列而对拍失败；门控通过
+ * （平均忠诚 42 < 50）与 hasCandidate 路径（道德 < 30）仍被真实覆盖。
+ * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ 除弟子 16 外
+ * morality≥阈值（reactive 偷盗钩子零触发）/ consentRequired=false /
+ * worldLevels·worldMapSects 空 / spiritFieldPlants 空 / activeBloodRefinements
+ * 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */
@@ -103,8 +108,14 @@ class DiffMonthSettlementTest {
         /** 仁政爱徒月度忠诚增量（kBenevolentLoyaltyPerMonth） */
         const val BENEVOLENT_LOYALTY_DELTA = 1
 
-        /** 弟子数（2 男 2 女 + 1 叛逃候选） */
-        const val DISCIPLE_COUNT = 5
+        /** 弟子数（2 男 2 女 + 1 叛逃候选 + 1 偷盗保护期候选） */
+        const val DISCIPLE_COUNT = 6
+
+        /** 批 10-3 偷盗保护期候选 id（道德 10 但入伍月 13 → 候选排除） */
+        const val PROTECTED_THIEF_ID = "16"
+
+        /** 偷盗保护期候选入伍绝对月（年 1 月 1 = 13；月变时绝对月 14，差 1 < 12） */
+        const val PROTECTED_THIEF_RECRUITED_MONTH = 13
 
         /** 叛逃候选 id（忠诚 0 → 概率 (30-1)×0.01=0.29，月结 step8 判定） */
         const val DESERTER_ID = "15"
@@ -166,6 +177,14 @@ class DiffMonthSettlementTest {
                 pairingDisciple(DESERTER_ID, "丙一", "male").copy(
                     age = 16,
                     skills = SkillStats(loyalty = 0)
+                ),
+                // 场景⑥（批 10-3）：偷盗候选（道德 10）但入伍月 13 → 保护期
+                // （12 月）未满 → 候选排除零抽取；未成年（16 岁）不参与配对、
+                // 忠诚 50 非叛逃候选（不扰动既有 SYSTEM 抽取序列）
+                pairingDisciple(PROTECTED_THIEF_ID, "丁一", "male").copy(
+                    age = 16,
+                    skills = SkillStats(morality = 10),
+                    usage = UsageTracking(recruitedMonth = PROTECTED_THIEF_RECRUITED_MONTH)
                 )
             )
         )
@@ -426,6 +445,20 @@ class DiffMonthSettlementTest {
         )
     }
 
+    /**
+     * ⑥（批 10-3）偷盗保护期候选零效果断言：候选被保护期排除后不得产生任何
+     * 偷盗副作用——无失窃灵石入袋、无入袋物品、无年度偷盗计数。
+     */
+    private fun assertTheftProtectedCandidateZeroEffect(actual: NativeGameState) {
+        actual.disciples.firstOrNull { it.id == PROTECTED_THIEF_ID }?.let {
+            assertEquals("保护期候选不应有失窃灵石入袋", 0L,
+                it.equipment.storageBagSpiritStones)
+            assertTrue("保护期候选不应入袋物品", it.equipment.storageBagItems.isEmpty())
+        }
+        assertEquals("偷盗兜底不应产生年度偷盗计数",
+            0, actual.gameData.annualTheftCount)
+    }
+
     /** 场景显式断言（可读性优先，全量结构对拍兜底） */
     private fun assertExplicitAssertions(actual: NativeGameState) {
         val actualGd = actual.gameData
@@ -446,20 +479,22 @@ class DiffMonthSettlementTest {
             )
         }
         // ⑤（批 10-2）叛逃候选：忠诚 0 + 政策 +1 = 1（若未叛逃离场）；
-        // 偷盗兜底只归零 theftJudgementsThisMonth（道德 50 ≥ 30 无候选，零抽取）
+        // 偷盗兜底只归零 theftJudgementsThisMonth（其余弟子道德 50 ≥ 30 非候选；
+        // 弟子 16 保护期排除 → 无标记递增，零抽取）
         assertEquals(0, actualGd.theftJudgementsThisMonth)
+        assertTheftProtectedCandidateZeroEffect(actual)
         actual.disciples.firstOrNull { it.id == DESERTER_ID }?.let {
             assertEquals("叛逃候选忠诚应为 0+1", 1, it.skills.loyalty)
         }
         assertTrue(
-            "叛逃判定后弟子数应为 4 或 5（由 SYSTEM 抽取序列决定）",
-            actual.disciples.size == 4 || actual.disciples.size == 5
+            "叛逃判定后弟子数应为 5 或 6（偷盗保护期候选恒在场；叛逃候选由 SYSTEM 抽取序列决定去留）",
+            actual.disciples.size == 5 || actual.disciples.size == 6
         )
         assertTrue(
             "annualDesertedDisciples 应为 0 或 1",
             actualGd.annualDesertedDisciples == 0 || actualGd.annualDesertedDisciples == 1
         )
-        // ③ S1 政策月费经真实钱包扣除：100 × 4 弟子
+        // ③ S1 政策月费经真实钱包扣除：100 × 全体弟子数（DISCIPLE_COUNT）
         assertEquals(
             "仁政爱徒月费未正确扣除",
             10000L - BENEVOLENT_MONTHLY_COST_PER_DISCIPLE * DISCIPLE_COUNT,

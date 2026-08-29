@@ -20,7 +20,9 @@
 #include "gtest/gtest.h"
 
 #include <cmath>
+#include <functional>
 #include <memory>
+#include <stdexcept>
 
 #include "gamecore/game_core.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
@@ -885,6 +887,796 @@ TEST(MonthSettlementTest, DesertionCaptureGoldenWithElderAndPolicy) {
     auto states = core->rng().exportStates();
     EXPECT_EQ(sys.snapshot(),
               states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+// ── S8 子事件 3：月度偷盗兜底（批 10-3）────────────────────────────
+//
+// 偷盗常量（GameConfig.LawEnforcementConfig / PolicyConfig）
+constexpr int32_t kTheftMoralityThreshold = 30;
+constexpr double kTheftProbPerPoint = 0.01;
+
+TEST(MonthSettlementTest, TheftSucceedsGoldenSequence) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    // 小偷：道德 0 → 候选（概率 (30-0)×0.01=0.30，种子 42 首抽 0.286 必触发）；
+    // 忠诚 30 → 偷后叛逃概率 0 且不低于叛逃阈值 30（子事件 4 零抽取）
+    Disciple thief = baseDisciple("1");
+    thief.morality = 0;
+    thief.loyalty = 30;
+    thief.recruitedMonth = 0;
+    st.disciples.appendDisciple(thief);
+    // 同门：默认道德 50 非候选；忠诚 50 → 平均 40 < 50 过从众门控
+    st.disciples.appendDisciple(baseDisciple("2"));
+
+    auto sys = sysReplica(42);
+    const bool attempted = sys.nextDouble() < 0.30;
+    if (attempted) {
+        sys.nextDouble();   // Step 2 捕获（捕获率 0 → 必不中）
+        sys.nextDouble();   // 金额随机波动（clamp 后恒 1000）
+        sys.nextDouble();   // 偷后叛逃（概率 0 → 不叛逃）
+    }
+
+    system::runMonthSettlement(st, core->rng());
+
+    // 判定标记先于概率抽取——两分支一致（弟子年标记 + 月度计数 +1）
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(2, st.disciples.lastTheftJudgementYears[0]);
+    if (attempted) {
+        EXPECT_EQ(9000, st.gameData.spiritStones);
+        EXPECT_EQ(1, st.gameData.annualTheftCount);
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ("warehouse_theft", st.gameData.gameEventRecords[0].eventType);
+        EXPECT_EQ(std::string("宗门仓库被盗，损失1000灵石"),
+                  st.gameData.gameEventRecords[0].summary);
+        const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+        const auto row = idx.at(1);
+        EXPECT_EQ(1000, st.disciples.materialize(row).storageBagSpiritStones);
+        EXPECT_TRUE(st.disciples.materialize(row).storageBagItems.empty());
+    } else {
+        EXPECT_EQ(10000, st.gameData.spiritStones);
+        EXPECT_EQ(0, st.gameData.annualTheftCount);
+        EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    }
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftCaptureGoldenWithElder) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    st.gameData.elderSlots.lawEnforcementElder = "9";
+    // 长老：智力 200 → 捕获率 (200-50)×0.01 = 1.5 → clamp 1.0；忠诚 40
+    // （平均 45 过门控；≥ 30 非叛逃候选）；道德 50 非偷盗候选
+    Disciple elder = baseDisciple("9");
+    elder.intelligence = 200;
+    elder.loyalty = 40;
+    st.disciples.appendDisciple(elder);
+    Disciple thief = baseDisciple("1");
+    thief.morality = 0;
+    thief.loyalty = 50;
+    thief.recruitedMonth = 0;
+    st.disciples.appendDisciple(thief);
+
+    auto sys = sysReplica(42);
+    const bool attempted = sys.nextDouble() < 0.30;   // 首抽 0.286 必触发
+    if (attempted) sys.nextDouble();   // 捕获判定：< 1.0 必捕获
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    if (attempted) {
+        EXPECT_EQ(2u, st.disciples.size());   // 原位状态改写（不 remove/重插）
+        const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+        const auto row = idx.at(1);
+        EXPECT_EQ("REFLECTING", st.disciples.statuses[row]);
+        const auto d = st.disciples.materialize(row);
+        EXPECT_EQ(std::string("2"), d.statusData.at("reflectionStartYear"));
+        EXPECT_EQ(std::string("7"), d.statusData.at("reflectionEndYear"));
+        // 异于叛逃捕获：无引导计数
+        EXPECT_TRUE(st.gameData.guideCounters.find("discipleImprisoned") ==
+                    st.gameData.guideCounters.end());
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ("theft_caught", st.gameData.gameEventRecords[0].eventType);
+        EXPECT_EQ(std::string("弟子1偷盗被捕"),
+                  st.gameData.gameEventRecords[0].summary);
+        EXPECT_EQ("1", st.gameData.gameEventRecords[0].relatedEntityId);
+        EXPECT_EQ(10000, st.gameData.spiritStones);   // 未得手
+        EXPECT_EQ(0, st.gameData.annualTheftCount);
+    } else {
+        EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    }
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftDesertAfterTheftGolden) {
+    // 扫描种子：首抽 < 0.30（偷盗尝试触发）且第 4 抽 < 0.30（偷后叛逃触发）
+    int64_t seed = -1;
+    for (int64_t s = 42; s < 42 + 100000; ++s) {
+        auto probe = gamecore::rng::DeterministicRng::fromSeed(s + 3);
+        if (probe.nextDouble() >= 0.30) continue;   // d1 偷盗尝试
+        probe.nextDouble();                          // d2 捕获（率 0）
+        probe.nextDouble();                          // d3 金额波动
+        if (probe.nextDouble() < 0.30) { seed = s; break; }   // d4 偷后叛逃
+    }
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    // 小偷：忠诚 0 → 偷后叛逃概率 (30-0)×0.01 = 0.30；带装备/功法实例
+    Disciple thief = baseDisciple("1");
+    thief.morality = 0;
+    thief.loyalty = 0;
+    thief.recruitedMonth = 0;
+    state::EquipmentInstance eq;
+    eq.id = "eq-1"; eq.name = "铁剑"; eq.rarity = 1; eq.slot = "WEAPON";
+    st.equipmentInstances.push_back(eq);
+    thief.weaponId = "eq-1";
+    state::ManualInstance mn;
+    mn.id = "mn-1"; mn.name = "青云心法"; mn.rarity = 1;
+    st.manualInstances.push_back(mn);
+    thief.manualIds.push_back("mn-1");
+    st.disciples.appendDisciple(thief);
+    // 同门：忠诚 50 → 平均 25 过门控；非候选、非叛逃候选
+    st.disciples.appendDisciple(baseDisciple("2"));
+
+    auto sys = sysReplica(seed);
+    const bool attempted = sys.nextDouble() < 0.30;
+    bool deserted = false;
+    if (attempted) {
+        sys.nextDouble();                   // Step 2 捕获（率 0 → 不中）
+        sys.nextDouble();                   // 金额波动（clamp 1000）
+        deserted = sys.nextDouble() < 0.30; // 偷后叛逃
+    }
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    if (attempted && deserted) {
+        EXPECT_EQ(1u, st.disciples.size());   // 小偷被移除（储物袋随行）
+        EXPECT_TRUE(st.equipmentInstances.empty());
+        EXPECT_TRUE(st.manualInstances.empty());
+        EXPECT_EQ(1, st.gameData.annualDesertedDisciples);
+        ASSERT_EQ(2u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ("warehouse_theft", st.gameData.gameEventRecords[0].eventType);
+        EXPECT_EQ("theft_desertion", st.gameData.gameEventRecords[1].eventType);
+        EXPECT_EQ(std::string("弟子1偷盗后叛逃"),
+                  st.gameData.gameEventRecords[1].summary);
+        EXPECT_EQ(9000, st.gameData.spiritStones);
+        EXPECT_EQ(1, st.gameData.annualTheftCount);
+    } else if (attempted) {
+        EXPECT_EQ(2u, st.disciples.size());
+        EXPECT_EQ(0, st.gameData.annualDesertedDisciples);
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ(9000, st.gameData.spiritStones);
+        EXPECT_EQ(1, st.gameData.annualTheftCount);
+    } else {
+        EXPECT_EQ(2u, st.disciples.size());
+        EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ(10000, st.gameData.spiritStones);
+    }
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftWarehouseGarrisonCaught) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    // 仓库 + 活跃驻守（高智力守卫）
+    GridBuildingData wh;
+    wh.displayName = "仓库";
+    wh.instanceId = "wh-1";
+    st.gameData.placedBuildings.push_back(wh);
+    state::WarehouseGarrisonSlot garrison;
+    garrison.buildingInstanceId = "wh-1";
+    garrison.discipleId = "9";
+    st.gameData.warehouseGarrisons.push_back(garrison);
+    Disciple guard = baseDisciple("9");
+    guard.intelligence = 200;
+    guard.loyalty = 40;
+    st.disciples.appendDisciple(guard);
+    // 小偷智力 50 ≤ 守卫 200 → 被捕；无长老/政策 → 捕获率 0（Step 2 必落空）
+    Disciple thief = baseDisciple("1");
+    thief.morality = 0;
+    thief.loyalty = 50;
+    thief.recruitedMonth = 0;
+    st.disciples.appendDisciple(thief);
+
+    auto sys = sysReplica(42);
+    const bool attempted = sys.nextDouble() < 0.30;   // 首抽 0.286 必触发
+    if (attempted) {
+        sys.nextDouble();          // Step 2 捕获（率 0 → 不中）
+        sys.nextInt(1);            // Step 3 仓库选取（唯一仓库）
+    }
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    if (attempted) {
+        const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+        const auto row = idx.at(1);
+        EXPECT_EQ("REFLECTING", st.disciples.statuses[row]);
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ("theft_caught", st.gameData.gameEventRecords[0].eventType);
+        EXPECT_EQ(10000, st.gameData.spiritStones);   // 未得手
+        EXPECT_EQ(0, st.gameData.annualTheftCount);
+    } else {
+        EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    }
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftItemSelectionAndStoreDecrementGolden) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    Disciple thief = baseDisciple("1");   // realm 9：基准 32M/20000 = 1600 容量
+    thief.morality = 0;                    // 概率 0.30，种子 42 首抽 0.286 必触发
+    thief.loyalty = 50;
+    thief.recruitedMonth = 0;
+    st.disciples.appendDisciple(thief);
+    Disciple mate = baseDisciple("2");
+    mate.loyalty = 40;                     // 平均 (50+40)/2=45 过从众门控
+    st.disciples.appendDisciple(mate);
+    // 物品池（展开序：材料 → 丹药）：m1×3 + m2×2 + p1×1 = 6 单位
+    // 容量 1600 ≥ 6 → 全池抽空，分组计数固定 {m1:3, m2:2, p1:1}
+    state::Material m1; m1.id = "m1"; m1.name = "妖皮"; m1.rarity = 1; m1.quantity = 3;
+    state::Material m2; m2.id = "m2"; m2.name = "妖骨"; m2.rarity = 2; m2.quantity = 2;
+    st.materials.push_back(m1);
+    st.materials.push_back(m2);
+    state::Pill p1; p1.id = "p1"; p1.name = "回气丹"; p1.rarity = 3; p1.quantity = 1;
+    st.pills.push_back(p1);
+
+    auto sys = sysReplica(42);
+    std::vector<std::string> pool = {"m1", "m1", "m1", "m2", "m2", "p1"};
+    const bool attempted = sys.nextDouble() < 0.30;
+    std::vector<std::string> picked;
+    if (attempted) {
+        sys.nextDouble();   // Step 2 捕获（率 0）
+        sys.nextDouble();   // 金额波动（clamp 1000）
+        for (std::size_t k = pool.size(); k > 0; --k) {
+            const int32_t pick = sys.nextInt(static_cast<int32_t>(k));
+            picked.push_back(pool[static_cast<std::size_t>(pick)]);
+            pool.erase(pool.begin() + pick);
+        }
+        sys.nextDouble();   // 偷后叛逃（概率 0）
+    }
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    if (attempted) {
+        // 首现序分组（Kotlin groupBy LinkedHashMap 语义）
+        std::vector<std::string> order;
+        std::map<std::string, int32_t> counts;
+        for (const auto& id : picked) {
+            if (counts.find(id) == counts.end()) order.push_back(id);
+            counts[id] += 1;
+        }
+        EXPECT_EQ(9000, st.gameData.spiritStones);
+        EXPECT_EQ(1, st.gameData.annualTheftCount);
+        ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ(std::string("宗门仓库被盗，损失1000灵石（含3种物品）"),
+                  st.gameData.gameEventRecords[0].summary);
+        // 仓库全数被盗 → 0 数量条目过滤
+        EXPECT_TRUE(st.materials.empty());
+        EXPECT_TRUE(st.pills.empty());
+        // 储物袋按首现序入账
+        const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+        const auto row = idx.at(1);
+        const auto bag = st.disciples.materialize(row).storageBagItems;
+        ASSERT_EQ(order.size(), bag.size());
+        for (std::size_t k = 0; k < order.size(); ++k) {
+            EXPECT_EQ(order[k], bag[k].itemId);
+            EXPECT_EQ(counts.at(order[k]), bag[k].quantity);
+            EXPECT_EQ(2, bag[k].obtainedYear);
+            EXPECT_EQ(1, bag[k].obtainedMonth);
+        }
+    } else {
+        EXPECT_EQ(10000, st.gameData.spiritStones);
+        EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+        EXPECT_EQ(1u, st.materials.size() + st.pills.size());
+        EXPECT_EQ(3, st.materials[0].quantity);
+    }
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftAnnualCapBlocksButStillResets) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    st.gameData.annualTheftCount = 3;          // 年度成功上限已满
+    st.gameData.theftJudgementsThisMonth = 2;
+    Disciple thief = baseDisciple("1");
+    thief.morality = 10;
+    thief.loyalty = 30;
+    st.disciples.appendDisciple(thief);
+    st.disciples.appendDisciple(baseDisciple("2"));
+
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);   // 归零无条件执行
+    EXPECT_EQ(3, st.gameData.annualTheftCount);
+    EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ(before, core->rng().exportStates());        // 零抽取
+}
+
+TEST(MonthSettlementTest, TheftHerdGateBlocksButStillResets) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;
+    st.gameData.spiritStones = 10000;
+    st.gameData.theftJudgementsThisMonth = 5;
+    // 平均忠诚 50 不低于阈值 50 → 门控拦截
+    st.disciples.appendDisciple(baseDisciple("1"));
+    st.disciples.appendDisciple(baseDisciple("2"));
+
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);   // 归零在门控之前
+    EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, TheftNoCandidateOrProtectedZeroDraws) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 2;
+    st.gameData.gameMonth = 1;                  // currentMonth = 25
+    st.gameData.spiritStones = 10000;
+    st.gameData.theftJudgementsThisMonth = 7;
+    // 非候选（道德 50）
+    st.disciples.appendDisciple(baseDisciple("1"));
+    // 候选但保护期未满（上月入伍：25-24=1 < 12）——计入门控、排除于候选
+    Disciple protected_ = baseDisciple("2");
+    protected_.morality = 10;
+    protected_.recruitedMonth = 24;
+    st.disciples.appendDisciple(protected_);
+
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);   // 归零执行，无标记递增
+    EXPECT_EQ(0u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ(before, core->rng().exportStates());        // 零抽取
+}
+
+// ── S8 子事件 3：月度偷盗兜底（批 10-3）────────────────────────────
+
+/// 偷盗链 SYSTEM 黄金序列种子扫描：从 begin 起首个满足 pred 的种子
+///（pred 内按执行序连续抽取副本）
+int64_t findTheftSeed(
+    int64_t begin,
+    const std::function<bool(gamecore::rng::DeterministicRng&)>& pred) {
+    for (int64_t s = begin; s < begin + 100000; ++s) {
+        auto probe = sysReplica(s);
+        if (pred(probe)) return s;
+    }
+    return -1;
+}
+
+/// 偷盗候选弟子：忠诚 40（从众门开 + 不落入叛逃 at-risk）、IDLE、
+/// 入伍月 0（保护期已过）
+Disciple theftDisciple(const std::string& id) {
+    Disciple d = baseDisciple(id);
+    d.loyalty = 40;
+    d.recruitedMonth = 0;
+    return d;
+}
+
+TEST(MonthSettlementTest, TheftResetsCounterAndHerdGateBlocksZeroDraws) {
+    // 计数器归零无条件先于门控；平均忠诚 50 不低于阈值 → 门控拦截零抽取
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.theftJudgementsThisMonth = 7;
+    Disciple d = baseDisciple("1");
+    d.loyalty = 50;
+    st.disciples.appendDisciple(d);
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, TheftNoCandidateZeroDraws) {
+    // 门控开启（平均 40 < 50）但无道德候选（50 ≥ 30）→ hasCandidate false
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.theftJudgementsThisMonth = 7;
+    st.gameData.spiritStones = 10000;
+    Disciple d = theftDisciple("1");
+    st.disciples.appendDisciple(d);
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, TheftProtectionMonthsBlockCandidatesZeroDraws) {
+    // hasCandidate 无保护期检查（门过）→ 候选收集含保护期 → 空 → 零抽取零标记
+    //（对拍口径：Kotlin 基线读绝对月 13 / C++ 事务内 14——recruitedMonth=13
+    //  使双端差值均 < 12，场景规避 S-14 同族分歧）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    Disciple d = theftDisciple("1");
+    d.morality = 20;
+    d.recruitedMonth = 13;   // 绝对月 13 → 差 0 < 12 保护期
+    st.disciples.appendDisciple(d);
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(0, st.disciples.lastTheftJudgementYears[0]);
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, TheftAnnualCapBlocksZeroDraws) {
+    // 年度成功偷盗已达上限 → 全年停止判定（门控/候选前短路）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    st.gameData.annualTheftCount = 3;
+    Disciple d = theftDisciple("1");
+    d.morality = 20;
+    st.disciples.appendDisciple(d);
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, TheftFailedAttemptStillMarksJudgement) {
+    // 标记判定先于概率抽取：偷盗未遂（d1 ≥ 0.30）同样计数 + 年判定标记
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        return r.nextDouble() >= 0.30;   // d1
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    Disciple d = theftDisciple("1");
+    d.morality = 0;   // 概率 (30-0)×0.01 = 0.30
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();   // d1（未遂）
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(1, st.disciples.lastTheftJudgementYears[0]);
+    EXPECT_EQ(0, st.gameData.annualTheftCount);
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftCaptureGoldenWithPolicy) {
+    // 捕获率 0.30（赏罚分明）：d1 < 0.30（尝试）+ d2 < 0.30（捕获）→
+    // 原位 REFLECTING（不 remove+重插、无引导计数）+ theft_caught 事件
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        const double d1 = r.nextDouble();
+        const double d2 = r.nextDouble();
+        return d1 < 0.30 && d2 < 0.30;
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    st.gameData.sectPolicies.rewardPunish = true;
+    Disciple d = theftDisciple("1");
+    d.morality = 0;
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();   // d1 尝试
+    sys.nextDouble();   // d2 捕获
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1u, st.disciples.size());   // 原位改写：行数与行序均不变
+    const std::size_t row = st.disciples.idToRow.at("1");
+    EXPECT_EQ(0, row);
+    EXPECT_EQ("REFLECTING", st.disciples.statuses[row]);
+    EXPECT_EQ("1", st.disciples.materialize(row).statusData.at("reflectionStartYear"));
+    EXPECT_EQ("6", st.disciples.materialize(row).statusData.at("reflectionEndYear"));
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    EXPECT_EQ(1, st.disciples.lastTheftJudgementYears[row]);
+    EXPECT_TRUE(st.gameData.guideCounters.empty());   // 与叛逃捕获的差异点
+    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("theft_caught", st.gameData.gameEventRecords[0].eventType);
+    EXPECT_EQ("弟子1偷盗被捕", st.gameData.gameEventRecords[0].summary);
+    // 未得手；但步骤 1 政策月费先行扣除（赏罚分明 3000）
+    EXPECT_EQ(7000, st.gameData.spiritStones);
+    EXPECT_EQ(0, st.gameData.annualTheftCount);
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftGarrisonGuardCatchGolden) {
+    // 仓库+活跃驻守：d3 = nextInt(1) 选仓；守卫智力 50 ≥ 小偷 10 → 抓捕，
+    // 无金额/物品/叛逃抽取（捕获截断）
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        return r.nextDouble() < 0.30;   // 仅 d1 谓词
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    GridBuildingData warehouse;
+    warehouse.displayName = "仓库";
+    warehouse.instanceId = "wh-1";
+    st.gameData.placedBuildings.push_back(warehouse);
+    state::WarehouseGarrisonSlot garrison;
+    garrison.buildingInstanceId = "wh-1";
+    garrison.discipleId = "2";
+    st.gameData.warehouseGarrisons.push_back(garrison);
+    Disciple guard = theftDisciple("2");
+    guard.intelligence = 50;
+    st.disciples.appendDisciple(guard);
+    Disciple d = theftDisciple("1");
+    d.morality = 0;
+    d.intelligence = 10;
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();   // d1 尝试
+    sys.nextDouble();   // d2 捕获（率 0 → 必不捕获）
+    sys.nextInt(1);     // d3 仓库选取
+
+    system::runMonthSettlement(st, core->rng());
+
+    const std::size_t thiefRow = st.disciples.idToRow.at("1");
+    EXPECT_EQ("REFLECTING", st.disciples.statuses[thiefRow]);
+    const std::size_t guardRow = st.disciples.idToRow.at("2");
+    EXPECT_EQ("IDLE", st.disciples.statuses[guardRow]);
+    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("theft_caught", st.gameData.gameEventRecords[0].eventType);
+    EXPECT_EQ(10000, st.gameData.spiritStones);
+    EXPECT_EQ(0, st.gameData.annualTheftCount);
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftSuccessGoldenSpiritStonesOnly) {
+    // realm 1（渡劫）基准 500；stats.speed = 境界基准身法 18000（Realm 配置，
+    // 非弟子 baseSpeed 列）→ 身法加成 (18000-50)×0.005 = 89.75 →
+    // rawAmount = 500×90.75×(0.8+d4×0.4) ≈ 3.6 万 → clamp [100, 1000] 恒 1000；
+    // 空池跳过物品抽取；忠诚 40 → 叛逃概率 0（抽取不叛逃）；抽取序 d1 d2 d3 d4
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        return r.nextDouble() < 0.30;   // 仅 d1 谓词
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    Disciple d = theftDisciple("1");
+    d.morality = 0;
+    d.realm = 1;
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();                   // d1 尝试
+    sys.nextDouble();                   // d2 捕获（率 0 → 未捕获）
+    sys.nextDouble();                   // d3 金额波动（clamp 后恒 1000）
+    sys.nextDouble();                   // d4 叛逃（概率 0 → 未叛逃）
+    const int64_t expectedAmount = 1000;
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(10000 - expectedAmount, st.gameData.spiritStones);
+    EXPECT_EQ(expectedAmount, st.disciples.storageBagSpiritStones[0]);
+    EXPECT_TRUE(st.disciples.storageBagItems[0].empty());
+    EXPECT_EQ(1, st.gameData.annualTheftCount);
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);
+    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("warehouse_theft", st.gameData.gameEventRecords[0].eventType);
+    EXPECT_EQ("宗门仓库被盗，损失" + std::to_string(expectedAmount) + "灵石",
+              st.gameData.gameEventRecords[0].summary);
+    EXPECT_EQ(1u, st.disciples.size());   // 未叛逃
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftSuccessStealsWarehouseItemGolden) {
+    // 仓库（无驻守）+ 材料×2 + 丹药×1 → 池 3 条目；finalCount 269 → 全池抽空；
+    // 抽取序 d1 d2 d3(nextInt(1)) d4 金额 + 物品×3 + 叛逃；物品扣除 + 储物袋入袋
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        return r.nextDouble() < 0.30;   // 仅 d1 谓词
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    GridBuildingData warehouse;
+    warehouse.displayName = "仓库";
+    warehouse.instanceId = "wh-1";
+    st.gameData.placedBuildings.push_back(warehouse);
+    state::Material mat;
+    mat.id = "m1"; mat.name = "铁矿石"; mat.rarity = 2; mat.quantity = 2;
+    st.materials.push_back(mat);
+    state::Pill pill;
+    pill.id = "p1"; pill.name = "回气丹"; pill.rarity = 1; pill.quantity = 1;
+    st.pills.push_back(pill);
+    Disciple d = theftDisciple("1");
+    d.morality = 0;
+    d.realm = 1;
+    st.disciples.appendDisciple(d);
+
+    // 预演抽取序与池命中（池展开序：材料×2 → 丹药×1；抽取即移除；
+    // realm 1 身法加成 (18000-50)×0.005×3 = 269 → finalCount 269 ≥ 3 全池抽空）
+    auto sys = sysReplica(seed);
+    sys.nextDouble();                    // d1 尝试
+    sys.nextDouble();                    // d2 捕获（率 0 → 未捕获）
+    sys.nextInt(1);                      // d3 仓库选取
+    sys.nextDouble();                    // d4 金额波动（clamp 后恒 1000）
+    const int64_t expectedAmount = 1000;
+    std::vector<std::string> pool = {"m1", "m1", "p1"};
+    std::vector<std::string> picked;
+    for (std::size_t k = pool.size(); k > 0; --k) {
+        const int32_t pick = sys.nextInt(static_cast<int32_t>(k));
+        picked.push_back(pool[static_cast<std::size_t>(pick)]);
+        pool.erase(pool.begin() + pick);
+    }
+    sys.nextDouble();                    // 叛逃（概率 0 → 未叛逃）
+    // 首现序分组（Kotlin groupBy LinkedHashMap 语义）
+    std::vector<std::string> order;
+    std::map<std::string, int32_t> counts;
+    for (const auto& id : picked) {
+        if (counts.find(id) == counts.end()) order.push_back(id);
+        counts[id] += 1;
+    }
+    ASSERT_EQ(2u, order.size());         // m1 与 p1 两名命中（全池抽空）
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(10000 - expectedAmount, st.gameData.spiritStones);
+    const auto& bag = st.disciples.storageBagItems[0];
+    ASSERT_EQ(order.size(), bag.size());
+    for (std::size_t k = 0; k < order.size(); ++k) {
+        EXPECT_EQ(order[k], bag[k].itemId);
+        EXPECT_EQ(counts.at(order[k]), bag[k].quantity);
+        EXPECT_EQ(1, bag[k].obtainedYear);
+        EXPECT_EQ(1, bag[k].obtainedMonth);
+    }
+    EXPECT_EQ(expectedAmount, st.disciples.storageBagSpiritStones[0]);
+    // 全池抽空 → 数量归零条目统一过滤删除
+    EXPECT_TRUE(st.materials.empty());
+    EXPECT_TRUE(st.pills.empty());
+    EXPECT_EQ(1, st.gameData.annualTheftCount);
+    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("宗门仓库被盗，损失" + std::to_string(expectedAmount) + "灵石（含2种物品）",
+              st.gameData.gameEventRecords[0].summary);
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftDesertionAfterTheftGolden) {
+    // 忠诚 0 → 叛逃概率 0.30：d6 < 0.30 → 偷盗后叛逃（装备/功法实例移除 +
+    // 熟练度移除 + 弟子移除 + theft_desertion 事件 + 年度计数）；成功偷窃在前
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        const double d1 = r.nextDouble();
+        r.nextDouble();               // d2
+        r.nextDouble();               // d4
+        const double d6 = r.nextDouble();
+        return d1 < 0.30 && d6 < 0.30;
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 10000;
+    state::EquipmentInstance eq;
+    eq.id = "eq-1"; eq.name = "铁剑"; eq.rarity = 1; eq.slot = "WEAPON";
+    st.equipmentInstances.push_back(eq);
+    state::ManualInstance mn;
+    mn.id = "mn-1"; mn.name = "青云心法"; mn.rarity = 1;
+    st.manualInstances.push_back(mn);
+    st.gameData.manualProficiencies["1"].push_back(
+        state::ManualProficiencyData{"mn-1", "青云心法", 10.0, 100, 1, 0});
+    Disciple d = theftDisciple("1");
+    d.morality = 0;
+    d.loyalty = 0;   // 叛逃概率 0.30
+    d.realm = 1;
+    d.weaponId = "eq-1";
+    d.manualIds.push_back("mn-1");
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();   // d1
+    sys.nextDouble();   // d2
+    sys.nextDouble();   // d4
+    sys.nextDouble();   // d6
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(0u, st.disciples.size());   // 偷盗得手后叛逃离场（袋随弟子删除）
+    EXPECT_TRUE(st.equipmentInstances.empty());
+    EXPECT_TRUE(st.manualInstances.empty());
+    EXPECT_EQ(0u, st.gameData.manualProficiencies.count("1"));
+    EXPECT_EQ(1, st.gameData.annualTheftCount);       // 成功偷窃先于叛逃
+    EXPECT_EQ(1, st.gameData.annualDesertedDisciples);
+    ASSERT_EQ(2u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("warehouse_theft", st.gameData.gameEventRecords[0].eventType);
+    EXPECT_EQ("theft_desertion", st.gameData.gameEventRecords[1].eventType);
+    EXPECT_EQ("弟子1偷盗后叛逃", st.gameData.gameEventRecords[1].summary);
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftAmountUnderflowAbortsSubeventPreservingMark) {
+    // S-14：灵石 500 → maxAmount 50 < THEFT_MIN_AMOUNT 100 → Kotlin coerceIn
+    // 抛 IllegalArgumentException 被 safelyRunInState 吞掉——标记保留、
+    // 偷盗中止、月变继续；金额波动 d4 在抛出前已消费
+    const int64_t seed = findTheftSeed(7000, [](auto& r) {
+        return r.nextDouble() < 0.30;   // 仅 d1 谓词
+    });
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.spiritStones = 500;
+    Disciple d = theftDisciple("1");
+    d.morality = 0;
+    d.realm = 1;
+    st.disciples.appendDisciple(d);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();   // d1 尝试
+    sys.nextDouble();   // d2 捕获（率 0）
+    sys.nextDouble();   // d4 金额波动（抛出前消费）
+
+    system::runMonthSettlement(st, core->rng());   // 异常吞没不外抛
+
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);   // 标记保留
+    EXPECT_EQ(1, st.disciples.lastTheftJudgementYears[0]);
+    EXPECT_EQ(500, st.gameData.spiritStones);             // 未扣减
+    EXPECT_EQ(0, st.gameData.annualTheftCount);
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, TheftAmountCoerceUnderflowThrowsDirectly) {
+    // calcTheftAmount 直抛（Kotlin Long.coerceIn 空 range 语义同构）
+    Disciple d = baseDisciple("1");
+    d.realm = 1;
+    auto sys = sysReplica(42);
+    EXPECT_THROW(gamecore::system::detail::calcTheftAmount(d, 500, sys),
+                 std::runtime_error);
+    // 灵石充足（1000 → maxAmount 100）不抛
+    auto sys2 = sysReplica(42);
+    EXPECT_NO_THROW(gamecore::system::detail::calcTheftAmount(d, 1000, sys2));
 }
 
 }  // namespace

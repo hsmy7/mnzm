@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-29。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 561/561（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过（本批零 C++ 变更）**。
+> 当前基线：**桌面 GTest 581/581（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
@@ -20,7 +20,7 @@
 > （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，见 §7.1 批 8-4 行）；
 > **退役专项批 9-1/9-2 完成**（SHADOW 对拍态 + 纯 Kotlin 旬结算路径删除——tick 结算
 > 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）；**月变残留执行器增量
-> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）；**批 10-2 完成**（S8 月度叛逃检测下沉 + 执法堂配置/职务加成辅助入 C++）。
+> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）；**批 10-2 完成**（S8 月度叛逃检测下沉 + 执法堂配置/职务加成辅助入 C++）；**批 10-3 完成**（S8 月度偷盗兜底全链下沉 + lastTheftJudgementYears 纯内存列 + stats::baseStats，S-14 登记，见 §7.3）。
 
 ## 1. 目标架构
 
@@ -262,6 +262,8 @@ android/app/src/main/cpp/
 
 | 10-2 ✅ | **S8 子事件 4：月度叛逃检测**（Kotlin `LawEnforcementProcessor.processLawEnforcementMonthly` 等价移植）：**辅助函数入 C++**——`stats::baseIntelligence`（Disciple/行版双载，同 baseComprehension 口径）+ `stats::positionEffectBonus`（天赋非负面 + 词条 PositionBonus 按 slotType 求和，消费 trait_db 单一数据源）；C++ `detail::processLawEnforcementMonthly`（从众门控整数除法均值/捕获率三段算式 clamp [0,1]（长老智力阶梯×(1+职务加成)+执法弟子阶梯+双政策）/at-risk 行序扫描（存活+非免疫状态+忠诚<阈值+保护期）/SYSTEM 抽取序（每候选 1 次概率判定 + 通过后 1 次捕获判定））/捕获思过（remove+末尾重插 REFLECTING + statusData 思过年限 + guideCounters.discipleImprisoned + DESERTION_CAUGHT 事件）/逃脱清理（clearAllSlotsDataOnly 含住所 → 装备/功法实例移除 → 熟练度移除 → 弟子移除 + 年度计数 + DESERTION 事件）；接线进 processMonthlyEvents 子事件 4 位（招募归零后、gameOverCheck 前）；**S-13 登记**：执法堂配置常量 C++ 取默认值（Kotlin 读远程配置可空覆盖） | GTest +3（从众门控零抽取/逃脱黄金序列含装备功法清理+分区快照锁/捕获黄金序列含长老智力+政策+重插行序+引导计数+事件锁）561/561 · **DiffMonthSettlementTest 场景扩展**：Kotlin 臂换装真实 LawEnforcementProcessor（原 mock 不消耗 RNG 无法对拍）+ 叛逃候选弟子（忠诚 0/未成年避配对扰动/IDLE/保护期外）1/1 跨语言逐位一致（含 rngStates 结构对拍）· engine JUnit 2925/2925（0 skip）· NDK 通过 · detekt 绿 |
 
+| 10-3 ✅ | **S8 子事件 3：月度偷盗兜底**（Kotlin `LawEnforcementProcessor.processTheftIfNeeded → processTheftMonthly → processSingleDiscipleTheft` 非事务版全链等价移植）：C++ `detail::processTheftMonthlyFallback`——① `theftJudgementsThisMonth` 无条件归零（Kotlin 首行）；② 前置链（灵石>0 / 年度成功上限 3 / 从众门控 / hasCandidate 门）；③ 候选收集（道德<30 + IDLE + 保护期 12 月 + 年判定去重，`take(3)` 消耗名额制）+ `canDiscipleAttemptTheft` 复检（判定标记先于概率抽取——未遂同样计数+年标记）；④ 四步偷盗链：偷盗概率（道德差×0.01 clamp [0,0.90]×宵禁减免）→ 执法堂捕获（复用批 10-2 捕获率；**原位** REFLECTING + statusData 思过年限，无 remove/重插与引导计数——异于叛逃捕获）→ 仓库驻守智力比拼（nextInt 选仓 + isActive=discipleId 非空）→ 成功偷窃；⑤ 成功偷窃：金额新公式（境界基准×(1+身法/智力加成)×随机波动(±20%)，clamp [100, 灵石×10%]；`Long.coerceIn` max<min 抛异常→safelyRunInState 吞掉中止——以异常等价模拟）+ 六类堆叠轨道加权物品选取（数量展开等概率池、抽取即移除、首现序 groupBy 分组）+ `LootCalculator.applyLoot` stolenItems 段（扣减下限 0 + 末尾统一过滤 0 数量）+ 储物袋灵石/条目入袋（obtainedYear/Month 现值）+ `warehouse_theft` 事件 + `annualTheftCount` 递增；⑥ 偷盗后叛逃（`desertDiscipleCleanup` 参数化 eventType/summary 复用批 10-2 清理体：11 槽清理→装备/功法实例移除→熟练度移除→弟子移除→theft_desertion 事件+年度计数）。**配套**：DiscipleStore 新增 `lastTheftJudgementYears` 纯内存列（Kotlin 稀疏组件表语义：读档归零、upsert 保序旋转存/复、removeById 随行清除、不进 JSON 协议——deathYears 同款）+ `stats::baseStats` 完整基础属性（Kotlin getBaseStats 等价，血炼参数缺省 null）；**S-14 登记**（见 §8） | GTest +20（成功/执法堂捕获/守卫抓捕/物品选取与仓库扣减/偷后叛逃/从众门控/年上限/无候选/保护期/未遂标记/未遂常量/金额下溢中止——种子扫描黄金序列 + SYSTEM 分区快照锁）581/581 · **DiffMonthSettlementTest 场景扩展**：偷盗保护期候选（道德 10 + 入伍月 13，双端保护期口径均 <12）候选排除零抽取——虚假 SYSTEM 抽取即移位叛逃序列对拍失败，门控（平均忠诚 42<50）与 hasCandidate 路径真实覆盖 1/1 · engine JUnit 2925/2925（0 skip，DiffMonthSettlement 实跑）· NDK externalNativeBuildRelease 通过 · detekt 全模块全绿（`assertExplicitAssertions` ⑥ 断言块提取 `assertTheftProtectedCandidateZeroEffect` 清偿 LongMethod 64/60） |
+
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 
 > 来源：迁移架构报告与子代理深潜途中发现（死代码/过时文档/设计缺口），统一登记并分配清理时机，防止遗漏。
@@ -282,3 +284,4 @@ android/app/src/main/cpp/
 | S-11 | **空白名校验差异**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名 | `inventory.h` | 语义差异（低风险） | 偿还时机：随批 8 库存家族复审 |
 | S-13 | **执法堂配置常量 C++ 硬编码默认值**：批 10-2 的 kLaw* 常量取 GameConfig.LawEnforcementConfig 默认值，Kotlin 读远程配置可空覆盖——远程配置改动时双端漂移 | `month_settlement.h` | 配置单源缺口（S-10 同族） | 偿还时机：执法堂配置进 C++（config 注入或 codegen 常量单源）时 |
 | S-12 | **转发辅助入口 NPE 语义**：`GameEngineNativeOps.tryExecuteNative` 的 Kotlin 非空参数 `stateSyncService` 的内在 null 检查在函数入口即触发（早于 flag/isLoaded 早退）——生产恒非空无影响，测试 mock（未 stub `stateSyncServiceRef`）返回 null 必触；InventoryNativeForward.tryForward 已先行空过滤 | `GameEngineNativeOps.kt` | 降级契约缺口（测试场景） | 偿还时机：tryExecuteNative 参数改可空 + 内部守卫（随后续接线批次顺带） |
+| S-14 | **月变执法域 committed 读口径差**：生产月变（真实 `GameStateStore`）中执法域经嵌套 `stateStore.update` 读 `gameData.value`/`discipleTables`/`disciples.value` 为**事务前已提交快照**（偷盗域：spiritStones/theftJudgementsThisMonth/annualTheftCount/sectPolicies/elderSlots/placedBuildings/warehouseGarrisons/组装弟子；叛逃域同），写经重入进外层事务 buffer；C++ 移植与对拍基线（`FakeGameStateStore` 每次嵌套 update 独立 fork 且**立即持久化**、外层提交覆盖写）均为当前态口径——对拍场景以保护期/未触发规避分歧面；生产真实 store 与 C++ 在"政策月费改变灵石后再判定"等场景存在读数口径差（对拍 Fake 不可达） | `month_settlement.h` / `LawEnforcementProcessor.kt` | 语义口径差（对拍不可达面，S-10/S-13 同族） | 偿还时机：月变真相源切换批（届时 Kotlin committed 读随月变编排整体入 C++ 自然消灭，C++ 当前读成为唯一口径；登记后 GTest 黄金序列即语义权威） |

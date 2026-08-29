@@ -407,6 +407,36 @@ inline int32_t baseIntelligence(const state::DiscipleStore& ds,
            static_cast<int32_t>(effectValue(effects, "intelligenceFlat"));
 }
 
+/// 完整基础属性（Kotlin DiscipleStatCalculator.getBaseStats(disciple)——
+/// 血炼百分比参数缺省 null，乘区全零）。批 10-3 偷盗域消费
+/// morality/speed/intelligence/loyalty 四字段。
+inline ::gamecore::disciple::DiscipleStats baseStats(const Disciple& d) {
+    ::gamecore::disciple::BaseStatsInput in;
+    in.realm = d.realm;
+    in.realmLayer = d.realmLayer;
+    in.hpVariance = d.hpVariance;
+    in.mpVariance = d.mpVariance;
+    in.physicalAttackVariance = d.physicalAttackVariance;
+    in.magicAttackVariance = d.magicAttackVariance;
+    in.physicalDefenseVariance = d.physicalDefenseVariance;
+    in.magicDefenseVariance = d.magicDefenseVariance;
+    in.speedVariance = d.speedVariance;
+    in.intelligence = d.intelligence;
+    in.charm = d.charm;
+    in.loyalty = d.loyalty;
+    in.comprehension = d.comprehension;
+    in.aptitude = d.aptitude;
+    in.teaching = d.teaching;
+    in.morality = d.morality;
+    in.mining = d.mining;
+    in.spiritPlanting = d.spiritPlanting;
+    in.artifactRefining = d.artifactRefining;
+    in.pillRefining = d.pillRefining;
+    in.talentEffects = mergeEffects(
+        talentEffectsFor(d.talentIds), affixEffectsFor(d.affixIds));
+    return ::gamecore::disciple::computeBaseStats(in);
+}
+
 // ── 职务加成（getPositionEffectBonus，执法堂捕获率用，批 10-2）──────
 
 /// 统计弟子（天赋+词条）中指定 slotType 的 PositionBonus 总和。
