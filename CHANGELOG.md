@@ -1,3 +1,16 @@
+## [4.01.13] - 2026-08-29
+
+### 变更（C++ 引擎迁移退役专项批 9-1/9-2：SHADOW 对拍态与纯 Kotlin 旬结算路径退役——tick 结算恒走 C++ 单引擎终态）
+
+> Kotlin 引擎退役专项首批交付（批 8-4 接线面收口后启动）。退役边界 = tick/结算层的 Kotlin 并行实现；逐动作转发降级契约（native 不可用回退 Kotlin 原实现）为产品降级能力本体，长期保留。详见 docs/cpp-engine.md §7.2。
+
+- **批 9-1 SHADOW 对拍模式退役**：`NativeEngineFlag` 三态→双态（OFF/AUTHORITATIVE，SHADOW 枚举删除）；`tickNativeShadow` 影子推进桥删除（GameEngineCoreNativeOps 收敛为读档基线对齐单职责）；tickInternal 影子推进调用点删除；DiffNativeForwardTest SHADOW 用例改 AUTHORITATIVE（语义等价）；跨语言语义守护由 Diff 对拍测试以回归基线形态继续承担
+- **批 9-2 纯 Kotlin 旬结算路径删除（tick 层双实现退役）**：`processTickPhases`（OFF 路径多旬合并事务）+ `checkBreakthroughsAndPills` 生产入口删除；tickInternal 分支改造——**tick 结算恒走 native**（不再检查 flag：单引擎终态 OFF 不影响 tick）；native 未就绪时本旬跳过结算 + refundPhases 归还未落地旬数（时间不丢），持续不可用由看门狗停滞判据 → 紧急重启自愈；KDoc 定位随行更新（OFF 语义收窄为逐动作/循环集成降级；TimeSystem.onPhaseTick 保留为对拍时间驱动器）
+- **语义决策**：引擎级"切回纯 Kotlin"回退契约随退役消灭（选项 A 彻底单引擎的必然结果）；保留项 = 逐动作转发降级（InventoryNativeForward 等）、引擎循环帧计划/看门狗 Kotlin 集成路径（阶段 5 降级契约）、Wallet/库存未接线动作双实现（批 8-4 判定的降级契约本体）
+- **对拍框架转长期回归基线**：Diff *Test 全套以桌面对拍桥持续运行（`-Dgamecore.jni.path`；本机已具备桌面工具链，原 194 个 Assume 跳过用例全部实跑）；Kotlin 臂（残留执行器 + TimeSystem 时间驱动）即回归基准
+- **验证**：engine JUnit 全量 2925/2925（桌面 JNI 对拍全执行 0 skip，零回归）· engine detekt 全绿 · compileReleaseKotlin（engine + app）通过 · C++ 侧零变更（NDK 构建不受影响）
+- **兼容性**：无 Entity/Migration/存档/序列化变更；生产默认行为不变（AUTHORITATIVE 下 tick 路径逐位等价——删除的仅是不可达的 OFF 旬结算分支与 SHADOW 影子推进）；`NativeEngineFlag` 运行时切 OFF 不再冻结游戏（tick 结算不受 flag 影响）
+
 ## [4.01.12] - 2026-08-29
 
 ### 变更（C++ 引擎迁移计划 v2 批 8-4：C-06 转发收尾续作——接线面收口判定）
