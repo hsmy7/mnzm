@@ -184,24 +184,34 @@ TEST_F(GameCoreFixture, WorldLevelCheckExpired) {
 // ── 库存溢出邮件草稿回传（批 8-2：add 家族生产接线前置）────────
 
 TEST_F(GameCoreFixture, InvOverflowPartialEmitsDrafts) {
-    // 堆叠上限 999：先填满，再溢出 5 → partial + 草稿回传
-    const auto full = exec(action::INV_ADD_EQUIPMENT_STACK,
-                           {{"id", "eq-1"}, {"name", "木剑"}, {"rarity", 1},
-                            {"slot", "WEAPON"}, {"quantity", 999}, {"source", "battle"}});
-    ASSERT_EQ(full.at("status"), "success");
+    // Partial 语义 = 发生合并 + 槽位全满（StackableItemStore 契约：同键堆叠
+    // 已满且有空槽时走分块创建 → Success 非溢出）。场景：49 填充 + 木剑×998
+    // 占满 50 槽（仓库基容量 50、无建筑加成），再入木剑×5 → 合并 1（998→999）、
+    // 剩余 4 槽满无处落 → partial + 溢出 4 + 草稿回传
+    for (int i = 0; i < 49; ++i) {
+        const auto r = exec(action::INV_ADD_EQUIPMENT_STACK,
+                            {{"id", "fill-" + std::to_string(i)},
+                             {"name", "填充剑" + std::to_string(i)}, {"rarity", 1},
+                             {"slot", "ARMOR"}, {"quantity", 1}, {"source", "battle"}});
+        ASSERT_EQ(r.at("status"), "success");
+    }
+    const auto setup = exec(action::INV_ADD_EQUIPMENT_STACK,
+                            {{"id", "eq-1"}, {"name", "木剑"}, {"rarity", 1},
+                             {"slot", "WEAPON"}, {"quantity", 998}, {"source", "battle"}});
+    ASSERT_EQ(setup.at("status"), "success");
     const auto r = exec(action::INV_ADD_EQUIPMENT_STACK,
                         {{"id", "eq-2"}, {"name", "木剑"}, {"rarity", 1},
                          {"slot", "WEAPON"}, {"quantity", 5}, {"source", "battle"}});
     ASSERT_EQ(r.at("status"), "success");
     EXPECT_EQ(r.at("data").at("status"), "partial");
-    EXPECT_EQ(r.at("data").at("overflow"), 5);
+    EXPECT_EQ(r.at("data").at("overflow"), 4);
     ASSERT_EQ(r.at("data").at("overflowMails"), 1);
     const auto& drafts = r.at("data").at("overflowDrafts");
     ASSERT_EQ(drafts.size(), 1u);
     EXPECT_EQ(drafts[0].at("itemType"), "equipment");
     EXPECT_EQ(drafts[0].at("itemName"), "木剑");
     EXPECT_EQ(drafts[0].at("rarity"), 1);
-    EXPECT_EQ(drafts[0].at("quantity"), 5);
+    EXPECT_EQ(drafts[0].at("quantity"), 4);
     EXPECT_EQ(drafts[0].at("source"), "battle");
     EXPECT_EQ(drafts[0].at("slot"), "WEAPON");
 }
