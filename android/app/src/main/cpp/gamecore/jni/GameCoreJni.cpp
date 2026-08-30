@@ -26,6 +26,7 @@
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/system/battle.h"
+#include "gamecore/system/battle_calculator.h"
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
@@ -1063,6 +1064,110 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExecute(
 
 namespace {
 
+using gamecore::battle::AffixCombatEffects;
+using gamecore::battle::CombatBuff;
+using gamecore::battle::CombatSkill;
+using gamecore::battle::Combatant;
+using gamecore::battle::PhysiqueCombatFactors;
+
+CombatBuff buffFromJson(const nlohmann::json& j) {
+    CombatBuff b;
+    b.type = gamecore::battle::buffTypeFromName(j.value("type", "HP_BOOST"));
+    b.value = j.value("value", 0.0);
+    b.remainingDuration = j.value("remainingDuration", 0);
+    b.sourceRealm = j.value("sourceRealm", 9);
+    b.sourceRealmLayer = j.value("sourceRealmLayer", 0);
+    return b;
+}
+
+CombatSkill skillFromJson(const nlohmann::json& j) {
+    CombatSkill s;
+    s.name = j.value("name", "");
+    s.skillType = j.value("skillType", "ATTACK") == "SUPPORT"
+        ? gamecore::battle::SkillType::kSupport : gamecore::battle::SkillType::kAttack;
+    s.damageType = j.value("damageType", "PHYSICAL") == "MAGIC"
+        ? gamecore::battle::DamageType::kMagic : gamecore::battle::DamageType::kPhysical;
+    s.damageMultiplier = j.value("damageMultiplier", 1.0);
+    s.mpCost = j.value("mpCost", 0);
+    s.cooldown = j.value("cooldown", 0);
+    s.hits = j.value("hits", 1);
+    s.healPercent = j.value("healPercent", 0.0);
+    s.healFixed = j.value("healFixed", 0);
+    s.healType = j.value("healType", "HP") == "MP"
+        ? gamecore::battle::HealType::kMp : gamecore::battle::HealType::kHp;
+    if (j.contains("buffType") && !j["buffType"].is_null()) {
+        s.buffType = gamecore::battle::buffTypeFromName(j.at("buffType").get<std::string>());
+    }
+    s.buffValue = j.value("buffValue", 0.0);
+    s.buffDuration = j.value("buffDuration", 0);
+    if (j.contains("buffs") && j["buffs"].is_array()) {
+        for (const auto& e : j.at("buffs")) {
+            s.buffs.emplace_back(
+                gamecore::battle::buffTypeFromName(e.value("type", "HP_BOOST")),
+                e.value("value", 0.0), e.value("duration", 0));
+        }
+    }
+    s.currentCooldown = j.value("currentCooldown", 0);
+    s.isAoe = j.value("isAoe", false);
+    s.targetScope = j.value("targetScope", "self");
+    s.shieldPercent = j.value("shieldPercent", 0.0);
+    s.turnAdvancePercent = j.value("turnAdvancePercent", 0.0);
+    s.damageSharePercent = j.value("damageSharePercent", 0.0);
+    s.damageLinkPercent = j.value("damageLinkPercent", 0.0);
+    return s;
+}
+
+Combatant combatantFromJson(const nlohmann::json& j) {
+    Combatant c;
+    c.id = j.value("id", "");
+    c.name = j.value("name", "");
+    c.side = j.value("side", "DEFENDER") == "ATTACKER"
+        ? gamecore::battle::CombatantSide::kAttacker
+        : gamecore::battle::CombatantSide::kDefender;
+    c.hp = j.value("hp", 0);
+    c.maxHp = j.value("maxHp", 0);
+    c.mp = j.value("mp", 0);
+    c.maxMp = j.value("maxMp", 0);
+    c.physicalAttack = j.value("physicalAttack", 0);
+    c.magicAttack = j.value("magicAttack", 0);
+    c.physicalDefense = j.value("physicalDefense", 0);
+    c.magicDefense = j.value("magicDefense", 0);
+    c.speed = j.value("speed", 0);
+    c.critRate = j.value("critRate", 0.05);
+    if (j.contains("skills") && j["skills"].is_array()) {
+        for (const auto& s : j.at("skills")) c.skills.push_back(skillFromJson(s));
+    }
+    if (j.contains("buffs") && j["buffs"].is_array()) {
+        for (const auto& b : j.at("buffs")) c.buffs.push_back(buffFromJson(b));
+    }
+    c.realm = j.value("realm", 9);
+    c.realmLayer = j.value("realmLayer", 0);
+    c.element = j.value("element", "");
+    if (j.contains("physique")) {
+        const auto& p = j.at("physique");
+        c.physique.damageAmplification = p.value("damageAmplification", 0.0);
+        c.physique.critDamageBonus = p.value("critDamageBonus", 0.0);
+        c.physique.damageReduction = p.value("damageReduction", 0.0);
+        c.physique.defenseBonus = p.value("defenseBonus", 0.0);
+    }
+    if (j.contains("affix")) {
+        const auto& a = j.at("affix");
+        c.affix.damageAmplification = a.value("damageAmplification", 0.0);
+        c.affix.critDamageBonus = a.value("critDamageBonus", 0.0);
+        c.affix.damageReduction = a.value("damageReduction", 0.0);
+        c.affix.defenseBonus = a.value("defenseBonus", 0.0);
+    }
+    return c;
+}
+
+/// DamageResult → JSON（对拍输出键与 Kotlin DamageResult 字段对应）
+nlohmann::json damageResultToJson(const gamecore::battle::DamageResult& r) {
+    return {
+        {"damage", r.damage}, {"isCrit", r.isCrit}, {"isPhysical", r.isPhysical},
+        {"isDodged", r.isDodged}, {"isInstantKill", r.isInstantKill}, {"hits", r.hits},
+    };
+}
+
 nlohmann::json execBattleOp(const nlohmann::json& op) {
     using gamecore::battle::DamageZones;
     const std::string opName = op.at("op").get<std::string>();
@@ -1117,6 +1222,51 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
             {"absorbed", r.absorbed}, {"remainingDamage", r.remainingDamage},
             {"remainingShield", r.remainingShield},
         };
+    } else if (opName == "combatantDamage") {
+        // 战斗批次 A：完整伤害管线（斩杀→闪避→暴击→波动→分桶注入→段数钳制）
+        const auto attacker = combatantFromJson(op.at("attacker"));
+        const auto defender = combatantFromJson(op.at("defender"));
+        std::optional<CombatSkill> skill;
+        if (op.contains("skill") && !op["skill"].is_null()) {
+            skill = skillFromJson(op.at("skill"));
+        }
+        std::optional<gamecore::battle::DamageZones> zones;
+        if (op.contains("zones") && !op["zones"].is_null()) {
+            gamecore::battle::DamageZones z;
+            const auto& zj = op.at("zones");
+            z.attackBuffs = zj.value("attackBuffs", 0.0);
+            z.physicalAttackBuffs = zj.value("physicalAttackBuffs", 0.0);
+            z.magicAttackBuffs = zj.value("magicAttackBuffs", 0.0);
+            z.damageAmplification = zj.value("damageAmplification", 0.0);
+            z.damageReduction = zj.value("damageReduction", 0.0);
+            z.physiqueDamageAmplification = zj.value("physiqueDamageAmplification", 0.0);
+            z.physiqueCritDamageBonus = zj.value("physiqueCritDamageBonus", 0.0);
+            z.physiqueDamageReduction = zj.value("physiqueDamageReduction", 0.0);
+            z.physiqueDefenseBonus = zj.value("physiqueDefenseBonus", 0.0);
+            z.affixDamageAmplification = zj.value("affixDamageAmplification", 0.0);
+            z.affixCritDamageBonus = zj.value("affixCritDamageBonus", 0.0);
+            z.affixDamageReduction = zj.value("affixDamageReduction", 0.0);
+            z.affixDefenseBonus = zj.value("affixDefenseBonus", 0.0);
+            z.realmGapDamageAmplification = zj.value("realmGapDamageAmplification", 0.0);
+            z.realmGapDamageReduction = zj.value("realmGapDamageReduction", 0.0);
+            z.majorRealmDamageAmplification = zj.value("majorRealmDamageAmplification", 0.0);
+            zones = z;
+        }
+        if (!g_rng) result["error"] = "rng not initialized";
+        else {
+            const auto r = gamecore::battle::calculateCombatantDamage(
+                *g_rng, attacker, defender, skill ? &*skill : nullptr,
+                op.value("damageModifier", 1.0), zones ? &*zones : nullptr,
+                op.value("enableInstantKill", false));
+            result = damageResultToJson(r);
+        }
+    } else if (opName == "estimateDamage") {
+        // 战斗批次 A：确定性伤害估算（无 RNG——AI 决策用）
+        const auto attacker = combatantFromJson(op.at("attacker"));
+        const auto defender = combatantFromJson(op.at("defender"));
+        const auto skill = skillFromJson(op.at("skill"));
+        result["value"] = gamecore::battle::estimateDamage(
+            attacker, defender, skill, nullptr, op.value("damageModifier", 1.0));
     } else {
         result["error"] = "unknown op: " + opName;
     }

@@ -55,6 +55,7 @@ add_executable(game-core-tests
     child_birth_test.cpp
     lifecycle_test.cpp
     battle_test.cpp
+    battle_calculator_test.cpp
     government_test.cpp
     exploration_test.cpp
     level_generator_test.cpp

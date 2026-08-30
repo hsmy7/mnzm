@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（战斗批次 A：战斗计算管线全量下沉 C++——BattleCalculator 计算管线等价移植）
+
+> 承接 executeBattle 全流程评估（cpp-engine.md §7.5，2026-08-30）：战斗 C++ 化按 A→D 四批次推进，本批完成批次 A（计算管线）——AI 兽战/任务完成/玩家战斗 100% 共用 executeBattle，计算管线是后续决策层/回合编排/战斗边界接线的前置。
+
+- **C++ 等价移植**：`gamecore/system/battle_calculator.h`——战斗域模型（BuffType 25 枚举/CombatBuff/CombatSkill/Combatant（8 个 buff 分桶 effective* 计算属性）/体质词条乘算因子）+ 计算管线（buildDamageZones 物理/魔法分桶 + calculateCombatantDamage 全链：斩杀前置→闪避→暴击→波动→分桶注入→多段 Long 钳制 + estimateDamage 确定性估算 + DoT/辅助技能/冷却衰减/伤害分摊/伤害链接）
+- **RNG 消费序逐位对齐**：BATTLE 分区串行驱动（闪避 1 + 暴击 1 + 波动 1 次 nextDouble），跨语言同种子同消费序产出逐字段一致伤害结果
+- **验证**：GTest 637/637（+7：普攻/技能/斩杀/Buff+体质+词条黄金序列 + estimateDamage + RNG 审计（3 抽快照锁定）+ 确定性重放）· **DiffBattleCalculatorTest 新建对拍**（多种子普攻/技能/斩杀两分支/Buff 因子/估算——damage/isCrit/isPhysical/isDodged/isInstantKill/hits 逐字段一致）· engine JUnit 2947/2947（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：纯新增 C++ 侧实现 + 对拍通道，生产战斗仍在 Kotlin（BattleSystem.executeBattle 未动）；玩家可见行为不变
+
 ### 新增（批 13-4c：月变步骤 4d 生育下沉 C++——ChildBirthSystem 等价移植）
 
 > 承接批 13-4b（cpp-engine.md §7.5）：月变八步第四步的生育子事件等价移植 C++——到期母亲（childBirthMonth 匹配当前月）逐人生育，新生儿入招募列表并触发自动招募检查。生产月变真相源仍在 Kotlin（C++ 侧经对拍守护）。
