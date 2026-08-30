@@ -484,7 +484,7 @@ SaveValidator.validate(SaveData)
 | ~~C-07~~ ✅（核心验收） | **批次 10：彻底单引擎**（原"职责边界固化"二次重定义）——C++ 唯一真相源（结算/实体存储/引擎循环/渲染），Kotlin 降级纯平台层（UI/平台能力/存档编码）；阶段化退役见 docs/cpp-engine.md 第 7 节。**2026-08-28 阶段 7 完成**：AUTHORITATIVE 生产默认切换（C++ 真相源验收，OFF 保留回退契约）+ 存档编码定案（T-CPP-1 保持 Kotlin kotlinx-proto）+ engine 平台能力接口化收尾（Android import 36→11）；**全量退役续作**（GameEngine ~289 方法转发接线/双实现删除/对拍转回归基线）依赖 C-06，登记于 cpp-engine.md §7 阶段 7 批 7-4 | 计划 v2 阶段 0-7 全部完成（阶段 7 剩余项随 C-06 续作） |
 | ~~C-10~~ ✅ | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | **已完成**（计划 v2 阶段 2 T2.2/T2.3：月变八步编排 + 年变年报/年俸全逻辑 C++ 化，100 旬互锁对拍 PASS；剩余 S8 子事件/AI 域随阶段 4 逐批） |
 | ~~C-11~~ ✅ | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | ✅ **已清偿（批 12-1）**：`disciple_purchase.h::shuffled` 按 Kotlin `Iterable.shuffled(rng: DeterministicRng)` 语义实现——**每元素 1 次无参 nextInt() 随机键 + std::stable_sort**（非 Fisher-Yates）；SYSTEM 分区消费序与 Kotlin 逐位对齐（DiffMonthSettlementTest 场景⑪对拍实证） |
-| C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |
+| ~~C-12~~ ✅ | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | ✅ **已清偿（批 13-2c）**：对拍实测 Math.cos（intrinsic）/Math.log 与 C++ std:: 差 1 ULP——Kotlin nextGaussian 改 StrictMath（纯 Java fdlibm，跨平台一致）+ C++ 内嵌 fdlibm（fdlibm.h：e_log.c log + JDK FdLibm cos 链）；DiffRngTest nextGaussian 对拍 3 种子 × 3 组合 × 30 次位级一致 |
 | ~~C-13~~ ✅ | **审查登记：读档后 RNG 分区状态恢复** | **已完成**（计划 v2 阶段 1） |
 | C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8（核心已完成） |
 | ~~C-15~~ ✅ | **审查登记：Diff 对拍基准为内联复刻** | **已完成**（计划 v2 阶段 1：切换真实引擎） |

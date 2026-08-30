@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 修复（批 13-2c：C-12 清偿——nextGaussian 跨语言精度内嵌 fdlibm）
+
+> 审查登记项 C-12（2026-08-16 登记）：JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异。新增 DiffRngTest nextGaussian 对拍后**实测实锤**：JVM `Math.cos`（平台 intrinsic）与 C++ std::cos 差 1 ULP、`Math.log` 在部分输入差 1 ULP（glibc 与 fdlibm 版本差异）——确定性迁移的位级一致性隐患。
+
+- **双管修复**：① Kotlin `DeterministicRng.nextGaussian` 改用 `StrictMath`（纯 Java fdlibm 移植、无平台 intrinsic——桌面 JVM 与 Android 跨平台位级一致，修正权威的确定性基础）；② C++ 内嵌 fdlibm（`gamecore/rng/fdlibm.h`：经典 e_log.c 的 `log` + OpenJDK FdLibm 的 `cos` 依赖链（__kernel_sin/__kernel_cos/RemPio2/KernelRemPio2，JDK-21 源码逐句移植）），sqrt 沿用 std::（对拍验证位级一致）
+- **对拍守护**：DiffRngTest 新增 `nextGaussian sequence matches Kotlin bitwise`（3 种子 × 3 mean/stddev 组合——含 DiscipleFactory 使用的 0.0/16.667 与 50.5/16.5 × 30 次全位级一致）
+- **验证**：GTest 618/618 · engine JUnit 全量（桌面 JNI 0 skip，StrictMath 改动零回归）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：Kotlin nextGaussian 输出从 Math 变 StrictMath（1 ULP 级差异，仅影响正态分布生成的数值末位）——确定性行为变化，随迁移登记（C++ 侧匹配新权威）
+
 ### 新增（月变残留执行器增量 C++ 化批 13-2b：S8 步骤 4e 世界关卡刷新生成接线）
 
 > 承接批 13-2a（cpp-engine.md §7.5）：月变八步第四步的世界关卡刷新生成（LevelGenerator 批 4-1 接线）等价移植 C++——生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。

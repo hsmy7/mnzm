@@ -22,6 +22,7 @@
 #include "gamecore/game_core.h"
 #include "gamecore/map/road_system.h"
 #include "gamecore/map/road_compositor.h"
+#include "gamecore/rng/fdlibm.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/system/battle.h"
@@ -111,6 +112,14 @@ extern "C" JNIEXPORT jdouble JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNextDouble(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     return g_rng ? g_rng->nextDouble() : 0.0;
+}
+
+// C-12：正态分布跨语言精度对拍（StrictMath fdlibm vs 内嵌 fdlibm——
+// log/cos 经 fdlibm.h 内嵌保证位级一致，sqrt 沿用 std:: 对拍验证）
+extern "C" JNIEXPORT jdouble JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNextGaussian(
+    JNIEnv* /*env*/, jobject /*thiz*/, jdouble mean, jdouble stddev) {
+    return g_rng ? g_rng->nextGaussian(mean, stddev) : 0.0;
 }
 
 extern "C" JNIEXPORT jlong JNICALL

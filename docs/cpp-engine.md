@@ -138,8 +138,8 @@ android/app/src/main/cpp/
 | # | 项 | 触发/计划 |
 |---|---|---|
 | C-10 | **批次 3 剩余：月变/年变结算钩子系统实现**（政策成本/生产/年俸/年度报告等 onMonthChange/onYearChange 钩子接线） | 政策成本/灵矿/年俸已 C++ 化；钩子接线随**计划 v2 阶段 2**（批量结算下沉）推进 |
-| C-11 | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
-| C-12 | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | 批次 5（弟子属性生成） |
+| ~~C-11~~ ✅ | **审查登记：C++ `shuffled(rng)` 未实现**——实现时必须用 `std::stable_sort`（Kotlin sortedBy 稳定），且确定性对拍 | 批次 5+（涉及随机打乱时） |
+| ~~C-12~~ ✅ | **审查登记：nextGaussian 跨语言精度风险**——JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异；对拍验证，发现差异则内嵌 fdlibm | ✅ **已清偿（批 13-2c）**：对拍实测 JVM `Math.cos`（intrinsic）与 C++ std::cos 差 1 ULP、JVM `Math.log` 与 C++ std::log 在部分输入差 1 ULP（glibc 与 fdlibm 版本差异）——**双管修复**：① Kotlin `DeterministicRng.nextGaussian` 改用 `StrictMath`（纯 Java fdlibm，无平台 intrinsic——跨桌面 JVM/Android 位级一致，修正权威确定性）；② C++ 内嵌 fdlibm（`gamecore/rng/fdlibm.h`：e_log.c 的 log + JDK FdLibm 的 cos 链），sqrt 沿用 std::（对拍验证一致）；DiffRngTest 新增 `nextGaussian sequence matches Kotlin bitwise`（3 种子 × 3 mean/stddev 组合 × 30 次全位级一致） |
 | ~~C-13~~ ✅ | **RNG 读档恢复已接线**：`importStateJson` 从 `GameData.rngStates` 恢复分区状态，`exportStateJson/exportDirtyJson` 导出前回写活动状态（守护：dirty_tracker_test.ImportRestoresRngPartitionStates + DiffStateTest 契约更新） | 完成（计划 v2 阶段 1） |
 | C-14 | **审查登记：float 字段对拍覆盖**（WorldSect.x/y、WorldLevel.x/y）——已覆盖抽样，全量 float 语义随批次扩展 | 随批次 4-8（核心已完成） |
 | ~~C-15~~ ✅ | **Diff 对拍基准已切换真实引擎**：DiffTimeTest Kotlin 侧改为真实 `TimeSystem` 实例驱动（内联复刻删除）；DiffExecute 等其余对拍本就走真实通道 | 完成（计划 v2 阶段 1） |

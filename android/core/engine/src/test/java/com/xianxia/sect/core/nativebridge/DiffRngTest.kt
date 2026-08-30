@@ -62,6 +62,35 @@ class DiffRngTest {
     }
 
     @Test
+    fun `nextGaussian sequence matches Kotlin bitwise`() {
+        // C-12 审查登记项验证：JVM Math.cos/log/sqrt（fdlibm 系）与 C++
+        // std::cos/log/sqrt（桌面 glibc 亦 fdlibm 系）位级一致——Box-Muller
+        // 公式逐位对齐（含 DiscipleFactory/AISectDiscipleManager 使用的
+        // mean/stddev 组合）；发现最后一位差异则内嵌 fdlibm（rng.cpp 注释）。
+        assumeTrue(DiffRngBridge.isAvailable())
+        val cases = listOf(
+            0.0 to 1.0,
+            0.0 to 16.667,        // 弟子方差（DiscipleFactory VARIANCE_SIGMA）
+            50.5 to 16.5          // 弟子技能（DiscipleFactory SKILL_MEAN/SIGMA）
+        )
+        for (seed in longArrayOf(42, 20260901, 987654321)) {
+            for ((mean, stddev) in cases) {
+                val kotlin = DeterministicRng.fromSeed(seed)
+                DiffRngBridge.nativeFromSeed(seed)
+                repeat(30) {
+                    val k = kotlin.nextGaussian(mean, stddev)
+                    val c = DiffRngBridge.nativeNextGaussian(mean, stddev)
+                    assertEquals(
+                        "nextGaussian(seed=$seed, mean=$mean, stddev=$stddev) 第 $it 次不一致",
+                        java.lang.Double.doubleToRawLongBits(k),
+                        java.lang.Double.doubleToRawLongBits(c)
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
     fun `nextLong bound sequence matches Kotlin`() {
         assumeTrue(DiffRngBridge.isAvailable())
         val bounds = longArrayOf(2, 100, 100000, 1L shl 40, Long.MAX_VALUE)

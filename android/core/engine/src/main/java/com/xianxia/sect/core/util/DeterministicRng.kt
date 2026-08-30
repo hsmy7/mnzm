@@ -1,9 +1,5 @@
 package com.xianxia.sect.core.util
 
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.ln
-import kotlin.math.sqrt
 import kotlinx.serialization.Serializable
 
 /**
@@ -88,6 +84,12 @@ open class DeterministicRng(
      * 使用 Box-Muller 变换：消耗 2 次 [nextDouble] 调用，产生 1 个标准正态偏差。
      * 不缓存配对中的第二个值，保持无状态以不影响 [snapshot]/[restore] 确定性。
      *
+     * C-12 清偿（2026-08-30）：改用 [StrictMath]（纯 Java fdlibm 移植，
+     * 无平台 intrinsic）替代 `kotlin.math.cos/ln/sqrt`（映射 java.lang.Math，
+     * 桌面 JVM/Android 各平台 intrinsic 或 libm 实现可能差最后一位）——
+     * 与 C++ 内嵌 fdlibm（gamecore/rng/fdlibm.h）跨平台位级一致，确定性
+     * 对拍守护（DiffRngTest.nextGaussian sequence matches Kotlin bitwise）。
+     *
      * @param mean  分布均值（默认 0.0）
      * @param stddev 分布标准差（默认 1.0）
      * @return 服从 N(mean, stddev^2) 的 Double 值
@@ -98,7 +100,8 @@ open class DeterministicRng(
             val u1 = nextDouble()
             if (u1 == 0.0) continue // 避免 ln(0) = -inf
             val u2 = nextDouble()
-            val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+            val z = StrictMath.sqrt(-2.0 * StrictMath.log(u1)) *
+                StrictMath.cos(2.0 * StrictMath.PI * u2)
             return z * stddev + mean
         }
     }

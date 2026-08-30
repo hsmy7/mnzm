@@ -33,6 +33,8 @@ object DiffRngBridge {
     external fun nativeNextIntBound(bound: Int): Int
     external fun nativeNextLongBound(bound: Long): Long
     external fun nativeNextDouble(): Double
+    /** 正态分布（C-12：Box-Muller 跨语言精度对拍——StrictMath vs 内嵌 fdlibm） */
+    external fun nativeNextGaussian(mean: Double, stddev: Double): Double
     external fun nativeSnapshot(): Long
 
     // ── RngManager（分区）通道 ───────────────────────────────
