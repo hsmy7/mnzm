@@ -133,32 +133,38 @@ fun UnifiedGameDialog(
         // FloatingActionMode 在窗口 token 失效后弹 PopupWindow 崩溃（Bugly #3026）
         DialogFocusGuard()
 
+        // 键盘避让（2026-09 IME 状态机根治）：平台 Dialog 窗口内容区挂
+        // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
+        // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）；无输入框时
+        // 键盘永不弹出、offset 恒 0，零行为变化。
         DialogScrim(
             onDismissRequest = onDismissRequest,
             scrimEnabled = scrimActuallyEnabled,
             dismissOnClickOutside = dismissOnClickOutside,
             onDialogTouch = onDialogTouch
         ) {
-            DialogFrame(
-                modifier = modifier,
-                widthModifier = widthModifier,
-                heightModifier = heightModifier,
-                backgroundRes = backgroundRes,
-                showHeader = showHeader,
-                title = title,
-                mode = mode,
-                titleColor = titleColor,
-                titleFontSize = titleFontSize,
-                titleAlignment = titleAlignment,
-                showCloseButton = showCloseButton,
-                headerActions = headerActions,
-                headerContent = headerContent,
-                closeButtonRes = closeButtonRes,
-                onDismissRequest = onDismissRequest,
-                scrollableContent = scrollableContent,
-                content = content,
-                overlay = overlay
-            )
+            ImeAwareContainer {
+                DialogFrame(
+                    modifier = modifier,
+                    widthModifier = widthModifier,
+                    heightModifier = heightModifier,
+                    backgroundRes = backgroundRes,
+                    showHeader = showHeader,
+                    title = title,
+                    mode = mode,
+                    titleColor = titleColor,
+                    titleFontSize = titleFontSize,
+                    titleAlignment = titleAlignment,
+                    showCloseButton = showCloseButton,
+                    headerActions = headerActions,
+                    headerContent = headerContent,
+                    closeButtonRes = closeButtonRes,
+                    onDismissRequest = onDismissRequest,
+                    scrollableContent = scrollableContent,
+                    content = content,
+                    overlay = overlay
+                )
+            }
         }
     }
 }

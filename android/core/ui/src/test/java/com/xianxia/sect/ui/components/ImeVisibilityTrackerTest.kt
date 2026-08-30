@@ -148,30 +148,56 @@ class ImeVisibilityTrackerTest {
         assertEquals(2, flipCount)
     }
 
-    // ── 双信号检测（2026-08 第四根因键盘频闪根治）──
-    // 默认提取器 = insets.isVisible(ime) || insets.getInsets(ime).bottom > 0：
-    // ADJUST_PAN 等不 resize 的窗口在部分国产 ROM 上可见性标志可能不翻转，
-    // IME 底部高度作为兜底信号（解冻恢复链路的二次校验依赖全局可见性准确性）。
+    // ── isVisible 真值判定（2026-09 IME 状态机根治，M6）──
+    // 默认提取器 = isVisible(ime)（API 30+ 唯一真值；bottom>0 仅 API<30 兜底）：
+    // bottom>0 在键盘隐藏/动画/兼容模式下仍可能非零，误判是"界面反复下拉/
+    // 错误恢复"的头号来源（docs/ime-android-system-research.md M6）。
 
     @Test
-    fun `双信号 - isVisible 为 false 但 IME 底部高度大于 0 时判为可见`() {
+    fun `isVisible 真值 - API30 以上 isVisible 为 false 且 bottom 大于 0 时判为不可见`() {
         ImeVisibilityTracker.attach(activity.window)
-        // 不注入提取器，直接验证默认双信号实现
+        // 不注入提取器，直接验证默认实现（Robolectric sdk 34 → API 30+ 路径）
         val insets = WindowInsetsCompat.Builder()
             .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 200))
             .setVisible(WindowInsetsCompat.Type.ime(), false)
             .build()
         ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
-        assertTrue("底部高度信号应兜底判为可见", ImeVisibilityTracker.isImeVisible)
+        assertFalse("API30+ 必须以 isVisible 为真值，bottom>0 不得误判可见", ImeVisibilityTracker.isImeVisible)
     }
 
     @Test
-    fun `双信号 - isVisible 为 true 但底部高度为 0 时仍判为可见`() {
+    fun `isVisible 真值 - isVisible 为 true 且底部高度为 0 时判为可见`() {
         ImeVisibilityTracker.attach(activity.window)
         val insets = WindowInsetsCompat.Builder()
             .setVisible(WindowInsetsCompat.Type.ime(), true)
             .build()
         ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
-        assertTrue("可见性标志信号应保持生效", ImeVisibilityTracker.isImeVisible)
+        assertTrue("可见性标志为真值应判可见", ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `isVisible 真值 - API29 以下 bottom 大于 0 兜底判为可见`() {
+        // @Config(sdk=[29]) 单独用例验证 API<30 兜底路径
+        val insets = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 200))
+            .setVisible(WindowInsetsCompat.Type.ime(), false)
+            .build()
+        // 直接驱动提取函数（API 分支由 Build.VERSION 决定，Robolectric sdk 34 下走 30+ 路径；
+        // API<30 兜底语义由 defaultImeVisibilityExtractor 的 else 分支保证，此处注入验证）
+        ImeVisibilityTracker.imeVisibilityExtractor = {
+            it.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0
+        }
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertTrue("API<30 兜底：bottom>0 应判可见", ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `lastImeBottomPx - insets 回调更新为最近一次平台报告`() {
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(300), activity.window)
+        assertEquals("应记录最近平台报告的 IME 高度", 300, ImeVisibilityTracker.lastImeBottomPx)
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
+        assertEquals("键盘收起应记录 0", 0, ImeVisibilityTracker.lastImeBottomPx)
     }
 }

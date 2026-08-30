@@ -95,4 +95,47 @@ class SystemBarFreezeScopeTest {
         assertFalse("异常监听器不应阻断解冻", SystemBarFreezeScope.isFrozen)
         assertEquals("正常监听器仍应触发", 1, normalCount)
     }
+
+    // ── 泄漏自愈（2026-09 IME 状态机根治）──
+    // onDispose 未执行（异常/快速销毁/key 强制重组）导致 freezeCount 泄漏时，
+    // 冻结超时自动强制归零并触发解冻监听器，杜绝"系统栏永久不隐藏"。
+
+    @Test
+    fun `泄漏自愈 - 冻结超时自动解冻并触发监听器`() {
+        var callbackCount = 0
+        SystemBarFreezeScope.addOnUnfreezeListener { callbackCount++ }
+        var now = 0L
+        SystemBarFreezeScope.freezeClock = { now }
+        SystemBarFreezeScope.enterFreeze()
+        now = SystemBarFreezeScopeTest.THRESHOLD_MS + 1
+        assertFalse("冻结超时应自愈解冻", SystemBarFreezeScope.isFrozen)
+        assertEquals("自愈应触发解冻监听器（宿主恢复系统栏隐藏）", 1, callbackCount)
+    }
+
+    @Test
+    fun `泄漏自愈 - 未超时保持冻结`() {
+        var now = 0L
+        SystemBarFreezeScope.freezeClock = { now }
+        SystemBarFreezeScope.enterFreeze()
+        now = SystemBarFreezeScopeTest.THRESHOLD_MS / 2
+        assertTrue("未超时应保持冻结", SystemBarFreezeScope.isFrozen)
+    }
+
+    @Test
+    fun `泄漏自愈 - 嵌套冻结超时整体解冻且监听器仅一次`() {
+        var callbackCount = 0
+        SystemBarFreezeScope.addOnUnfreezeListener { callbackCount++ }
+        var now = 0L
+        SystemBarFreezeScope.freezeClock = { now }
+        SystemBarFreezeScope.enterFreeze()
+        SystemBarFreezeScope.enterFreeze()
+        now = SystemBarFreezeScopeTest.THRESHOLD_MS + 1
+        assertFalse("嵌套冻结超时应整体自愈解冻", SystemBarFreezeScope.isFrozen)
+        assertEquals("自愈应触发解冻监听器一次", 1, callbackCount)
+    }
+
+    private companion object {
+        /** 与 SystemBarFreezeScope.FREEZE_LEAK_THRESHOLD_MS 对齐的阈值（测试驱动用） */
+        const val THRESHOLD_MS = 10 * 60 * 1000L
+    }
 }

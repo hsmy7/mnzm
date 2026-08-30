@@ -40,7 +40,7 @@
 | G6 | UI 框架 Compose 独占 | Compose Multiplatform 评估（最高风险点，需专项 ADR） | 评估 ADR：docs/adr/compose-multiplatform-evaluation.md |
 | G7 | **网络层 Gson 遗留**（2026-08-13 登记） | 项目其余处统一用 kotlinx.serialization，仅网络层用 Gson——两套序列化并存易错；统一为 kotlinx.serialization（Retrofit converter 替换），iOS 迁移前无需先决 | ✅ 已根治（2026-08：生产代码 Gson 已清零，retrofit/converter-gson 死依赖声明移除，仅迁移测试保留 gson testImplementation） |
 | G8 | **DataStore/MMKV 双存储并存**（2026-08-13 登记） | 两套本地 K-V 干一件事；MMKV 已跨平台、DataStore Android 独占——偏好设置逐步迁入 MMKV，移除 DataStore 依赖（iOS 迁移前置项之一） | ✅ 已根治（2026-08：DataStore 依赖移除；普通偏好统一迁入 `KeyValueStore`/`GamePreferences`（MMKV），豁免清单见 GamePreferences KDoc） |
-| G9 | **游戏自绘文本输入**（2026-08 登记，第五根因键盘振荡/闪退升级路径） | 本项目 Compose 文本输入深度依赖系统 IME 窗口交互（IME insets × 窗口 softInputMode × 系统栏 × 渲染模式，Android 独占交互面，历经五轮根因修复）；行业终极方案为引擎内自绘输入（Google AGDK `GameTextInput`：IME 事件直通、引擎自绘候选词，原神/星铁同款），完全绕开系统 IME 窗口交互。当前 Compose 技术栈下重写成本极高（候选词/语音/剪贴板/多语言输入法体验），暂不实施 | iOS/Compose Multiplatform 迁移评估时重新评估（届时 UI 技术栈变更，自绘输入的跨平台收益才可兑现） |
+| G9 | **游戏自绘文本输入**（2026-08 登记，第五根因键盘振荡/闪退升级路径；2026-09 部分落地） | 本项目 Compose 文本输入深度依赖系统 IME 窗口交互（IME insets × 窗口 softInputMode × 系统栏 × 渲染模式，Android 独占交互面，历经六轮根因修复）；行业终极方案为引擎内自绘输入（Google AGDK `GameTextInput`：IME 事件直通、引擎自绘候选词，微信小游戏/抖音/小米快游戏官方 API 同款范式），完全绕开系统 IME 窗口交互。**2026-09 根治批次部分落地**：数字输入场景（商人/交易/仓库出售/种植/巡逻塔/自动管理，6 处）已用 `NumberInputPanel` 自绘数字键盘彻底绕开系统 IME；文本输入场景（改名/宗门名/兑换码等 6 处）保留系统 IME（统一 insets 管线 + `ImeStateMachine` 状态机，见 `rules/dialog-soft-input-guard.md` 第六根因） | 文本输入全量自绘：触发条件 A——任一文本输入场景在统一状态机下仍复现振荡 → 升级"自绘输入框 + 系统键盘事件流"；触发条件 B——iOS/Compose Multiplatform 迁移立项时重新评估（届时 UI 技术栈变更，自绘输入的跨平台收益才可兑现） |
 
 ## 三、既有接口清单（新代码必须复用，禁止另起炉灶）
 

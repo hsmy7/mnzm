@@ -81,6 +81,14 @@ fun rememberImeAwareAutoFocusRequester(): FocusRequester {
         while (attempt < AUTO_FOCUS_MAX_RETRIES) {
             delay(AUTO_FOCUS_RETRY_INTERVAL_MS)
             if (latestImeVisible) return@LaunchedEffect
+            // 2026-09 IME 状态机根治（docs/ime-android-system-research.md M10）：
+            // 键盘动画进行中不重试——动画中 requestFocus 会被系统以
+            // PHASE_CLIENT_ANIMATION_CANCEL 取消，反复取消 = 反复重弹；
+            // 等待动画结束后由系统/用户落定
+            if (ImeAnimationTracker.isAnimating) {
+                Log.d(TAG, "IME 动画进行中，跳过聚焦重试（防动画取消耦合）")
+                return@LaunchedEffect
+            }
             // 输入框已有焦点但 IME 未确认：重复 requestFocus 无意义且可能触发
             // ROM 智能输入法反复重弹键盘（检测信号不稳定场景），放弃重试
             if (hasTextInputFocus(view)) {

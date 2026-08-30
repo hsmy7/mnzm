@@ -69,25 +69,31 @@ private const val SYSTEM_BAR_RESTORE_DELAY_MS = 350L
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
  * 卸载时自动恢复。适用于 [Dialog] 内的平台 Dialog 窗口和 Activity 内的 Box overlay。
  *
- * 使用 [SOFT_INPUT_ADJUST_PAN] 替代 [SOFT_INPUT_ADJUST_NOTHING] 以兼容
- * 国产 ROM（小米 HyperOS 等）上 [adjustResize] 导致的键盘反复弹出收起频闪问题。
- * [ADJUST_PAN] 不做窗口 resize（切断振荡回路），仅平移内容。
+ * 模式（2026-09 IME 状态机根治升级）：默认 [SOFT_INPUT_ADJUST_RESIZE]——
+ * API 30 起官方语义为向窗口派发 IME insets（兼容模式，官方 javadoc deprecated 真正
+ * resize），配合 `decorFitsSystemWindows=false`（Compose Dialog 容器已设）+ Compose
+ * `imePadding` 构成官方标准组合（docs/ime-android-system-research.md M1/M4）。
+ * 历史 [SOFT_INPUT_ADJUST_PAN] 为过渡方案：官方仅作 fallback 且易错乱（pan 平移量在
+ * edge-to-edge 下随系统栏抖动 = "界面反复下拉"放大器），已降级为 API<30/ROM 特例兜底。
  *
- * 使用本组件的窗口**禁止再叠加 imePadding**——pan + padding 双重位移正是
+ * 使用本组件的窗口**禁止再叠加窗口级平移类避让**——pan + padding 双重位移正是
  * 历史键盘振荡频闪的根因配方（2026-08 根治，见 [isInsideDialogWindow] 与
- * rules/dialog-soft-input-guard.md）。
+ * rules/dialog-soft-input-guard.md）；imePadding 为应用层单一避让，与窗口 insets
+ * 派发协同，不构成双重位移。
  *
- * 行业调研结论（2026-07）：
- * - Google IssueTracker #229378542: imePadding 在 Dialog 内不可靠
- * - StackOverflow 社区共识: adjustPan 是 Compose Dialog 输入框的最佳实践
+ * 行业调研结论（2026-07 / 2026-09 两次调研）：
+ * - Google IssueTracker #229378542: imePadding 在 Dialog 内不可靠（Compose 1.x 缺陷，
+ *   显式 setDecorFitsSystemWindows(false) + ADJUST_RESIZE 后 Dialog 可进入 insets 管线）
+ * - StackOverflow 社区共识: adjustPan 是 Compose Dialog 输入框的过渡实践
  * - Xiaomi MIUI/HyperOS 已知缺陷: imePadding 在 Dialog 窗口上无法正确处理 keyboard insets
- * - Unity/Flutter 游戏行业: adjustNothing + 手动键盘高度监听
+ * - Unity/Flutter 游戏行业: 窗口零参与 + 应用层 insets/事件流避让
  *
  * @see DialogSystemBarGuard
+ * @see ImeAwareContainer
  */
 @Composable
 fun DialogSoftInputGuard(
-    mode: Int = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+    mode: Int = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
 ) {
     // 遍历 View 层级寻找 DialogWindowProvider（平台 Dialog 窗口）
     val dialogWindow = generateSequence(LocalView.current) {
@@ -141,70 +147,17 @@ internal fun SystemBarFreezeEffect(enabled: Boolean) {
 }
 
 /**
- * 渲染模式感知的 ADJUST_PAN 避让挂载（第五根因键盘振荡 + 闪退根治，
- * 2026-08 真我 neo7 turbo，见 rules/dialog-soft-input-guard.md）。
- *
- * 软件渲染设备（MTK 等被 VulkanPolicy 判定 PROBLEMATIC 强制关闭 HW 加速，如
- * 真我 neo7 turbo）上，Android 15 强制 edge-to-edge 的 IME insets 派发时序
- * 不稳定，Activity 层输入框的 adjustResize（窗口 resize）+ imePadding（布局
- * padding）双重位移反复触发 → IME 状态误报 → 键盘弹出→收起→再弹出振荡回路；
- * 振荡 × 软件渲染高分屏每帧全屏 CPU 重绘 → 主线程过载 → 进程被杀（直接退出
- * 无提示）。经 [shouldUsePanAvoidance] 判定后挂载 [DialogSoftInputGuard]
- * （作用于 Activity 窗口，系统级平移不依赖 IME insets 派发时序）——与平台
- * Dialog 窗口场景 / [PlantingDialog] 机制一致；平台 Dialog 窗口内 / 硬件加速
- * Activity 层不挂载（保持官方标准组合，荣耀 X70 等已验证稳定）。
- *
- * 提取为独立 composable 避免宿主容器函数体超 detekt LongMethod 阈值。
- */
-@Composable
-private fun PanAvoidanceGuard(
-    insideDialogWindow: Boolean,
-    hardwareAccelerated: Boolean
-) {
-    if (shouldUsePanAvoidance(insideDialogWindow, hardwareAccelerated)) {
-        // DialogSoftInputGuard 支持 Activity 窗口（无 DialogWindowProvider 时回退
-        // LocalActivity.window），挂载期间切换 softInputMode、销毁自动恢复
-        DialogSoftInputGuard()
-    }
-}
-
-/**
  * 判定给定 [View] 是否处于平台 Dialog 窗口（Compose [Dialog] 创建的独立 Window）内。
  *
- * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。用于决定键盘避让机制：
- * - Dialog 窗口内：外层窗口已由 [DialogSoftInputGuard] 应用 ADJUST_PAN 单一避让，
- *   内层容器必须禁用 imePadding（pan + padding 双重位移 = 国产 ROM 键盘振荡根因）
- * - Activity 窗口内：保持 manifest adjustResize + imePadding 官方标准组合
+ * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。2026-09 IME 状态机根治后
+ * **不再用于键盘避让判定**（全窗口统一 insets 管线 + imePadding，无 pan/padding 二选一）；
+ * 仅用于**嵌套冻结传导**（[InlineStandardPromptDialog] 渲染于平台 Dialog 窗口内且
+ * `freezeSystemBars = true` 时冻结外层窗口系统栏，第四根因机制保留）。
  */
 internal fun isInsideDialogWindow(view: View): Boolean =
     generateSequence(view) { it.parent as? View }
         .filterIsInstance<DialogWindowProvider>()
         .firstOrNull() != null
-
-/**
- * 判定 Activity 层输入框是否应使用 ADJUST_PAN 单一避让（第五根因键盘振荡 + 闪退根治）。
- *
- * 软件渲染设备（如真我 neo7 turbo——MTK SoC 被 VulkanPolicy 判定 PROBLEMATIC 强制
- * 关闭 HW 加速）上，Android 15 强制 edge-to-edge 的 IME insets 派发时序不稳定，
- * `adjustResize`（窗口 resize）+ `imePadding`（布局 padding）双重位移反复触发 → IME
- * 状态误报 → 键盘弹出→收起→再弹出振荡回路；振荡 × 软件渲染高分屏每帧全屏 CPU 重绘
- * → 主线程过载 → 进程被杀（直接退出无提示）。软件渲染 Activity 层输入框切换为单一
- * ADJUST_PAN 避让（系统级平移，不依赖 insets 派发时序），与平台 Dialog 窗口场景 /
- * [PlantingDialog] 机制一致。硬件加速 Activity 层保持 manifest adjustResize +
- * imePadding 官方标准组合（Flutter/Unity 同款，荣耀 X70 等已验证稳定）。
- *
- * 参数注入为纯函数便于 Robolectric 单测覆盖四种组合（Robolectric 无法直接控制
- * [View.isHardwareAccelerated] 返回值）。平台 Dialog 窗口内（外层窗口已有
- * ADJUST_PAN）恒 false，软件渲染判定仅对 Activity 层生效。
- *
- * @param insideDialogWindow 是否处于平台 Dialog 窗口内（[isInsideDialogWindow]）
- * @param hardwareAccelerated 宿主窗口是否硬件加速（[View.isHardwareAccelerated]）
- * @return true 表示应挂载 [DialogSoftInputGuard]（ADJUST_PAN）并禁用 imePadding
- */
-internal fun shouldUsePanAvoidance(
-    insideDialogWindow: Boolean,
-    hardwareAccelerated: Boolean
-): Boolean = !insideDialogWindow && !hardwareAccelerated
 
 /**
  * 在 Dialog Window 上应用 hideSystemBars()，使对话框内容全屏无状态栏/导航栏。
@@ -449,32 +402,37 @@ fun StandardPromptDialog(
         // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
         DialogFocusGuard()
 
+        // 键盘避让（2026-09 IME 状态机根治）：平台 Dialog 窗口内容区挂
+        // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
+        // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）；无输入框时
+        // 键盘永不弹出、offset 恒 0，零行为变化。
         PromptDialogScrim(
             onDismissRequest = onDismissRequest,
             scrimEnabled = scrimActuallyEnabled,
-            dismissOnClickOutside = dismissOnClickOutside,
-            applyImePadding = false
+            dismissOnClickOutside = dismissOnClickOutside
         ) {
-            PromptDialogFrame(
-                dialogWidth = dialogWidth,
-                dialogHeight = dialogHeight,
-                dialogBackgroundRes = dialogBackgroundRes,
-                config = PromptDialogContent(
-                    title = title,
-                    titleColor = titleColor,
-                    showCloseButton = showCloseButton,
-                    closeButtonRes = closeButtonRes,
-                    text = text,
-                    onDismissRequest = onDismissRequest,
-                    confirmLabel = confirmLabel,
-                    onConfirm = onConfirm,
-                    dismissLabel = dismissLabel,
-                    onDismiss = onDismiss,
-                    customButtons = customButtons,
-                    buttonBackgroundRes = buttonBackgroundRes
-                ),
-                content = content
-            )
+            ImeAwareContainer {
+                PromptDialogFrame(
+                    dialogWidth = dialogWidth,
+                    dialogHeight = dialogHeight,
+                    dialogBackgroundRes = dialogBackgroundRes,
+                    config = PromptDialogContent(
+                        title = title,
+                        titleColor = titleColor,
+                        showCloseButton = showCloseButton,
+                        closeButtonRes = closeButtonRes,
+                        text = text,
+                        onDismissRequest = onDismissRequest,
+                        confirmLabel = confirmLabel,
+                        onConfirm = onConfirm,
+                        dismissLabel = dismissLabel,
+                        onDismiss = onDismiss,
+                        customButtons = customButtons,
+                        buttonBackgroundRes = buttonBackgroundRes
+                    ),
+                    content = content
+                )
+            }
         }
     }
 }
@@ -491,13 +449,12 @@ fun StandardPromptDialog(
  * 屏幕尺寸在 composition 入口处 [remember] 缓存，键盘弹出后不再变化，
  * 从而彻底杜绝重组震荡。
  *
- * 键盘避让双上下文机制：
- * - 渲染于 Activity 层：窗口保持 manifest adjustResize + 本组件 [imePadding]
- *   = Google 官方标准组合（单一避让）
- * - 渲染于平台 Dialog 窗口内（嵌套在 [UnifiedGameDialog] 等窗口内部）：外层
- *   窗口已由 [DialogSoftInputGuard] 应用 ADJUST_PAN 单一避让，本组件自动禁用
- *   imePadding——pan + padding 双重位移是国产 ROM 键盘振荡频闪的历史根因。
- * 窗口上下文由 [isInsideDialogWindow] 自动检测，调用方无需关心。
+ * 键盘避让（2026-09 IME 状态机根治，统一 insets 管线）：
+ * 本组件恒挂官方标准组合 `imePadding`（外层 Box）——manifest/DialogSoftInputGuard
+ * 均 ADJUST_RESIZE + edge-to-edge（`decorFitsSystemWindows=false`）前置条件满足，
+ * 键盘弹出时覆盖层可用区域收缩到键盘上方，对话框整体上移。**删除**历史
+ * "isInsideDialogWindow 二选一 / 软件渲染切 ADJUST_PAN"分支（渲染模式分支消亡），
+ * 全渲染模式统一；[isInsideDialogWindow] 仅保留用于嵌套冻结传导。
  *
  * 系统栏冻结机制（2026-08 荣耀 X70 键盘频闪根治）：
  * [freezeSystemBars] 为 true（含文本输入的对话框）时，挂载期间通过
@@ -553,15 +510,13 @@ fun InlineStandardPromptDialog(
     // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
     DialogFocusGuard()
 
-    // 检测是否处于平台 Dialog 窗口内（嵌套在 UnifiedGameDialog 等窗口内部时）：
-    // 外层窗口已由 DialogSoftInputGuard 应用 ADJUST_PAN 单一避让，必须禁用 imePadding，
-    // 避免 pan + padding 双重位移（国产 ROM 键盘振荡根因）；Activity 层保持
-    // manifest adjustResize + imePadding 官方标准组合。
+    // 2026-09 IME 状态机根治：全窗口统一 insets 管线（manifest/DialogSoftInputGuard
+    // 均 ADJUST_RESIZE + decorFitsSystemWindows=false），键盘避让统一走 Compose
+    // imePadding（官方标准组合，单一应用层避让）——删除历史"渲染模式感知双路径"
+    // （shouldUsePanAvoidance/PanAvoidanceGuard/hardwareAccelerated）与"isInsideDialogWindow
+    // 二选一"分支；`insideDialogWindow` 仅保留用于下方嵌套冻结传导。
     val dialogView = LocalView.current
     val insideDialogWindow = remember { isInsideDialogWindow(dialogView) }
-    // 渲染模式感知双路径（第五根因键盘振荡 + 闪退根治，见 PanAvoidanceGuard KDoc）
-    val hardwareAccelerated = remember(dialogView) { dialogView.isHardwareAccelerated }
-    PanAvoidanceGuard(insideDialogWindow, hardwareAccelerated)
 
     // 嵌套传导（2026-08 第四根因根治）：内联输入框渲染于平台 Dialog 窗口内时，
     // 冻结外层 Dialog 窗口的系统栏操作——DialogSystemBarGuard 据此恢复导航栏显示、
@@ -583,36 +538,55 @@ fun InlineStandardPromptDialog(
         }
     }
 
-    PromptDialogScrim(
-        onDismissRequest = onDismissRequest,
-        scrimEnabled = scrimActuallyEnabled,
-        dismissOnClickOutside = dismissOnClickOutside,
-        // 平台 Dialog 窗口内（外层 ADJUST_PAN）与软件渲染 Activity 层（本组件已挂
-        // ADJUST_PAN）均禁用 imePadding——pan + padding 双重位移是国产 ROM 键盘
-        // 振荡根因；仅硬件加速 Activity 层保持 adjustResize + imePadding 官方标准组合
-        applyImePadding = !insideDialogWindow && hardwareAccelerated
-    ) {
-        PromptDialogFrame(
-            dialogWidth = dialogWidth,
-            dialogHeight = dialogHeight,
-            dialogBackgroundRes = dialogBackgroundRes,
-            config = PromptDialogContent(
-                title = title,
-                titleColor = titleColor,
-                showCloseButton = showCloseButton,
-                closeButtonRes = closeButtonRes,
-                text = text,
-                onDismissRequest = onDismissRequest,
-                confirmLabel = confirmLabel,
-                onConfirm = onConfirm,
-                dismissLabel = dismissLabel,
-                onDismiss = onDismiss,
-                customButtons = customButtons,
-                buttonBackgroundRes = buttonBackgroundRes
-            ),
-            content = content
-        )
+    // 键盘避让（2026-09 IME 状态机根治）：内联覆盖层统一走官方标准组合
+    // imePadding（manifest/DialogSoftInputGuard 均 ADJUST_RESIZE + edge-to-edge 已满足
+    // 前置条件；单一应用层避让，无 pan 无双重位移）。外层 Box 挂 imePadding 后，
+    // 键盘弹出时覆盖层可用区域收缩到键盘上方，对话框整体上移。
+    InlineImePaddingWrapper {
+        PromptDialogScrim(
+            onDismissRequest = onDismissRequest,
+            scrimEnabled = scrimActuallyEnabled,
+            dismissOnClickOutside = dismissOnClickOutside
+        ) {
+            PromptDialogFrame(
+                dialogWidth = dialogWidth,
+                dialogHeight = dialogHeight,
+                dialogBackgroundRes = dialogBackgroundRes,
+                config = PromptDialogContent(
+                    title = title,
+                    titleColor = titleColor,
+                    showCloseButton = showCloseButton,
+                    closeButtonRes = closeButtonRes,
+                    text = text,
+                    onDismissRequest = onDismissRequest,
+                    confirmLabel = confirmLabel,
+                    onConfirm = onConfirm,
+                    dismissLabel = dismissLabel,
+                    onDismiss = onDismiss,
+                    customButtons = customButtons,
+                    buttonBackgroundRes = buttonBackgroundRes
+                ),
+                content = content
+            )
+        }
     }
+}
+
+/**
+ * 内联输入框的官方标准 imePadding 避让包装（InlineStandardPromptDialog 拆分防
+ * detekt LongMethod）：键盘弹出时覆盖层可用区域收缩到键盘上方（单一应用层避让）。
+ */
+@Composable
+private fun InlineImePaddingWrapper(
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding(),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
 }
 
 /**
@@ -635,22 +609,23 @@ private data class PromptDialogContent(
     @DrawableRes val buttonBackgroundRes: Int
 )
 
-/** 提示框遮罩层（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：scrim 背景 + 点击外部关闭 + 可选 imePadding */
+/**
+ * 提示框遮罩层（StandardPromptDialog/InlineStandardPromptDialog 拆分共享）：
+ * scrim 背景 + 点击外部关闭。**本层不做键盘避让**——避让由调用方容器决定：
+ * - [InlineStandardPromptDialog]（Activity 层）：外层挂官方标准 `imePadding`
+ * - [StandardPromptDialog]（平台 Dialog 窗口）：内容区挂 [ImeAwareContainer]
+ *   （事件驱动一次性位移，不依赖 Dialog 窗口 imePadding 的历史可靠性）
+ */
 @Composable
 private fun PromptDialogScrim(
     onDismissRequest: () -> Unit,
     scrimEnabled: Boolean,
     dismissOnClickOutside: Boolean,
-    applyImePadding: Boolean,
     content: @Composable BoxScope.() -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .then(
-                if (applyImePadding) Modifier.imePadding()
-                else Modifier
-            )
             .then(
                 if (scrimEnabled) Modifier.background(Color(0x99000000)).testTag("scrim")
                 else Modifier

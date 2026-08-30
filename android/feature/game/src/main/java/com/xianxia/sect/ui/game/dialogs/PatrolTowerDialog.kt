@@ -2,24 +2,20 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -31,9 +27,11 @@ import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.PatrolTowerViewModel
+import com.xianxia.sect.ui.game.components.NumberInputPanel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -451,27 +449,49 @@ private fun RealmOptionGrid(
     }
 }
 
-/** 妖兽数量输入行（AttackRangeDialog 拆分） */
+/**
+ * 妖兽数量输入行（AttackRangeDialog 拆分）：点击数量框弹出自绘数字面板
+ * （NumberInputPanel，2026-09 IME 状态机根治：数字输入绕开系统 IME）。
+ */
 @Composable
 private fun MaxCountInput(
     maxCount: String,
     onMaxCountChange: (String) -> Unit
 ) {
+    var showPanel by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("进攻的妖兽数量范围为 1 - ", fontSize = 12.sp, color = Color.Black)
-        BasicTextField(
-            value = maxCount.ifEmpty { "1" },
-            onValueChange = onMaxCountChange,
-            modifier = Modifier.width(40.dp)
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(Color.White, RoundedCornerShape(4.dp))
                 .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                .clickableWithSound(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showPanel = true }
+                )
                 .padding(horizontal = 4.dp, vertical = 2.dp),
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = Color.Black, textAlign = TextAlign.Center
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = maxCount.ifEmpty { "1" },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+        }
+    }
+    if (showPanel) {
+        NumberInputPanel(
+            initialValue = maxCount.toIntOrNull()?.coerceIn(1, PATROL_MAX_BEAST_COUNT) ?: 1,
+            maxQuantity = PATROL_MAX_BEAST_COUNT,
+            onConfirm = { value ->
+                onMaxCountChange(value.toString())
+                showPanel = false
+            },
+            onDismiss = { showPanel = false }
         )
     }
 }
@@ -508,6 +528,9 @@ private fun AttackRangeActionButtons(
     }
 }
 
+/** 进攻妖兽数量上限（数量输入钳制目标，命名常量防魔法数字） */
+private const val PATROL_MAX_BEAST_COUNT = 13
+
 /** 数量输入规范化（AttackRangeDialog 拆分）：1~13 数字限制 */
 private fun sanitizeBeastCount(raw: String): String {
     val filtered = raw.filter { it.isDigit() }
@@ -515,7 +538,7 @@ private fun sanitizeBeastCount(raw: String): String {
     return when {
         num == null -> "1"
         num < 1 -> "1"
-        num > 13 -> "13"
+        num > PATROL_MAX_BEAST_COUNT -> PATROL_MAX_BEAST_COUNT.toString()
         else -> filtered
     }
 }

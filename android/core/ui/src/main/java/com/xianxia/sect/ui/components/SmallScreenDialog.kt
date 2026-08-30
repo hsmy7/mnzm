@@ -82,16 +82,21 @@ fun SmallScreenDialog(
         // 在窗口 token 失效后弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
         DialogFocusGuard()
 
-        SmallScreenDialogFrame(
-            title = title,
-            titleColor = titleColor,
-            dialogWidth = dialogWidth,
-            dialogHeight = dialogHeight,
-            onDismissRequest = onDismissRequest,
-            footer = footer,
-            overlay = overlay,
-            content = content
-        )
+        // 键盘避让（2026-09 IME 状态机根治）：平台 Dialog 窗口内容区挂
+        // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
+        // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）
+        ImeAwareContainer {
+            SmallScreenDialogFrame(
+                title = title,
+                titleColor = titleColor,
+                dialogWidth = dialogWidth,
+                dialogHeight = dialogHeight,
+                onDismissRequest = onDismissRequest,
+                footer = footer,
+                overlay = overlay,
+                content = content
+            )
+        }
     }
 }
 

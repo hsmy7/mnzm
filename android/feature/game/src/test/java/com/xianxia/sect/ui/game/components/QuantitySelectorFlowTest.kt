@@ -6,11 +6,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performImeAction
-import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.performTouchInput
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -19,13 +21,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 数量选择器组件行为测试（常驻输入框重构，2026-08-08 键盘自动收起根治）：
+ * 数量选择器组件行为测试（2026-09 自绘数字面板重构）：
  * - 四向步进显示与禁用态
- * - 点击数字框进入编辑态（−10/+10 隐藏）
- * - 输入净化（超上限截断/非法字符过滤）
- * - 失焦/Done 提交
- * - 外部数量变化同步（非编辑态）与编辑态不覆盖用户输入
- * - 初始超限钳制
+ * - 点击数字框弹出 NumberInputPanel（自绘面板，不弹系统 IME）
+ * - 面板输入钳制（超上限截断）与确定/取消提交语义
+ * - 外部数量变化同步（非编辑态）与初始超限钳制
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -76,85 +76,61 @@ class QuantitySelectorFlowTest {
         composeRule.onNodeWithText("+10").assertIsNotEnabled()
     }
 
-    // ── 编辑态切换 ──────────────────────────────────────────────────────
+    // ── 自绘数字面板（2026-09 绕开系统 IME）──────────────────────────────
 
     @Test
-    fun `点击数字框进入编辑态隐藏大步进按钮`() {
+    fun `点击数字框弹出数字面板并隐藏大步进`() {
         launchSelector(quantity = 5, maxQuantity = 10)
         composeRule.onNodeWithText("5").performClick()
         composeRule.waitForIdle()
-        // 编辑态仅保留 [−][输入框][+]：键盘弹出空间有限，避免步进作用于未提交文本
-        composeRule.onNodeWithText("−10").assertDoesNotExist()
-        composeRule.onNodeWithText("+10").assertDoesNotExist()
-        composeRule.onNodeWithText("−").assertIsDisplayed()
-        composeRule.onNodeWithText("+").assertIsDisplayed()
+        // 面板出现（确定按钮为面板锚点）
+        composeRule.onNodeWithText("确定").assertIsDisplayed()
+        composeRule.onNodeWithTag("number_pad_key_5").assertIsDisplayed()
     }
 
-    // ── 输入净化 ────────────────────────────────────────────────────────
-
     @Test
-    fun `编辑态输入超上限实时截断为上限`() {
+    fun `面板输入超上限确定后钳制为上限`() {
         val changed = launchSelector(quantity = 5, maxQuantity = 10)
-        composeRule.onNodeWithText("5").performTextReplacement("99")
+        composeRule.onNodeWithText("5").performClick()
         composeRule.waitForIdle()
-        assertEquals(10, changed.value)
+        // 面板初始显示当前数量 5；追加 9 和 9 → 钳制为 10
+        composeRule.onNodeWithTag("number_pad_key_9").performClick()
+        composeRule.onNodeWithTag("number_pad_key_9").performClick()
+        composeRule.onNodeWithText("确定").performClick()
+        composeRule.waitForIdle()
+        assertEquals("超上限应钳制为 10", 10, changed.value)
         composeRule.onNodeWithText("10").assertIsDisplayed()
     }
 
     @Test
-    fun `编辑态输入非法字符被过滤为空文本`() {
+    fun `面板点外取消不改变数量`() {
         val changed = launchSelector(quantity = 5, maxQuantity = 10)
-        composeRule.onNodeWithText("5").performTextReplacement("abc")
+        composeRule.onNodeWithText("5").performClick()
         composeRule.waitForIdle()
-        assertEquals(QUANTITY_MIN, changed.value)
-        composeRule.onNodeWithText("5").assertDoesNotExist()
+        composeRule.onNodeWithTag("number_pad_key_7").performClick()
+        // 点击面板外空白（scrim）取消
+        composeRule.onRoot().performTouchInput { click(centerLeft) }
+        composeRule.waitForIdle()
+        assertEquals("未确认不改变数量", -1, changed.value)
     }
 
-    // ── 提交 ────────────────────────────────────────────────────────────
+    // ── 步进提交 ────────────────────────────────────────────────────────
 
     @Test
-    fun `Done 提交输入并退出编辑态`() {
-        // 外部 State 驱动（IntBox 不触发重组，commit 会把输入串覆盖回旧值）
-        var quantity by mutableStateOf(5)
-        composeRule.setContent {
-            QuantitySelector(
-                quantity = quantity,
-                maxQuantity = 10,
-                onQuantityChange = { quantity = it }
-            )
-        }
-        composeRule.onNodeWithText("5").performTextReplacement("7")
-        composeRule.onNodeWithText("7").performImeAction()
-        composeRule.waitForIdle()
-        assertEquals(7, quantity)
-        composeRule.onNodeWithText("7").assertIsDisplayed()
-        // 退出编辑态后大步进恢复
-        composeRule.onNodeWithText("+10").assertIsDisplayed()
-    }
-
-    @Test
-    fun `点击步进按钮失焦先提交输入再步进`() {
-        // 外部 State 驱动（IntBox 捕获不触发重组，step 会读到旧 quantity）
-        var quantity by mutableStateOf(5)
-        composeRule.setContent {
-            QuantitySelector(
-                quantity = quantity,
-                maxQuantity = 10,
-                onQuantityChange = { quantity = it }
-            )
-        }
-        // 编辑态输入 7 → 点击 −：先失焦提交 7，再执行步进 −1 → 最终 6
-        composeRule.onNodeWithText("5").performTextReplacement("7")
+    fun `点击步进按钮更新数量`() {
+        val changed = launchSelector(quantity = 5, maxQuantity = 10)
         composeRule.onNodeWithText("−").performClick()
         composeRule.waitForIdle()
-        assertEquals(6, quantity)
-        composeRule.onNodeWithText("6").assertIsDisplayed()
+        assertEquals(4, changed.value)
+        composeRule.onNodeWithText("+10").performClick()
+        composeRule.waitForIdle()
+        assertEquals(10, changed.value)
     }
 
     // ── 外部数量变化同步 ────────────────────────────────────────────────
 
     @Test
-    fun `外部数量变化非编辑态同步显示`() {
+    fun `外部数量变化同步显示`() {
         var quantity by mutableStateOf(5)
         composeRule.setContent {
             QuantitySelector(
@@ -167,24 +143,6 @@ class QuantitySelectorFlowTest {
         quantity = 8
         composeRule.waitForIdle()
         composeRule.onNodeWithText("8").assertIsDisplayed()
-    }
-
-    @Test
-    fun `外部数量变化编辑态不覆盖用户输入串`() {
-        var quantity by mutableStateOf(5)
-        composeRule.setContent {
-            QuantitySelector(
-                quantity = quantity,
-                maxQuantity = 10,
-                onQuantityChange = { quantity = it }
-            )
-        }
-        composeRule.onNodeWithText("5").performTextReplacement("7")
-        quantity = 8
-        composeRule.waitForIdle()
-        // 编辑态跳过外部同步，输入串保持用户输入
-        composeRule.onNodeWithText("7").assertIsDisplayed()
-        composeRule.onNodeWithText("8").assertDoesNotExist()
     }
 
     // ── 防御性钳制 ──────────────────────────────────────────────────────

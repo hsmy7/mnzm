@@ -1,9 +1,13 @@
 package com.xianxia.sect.ui.components
 
+import android.os.Build
 import android.util.Log
 import android.view.View
 import android.view.Window
 import androidx.annotation.VisibleForTesting
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.lang.ref.WeakReference
@@ -32,9 +36,20 @@ private const val TAG = "ImeGuard"
  */
 object ImeVisibilityTracker {
 
-    /** 任一已接管窗口的键盘当前是否可见（跨线程一致，主线程写、任意线程读） */
-    @Volatile
-    var isImeVisible: Boolean = false
+    /**
+     * 任一已接管窗口的键盘当前是否可见（Compose snapshot state——主线程写、
+     * 任意线程读；[ImeAwareContainer] 等组合组件读取后可在翻转时重组，驱动
+     * 事件驱动避让；非组合读取者如 [SystemBarHidePolicy] 直接读值零副作用）
+     */
+    var isImeVisible: Boolean by mutableStateOf(false)
+        private set
+
+    /**
+     * 最近一次平台报告的 IME 底部高度（px）——[ImeAwareContainer] 事件驱动避让的
+     * 位移量兜底（当前窗口 Compose insets 不可用时，如 Compose Dialog 窗口 insets
+     * 历史缺陷 #229378542 场景）。每次 insets 回调更新为最新平台报告，零陈旧值重放。
+     */
+    var lastImeBottomPx: Int by mutableStateOf(0)
         private set
 
     /** 单个窗口的 IME 跟踪状态（弱引用防 Activity/Dialog 窗口泄漏） */
@@ -49,18 +64,25 @@ object ImeVisibilityTracker {
     private val windows = CopyOnWriteArrayList<WindowState>()
 
     /**
-     * IME 可见性提取函数（默认实现走 androidx.core 官方 [WindowInsetsCompat.isVisible] +
-     * IME 底部高度双信号；测试可注入替换——Robolectric 对 android.view.WindowInsets 的
-     * ime 类型支持不全，注入后状态机逻辑可脱离框架限制验证）。
-     *
-     * 双信号（2026-08 第四根因键盘频闪根治）：可见性标志 或 IME 底部高度 > 0 任一成立
-     * 即视为键盘可见——ADJUST_PAN 等不 resize 的窗口在部分国产 ROM 上可见性标志可能
-     * 不翻转（insets 可见性与窗口 resize 语义耦合），高度信号作为兜底，增强多窗口
-     * 跟踪的鲁棒性（解冻恢复链路的二次校验依赖全局可见性的准确性）。
+     * 默认可见性判定实现（M6，调研报告 docs/ime-android-system-research.md）：
+     * **必须用 [WindowInsetsCompat.isVisible] 作为真值**——`getInsets(ime).bottom > 0`
+     * 在键盘隐藏/动画/兼容模式下仍可能非零，误判是"界面反复下拉/错误恢复"的头号来源。
+     * `bottom > 0` 仅保留为 API < 30（无 isVisible 语义的旧路径）的兜底信号。
+     * 测试可注入替换——Robolectric 对 android.view.WindowInsets 的 ime 类型支持不全，
+     * 注入后状态机逻辑可脱离框架限制验证。
      */
     @VisibleForTesting
     internal var imeVisibilityExtractor: (WindowInsetsCompat) -> Boolean =
         ::defaultImeVisibilityExtractor
+
+    /** 默认真值实现：API 30+ 以 isVisible(ime) 为准；API<30 以 bottom>0 兜底 */
+    private fun defaultImeVisibilityExtractor(insets: WindowInsetsCompat): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            insets.isVisible(WindowInsetsCompat.Type.ime())
+        } else {
+            insets.isVisible(WindowInsetsCompat.Type.ime()) ||
+                insets.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0
+        }
 
     /**
      * 接管 [window] 的 IME 可见性跟踪。
@@ -107,11 +129,6 @@ object ImeVisibilityTracker {
         return windows.firstOrNull { it.windowRef.get() === window }?.imeVisible ?: false
     }
 
-    /** 默认双信号实现（初始化与 resetForTest 共用，保证测试间隔离后语义不漂移） */
-    private fun defaultImeVisibilityExtractor(insets: WindowInsetsCompat): Boolean =
-        insets.isVisible(WindowInsetsCompat.Type.ime()) ||
-            insets.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0
-
     /** insets 回调处理（提取为独立函数便于 Robolectric 单测直接驱动） */
     internal fun onInsetsApplied(
         view: View,
@@ -120,6 +137,8 @@ object ImeVisibilityTracker {
     ): WindowInsetsCompat {
         val state = windows.firstOrNull { it.windowRef.get() === window }
             ?: return ViewCompat.onApplyWindowInsets(view, insets)
+        // 记录最近一次平台真实报告（M10：以最新平台报告为准，禁止重放陈旧值）
+        lastImeBottomPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
         val visible = imeVisibilityExtractor(insets)
         if (visible != state.imeVisible) {
             state.imeVisible = visible
@@ -155,6 +174,7 @@ object ImeVisibilityTracker {
     @VisibleForTesting
     internal fun resetForTest() {
         isImeVisible = false
+        lastImeBottomPx = 0
         windows.clear()
         imeVisibilityExtractor = ::defaultImeVisibilityExtractor
     }

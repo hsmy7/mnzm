@@ -1,5 +1,55 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（战斗批次 D-3：洞天 AI 操作接入 C++ 第三战斗引擎）
+
+> 承接战斗批次 D-2（cpp-engine.md §7.5）：批次 D 最后一件——AI 宗门战/洞天 AI 操作（S8 子事件 6）的第三战斗引擎（executeUnifiedAIBattle）等价移植 C++，AISectAttackManager 生产调用点路由接入。至此三件战斗边界接线（任务完成/洞天 AI 操作/AI 兽战）全部完成。
+
+- **C++ 等价移植**：`gamecore/system/sect_battle.h`——executeUnifiedAIBattle 主循环（超时/结束判定）+ 单回合（速度序 + 逐行动后列表压缩 + DoT）+ 单参战者四分支行动（普攻/单体技能/AOE/支援）+ 行动执行（斩杀/闪避/护盾吸收/debuff/伤害链接分摊）+ 胜负判定 + rounds 动作序列
+- **两处 Kotlin 语义深坑修复**（对拍实锤）：① 支援后施放者自身新加 buff 丢失（Kotlin updateSupportCooldown 用旧值覆盖——C++ 引用语义需显式快照复刻）；② 支援日志 target 用全体盟友名连接（非实际目标）
+- **生产接线**：GameCoreBridge.cpp `nativeAiBattleExecute`（BATTLE 分区 RNG）+ AISectAttackManager.tryExecuteUnifiedNative 路由（AUTHORITATIVE 守卫/结果重建/降级回退）
+- **验证**：DiffSectBattleTest 5 场景跨语言对拍（基础战斗/支援+控制/AOE+护盾/链接+分摊/全灭胜负——turns/winner + 逐 Combatant hp/mp/buffs/技能冷却 + rounds 动作序列 + RNG 终态逐位一致）· engine JUnit 2979/2979 · GTest 659/659 · NDK externalNativeBuildRelease 通过 · detekt 全绿 · compileReleaseKotlin 通过
+- **兼容性**：纯接线改造（C++ 引擎与 Kotlin 逐位一致经对拍确认）；玩家可见行为不变
+
+### 新增（战斗批次 D-2：任务完成接入 C++ 战斗引擎 + 战斗动作序列输出）
+
+> 承接战斗批次 D-1（cpp-engine.md §7.5）：批次 D 第二件——任务完成（S8 子事件 5）的 executeBattle 生产调用点路由到 C++，同时 C++ 战斗引擎补齐**动作序列输出**（战报回合记录），Kotlin 侧从 C++ 动作序列重建战斗日志。
+
+- **C++ 动作序列层**：battle_execution.h 补记录链——recordTurnAction（技能/普攻/支援/斩杀）、拉条立即行动、控制效果（眩晕/冰冻）、持续伤害全部记录为确定性动作；逐回合打包 BattleRound；Combatant 补 isBeast 字段（阵营类型判定）
+- **JNI 双桥输出**：roundsToJson 共享序列化（桌面对拍桥 + 生产桥），动作字段逐键对齐 Kotlin BattleActionData
+- **Kotlin 重建**：BattleExecutionRouter 从 C++ rounds 重建战报（message 为确定性摘要——原描述文本由 JVM 随机生成，评估报告"diff 排除 message"同源决策）
+- **调用点改造**：MissionSystem.executeMissionBattle 两处（妖兽/人类任务敌人）接入路由（tryExecuteNative ?: Kotlin）
+- **验证**：engine JUnit 2974/2974（DiffBattleExecutionTest rounds 逐字段对拍扩展：回合数/roundNumber/动作类型/攻击者/目标/伤害/伤害类型/暴击/击杀/必杀/技能名逐位一致；途中根因修复：拉条立即行动未记录）· NDK externalNativeBuildRelease 通过 · detekt 全绿 · compileReleaseKotlin 通过
+- **兼容性**：纯接线改造（C++ 引擎与 Kotlin 逐位一致经对拍确认）；玩家可见行为不变；战报 message 从随机措辞变为确定性摘要（描述文本差异，机制不变）
+
+### 新增（战斗批次 D-1：AI 兽战接入 C++ 战斗引擎——生产接线）
+
+> 承接战斗批次 C（cpp-engine.md §7.5）：批次 D（三件战斗边界接线）第一件——AI 兽战（S8 子事件 9）的 BattleSystem.executeBattle 生产调用点路由到 C++ 战斗引擎（battle_execution.h）。AI 宗门讨伐妖兽的战斗在 AUTHORITATIVE 下由 C++ 执行，Kotlin 侧保持降级回退契约。
+
+- **生产 JNI 通道**：`GameCoreBridge.cpp` 新增 `nativeBattleExecute`（Combatant JSON → 战斗终态 JSON，消费 BATTLE 分区委托 RNG——与 Kotlin 委托式 RNG 同一真相源，序列天然一致）+ Kotlin `GameCoreBridge.nativeBattleExecute`
+- **双桥共享编解码**：`gamecore/system/battle_json.h`（Combatant/CombatSkill/CombatBuff JSON 双向编解码从桌面对拍桥提取——桌面对拍桥与 Android 生产桥复用，防双份实现漂移）
+- **Kotlin 路由层**：`BattleExecutionRouter`——AUTHORITATIVE + native 已加载 → C++ 执行并重建 BattleSystemResult（终态 battle/winner/rewards + log 终态重建）；降级契约：flag 关 / native 不可用 / 失败信封 → 回退 Kotlin 原实现
+- **调用点改造**：AISectBeastAttackProcessor 三处（AI vs AI PvP / 胜者 vs 妖兽 / 单 AI vs 妖兽）接入路由
+- **验证**：engine JUnit 2974/2974（+4 路由守卫：OFF 回退 / 未加载回退 / JSON 往返无损 / 协议键对齐）· NDK externalNativeBuildRelease 通过 · detekt 全绿 · compileReleaseKotlin 通过；战斗执行等价性由 DiffBattleExecutionTest 逐位守护
+- **兼容性**：纯接线改造（生产路径行为等价——C++ 引擎与 Kotlin 逐位一致经对拍确认）；玩家可见行为不变；未消费回放日志的 AI 兽战路径 log 终态重建，message 保持 Kotlin 调用方层
+
+### 新增（战斗批次 C：executeBattle 回合编排全量下沉 C++——BattleSystem 编排核心等价移植）
+
+> 承接战斗批次 B（cpp-engine.md §7.5）：executeBattle 四批次切分的批次 C——战斗回合编排全链（速度序行动/技能执行/伤害应用/冷却治疗/拉条控制/DoT/胜负判定）等价移植 C++，为批次 D（三件战斗边界接线）铺路。生产战斗仍在 Kotlin（BattleSystem.executeBattle 未动，C++ 侧经对拍守护）。
+
+- **C++ 等价移植**：`gamecore/system/battle_execution.h`——回合主循环（超时检查/胜负判定/奖励）+ 单回合（按速度稳定降序行动 + DoT 结算）+ 单参战者行动全链（控制效果/沉默/技能决策/普攻·支援·AOE·单体四分支/伤害应用（护盾吸收·伤害链接·伤害分摊·debuff）/冷却写回/治疗与团队 Buff/拉条立即行动）+ BattleDamageApplier（护盾余量按 value 匹配写回）+ 批次 B 补项 calcSelectSkill/calcSelectTarget（拉条旧版决策入口）
+- **RNG 消费序逐位对齐**：决策层短路消费 + 计算管线 3 抽（闪避/暴击/波动）+ 随机选友方/拉条目标 nextInt——整场战斗消费序跨语言逐位一致
+- **验证**：GTest 659/659（+7：基础战斗黄金序列（seed42 4 回合全灭 + 终态 hp 固化）/压制胜利/打满回合 DRAW 边界/确定性重放/RNG 审计）· **DiffBattleExecutionTest 新建对拍**（8 场景：基础战斗/治疗团队Buff/控制沉默/AOE护盾/拉条/链接分摊/全灭奖励/伤害倍率——turn/winner/rewards + 逐 Combatant hp/mp/buffs/技能冷却逐位一致）· engine JUnit 2970/2970（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：纯新增 C++ 侧实现 + 对拍通道，生产战斗仍在 Kotlin（BattleSystem.executeBattle 未动）；玩家可见行为不变
+
+### 新增（战斗批次 B：统一战斗 AI 决策层全量下沉 C++——BattleAI 等价移植）
+
+> 承接战斗批次 A（cpp-engine.md §7.5）：executeBattle 四批次切分的批次 B——所有单位（玩家弟子/AI 弟子/妖兽/任务敌人）共享的统一战斗 AI 决策逻辑（8 层级联优先级 + 概率衰减）等价移植 C++，为批次 C（回合编排）铺路。生产战斗仍在 Kotlin（BattleSystem.executeBattle 未动）。
+
+- **C++ 等价移植**：`gamecore/system/battle_ai.h`——AIActionType（10 枚举）/AIAction（skill + targetId）+ decideAction 主决策（Tier1 被控检查 → Tier2 保命 → Tier3 斩杀 → Tier4 支援盟友 → Tier5 团队 Buff → Tier6 控制 → Tier7 AOE → Tier8-10 攻击决策：省蓝/最优单体/普攻兜底）+ selectAttackTarget（低血量/高威胁/低防御三概率分支）+ selectSupportTarget + 私有辅助（保命技能挑选/斩杀判定/盟友支援/团队 Buff 机会/控制技能挑选）
+- **RNG 消费序逐位对齐**：短路求值同 Kotlin `&&`（保命仅血量阈值内消费、斩杀/支援/团队Buff/控制无条件消费、AOE 仅 3+ 敌人消费），决策终态快照跨语言逐位一致
+- **验证**：GTest 652/652（+15：9 黄金序列含 RNG 消费次数快照锁定 + 被控/沉默零消费与兜底 + 确定性重放 + 15 种子目标选择分支全覆盖）· **DiffBattleAITest 新建对拍**（15 场景覆盖全部决策层级分支——actionType/skillName/targetId + RNG 决策终态快照逐位一致）· engine JUnit 2962/2962（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：纯新增 C++ 侧实现 + 对拍通道，生产战斗仍在 Kotlin（BattleSystem.executeBattle 未动）；玩家可见行为不变
+
 ### 新增（战斗批次 A：战斗计算管线全量下沉 C++——BattleCalculator 计算管线等价移植）
 
 > 承接 executeBattle 全流程评估（cpp-engine.md §7.5，2026-08-30）：战斗 C++ 化按 A→D 四批次推进，本批完成批次 A（计算管线）——AI 兽战/任务完成/玩家战斗 100% 共用 executeBattle，计算管线是后续决策层/回合编排/战斗边界接线的前置。
@@ -358,6 +408,20 @@
 - **验证** — 全量 `compileReleaseKotlin` + `testReleaseUnitTest --max-workers=1` 全绿；真机验证清单：真我 neo7 turbo 创建宗门/改名/兑换码/出售数量（logcat `ImeGuard` 振荡日志归零、无新崩溃、`filesDir/crash_logs/` 无新记录、Bugly 无新崩溃）
 - **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；硬件加速设备 `applyImePadding` 条件数学恒等、零行为变化；软件渲染设备从有问题的 imePadding 组合切换为已验证的 ADJUST_PAN 单一避让；不改变 VulkanPolicy 本身（MTK 软件渲染策略不动，避免放宽风险）；`iOS` 标签：仅 Android 窗口层交互，无对等机制，不构成迁移障碍
 - **升级路径（已登记技术债）** — 若任一硬件加速设备实报键盘振荡复现（提供机型 + 复现步骤）→ 升级为全局统一 ADJUST_PAN 单一避让（废除 Activity 层 imePadding 路径）；修复后真机仍有闪退 → 按 Bugly 堆栈独立定位（native crash vs LMK）；自绘输入（GameTextInput 式）登记至 `docs/platform-abilities.md` G 系列缺口，iOS/Compose Multiplatform 评估时重估
+
+### 修复（键盘反复弹出/闪屏根治——IME 状态机统一收敛，第六根因）
+
+> 背景：第四根因（4.01.09）/第五根因（4.01.15）修复后用户实测仍有机型复现"键盘反复弹出、闪屏"。双份行业调研落盘归档（`docs/ime-keyboard-industry-research.md` 31 条来源 + `docs/ime-android-system-research.md` 27 条来源，S/A 级合计 41 条）定位：五轮补丁全部在症状层（位移/隐藏/冻结/双路径），根因是 **IME insets 状态分叉**（键盘动画取消 `PHASE_CLIENT_ANIMATION_CANCEL` 后陈旧 insets 被重放——Flutter 官方 P1 #191156/#191228 根因级证据）与**启发式依赖**（350ms 固定延时猜动画时长、800ms 聚焦重试猜信号不稳、ADJUST_PAN 绕开而非消费 insets、冻结计数猜窗口/键盘关系）。机制缠绕，换 ROM/机型即以新组合复发；且**与语言无关**（机制全在 Android 窗口系统层，C++ 迁移不解决也不恶化）。
+
+- **根因（第六根因）** — ① **多 insets 来源状态分叉**：Activity/Dialog 各持一份 insets/焦点状态，陈旧值重放导致布局反复跳动；② **同控制器对抗**：`hide(systemBars)` 与 IME 同 `InsetsController`（系统日志实证被路由成 `hide(ime())`）；③ **启发式不可靠**：固定延时在动画 >350ms 的 ROM（小米 HyperOS Vol-198 官方修复记录 2025-05）上过早恢复与残余动画对抗；④ **bottom>0 可见性误判**：键盘隐藏/动画期 bottom 仍非零，误判是"界面反复下拉"头号来源（官方 M6）
+- **根治（行业范式落地，替代前五轮补丁机制）** —
+  - **单一 insets 真相源**：全窗口统一 `ADJUST_RESIZE`（API 30+ = insets 派发兼容模式）+ `decorFitsSystemWindows=false`；Dialog 窗口显式进入 insets 管线（M5：收不到 insets 是 Compose 默认配置产物，非平台定律）；**删除** `shouldUsePanAvoidance`/`PanAvoidanceGuard`/`hardwareAccelerated` 渲染模式分支与软件渲染切 ADJUST_PAN 路径（ADJUST_PAN 降级 API<30/ROM 特例兜底）
+  - **一个 IME 状态机**（core/ui 新增 `ImeStateMachine`）：聚合键盘可见性（**`isVisible(ime)` 为唯一真值**，`ImeVisibilityTracker` 判定修正）、键盘动画状态（新增 `ImeAnimationTracker`，`WindowInsetsAnimationCompat` onEnd/onCancel 驱动）、输入对话框冻结（`SystemBarFreezeScope` 新增**泄漏自愈**：冻结超时 10 分钟强制归零）；`SystemBarHidePolicy` 收敛读状态机；恢复链路改**动画回调驱动**（350ms 仅兜底，替代固定延时主路径）
+  - **事件驱动避让**：平台 Dialog 窗口内容区挂新增 `ImeAwareContainer`（键盘可见性翻转 → 内容一次性上移，动画驱动，非每帧 insets 响应）；Activity 层 `InlineStandardPromptDialog` 统一官方 `imePadding` 组合；自动聚焦重试改**动画空闲期重试 + isVisible 终止**（防动画取消耦合）
+  - **数字输入自绘**：新增 `NumberInputPanel`（自绘数字键盘 0-9/退格/清空/确定），`QuantitySelector` 点击数字弹面板替代系统键盘；`AutoManagementDialog` 阈值 / `PatrolTowerDialog` 妖兽数量 / `PlantingDialog` 种植数量收敛接入——**6 个数量输入场景彻底绕开系统 IME**（行业主流"自绘 UI + 事件流"范式：微信 `wx.showKeyboard`/抖音/小米快游戏官方 API 同款）
+- **测试** — 新增 `ImeStateMachineTest`（聚合判定/恢复放行/动画冻结/原因）、`ImeAwareContainerTest`（零位移/键盘可见上移/收起恢复）、`NumberInputPanelTest`（按键/退格/清空/钳制/兜底/取消）；更新 `ImeVisibilityTrackerTest`（isVisible 真值 + lastImeBottomPx）、`SystemBarFreezeScopeTest`（泄漏自愈 3 用例）、`SystemBarHidePolicyTest`（动画中跳过）、`QuantitySelectorFlowTest`（自绘面板交互）、`SectTradeQuantitySelectorTest`（显示框 testTag）
+- **验证** — 全量 `compileReleaseKotlin` + `testReleaseUnitTest --max-workers=1` 全绿 + `lintRelease`；真机验证矩阵（待用户实测反馈闭环）：历史复现机型（小米15/红米K70/荣耀 X70/荣耀500 Pro/荣耀200 Pro/荣耀 GT/真我 neo7 turbo）+ OPPO/vivo/华为/一加/iQOO/三星/魅族 × Android 11–16 × HW/SW 渲染，7 个输入场景键盘弹出/收起各 1 次、无反复、无闪屏、无下拉；logcat `ImeGuard` 振荡日志归零、`filesDir/crash_logs/` 无新记录、Bugly 无新崩溃
+- **兼容性** — 无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；无输入框对话框（80+ 处）行为零变化（`freezeSystemBars` 签名不变，调用点零改动）；数字输入从系统键盘变为自绘面板为**有意交互升级**（步进器保留，玩家向 changelog 说明）；`iOS` 标签：`ImeStateMachine`/`ImeAwareContainer`/`NumberInputPanel` 均为纯 Compose/平台无关设计，iOS 直接复用，文本输入 iOS 对等用 UITextInput（compose-multiplatform-evaluation.md 判据第 2 条）
 
 ## [4.01.09] - 2026-08-23
 

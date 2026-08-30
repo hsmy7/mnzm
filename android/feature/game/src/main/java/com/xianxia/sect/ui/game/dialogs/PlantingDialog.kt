@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,9 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -44,6 +40,7 @@ import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.core.util.watchKey
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.NumberInputPanel
 import com.xianxia.sect.ui.game.components.QuantitySelector
 import com.xianxia.sect.ui.game.components.QuantitySelectorSizes
 import com.xianxia.sect.ui.theme.GameColors
@@ -677,31 +674,44 @@ private fun PlantingQuantityControl(
                 state.qtyInput = state.plantQuantity.toString()
             }
         )
-        // 数量显示 — 始终可见的输入框
+        // 数量显示 — 点击弹出自绘数字面板（NumberInputPanel，2026-09 IME 状态机
+        // 根治：数量输入绕开系统 IME，见 QuantitySelector 同款交互）
         val displayText = state.qtyInput.ifEmpty { state.plantQuantity.toString() }
-        BasicTextField(
-            value = displayText,
-            onValueChange = { newValue ->
-                val filtered = newValue.filter { it.isDigit() }
-                val num = filtered.toIntOrNull()
-                state.qtyInput = if (num != null) {
-                    num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1)).toString()
-                } else {
-                    filtered
-                }
-                if (num != null) state.plantQuantity = num.coerceIn(1, derived.maxPlantable.coerceAtLeast(1))
-            },
-            modifier = Modifier.width(40.dp)
+        var showQuantityPanel by remember { mutableStateOf(false) }
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(Color.White, RoundedCornerShape(4.dp))
                 .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                .clickableWithSound(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showQuantityPanel = true }
+                )
                 .padding(horizontal = 4.dp, vertical = 2.dp),
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = Color.Black, textAlign = TextAlign.Center
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-        )
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = displayText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = Color.Black
+            )
+        }
+        if (showQuantityPanel) {
+            NumberInputPanel(
+                initialValue = state.plantQuantity,
+                maxQuantity = derived.maxPlantable.coerceAtLeast(1),
+                onConfirm = { value ->
+                    state.plantQuantity = value
+                    state.qtyInput = value.toString()
+                    showQuantityPanel = false
+                },
+                onDismiss = { showQuantityPanel = false }
+            )
+        }
         PlantingStepText(
             text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold,
             enabled = state.plantQuantity < derived.maxPlantable,

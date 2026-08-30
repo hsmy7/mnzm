@@ -55,6 +55,8 @@ import com.xianxia.sect.ui.ComplianceDialogState
 import com.xianxia.sect.ui.ComplianceLimitDialogs
 import com.xianxia.sect.ui.MainActivity
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.ImeAnimationTracker
+import com.xianxia.sect.ui.components.ImeStateMachine
 import com.xianxia.sect.ui.components.ImeVisibilityTracker
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.SystemBarFreezeScope
@@ -99,14 +101,24 @@ class GameActivity : ComponentActivity() {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     /**
-     * 输入对话框销毁解冻后恢复系统栏隐藏（荣耀X70键盘频闪根治）。
-     * 延迟执行：等待键盘收起动画结束（Dialog 窗口销毁后 IME 状态落定），
-     * 执行前再次经 SystemBarHidePolicy 双守卫校验（荣耀GT系列键盘频闪根治）。
+     * 输入对话框销毁解冻 / 键盘动画结束后恢复系统栏隐藏（2026-09 IME 状态机根治）。
+     *
+     * 触发源：① [SystemBarFreezeScope] 解冻监听器；② [ImeAnimationTracker] 键盘动画
+     * onEnd 回调。执行语义：
+     * - 立即复查：键盘不可见且无动画且未冻结 → 直接恢复隐藏（替代历史固定 350ms 主路径，
+     *   docs/ime-android-system-research.md §2.3：ROM 键盘动画时长差异大，固定延时在
+     *   动画 >350ms 的 ROM 上过早恢复会与残余动画对抗）
+     * - 350ms 延时仅作"回调未触发/状态未落定"兜底，执行前再经
+     *   [SystemBarHidePolicy] 双守卫校验（isVisible 真值 + 动画状态）
      */
     private val systemBarRestoreListener: () -> Unit = {
-        mainHandler.postDelayed({
-            if (!SystemBarHidePolicy.shouldSkipHide()) hideSystemBars()
-        }, SYSTEM_BAR_RESTORE_DELAY_MS)
+        if (ImeStateMachine.canRestoreSystemBars() && !SystemBarFreezeScope.isFrozen) {
+            hideSystemBars()
+        } else {
+            mainHandler.postDelayed({
+                if (!SystemBarHidePolicy.shouldSkipHide()) hideSystemBars()
+            }, SYSTEM_BAR_RESTORE_DELAY_MS)
+        }
     }
 
     private val viewModel: GameViewModel by viewModels()
@@ -592,7 +604,11 @@ class GameActivity : ComponentActivity() {
         enableEdgeToEdge()
         // 键盘可见性跟踪 + 输入对话框解冻恢复（荣耀X70键盘频闪根治）
         ImeVisibilityTracker.attach(window)
+        // 键盘显隐动画跟踪（2026-09 IME 状态机根治：动画期系统栏零切换 +
+        // 动画结束回调驱动系统栏恢复）
+        ImeAnimationTracker.attach(window)
         SystemBarFreezeScope.addOnUnfreezeListener(systemBarRestoreListener)
+        ImeAnimationTracker.addOnAnimationEndedListener(systemBarRestoreListener)
         hideSystemBars()
     }
 
@@ -892,6 +908,10 @@ class GameActivity : ComponentActivity() {
 
     override fun onDestroy() {
         SystemBarFreezeScope.removeOnUnfreezeListener(systemBarRestoreListener)
+        // 2026-09：注销动画结束监听 + 解除 IME 窗口跟踪（detach 对称防全局状态残留）
+        ImeAnimationTracker.removeOnAnimationEndedListener(systemBarRestoreListener)
+        ImeAnimationTracker.detach(window)
+        ImeVisibilityTracker.detach(window)
         mainHandler.removeCallbacksAndMessages(null)
         actionModeTracker?.finishActiveActionMode()
         actionModeTracker = null

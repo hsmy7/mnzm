@@ -553,33 +553,21 @@ class StandardPromptDialogTest {
         assertFalse("销毁后应解冻", SystemBarFreezeScope.isFrozen)
     }
 
-    // ── 渲染模式感知双路径（2026-08 第五根因键盘振荡 + 闪退根治）──
-    // 软件渲染设备（真我 neo7 turbo：MTK 被强制关闭 HW 加速）上 Android 15
-    // edge-to-edge 的 IME insets 派发时序不稳定，Activity 层 adjustResize +
-    // imePadding 双重位移反复触发键盘振荡；切换为单一 ADJUST_PAN 避让。
-    // shouldUsePanAvoidance 为纯函数（参数注入），Robolectric 直接覆盖四组合。
+    // ── 统一 insets 管线（2026-09 IME 状态机根治）──
+    // 全窗口统一 ADJUST_RESIZE + imePadding（Activity 层）/ ImeAwareContainer（Dialog 层），
+    // 删除历史"渲染模式感知双路径"（shouldUsePanAvoidance/PanAvoidanceGuard）。
+    // 下述用例验证统一后无渲染模式分支：InlineStandardPromptDialog 无条件走 imePadding
+    // 官方标准组合；平台 Dialog 内容区无条件挂 ImeAwareContainer。
 
     @Test
-    fun `shouldUsePanAvoidance - 平台 Dialog 窗口内恒 false`() {
-        assertFalse(
-            "Dialog 窗口内（外层已有 ADJUST_PAN）不应叠加",
-            shouldUsePanAvoidance(insideDialogWindow = true, hardwareAccelerated = false)
-        )
-        assertFalse(
-            "Dialog 窗口内与渲染模式无关",
-            shouldUsePanAvoidance(insideDialogWindow = true, hardwareAccelerated = true)
-        )
-    }
-
-    @Test
-    fun `shouldUsePanAvoidance - Activity 层软件渲染 true 硬件加速 false`() {
-        assertTrue(
-            "软件渲染 Activity 层应切 ADJUST_PAN 单一避让（第五根因根治）",
-            shouldUsePanAvoidance(insideDialogWindow = false, hardwareAccelerated = false)
-        )
-        assertFalse(
-            "硬件加速 Activity 层保持 adjustResize + imePadding 官方标准组合",
-            shouldUsePanAvoidance(insideDialogWindow = false, hardwareAccelerated = true)
-        )
+    fun `平台 Dialog 内容区挂 ImeAwareContainer - 无输入框时零位移`() {
+        composeRule.setContent {
+            ImeAwareContainer {
+                Text("对话框内容")
+            }
+        }
+        composeRule.waitForIdle()
+        // 键盘不可见 → offset 恒 0，无行为变化
+        composeRule.onNodeWithText("对话框内容").assertIsDisplayed()
     }
 }

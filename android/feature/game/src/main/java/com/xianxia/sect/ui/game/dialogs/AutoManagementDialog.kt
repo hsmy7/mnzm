@@ -2,7 +2,9 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,8 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,10 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,8 +34,13 @@ import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
+import com.xianxia.sect.ui.game.components.NumberInputPanel
+
+/** 自动分配属性门槛上限（阈值输入钳制目标） */
+private const val AUTO_ASSIGN_THRESHOLD_MAX = 999
 
 /** 自动分配单项状态（AutoManagementDialog 拆分） */
 private class AutoAssignSectionState(
@@ -262,43 +266,52 @@ private fun AutoAssignCheckRow(
     }
 }
 
-/** 属性门槛输入行（AutoAssignSection 拆分） */
+/**
+ * 属性门槛输入行（AutoAssignSection 拆分）：点击阈值框弹出自绘数字面板
+ * （NumberInputPanel，2026-09 IME 状态机根治：数字输入绕开系统 IME）。
+ */
 @Composable
 private fun AutoAssignThresholdField(
     attrLabel: String,
     threshold: String,
     onThresholdChange: (String) -> Unit
 ) {
+    var showPanel by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text = attrLabel, fontSize = 12.sp, color = Color.Black)
         Spacer(modifier = Modifier.width(4.dp))
-        BasicTextField(
-            value = threshold,
-            onValueChange = { v ->
-                val filtered = v.filter { it.isDigit() }
-                val num = filtered.toIntOrNull()
-                onThresholdChange(
-                    when {
-                        num == null -> {
-                            // 溢出或空输入时保留当前值不变
-                            threshold
-                        }
-                        num < 1 -> "1"
-                        num > 999 -> "999"
-                        else -> num.toString()
-                    }
-                )
-            },
-            modifier = Modifier.width(40.dp)
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(Color.White, RoundedCornerShape(4.dp))
                 .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                .clickableWithSound(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { showPanel = true }
+                )
                 .padding(horizontal = 4.dp, vertical = 2.dp),
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                color = Color.Black, textAlign = TextAlign.Center
-            ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = threshold,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = Color.Black
+            )
+        }
+    }
+    if (showPanel) {
+        NumberInputPanel(
+            initialValue = threshold.toIntOrNull()?.coerceIn(1, AUTO_ASSIGN_THRESHOLD_MAX) ?: 1,
+            maxQuantity = AUTO_ASSIGN_THRESHOLD_MAX,
+            onConfirm = { value ->
+                onThresholdChange(value.toString())
+                showPanel = false
+            },
+            onDismiss = { showPanel = false }
         )
     }
 }

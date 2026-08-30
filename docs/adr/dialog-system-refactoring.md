@@ -46,3 +46,13 @@
 - `InlineStandardPromptDialog` 渲染于平台 Dialog 窗口内（`isInsideDialogWindow`）且 `freezeSystemBars=true` 时自动冻结外层窗口（嵌套传导，仓库出售场景，调用方无需传参）；`UnifiedGameDialog`/`StandardPromptDialog`/`SmallScreenDialog` 接入 effect（后两者新增 `freezeSystemBars: Boolean = false` 参数）
 - `ImeVisibilityTracker` 检测双信号（`isVisible(ime) || bottom > 0`）；`rememberImeAwareAutoFocusRequester` 重试前焦点守卫（已有文本输入焦点不再重复 requestFocus）
 - 机制规则见 `rules/dialog-soft-input-guard.md`（第四根因防御法则）；行业对标：主流游戏/引擎（UE/Unity/Google AGDK GameTextInput）均采用"输入时系统栏可见（退出沉浸）→ 系统键盘 → 输入完成恢复沉浸"，本方案即该做法的工程化落地，C++ 化不能根治（问题机制全在 Android 窗口系统层，与业务语言无关）
+
+## 更正记录（2026-09）：第六根因——单一 insets 真相源 + IME 状态机 + 数字输入自绘
+
+**回归/盲区**：第五根因（4.01.15）修复后用户实测仍有机型复现"键盘反复弹出、闪屏"。双份行业调研（`docs/ime-keyboard-industry-research.md` / `docs/ime-android-system-research.md`）结论：五轮补丁全部在症状层（位移/隐藏/冻结/双路径），根因是 **IME insets 状态分叉**（键盘动画取消后陈旧 insets 被重放，Flutter P1 #191156/#191228 根因级证据）与**启发式依赖**（350ms 固定延时猜动画时长、800ms 重试猜信号不稳、ADJUST_PAN 绕开而非消费 insets、冻结计数猜窗口/键盘关系）——机制缠绕，换 ROM/机型即以新组合复发。
+
+**根治（2026-09）**：统一为行业范式——单一 insets 真相源 + 一个 IME 状态机 + 动画期系统栏零切换 + 事件驱动（禁 debounce）：
+- 全窗口统一 `ADJUST_RESIZE`（API 30+ = insets 派发兼容模式）+ `decorFitsSystemWindows=false`；Dialog 窗口显式进入 insets 管线（M5：Dialog 收不到 insets 是 Compose 默认配置产物，非平台定律）；**删除** `shouldUsePanAvoidance`/`PanAvoidanceGuard`/`hardwareAccelerated` 渲染模式分支与软件渲染切 ADJUST_PAN 路径；ADJUST_PAN 降级 API<30/ROM 特例兜底
+- 新建 `ImeStateMachine`（统一判定：键盘可见 `isVisible(ime)` 真值 + 动画状态 `ImeAnimationTracker` + 冻结自愈 `SystemBarFreezeScope`）+ `ImeAwareContainer`（Dialog 层事件驱动避让）+ `NumberInputPanel`（数字输入自绘，绕开系统 IME，6 个数量场景接入）；`ImeVisibilityTracker` 判定改 isVisible 优先；恢复链路改动画回调驱动（350ms 仅兜底）
+- 行业对标：微信小游戏/抖音/小米快游戏官方 API 全部"自绘 UI + 键盘事件流"；Unity 6 软键盘默认实现即 GameTextInput；"系统 pan + 引擎 padding"双位移无任何行业先例
+- 机制规则见 `rules/dialog-soft-input-guard.md`（第六根因章节，替代双机制表格）

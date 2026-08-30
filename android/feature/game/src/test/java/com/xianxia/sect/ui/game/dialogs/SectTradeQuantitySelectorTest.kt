@@ -4,9 +4,9 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import com.xianxia.sect.core.model.GameData
@@ -98,10 +98,11 @@ class SectTradeQuantitySelectorTest {
         composeRule.waitForIdle()
 
         // 库存仅 5：+10 步进被钳制到 5（与旧实现 coerceAtMost(item.quantity) 语义一致）。
-        // 商品卡片角标同样显示 "5"，故用带 SetText 语义的输入框节点精确定位数量文本
+        // 2026-09 自绘面板重构后无 SetText 输入框，用显示框 testTag 定位数量文本
+        // （合并树：clickable Box merge 子 Text 语义）
         composeRule.onNodeWithText("+10").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
-        composeRule.onNode(hasText("5") and hasSetTextAction()).assertIsDisplayed()
+        composeRule.onNodeWithTag("quantity_display").assertTextEquals("5")
 
         // 已达上限：+10 与 + 步进按钮禁用
         composeRule.onNodeWithText("+10").assertIsNotEnabled()
