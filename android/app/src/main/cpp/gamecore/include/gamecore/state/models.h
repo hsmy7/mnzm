@@ -631,6 +631,8 @@ struct GridBuildingData {
 struct MerchantItem {
     std::string id;
     std::string name;
+    std::string type;             // equipment/manual/pill/material/herb/seed/spiritstone
+                                  //（批 11-3 补齐——Kotlin @ProtoNumber(3)）
     std::string itemId;
     int32_t rarity = 0;
     int64_t price = 0;
@@ -638,6 +640,16 @@ struct MerchantItem {
     std::string description;
     int32_t obtainedYear = 0;
     int32_t obtainedMonth = 0;
+    std::optional<std::string> grade;   // String?（批 11-3 补齐——Kotlin @ProtoNumber(11)；
+                                        // 丹药品质 displayName，null=中品）
+};
+
+/// AutoBuyEntry（自动购买条目——Kotlin AutoBuyEntry；批 11-3 补齐，
+/// 唯一键 "$itemName:$itemType:$rarity" 去重匹配）
+struct AutoBuyEntry {
+    std::string itemName;
+    std::string itemType;
+    int32_t rarity = 0;
 };
 
 /// Alliance（结盟关系）
@@ -1178,6 +1190,7 @@ struct GameData {
     std::vector<MerchantItem> travelingMerchantItems;
     std::vector<MerchantItem> playerListedItems;
     std::vector<MerchantItem> merchantAcquisitionItems;
+    std::vector<AutoBuyEntry> autoBuyList;   // 批 11-3：自动购买条目（Kotlin EconomicState）
     std::vector<Disciple> recruitList;
     std::vector<WorldLevel> worldLevels;
     ElderSlots elderSlots;
@@ -1229,6 +1242,12 @@ namespace gamecore::state {
 struct GameState {
     GameData gameData;
     DiscipleStore disciples;                    // SoA 列式存储（计划 v2 阶段 3）
+    // 招募惰性门（Kotlin RecruitService.RecruitLazyState.autoRecruitIdle 等价）：
+    // 纯内存运行态，不进 JSON 协议（json_codec 不导出/导入），读档即 false；
+    // 重置点（年度招募列表刷新/玩家改筛选/生育/净化）在 Kotlin 侧（月变真相源
+    // 切换前），C++ 侧仅月结子事件内部置 true——跨层同步随月变真相源切换批接线
+    //（S-16 登记）。Diff 对拍须双侧显式复位。
+    bool autoRecruitIdle = false;
     // 批 10-4：AI 宗门弟子池（Kotlin GameData.aiSectDisciples 为 @Transient
     // 重型数据——不进存档序列化，故快照协议置于顶层，与 Kotlin
     // NativeGameState.aiSectDisciples 一一对应；DirtyTracker 仅跟踪 gameData

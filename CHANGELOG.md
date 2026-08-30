@@ -1,5 +1,16 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（月变残留执行器增量 C++ 化批 11-1~11-3：招募/秘境×2/自动购买下沉）
+
+> 承接批 10 系列（cpp-engine.md §7.3）：S8 十六子事件剩余九件中的四件（招募/秘境到期关闭/秘境 AI 派遣/12 月自动购买）完成 C++ 化，按用户指示收窄范围——任务(5)/洞天(6)/AI 兽战(9)/购买(12)/任务刷新(14) 保持未下沉并登记批次（S-16~S-19）。
+
+- **S8 子事件 2 自动招募**：Kotlin `RecruitService.processAutoRecruit` 等价移植 C++（零 RNG）——RecruitIntegrity 三级去重（id/内容/同人签名）与损坏净化、`allocateAndInsert`（id=max+1 + 资质哨兵散列补算 + recruitedMonth）、俘虏装备/功法落库全链（四槽位实例 + 功法去重截断 + HP/MP 增量 + 熟练度注册，消费 equipment_db/manual_db 单一数据源）；惰性门 `autoRecruitIdle` 入 GameState 瞬态字段（S-16 登记：重置点在 Kotlin，月变真相源切换时接线）
+- **S8 子事件 15/16 秘境×2**：`processMonthlyAiTeams` 等价移植（存在性门控/已派去重/境界升序稳定取 4/宗门名与等级回退，零 RNG）+ `processMonthlyExpiryCheck` 可移植状态段（到期判定/背包灵石入钱包/背包清空/会话·秘境·AI 队伍清场/冷却年/SECT 事件）——关闭邮件与 assignmentGate 保留 Kotlin（S-17 登记，邮件草稿通道随月变真相源切换接线）；`recordGameEvent` 移入 settlement_detail.h 共享单一定义
+- **S8 子事件 10 十二月自动购买**：Kotlin `AutoBuyService.executeAutoBuy` 等价移植（零 RNG 主路径）——MerchantItem 协议补齐 `type`/`grade` + `AutoBuyEntry`/`autoBuyList` 入 C++ 快照；MerchantItemConverter 模板路径（六类物品按名查表，单一数据源）+ 未知物品回退分支随机源差异登记（S-18）；容量检查/钱包扣除/入库全链
+- **S-19 登记**：任务域 `MissionSystem.rng` 为 nanoTime 播种非托管 RNG（任务刷新/任务完成内容跨语言不可对拍），任务批次下沉时做分区/固定种子决策
+- **验证**：GTest 603/603（+11：招募 5/秘境 3/自动购买 3，含 SYSTEM 分区快照锁与黄金序列）· **DiffMonthSettlementTest 三场景对拍**（一月主场景含招募、秘境派遣；12 月跨月界 autoBuy——钱包/商人库存/年度支出逐位一致；库存集合与年度 by-source 因 FakeGameStateStore 嵌套事务不回写外层 buffer（S-14 家族）diff 面排除，C++ 侧 GTest 守护）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿
+- **兼容性**：存档/序列化零变更（MerchantItem 新字段宽松编解码，旧 .so 兼容）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ### 新增（月变残留执行器增量 C++ 化批 10-2：S8 月度叛逃检测下沉 + 执法堂辅助函数入 C++）
 
 - **S8 子事件 4 月度叛逃检测**：Kotlin `processLawEnforcementMonthly` 等价移植 C++——从众门控（存活弟子平均忠诚整数除法 < 50）、捕获率三段算式（长老智力阶梯×(1+职务加成) + 执法弟子阶梯 + 增强治安/奖惩政策，clamp [0,1]）、at-risk 行序扫描（存活+非免疫状态+忠诚<阈值+新弟子保护期）、SYSTEM 抽取序（每候选 1 次叛逃概率判定 + 通过后 1 次捕获判定）；捕获思过（remove+末尾重插 REFLECTING + statusData 思过年限 + guideCounters.discipleImprisoned + DESERTION_CAUGHT 事件）；逃脱清理（11 类槽位清理含住所 → 装备/功法实例移除 → 熟练度移除 → 弟子移除 + annualDesertedDisciples + DESERTION 事件）；接线进 processMonthlyEvents 子事件 4 位，月结未下沉子事件 12→11 件

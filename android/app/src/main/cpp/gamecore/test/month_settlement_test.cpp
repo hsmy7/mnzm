@@ -1938,4 +1938,346 @@ TEST(VassalProbe, JsonImportThenMonthlyDrawCount) {
     EXPECT_EQ(sys.snapshot(),
               states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
 }
+
+// ── 子事件 2：自动招募（批 11-1） ─────────────────────────────────
+
+using gamecore::system::recruit_settle::processAutoRecruit;
+
+/// 招募候选弟子（无装备/功法——俘虏落库 no-op；资质缺省 50 触发散列补算）
+Disciple recruitCandidate(const std::string& id, const char* roots) {
+    Disciple d = baseDisciple(id);
+    d.name = "候选" + id;
+    d.age = 16;
+    d.gender = "male";
+    d.spiritRootType = roots;
+    d.currentHp = -1;
+    d.currentMp = -1;
+    return d;
+}
+
+TEST(RecruitAutoRecruit, MonthlyAutoRecruitGolden) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;   // 月变后（与 Diff 对拍场景同相位）
+    st.gameData.autoRecruitSpiritRootFilter = {1};
+    st.gameData.recruitList = {
+        recruitCandidate("r1", "metal"),          // 1 根 → 匹配
+        recruitCandidate("r2", "metal,fire")      // 2 根 → 不匹配保留
+    };
+    st.disciples.appendDisciple(adultDisciple("11", "male"));
+    st.disciples.appendDisciple(adultDisciple("12", "female"));
+
+    processAutoRecruit(st);
+
+    // 匹配候选入宗：id = max+1 = 13；资质 50 → 80 + floorMod(13*527+31, 21)
+    ASSERT_EQ(3u, st.disciples.size());
+    const auto& d = st.disciples.materialize(2);
+    EXPECT_EQ("13", d.id);
+    const int64_t roll = gamecore::system::recruit_settle::floorMod(
+        13LL * 527 + 31, 21);
+    EXPECT_EQ(80 + static_cast<int32_t>(roll), d.aptitude);
+    EXPECT_EQ(14, d.recruitedMonth);   // 1*12 + 2
+    // 不匹配候选保留；recruitCountThisMonth / annualNewDisciples 各 +1
+    ASSERT_EQ(1u, st.gameData.recruitList.size());
+    EXPECT_EQ("r2", st.gameData.recruitList[0].id);
+    EXPECT_EQ(1, st.gameData.recruitCountThisMonth);
+    EXPECT_EQ(1, st.gameData.annualNewDisciples);
+    EXPECT_FALSE(st.autoRecruitIdle);
+    // 零 RNG 抽取（SYSTEM 分区状态不变——不扰动后续子事件抽取序）
+    const auto sys0 = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
+    EXPECT_EQ(sys0.snapshot(), core->rng().exportStates()[
+        static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(RecruitAutoRecruit, LazyGateSkipsAfterNoCandidates) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.autoRecruitSpiritRootFilter = {1};
+    st.gameData.recruitList = {recruitCandidate("r1", "metal,fire")};  // 无匹配
+
+    processAutoRecruit(st);
+    EXPECT_TRUE(st.autoRecruitIdle);      // 无候选 → 惰性置位
+    EXPECT_EQ(0, st.gameData.recruitCountThisMonth);
+    EXPECT_EQ(1u, st.gameData.recruitList.size());
+
+    // 惰性门：后续调用直接跳过（列表不变时与 Kotlin 语义一致）
+    const auto before = st.gameData.recruitList;
+    processAutoRecruit(st);
+    EXPECT_EQ(0, st.gameData.recruitCountThisMonth);
+    EXPECT_EQ(before.size(), st.gameData.recruitList.size());
+}
+
+TEST(RecruitAutoRecruit, MonthlyLimitBlocksRecruit) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.autoRecruitSpiritRootFilter = {1};
+    st.gameData.recruitCountThisMonth = 30;   // GameConfig.RECRUIT_MONTHLY_LIMIT
+    st.gameData.recruitList = {recruitCandidate("r1", "metal")};
+
+    processAutoRecruit(st);
+    EXPECT_EQ(0u, st.disciples.size());
+    EXPECT_EQ(30, st.gameData.recruitCountThisMonth);
+    EXPECT_FALSE(st.autoRecruitIdle);   // 上限早退不置惰性（与 Kotlin 一致）
+}
+
+TEST(RecruitAutoRecruit, CaptiveGearMaterializedToInstances) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.autoRecruitSpiritRootFilter = {1};
+    Disciple captive = recruitCandidate("r1", "metal");
+    captive.weaponId = "ironSword";                 // 装备模板（equipment_db 存在）
+    captive.manualIds = {"common_phys_single_1"};   // 功法模板（manual_db 存在）
+    captive.manualMasteries = {{"common_phys_single_1", 5000}};
+    st.gameData.recruitList = {captive};
+    st.disciples.appendDisciple(adultDisciple("11", "male"));
+    st.disciples.appendDisciple(adultDisciple("12", "female"));
+
+    processAutoRecruit(st);
+
+    // 装备实例落库 + 槽位列回写（实例 id 确定性自增）
+    ASSERT_EQ(1u, st.equipmentInstances.size());
+    EXPECT_EQ("精铁剑", st.equipmentInstances[0].name);   // ironSword 模板显示名
+    EXPECT_EQ("gc-inst-1", st.equipmentInstances[0].id);
+    EXPECT_EQ(true, st.equipmentInstances[0].isEquipped);
+    ASSERT_EQ(3u, st.disciples.size());
+    const auto& d = st.disciples.materialize(2);
+    EXPECT_EQ(st.equipmentInstances[0].id, d.weaponId);
+    // 功法实例 + 熟练度注册 + HP/MP 增量（common_phys_single_1 无 hp/mp 增益）
+    ASSERT_EQ(1u, st.manualInstances.size());
+    EXPECT_EQ("青冥剑诀", st.manualInstances[0].name);
+    EXPECT_EQ(true, st.manualInstances[0].isLearned);
+    EXPECT_EQ(st.manualInstances[0].id, d.manualIds[0]);
+    ASSERT_EQ(1u, st.gameData.manualProficiencies.size());
+    const auto& prof = st.gameData.manualProficiencies.at("13")[0];
+    EXPECT_EQ(5000.0, prof.proficiency);
+    EXPECT_EQ(1, prof.masteryLevel);   // 5000 ∈ [1000, 10000) → SMALL_SUCCESS
+    EXPECT_EQ(st.manualInstances[0].id, prof.manualId);
+    EXPECT_EQ(5000, d.manualMasteries.at(st.manualInstances[0].id));  // 值保持，键重映射
+}
+
+TEST(RecruitAutoRecruit, DedupeCorruptedRecruitsBeforeFilter) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.autoRecruitSpiritRootFilter = {1};
+    // 损坏条目（空名）先于正常条目且同 id——净化必须丢弃损坏者而非正常者
+    Disciple corrupted = recruitCandidate("r1", "metal");
+    corrupted.name = "   ";
+    st.gameData.recruitList = {
+        corrupted,
+        recruitCandidate("r1", "metal"),           // 同 id 正常条目
+        recruitCandidate("r1", "metal,fire"),      // 同 id 不同内容（id 去重保留首个）
+        recruitCandidate("r2", "metal,fire")       // 不匹配保留
+    };
+    st.disciples.appendDisciple(adultDisciple("11", "male"));
+    st.disciples.appendDisciple(adultDisciple("12", "female"));
+
+    processAutoRecruit(st);
+
+    // 损坏条目随列表重建移除；r1 正常条目入宗；r2 保留
+    ASSERT_EQ(1u, st.gameData.recruitList.size());
+    EXPECT_EQ("r2", st.gameData.recruitList[0].id);
+    ASSERT_EQ(3u, st.disciples.size());
+    EXPECT_EQ("13", st.disciples.idAt(2));
+    EXPECT_EQ(1, st.gameData.recruitCountThisMonth);
+}
+
+// ── 子事件 15/16：秘境到期关闭 + AI 队伍派遣（批 11-2） ─────────────
+
+using gamecore::system::secret_realm_settle::processMonthlyAiTeams;
+using gamecore::system::secret_realm_settle::processMonthlyExpiryCheck;
+
+TEST(SecretRealmSettlement, AiTeamsDispatchIdempotent) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.secretRealmState.id = "sr1";
+    st.gameData.secretRealmState.spawnYear = 1;   // 未到期 → 不触发关闭
+    // AI 宗门弟子（两宗，键升序遍历 ai-1 < ai-2；ai-2 含已故弟子）
+    state::Disciple a1 = baseDisciple("90");
+    a1.name = "玄一"; a1.realm = 9; a1.portraitRes = "p1";
+    state::Disciple a2 = baseDisciple("91");
+    a2.name = "玄二"; a2.realm = 5; a2.portraitRes = "p2";
+    state::Disciple dead = baseDisciple("92");
+    dead.name = "亡者"; dead.isAlive = false;
+    st.aiSectDisciples["ai-1"] = {a2, a1};       // 存活 2 → 按境界升序取 4
+    st.aiSectDisciples["ai-2"] = {dead};         // 无存活 → 不派遣
+    gamecore::state::WorldSect ws;
+    ws.id = "ai-1"; ws.name = "万剑宗"; ws.isKnown = true;
+    ws.x = 100.0f; ws.y = 100.0f;
+    st.gameData.worldMapSects.push_back(ws);
+
+    processMonthlyAiTeams(st);
+
+    ASSERT_EQ(1u, st.gameData.secretRealmAITeams.size());
+    const auto& team = st.gameData.secretRealmAITeams[0];
+    EXPECT_EQ("ai-1", team.sectId);
+    EXPECT_EQ("万剑宗", team.sectName);
+    EXPECT_EQ(0, team.sectLevel);
+    ASSERT_EQ(2u, team.members.size());
+    EXPECT_EQ("91", team.members[0].discipleId);   // 境界 5 在前（sortedBy 稳定）
+    EXPECT_EQ("90", team.members[1].discipleId);
+    EXPECT_EQ("gc-sr-team-1", team.id);
+
+    // 幂等：再次调用不重复派遣
+    processMonthlyAiTeams(st);
+    ASSERT_EQ(1u, st.gameData.secretRealmAITeams.size());
+}
+
+TEST(SecretRealmSettlement, ExpiryCheckClosesRealmStateSegment) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.spiritStones = 1000;
+    st.gameData.secretRealmState.id = "sr1";
+    st.gameData.secretRealmState.spawnYear = -49;   // 1 < -49+50=1 不成立 → 到期
+    st.gameData.secretRealmSession.secretRealmId = "sr1";
+    state::SecretRealmMemberState member;
+    member.discipleId = "11";
+    member.name = "甲";
+    st.gameData.secretRealmSession.members.push_back(member);
+    st.gameData.secretRealmSession.backpack.spiritStones = 500;
+    state::EquipmentStack eq;
+    eq.name = "木剑"; eq.rarity = 1; eq.quantity = 2;
+    st.gameData.secretRealmSession.backpack.equipment.push_back(eq);
+    st.gameData.secretRealmAITeams.push_back(
+        gamecore::state::SecretRealmAITeam{"t1", "ai-1", "万剑宗", {}, 1});
+
+    processMonthlyExpiryCheck(st, 1);
+
+    // 灵石入钱包（LOW/SecretRealm）+ 背包清空 + 会话/秘境/AI 队伍清场 + 冷却年
+    EXPECT_EQ(1500LL, st.gameData.spiritStones);
+    EXPECT_EQ(500LL, st.gameData.annualIncomeBySource.at("SecretRealm"));
+    EXPECT_EQ(0LL, st.gameData.secretRealmSession.backpack.spiritStones);
+    EXPECT_TRUE(st.gameData.secretRealmSession.backpack.equipment.empty());
+    EXPECT_TRUE(st.gameData.secretRealmSession.members.empty());
+    EXPECT_TRUE(st.gameData.secretRealmState.id.empty());
+    EXPECT_EQ(1, st.gameData.secretRealmCooldownYear);
+    EXPECT_TRUE(st.gameData.secretRealmAITeams.empty());
+    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("SECT", st.gameData.gameEventRecords[0].category);
+    EXPECT_EQ("secret_realm", st.gameData.gameEventRecords[0].eventType);
+
+    // 幂等：再次调用零写入
+    const auto recordsBefore = st.gameData.gameEventRecords.size();
+    processMonthlyExpiryCheck(st, 1);
+    EXPECT_EQ(recordsBefore, st.gameData.gameEventRecords.size());
+    EXPECT_EQ(1500LL, st.gameData.spiritStones);
+}
+
+TEST(SecretRealmSettlement, ExpiryCheckNotDueKeepsRealm) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.secretRealmState.id = "sr1";
+    st.gameData.secretRealmState.spawnYear = 1;   // 1 < 51 → 未到期
+    st.gameData.secretRealmSession.backpack.spiritStones = 500;
+
+    processMonthlyExpiryCheck(st, 1);
+
+    EXPECT_EQ("sr1", st.gameData.secretRealmState.id);
+    EXPECT_EQ(500LL, st.gameData.secretRealmSession.backpack.spiritStones);
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+}
+
+// ── 子事件 10：12 月自动购买（批 11-3） ─────────────────────────────
+
+using gamecore::system::merchant_settle::executeAutoBuy;
+
+TEST(AutoBuySettlement, DecemberAutoBuyMatchesKnownTemplate) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 12;
+    st.gameData.spiritStones = 10000;
+    st.gameData.autoBuyList.push_back({"精铁剑", "equipment", 1});
+    st.gameData.autoBuyList.push_back({"聚气丹", "pill", 1});
+    state::MerchantItem sword;
+    sword.id = "m1"; sword.name = "精铁剑"; sword.type = "equipment";
+    sword.rarity = 1; sword.price = 100; sword.quantity = 3;
+    state::MerchantItem pill;
+    pill.id = "m2"; pill.name = "聚气丹"; pill.type = "pill";
+    pill.rarity = 1; pill.price = 50; pill.quantity = 2; pill.grade = "中品";
+    st.gameData.travelingMerchantItems = {sword, pill};
+
+    executeAutoBuy(st, core->rng());
+
+    // 灵石扣除：精铁剑 3×100 + 聚气丹 2×50 = 400 → 10000-400
+    EXPECT_EQ(9600LL, st.gameData.spiritStones);
+    // 商人库存清空（数量耗尽 → 移除）
+    EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
+    // 仓库入库：精铁剑堆叠 ×3 + 聚气丹堆叠 ×2
+    ASSERT_EQ(1u, st.equipmentStacks.size());
+    EXPECT_EQ("精铁剑", st.equipmentStacks[0].name);
+    EXPECT_EQ(3, st.equipmentStacks[0].quantity);
+    ASSERT_EQ(1u, st.pills.size());
+    EXPECT_EQ("聚气丹", st.pills[0].name);
+    EXPECT_EQ(2, st.pills[0].quantity);
+    EXPECT_EQ("MEDIUM", st.pills[0].grade);
+    // 年度来源追踪（merchant:稀有度）
+    EXPECT_EQ(3, st.gameData.annualEquipmentBySource.at("merchant:1"));
+    EXPECT_EQ(2, st.gameData.annualPillBySource.at("merchant:MEDIUM"));
+    // 年度支出追踪（Purchase 原因）
+    EXPECT_EQ(400LL, st.gameData.annualTotalExpenditure);
+    // 零 SYSTEM RNG 抽取（已知模板主路径）
+    const auto sys0 = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
+    EXPECT_EQ(sys0.snapshot(), core->rng().exportStates()[
+        static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(AutoBuySettlement, DecemberAutoBuySkipsOnInsufficientFunds) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 12;
+    st.gameData.spiritStones = 150;
+    st.gameData.autoBuyList.push_back({"精铁剑", "equipment", 1});
+    state::MerchantItem sword;
+    sword.id = "m1"; sword.name = "精铁剑"; sword.type = "equipment";
+    sword.rarity = 1; sword.price = 100; sword.quantity = 3;
+    st.gameData.travelingMerchantItems = {sword};
+
+    executeAutoBuy(st, core->rng());
+
+    // 可买 1 把（150/100=1）→ 扣除 100；商人剩余 2
+    EXPECT_EQ(50LL, st.gameData.spiritStones);
+    ASSERT_EQ(1u, st.gameData.travelingMerchantItems.size());
+    EXPECT_EQ(2, st.gameData.travelingMerchantItems[0].quantity);
+    ASSERT_EQ(1u, st.equipmentStacks.size());
+    EXPECT_EQ(1, st.equipmentStacks[0].quantity);
+}
+
+TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 12;
+    st.gameData.spiritStones = 10000;
+    st.gameData.autoBuyList.push_back({"中品灵石", "spiritstone", 1});
+    st.gameData.autoBuyList.push_back({"不存在物品", "equipment", 9});  // 无匹配
+    state::MerchantItem stone;
+    stone.id = "m1"; stone.name = "中品灵石"; stone.type = "spiritstone";
+    stone.rarity = 1; stone.price = 100; stone.quantity = 5;
+    st.gameData.travelingMerchantItems = {stone};
+
+    executeAutoBuy(st, core->rng());
+
+    // 中品灵石入袋 ×5；不存在物品条目跳过
+    EXPECT_EQ(9500LL, st.gameData.spiritStones);   // 10000 - 5×100
+    EXPECT_EQ(5, st.gameData.midGradeSpiritStones);
+    EXPECT_TRUE(st.gameData.travelingMerchantItems.empty());
+    EXPECT_TRUE(st.equipmentStacks.empty());
+}
+
 }  // namespace

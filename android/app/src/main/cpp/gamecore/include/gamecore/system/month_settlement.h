@@ -17,7 +17,10 @@
 #include "gamecore/system/government.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/inventory.h"
+#include "gamecore/system/merchant_settlement.h"
+#include "gamecore/system/recruit_settlement.h"
 #include "gamecore/system/sect_decision.h"
+#include "gamecore/system/secret_realm_settlement.h"
 #include "gamecore/system/sect_power.h"
 #include "gamecore/system/settlement_detail.h"
 #include "gamecore/system/slot_cleanup.h"
@@ -70,9 +73,10 @@
 //     场景自动政策全关 → 双端纯早退；住所忠诚已实现
 //   - S8 子事件下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
 //     scoutExpiry（批 10-1）/ 月度叛逃检测（批 10-2）/ 月度偷盗兜底
-//     （批 10-3）/ 附庸脱离检查（批 10-4）七件，其余九件（招募/任务/
-//     洞天/AI 兽战/12 月自动购买/购买/任务刷新/秘境×2）场景规避 +
-//     登记对应批次
+//     （批 10-3）/ 附庸脱离检查（批 10-4）/ autoRecruit（批 11-1）/
+//     秘境到期关闭+AI 队伍派遣（批 11-2）/ 12 月自动购买（批 11-3）十一件；
+//     其余五件（任务完成/洞天/AI 兽战/购买/任务刷新）场景规避 +
+//     登记对应批次（用户指示收窄范围，S-16~S-19 见 docs/cpp-engine.md §8）
 //   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
 //     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
 // ============================================================
@@ -104,42 +108,8 @@ using settle_util::kotlinCharLength;
 using settle_util::spiritRootCount;
 using settle_util::toIntOrNull;
 
-/// 消息栏事件记录（MutableGameState.recordGameEvent 完整守卫对齐：
-/// summary/eventType blank 拒绝 + 四字段 Kotlin String.length 口径长度上限 +
-/// P-9 序号 max+1 溢出回 1 + takeLast(MAX_EVENT_LOGS) 裁剪）
-inline void recordGameEvent(GameState& state, const std::string& category,
-                            const std::string& eventType,
-                            const std::string& summary,
-                            const std::string& relatedEntityId = "",
-                            const std::string& relatedEntityName = "") {
-    if (isBlankString(summary) || isBlankString(eventType)) return;
-    if (kotlinCharLength(summary) > 200) return;
-    if (kotlinCharLength(eventType) > 50) return;
-    if (kotlinCharLength(relatedEntityId) > 50) return;
-    if (kotlinCharLength(relatedEntityName) > 50) return;
-
-    state::GameEventRecord event;
-    event.year = state.gameData.gameYear;
-    event.month = state.gameData.gameMonth;
-    event.phase = state.gameData.gamePhase;
-    event.category = category;
-    event.eventType = eventType;
-    event.summary = summary;
-    event.relatedEntityId = relatedEntityId;
-    event.relatedEntityName = relatedEntityName;
-    int64_t maxSeq = 0;
-    for (const auto& r : state.gameData.gameEventRecords) {
-        maxSeq = std::max(maxSeq, r.sequenceId);
-    }
-    event.sequenceId = (maxSeq >= INT64_MAX - 1) ? 1 : maxSeq + 1;
-    auto& records = state.gameData.gameEventRecords;
-    records.push_back(event);
-    constexpr std::size_t kMaxEventLogs = 200;   // GameConfig.Logs.MAX_EVENT_LOGS
-    if (records.size() > kMaxEventLogs) {
-        records.erase(records.begin(),
-                      records.end() - static_cast<std::ptrdiff_t>(kMaxEventLogs));
-    }
-}
+/// 消息栏事件记录（settle_util 共享实现——完整守卫见 settlement_detail.h）
+using settle_util::recordGameEvent;
 
 // ── 步骤 2：政策月度忠诚/道德效果 ──────────────────────────────────
 // （CultivationSettlement.processPolicyMonthlyEffects：单次遍历合并净变化；
@@ -1405,6 +1375,9 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  const std::map<int32_t, std::size_t>& idx) {
     // 子事件 1：招募月度计数归零
     state.gameData.recruitCountThisMonth = 0;
+    // 子事件 2：自动招募（批 11-1：RecruitService.processAutoRecruit 等价移植；
+    // 零 RNG——不扰动后续子事件的 SYSTEM 抽取序）
+    recruit_settle::processAutoRecruit(state);
     // 子事件 3：月度偷盗兜底（批 10-3；Kotlin processTheftIfNeeded 全链，
     // 首行无条件归零 theftJudgementsThisMonth 已随行移植）
     detail::processTheftMonthlyFallback(state, rng, idx);
@@ -1415,10 +1388,25 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     // 子事件 8：侦察信息过期清理（批 10-1）
     detail::applyScoutInfoExpiry(state, state.gameData.gameYear,
                                  state.gameData.gameMonth);
+    // 子事件 9：AI 兽战——未下沉（战斗边界：全路径经 BattleSystem.executeBattle，
+    // 批 4-3 边界战斗执行保留 Kotlin——审计登记见文件头范围边界）
+    // 子事件 10：12 月自动购买（批 11-3：AutoBuyService.executeAutoBuy 等价移植；
+    //   仅 month==12；零 RNG 主路径）
+    if (state.gameData.gameMonth == 12) {
+        merchant_settle::executeAutoBuy(state, rng);
+    }
     // 子事件 11：灵矿月度产出结算
     detail::processSpiritMineProductionMonthly(state, idx);
+    // 子事件 12：弟子智能购买——未下沉（购买批次；场景 playerListedItems 空规避）
     // 子事件 13：附庸脱离检查（批 10-4）
     detail::processVassalBreakaway(state, rng);
+    // 子事件 14：任务刷新——未下沉（任务批次；场景 month%3!=0 规避）
+    // 子事件 15：秘境现世期满自动关闭（批 11-2 状态段：钱包/背包/会话清场；
+    //   邮件与 gate 保留 Kotlin——S-17 登记）
+    secret_realm_settle::processMonthlyExpiryCheck(state, state.gameData.gameYear);
+    // 子事件 16：秘境 AI 队伍月度派遣（批 11-2：SecretRealmAIProcessor.
+    //   processMonthlyAiTeams 等价移植；零 RNG）
+    secret_realm_settle::processMonthlyAiTeams(state);
     // 其余子事件未下沉——见文件头范围边界（rng 参数供后续批次接线）
 }
 

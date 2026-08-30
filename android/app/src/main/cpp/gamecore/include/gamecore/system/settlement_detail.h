@@ -88,5 +88,42 @@ inline bool isBlankString(const std::string& s) {
     });
 }
 
+/// 消息栏事件记录（MutableGameState.recordGameEvent 完整守卫对齐：
+/// summary/eventType blank 拒绝 + 四字段 Kotlin String.length 口径长度上限 +
+/// P-9 序号 max+1 溢出回 1 + takeLast(MAX_EVENT_LOGS) 裁剪）
+inline void recordGameEvent(state::GameState& state, const std::string& category,
+                            const std::string& eventType,
+                            const std::string& summary,
+                            const std::string& relatedEntityId = "",
+                            const std::string& relatedEntityName = "") {
+    if (isBlankString(summary) || isBlankString(eventType)) return;
+    if (kotlinCharLength(summary) > 200) return;
+    if (kotlinCharLength(eventType) > 50) return;
+    if (kotlinCharLength(relatedEntityId) > 50) return;
+    if (kotlinCharLength(relatedEntityName) > 50) return;
+
+    state::GameEventRecord event;
+    event.year = state.gameData.gameYear;
+    event.month = state.gameData.gameMonth;
+    event.phase = state.gameData.gamePhase;
+    event.category = category;
+    event.eventType = eventType;
+    event.summary = summary;
+    event.relatedEntityId = relatedEntityId;
+    event.relatedEntityName = relatedEntityName;
+    int64_t maxSeq = 0;
+    for (const auto& r : state.gameData.gameEventRecords) {
+        maxSeq = std::max(maxSeq, r.sequenceId);
+    }
+    event.sequenceId = (maxSeq >= INT64_MAX - 1) ? 1 : maxSeq + 1;
+    auto& records = state.gameData.gameEventRecords;
+    records.push_back(event);
+    constexpr std::size_t kMaxEventLogs = 200;   // GameConfig.Logs.MAX_EVENT_LOGS
+    if (records.size() > kMaxEventLogs) {
+        records.erase(records.begin(),
+                      records.end() - static_cast<std::ptrdiff_t>(kMaxEventLogs));
+    }
+}
+
 }  // namespace settle_util
 }  // namespace gamecore::system

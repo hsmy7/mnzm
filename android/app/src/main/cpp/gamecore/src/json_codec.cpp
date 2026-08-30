@@ -474,14 +474,24 @@ void from_json(const nlohmann::json& j, GridBuildingData& v) {
 
 void to_json(nlohmann::json& j, const MerchantItem& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, id); GC_TO(v, j, name); GC_TO(v, j, itemId); GC_TO(v, j, rarity);
-    GC_TO(v, j, price); GC_TO(v, j, quantity); GC_TO(v, j, description);
-    GC_TO(v, j, obtainedYear); GC_TO(v, j, obtainedMonth);
+    GC_TO(v, j, id); GC_TO(v, j, name); GC_TO(v, j, type); GC_TO(v, j, itemId);
+    GC_TO(v, j, rarity); GC_TO(v, j, price); GC_TO(v, j, quantity); GC_TO(v, j, description);
+    GC_TO(v, j, obtainedYear); GC_TO(v, j, obtainedMonth); GC_TO_OPT(v, j, grade);
 }
 void from_json(const nlohmann::json& j, MerchantItem& v) {
-    GC_FROM(j, v, id); GC_FROM(j, v, name); GC_FROM(j, v, itemId); GC_FROM(j, v, rarity);
-    GC_FROM(j, v, price); GC_FROM(j, v, quantity); GC_FROM(j, v, description);
-    GC_FROM(j, v, obtainedYear); GC_FROM(j, v, obtainedMonth);
+    GC_FROM(j, v, id); GC_FROM(j, v, name); GC_FROM(j, v, type); GC_FROM(j, v, itemId);
+    GC_FROM(j, v, rarity); GC_FROM(j, v, price); GC_FROM(j, v, quantity); GC_FROM(j, v, description);
+    GC_FROM(j, v, obtainedYear); GC_FROM(j, v, obtainedMonth); GC_FROM_OPT(j, v, grade);
+}
+
+// ── 批 11-3：自动购买条目 ──
+
+void to_json(nlohmann::json& j, const AutoBuyEntry& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, itemName); GC_TO(v, j, itemType); GC_TO(v, j, rarity);
+}
+void from_json(const nlohmann::json& j, AutoBuyEntry& v) {
+    GC_FROM(j, v, itemName); GC_FROM(j, v, itemType); GC_FROM(j, v, rarity);
 }
 
 void to_json(nlohmann::json& j, const Alliance& v) {
@@ -1188,7 +1198,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     // 嵌套对象字段（批次 1 第二子步）
     GC_TO(v, j, worldMapSects);
     GC_TO(v, j, travelingMerchantItems); GC_TO(v, j, playerListedItems);
-    GC_TO(v, j, merchantAcquisitionItems);
+    GC_TO(v, j, merchantAcquisitionItems); GC_TO(v, j, autoBuyList);
     GC_TO(v, j, recruitList); GC_TO(v, j, worldLevels);
     GC_TO(v, j, elderSlots); GC_TO(v, j, productionSlots);
     GC_TO(v, j, placedBuildings); GC_TO(v, j, spiritFieldPlants);
@@ -1265,7 +1275,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     // 嵌套对象字段（批次 1 第二子步）
     GC_FROM(j, v, worldMapSects);
     GC_FROM(j, v, travelingMerchantItems); GC_FROM(j, v, playerListedItems);
-    GC_FROM(j, v, merchantAcquisitionItems);
+    GC_FROM(j, v, merchantAcquisitionItems); GC_FROM(j, v, autoBuyList);
     GC_FROM(j, v, recruitList); GC_FROM(j, v, worldLevels);
     GC_FROM(j, v, elderSlots); GC_FROM(j, v, productionSlots);
     GC_FROM(j, v, placedBuildings); GC_FROM(j, v, spiritFieldPlants);
