@@ -57,10 +57,10 @@
 //     物品 nextInt(池大小) 0..N 次 + 偷盗后叛逃 1 次（无条件抽取）
 //   - BREAKTHROUGH / BATTLE / 其他：本钩子零消耗（旬结算是 BREAKTHROUGH 唯一入口）
 //   已知未下沉扇出的抽取点（场景规避 + 登记后续批次，见 t2-2-report.md）：
-//   AI 兽袭 EXPLORATION（S3）、关卡刷新生成（S4-Exploration）、生产完成
-//   SYSTEM（S4-Alchemy 同步段）、生育/招募/购买/附赋/商人等 SYSTEM
-//   （S8 子事件余量；执法堂偷盗 S8 月度兜底已随批 10-3 下沉——S2 教化之道
-//   道德增量后的反应式偷盗判定钩子仍未下沉）。
+//   AI 兽袭 EXPLORATION（S3，✅ 批 13-1）、关卡刷新生成（S4-Exploration）、
+//   生产完成 SYSTEM（S4-Alchemy 同步段）、生育/招募/购买/附赋/商人等 SYSTEM
+//   （S8 子事件余量；执法堂偷盗 S8 月度兜底已随批 10-3 下沉、S2 教化之道
+//   道德增量后的反应式偷盗判定钩子已随批 13-2a 下沉）。
 //
 // 已知范围边界（详见 .superpowers/sdd/t2-2-report.md 覆盖矩阵）：
 //   - S3 precomputeTargets ✅（批 13-1 下沉：aiSectBeastDirectTargets/
@@ -82,8 +82,9 @@
 //     弟子智能购买（批 12-1）/ 任务刷新（批 12-2）十三件；
 //     其余三件（任务完成/洞天/AI 兽战）场景规避 +
 //     登记对应批次（用户指示收窄范围，S-16~S-19 见 docs/cpp-engine.md §8）
-//   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
-//     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
+//   - S2 教化之道道德增量后的偷盗判定钩子 ✅（批 13-2a 下沉：道德提升后
+//     仍 < 偷盗阈值 → 单弟子偷盗判定 judgeSingleTheftCandidate，SYSTEM
+//     抽取内嵌弟子循环序）
 // ============================================================
 namespace gamecore::system {
 
@@ -118,9 +119,17 @@ using settle_util::recordGameEvent;
 
 // ── 步骤 2：政策月度忠诚/道德效果 ──────────────────────────────────
 // （CultivationSettlement.processPolicyMonthlyEffects：单次遍历合并净变化；
-//   偷盗判定钩子未下沉——见文件头范围边界）
+//   批 13-2a：教化之道道德提升后仍低于偷盗阈值的判定钩子下沉——
+//   Kotlin 事务内版 processSingleDiscipleTheft(id, state) 等价）
 
-inline void processPolicyMonthlyEffects(GameState& state) {
+// 前置声明（定义在偷盗链区域——judgeSingleTheftCandidate 依赖的辅助
+// 函数均定义于文件后部 detail:: 命名空间；单翻译单元内声明后定义合法）
+inline int32_t lawMoralityThreshold();
+inline void judgeSingleTheftCandidate(GameState& state, int32_t id,
+                                      int32_t currentMonth,
+                                      rng::DeterministicRng& rngSystem);
+
+inline void processPolicyMonthlyEffects(GameState& state, rng::RngManager& rng) {
     const GameData& gd = state.gameData;
     const auto& policies = gd.sectPolicies;
 
@@ -132,6 +141,8 @@ inline void processPolicyMonthlyEffects(GameState& state) {
     if (policies.enhancedSecurity) loyaltyDelta += kEnhancedSecurityLoyaltyPerMonth;
     if (policies.curfew) loyaltyDelta += kCurfewLoyaltyPerMonth;
 
+    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    const int32_t currentMonth = gd.gameYear * 12 + gd.gameMonth;
     for (std::size_t row = 0; row < state.disciples.size(); ++row) {
         DiscipleStore& ds = state.disciples;
         if (ds.isAlive[row] == 0) continue;
@@ -141,11 +152,19 @@ inline void processPolicyMonthlyEffects(GameState& state) {
                 0, std::min(kMaxLoyalty, ds.loyalties[row] + loyaltyDelta));
         }
         // 道德（教化之道）：仅当前低于上限时 +1 并 clamp；
-        // 新道德仍低于偷盗阈值的判定钩子属执法堂批次（未下沉，见文件头）
+        // 新道德仍低于偷盗阈值 → 单弟子偷盗判定（批 13-2a：Kotlin 事务内版
+        // 钩子——SYSTEM 抽取内嵌于弟子循环序，与 Kotlin 逐位一致）
         if (policies.moralEducation && ds.moralities[row] < kMoralEducationMax) {
             ds.moralities[row] = std::max(
                 0, std::min(kMoralEducationMax,
                             ds.moralities[row] + kMoralEducationPerMonth));
+            if (ds.moralities[row] < lawMoralityThreshold()) {
+                const int32_t id = toIntOrNull(ds.ids[row]).value_or(-1);
+                if (id >= 0) {
+                    judgeSingleTheftCandidate(state, id, currentMonth,
+                                              rngSystem);
+                }
+            }
         }
     }
 }
@@ -1150,9 +1169,78 @@ inline void executeSuccessfulTheft(
     gd.annualTheftCount += 1;
 }
 
+/// 单弟子偷盗判定入口（批 13-2a 提取：Kotlin processSingleDiscipleTheft(id,
+/// state) 事务内版——灵石检查 → canDiscipleAttemptTheft 复检（当前态）→
+/// 标记判定（lastTheftJudgementYears + theftJudgementsThisMonth+1，先于概率
+/// 抽取——未遂同计数）→ executeFullTheftCheck 完整链（偷盗概率 → 捕获 →
+/// 仓库守卫 → 成功偷窃 → 偷后叛逃）。RNG 抽取序同月度兜底单候选（SYSTEM
+/// 分区，①②③④⑤⑥）；行解析按 id 当前态重做（前序判定可能移除/改态）。
+/// 供月度兜底（子事件 3）与教化之道钩子（步骤 2）共用。
+inline void judgeSingleTheftCandidate(GameState& state, int32_t id,
+                                      int32_t currentMonth,
+                                      rng::DeterministicRng& rngSystem) {
+    auto& gd = state.gameData;
+    auto& ds = state.disciples;
+    // 前置链（Kotlin canDiscipleAttemptTheft 顺序：从众门控 → 存活 → IDLE
+    // → 保护期 → 年判定 → 月上限 → 年上限；灵石检查为 processSingleDisciple
+    // Theft 首行）
+    if (gd.spiritStones <= 0) return;
+    if (!isAverageLoyaltyLowEnough(ds)) return;
+    const auto freshIdx = indexById(ds);
+    const auto rit = freshIdx.find(id);
+    if (rit == freshIdx.end()) return;   // assemble null → 静默
+    const std::size_t row = rit->second;
+    if (ds.isAlive[row] != 1) return;
+    if (ds.statuses[row] != "IDLE") return;
+    if (currentMonth - ds.recruitedMonths[row] <
+        lawNewDiscipleProtectionMonths()) {
+        return;
+    }
+    if (ds.lastTheftJudgementYears[row] == gd.gameYear) return;
+    if (gd.theftJudgementsThisMonth >= lawMaxTheftJudgementsPerMonth()) return;
+    if (gd.annualTheftCount >= lawMaxTheftPerYear()) return;
+    // 标记判定（先于概率抽取——尝试失败同样计数）
+    gd.theftJudgementsThisMonth += 1;
+    ds.lastTheftJudgementYears[row] = gd.gameYear;
+    // executeFullTheftCheck（完整链，RNG 抽取序与 Kotlin 逐位一致）
+    const state::Disciple thief = ds.materialize(row);
+    const auto st = stats::baseStats(thief);
+    const double captureRate = calculateCaptureRate(state, freshIdx);
+    std::vector<state::GridBuildingData> warehouses;
+    for (const auto& b : gd.placedBuildings) {
+        if (b.displayName == "仓库") warehouses.push_back(b);
+    }
+    // Step 1: 偷盗概率判定
+    const double effectiveTheftProb =
+        theftAttemptProbability(st.morality, gd.sectPolicies.curfew);
+    if (rngSystem.nextDouble() >= effectiveTheftProb) return;
+    // Step 2: 执法堂判定——直接以抓捕率判定
+    if (rngSystem.nextDouble() < captureRate) {
+        captureDiscipleForTheft(state, thief);
+        return;
+    }
+    // Step 3: 仓库驻守判定——纯智力比拼
+    if (warehouseGarrisonCheck(state, thief, st.intelligence,
+                               warehouses, gd.warehouseGarrisons,
+                               rngSystem)) {
+        return;
+    }
+    // 偷窃成功 → 执行（灵石 + 物品）
+    executeSuccessfulTheft(state, thief, warehouses,
+                           gd.warehouseGarrisons, rngSystem);
+    // Step 4: 偷盗后叛逃判定（仅看忠诚；抽取无条件）
+    const double desertionProb = calcDesertionProbability(st.loyalty);
+    if (rngSystem.nextDouble() < desertionProb) {
+        desertDiscipleCleanup(state, id, lawLoyaltyThreshold(),
+                              indexById(ds), "theft_desertion",
+                              "偷盗后叛逃");
+    }
+}
+
 /// 月度偷盗兜底主流程（Kotlin processTheftIfNeeded → processTheftMonthly →
 /// processSingleDiscipleTheft 非事务版全链；safelyRunInState("theft") 语义 =
-/// 异常吞掉中止本子事件、保留已写入状态）
+/// 异常吞掉中止本子事件、保留已写入状态；单候选判定委托
+/// [judgeSingleTheftCandidate]（批 13-2a 提取，语义零变更））
 inline void processTheftMonthlyFallback(
     GameState& state, rng::RngManager& rng,
     const std::map<int32_t, std::size_t>& idx) {
@@ -1200,59 +1288,9 @@ inline void processTheftMonthlyFallback(
                      static_cast<std::size_t>(lawMaxTheftJudgementsPerMonth()));
         for (std::size_t k = 0; k < judgeCount; ++k) {
             const int32_t id = candidateIds[k];
-            // 前一候选叛逃会移除行——行序重解析（Kotlin 以 id 寻址等价）
-            const auto freshIdx = indexById(ds);
-            const auto rit = freshIdx.find(id);
-            if (rit == freshIdx.end()) continue;   // assemble null → 静默
-            const std::size_t row = rit->second;
-            // canDiscipleAttemptTheft（三层限制 + 门控复检）
-            if (gd.spiritStones <= 0) continue;   // 首行 committed 灵石检查
-            if (!isAverageLoyaltyLowEnough(ds)) continue;
-            if (ds.isAlive[row] != 1) continue;
-            if (ds.statuses[row] != "IDLE") continue;
-            if (currentMonth - ds.recruitedMonths[row] <
-                lawNewDiscipleProtectionMonths()) {
-                continue;
-            }
-            if (ds.lastTheftJudgementYears[row] == currentYear) continue;
-            if (gd.theftJudgementsThisMonth >= lawMaxTheftJudgementsPerMonth()) continue;
-            if (gd.annualTheftCount >= lawMaxTheftPerYear()) continue;
-            // 标记判定（先于概率抽取——尝试失败同样计数）
-            gd.theftJudgementsThisMonth += 1;
-            ds.lastTheftJudgementYears[row] = currentYear;
-            // executeFullTheftCheck
-            const state::Disciple thief = ds.materialize(row);
-            const auto st = stats::baseStats(thief);
-            const double captureRate = calculateCaptureRate(state, freshIdx);
-            std::vector<state::GridBuildingData> warehouses;
-            for (const auto& b : gd.placedBuildings) {
-                if (b.displayName == "仓库") warehouses.push_back(b);
-            }
-            // Step 1: 偷盗概率判定
-            const double effectiveTheftProb =
-                theftAttemptProbability(st.morality, gd.sectPolicies.curfew);
-            if (rngSystem.nextDouble() >= effectiveTheftProb) continue;
-            // Step 2: 执法堂判定——直接以抓捕率判定
-            if (rngSystem.nextDouble() < captureRate) {
-                captureDiscipleForTheft(state, thief);
-                continue;
-            }
-            // Step 3: 仓库驻守判定——纯智力比拼
-            if (warehouseGarrisonCheck(state, thief, st.intelligence,
-                                       warehouses, gd.warehouseGarrisons,
-                                       rngSystem)) {
-                continue;
-            }
-            // 偷窃成功 → 执行（灵石 + 物品）
-            executeSuccessfulTheft(state, thief, warehouses,
-                                   gd.warehouseGarrisons, rngSystem);
-            // Step 4: 偷盗后叛逃判定（仅看忠诚；抽取无条件）
-            const double desertionProb = calcDesertionProbability(st.loyalty);
-            if (rngSystem.nextDouble() < desertionProb) {
-                desertDiscipleCleanup(state, id, lawLoyaltyThreshold(),
-                                      indexById(ds), "theft_desertion",
-                                      "偷盗后叛逃");
-            }
+            // 前一候选叛逃会移除行——行存在性重解析（id 寻址等价）
+            if (indexById(ds).find(id) == indexById(ds).end()) continue;
+            judgeSingleTheftCandidate(state, id, currentMonth, rngSystem);
         }
     } catch (const std::exception&) {
         // Kotlin safelyRunInState：异常吞掉，中止偷盗子事件、保留已写入状态
@@ -1656,8 +1694,9 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
                                              huashenBelowCount);
     }
 
-    // 步骤 2：政策月度忠诚/道德效果
-    detail::processPolicyMonthlyEffects(state);
+    // 步骤 2：政策月度忠诚/道德效果（批 13-2a：教化之道低道德偷盗判定钩子
+    // 下沉——SYSTEM 抽取内嵌弟子循环序，与 Kotlin 逐位一致）
+    detail::processPolicyMonthlyEffects(state, rng);
 
     // 步骤 3：AI 兽袭目标预计算（批 13-1：precomputeTargets 等价移植；
     // 写入 aiSectBeastDirectTargets——巡视楼/子事件 9 消费方保留 Kotlin）

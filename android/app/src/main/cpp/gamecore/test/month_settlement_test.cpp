@@ -2670,4 +2670,79 @@ TEST(MonthSettlementTest, PrecomputeTargetsSameSectTwoBeastsSnapshotSemantics) {
               core->rng().getRng(rng::RngPartition::kExploration).snapshot());
 }
 
+// ── 步骤 2：教化之道偷盗判定钩子（批 13-2a：Kotlin processSingleDisciple
+//    Theft(id, state) 事务内版等价移植）───────────────────────────────
+//
+// 钩子语义：道德提升（+1，上限 70）后仍 < 偷盗阈值（30）→ 单弟子偷盗判定
+// （judgeSingleTheftCandidate 完整链）。SYSTEM 抽取内嵌弟子循环序。
+// 直接测 detail::processPolicyMonthlyEffects（规避月变其余 SYSTEM 抽取干扰）。
+// 偷盗概率 = (30 - 新道德) × 0.01 clamp [0, 0.9]——道德 29 → prob=0.01。
+
+TEST(MonthSettlementTest, MoralEducationHookTriggersSingleTheftJudgement) {
+    // 道德 28 → +1 = 29 < 30 → 触发判定：标记（theftJudgementsThisMonth+1 +
+    // lastTheftJudgementYears）+ 偷盗概率抽取 1 次（prob=0.01，种子 42 不中）
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.sectPolicies.moralEducation = true;
+    st.gameData.spiritStones = 10000;   // 灵石充足（偷盗域前置链）
+    Disciple d = baseDisciple("1");
+    d.morality = 28;
+    d.loyalty = 40;          // 从众门控（平均忠诚 < 50）通过——否则前置链拦截
+    d.recruitedMonth = 0;    // 保护期外（13 - 0 >= 12）
+    st.disciples.appendDisciple(d);
+
+    // 预演 SYSTEM：钩子恰 1 次抽取（偷盗概率；prob=0.01 种子 42 不中）
+    auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 3);
+    probe.nextDouble();
+
+    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng());
+
+    EXPECT_EQ(29, st.disciples.materialize(0).morality);       // 道德提升
+    EXPECT_EQ(1, st.gameData.theftJudgementsThisMonth);        // 标记判定
+    EXPECT_EQ(1, st.disciples.lastTheftJudgementYears[0]);     // 年判定标记列
+    // RNG 审计：恰 1 次 SYSTEM nextDouble（prob=0.01 未命中 → 无后续抽取）
+    EXPECT_EQ(probe.snapshot(),
+              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
+}
+
+TEST(MonthSettlementTest, MoralEducationHookSkipsWhenMoralityReachesThreshold) {
+    // 道德 29 → +1 = 30（不 < 30）→ 不触发：零标记零抽取
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.sectPolicies.moralEducation = true;
+    st.gameData.spiritStones = 10000;
+    Disciple d = baseDisciple("1");
+    d.morality = 29;
+    st.disciples.appendDisciple(d);
+
+    const auto before = core->rng().exportStates();
+    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng());
+
+    EXPECT_EQ(30, st.disciples.materialize(0).morality);       // 提升到阈值
+    EXPECT_EQ(0, st.gameData.theftJudgementsThisMonth);        // 零标记
+    EXPECT_EQ(before, core->rng().exportStates());             // 零抽取
+}
+
+TEST(MonthSettlementTest, MoralEducationHookRespectsMonthlyCap) {
+    // 道德 28（触发条件满足）但本月判定已达上限（theftJudgementsThisMonth=3）
+    // → canDiscipleAttemptTheft 月上限拦截：不标记不抽取
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.sectPolicies.moralEducation = true;
+    st.gameData.spiritStones = 10000;
+    st.gameData.theftJudgementsThisMonth = 3;   // 月上限（MAX=3）
+    Disciple d = baseDisciple("1");
+    d.morality = 28;
+    d.loyalty = 40;          // 从众门控通过——验证月上限拦截路径（而非门控早退）
+    st.disciples.appendDisciple(d);
+
+    const auto before = core->rng().exportStates();
+    gamecore::system::detail::processPolicyMonthlyEffects(st, core->rng());
+
+    EXPECT_EQ(29, st.disciples.materialize(0).morality);       // 道德仍提升
+    EXPECT_EQ(3, st.gameData.theftJudgementsThisMonth);        // 计数不变
+    EXPECT_EQ(before, core->rng().exportStates());             // 零抽取
+}
+
 }  // namespace

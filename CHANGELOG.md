@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（月变残留执行器增量 C++ 化批 13-2a：S8 步骤 2 教化之道偷盗判定钩子下沉）
+
+> 承接批 13-1（cpp-engine.md §7.5）：月变八步第二步的教化之道低道德偷盗判定钩子等价移植 C++——生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。
+
+- **S8 步骤 2 教化之道偷盗判定钩子**：Kotlin `CultivationSettlement.processPolicyMonthlyEffects` 事务内钩子（道德提升后仍 < 偷盗阈值 → `processSingleDiscipleTheft(id, state)` 事务内版）等价移植 C++——**单弟子判定入口提取** `detail::judgeSingleTheftCandidate`（canDiscipleAttemptTheft 复检当前态 + 标记判定先于概率抽取——未遂同计数 + executeFullTheftCheck 完整链：偷盗概率/捕获/仓库守卫/成功偷窃/偷后叛逃，SYSTEM 抽取序与 Kotlin 逐位一致）；`processPolicyMonthlyEffects` 加 rng 参数 + 道德分支接入（SYSTEM 抽取内嵌弟子循环序）；`processTheftMonthlyFallback` 单候选段重构复用（语义零变更，GTest 回归守护）；接线 runMonthSettlement 步骤 2 位
+- **途中根因修复 FakeGameStateStore.discipleTables 共享语义（S-14 家族测试基建）**：原实现每次访问从 disciplesValue 重建副本——事务内读取丢失前序写入（钩子 lastTheftJudgementYears 标记不可见 → 子事件 3 兜底误判 hasCandidate 重复判定，与 C++ 当前态行为漂移，场景⑬ SYSTEM 分区对拍实锤）；修复：事务内返回 activeTransaction 共享表，事务外仍返回 committed 副本——对齐生产 GameStateStoreImpl 共享语义
+- **验证**：GTest 615/615（+3：道德 28→29 触发判定黄金序列（标记+恰 1 抽）/道德 29→30 达阈值不触发零抽取/月上限拦截零抽取）· DiffMonthSettlementTest 场景⑬（moralEducation + 道德 28 弟子，跨语言逐位一致——道德 29/兜底归零/SYSTEM 恰 1 抽；Fake 修复前 Kotlin 侧重复判定 SYSTEM 漂移）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：无存档/序列化变更（钩子为纯内存运行态路径）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ### 新增（月变残留执行器增量 C++ 化批 13-1：S8 步骤 3 AI 兽袭目标预计算下沉）
 
 > 承接批 12（cpp-engine.md §7.4）：月变八步第三步 `precomputeTargets`（AI 宗门妖兽直攻目标预计算）等价移植 C++——消费方（巡视楼/子事件 9 AI 兽战）保留 Kotlin，生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。

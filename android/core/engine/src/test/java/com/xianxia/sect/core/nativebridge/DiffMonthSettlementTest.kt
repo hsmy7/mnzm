@@ -416,6 +416,46 @@ class DiffMonthSettlementTest {
         )
     )
 
+    /**
+     * 场景⑬（批 13-2a）：教化之道偷盗判定钩子——moralEducation 开启 +
+     * 1 名道德 28 忠诚 40 弟子（从众门控通过），(1,1) 起 3 旬跨 1→2 月界。
+     * 月结步骤 2 钩子：道德 28→29（仍 < 30 阈值）→ 单弟子偷盗判定——
+     * 偷盗概率 prob=(30-29)×0.01=0.01 种子不中 → 标记（theftJudgements
+     * ThisMonth+1 + lastTheftJudgementYears）+ SYSTEM 恰抽 1 次；子事件 3
+     * 月度兜底：theftJudgementsThisMonth 首行无条件归零 + 已判定（年标记）
+     * 排除 → 零抽取。终态：道德 29 + 计数归零 + SYSTEM 共 1 抽。
+     */
+    private fun buildMoralEducationSnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000L
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            sectPolicies = sectPolicies.copy(moralEducation = true)
+            // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——批 10-4 同款；
+            // worldLevels 空 → precomputeTargets 纯早退，零影响）
+            aiSectDisciples = mapOf(
+                "ai-1" to listOf(
+                    Disciple(
+                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
+                        cultivation = 10.0, spiritRootType = "metal",
+                        age = 20, gender = "male",
+                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
+                    )
+                )
+            )
+        }
+        return NativeGameState(
+            gameData = gameData,
+            aiSectDisciples = gameData.aiSectDisciples,
+            disciples = listOf(
+                pairingDisciple("11", "甲一", "male").copy(
+                    skills = SkillStats(morality = 28, loyalty = 40)
+                )
+            )
+        )
+    }
+
     @Test
     fun `purchase settlement matches Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
@@ -479,6 +519,40 @@ class DiffMonthSettlementTest {
         assertEquals("自动购买年度丹药来源追踪错误", 2,
             actual.gameData.annualPillBySource["merchant:MEDIUM"])
         assertEquals("自动购买年度支出错误", 400L, actual.gameData.annualTotalExpenditure)
+
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
+
+    @Test
+    fun `moral education hook triggers theft judgement matching Kotlin bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+
+        val snapshot = buildMoralEducationSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        val expected = advanceKotlinSide(snapshot, PHASES)
+
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+
+        // 场景⑬ 显式断言：道德 28→29（教化之道 +1）、钩子触发标记后被子事件 3
+        // 兜底归零、SYSTEM 恰 1 抽（偷盗概率 prob=0.01 不中——已判定年标记
+        // 排除兜底重复判定）
+        val disciple = actual.disciples.first { it.id == "11" }
+        assertEquals("道德应提升至 29（教化之道 +1）", 29, disciple.skills.morality)
+        assertEquals("钩子标记后月度兜底无条件归零", 0,
+            actual.gameData.theftJudgementsThisMonth)
+        assertEquals("SYSTEM 分区终态不一致（钩子 1 抽 + 兜底 0 抽）",
+            expected.gameData.rngStates[RngPartition.SYSTEM.id],
+            actual.gameData.rngStates[RngPartition.SYSTEM.id])
 
         assertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
@@ -595,11 +669,15 @@ class DiffMonthSettlementTest {
             store, SpiritStoneLedger(), EventBus(scopeProvider)
         )
         val configProvider = GameConfigProvider(ConfigLoader({ null }))
+        // 批 13-2a：教化之道偷盗判定钩子对拍主体——CultivationSettlement
+        // 换装真实 LawEnforcementProcessor（与 eventProcessor 同实例；
+        // lifecycle 用 mock——捕获思过/叛逃清理在场景中不触达或恒等）
+        val lawEnforcement = buildLawEnforcement(store, gameRng)
         val settlement = CultivationSettlement(
             stateStore = store,
             scopeProvider = scopeProvider,
             spiritStoneWallet = wallet,
-            lawEnforcementProcessor = mockSmart(),
+            lawEnforcementProcessor = lawEnforcement,
             gameConfigProvider = configProvider
         )
         val eventProcessor = buildEventProcessor(
@@ -634,6 +712,18 @@ class DiffMonthSettlementTest {
         battleSystem = mockSmart(),
         rngManager = gameRng,
         encounterBattleService = mockSmart()
+    )
+
+    /** 批 13-2a：真实 LawEnforcementProcessor（教化之道偷盗判定钩子对拍主体；
+     *  lifecycle 用 mock——捕获思过/叛逃清理在钩子场景中不触达或恒等） */
+    private fun buildLawEnforcement(
+        store: FakeGameStateStore,
+        gameRng: GameRngManager
+    ): LawEnforcementProcessor = LawEnforcementProcessor(
+        stateStore = store,
+        rngManager = gameRng,
+        discipleLifecycleProcessor = mockSmart(),
+        lootCalculator = LootCalculator(gameRng)
     )
 
     /** 真实 CultivationEventProcessor + 定向惰性依赖（论证见 t2-2-report.md §A） */
