@@ -1364,6 +1364,18 @@ void to_json(nlohmann::json& j, const GameState& v) {
     if (!v.aiSectDisciples.empty()) {
         j["aiSectDisciples"] = v.aiSectDisciples;
     }
+    // 批 13-1：AI 宗门妖兽攻击域（Kotlin GameData 同名字段 @Transient 不入
+    // gameData 序列化，快照协议顶层承载——空表不导出键，与 Kotlin
+    // NativeGameState 可空字段对称，镜像永不主动清空）
+    if (!v.aiSectBeastDirectTargets.empty()) {
+        j["aiSectBeastDirectTargets"] = v.aiSectBeastDirectTargets;
+    }
+    if (!v.aiSectBeastSkipCooldowns.empty()) {
+        j["aiSectBeastSkipCooldowns"] = v.aiSectBeastSkipCooldowns;
+    }
+    if (!v.lockedBeastIds.empty()) {
+        j["lockedBeastIds"] = v.lockedBeastIds;
+    }
     // 弟子：SoA 列存储 → 平铺对象数组（协议零变更；行序 == 数组序）
     nlohmann::json disciplesArr = nlohmann::json::array();
     for (std::size_t i = 0; i < v.disciples.size(); ++i) {
@@ -1386,6 +1398,17 @@ void from_json(const nlohmann::json& j, GameState& v) {
     // null/缺失一律宽松跳过（保持默认空表；旧 .so 导出/旧快照兼容）
     if (j.contains("aiSectDisciples") && !j.at("aiSectDisciples").is_null()) {
         j.at("aiSectDisciples").get_to(v.aiSectDisciples);
+    }
+    // 批 13-1：AI 宗门妖兽攻击域顶层字段——缺失/null 一律宽松跳过（保持默认空，
+    // 旧 .so 导出/旧快照兼容；Kotlin 侧可空语义对称）
+    if (j.contains("aiSectBeastDirectTargets") && !j.at("aiSectBeastDirectTargets").is_null()) {
+        j.at("aiSectBeastDirectTargets").get_to(v.aiSectBeastDirectTargets);
+    }
+    if (j.contains("aiSectBeastSkipCooldowns") && !j.at("aiSectBeastSkipCooldowns").is_null()) {
+        j.at("aiSectBeastSkipCooldowns").get_to(v.aiSectBeastSkipCooldowns);
+    }
+    if (j.contains("lockedBeastIds") && !j.at("lockedBeastIds").is_null()) {
+        j.at("lockedBeastIds").get_to(v.lockedBeastIds);
     }
     if (j.contains("disciples") && j.at("disciples").is_array()) {
         std::vector<Disciple> tmp;

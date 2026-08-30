@@ -2,7 +2,7 @@
 
 > 更新日期：2026-08-30。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
-> 当前基线：**桌面 GTest 609/609（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH；批 12-1/12-2 新增 6 用例） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过**。
+> 当前基线：**桌面 GTest 612/612（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH；批 12-1/12-2 新增 6 用例、批 13-1 新增 3 用例） · engine JUnit 2925/2925（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
 > 未迁移系统逐批 C++ 化——LevelGenerator/死亡物化/SecretRealm 状态机核心/外交决策/
@@ -20,7 +20,7 @@
 > （87 动作全量清点六类裁决 + 钱包族行为审计——可接线面已穷尽，见 §7.1 批 8-4 行）；
 > **退役专项批 9-1/9-2 完成**（SHADOW 对拍态 + 纯 Kotlin 旬结算路径删除——tick 结算
 > 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）；**月变残留执行器增量
-> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）；**批 10-2 完成**（S8 月度叛逃检测下沉 + 执法堂配置/职务加成辅助入 C++）；**批 10-3 完成**（S8 月度偷盗兜底全链下沉 + lastTheftJudgementYears 纯内存列 + stats::baseStats，S-14 登记，见 §7.3）；**批 10-4 完成**（S8 附庸脱离检查下沉 + aiSectDisciples 协议扩容——GameState 顶层承载 @Transient 重型数据，S-15 登记，见 §7.3）；**批 10-5 完成**（S-15 清偿——aiSectDisciples 反向回导 + 镜像 @Transient 保留修复，见 §7.3）；**批 11-1~11-3 完成**（S8 子事件 2 自动招募 / 15·16 秘境到期关闭+AI 队伍派遣 / 10 十二月自动购买下沉——GTest 603/603，S-16~S-19 登记，见 §7.3 批 11 行）；**批 12-1~12-2 完成**（S8 子事件 12 弟子智能购买 / 14 任务刷新下沉——GTest 609/609，C-11 shuffled 算法修复、S-19 特判移除、S-20 登记，见 §7.4）；**批 12-3/12-4 审计判定**（任务完成/AI 兽战/洞天 AI 操作三件战斗边界保持 Kotlin，见 §7.4）；**批 12-5 S 系列清偿**（S-10/S-11/S-12/S-13——配置注入 C++ 通道 + 空白名校验 + 转发辅助 NPE 守卫，见 §7.4）；**批 12-6 对拍框架长期化**（CI `cpp-diff-jni-test` job + build-desktop-jni-linux.sh，见 §7.4）。
+> C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）；**批 10-2 完成**（S8 月度叛逃检测下沉 + 执法堂配置/职务加成辅助入 C++）；**批 10-3 完成**（S8 月度偷盗兜底全链下沉 + lastTheftJudgementYears 纯内存列 + stats::baseStats，S-14 登记，见 §7.3）；**批 10-4 完成**（S8 附庸脱离检查下沉 + aiSectDisciples 协议扩容——GameState 顶层承载 @Transient 重型数据，S-15 登记，见 §7.3）；**批 10-5 完成**（S-15 清偿——aiSectDisciples 反向回导 + 镜像 @Transient 保留修复，见 §7.3）；**批 11-1~11-3 完成**（S8 子事件 2 自动招募 / 15·16 秘境到期关闭+AI 队伍派遣 / 10 十二月自动购买下沉——GTest 603/603，S-16~S-19 登记，见 §7.3 批 11 行）；**批 12-1~12-2 完成**（S8 子事件 12 弟子智能购买 / 14 任务刷新下沉——GTest 609/609，C-11 shuffled 算法修复、S-19 特判移除、S-20 登记，见 §7.4）；**批 12-3/12-4 审计判定**（任务完成/AI 兽战/洞天 AI 操作三件战斗边界保持 Kotlin，见 §7.4）；**批 12-5 S 系列清偿**（S-10/S-11/S-12/S-13——配置注入 C++ 通道 + 空白名校验 + 转发辅助 NPE 守卫，见 §7.4）；**批 12-6 对拍框架长期化**（CI `cpp-diff-jni-test` job + build-desktop-jni-linux.sh，见 §7.4）；**批 13-1 完成**（月变步骤 3 AI 兽袭目标预计算下沉——aiSectBeastDirectTargets/aiSectBeastSkipCooldowns/lockedBeastIds 协议扩容 + detail::precomputeTargets 等价移植 + DiffPrecomputeTargetsTest 新建对拍，GTest 612/612，见 §7.5）。
 
 ## 1. 目标架构
 
@@ -290,6 +290,15 @@ android/app/src/main/cpp/
 | 12-3/12-4 ✅ | **审计判定批**（任务完成 5 / AI 兽战 9 / 洞天 AI 操作 6）：依赖面核查——任务完成 COMBAT_REQUIRED/COMBAT_RANDOM（12 模板）经 `BattleSystem.executeBattle`；AI 兽战全路径 executeBattle；洞天依赖 AISectDiscipleManager 修炼域（境界/突破/装备生成）+ AI vs AI 战斗 + 占领结算。三件均依赖**未下沉战斗执行**（批 4-3 边界保留 Kotlin），按批 8-4 方法论登记**保持 Kotlin**——战斗系统 executeBattle 全流程 C++ 化（回合循环/技能/日志/RNG 消费序）为独立工程，随战斗批次推进 | 审计批无测试面变更；判定证据：battle.h 无 executeBattle 等价物 + 三件源码调用链核查（登记于 month_settlement.h 文件头） |
 | 12-5 ✅ | **S 系列清偿**：① **S-11**（空白名校验）：`inventory.h validateStackableItem` 改 `name.empty() → isBlankString` 语义（Kotlin isBlank 拒纯空白名）；② **S-12**（转发辅助入口 NPE）：`GameEngineNativeOps.tryExecuteNative` 的 `stateSyncService` 参数改可空 + 内部守卫（mock 未 stub 场景不再函数入口 NPE）；③ **S-10 + S-13**（配置单源缺口）：新增 `core/game_config.h`（GameConfig 全局实例 + setGameConfig 注入）+ JNI 通道 `nativeSetGameConfig`（GameCoreBridge.cpp）+ Kotlin `GameConfigNativeBridge`（CultivationEventProcessor 构造注册 + ensureAuthoritativeNative 补注，双点幂等）；inventory.h `computeMaxSlots` 与 month_settlement.h 执法堂常量改消费注入配置（默认值兜底 = game_config.json 值） | GTest 609/609 全绿（默认值兜底零行为回归）· engine JUnit 全量 · NDK 通过（新 JNI 符号编译）· engine detekt 全绿 |
 | 12-6 ✅ | **对拍框架长期化**：`scripts/build-desktop-jni-linux.sh`（Linux g++ 构建桌面对拍桥，镜像 Windows 版源列表）+ CI 新增 `cpp-diff-jni-test` job（构建 JNI 桥 → `-Dgamecore.jni.path` 实跑 engine 全量含 Diff*Test 0 skip）——对拍框架从"本地手动"升级为 CI 长期回归基线 | **CI 首跑（push 05ce3c5f，2026-08-30）**：`cpp-engine-test` ✅（Linux GTest 全过）· `cpp-diff-jni-test` 的 **Build desktop JNI bridge ✅**（Linux g++ 构建成功——脚本链路验证通过）但测试步骤 ❌（原因待日志，无 GH token 无法下载；本地 --rerun-tasks 等价命令全绿 → 疑 Linux 环境特有）· `build` job compileReleaseKotlin ❌（**预存问题**：08-25 历史 run cf99f56/7269ab6 同样在 Compile check 失败——R-07"CI 全绿未经真实 push 验证"实锤，非本批引入）；本地等价命令已实测通过 |
+
+### 7.5 批 13（2026-08-30 续作：月变八步非战斗扇出下沉——S8 步骤 3 先行）
+
+> 范围：月变真相源切换批的前置——未下沉扇出逐件下沉（战斗三件依赖独立战斗批次，见批 12-3/12-4）。
+> 批 13-1 完成步骤 3（AI 兽袭目标预计算）；后续批 13-2+ 覆盖步骤 2 教化之道偷盗判定钩子 / 步骤 4d 生育 / 步骤 6 自动排班 / 步骤 4e 关卡刷新生成接线等。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| 13-1 ✅ | **月变步骤 3：AI 兽袭目标预计算下沉**（Kotlin `AISectBeastAttackProcessor.precomputeTargets` 等价移植）：**协议扩容**——`aiSectBeastDirectTargets`（Map<String,List<String>>）/`aiSectBeastSkipCooldowns`（Map<String,Int>）/`lockedBeastIds`（Set<String>）入 GameState 顶层（Kotlin 同名 GameData 字段 @Transient 纯运行态——快照协议经 `NativeGameState` 顶层可空字段承载，非空才导出/宽松导入/镜像永不主动清空，语义同批 10-4 aiSectDisciples；DirtyTracker 零污染）；C++ `detail::precomputeTargets`（活跃妖兽筛选 type==BEAST/未击败/未过期/未锁定 + id 升序 → AI 候选距离排序 Float 精度 + `std::stable_sort` 对齐 sortedBy 稳定序 → 门控序 冷却≥绝对月/弟子池存在/存活数≥10 → 战力比较：beastPower≤0 必攻零抽取、aiPower≤beastPower 记冷却跳过、否则恰抽 1 次 EXPLORATION nextDouble（prob=min((ratio-1)×0.3+0.3, 0.9)）→ 命中 ≤2 宗门写 targets → 冷却 12 月窗口清理）；**快照语义守护**（Kotlin `val gd = state.gameData` 值快照——冷却写入不影响后续妖兽读取，值拷贝 cooldownSnapshot 对齐）；接线进 runMonthSettlement 步骤 3 位（消费方巡视楼/子事件 9 保留 Kotlin）；镜像层 @Transient 回填扩展至三字段（applySnapshot/mergeGameData/mergeGameDataChanges）；DiffMonthSettlementTest 换装真实 AISectBeastAttackProcessor（worldLevels 空场景纯早退零效果） | GTest 612/612（+3：门控+抽不中+冷却清理黄金序列/命中+必攻+qualified 上限/同宗门双妖兽快照语义快照锁）· **DiffPrecomputeTargetsTest 新建 1/1**（桌面 JNI 直调 `detail::precomputeTargets` vs Kotlin 真实处理器逐位一致——命中/战力不足记冷却/锁定排除/过期清理 + EXPLORATION 分区终态逐位一致；直调设计规避步骤 4e moveBeasts 干扰——Kotlin 对拍臂 SystemManager 未装 ExplorationSystem）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全模块全绿 · app compileReleaseKotlin 通过 |
 
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 

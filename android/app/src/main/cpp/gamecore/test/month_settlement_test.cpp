@@ -2496,4 +2496,178 @@ TEST(MissionSettlement, RewardConfigCoversAllTemplates) {
     }
 }
 
+// ── 步骤 3：AI 兽袭目标预计算（批 13-1：precomputeTargets 等价移植）───
+//
+// 直接测 detail::precomputeTargets（规避步骤 4e moveBeasts 的 EXPLORATION
+// 干扰——快照锁只锁定本函数抽取序）。场景基准：realm 9 默认弟子战力
+// 1071/人（(16+16)*5+203*4+(13+10)*3+15*2），10 人 = 10710。
+//   beastPower = beastCombatPower（coerceAtLeast(0)）：
+//     beastMaxHp=100 → 400（<< aiPower → prob 封顶 0.9）
+//     beastMaxHp=2600 → 10400（≈ aiPower → ratio 1.03 → prob≈0.309）
+//     beastMaxHp=100000 → 400000（> aiPower → aiPower<=beastPower 跳过）
+
+/// AI 宗门场景装配：玩家宗门 + N 个 AI 宗门（坐标可调）+ 各宗门弟子数
+void setupBeastAttackScene(GameState& st) {
+    state::WorldSect player;
+    player.id = "p1"; player.isPlayerSect = true;
+    player.x = 0.0f; player.y = 0.0f;
+    st.gameData.worldMapSects.push_back(player);
+    state::WorldSect ai1;
+    ai1.id = "ai-1"; ai1.x = 200.0f; ai1.y = 100.0f;
+    st.gameData.worldMapSects.push_back(ai1);
+    state::WorldSect ai2;
+    ai2.id = "ai-2"; ai2.x = 1500.0f; ai2.y = 100.0f;
+    st.gameData.worldMapSects.push_back(ai2);
+    state::WorldSect ai3;
+    ai3.id = "ai-3"; ai3.x = 1600.0f; ai3.y = 100.0f;
+    st.gameData.worldMapSects.push_back(ai3);
+}
+
+/// 为 ai-1 填充 n 名存活弟子（默认战力 1071/人）
+void addAiDisciples(GameState& st, const std::string& sectId, int count) {
+    for (int k = 0; k < count; ++k) {
+        st.aiSectDisciples[sectId].push_back(baseDisciple(sectId + "-" + std::to_string(k)));
+    }
+}
+
+TEST(MonthSettlementTest, PrecomputeTargetsDrawMissRecordsCooldownAndCleans) {
+    // 门控 + 抽取不命中 + 过期冷却清理：
+    //   ai-1 近（10 弟子，prob≈0.309 → 抽 1 次不命中记冷却 13）；
+    //   ai-2 远（预置冷却 13 >= 绝对月 → 跳过零抽取）；
+    //   ai-3 更远（5 弟子 < 10 → 跳过）；stale 冷却（0 < 13-12）→ 清理；
+    //   beast-locked 被锁定 → 排除（不评估不写入）。
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 1;   // 绝对月 = 13
+
+    WorldLevel beast;
+    beast.id = "beast-a";
+    beast.type = "BEAST";
+    beast.x = 100.0f; beast.y = 100.0f;
+    beast.expiryYear = 99; beast.expiryMonth = 12;
+    beast.beastMaxHp = 2600;     // beastPower=10400 ≈ aiPower → prob≈0.309
+    st.gameData.worldLevels.push_back(beast);
+    WorldLevel locked = beast;
+    locked.id = "beast-locked";
+    st.lockedBeastIds.push_back("beast-locked");
+
+    setupBeastAttackScene(st);
+    addAiDisciples(st, "ai-1", 10);
+    addAiDisciples(st, "ai-3", 5);
+    st.aiSectBeastSkipCooldowns["ai-2"] = 13;   // >= absoluteMonth → 跳过
+    st.aiSectBeastSkipCooldowns["stale"] = 0;   // < 1 → 清理
+
+    // 预演 EXPLORATION：ai-1 恰抽 1 次（不命中）——种子 42 首抽 >= 0.309
+    auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 2);
+    probe.nextDouble();
+
+    gamecore::system::detail::precomputeTargets(st, core->rng());
+
+    // targets 空（唯一抽取候选 ai-1 未命中）
+    EXPECT_TRUE(st.aiSectBeastDirectTargets.empty());
+    // 冷却：ai-1 记录（抽不中）、ai-2 预置保留、stale 已清理
+    EXPECT_EQ(13, st.aiSectBeastSkipCooldowns["ai-1"]);
+    EXPECT_EQ(13, st.aiSectBeastSkipCooldowns["ai-2"]);
+    EXPECT_EQ(st.aiSectBeastSkipCooldowns.end(),
+              st.aiSectBeastSkipCooldowns.find("stale"));
+    // 锁定妖兽未评估（无目标写入）
+    EXPECT_TRUE(st.aiSectBeastDirectTargets.empty());
+    // RNG 审计：EXPLORATION 恰消耗 1 次 nextDouble
+    EXPECT_EQ(probe.snapshot(),
+              core->rng().getRng(rng::RngPartition::kExploration).snapshot());
+}
+
+TEST(MonthSettlementTest, PrecomputeTargetsHitWritesDirectTargets) {
+    // 命中路径 + 必攻路径 + qualified 上限去重：
+    //   beast-a（beastPower=400 → prob=0.9，ai-1 抽 1 次命中 → targets[a]=[ai-1]）；
+    //   beast-b（beastPower=0 → 必攻零抽取 → targets[b]=[ai-1]）；
+    //   ai-2/ai-3 距离远且弟子不足（5 < 10）→ 跳过。
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 1;
+
+    WorldLevel weak;
+    weak.id = "beast-a";
+    weak.type = "BEAST";
+    weak.x = 100.0f; weak.y = 100.0f;
+    weak.expiryYear = 99; weak.expiryMonth = 12;
+    weak.beastMaxHp = 100;       // beastPower=400 → prob=0.9
+    st.gameData.worldLevels.push_back(weak);
+    WorldLevel zero = weak;
+    zero.id = "beast-b";
+    zero.beastMaxHp = 0;         // beastPower=0 → 必攻零抽取
+    st.gameData.worldLevels.push_back(zero);
+
+    setupBeastAttackScene(st);
+    addAiDisciples(st, "ai-1", 10);
+    addAiDisciples(st, "ai-2", 5);
+
+    // 预演 EXPLORATION：beast-a 恰抽 1 次（种子 42 首抽 < 0.9 命中）；
+    // beast-b 必攻零抽取
+    auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 2);
+    probe.nextDouble();
+
+    gamecore::system::detail::precomputeTargets(st, core->rng());
+
+    // 两妖兽均命中 ai-1（列表距离升序 [ai-1]；ai-2 弟子不足不参与）
+    ASSERT_EQ(2u, st.aiSectBeastDirectTargets.size());
+    const auto& tA = st.aiSectBeastDirectTargets["beast-a"];
+    const auto& tB = st.aiSectBeastDirectTargets["beast-b"];
+    ASSERT_EQ(1u, tA.size());
+    ASSERT_EQ(1u, tB.size());
+    EXPECT_STREQ("ai-1", tA[0].c_str());
+    EXPECT_STREQ("ai-1", tB[0].c_str());
+    // 命中不记冷却
+    EXPECT_TRUE(st.aiSectBeastSkipCooldowns.empty());
+    // RNG 审计：恰 1 次（beast-b 必攻零抽取）
+    EXPECT_EQ(probe.snapshot(),
+              core->rng().getRng(rng::RngPartition::kExploration).snapshot());
+}
+
+TEST(MonthSettlementTest, PrecomputeTargetsSameSectTwoBeastsSnapshotSemantics) {
+    // 快照语义守护（对拍命门）：同一 AI 宗门对两个妖兽都最近，双妖兽各抽
+    // 1 次——Kotlin `val gd = state.gameData` 值快照使 beast-a 的冷却写入
+    // 不影响 beast-b 的冷却读取（引用实现会跳过 beast-b → 仅 1 抽 → 快照锁
+    // 失败）。prob≈0.309 双不命中 → targets 空 + 冷却记录。
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 1;
+
+    WorldLevel a;
+    a.id = "beast-a";
+    a.type = "BEAST";
+    a.x = 100.0f; a.y = 100.0f;
+    a.expiryYear = 99; a.expiryMonth = 12;
+    a.beastMaxHp = 2600;
+    st.gameData.worldLevels.push_back(a);
+    WorldLevel b = a;
+    b.id = "beast-b";
+    b.x = 120.0f; b.y = 100.0f;
+    st.gameData.worldLevels.push_back(b);
+
+    setupBeastAttackScene(st);
+    addAiDisciples(st, "ai-1", 10);
+
+    // 预演 EXPLORATION：双妖兽各 1 抽 = 2 次（种子 42 两抽均 >= 0.309）
+    auto probe = gamecore::rng::DeterministicRng::fromSeed(seed + 2);
+    probe.nextDouble();
+    probe.nextDouble();
+
+    gamecore::system::detail::precomputeTargets(st, core->rng());
+
+    // 双抽不命中 → targets 空 + ai-1 冷却记录
+    EXPECT_TRUE(st.aiSectBeastDirectTargets.empty());
+    EXPECT_EQ(13, st.aiSectBeastSkipCooldowns["ai-1"]);
+    EXPECT_EQ(1u, st.aiSectBeastSkipCooldowns.size());
+    // RNG 审计：恰 2 次（快照语义——beast-a 冷却写入不抑制 beast-b 抽取）
+    EXPECT_EQ(probe.snapshot(),
+              core->rng().getRng(rng::RngPartition::kExploration).snapshot());
+}
+
 }  // namespace

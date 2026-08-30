@@ -152,16 +152,36 @@ class StateSyncService @Inject constructor(
     fun applySnapshot(snapshot: NativeGameState, exportedGameDataKeys: Set<String> = emptySet()) {
         stateStore.update {
             val carriedAi = snapshot.aiSectDisciples
+            val carriedBeastTargets = snapshot.aiSectBeastDirectTargets
+            val carriedBeastCooldowns = snapshot.aiSectBeastSkipCooldowns
+            val carriedLockedBeasts = snapshot.lockedBeastIds
             gameData = (if (exportedGameDataKeys.isEmpty()) {
-                // 全量替换：aiSectDisciples 不在快照 gameData（@Transient 不入
-                // kotlinx 序列化）——以事务内当前值回填（顶层字段携带时下方覆盖）
-                snapshot.gameData.copy(aiSectDisciples = gameData.aiSectDisciples)
+                // 全量替换：@Transient 字段不在快照 gameData（不入 kotlinx
+                // 序列化）——以事务内当前值回填（顶层字段携带时下方覆盖）
+                snapshot.gameData.copy(
+                    aiSectDisciples = gameData.aiSectDisciples,
+                    aiSectBeastDirectTargets = gameData.aiSectBeastDirectTargets,
+                    aiSectBeastSkipCooldowns = gameData.aiSectBeastSkipCooldowns,
+                    lockedBeastIds = gameData.lockedBeastIds
+                )
             } else {
                 mergeGameData(gameData, snapshot.gameData, exportedGameDataKeys)
             }).let { base ->
-                // 批 10-4：AI 宗门弟子池经顶层字段承载——C++ 导出携带（非 null）
-                // 才覆盖；未携带保留事务内当前值，镜像永不主动清空该域
-                if (carriedAi != null) base.copy(aiSectDisciples = carriedAi) else base
+                // 批 10-4 + 批 13-1：@Transient 字段经顶层字段承载——C++ 导出
+                // 携带（非 null）才覆盖；未携带保留事务内当前值，镜像永不主动
+                // 清空该域
+                var merged = base
+                if (carriedAi != null) merged = merged.copy(aiSectDisciples = carriedAi)
+                if (carriedBeastTargets != null) {
+                    merged = merged.copy(aiSectBeastDirectTargets = carriedBeastTargets)
+                }
+                if (carriedBeastCooldowns != null) {
+                    merged = merged.copy(aiSectBeastSkipCooldowns = carriedBeastCooldowns)
+                }
+                if (carriedLockedBeasts != null) {
+                    merged = merged.copy(lockedBeastIds = carriedLockedBeasts)
+                }
+                merged
             }
             if (snapshot.disciples.isNotEmpty()) {
                 discipleTables.replaceAll(snapshot.disciples)
@@ -198,10 +218,16 @@ class StateSyncService @Inject constructor(
             }
         }
         val decoded = json.decodeFromJsonElement(GameData.serializer(), merged)
-        // 批 10-5（S-15 修复族）：@Transient aiSectDisciples 永不进 gameData JSON
-        //（kotlinx 序列化排除）——解码必然丢失，按"未迁移字段保留 Kotlin 既有值"
-        // 语义显式回填，镜像永不因解码丢失清空该域
-        return decoded.copy(aiSectDisciples = current.aiSectDisciples)
+        // 批 10-5（S-15 修复族）+ 批 13-1：@Transient 字段（aiSectDisciples /
+        // aiSectBeastDirectTargets / aiSectBeastSkipCooldowns / lockedBeastIds）
+        // 永不进 gameData JSON（kotlinx 序列化排除）——解码必然丢失，按"未迁移
+        // 字段保留 Kotlin 既有值"语义显式回填，镜像永不因解码丢失清空该域
+        return decoded.copy(
+            aiSectDisciples = current.aiSectDisciples,
+            aiSectBeastDirectTargets = current.aiSectBeastDirectTargets,
+            aiSectBeastSkipCooldowns = current.aiSectBeastSkipCooldowns,
+            lockedBeastIds = current.lockedBeastIds
+        )
     }
 
     /**
@@ -212,9 +238,12 @@ class StateSyncService @Inject constructor(
         val snapshot = stateStore.takeAtomicSnapshot()
         return NativeGameState(
             gameData = snapshot.gameData,
-            // 批 10-4：AI 宗门弟子池经顶层字段显式承载（GameData 侧
-            // @Transient 不入序列化——见 NativeGameState KDoc）
+            // 批 10-4 + 批 13-1：@Transient 字段经顶层字段显式承载
+            //（GameData 侧不入序列化——见 NativeGameState KDoc）
             aiSectDisciples = snapshot.gameData.aiSectDisciples,
+            aiSectBeastDirectTargets = snapshot.gameData.aiSectBeastDirectTargets,
+            aiSectBeastSkipCooldowns = snapshot.gameData.aiSectBeastSkipCooldowns,
+            lockedBeastIds = snapshot.gameData.lockedBeastIds,
             disciples = snapshot.disciples,
             equipmentStacks = snapshot.equipmentStacks,
             equipmentInstances = snapshot.equipmentInstances,
@@ -526,9 +555,15 @@ class StateSyncService @Inject constructor(
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         gameData = try {
             json.decodeFromJsonElement(GameData.serializer(), merged)
-                // 批 10-5（S-15 修复族）：@Transient aiSectDisciples 解码必然
-                // 丢失——显式回填事务内当前值（dirty 路径同样永不清空该域）
-                .copy(aiSectDisciples = gameData.aiSectDisciples)
+                // 批 10-5（S-15 修复族）+ 批 13-1：@Transient 字段（aiSectDisciples /
+                // aiSectBeastDirectTargets / aiSectBeastSkipCooldowns / lockedBeastIds）
+                // 解码必然丢失——显式回填事务内当前值（dirty 路径同样永不清空）
+                .copy(
+                    aiSectDisciples = gameData.aiSectDisciples,
+                    aiSectBeastDirectTargets = gameData.aiSectBeastDirectTargets,
+                    aiSectBeastSkipCooldowns = gameData.aiSectBeastSkipCooldowns,
+                    lockedBeastIds = gameData.lockedBeastIds
+                )
         } catch (e: Exception) {
             // 变更值与 schema 不符（版本漂移防御）——保留 Kotlin 现状
             gameData

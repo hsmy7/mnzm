@@ -510,7 +510,7 @@ class DiffMonthSettlementTest {
     private fun buildService(
         store: FakeGameStateStore,
         rngStates: Map<Int, Long>
-    ): Pair<CultivationService, GameRngManager> {
+    ): Triple<CultivationService, GameRngManager, AISectBeastAttackProcessor> {
         DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
             override fun getBaseStats(disciple: Disciple) =
                 DiscipleStatCalculator.getBaseStats(disciple)
@@ -578,6 +578,10 @@ class DiffMonthSettlementTest {
             cultivationRateCalculator = CultivationRateCalculator(store)
         )
         val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
+        // 批 13-1：真实 AISectBeastAttackProcessor（precomputeTargets 对拍主体；
+        // battleSystem/encounterBattleService 用 mock——对拍场景 targets 空
+        // 或未触发子事件 9 战斗，processRemainingTargets 纯早退不调用）
+        val aiBeastAttackProcessor = buildBeastAttackProcessor(store, gameRng)
         val handler = DiscipleBreakthroughHandler(
             stateStore = store,
             cultivationCore = core,
@@ -599,22 +603,38 @@ class DiffMonthSettlementTest {
             gameConfigProvider = configProvider
         )
         val eventProcessor = buildEventProcessor(
-            store, core, handler, settlement, gameRng, scopeProvider
+            store, core, handler, settlement, gameRng, scopeProvider,
+            aiBeastAttackProcessor
         )
-        return CultivationService(
-            stateStore = store,
-            cultivationCore = core,
-            breakthroughHandler = handler,
-            cultivationSettlement = settlement,
-            eventProcessor = eventProcessor,
-            productionProcessor = mockSmart(),
-            recruitService = mockSmart(),
-            merchantAndRecruitService = mockSmart(),
-            caveExplorationProcessor = mockSmart(),
-            sharedState = CultivationSharedState(),
-            discipleService = mockSmart()
-        ) to gameRng
+        return Triple(
+            CultivationService(
+                stateStore = store,
+                cultivationCore = core,
+                breakthroughHandler = handler,
+                cultivationSettlement = settlement,
+                eventProcessor = eventProcessor,
+                productionProcessor = mockSmart(),
+                recruitService = mockSmart(),
+                merchantAndRecruitService = mockSmart(),
+                caveExplorationProcessor = mockSmart(),
+                sharedState = CultivationSharedState(),
+                discipleService = mockSmart()
+            ),
+            gameRng,
+            aiBeastAttackProcessor
+        )
     }
+
+    /** 批 13-1：真实 AISectBeastAttackProcessor（precomputeTargets 对拍主体） */
+    private fun buildBeastAttackProcessor(
+        store: FakeGameStateStore,
+        gameRng: GameRngManager
+    ): AISectBeastAttackProcessor = AISectBeastAttackProcessor(
+        stateStore = store,
+        battleSystem = mockSmart(),
+        rngManager = gameRng,
+        encounterBattleService = mockSmart()
+    )
 
     /** 真实 CultivationEventProcessor + 定向惰性依赖（论证见 t2-2-report.md §A） */
     @Suppress("LongMethod")  // 测试装配：按 27 个构造参数逐个传参，行数随依赖面自然增长
@@ -624,7 +644,8 @@ class DiffMonthSettlementTest {
         handler: DiscipleBreakthroughHandler,
         settlement: CultivationSettlement,
         gameRng: GameRngManager,
-        scopeProvider: CoroutineScopeProvider
+        scopeProvider: CoroutineScopeProvider,
+        aiBeastAttackProcessor: AISectBeastAttackProcessor
     ): CultivationEventProcessor {
         val wallet = SpiritStoneWallet(
             store, SpiritStoneLedger(), EventBus(scopeProvider)
@@ -681,7 +702,7 @@ class DiffMonthSettlementTest {
                 inventoryConfig = inventoryConfig,
                 rngManager = gameRng
             ),
-            aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
+            aiSectBeastAttackProcessor = aiBeastAttackProcessor,
             // 批 10-2：真实执法堂处理器（叛逃流对拍主体）——lifecycle 用 mock：
             // 逃脱路径的 11 槽清理在场景中恒等（叛逃候选无任何槽位引用）
             lawEnforcementProcessor = LawEnforcementProcessor(
@@ -702,13 +723,16 @@ class DiffMonthSettlementTest {
         )
     }
 
-    /** 月变编排器（SystemManager 仅装 PartnerSystem——缺席 ≡ 场景恒零，见报告 §A） */
+    /** 月变编排器（SystemManager 仅装 PartnerSystem——缺席 ≡ 场景恒零，见报告 §A；
+     *  批 13-1：步骤 3 换装真实 AISectBeastAttackProcessor——precomputeTargets
+     *  对拍主体，worldLevels 空场景纯早退零效果） */
     private fun buildMonthExecutor(
         service: CultivationService,
-        gameRng: GameRngManager
+        gameRng: GameRngManager,
+        aiBeastAttackProcessor: AISectBeastAttackProcessor
     ): MonthSettlementExecutor = MonthSettlementExecutor(
         cultivationService = service,
-        aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
+        aiSectBeastAttackProcessor = aiBeastAttackProcessor,
         systemManager = SystemManager(setOf(PartnerSystem(gameRng)))
     )
 
@@ -768,11 +792,10 @@ class DiffMonthSettlementTest {
             it.seedsValue = snapshot.seeds
             it.storageBagsValue = snapshot.storageBags
         }
-        val serviceAndRng = buildService(store, snapshot.gameData.rngStates)
-        val service = serviceAndRng.first
-        val gameRng = serviceAndRng.second
+        val (service, gameRng, aiBeastAttackProcessor) =
+            buildService(store, snapshot.gameData.rngStates)
         val phaseExecutor = PhaseSettlementExecutor(service)
-        val monthExecutor = buildMonthExecutor(service, gameRng)
+        val monthExecutor = buildMonthExecutor(service, gameRng, aiBeastAttackProcessor)
         val timeSystem = TimeSystem(store)
         store.update {
             repeat(phases) {

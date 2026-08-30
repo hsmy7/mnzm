@@ -90,6 +90,13 @@ object DiffRngBridge {
     // ── 探索计算通道（批次 8a，对拍用） ────────────────────
     external fun nativeCoreExplorationOp(opJson: ByteArray): ByteArray
 
+    // ── AI 兽袭目标预计算直调（批 13-1，对拍用） ─────────────
+    // 直接作用于 g_core 当前状态（导入/导出经 nativeCoreImportState/
+    // nativeCoreExportState），与 Kotlin AISectBeastAttackProcessor.
+    // precomputeTargets 逐位对拍——不经过完整月变管线（规避步骤 4e
+    // moveBeasts 的 EXPLORATION 干扰；生产路径经 runMonthSettlement 步骤 3）
+    external fun nativeCorePrecomputeTargets()
+
     // ── execute 分发表通道（批次 9，对拍用） ────────────────
     external fun nativeCoreExecute(actionId: Int, paramsJson: ByteArray): ByteArray
 

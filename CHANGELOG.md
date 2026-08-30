@@ -1,5 +1,26 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（月变残留执行器增量 C++ 化批 13-1：S8 步骤 3 AI 兽袭目标预计算下沉）
+
+> 承接批 12（cpp-engine.md §7.4）：月变八步第三步 `precomputeTargets`（AI 宗门妖兽直攻目标预计算）等价移植 C++——消费方（巡视楼/子事件 9 AI 兽战）保留 Kotlin，生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。
+
+- **S8 步骤 3 AI 兽袭目标预计算**：Kotlin `AISectBeastAttackProcessor.precomputeTargets` 等价移植 C++（month_settlement.h `detail::precomputeTargets`，EXPLORATION 分区）——活跃妖兽筛选（type==BEAST/未击败/未过期/未被玩家锁定 + id 升序）、AI 候选距离排序（Float 精度 sqrt→toFloat + `std::stable_sort` 对齐 Kotlin sortedBy 稳定序）、门控序（冷却≥绝对月 → AI 弟子池存在 → 存活数≥10 → 战力比较）、RNG 抽取序（每妖兽每合格宗门恰 1 次 EXPLORATION nextDouble，prob=min((战力比-1)×0.3+0.3, 0.9)；beastPower≤0 必攻零抽取、aiPower≤beastPower 记冷却跳过）、冷却记录/超期清理（12 月窗口）；**快照语义守护**（Kotlin `val gd = state.gameData` 值快照——冷却写入不影响后续妖兽读取，GTest 专用用例锁定抽取次数）；接线进 runMonthSettlement 步骤 3 位
+- **协议扩容**：`aiSectBeastDirectTargets`（Map<String,List<String>>）/`aiSectBeastSkipCooldowns`（Map<String,Int>）/`lockedBeastIds`（Set<String>）入 GameState 顶层（Kotlin 同名 GameData 字段 @Transient 纯运行态——快照协议经 `NativeGameState` 顶层可空字段承载，非空才导出/宽松导入/镜像永不主动清空，语义同批 10-4 aiSectDisciples）；镜像层 `applySnapshot`/`mergeGameData`/`mergeGameDataChanges` 的 @Transient 回填扩展至三字段
+- **测试**：GTest 612/612（+3：门控+抽取不命中+冷却清理黄金序列/命中+必攻+qualified 上限/two-beasts 快照语义快照锁）· **DiffPrecomputeTargetsTest 新建**（桌面 JNI 直调 `detail::precomputeTargets` 通道 vs Kotlin 真实 `AISectBeastAttackProcessor` 逐位对拍——命中/战力不足记冷却/锁定排除/过期清理 + EXPLORATION 分区终态逐位一致；直调设计规避步骤 4e moveBeasts 干扰）· DiffMonthSettlementTest 换装真实 AISectBeastAttackProcessor（worldLevels 空场景纯早退零效果，现有对拍零回归）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：无存档/序列化变更（三字段为进程内快照协议顶层键，Room/kotlinx-proto 存档编码零改动；旧 .so 导出缺失键宽松跳过）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
+### 新增（月变残留执行器增量 C++ 化批 12-1~12-6：弟子购买/任务刷新下沉 + 战斗边界审计 + S 系列清偿 + 对拍框架长期化）
+
+> 批 12 补登（2026-08-30 交付时遗漏，随批 13-1 一并登记；cpp-engine.md §7.4）：用户确认"全部包含"恢复批 11 收窄的五件子事件 + S 系列清偿 + 对拍框架长期化。
+
+- **批 12-1 S8 子事件 12 弟子智能购买**：Kotlin `DisciplePurchaseService.executePurchase` 等价移植（collectDisciples/buildPurchaseDecisions 功法→装备→丹药优先级 + A 组空槽优先 B 组升级 + 每弟子类别上限/shuffled 洗牌/applyPurchaseDecisions 仓库扣减 exact id→name+rarity 回退/入袋/灵石先储物袋后随身/宗门入账）；**途中修复 C-11 登记项 `shuffled` 算法**（Kotlin `Iterable.shuffled(rng)` 为每元素 1 次无参 nextInt 随机键 + 稳定排序，非 Fisher-Yates——原实现致 SYSTEM 分区消费次数双端失配）；S-20 登记（购买日志 lifeEvents 为 Kotlin 类体属性非协议字段）
+- **批 12-2 S8 子事件 14 任务刷新**：Kotlin `MissionSystem.processMonthlyRefresh` 等价移植（month%3==0 门/nextInt(7) 刷新数/加权池抽取/四级奖励回退/刷新月清空旧列表）；Mission/MissionRewardConfig 模型 + 24 模板静态属性表 + `availableMissions` 入 GameData 双向编解码；**S-19 特判移除**（MISSION(8) 分区双端消费对齐，仅 Mission.id 镜像生成排除）
+- **批 12-3/12-4 战斗边界审计判定**：任务完成(5)/AI 兽战(9)/洞天 AI 操作(6) 三件全路径经 `BattleSystem.executeBattle`（批 4-3 边界"战斗执行保留 Kotlin"）——按批 8-4 方法论登记保持 Kotlin，战斗 executeBattle 全流程 C++ 化（回合循环/技能/日志/RNG 消费序）为独立工程随战斗批次推进
+- **批 12-5 S 系列清偿**：S-11（validateStackableItem 改 isBlankString 语义）/ S-12（tryExecuteNative stateSyncService 参数可空 + 内部守卫）/ S-10+S-13（`core/game_config.h` 全局 GameConfig + JNI `nativeSetGameConfig` 注入通道 + Kotlin GameConfigNativeBridge 双点幂等，inventory/执法堂常量改消费注入配置，默认值兜底 = game_config.json 值）
+- **批 12-6 对拍框架长期化**：`scripts/build-desktop-jni-linux.sh` + CI 新增 `cpp-diff-jni-test` job（构建 JNI 桥 → `-Dgamecore.jni.path` 实跑 engine 全量含 Diff*Test 0 skip）；CI 首跑：`cpp-engine-test` ✅ + 桥构建 ✅ + build compile ❌（预存问题 R-07 实锤，非本批引入）
+- **验证**：GTest 609/609（+6：弟子购买 3/任务刷新 3）· DiffMonthSettlementTest 场景⑪⑫对拍逐位一致（SYSTEM/MISSION 分区消费对齐）· engine JUnit 2925/2925（0 skip）· NDK 通过 · detekt 全绿
+- **兼容性**：rngStates 新增 MISSION(8) 号键（动态 map 无 schema 变更，旧档缺键按种子播种）；存档/序列化零变更（availableMissions 为快照协议字段，kotlinx-proto 存档编码不变）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ### 修复（批 11-4：途中发现问题清偿——Fake 嵌套事务/任务 RNG 确定性化/回退分支确定性化）
 
 > 用户指示"解决途中发现的问题"（cpp-engine.md §7.3 批 11-4）：上轮批 11 交付报告的三个途中发现 + 登记的 S-14/S-18/S-19 债务。

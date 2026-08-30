@@ -35,6 +35,13 @@ data class NativeGameState(
     // 可空语义：null = 旧 .so 未导出（镜像不回写，Kotlin 侧保持权威）；
     // 非 null = C++ 导出值（镜像写回 gameData.aiSectDisciples）
     val aiSectDisciples: Map<String, List<Disciple>>? = null,
+    // 批 13-1：AI 宗门妖兽攻击域（Kotlin GameData 同名三字段 @Transient 不入
+    // kotlinx 序列化——快照协议经顶层字段显式承载，与 C++ GameState 一一对应，
+    // 语义同 aiSectDisciples：null = 旧 .so 未导出（镜像不回写保持 Kotlin 权威）；
+    // 非 null = C++ 导出值（镜像写回 gameData 对应字段））
+    val aiSectBeastDirectTargets: Map<String, List<String>>? = null,
+    val aiSectBeastSkipCooldowns: Map<String, Int>? = null,
+    val lockedBeastIds: Set<String>? = null,
     val disciples: List<Disciple> = emptyList(),
     val equipmentStacks: List<EquipmentStack> = emptyList(),
     val equipmentInstances: List<EquipmentInstance> = emptyList(),

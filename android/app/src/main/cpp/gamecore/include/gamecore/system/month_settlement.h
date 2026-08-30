@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <algorithm>
 #include <cmath>
@@ -38,7 +38,8 @@
 // 八步事务序（语义权威 = 各被调方法源码）：
 //   1. 政策月度灵石扣除        ← government.h::processPolicyCosts（原语接线）
 //   2. 政策月度忠诚/道德效果     ← CultivationSettlement.processPolicyMonthlyEffects
-//   3. AI 兽袭目标预计算        ← 未下沉（见下方范围边界）
+//   3. AI 兽袭目标预计算        ← 批 13-1 precomputeTargets（EXPLORATION；
+//      消费方巡视楼/子事件 9 保留 Kotlin）
 //   4. systemManager.onMonthlyEvent 七系统扇出（@SystemPriority 升序）：
 //      Alchemy(210) → Forge(211) → Planting(214) → ChildBirth(235) →
 //      Exploration(240) → Partner(240，稳定排序居后) → Mail(960)
@@ -62,9 +63,10 @@
 //   道德增量后的反应式偷盗判定钩子仍未下沉）。
 //
 // 已知范围边界（详见 .superpowers/sdd/t2-2-report.md 覆盖矩阵）：
-//   - S3 precomputeTargets：依赖 aiSectDisciples/aiSectBeastDirectTargets 等
-//     AI 宗门域字段，不在 C++ 快照协议——属阶段 4 AI 宗门批次；
-//     对拍场景 worldMapSects 为空 → 双端零抽取零写入
+//   - S3 precomputeTargets ✅（批 13-1 下沉：aiSectBeastDirectTargets/
+//     aiSectBeastSkipCooldowns/lockedBeastIds 入 GameState 顶层快照协议——
+//     Kotlin 同名 GameData 字段 @Transient 纯运行态；消费方巡视楼/子事件 9
+//     保留 Kotlin）；剩余 S4 关卡刷新生成等见下
 //   - S4 关卡刷新生成（LevelGenerator）/巡视楼战斗/妖兽攻击检测：战斗与
 //     生成域未迁移；场景无玩家宗门 → 刷新不触发、检测/巡视纯早退
 //   - S4 生育（DiscipleFactory 弟子生成批次）：场景 childBirthMonth 全空 → 双端零效果
@@ -1448,6 +1450,180 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     // 其余子事件未下沉——见文件头范围边界（rng 参数供后续批次接线）
 }
 
+// ── 步骤 3：AI 兽袭目标预计算（批 13-1：Kotlin AISectBeastAttackProcessor.
+//    precomputeTargets 等价移植；EXPLORATION 分区）──────────────────────
+//
+// 语义（逐条对齐 Kotlin 源码）：
+// - 活跃妖兽 = worldLevels filter（type=="BEAST" && !defeated &&
+//   !checkLevelExpired(year,month) && id !in lockedBeastIds）sortedBy id；
+//   无活跃妖兽 → 纯早退（cleanExpiredSkipCooldowns 也不执行——对齐 Kotlin
+//   `if (activeBeasts.isEmpty()) return`）
+// - 每妖兽候选 = worldMapSects filter（!isPlayerSect && !isPlayerOccupied）
+//   按欧氏距离（Float 精度 sqrt→toFloat）升序取前 2——std::stable_sort 对齐
+//   Kotlin sortedBy 稳定序（相等距离保持 worldMapSects 原序）
+// - 每候选门控序：冷却（>= absoluteMonth 跳过，含等号）→ AI 弟子池存在 →
+//   存活数 >= kAiMinDisciplesForAttack（10）→ 战力比较：
+//     beastPower <= 0 → 必攻（零抽取）；aiPower <= beastPower → 记冷却跳过；
+//     否则抽 1 次 EXPLORATION nextDouble（prob = min((ratio-1)×0.3+0.3, 0.9)，
+//     < prob 命中，否则记冷却跳过）
+// - 命中宗门（≤2，去重）写入 aiSectBeastDirectTargets[beast.id]；
+//   末尾清理超 12 月冷却记录（value < absoluteMonth-12 移除）
+// - RNG 抽取序（对拍命门）：每妖兽 × 每候选宗门恰 1 次，位于妖兽移动
+//   （步骤 4e moveBeasts）之前——步骤 3 先于步骤 4 执行
+// - 快照语义：Kotlin `val gd = state.gameData` 为进入时值快照，recordSkipCooldown/
+//   targets 写入不影响后续 beast 的读取——C++ 以 gdSnapshot 值拷贝对齐
+//   （引用会读到本函数写入的冷却 → 后续 beast 错误跳过，行为漂移）
+
+/// AI 攻妖兽概率基础倍率（Kotlin ATTACK_PROB_BASE_MULTIPLIER）
+constexpr double kAiAttackProbBaseMultiplier = 0.3;
+/// AI 攻妖兽概率上限（Kotlin ATTACK_PROB_CAP）
+constexpr double kAiAttackProbCap = 0.9;
+/// AI 进攻最低存活弟子数（GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK）
+constexpr int32_t kAiMinDisciplesForAttack = 10;
+/// 跳过攻击冷却期（月，Kotlin SKIP_COOLDOWN_MONTHS）
+constexpr int32_t kAiSkipCooldownMonths = 12;
+
+/// 记录 AI 宗门跳过冷却（Kotlin recordSkipCooldown：值=当前绝对月）
+inline void recordBeastSkipCooldown(GameState& state, const std::string& sectId,
+                                    int32_t absoluteMonth) {
+    state.aiSectBeastSkipCooldowns[sectId] = absoluteMonth;
+}
+
+/// 清理超期冷却记录（Kotlin cleanExpiredSkipCooldowns：保留 value >= 绝对月-12；
+///   仅当确有移除时写回，对齐 Kotlin size 比较）
+inline void cleanExpiredBeastSkipCooldowns(GameState& state, int32_t absoluteMonth) {
+    auto& cooldowns = state.aiSectBeastSkipCooldowns;
+    const int32_t cutoff = absoluteMonth - kAiSkipCooldownMonths;
+    std::map<std::string, int32_t> cleaned;
+    for (const auto& [sectId, value] : cooldowns) {
+        if (value >= cutoff) cleaned.emplace(sectId, value);
+    }
+    if (cleaned.size() < cooldowns.size()) {
+        cooldowns = std::move(cleaned);
+    }
+}
+
+/// 收集对指定妖兽有进攻资格的 AI 宗门 id 列表（最多 2 个，距离升序；
+///   Kotlin collectQualifiedAiForBeast 等价移植）
+inline std::vector<std::string> collectQualifiedAiForBeast(
+    GameState& state, const state::GameData& gdSnapshot,
+    const std::map<std::string, int32_t>& cooldownSnapshot,
+    const state::WorldLevel& beast, rng::RngManager& rng,
+    int32_t absoluteMonth) {
+    struct Candidate {
+        const state::WorldSect* sect;
+        float dist;
+    };
+    std::vector<Candidate> candidates;
+    for (const auto& sect : gdSnapshot.worldMapSects) {
+        if (sect.isPlayerSect || sect.isPlayerOccupied) continue;
+        const float dx = beast.x - sect.x;
+        const float dy = beast.y - sect.y;
+        const float dist = static_cast<float>(
+            std::sqrt(static_cast<double>(dx * dx + dy * dy)));
+        if (std::isnan(dist) || std::isinf(dist)) continue;
+        candidates.push_back({&sect, dist});
+    }
+    // Kotlin sortedBy 稳定排序 → std::stable_sort（相等距离保持原序）
+    std::stable_sort(candidates.begin(), candidates.end(),
+                     [](const Candidate& a, const Candidate& b) {
+                         return a.dist < b.dist;
+                     });
+    if (candidates.size() > 2) candidates.resize(2);
+
+    std::vector<std::string> qualified;
+    qualified.reserve(2);
+    for (const auto& cand : candidates) {
+        if (qualified.size() >= 2) break;
+        const auto& sect = *cand.sect;
+        const auto cooldownIt = cooldownSnapshot.find(sect.id);
+        const int32_t cooldown = cooldownIt == cooldownSnapshot.end()
+                                     ? 0 : cooldownIt->second;
+        if (cooldown >= absoluteMonth) continue;
+
+        const auto disciplesIt = state.aiSectDisciples.find(sect.id);
+        if (disciplesIt == state.aiSectDisciples.end()) continue;
+        int32_t aliveCount = 0;
+        int64_t aiPower = 0;
+        for (const auto& d : disciplesIt->second) {
+            if (!d.isAlive) continue;
+            ++aliveCount;
+            aiPower += sectPowerOfDisciple(d);
+        }
+        if (aliveCount < kAiMinDisciplesForAttack) continue;
+
+        const int64_t beastPower = beastCombatPower(
+            beast.beastMaxHp, beast.beastPhysicalAttack, beast.beastMagicAttack,
+            beast.beastPhysicalDefense, beast.beastMagicDefense, beast.beastSpeed);
+
+        bool canAttack = false;
+        if (beastPower <= 0) {
+            canAttack = true;
+        } else if (aiPower <= beastPower) {
+            recordBeastSkipCooldown(state, sect.id, absoluteMonth);
+        } else {
+            const double ratio = static_cast<double>(aiPower) /
+                                 static_cast<double>(beastPower);
+            const double prob = std::min(
+                (ratio - 1.0) * kAiAttackProbBaseMultiplier +
+                    kAiAttackProbBaseMultiplier,
+                kAiAttackProbCap);
+            if (rng.getRng(rng::RngPartition::kExploration).nextDouble() < prob) {
+                canAttack = true;
+            } else {
+                recordBeastSkipCooldown(state, sect.id, absoluteMonth);
+            }
+        }
+        if (canAttack &&
+            std::find(qualified.begin(), qualified.end(), sect.id) ==
+                qualified.end()) {
+            qualified.push_back(sect.id);
+        }
+    }
+    return qualified;
+}
+
+/// 步骤 3：AI 兽袭目标预计算（Kotlin AISectBeastAttackProcessor.
+///   precomputeTargets 等价移植；写入 aiSectBeastDirectTargets + 冷却清理）
+inline void precomputeTargets(GameState& state, rng::RngManager& rng) {
+    // Kotlin `val gd = state.gameData` 值快照语义（见上注释）：aiSectBeast*
+    // 域为 GameState 顶层字段（Kotlin GameData @Transient），冷却快照同样
+    // 值拷贝——recordSkipCooldown 写入不影响后续妖兽的冷却读取
+    const state::GameData gdSnapshot = state.gameData;
+    const std::map<std::string, int32_t> cooldownSnapshot =
+        state.aiSectBeastSkipCooldowns;
+    const int32_t year = gdSnapshot.gameYear;
+    const int32_t month = gdSnapshot.gameMonth;
+
+    std::vector<const state::WorldLevel*> activeBeasts;
+    for (const auto& level : gdSnapshot.worldLevels) {
+        if (level.type != "BEAST" || level.defeated ||
+            checkLevelExpired(level, year, month)) {
+            continue;
+        }
+        if (std::find(state.lockedBeastIds.begin(), state.lockedBeastIds.end(),
+                      level.id) != state.lockedBeastIds.end()) {
+            continue;
+        }
+        activeBeasts.push_back(&level);
+    }
+    if (activeBeasts.empty()) return;
+    std::sort(activeBeasts.begin(), activeBeasts.end(),
+              [](const state::WorldLevel* a, const state::WorldLevel* b) {
+                  return a->id < b->id;
+              });
+
+    const int32_t absoluteMonth = year * 12 + month;
+    for (const auto* beast : activeBeasts) {
+        auto qualified = collectQualifiedAiForBeast(
+            state, gdSnapshot, cooldownSnapshot, *beast, rng, absoluteMonth);
+        if (!qualified.empty()) {
+            state.aiSectBeastDirectTargets[beast->id] = std::move(qualified);
+        }
+    }
+    cleanExpiredBeastSkipCooldowns(state, absoluteMonth);
+}
+
 }  // namespace detail
 
 // ── 主入口：月变结算（注册进 SettlementEngine::onMonthChange） ─────
@@ -1483,8 +1659,9 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 步骤 2：政策月度忠诚/道德效果
     detail::processPolicyMonthlyEffects(state);
 
-    // 步骤 3：AI 兽袭目标预计算——未下沉（AI 宗门域，阶段 4 批次；
-    // 场景 worldMapSects 为空 → Kotlin 同样零抽取零写入）
+    // 步骤 3：AI 兽袭目标预计算（批 13-1：precomputeTargets 等价移植；
+    // 写入 aiSectBeastDirectTargets——巡视楼/子事件 9 消费方保留 Kotlin）
+    detail::precomputeTargets(state, rng);
 
     // 步骤 4：七系统扇出（@SystemPriority 升序；稳定排序 Exploration(240)
     // 先于 Partner(240)，对齐 Dagger Set 注入序的现行生产行为）

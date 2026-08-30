@@ -1354,6 +1354,15 @@ struct GameState {
     // 字段与固定集合清单，本字段不进脏导出——镜像通道零污染，Kotlin 侧
     // 不回写保持权威，反向回导随月变真相源切换批接线（S-15））
     std::map<std::string, std::vector<Disciple>> aiSectDisciples;
+    // 批 13-1：AI 宗门妖兽攻击域（Kotlin GameData 同名三字段均为 @Transient——
+    // 不进存档序列化，纯运行态；快照协议置于顶层与 NativeGameState 一一对应，
+    // 语义同 aiSectDisciples（非空才导出、宽松导入、DirtyTracker 零污染））。
+    //   aiSectBeastDirectTargets：妖兽 → 已确认进攻的 AI 宗门 id 列表（≤2，距离升序）
+    //   aiSectBeastSkipCooldowns：AI 宗门 id → 跳过进攻的绝对月（年×12+月）
+    //   lockedBeastIds：被玩家锁定（弹窗打开中）的妖兽 id 集合（月度结算跳过）
+    std::map<std::string, std::vector<std::string>> aiSectBeastDirectTargets;
+    std::map<std::string, int32_t> aiSectBeastSkipCooldowns;
+    std::vector<std::string> lockedBeastIds;
     std::vector<EquipmentStack> equipmentStacks;
     std::vector<EquipmentInstance> equipmentInstances;
     std::vector<ManualStack> manualStacks;

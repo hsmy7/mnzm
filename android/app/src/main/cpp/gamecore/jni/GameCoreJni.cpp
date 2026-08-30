@@ -35,6 +35,7 @@
 #include "gamecore/system/government.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/lifecycle.h"
+#include "gamecore/system/month_settlement.h"
 #include "gamecore/system/spirit_field.h"
 #include "gamecore/system/watchdog.h"
 
@@ -903,6 +904,23 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExplorationOp(
         nlohmann::json err = {{"error", e.what()}};
         return stringToJbytes(env, err.dump());
     }
+}
+
+// ============================================================
+// 批 13-1：AI 兽袭目标预计算直调通道（对拍用）
+//
+// 直接作用于 g_core 当前状态（导入/导出经 nativeCoreImportState/
+// nativeCoreExportState 通道），与 Kotlin
+// AISectBeastAttackProcessor.precomputeTargets 逐位对拍——不经过完整月变
+// 管线（规避步骤 4e moveBeasts 的 EXPLORATION 干扰，抽取序仅含本函数）。
+// 生产路径经 runMonthSettlement 步骤 3 接线（month_settlement.h）。
+// ============================================================
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCorePrecomputeTargets(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (!g_core) return;
+    gamecore::system::detail::precomputeTargets(g_core->state(), g_core->rng());
 }
 
 // ============================================================
