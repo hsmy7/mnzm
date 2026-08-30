@@ -37,6 +37,7 @@
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/lifecycle.h"
 #include "gamecore/system/month_settlement.h"
+#include "gamecore/system/name_service.h"
 #include "gamecore/system/spirit_field.h"
 #include "gamecore/system/watchdog.h"
 
@@ -65,6 +66,18 @@ std::string jbytesToString(JNIEnv* env, jbyteArray array) {
     jbyte* bytes = env->GetByteArrayElements(array, nullptr);
     std::string out(reinterpret_cast<const char*>(bytes), static_cast<size_t>(len));
     env->ReleaseByteArrayElements(array, bytes, JNI_ABORT);
+    return out;
+}
+
+/// jstring → std::string（UTF-8；批 13-4a 对拍通道）
+std::string jstringToString(JNIEnv* env, jstring s) {
+    if (!s) return {};
+    const jsize len = env->GetStringUTFLength(s);
+    if (len <= 0) return {};
+    const char* chars = env->GetStringUTFChars(s, nullptr);
+    if (!chars) return {};
+    std::string out(chars, static_cast<size_t>(len));
+    env->ReleaseStringUTFChars(s, chars);
     return out;
 }
 
@@ -126,6 +139,36 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeSnapshot(
     JNIEnv* /*env*/, jobject /*thiz*/) {
     return g_rng ? g_rng->snapshot() : 0L;
+}
+
+// 批 13-4a：中文名继承对拍（Kotlin NameService.inheritName 分区 rng 版 vs
+// C++ name_service.h——数据表逐项一致 + RNG 序列逐位一致，名字逐字符对拍）
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNameInherit(
+    JNIEnv* env, jobject /*thiz*/, jstring surname, jstring gender,
+    jstring existingJson) {
+    if (!g_rng) return env->NewStringUTF("");
+    const std::string surnameStr = jstringToString(env, surname);
+    const std::string genderStr = jstringToString(env, gender);
+    std::set<std::string> existing;
+    if (existingJson) {
+        const std::string json = jstringToString(env, existingJson);
+        if (!json.empty()) {
+            try {
+                const auto arr = nlohmann::json::parse(json);
+                if (arr.is_array()) {
+                    for (const auto& e : arr) {
+                        if (e.is_string()) existing.insert(e.get<std::string>());
+                    }
+                }
+            } catch (const std::exception&) {
+                // 损坏输入：空集合（对拍健壮性）
+            }
+        }
+    }
+    const auto result =
+        gamecore::system::inheritName(surnameStr, genderStr, existing, *g_rng);
+    return env->NewStringUTF(result.fullName.c_str());
 }
 
 // ============================================================

@@ -35,6 +35,11 @@ object DiffRngBridge {
     external fun nativeNextDouble(): Double
     /** 正态分布（C-12：Box-Muller 跨语言精度对拍——StrictMath vs 内嵌 fdlibm） */
     external fun nativeNextGaussian(mean: Double, stddev: Double): Double
+    /** 批 13-4a：中文名继承对拍（Kotlin NameService.inheritName 分区 rng 版
+     *  vs C++ name_service.h——返回 fullName，g_rng 为随机源） */
+    external fun nativeNameInherit(
+        surname: String, gender: String, existingJson: String
+    ): String
     external fun nativeSnapshot(): Long
 
     // ── RngManager（分区）通道 ───────────────────────────────

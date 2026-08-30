@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 修复（批 13-4a：生育前置——中文名生成分区化 + C++ 等价）
+
+> 生育批次前置（cpp-engine.md §7.5）：`NameService.inheritName` 原用 JVM 全局 Random（非确定性、不入 rngStates，跨语言不可对拍）——S-19 同族确定性缺口，随生育下沉修正。
+
+- **名字随机源分区化**：`NameService.inheritName`/`generateName` 加 `rng` 参数（默认 `Random.Default` 保持招募/兑换码/AI/弟子服务调用点行为不变）；`ChildBirthSystem.createChild` 传 SYSTEM 分区 PRNG 适配器（与 DiscipleSeed.random 同源）——名字生成入确定性流，存档可重放
+- **C++ 等价移植**：`gamecore/system/name_service.h`（中文名数据表逐项对齐 + inheritName/extractSurname 等价，RNG 序列 nextDouble 定双字/单字 + nextInt(bound) 选名逐位一致）
+- **验证**：DiffNameServiceTest 新建（3 种子 × 3 姓氏 × 2 性别 × 20 次 + existingNames 冲突规避路径，名字逐字符一致）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿（NameService ReturnCount 既有冻结条目转 @Suppress，baseline 移除失效条目——只缩不增）
+- **兼容性**：generateName 默认参数保持原行为（全局 Random）——仅生育（inheritName 显式传分区）行为变化（名字确定化）；存档零变更
+
 ### 新增（月变残留执行器增量 C++ 化批 13-3：S8 步骤 6 月度自动排班下沉）
 
 > 承接批 13-2c（cpp-engine.md §7.5）：月变八步第六步的月度自动排班（住所 + 灵植/灵矿/炼丹/锻造）等价移植 C++——生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。

@@ -143,7 +143,11 @@ class ChildBirthSystem @Inject constructor(
         val fatherSurname = if (father.surname.isNotEmpty()) father.surname
             else NameService.extractSurname(father.name)
         val existingNames = (state.discipleTables.assembleAll() + state.gameData.recruitList).map { it.name }.toSet()
-        val nameResult = NameService.inheritName(fatherSurname, gender, existingNames)
+        // 批 13-4a：名字随机源分区化（SYSTEM 分区 PRNG 适配器——与
+        // DiscipleSeed.random 同源，确定性可对拍）
+        val nameResult = NameService.inheritName(
+            fatherSurname, gender, existingNames, rng.asKotlinRandom()
+        )
 
         val spiritRootType = when (rng.nextInt(100)) {
             in 0..29 -> father.spiritRootType

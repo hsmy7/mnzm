@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.util
 
-import kotlin.random.Random
-
 object NameService {
 
     data class NameResult(val surname: String, val fullName: String)
@@ -77,15 +75,23 @@ object NameService {
 
     private val allSurnames: List<String> get() = singleSurnames + compoundSurnames
 
+    // @Suppress("ReturnCount")：既有冻结违规（detekt-baseline.xml 条目随
+    // 批 13-4a 签名变化重新暴露）——循环 + 双兜底分支的返回结构，重构会
+    // 降低可读性，延续冻结
+    @Suppress("ReturnCount")
     fun generateName(
         gender: String,
         style: NameStyle = NameStyle.XIANXIA,
-        existingNames: Set<String> = emptySet()
+        existingNames: Set<String> = emptySet(),
+        // 批 13-4a：名字随机源分区化（S-19 同族）——inheritName 已分区；
+        // generateName 保持默认全局 Random（招募/兑换码/AI/弟子服务调用点
+        // 未迁移，行为不变；随对应批次下沉时分区化）
+        rng: kotlin.random.Random = kotlin.random.Random.Default
     ): NameResult {
         var attempts = 0
         while (attempts < 50) {
             val surname = pickSurname(style)
-            val givenName = pickGivenName(gender)
+            val givenName = pickGivenName(gender, rng)
             val fullName = "$surname$givenName"
             if (fullName !in existingNames) {
                 return NameResult(surname, fullName)
@@ -93,7 +99,7 @@ object NameService {
             attempts++
         }
         val surname = pickSurname(style)
-        val givenName = pickGivenName(gender)
+        val givenName = pickGivenName(gender, rng)
         val baseName = "$surname$givenName"
         if (baseName !in existingNames) {
             return NameResult(surname, baseName)
@@ -107,21 +113,28 @@ object NameService {
         return NameResult(surname, uniqueName)
     }
 
+    @Suppress("ReturnCount")  // 既有冻结违规（同 generateName 说明）
     fun inheritName(
         parentSurname: String,
         gender: String,
-        existingNames: Set<String> = emptySet()
+        existingNames: Set<String> = emptySet(),
+        // 批 13-4a：名字随机源分区化（S-19 同族确定性修正）——原用 JVM
+        // 全局 Random（非确定性、不入 rngStates，跨语言不可对拍）；生育
+        // 调用点传 SYSTEM 分区 PRNG 适配器（rng.asKotlinRandom()），
+        // 默认 Random.Default 保持既有调用方（招募/兑换码/AI/弟子服务）
+        // 行为不变
+        rng: kotlin.random.Random = kotlin.random.Random.Default
     ): NameResult {
         var attempts = 0
         while (attempts < 50) {
-            val givenName = pickGivenName(gender)
+            val givenName = pickGivenName(gender, rng)
             val fullName = "$parentSurname$givenName"
             if (fullName !in existingNames) {
                 return NameResult(parentSurname, fullName)
             }
             attempts++
         }
-        val givenName = pickGivenName(gender)
+        val givenName = pickGivenName(gender, rng)
         val baseName = "$parentSurname$givenName"
         if (baseName !in existingNames) {
             return NameResult(parentSurname, baseName)
@@ -151,12 +164,14 @@ object NameService {
         return pool.random()
     }
 
-    private fun pickGivenName(gender: String): String {
-        val useDoubleName = Random.nextDouble() < 0.75
+    private fun pickGivenName(gender: String, rng: kotlin.random.Random): String {
+        val useDoubleName = rng.nextDouble() < 0.75
         return if (useDoubleName) {
-            if (gender == "male") maleDoubleNames.random() else femaleDoubleNames.random()
+            if (gender == "male") maleDoubleNames[rng.nextInt(maleDoubleNames.size)]
+            else femaleDoubleNames[rng.nextInt(femaleDoubleNames.size)]
         } else {
-            if (gender == "male") maleSingleNames.random() else femaleSingleNames.random()
+            if (gender == "male") maleSingleNames[rng.nextInt(maleSingleNames.size)]
+            else femaleSingleNames[rng.nextInt(femaleSingleNames.size)]
         }
     }
 }

@@ -446,8 +446,6 @@
     <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateSpiritStones(amount: Long, minRequired: Long = 0): String?</ID>
     <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateTeamName(name: String): String?</ID>
     <ID>ReturnCount:MutableGameState.kt$fun MutableGameState.recordGameEvent( category: GameEventCategory, eventType: String, summary: String, relatedEntityId: String = "", relatedEntityName: String = "" )</ID>
-    <ID>ReturnCount:NameService.kt$NameService$fun generateName( gender: String, style: NameStyle = NameStyle.XIANXIA, existingNames: Set&lt;String&gt; = emptySet() ): NameResult</ID>
-    <ID>ReturnCount:NameService.kt$NameService$fun inheritName( parentSurname: String, gender: String, existingNames: Set&lt;String&gt; = emptySet() ): NameResult</ID>
     <ID>ReturnCount:PhysiqueDatabase.kt$PhysiqueDatabase$private fun pickByDistribution( candidates: List&lt;PhysiqueData&gt;, random: kotlin.random.Random ): PhysiqueData</ID>
     <ID>ReturnCount:PillRecipeRegistry.kt$PillRecipeRegistry$fun getFullPillRecipe(id: String): FullPillRecipe?</ID>
     <ID>ReturnCount:SpiritStone.kt$SpiritStoneExchange$fun exchange( quantity: Long, source: SpiritStoneGrade, target: SpiritStoneGrade ): Pair&lt;Long, Long&gt;</ID>
