@@ -426,6 +426,13 @@ class NativeSurfaceView(
         cameraDirty.set(true)
     }
 
+    // ── 预览独立快通道（2026-08-30 触控优化：仿相机通道） ──
+    // 实现见 FastPreviewChannel.kt（独立类承载快照+版本，触控回调直接写、
+    // 渲染线程按版本合成进帧，不经 Compose 重组/帧率门控）。
+
+    /** 建筑放置/移动预览快通道（触控回调直写；渲染线程 renderTick 合成进帧） */
+    internal val fastPreviewChannel = FastPreviewChannel()
+
     // ── 地图淡入过渡（WP4，仿独立相机通道：渲染线程每帧计算） ──
 
     /** 淡入开始时间戳（System.nanoTime；由 [fadeIn] 重置） */
@@ -942,10 +949,15 @@ class NativeSurfaceView(
     // 拦截触摸流转换为跨平台 TouchData（Compose pointerInput 无法与 Vulkan 帧循环解耦）
     @Suppress("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        val engine = touchEngine
-        val touchData = engine?.let { toTouchData(event) } ?: return false
-        engine.onTouch(touchData)
-        return true
+        val engine = touchEngine ?: return false
+        var fed = false
+        // MOVE 事件可能携带多个历史采样（getHistorySize），逐个喂入引擎——
+        // 提高有效输入率与速度追踪精度（拖动视角更平滑，fling 速度更准）
+        toTouchData(event)?.forEach { data ->
+            engine.onTouch(data)
+            fed = true
+        }
+        return fed
     }
 
     override fun performClick(): Boolean {
@@ -975,6 +987,9 @@ class NativeSurfaceView(
 
         /** 诊断日志窗口内跳帧数 */
         private var diagSkipCount = 0
+
+        /** 预览快通道已消费版本（渲染线程单消费者；= fastPreviewVersion 表示已合成） */
+        private var lastConsumedFastPreviewVersion: Long = 0L
 
         override fun run() {
             // ★ 地图淡入：渲染线程每次启动（= 每次 surface 初始化：首次进入/
@@ -1205,14 +1220,14 @@ class NativeSurfaceView(
         }
 
         /**
-         * 单帧渲染：相机脏标记推送 + 后端渲染 + 异常统一捕获。
+         * 单帧渲染：相机脏标记推送 + 预览快通道合成 + 后端渲染 + 异常统一捕获。
          *
          * @return 渲染耗时（纳秒，EWMA 能力帧率追踪用）
          */
         private fun renderTick(): Long {
             val frameStartNs = System.nanoTime()
             val backend = activeBackend
-            val frame = currentFrame
+            val frame = mergeFastPreview(currentFrame)
             if (backend != null && frame != null) {
                 if (cameraDirty.compareAndSet(true, false)) {
                     // 独立相机通道（不经过 RenderFrame 帧率门控）
@@ -1234,6 +1249,22 @@ class NativeSurfaceView(
                 }
             }
             return System.nanoTime() - frameStartNs
+        }
+
+        /**
+         * 预览快通道合成（renderTick 拆分）：版本变化时用最新预览快照覆盖帧——
+         * 双后端只读 frame 字段，零后端改动；版本不变或无快照则原帧直通（无分配）。
+         */
+        private fun mergeFastPreview(frame: RenderFrame?): RenderFrame? {
+            val f = frame ?: return null
+            val version = fastPreviewChannel.version
+            val snapshot = if (version != lastConsumedFastPreviewVersion) {
+                lastConsumedFastPreviewVersion = version
+                fastPreviewChannel.state
+            } else {
+                null
+            }
+            return if (snapshot != null) mergeFastPreviewInto(f, snapshot) else f
         }
 
         /**
@@ -1354,84 +1385,137 @@ private data class FramePacing(
 )
 
 /**
- * MotionEvent → 跨平台 [TouchData] 映射（含双指缩放多点触控）。
+ * MotionEvent → 跨平台 [TouchData] 映射（含双指缩放多点触控 + MOVE 历史采样展开）。
  * 仅支持 DOWN/POINTER_DOWN/MOVE/POINTER_UP/UP/CANCEL，其余动作返回 null。
+ * MOVE 事件的历史采样（getHistorySize）按时间顺序展开为多个 TouchData，
+ * 供手势引擎逐条消费（增量语义正确、速度追踪更密）。
+ * internal 供单测（Mockito 注入 MotionEvent 验证展开序列）。
  */
-private fun toTouchData(event: MotionEvent): TouchData? {
+internal fun toTouchData(event: MotionEvent): List<TouchData>? {
     val pointerCount = event.pointerCount
     val timestamp = event.eventTime.toLong() * 1_000_000L
     return when (event.actionMasked) {
-        MotionEvent.ACTION_DOWN -> TouchData(
-            x = event.x,
-            y = event.y,
-            action = TouchAction.DOWN,
-            timestamp = timestamp,
-            pointerId = event.getPointerId(0),
-            pointerCount = pointerCount
+        MotionEvent.ACTION_DOWN -> listOf(
+            TouchData(
+                x = event.x,
+                y = event.y,
+                action = TouchAction.DOWN,
+                timestamp = timestamp,
+                pointerId = event.getPointerId(0),
+                pointerCount = pointerCount
+            )
         )
 
         // 第二根手指按下 → 进入双指缩放：x/y 为已按下主指针，x2/y2 为新增指针
-        MotionEvent.ACTION_POINTER_DOWN -> TouchData(
-            x = event.getX(0),
-            y = event.getY(0),
-            action = TouchAction.DOWN,
-            timestamp = timestamp,
-            pointerId = event.getPointerId(0),
-            pointerCount = pointerCount,
-            pointer2X = event.getX(event.actionIndex),
-            pointer2Y = event.getY(event.actionIndex)
+        MotionEvent.ACTION_POINTER_DOWN -> listOf(
+            TouchData(
+                x = event.getX(0),
+                y = event.getY(0),
+                action = TouchAction.DOWN,
+                timestamp = timestamp,
+                pointerId = event.getPointerId(0),
+                pointerCount = pointerCount,
+                pointer2X = event.getX(event.actionIndex),
+                pointer2Y = event.getY(event.actionIndex)
+            )
         )
 
         MotionEvent.ACTION_MOVE -> toMoveTouchData(event, pointerCount, timestamp)
 
         // 一根手指抬起：x/y 传剩余仍在屏幕上的手指位置，供引擎恢复平移不跳变
-        MotionEvent.ACTION_POINTER_UP -> toPointerUpTouchData(event, pointerCount, timestamp)
-
-        MotionEvent.ACTION_UP -> TouchData(
-            x = event.x,
-            y = event.y,
-            action = TouchAction.UP,
-            timestamp = timestamp,
-            pointerId = event.getPointerId(0),
-            pointerCount = pointerCount
+        MotionEvent.ACTION_POINTER_UP -> listOf(
+            toPointerUpTouchData(event, pointerCount, timestamp)
         )
 
-        MotionEvent.ACTION_CANCEL -> TouchData(
-            x = event.x,
-            y = event.y,
-            action = TouchAction.CANCEL,
-            timestamp = timestamp,
-            pointerId = event.getPointerId(0),
-            pointerCount = pointerCount
+        MotionEvent.ACTION_UP -> listOf(
+            TouchData(
+                x = event.x,
+                y = event.y,
+                action = TouchAction.UP,
+                timestamp = timestamp,
+                pointerId = event.getPointerId(0),
+                pointerCount = pointerCount
+            )
+        )
+
+        MotionEvent.ACTION_CANCEL -> listOf(
+            TouchData(
+                x = event.x,
+                y = event.y,
+                action = TouchAction.CANCEL,
+                timestamp = timestamp,
+                pointerId = event.getPointerId(0),
+                pointerCount = pointerCount
+            )
         )
 
         else -> null
     }
 }
 
-/** MOVE 事件映射：双指时携带第二指坐标，单指保持原逻辑 */
-private fun toMoveTouchData(event: MotionEvent, pointerCount: Int, timestamp: Long): TouchData =
+/**
+ * MOVE 事件映射：双指时携带第二指坐标，单指保持原逻辑。
+ * 历史采样（[MotionEvent.getHistorySize]）按时间顺序展开在前，当前采样收尾——
+ * 事件合并（batch）不再丢失中间位置，拖动视角更平滑、速度追踪更准。
+ * internal 供单测。
+ */
+internal fun toMoveTouchData(event: MotionEvent, pointerCount: Int, timestamp: Long): List<TouchData> {
+    val historySize = event.historySize
+    val result = ArrayList<TouchData>(historySize + 1)
+    val pointerId = event.getPointerId(event.actionIndex)
     if (pointerCount >= 2) {
-        TouchData(
-            x = event.getX(0),
-            y = event.getY(0),
-            action = TouchAction.MOVE,
-            timestamp = timestamp,
-            pointerId = event.getPointerId(0),
-            pointerCount = pointerCount,
-            pointer2X = event.getX(1),
-            pointer2Y = event.getY(1)
+        for (i in 0 until historySize) {
+            result.add(
+                TouchData(
+                    x = event.getHistoricalX(0, i),
+                    y = event.getHistoricalY(0, i),
+                    action = TouchAction.MOVE,
+                    timestamp = event.getHistoricalEventTime(i) * 1_000_000L,
+                    pointerId = pointerId,
+                    pointerCount = pointerCount,
+                    pointer2X = event.getHistoricalX(1, i),
+                    pointer2Y = event.getHistoricalY(1, i)
+                )
+            )
+        }
+        result.add(
+            TouchData(
+                x = event.getX(0),
+                y = event.getY(0),
+                action = TouchAction.MOVE,
+                timestamp = timestamp,
+                pointerId = pointerId,
+                pointerCount = pointerCount,
+                pointer2X = event.getX(1),
+                pointer2Y = event.getY(1)
+            )
         )
     } else {
-        TouchData(
-            x = event.x,
-            y = event.y,
-            action = TouchAction.MOVE,
-            timestamp = timestamp,
-            pointerId = event.getPointerId(event.actionIndex),
-            pointerCount = pointerCount
+        for (i in 0 until historySize) {
+            result.add(
+                TouchData(
+                    x = event.getHistoricalX(0, i),
+                    y = event.getHistoricalY(0, i),
+                    action = TouchAction.MOVE,
+                    timestamp = event.getHistoricalEventTime(i) * 1_000_000L,
+                    pointerId = pointerId,
+                    pointerCount = pointerCount
+                )
+            )
+        }
+        result.add(
+            TouchData(
+                x = event.x,
+                y = event.y,
+                action = TouchAction.MOVE,
+                timestamp = timestamp,
+                pointerId = pointerId,
+                pointerCount = pointerCount
+            )
         )
     }
+    return result
+}
 
 /** POINTER_UP 事件映射：上报仍在屏幕上的剩余手指位置（引擎据此恢复平移不跳变） */
 private fun toPointerUpTouchData(event: MotionEvent, pointerCount: Int, timestamp: Long): TouchData {

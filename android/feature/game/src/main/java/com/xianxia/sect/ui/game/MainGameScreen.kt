@@ -78,8 +78,10 @@ import com.xianxia.sect.ui.game.main.SectInfoCard
 import com.xianxia.sect.ui.game.main.SectMapEdgeOverlay
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchEngineConfig
+import com.xianxia.sect.core.touch.HitSlopPolicy
 import com.xianxia.sect.core.animation.CameraAnimator
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.platform.LocalDensity
 
 
 
@@ -637,6 +639,7 @@ private fun rememberMainGameScreenViewportData(
 }
 
 /** MainGameScreen 触控引擎（MainGameScreen 拆分）：跨平台手势引擎 */
+@Suppress("LongParameterList")
 @Composable
 private fun rememberMainGameScreenTouchEngine(
     state: MainGameScreenState,
@@ -644,20 +647,22 @@ private fun rememberMainGameScreenTouchEngine(
     mapData: MainGameScreenMapData,
     renderData: MainGameScreenRenderData,
     viewportData: MainGameScreenViewportData,
-    viewModel: GameViewModel
+    viewModel: GameViewModel,
+    touchConfig: TouchEngineConfig,
+    hitSlopPolicy: HitSlopPolicy
 ): SectMapTouchEngine {
     val cameraState = viewportData.cameraState
     val buildingIndex = renderData.buildingIndex
     val gridSystem = renderData.gridSystem
-    return remember(cameraState, buildingIndex, gridSystem) {
+    return remember(cameraState, buildingIndex, gridSystem, touchConfig, hitSlopPolicy) {
         SectMapTouchEngine(
             callbacks = buildMainGameScreenTouchCallbacks(
                 state = state, derived = derived, mapData = mapData,
                 renderData = renderData, viewportData = viewportData,
-                viewModel = viewModel
+                viewModel = viewModel, config = touchConfig, hitSlopPolicy = hitSlopPolicy
             ),
             scope = viewportData.touchScope,
-            config = TouchEngineConfig()
+            config = touchConfig
         )
     }
 }
@@ -683,9 +688,16 @@ private fun rememberMainGameScreenData(
         viewModel = viewModel, forceSoftwareRendering = forceSoftwareRendering,
         vulkanInitListener = vulkanInitListener
     )
+    // 手势配置 + 命中外扩策略（density 按设备注入，跨设备触控目标一致）
+    val density = LocalDensity.current.density
+    val touchConfig = remember { TouchEngineConfig() }
+    val hitSlopPolicy = remember(touchConfig, density) {
+        HitSlopPolicy(minHitTargetDp = touchConfig.minHitTargetDp, density = density)
+    }
     val touchEngine = rememberMainGameScreenTouchEngine(
         state = state, derived = derived, mapData = mapData, renderData = renderData,
-        viewportData = viewportData, viewModel = viewModel
+        viewportData = viewportData, viewModel = viewModel,
+        touchConfig = touchConfig, hitSlopPolicy = hitSlopPolicy
     )
     return MainGameScreenData(
         derived = derived, mapData = mapData, renderData = renderData,
@@ -753,6 +765,15 @@ private fun MainGameScreenRenderEffects(
     // 仍在旧位置渲染（双渲染）+ 点不中 + 其格子可叠建（绿色）
     LaunchedEffect(state.movingBuilding) {
         viewModel.setMovingBuildingInstanceId(state.movingBuilding?.instanceId)
+    }
+
+    // ★ 预览快通道清理（2026-08-30 触控优化）：编辑模式退出（放置确认/取消/移动确认/
+    // 切 Tab）时回落 Compose 门控帧——不在拖拽结束（onBuildingDragEnd）时清理，
+    // 避免 33ms 帧率门控窗口内预览位置回跳
+    LaunchedEffect(state.isPlacingBuilding, state.movingBuilding) {
+        if (!state.isPlacingBuilding && state.movingBuilding == null) {
+            state.nativeSurfaceView?.fastPreviewChannel?.set(null)
+        }
     }
 
     LaunchedEffect(data.derived.effectivePlacedBuildings) {

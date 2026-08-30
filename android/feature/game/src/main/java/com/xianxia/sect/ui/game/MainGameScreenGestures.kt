@@ -15,8 +15,10 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.touch.HitSlopPolicy
 import com.xianxia.sect.core.touch.LongPressResult
 import com.xianxia.sect.core.touch.TouchEngineCallbacks
+import com.xianxia.sect.core.touch.TouchEngineConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.main.GoldFingerSelection
@@ -27,36 +29,44 @@ import com.xianxia.sect.ui.game.sect.GoldFingerState
 
 
 /** MainGameScreen 触控回调（MainGameScreen 拆分）：跨平台手势引擎回调 */
+@Suppress("LongParameterList")
 internal fun buildMainGameScreenTouchCallbacks(
     state: MainGameScreenState,
     derived: MainGameScreenDerived,
     mapData: MainGameScreenMapData,
     renderData: MainGameScreenRenderData,
     viewportData: MainGameScreenViewportData,
-    viewModel: GameViewModel
+    viewModel: GameViewModel,
+    config: TouchEngineConfig,
+    hitSlopPolicy: HitSlopPolicy
 ): TouchEngineCallbacks = object : TouchEngineCallbacks {
     override fun onPanCamera(dx: Float, dy: Float) {
         viewportData.cameraState.pan(dx, dy)
         viewportData.cancelCameraAnim()
+        // ★ 相机直接写通道：不经 Compose 重组，立即同步到渲染线程（减 1-2 帧拖拽延迟）
+        pushCameraDirect()
         viewModel.onUserInteraction()
     }
     override fun onPinchZoom(scaleFactor: Float, focusX: Float, focusY: Float) {
         viewportData.cameraState.zoom(scaleFactor, focusX, focusY)
         viewportData.cancelCameraAnim()
+        pushCameraDirect()
         viewModel.onUserInteraction()
     }
-    override fun onTap(screenX: Float, screenY: Float) {
+    override fun onTap(downX: Float, downY: Float, upX: Float, upY: Float) {
         handleMainGameScreenTap(
             state = state, derived = derived, mapData = mapData,
             renderData = renderData, viewportData = viewportData,
-            viewModel = viewModel, screenX = screenX, screenY = screenY
+            viewModel = viewModel, config = config, hitSlopPolicy = hitSlopPolicy,
+            downX = downX, downY = downY, upX = upX, upY = upY
         )
     }
     override fun onLongPress(screenX: Float, screenY: Float): LongPressResult {
         return handleMainGameScreenLongPress(
             state = state, derived = derived, mapData = mapData,
             renderData = renderData, viewportData = viewportData,
-            viewModel = viewModel, screenX = screenX, screenY = screenY
+            viewModel = viewModel, hitSlopPolicy = hitSlopPolicy,
+            screenX = screenX, screenY = screenY
         )
     }
     override fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) {
@@ -66,7 +76,11 @@ internal fun buildMainGameScreenTouchCallbacks(
             worldDx = worldDx, worldDy = worldDy
         )
     }
-    override fun onBuildingDragEnd() { /* 松手后保持最后位置，显示确认/取消按钮 */ }
+    override fun onBuildingDragEnd() {
+        // 松手后保持最后位置，显示确认/取消按钮。
+        // 预览快通道的清理由 MainGameScreen 在编辑模式退出（确认/取消/切 Tab）时执行——
+        // 避免 33ms 帧率门控窗口内的位置回跳。
+    }
     override fun onGoldFingerUpdate(screenX: Float, screenY: Float) {
         handleMainGameScreenGoldFingerUpdate(
             state = state, derived = derived, mapData = mapData,
@@ -80,6 +94,7 @@ internal fun buildMainGameScreenTouchCallbacks(
         return findMainGameScreenBuildingAt(
             state = state, mapData = mapData,
             renderData = renderData, viewportData = viewportData,
+            hitSlopPolicy = hitSlopPolicy,
             screenX = screenX, screenY = screenY
         )
     }
@@ -88,9 +103,18 @@ internal fun buildMainGameScreenTouchCallbacks(
     override fun onDragEnd() { /* 由 idle timeout 自动降帧 (30s → IDLE 10fps) */ }
     override fun onFlingStart() { viewModel.setGameScene(GameEngineCore.GameScene.MAP_SCROLL) }
     override fun onFlingEnd() { /* 由 idle timeout 自动降帧 (30s → IDLE 10fps) */ }
+
+    /** 相机最新值立即写渲染线程（不经 Compose 重组；后续重组重复写入幂等） */
+    private fun pushCameraDirect() {
+        state.nativeSurfaceView?.setCamera(
+            viewportData.cameraState.cameraX,
+            viewportData.cameraState.cameraY,
+            viewportData.cameraState.scale
+        )
+    }
 }
 
-/** 点击处理（MainGameScreen 拆分）：拆除选中 / 建筑详情打开 */
+/** 点击处理（MainGameScreen 拆分）：拆除选中 / 建筑详情打开（双点宽容命中） */
 // 拆分聚合:平铺参数搬移自原公共函数
 @Suppress("LongParameterList")
 private fun handleMainGameScreenTap(
@@ -100,17 +124,23 @@ private fun handleMainGameScreenTap(
     renderData: MainGameScreenRenderData,
     viewportData: MainGameScreenViewportData,
     viewModel: GameViewModel,
-    screenX: Float,
-    screenY: Float
+    config: TouchEngineConfig,
+    hitSlopPolicy: HitSlopPolicy,
+    downX: Float,
+    downY: Float,
+    upX: Float,
+    upY: Float
 ) {
-    val wx = viewportData.cameraState.screenToWorldX(screenX)
-    val wy = viewportData.cameraState.screenToWorldY(screenY)
-    val gx = (wx / mapData.tileSize).toInt()
-    val gy = (wy / mapData.tileSize).toInt()
+    val wx = viewportData.cameraState.screenToWorldX(downX)
+    val wy = viewportData.cameraState.screenToWorldY(downY)
+    val gx = GridSnapHelper.worldToGrid(wx, mapData.tileSize)
+    val gy = GridSnapHelper.worldToGrid(wy, mapData.tileSize)
     // 拆除模式：单点切换选中 / 区域模式范围选中，不弹详情
     if (state.isDemolishMode) {
         handleDemolishTap(
-            state = state, derived = derived, renderData = renderData, viewModel = viewModel, gx = gx, gy = gy
+            state = state, derived = derived, renderData = renderData, viewModel = viewModel,
+            gx = gx, gy = gy, mapData = mapData, viewportData = viewportData,
+            hitSlopPolicy = hitSlopPolicy
         )
         return
     }
@@ -121,14 +151,19 @@ private fun handleMainGameScreenTap(
         state.placingBuildingName = ""
         return
     }
-    val clicked = renderData.buildingIndex.findBuildingAt(gx, gy)
+    // 宽容命中：按下/抬起点任一做外扩矩形命中（hit slop）→ 最近建筑兜底
+    val clicked = findBuildingTolerant(
+        mapData = mapData, renderData = renderData,
+        viewportData = viewportData, hitSlopPolicy = hitSlopPolicy, config = config,
+        downX = downX, downY = downY, upX = upX, upY = upY
+    )
     // 点击空地 → 清除选中高亮（任意模式）
     if (clicked == null) {
         state.selectedBuildingGrid = null
     }
     if (clicked != null && !state.isPlacingBuilding && state.movingBuilding == null) {
         // 点击建筑 → 记录选中格（渲染端金色高亮描边），并打开详情
-        state.selectedBuildingGrid = gx to gy
+        state.selectedBuildingGrid = clicked.gridX to clicked.gridY
         val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
         when (def?.key) {
             "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
@@ -190,13 +225,14 @@ private fun handleMainGameScreenLongPress(
     renderData: MainGameScreenRenderData,
     viewportData: MainGameScreenViewportData,
     viewModel: GameViewModel,
+    hitSlopPolicy: HitSlopPolicy,
     screenX: Float,
     screenY: Float
 ): LongPressResult {
     val wx = viewportData.cameraState.screenToWorldX(screenX)
     val wy = viewportData.cameraState.screenToWorldY(screenY)
-    val gx = (wx / mapData.tileSize).toInt()
-    val gy = (wy / mapData.tileSize).toInt()
+    val gx = GridSnapHelper.worldToGrid(wx, mapData.tileSize)
+    val gy = GridSnapHelper.worldToGrid(wy, mapData.tileSize)
 
     // 放置模式 → 金手指图标检测：唯一图标随激活状态移动
     // （未激活在预览角作入口；激活后跟随 endGrid，按住它即可重入框选）
@@ -212,8 +248,10 @@ private fun handleMainGameScreenLongPress(
     // 如果按钮显示期间再次长按同一建筑，应允许继续拖拽
     // 拆除模式禁止长按移动
     if (!state.isPlacingBuilding && !state.isDemolishMode) {
-        val touched = renderData.buildingIndex.findBuildingAt(gx, gy)
-            ?: (if (state.movingBuilding != null) state.movingBuilding else null)
+        val touched = findBuildingExpanded(
+            mapData = mapData, renderData = renderData, viewportData = viewportData,
+            hitSlopPolicy = hitSlopPolicy, screenX = screenX, screenY = screenY
+        ) ?: (if (state.movingBuilding != null) state.movingBuilding else null)
         if (touched != null) {
             val isResumeDrag = state.movingBuilding?.instanceId == touched.instanceId
             if (!isResumeDrag) {
@@ -224,6 +262,9 @@ private fun handleMainGameScreenLongPress(
                 state.movingSnappedGridY = touched.gridY
                 state.movingValid = GridSnapHelper.PlacementValidity.Valid
             }
+            // ★ 先同步总线排除（StateFlow 写同步可见），再设置 UI 状态——
+            // 压缩拖拽起始窗口（总线仍渲染旧位置 + 预览渲染新位置）的双渲染窗口
+            viewModel.setMovingBuildingInstanceId(touched.instanceId)
             state.movingBuilding = touched
             return LongPressResult.BuildingDrag
         }
@@ -331,6 +372,9 @@ private fun handleMainGameScreenDragUpdate(
             derived.movingBuildingSize.width, derived.movingBuildingSize.height
         )
     }
+    // ★ 预览快通道：不经 Compose 重组/帧率门控，直接写渲染视图——
+    // 软件渲染路径下预览从 30fps（RenderFrame 33ms 门控）提升到渲染帧率
+    pushFastPreview(state = state, mapData = mapData)
 }
 
 /** 金手指拖拽更新（MainGameScreen 拆分）：终点格吸附 + 钳制可建区 + 重算状态 */
@@ -365,7 +409,7 @@ private fun handleMainGameScreenGoldFingerUpdate(
     )
 }
 
-/** 触控命中建筑检测（MainGameScreen 拆分）：拆除/放置/移动模式分支 */
+/** 触控命中建筑检测（MainGameScreen 拆分）：拆除/放置/移动模式分支（命中区外扩） */
 // 拆分搬移:多出口与原函数一致
 // 拆分搬移:嵌套/条件结构与原函数一致
 @Suppress("ReturnCount", "ComplexCondition")
@@ -374,6 +418,7 @@ private fun findMainGameScreenBuildingAt(
     mapData: MainGameScreenMapData,
     renderData: MainGameScreenRenderData,
     viewportData: MainGameScreenViewportData,
+    hitSlopPolicy: HitSlopPolicy,
     screenX: Float,
     screenY: Float
 ): Any? {
@@ -397,8 +442,8 @@ private fun findMainGameScreenBuildingAt(
         return null
     }
 
-    val gx = (wx / mapData.tileSize).toInt()
-    val gy = (wy / mapData.tileSize).toInt()
+    val gx = GridSnapHelper.worldToGrid(wx, mapData.tileSize)
+    val gy = GridSnapHelper.worldToGrid(wy, mapData.tileSize)
 
     // buildingIndex 不包含 movingBuilding，手动检查
     val mb = state.movingBuilding
@@ -410,17 +455,25 @@ private fun findMainGameScreenBuildingAt(
             return mb
         }
     }
-    return renderData.buildingIndex.findBuildingAt(gx, gy)
+    // 外扩矩形命中（hit slop）：小建筑（灵田等 1×1）按下点偏一格仍可命中
+    return findBuildingExpanded(
+        mapData = mapData, renderData = renderData, viewportData = viewportData,
+        hitSlopPolicy = hitSlopPolicy, screenX = screenX, screenY = screenY
+    )
 }
 
 /** 拆除模式点击处理（MainGameScreen 拆分）：区域模式范围选中 / 单点切换选中 / 删路 */
+@Suppress("LongParameterList")
 private fun handleDemolishTap(
     state: MainGameScreenState,
     derived: MainGameScreenDerived,
     renderData: MainGameScreenRenderData,
     viewModel: GameViewModel,
     gx: Int,
-    gy: Int
+    gy: Int,
+    mapData: MainGameScreenMapData,
+    viewportData: MainGameScreenViewportData,
+    hitSlopPolicy: HitSlopPolicy
 ) {
     if (state.isAreaSelectMode) {
         // 区域模式：以点击格为中心做正方形范围选中（并集累积 + Set 幂等——
@@ -433,34 +486,58 @@ private fun handleDemolishTap(
             diameter = state.areaDiameter
         )
     } else {
-        handleDemolishSingleTap(state, derived, renderData, viewModel, gx, gy)
+        handleDemolishSingleTap(
+            state = state, derived = derived, renderData = renderData, viewModel = viewModel,
+            gx = gx, gy = gy, mapData = mapData, viewportData = viewportData,
+            hitSlopPolicy = hitSlopPolicy
+        )
     }
 }
 
 /**
  * 单点拆除模式（MainGameScreen 拆分提取）：点击建筑切换选中状态；
- * 无建筑但为道路格则直接删路。
+ * 无建筑但为道路格则直接删路（精确格优先，保道路删除语义；再外扩兜底小建筑点偏）。
  */
+@Suppress("LongParameterList", "ReturnCount")
 private fun handleDemolishSingleTap(
     state: MainGameScreenState,
     derived: MainGameScreenDerived,
     renderData: MainGameScreenRenderData,
     viewModel: GameViewModel,
     gx: Int,
-    gy: Int
+    gy: Int,
+    mapData: MainGameScreenMapData,
+    viewportData: MainGameScreenViewportData,
+    hitSlopPolicy: HitSlopPolicy
 ) {
-    val b = renderData.buildingIndex.findBuildingAt(gx, gy)
-    if (b == null) {
-        // 石板道路：拆除模式下点道路格立即删除（自动重算邻居拼接）
-        val hasRoad = derived.gameData?.roads?.any { it.gridX == gx && it.gridY == gy } == true
-        if (hasRoad) viewModel.removeRoad(gx, gy)
+    // 精确格优先：点击格上有建筑则选中，有道路则删路（不改语义）
+    val exact = renderData.buildingIndex.findBuildingAt(gx, gy)
+    if (exact != null) {
+        toggleDemolishSelection(state, exact)
         return
     }
-    // 未注册显示名不进入拆除选中（与原嵌套守卫语义一致）
-    if (BuildingFeatureRegistry.findByDisplayName(b.displayName) == null) return
-    state.demolishSelectedIds = if (b.instanceId in state.demolishSelectedIds)
-        state.demolishSelectedIds - b.instanceId
-    else state.demolishSelectedIds + b.instanceId
+    // 石板道路：拆除模式下点道路格立即删除（自动重算邻居拼接）
+    val hasRoad = derived.gameData?.roads?.any { it.gridX == gx && it.gridY == gy } == true
+    if (hasRoad) {
+        viewModel.removeRoad(gx, gy)
+        return
+    }
+    // 外扩兜底：小建筑点偏一格仍可选中（不覆盖上方道路删除语义）
+    val cellCenterWx = gx * mapData.tileSize.toFloat() + mapData.tileSize / 2f
+    val cellCenterWy = gy * mapData.tileSize.toFloat() + mapData.tileSize / 2f
+    val expanded = findBuildingExpandedAtWorld(
+        mapData = mapData, renderData = renderData, viewportData = viewportData,
+        hitSlopPolicy = hitSlopPolicy, wx = cellCenterWx, wy = cellCenterWy
+    ) ?: return
+    toggleDemolishSelection(state, expanded)
+}
+
+/** 拆除选中切换（handleDemolishSingleTap 拆分）：未注册显示名不进入拆除选中（守卫语义保留） */
+private fun toggleDemolishSelection(state: MainGameScreenState, building: GridBuildingData) {
+    if (BuildingFeatureRegistry.findByDisplayName(building.displayName) == null) return
+    state.demolishSelectedIds = if (building.instanceId in state.demolishSelectedIds)
+        state.demolishSelectedIds - building.instanceId
+    else state.demolishSelectedIds + building.instanceId
 }
 
 /** 建造卡片点击（MainGameScreen 拆分）：进入放置模式（拆除模式下忽略） */
@@ -492,3 +569,4 @@ internal fun onSelectBuildingFromBar(
         size.width, size.height
     )
 }
+

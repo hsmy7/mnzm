@@ -229,4 +229,125 @@ class BuildingSpatialIndexTest {
         assertEquals(unregistered, index.findBuildingAt(10, 10))
         assertNull("无精灵条目 → 塔尖不应命中", index.findBuildingAt(10, 5))
     }
+
+    // ========================
+    // 矩形范围查询 / 外扩命中（hit slop）
+    // ========================
+
+    @Test
+    fun queryRect_returnsDeduplicatedBuildingsTouchingRect() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 2, gridY = 2,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        val b2 = GridBuildingData(
+            buildingId = "b2", displayName = "炼丹炉", gridX = 10, gridY = 10,
+            width = 2, height = 2, instanceId = "b2", sectId = ""
+        )
+        index.rebuild(listOf(b1, b2))
+
+        // 矩形覆盖 b1 多格：去重后只出现一次
+        val hits = index.queryRect(1, 1, 3, 3)
+        assertEquals(1, hits.size)
+        assertEquals(b1, hits[0])
+
+        // 覆盖 b1 + b2
+        val both = index.queryRect(2, 2, 11, 11)
+        assertEquals(2, both.size)
+        assertTrue(both.contains(b1) && both.contains(b2))
+    }
+
+    @Test
+    fun findBuildingAtRect_returnsTopmostByDrawOrder() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 2, gridY = 2,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        // b2 占地覆盖 b1 且绘制顺序更上（gridY+height 更大）
+        val b2 = GridBuildingData(
+            buildingId = "b2", displayName = "炼丹炉", gridX = 2, gridY = 3,
+            width = 1, height = 2, instanceId = "b2", sectId = ""
+        )
+        index.rebuild(listOf(b1, b2))
+
+        // 外扩矩形覆盖两建筑 → 命中绘制顺序更上层的 b2（与 findBuildingAt 同决胜规则）
+        assertEquals(b2, index.findBuildingAtRect(1, 1, 3, 4))
+        assertEquals("b2 独占格命中 b2", b2, index.findBuildingAtRect(2, 4, 2, 4))
+        assertEquals("b1 独占格命中 b1", b1, index.findBuildingAtRect(2, 2, 2, 2))
+    }
+
+    @Test
+    fun findBuildingAtRect_matchesSingleCellFindBuildingAt() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 5, gridY = 5,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        index.rebuild(listOf(b1))
+
+        assertEquals("expand=0 时矩形命中与单格命中一致",
+            index.findBuildingAt(5, 5), index.findBuildingAtRect(5, 5, 5, 5))
+        assertEquals(b1, index.findBuildingAtRect(4, 4, 6, 6))
+        assertNull(index.findBuildingAtRect(0, 0, 1, 1))
+    }
+
+    // ========================
+    // 最近建筑兜底（nearest fallback）
+    // ========================
+
+    @Test
+    fun findNearestBuilding_returnsClosestWithinRadius() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 0, gridY = 0,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        val b2 = GridBuildingData(
+            buildingId = "b2", displayName = "炼丹炉", gridX = 5, gridY = 0,
+            width = 1, height = 1, instanceId = "b2", sectId = ""
+        )
+        index.rebuild(listOf(b1, b2))
+        val tileSize = 32
+
+        // 世界点 (2*32, 0) → 距 b1 中心 2 格、b2 中心 3 格 → b1
+        assertEquals(b1, index.findNearestBuilding(2f * 32, 0f, tileSize, 4f * 32))
+        // 世界点 (4*32, 0) → 距 b2 中心 1 格 → b2
+        assertEquals(b2, index.findNearestBuilding(4f * 32, 0f, tileSize, 4f * 32))
+    }
+
+    @Test
+    fun findNearestBuilding_returnsNullOutsideRadius() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 0, gridY = 0,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        index.rebuild(listOf(b1))
+        assertNull(index.findNearestBuilding(10f * 32, 0f, 32, 5f * 32))
+    }
+
+    @Test
+    fun findNearestBuilding_equalDistance_prefersDrawOrderTop() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 1, gridY = 1,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        val b2 = GridBuildingData(
+            buildingId = "b2", displayName = "炼丹炉", gridX = 4, gridY = 4,
+            width = 1, height = 1, instanceId = "b2", sectId = ""
+        )
+        index.rebuild(listOf(b1, b2))
+        // 查询点 (96,96)：b1 中心 (48,48)、b2 中心 (144,144) 等距（4608）→
+        // 绘制顺序更上层（gridY+height 更大）的 b2 胜出（确定性，避免"点 A 弹 B"）
+        assertEquals(b2, index.findNearestBuilding(96f, 96f, 32, 200f))
+    }
+
+    @Test
+    fun findNearestBuilding_rejectsInvalidInputs() {
+        val b1 = GridBuildingData(
+            buildingId = "b1", displayName = "灵田", gridX = 0, gridY = 0,
+            width = 1, height = 1, instanceId = "b1", sectId = ""
+        )
+        index.rebuild(listOf(b1))
+        assertNull("tileSize=0 返回 null", index.findNearestBuilding(0f, 0f, 0, 100f))
+        assertNull("radius=0 返回 null", index.findNearestBuilding(0f, 0f, 32, 0f))
+        assertNull("radius=NaN 返回 null", index.findNearestBuilding(0f, 0f, 32, Float.NaN))
+    }
 }

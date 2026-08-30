@@ -46,29 +46,40 @@ fun SectMarker(
                 }
             }
     ) {
+        // 外层：最小命中面积（40dp）承载点击，视觉盒居中——文字标记的命中区不再随字号缩水
         Box(
             modifier = Modifier
+                .sizeIn(
+                    minWidth = MapStyle.Dimensions.sectMinHitSize,
+                    minHeight = MapStyle.Dimensions.sectMinHitSize
+                )
                 .clip(RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius))
-                .background(markerColor)
-                .border(
-                    width = borderWidth,
-                    color = borderColor,
-                    shape = RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius)
-                )
-                .padding(
-                    horizontal = MapStyle.Dimensions.sectPaddingH,
-                    vertical = MapStyle.Dimensions.sectPaddingV
-                )
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = item.name,
-                fontSize = fontSize,
-                color = textColor,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius))
+                    .background(markerColor)
+                    .border(
+                        width = borderWidth,
+                        color = borderColor,
+                        shape = RoundedCornerShape(MapStyle.Dimensions.sectBorderRadius)
+                    )
+                    .padding(
+                        horizontal = MapStyle.Dimensions.sectPaddingH,
+                        vertical = MapStyle.Dimensions.sectPaddingV
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = item.name,
+                    fontSize = fontSize,
+                    color = textColor,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

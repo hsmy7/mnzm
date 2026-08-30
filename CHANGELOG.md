@@ -1,5 +1,17 @@
 ## [4.01.15] - 2026-08-29
 
+### 优化（触控交互：命中宽容 / 建筑拖动 / 视角流畅）
+
+> 宗门地图与世界地图触控交互完善（方案：宗门地图触控交互优化方案）。根因链：① 1×1 建筑（灵田等）命中区 = 单格 32 世界像素 ≈ 15dp，远低于 44pt/48dp 最小触控目标；② BuildingDrag 期间每次 MOVE 无条件边缘平移（`0.016f` 硬编码在 120Hz 设备约 2 倍速），拖建筑时整张地图误动；③ 软件渲染路径预览走 RenderFrame 33ms 帧率门控（30fps），建筑预览相对 60fps 相机步进；④ fling 惯性滑行固定 33ms（30fps）卡顿；⑤ MOVE 事件历史采样被丢弃。均为交互输入逻辑（输入桥，终态 Kotlin，不涉 C++ 迁移）。
+
+- **命中宽容（A 组）**：新增 `HitSlopPolicy`（core/engine/touch，纯 Kotlin）——命中区按 40dp 最小触控目标外扩；`BuildingSpatialIndex` 新增 `queryRect`/`findBuildingAtRect`/`findNearestBuilding`（最近建筑兜底，距离并列按绘制顺序决胜）；tap 改双点判定（`onTap(downX,downY,upX,upY)`，默认实现兼容旧签名）；tap/长按命中统一 `worldToGrid`（roundToInt）消除 floor 偏差；拆除模式精确格优先（保道路删除语义）→ 外扩兜底
+- **拖建筑不乱动地图（B 组）**：边缘自动平移重做——进入边缘区驻留 ≥150ms（16ms 节拍计数，虚拟/真实时间一致可测）才激活，固定 60fps 节拍平移（与事件率解耦，120Hz 不翻倍），平移时同步补偿建筑预览（建筑保持手指下，CoC 手感）；拖拽起始 `movingId` 总线排除前置到 `state.movingBuilding` 写入前（压缩双渲染窗口）
+- **拖建筑流畅（C 组）**：预览独立快通道（`FastPreviewChannel` 独立类 + `NativeSurfaceView.renderTick` 版本号合成，仿相机通道）——拖拽预览不经 Compose 重组/33ms 门控，软件路径达渲染帧率；退出编辑模式（确认/取消/切 Tab）时统一清理（避免门控窗口位置回跳）；`drawCrops` 每帧 `HashSet` 改成员复用（拖视角 GC 抖动）；按下即拾起（`pickUpBuildingOnDown=true`，CoC 手感：Down 在建筑上立即拖拽，位移 ≤slop 快速抬起仍算 tap）
+- **视角流畅（D 组）**：fling 60fps 节拍（16ms，`FlingPhysics.DEFAULT_FRAME_INTERVAL_MS` 33→16）；相机直接写通道（`onPanCamera`/`onPinchZoom` 立即 `setCamera` 到渲染线程，不等 Compose 重组，减 1-2 帧延迟）；`toTouchData` 展开 MOVE 历史采样（`getHistorySize`，事件 batch 不丢中间位置、速度追踪更准）
+- **世界地图（E 组）**：`WorldMapScreen` 补惯性滑行（`FlingPhysics` + `CustomVelocityTracker`，60fps 固定节拍）；`SectMarker` 命中面积下限 40dp（视觉盒居中）
+- **兼容性**：无存档/Entity/序列化变更（无 Migration）；`TouchEngineCallbacks.onTap` 新增默认方法（旧实现/Fake 零改动）；`TouchEngineConfig` 新参数带默认值；行为可经配置回退（`pickUpBuildingOnDown=false` 等）
+- **验证**：engine JUnit 全量（含 `SectMapTouchEngineTest` 48 用例：拾起/双点 tap/边缘驻留补偿/fling 60fps + 新增 `HitSlopPolicyTest`/`FlingPhysicsTest`）+ app `BuildingSpatialIndexTest`（矩形/最近兜底/等距决胜）+ feature:game `NativeSurfaceViewTest`（快通道字段/版本/合成纯函数 + MockK MotionEvent 历史采样展开）· compileReleaseKotlin 通过 · detekt 全绿
+
 ### 新增（战斗批次 D-3：洞天 AI 操作接入 C++ 第三战斗引擎）
 
 > 承接战斗批次 D-2（cpp-engine.md §7.5）：批次 D 最后一件——AI 宗门战/洞天 AI 操作（S8 子事件 6）的第三战斗引擎（executeUnifiedAIBattle）等价移植 C++，AISectAttackManager 生产调用点路由接入。至此三件战斗边界接线（任务完成/洞天 AI 操作/AI 兽战）全部完成。

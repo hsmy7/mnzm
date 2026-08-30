@@ -64,6 +64,9 @@ class BuildingSpatialIndex @Inject constructor() {
     private companion object {
         /** 单建筑命中区域的单轴最大扩展格数（钳制损坏数据，防御 ANR） */
         const val MAX_HIT_EXTENT_CELLS = 128
+
+        /** 矩形查询单轴最大跨度（钳制损坏数据/极端外扩参数，防御 ANR） */
+        const val MAX_QUERY_SPAN = 256
     }
 
     fun remove(instanceId: String) {
@@ -78,6 +81,74 @@ class BuildingSpatialIndex @Inject constructor() {
      */
     fun findBuildingAt(gridX: Int, gridY: Int): GridBuildingData? {
         val candidates = grid[key(gridX, gridY)] ?: return null
+        return pickTopmost(candidates)
+    }
+
+    /**
+     * 矩形范围命中：返回范围内绘制顺序最上层的建筑。
+     * 供触控命中外扩（hit slop）使用——小建筑（灵田等 1×1）命中区按最小触控目标外扩后
+     * 仍可命中，决胜规则与 [findBuildingAt] 完全一致。
+     */
+    fun findBuildingAtRect(x0: Int, y0: Int, x1: Int, y1: Int): GridBuildingData? =
+        pickTopmost(queryRect(x0, y0, x1, y1))
+
+    /**
+     * 最近建筑兜底：命中点向外找最近建筑（世界坐标半径 [maxWorldDist]）。
+     * 用于 tap 未直接命中时的宽容判定（手指落点/抬起点偏差仍可选中）；
+     * 距离并列时按绘制顺序上层优先（确定性，避免"点 A 弹 B"）。
+     *
+     * @param worldX 命中点世界坐标 X
+     * @param worldY 命中点世界坐标 Y
+     * @param tileSize 格尺寸（世界像素）
+     * @param maxWorldDist 最大搜索半径（世界像素）
+     */
+    fun findNearestBuilding(
+        worldX: Float,
+        worldY: Float,
+        tileSize: Int,
+        maxWorldDist: Float
+    ): GridBuildingData? {
+        if (tileSize <= 0 || !maxWorldDist.isFinite() || maxWorldDist <= 0f) return null
+        val centerX = GridSnapHelper.worldToGrid(worldX, tileSize)
+        val centerY = GridSnapHelper.worldToGrid(worldY, tileSize)
+        val radius = ceil(maxWorldDist / tileSize).toInt()
+        val maxDistSq = maxWorldDist * maxWorldDist
+        var best: GridBuildingData? = null
+        var bestDistSq = Float.MAX_VALUE
+        for (b in queryRect(centerX - radius, centerY - radius, centerX + radius, centerY + radius)) {
+            val bx = (b.gridX + b.width / 2f) * tileSize
+            val by = (b.gridY + b.height / 2f) * tileSize
+            val dx = bx - worldX
+            val dy = by - worldY
+            val d2 = dx * dx + dy * dy
+            val isCloser = d2 < bestDistSq ||
+                (d2 == bestDistSq && isDrawnAbove(b, best))
+            if (d2 <= maxDistSq && isCloser) {
+                bestDistSq = d2
+                best = b
+            }
+        }
+        return best
+    }
+
+    /**
+     * 矩形范围查询（去重，保持首次出现顺序）。
+     * 防御：单轴跨度钳制（损坏数据防御 ANR，与 [add] 的 MAX_HIT_EXTENT_CELLS 同理）。
+     */
+    fun queryRect(x0: Int, y0: Int, x1: Int, y1: Int): List<GridBuildingData> {
+        val endX = x0 + minOf(x1 - x0, MAX_QUERY_SPAN - 1)
+        val endY = y0 + minOf(y1 - y0, MAX_QUERY_SPAN - 1)
+        val seen = LinkedHashSet<GridBuildingData>()
+        for (cx in x0..endX) {
+            for (cy in y0..endY) {
+                grid[key(cx, cy)]?.let { seen.addAll(it) }
+            }
+        }
+        return seen.toList()
+    }
+
+    /** 按绘制顺序取最上层（同键并列取后插入者）——[findBuildingAt] 与矩形命中共用决胜规则。 */
+    private fun pickTopmost(candidates: List<GridBuildingData>): GridBuildingData? {
         var best: GridBuildingData? = null
         var bestKey = Int.MIN_VALUE
         for (c in candidates) {
@@ -89,6 +160,10 @@ class BuildingSpatialIndex @Inject constructor() {
         }
         return best
     }
+
+    /** 距离并列时的绘制顺序决胜：绘制顺序键（gridY + height）更大者在上。 */
+    private fun isDrawnAbove(candidate: GridBuildingData, current: GridBuildingData?): Boolean =
+        current == null || (candidate.gridY + candidate.height) > (current.gridY + current.height)
 
     private fun key(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFF_FFFF)
 

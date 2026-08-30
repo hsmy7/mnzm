@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.os.Looper
+import android.view.MotionEvent
 import androidx.test.core.app.ApplicationProvider
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFlags
@@ -206,6 +207,149 @@ class NativeSurfaceViewTest {
         view.updateRenderState(RenderFrame(tileData = IntArray(101) { 0 }, cols = 10, rows = 10))
 
         assertEquals("超大尺寸帧不得初始化 currentFrame", null, view.currentFrame)
+    }
+
+    // ============================================================
+    // 预览快通道（2026-08-30 触控优化：拖拽预览不经 Compose 重组/帧率门控）
+    // ============================================================
+
+    @Test
+    fun `fastPreviewChannel set 写快照并递增版本号`() {
+        val view = createView()
+        val channel = view.fastPreviewChannel
+        val v0 = channel.version
+
+        channel.set(
+            FastPreviewSnapshot(
+                active = true,
+                x = 10f, y = 20f, w = 30f, h = 40f,
+                u0 = 0.1f, v0 = 0.2f, u1 = 0.3f, v1 = 0.4f,
+                alpha = 0.5f
+            )
+        )
+
+        assertEquals("版本每次写入 +1", v0 + 1, channel.version)
+        val snapshot = channel.state ?: error("快照应已写入")
+        assertEquals(10f, snapshot.x, 0.001f)
+        assertEquals(20f, snapshot.y, 0.001f)
+        assertEquals(30f, snapshot.w, 0.001f)
+        assertEquals(40f, snapshot.h, 0.001f)
+        assertEquals(0.1f, snapshot.u0, 0.001f)
+        assertEquals(0.4f, snapshot.v1, 0.001f)
+        assertEquals(0.5f, snapshot.alpha, 0.001f)
+    }
+
+    @Test
+    fun `fastPreviewChannel set null 停用预览并递增版本号`() {
+        val view = createView()
+        val channel = view.fastPreviewChannel
+        channel.set(
+            FastPreviewSnapshot(true, 1f, 2f, 3f, 4f, 0f, 0f, 0f, 0f, 0.5f)
+        )
+        val v1 = channel.version
+
+        channel.set(null)
+
+        assertEquals("退出拖拽后预览应停用", null, channel.state)
+        assertEquals(v1 + 1, channel.version)
+    }
+
+    @Test
+    fun `mergeFastPreviewInto 覆盖预览字段且保留其余引用`() {
+        val tileData = IntArray(100) { 1 }
+        val buildingData = FloatArray(12) { 2f }
+        val frame = RenderFrame(
+            tileData = tileData, cols = 10, rows = 10,
+            buildingData = buildingData, buildingCount = 1,
+            showPreview = false, previewX = 0f, previewY = 0f
+        )
+        val snapshot = FastPreviewSnapshot(
+            active = true, x = 55f, y = 66f, w = 32f, h = 32f,
+            u0 = 0.1f, v0 = 0.2f, u1 = 0.3f, v1 = 0.4f, alpha = 0.5f
+        )
+
+        val merged = mergeFastPreviewInto(frame, snapshot)
+
+        assertTrue(merged.showPreview)
+        assertEquals(55f, merged.previewX, 0.001f)
+        assertEquals(66f, merged.previewY, 0.001f)
+        assertEquals(0.5f, merged.previewAlpha, 0.001f)
+        // 其余字段引用不变（渲染线程零拷贝前提）
+        assertTrue("tileData 引用保持", merged.tileData === tileData)
+        assertTrue("buildingData 引用保持", merged.buildingData === buildingData)
+        assertEquals(10, merged.cols)
+    }
+
+    // ============================================================
+    // 输入历史采样展开（MOVE 事件 batch 不再丢失中间位置）
+    // ============================================================
+
+    @Test
+    fun `toMoveTouchData 按时间顺序展开历史采样并收尾当前采样`() {
+        val event = io.mockk.mockk<MotionEvent>()
+        io.mockk.every { event.actionMasked } returns MotionEvent.ACTION_MOVE
+        io.mockk.every { event.pointerCount } returns 1
+        io.mockk.every { event.historySize } returns 3
+        io.mockk.every { event.eventTime } returns 100L
+        io.mockk.every { event.actionIndex } returns 0
+        io.mockk.every { event.getPointerId(0) } returns 7
+        io.mockk.every { event.x } returns 40f
+        io.mockk.every { event.y } returns 50f
+        // 历史采样：10→20→30（x），20→30→40（y），时间 70→80→90ms
+        io.mockk.every { event.getHistoricalX(0, 0) } returns 10f
+        io.mockk.every { event.getHistoricalY(0, 0) } returns 20f
+        io.mockk.every { event.getHistoricalEventTime(0) } returns 70L
+        io.mockk.every { event.getHistoricalX(0, 1) } returns 20f
+        io.mockk.every { event.getHistoricalY(0, 1) } returns 30f
+        io.mockk.every { event.getHistoricalEventTime(1) } returns 80L
+        io.mockk.every { event.getHistoricalX(0, 2) } returns 30f
+        io.mockk.every { event.getHistoricalY(0, 2) } returns 40f
+        io.mockk.every { event.getHistoricalEventTime(2) } returns 90L
+
+        val data = toTouchData(event)
+
+        assertEquals("3 历史采样 + 1 当前 = 4 条 MOVE", 4, data?.size)
+        assertEquals(com.xianxia.sect.core.touch.TouchAction.MOVE, data?.first()?.action)
+        assertEquals(10f, data!![0].x, 0.001f)
+        assertEquals(20f, data[0].y, 0.001f)
+        assertEquals(20f, data[1].x, 0.001f)
+        assertEquals(40f, data[3].x, 0.001f)
+        assertEquals(50f, data[3].y, 0.001f)
+        // 时间戳递增（70→80→90→100ms × 1e6 ns）
+        assertTrue(
+            "时间戳单调递增",
+            data[0].timestamp < data[1].timestamp &&
+                data[1].timestamp < data[2].timestamp &&
+                data[2].timestamp < data[3].timestamp
+        )
+        assertEquals("pointerId 保持", 7, data[0].pointerId)
+    }
+
+    @Test
+    fun `toMoveTouchData 双指携带第二指历史坐标`() {
+        val event = io.mockk.mockk<MotionEvent>()
+        io.mockk.every { event.actionMasked } returns MotionEvent.ACTION_MOVE
+        io.mockk.every { event.pointerCount } returns 2
+        io.mockk.every { event.historySize } returns 1
+        io.mockk.every { event.eventTime } returns 100L
+        io.mockk.every { event.actionIndex } returns 0
+        io.mockk.every { event.getPointerId(0) } returns 1
+        io.mockk.every { event.getX(0) } returns 100f
+        io.mockk.every { event.getY(0) } returns 200f
+        io.mockk.every { event.getX(1) } returns 300f
+        io.mockk.every { event.getY(1) } returns 400f
+        io.mockk.every { event.getHistoricalX(0, 0) } returns 90f
+        io.mockk.every { event.getHistoricalY(0, 0) } returns 190f
+        io.mockk.every { event.getHistoricalX(1, 0) } returns 290f
+        io.mockk.every { event.getHistoricalY(1, 0) } returns 390f
+        io.mockk.every { event.getHistoricalEventTime(0) } returns 80L
+
+        val data = toTouchData(event)
+
+        assertEquals(2, data?.size)
+        assertEquals("历史采样携带双指坐标", 290f, data!![0].pointer2X, 0.001f)
+        assertEquals("当前采样携带双指坐标", 300f, data[1].pointer2X, 0.001f)
+        assertEquals(2, data[1].pointerCount)
     }
 
     // SOFTWARE 模式分支无法在 JVM 构造：renderMode 由 surfaceChanged 降级逻辑设置

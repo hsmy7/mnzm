@@ -85,8 +85,12 @@ class FlingPhysics(
         /** 最大初速度限制 (px/s)，防止极端情况 */
         private const val MAX_VELOCITY = 15000f
 
-        /** 默认帧间隔 (ms) — 匹配 MAP_SCROLL 30fps */
-        const val DEFAULT_FRAME_INTERVAL_MS = 33L
+        /**
+         * 默认帧间隔 (ms) — 60fps 节拍。
+         * 惯性滑行按 60fps 步进（对齐显示刷新率），dt 由调用方按真实事件间隔传入；
+         * 旧 33ms（30fps）步进在拖动视角时卡顿感明显（闲鱼 Flutter 滑动优化实践佐证）。
+         */
+        const val DEFAULT_FRAME_INTERVAL_MS = 16L
 
         /** 最小触发的 fling 速度 (px/s) */
         const val MIN_FLING_VELOCITY = 200f

@@ -44,6 +44,8 @@ object MapStyle {
         val sectBorderWidth = 2.dp
         val sectHighlightedBorderWidth = 3.dp
         val sectBorderRadius = 6.dp
+        /** 宗门标记最小命中面积（dp）— 视觉盒居中，点击区不小于该尺寸（接近 44pt 触控目标） */
+        val sectMinHitSize = 40.dp
 
         val controlButtonPaddingH = 12.dp
         val controlButtonPaddingV = 6.dp

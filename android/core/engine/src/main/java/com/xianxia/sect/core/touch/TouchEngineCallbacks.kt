@@ -25,6 +25,15 @@ interface TouchEngineCallbacks {
     fun onTap(screenX: Float, screenY: Float) = Unit
 
     /**
+     * 短触点击（双点版本）：同时提供按下点与抬起点坐标。
+     * 命中方可在按下/抬起两点间做宽容判定——手指落点/抬起点偏差（小建筑尤其明显）
+     * 时任一命中即算命中。默认实现委托旧签名（仅按下点），保持向后兼容。
+     */
+    fun onTap(downX: Float, downY: Float, upX: Float, upY: Float) {
+        onTap(downX, downY)
+    }
+
+    /**
      * 长按检测到。
      * @return LongPressResult 指示引擎应进入的模式。
      *   BuildingDrag / GoldFingerDrag — 引擎自动切换状态，

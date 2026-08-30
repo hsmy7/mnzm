@@ -619,6 +619,12 @@ class SoftwareCanvasBackend(
     /** 批次 3 插值消费链：上一帧作物原始进度（key=gx/gy 编码，见 [cropProgressKey]） */
     private val lastCropProgress = HashMap<Long, Float>()
 
+    /**
+     * 作物层本帧活跃 key 集合（成员复用——拖动视角时逐帧 clear 复用，
+     * 消除每帧 HashSet 分配导致的 GC 抖动；渲染线程独占，无需同步）。
+     */
+    private val cropActiveKeys = HashSet<Long>()
+
     // ── 精灵图源矩形（延迟初始化） ──
 
     private val tileSrcRects: Array<Rect> by lazy {
@@ -1121,7 +1127,7 @@ class SoftwareCanvasBackend(
         val count = cropData.size / CROP_DATA_STRIDE
         val fade = fadeAlpha.coerceIn(0f, 1f)
         val alpha = frame.currentAlpha
-        val activeKeys = HashSet<Long>(count * 2)
+        cropActiveKeys.clear()
         for (i in 0 until count) {
             val idx = i * CROP_DATA_STRIDE
             val gx = cropData[idx]
@@ -1139,7 +1145,7 @@ class SoftwareCanvasBackend(
             // 与 C++ 作物段同数学（SpiritCropRender.smoothedProgress）；
             // 插值基准存原始逻辑值（存平滑值会累积漂移），平滑值仅用于绘制
             val key = SpiritCropRender.cropProgressKey(gx, gy)
-            activeKeys += key
+            cropActiveKeys += key
             val prev = lastCropProgress[key]
             val drawProgress = if (prev != null && alpha > 0f) {
                 SpiritCropRender.smoothedProgress(prev, progress, alpha)
@@ -1154,7 +1160,7 @@ class SoftwareCanvasBackend(
             canvas.drawBitmap(atlas, cropSrcRects[stage], rect, cropPaint)
         }
         // 帧末裁剪：收获/拆除后清除残留进度条目（作物数量少，O(n) 可接受）
-        lastCropProgress.keys.retainAll(activeKeys)
+        lastCropProgress.keys.retainAll(cropActiveKeys)
         cropPaint.alpha = 255 // 防御性恢复（cropPaint 仅本方法使用，保持惯例防未来共享）
     }
 
