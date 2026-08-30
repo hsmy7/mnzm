@@ -1,5 +1,16 @@
 ## [4.01.15] - 2026-08-29
 
+### 修复（批 11-4：途中发现问题清偿——Fake 嵌套事务/任务 RNG 确定性化/回退分支确定性化）
+
+> 用户指示"解决途中发现的问题"（cpp-engine.md §7.3 批 11-4）：上轮批 11 交付报告的三个途中发现 + 登记的 S-14/S-18/S-19 债务。
+
+- **FakeGameStateStore 嵌套事务修复（S-14 家族测试基建）**：对齐生产 `GameStateStoreImpl` 的 ReentrantLock 重入语义——嵌套 `update` 复用最外层事务 buffer（不 persist/不 captureReverse/不递增 updateCallCount），最外层统一提交。修复前每次嵌套 update 独立 fork 已提交快照，内层写入被外层提交覆盖（12 月 autoBuy 对拍库存丢失根因）。修复后 12 月对拍**库存集合与年度 by-source 纳入 diff 面逐位一致**（删除排除项；库存 id 仍为镜像生成字段排除），Kotlin 臂补填集合字段
+- **途中发现并修正 C++ 转换器两处 Kotlin 行为对齐缺口**：`MerchantItemConverter.toEquipment` 模板分支遗漏 `critChance`、`toManual` 模板分支遗漏 `skillHealFixed`（Kotlin 预存小缺口，C++ 逐位对齐——12 月对拍暴露 critChance 0.0 vs 0.03 实锤）
+- **S-19 清偿（任务 RNG 确定性化）**：`RngPartition` 新增 `MISSION(8)`（Kotlin + C++ 双端，initSystemSeed seed+8，旧档 rngStates 缺键按种子播种向前兼容）；`MissionSystem` 从 nanoTime 惰性单例收敛于 `GameRngManager.getRng(MISSION)`——生产经 `CultivationEventProcessor`（@Singleton 月变/任务编排中枢）构造幂等注入，测试须显式注入固定种子实例（MissionSystemTest @Before/@After 注入+复位）；任务随机序列存档可重放；12 月对拍 rngStates 8 号键特判（C++ 任务逻辑未下沉不消费，任务批次下沉后移除）
+- **S-18 清偿（商人回退分支确定性化）**：C++ 未知物品回退改物品名稳定散列选池（FNV-1a）——零分区 RNG 消耗（损坏数据触达回退不污染确定性流）；剩余面 = 溢出邮件草稿通道（随月变真相源切换接线）
+- **验证**：GTest 603/603 全绿（rng_test 分区数断言 8→9 更新）· DiffMonthSettlementTest 三场景全绿（12 月含库存集合+年度 by-source diff）· MissionSystemTest/GameRngManagerTest/DiffRngTest 全绿 · engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：存档 rngStates 新增 8 号键（动态 map 无 schema 变更，旧档缺失按种子播种）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ### 新增（月变残留执行器增量 C++ 化批 11-1~11-3：招募/秘境×2/自动购买下沉）
 
 > 承接批 10 系列（cpp-engine.md §7.3）：S8 十六子事件剩余九件中的四件（招募/秘境到期关闭/秘境 AI 派遣/12 月自动购买）完成 C++ 化，按用户指示收窄范围——任务(5)/洞天(6)/AI 兽战(9)/购买(12)/任务刷新(14) 保持未下沉并登记批次（S-16~S-19）。

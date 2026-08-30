@@ -67,23 +67,51 @@ open class FakeGameStateStore : GameStateStore {
 
     private val reverseAcc = ReverseAcc()
 
+    // ── 嵌套事务重入（S-14 家族修复，批 11-4）────────────────────────
+    // 对齐生产 GameStateStoreImpl 的 ReentrantLock 重入语义（:913-1015）：
+    // 最外层 update 创建事务 buffer（activeTransaction）；嵌套 update 检测到
+    // 活跃事务时**复用同一 buffer** 执行 block（不 persist、不 captureReverse、
+    // 不递增 updateCallCount）——内层写入进入外层事务，最外层结束时统一
+    // persistFrom + captureReverse。修复前每次 update 独立 fork 已提交快照，
+    // 内层写入被外层提交覆盖（12 月 autoBuy 对拍库存丢失的根因）。
+    private var activeTransaction: MutableGameState? = null
+
     override fun update(block: MutableGameState.() -> Unit) {
+        val active = activeTransaction
+        if (active != null) {
+            active.block()
+            return
+        }
         updateCallCount++
         val mgs = mutableState()
-        val baseline = CaptureBaseline(gameDataValue, collectionValues())
-        mgs.block()
-        persistFrom(mgs)
-        captureReverse(baseline, mgs)
+        activeTransaction = mgs
+        try {
+            val baseline = CaptureBaseline(gameDataValue, collectionValues())
+            mgs.block()
+            persistFrom(mgs)
+            captureReverse(baseline, mgs)
+        } finally {
+            activeTransaction = null
+        }
     }
 
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
+        val active = activeTransaction
+        if (active != null) {
+            return active.block()
+        }
         updateCallCount++
         val mgs = mutableState()
-        val baseline = CaptureBaseline(gameDataValue, collectionValues())
-        val result = mgs.block()
-        persistFrom(mgs)
-        captureReverse(baseline, mgs)
-        return result
+        activeTransaction = mgs
+        try {
+            val baseline = CaptureBaseline(gameDataValue, collectionValues())
+            val result = mgs.block()
+            persistFrom(mgs)
+            captureReverse(baseline, mgs)
+            return result
+        } finally {
+            activeTransaction = null
+        }
     }
 
     private data class CaptureBaseline(

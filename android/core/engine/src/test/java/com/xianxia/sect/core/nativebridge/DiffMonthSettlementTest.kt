@@ -148,11 +148,9 @@ class DiffMonthSettlementTest {
         /** 新弟子资质散列补算期望（id=17，1 灵根 → 80 + floorMod(8990,21)=2） */
         const val NEW_RECRUIT_APTITUDE = 82
 
-        /** 库存集合 + 年度 by-source：InventorySystem 嵌套 update 写入
-         *  （FakeGameStateStore 嵌套事务不回写外层 buffer——S-14 committed 读
-         *  口径差家族），Kotlin-Fake 臂丢失，C++ 侧 GTest 黄金守护 */
-        private val INVENTORY_MIRROR_FIELDS = setOf(
-            "annualEquipmentBySource", "annualPillBySource",
+        /** 库存集合路径锚点（镜像生成 id 排除用；集合内容本身参与 diff——
+         *  批 11-4 FakeGameStateStore 嵌套事务修复后） */
+        private val INVENTORY_COLLECTION_KEYS = setOf(
             "equipmentStacks", "equipmentInstances", "manualStacks",
             "manualInstances", "pills", "materials", "herbs", "seeds", "storageBags"
         )
@@ -653,7 +651,18 @@ class DiffMonthSettlementTest {
             gameData = store.gameDataValue,
             // 批 10-4：AI 弟子池经顶层字段承载（与 C++ 导出键对齐）
             aiSectDisciples = store.gameDataValue.aiSectDisciples,
-            disciples = store.disciplesValue
+            disciples = store.disciplesValue,
+            // 批 11-4：库存集合参与对拍（FakeGameStateStore 嵌套事务修复后
+            // Kotlin 臂的库存写入保留于 store——含 12 月 autoBuy 入库）
+            equipmentStacks = store.equipmentStacksValue,
+            equipmentInstances = store.equipmentInstancesValue,
+            manualStacks = store.manualStacksValue,
+            manualInstances = store.manualInstancesValue,
+            pills = store.pillsValue,
+            materials = store.materialsValue,
+            herbs = store.herbsValue,
+            seeds = store.seedsValue,
+            storageBags = store.storageBagsValue
         )
     }
 
@@ -844,9 +853,24 @@ class DiffMonthSettlementTest {
      */
     private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
         k == "timestamp" || k == "availableMissions" -> true
-        k in INVENTORY_MIRROR_FIELDS -> true
-        k == "id" && path.contains("secretRealmAITeams") -> true
+        // 批 11-4（S-19）：任务刷新（S8#14）为 Kotlin 侧唯一消费 MISSION(8) 分区的
+        // 路径——C++ 任务逻辑未下沉，12 月对拍 rngStates 8 号键失配；任务批次
+        // 下沉后双端消费对齐，本特判移除
+        k == "8" && path.contains("rngStates") -> true
+        k == "id" && isMirrorIdPath(path) -> true
         else -> false
+    }
+
+    /**
+     * 镜像生成 id 字段路径（C++ 确定性自增 vs Kotlin UUID，语义等价仅保证
+     * 唯一——inventory.h generateNewId 同款契约）：
+     * - 秘境 AI 队伍（批 11-2）
+     * - 库存集合（批 11-4：FakeGameStateStore 嵌套事务修复后库存内容已纳入
+     *   diff 对拍面，仅 id 为镜像生成字段排除）
+     */
+    private fun isMirrorIdPath(path: String): Boolean {
+        if (path.contains("secretRealmAITeams")) return true
+        return INVENTORY_COLLECTION_KEYS.any { path.contains(it) }
     }
 
     private fun compareArrays(

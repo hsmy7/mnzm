@@ -176,7 +176,7 @@ TEST(RngManagerTest, ExportRestoreRoundTrip) {
     for (int i = 0; i < 5; ++i) mgr.getRng(RngPartition::kSystem).nextInt(100);
 
     const auto states = mgr.exportStates();
-    EXPECT_EQ(states.size(), 8u);  // 8 个分区
+    EXPECT_EQ(states.size(), 9u);  // 9 个分区（批 11-4 新增 MISSION=8）
 
     const auto valBefore = mgr.getRng(RngPartition::kSystem).nextInt(100);
     mgr.restoreStates(states);

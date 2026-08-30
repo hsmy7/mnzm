@@ -15,7 +15,7 @@
 // 分区枚举（Kotlin RngPartition.kt，id 即 @ProtoNumber 语义的持久化值，
 // 不得改动——存档 rngStates 的键）：
 //   BATTLE=0 / BREAKTHROUGH=1 / EXPLORATION=2 / SYSTEM=3 /
-//   ENEMY_GEN=4 / MAIL=5 / AI_SECT=6 / SECRET_REALM=7
+//   ENEMY_GEN=4 / MAIL=5 / AI_SECT=6 / SECRET_REALM=7 / MISSION=8
 // ============================================================
 namespace gamecore::rng {
 
@@ -28,6 +28,7 @@ enum class RngPartition : int32_t {
     kMail = 5,
     kAiSect = 6,
     kSecretRealm = 7,
+    kMission = 8,   // 任务系统（批 11-4 S-19：任务刷新/奖励 RNG 收敛分区）
 };
 
 class RngManager {
@@ -47,6 +48,7 @@ public:
         partitions_[RngPartition::kMail] = DeterministicRng::fromSeed(seed + 5);
         partitions_[RngPartition::kAiSect] = DeterministicRng::fromSeed(seed + 6);
         partitions_[RngPartition::kSecretRealm] = DeterministicRng::fromSeed(seed + 7);
+        partitions_[RngPartition::kMission] = DeterministicRng::fromSeed(seed + 8);
     }
 
     /// 获取指定分区的 PRNG（Kotlin 语义：未初始化则 error；此处抛出异常由调用方保证初始化）

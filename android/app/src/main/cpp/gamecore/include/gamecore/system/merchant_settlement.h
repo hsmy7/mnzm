@@ -5,13 +5,13 @@
 //
 // Kotlin AutoBuyService.executeAutoBuy 等价移植（批 11-3）。
 //
-// RNG 契约：主路径零 RNG（匹配/容量/钱包/入库全部确定性）；仅
-// MerchantItemConverter 的**未知物品回退分支**消耗 RNG——Kotlin 用
-// kotlin.random.Random 全局（非确定性、非分区），C++ 用 SYSTEM 分区
-// （确定性）——回退分支仅在物品名无对应模板（损坏数据）时触达，对拍
-// 场景以已知模板物品规避；边界登记 S-18（回退随机源收敛决策）。
+// RNG 契约：全链零 RNG 抽取（匹配/容量/钱包/入库全部确定性）。MerchantItem
+// Converter 的**未知物品回退分支**（批 11-4 S-18 清偿）：Kotlin 用 JVM 全局
+// Random（非确定性、非分区）→ C++ 改物品名稳定散列选池（FNV-1a）——不消费
+// 任何分区 RNG（损坏数据触达回退也不污染确定性流），跨语言内容本就无法
+// 对齐（Kotlin 每次进程不同），C++ 侧确定性自洽。
 //
-// 已知边界（登记 S-18）：
+// 已知边界（登记 S-18 剩余面）：
 // - 溢出转邮件：C++ addXxx 产出 OverflowDraft 至本地 collector——
 //   月结上下文无邮件通道，草稿丢弃（Kotlin 真相源发送）；对拍场景
 //   仓库容量充足规避
@@ -98,13 +98,32 @@ inline int32_t calculateBuyQuantity(int64_t spiritStones, int64_t price,
 
 // ── MerchantItemConverter 模板路径（Kotlin 等价；未知名走回退分支） ──
 
-/// SYSTEM 分区抽取（回退分支专用——S-18：Kotlin 用 JVM 全局 Random）
-inline int32_t systemNextInt(rng::RngManager& rng, int32_t bound) {
-    return rng.getRng(rng::RngPartition::kSystem).nextInt(bound);
+/// 稳定名称散列（FNV-1a，跨编译器/平台稳定——libc++/libstdc++ 一致性）
+inline std::size_t stableNameHash(const std::string& s) {
+    std::size_t h = 2166136261u;
+    for (unsigned char c : s) {
+        h ^= c;
+        h *= 16777619u;
+    }
+    return h;
+}
+
+/// 回退分支确定性选择（S-18 清偿，批 11-4）：Kotlin 用 JVM 全局 Random
+///（非确定性、非分区）→ C++ 改为**物品名稳定散列选池**——不消费任何分区
+/// RNG（损坏数据触达回退也不污染确定性流），跨语言内容本就无法对齐
+///（Kotlin 每次进程不同），C++ 侧确定性自洽
+template <typename T>
+inline const T& fallbackPick(const std::vector<T>& templates,
+                             const std::string& name, int32_t rarity) {
+    std::vector<const T*> pool;
+    for (const auto& t : templates) {
+        if (t.rarity == rarity) pool.push_back(&t);
+    }
+    return pool.empty() ? templates[0] : *pool[stableNameHash(name) % pool.size()];
 }
 
 /// 装备转换（模板命中 → 模板字段；未知 → generateRandom(rarity) 回退）
-inline EquipmentStack toEquipment(const MerchantItem& item, rng::RngManager& rng) {
+inline EquipmentStack toEquipment(const MerchantItem& item) {
     const auto& templates = gamecore::data::equipmentTemplates();
     const auto it = std::find_if(templates.begin(), templates.end(),
         [&](const auto& t) { return t.name == item.name; });
@@ -121,38 +140,34 @@ inline EquipmentStack toEquipment(const MerchantItem& item, rng::RngManager& rng
         s.speed = it->speed;
         s.hp = it->hp;
         s.mp = it->mp;
-        s.critChance = it->critChance;
+        // 对齐 Kotlin MerchantItemConverter.toEquipment 模板分支：critChance
+        // 保持默认 0（Kotlin 该分支遗漏模板 critChance——预存行为，对拍逐位一致）
         s.description = it->description;
         s.minRealm = minRealmForRarity(item.rarity);
         return s;
     }
-    // 回退分支（S-18）
-    std::vector<const gamecore::data::EquipmentTemplate*> pool;
-    for (const auto& t : templates) {
-        if (t.rarity == item.rarity) pool.push_back(&t);
-    }
-    const auto* chosen = pool.empty() ? &templates[0]
-                                      : pool[systemNextInt(rng, static_cast<int32_t>(pool.size()))];
+    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     EquipmentStack s;
     s.id = nextItemId();
-    s.name = chosen->name;
-    s.slot = chosen->slot;
+    s.name = chosen.name;
+    s.slot = chosen.slot;
     s.rarity = item.rarity;
-    s.physicalAttack = chosen->physicalAttack;
-    s.magicAttack = chosen->magicAttack;
-    s.physicalDefense = chosen->physicalDefense;
-    s.magicDefense = chosen->magicDefense;
-    s.speed = chosen->speed;
-    s.hp = chosen->hp;
-    s.mp = chosen->mp;
-    s.critChance = chosen->critChance;
-    s.description = chosen->description;
+    s.physicalAttack = chosen.physicalAttack;
+    s.magicAttack = chosen.magicAttack;
+    s.physicalDefense = chosen.physicalDefense;
+    s.magicDefense = chosen.magicDefense;
+    s.speed = chosen.speed;
+    s.hp = chosen.hp;
+    s.mp = chosen.mp;
+    s.critChance = chosen.critChance;
+    s.description = chosen.description;
     s.minRealm = minRealmForRarity(item.rarity);
     return s;
 }
 
 /// 功法转换（模板命中 → 模板字段；未知 → generateRandom(rarity) 回退）
-inline ManualStack toManual(const MerchantItem& item, rng::RngManager& rng) {
+inline ManualStack toManual(const MerchantItem& item) {
     const auto& templates = gamecore::data::manualTemplates();
     const auto it = std::find_if(templates.begin(), templates.end(),
         [&](const auto& t) { return t.name == item.name; });
@@ -173,8 +188,10 @@ inline ManualStack toManual(const MerchantItem& item, rng::RngManager& rng) {
         m.skillCooldown = it->skillCooldown;
         m.skillMpCost = it->skillMpCost;
         m.skillHealPercent = it->skillHealPercent;
-        m.skillHealFixed = it->skillHealFixed;
         m.skillHealType = it->skillHealType;
+        // 对齐 Kotlin MerchantItemConverter.toManual 模板分支：skillHealFixed/
+        // skillShieldPercent/skillTurnAdvancePercent/skillDamageSharePercent/
+        // skillDamageLinkPercent 保持默认 0（Kotlin 该分支遗漏——预存行为）
         m.skillBuffType = it->skillBuffType;
         m.skillBuffValue = it->skillBuffValue;
         m.skillBuffDuration = it->skillBuffDuration;
@@ -193,43 +210,39 @@ inline ManualStack toManual(const MerchantItem& item, rng::RngManager& rng) {
         return m;
     }
     // 回退分支（S-18）
-    std::vector<const gamecore::data::ManualTemplate*> pool;
-    for (const auto& t : templates) {
-        if (t.rarity == item.rarity) pool.push_back(&t);
-    }
-    const auto* chosen = pool.empty() ? &templates[0]
-                                      : pool[systemNextInt(rng, static_cast<int32_t>(pool.size()))];
+    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     ManualStack m;
     m.id = nextItemId();
-    m.name = chosen->name;
+    m.name = chosen.name;
     m.rarity = item.rarity;
-    m.description = chosen->description;
-    m.type = chosen->type;
-    m.stats = chosen->stats;
-    m.skillName = chosen->skillName;
-    m.skillDescription = chosen->skillDescription;
-    m.skillType = chosen->skillType;
-    m.skillDamageType = chosen->skillDamageType;
-    m.skillHits = chosen->skillHits;
-    m.skillDamageMultiplier = chosen->skillDamageMultiplier;
-    m.skillCooldown = chosen->skillCooldown;
-    m.skillMpCost = chosen->skillMpCost;
-    m.skillHealPercent = chosen->skillHealPercent;
-    m.skillHealFixed = chosen->skillHealFixed;
-    m.skillHealType = chosen->skillHealType;
-    m.skillBuffType = chosen->skillBuffType;
-    m.skillBuffValue = chosen->skillBuffValue;
-    m.skillBuffDuration = chosen->skillBuffDuration;
+    m.description = chosen.description;
+    m.type = chosen.type;
+    m.stats = chosen.stats;
+    m.skillName = chosen.skillName;
+    m.skillDescription = chosen.skillDescription;
+    m.skillType = chosen.skillType;
+    m.skillDamageType = chosen.skillDamageType;
+    m.skillHits = chosen.skillHits;
+    m.skillDamageMultiplier = chosen.skillDamageMultiplier;
+    m.skillCooldown = chosen.skillCooldown;
+    m.skillMpCost = chosen.skillMpCost;
+    m.skillHealPercent = chosen.skillHealPercent;
+    m.skillHealFixed = chosen.skillHealFixed;
+    m.skillHealType = chosen.skillHealType;
+    m.skillBuffType = chosen.skillBuffType;
+    m.skillBuffValue = chosen.skillBuffValue;
+    m.skillBuffDuration = chosen.skillBuffDuration;
     std::string buffsJson;
-    for (std::size_t i = 0; i < chosen->skillBuffs.size(); ++i) {
+    for (std::size_t i = 0; i < chosen.skillBuffs.size(); ++i) {
         if (i > 0) buffsJson += "|";
-        buffsJson += chosen->skillBuffs[i].type + "," +
-                     kotlinDoubleString(chosen->skillBuffs[i].value) + "," +
-                     std::to_string(chosen->skillBuffs[i].duration);
+        buffsJson += chosen.skillBuffs[i].type + "," +
+                     kotlinDoubleString(chosen.skillBuffs[i].value) + "," +
+                     std::to_string(chosen.skillBuffs[i].duration);
     }
     m.skillBuffsJson = std::move(buffsJson);
-    m.skillIsAoe = chosen->skillIsAoe;
-    m.skillTargetScope = chosen->skillTargetScope;
+    m.skillIsAoe = chosen.skillIsAoe;
+    m.skillTargetScope = chosen.skillTargetScope;
     m.minRealm = minRealmForRarity(item.rarity);
     m.quantity = 1;
     return m;
@@ -246,7 +259,7 @@ inline std::string gradeNameFromDisplay(const std::optional<std::string>& grade)
 
 /// 丹药转换（PillRecipeDatabase.getRecipeByNameAndGrade → getRecipeByName 回退；
 /// 未命中 → 回退分支）
-inline Pill toPill(const MerchantItem& item, rng::RngManager& rng) {
+inline Pill toPill(const MerchantItem& item) {
     const std::string gradeName = gradeNameFromDisplay(item.grade);
     std::string gradeLower = gradeName;
     std::transform(gradeLower.begin(), gradeLower.end(), gradeLower.begin(),
@@ -300,54 +313,49 @@ inline Pill toPill(const MerchantItem& item, rng::RngManager& rng) {
         p.minRealm = minRealmForRarity(item.rarity);
         return p;
     }
-    // 回退分支（S-18）
-    std::vector<const gamecore::data::PillRecipeTemplate*> pool;
-    for (const auto& r : recipes) {
-        if (r.rarity == item.rarity) pool.push_back(&r);
-    }
-    const auto* chosen = pool.empty() ? &recipes[0]
-                                      : pool[systemNextInt(rng, static_cast<int32_t>(pool.size()))];
+    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    const auto& chosen = fallbackPick(recipes, item.name, item.rarity);
     Pill p;
     p.id = nextItemId();
-    p.name = chosen->name;
+    p.name = chosen.name;
     p.rarity = item.rarity;
     p.quantity = 1;
-    p.description = chosen->description;
-    p.category = chosen->category;
+    p.description = chosen.description;
+    p.category = chosen.category;
     p.grade = gradeName;
-    p.pillType = chosen->pillType;
-    p.effects.breakthroughChance = chosen->breakthroughChance;
-    p.effects.targetRealm = chosen->targetRealm;
-    p.effects.cultivationSpeedPercent = chosen->cultivationSpeedPercent;
-    p.effects.duration = chosen->duration;
-    p.effects.cultivationAdd = chosen->cultivationAdd;
-    p.effects.skillExpAdd = chosen->skillExpAdd;
-    p.effects.nurtureAdd = chosen->nurtureAdd;
-    p.effects.extendLife = chosen->extendLife;
-    p.effects.physicalAttackAdd = chosen->physicalAttackAdd;
-    p.effects.magicAttackAdd = chosen->magicAttackAdd;
-    p.effects.physicalDefenseAdd = chosen->physicalDefenseAdd;
-    p.effects.magicDefenseAdd = chosen->magicDefenseAdd;
-    p.effects.hpAdd = chosen->hpAdd;
-    p.effects.mpAdd = chosen->mpAdd;
-    p.effects.speedAdd = chosen->speedAdd;
-    p.effects.critRateAdd = chosen->critRateAdd;
-    p.effects.critEffectAdd = chosen->critEffectAdd;
-    p.effects.intelligenceAdd = chosen->intelligenceAdd;
-    p.effects.charmAdd = chosen->charmAdd;
-    p.effects.loyaltyAdd = chosen->loyaltyAdd;
-    p.effects.comprehensionAdd = chosen->comprehensionAdd;
-    p.effects.artifactRefiningAdd = chosen->artifactRefiningAdd;
-    p.effects.pillRefiningAdd = chosen->pillRefiningAdd;
-    p.effects.spiritPlantingAdd = chosen->spiritPlantingAdd;
-    p.effects.teachingAdd = chosen->teachingAdd;
-    p.effects.moralityAdd = chosen->moralityAdd;
+    p.pillType = chosen.pillType;
+    p.effects.breakthroughChance = chosen.breakthroughChance;
+    p.effects.targetRealm = chosen.targetRealm;
+    p.effects.cultivationSpeedPercent = chosen.cultivationSpeedPercent;
+    p.effects.duration = chosen.duration;
+    p.effects.cultivationAdd = chosen.cultivationAdd;
+    p.effects.skillExpAdd = chosen.skillExpAdd;
+    p.effects.nurtureAdd = chosen.nurtureAdd;
+    p.effects.extendLife = chosen.extendLife;
+    p.effects.physicalAttackAdd = chosen.physicalAttackAdd;
+    p.effects.magicAttackAdd = chosen.magicAttackAdd;
+    p.effects.physicalDefenseAdd = chosen.physicalDefenseAdd;
+    p.effects.magicDefenseAdd = chosen.magicDefenseAdd;
+    p.effects.hpAdd = chosen.hpAdd;
+    p.effects.mpAdd = chosen.mpAdd;
+    p.effects.speedAdd = chosen.speedAdd;
+    p.effects.critRateAdd = chosen.critRateAdd;
+    p.effects.critEffectAdd = chosen.critEffectAdd;
+    p.effects.intelligenceAdd = chosen.intelligenceAdd;
+    p.effects.charmAdd = chosen.charmAdd;
+    p.effects.loyaltyAdd = chosen.loyaltyAdd;
+    p.effects.comprehensionAdd = chosen.comprehensionAdd;
+    p.effects.artifactRefiningAdd = chosen.artifactRefiningAdd;
+    p.effects.pillRefiningAdd = chosen.pillRefiningAdd;
+    p.effects.spiritPlantingAdd = chosen.spiritPlantingAdd;
+    p.effects.teachingAdd = chosen.teachingAdd;
+    p.effects.moralityAdd = chosen.moralityAdd;
     p.minRealm = minRealmForRarity(item.rarity);
     return p;
 }
 
 /// 材料转换（BeastMaterialDatabase.getMaterialByName；未知 → 回退）
-inline Material toMaterial(const MerchantItem& item, rng::RngManager& rng) {
+inline Material toMaterial(const MerchantItem& item) {
     const auto& templates = gamecore::data::beastMaterialTemplates();
     const auto it = std::find_if(templates.begin(), templates.end(),
         [&](const auto& t) { return t.name == item.name; });
@@ -361,25 +369,20 @@ inline Material toMaterial(const MerchantItem& item, rng::RngManager& rng) {
         m.category = it->category;
         return m;
     }
-    // 回退分支（S-18）
-    std::vector<const gamecore::data::BeastMaterialTemplate*> pool;
-    for (const auto& t : templates) {
-        if (t.rarity == item.rarity) pool.push_back(&t);
-    }
-    const auto* chosen = pool.empty() ? &templates[0]
-                                      : pool[systemNextInt(rng, static_cast<int32_t>(pool.size()))];
+    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     Material m;
     m.id = nextItemId();
-    m.name = chosen->name;
+    m.name = chosen.name;
     m.rarity = item.rarity;
     m.quantity = 1;
-    m.description = chosen->description;
-    m.category = chosen->category;
+    m.description = chosen.description;
+    m.category = chosen.category;
     return m;
 }
 
 /// 灵草转换（HerbDatabase.getHerbByName；未知 → 回退）
-inline Herb toHerb(const MerchantItem& item, rng::RngManager& rng) {
+inline Herb toHerb(const MerchantItem& item) {
     const auto& templates = gamecore::data::herbTemplates();
     const auto it = std::find_if(templates.begin(), templates.end(),
         [&](const auto& t) { return t.name == item.name; });
@@ -394,24 +397,20 @@ inline Herb toHerb(const MerchantItem& item, rng::RngManager& rng) {
         return h;
     }
     // 回退分支（S-18）
-    std::vector<const gamecore::data::HerbTemplate*> pool;
-    for (const auto& t : templates) {
-        if (t.rarity == item.rarity) pool.push_back(&t);
-    }
-    const auto* chosen = pool.empty() ? &templates[0]
-                                      : pool[systemNextInt(rng, static_cast<int32_t>(pool.size()))];
+    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     Herb h;
     h.id = nextItemId();
-    h.name = chosen->name;
+    h.name = chosen.name;
     h.rarity = item.rarity;
-    h.description = chosen->description;
-    h.category = chosen->category;
+    h.description = chosen.description;
+    h.category = chosen.category;
     h.quantity = 1;
     return h;
 }
 
 /// 种子转换（HerbDatabase.getSeedByName；未知 → 回退）
-inline Seed toSeed(const MerchantItem& item, rng::RngManager& rng) {
+inline Seed toSeed(const MerchantItem& item) {
     const auto& templates = gamecore::data::seedTemplates();
     const auto it = std::find_if(templates.begin(), templates.end(),
         [&](const auto& t) { return t.name == item.name; });
@@ -426,20 +425,15 @@ inline Seed toSeed(const MerchantItem& item, rng::RngManager& rng) {
         s.quantity = 1;
         return s;
     }
-    // 回退分支（S-18）
-    std::vector<const gamecore::data::SeedTemplate*> pool;
-    for (const auto& t : templates) {
-        if (t.rarity == item.rarity) pool.push_back(&t);
-    }
-    const auto* chosen = pool.empty() ? &templates[0]
-                                      : pool[systemNextInt(rng, static_cast<int32_t>(pool.size()))];
+    // 回退分支（S-18：物品名稳定散列选池，零分区 RNG 消耗）
+    const auto& chosen = fallbackPick(templates, item.name, item.rarity);
     Seed s;
     s.id = nextItemId();
-    s.name = chosen->name;
+    s.name = chosen.name;
     s.rarity = item.rarity;
-    s.description = chosen->description;
-    s.growTime = chosen->growTime;
-    s.yield = chosen->yield;
+    s.description = chosen.description;
+    s.growTime = chosen.growTime;
+    s.yield = chosen.yield;
     s.quantity = 1;
     return s;
 }
@@ -551,9 +545,9 @@ inline bool canAddToWarehouse(const GameState& state, const MerchantItem& item,
 
 // ── 主流程：executeAutoBuy（Kotlin AutoBuyService.executeAutoBuy 等价） ──
 
-/// 12 月自动购买（仅当月调用；零 RNG 主路径；overflow 草稿本地收集丢弃——
-/// S-18 边界，Kotlin 真相源发送溢出邮件）
-inline void executeAutoBuy(GameState& state, rng::RngManager& rng) {
+/// 12 月自动购买（仅当月调用；全链零 RNG——含未知名回退的确定性散列选池，
+/// S-18 已清偿；overflow 草稿本地收集丢弃——Kotlin 真相源发送溢出邮件）
+inline void executeAutoBuy(GameState& state) {
     auto& gd = state.gameData;
     if (gd.autoBuyList.empty()) return;
     if (gd.travelingMerchantItems.empty()) return;
@@ -572,7 +566,7 @@ inline void executeAutoBuy(GameState& state, rng::RngManager& rng) {
         const MerchantItem merchantItem = newMerchantItems[matchIdx];
         if (merchantItem.quantity <= 0) continue;
 
-        // 转换物品（模板路径；回退分支消耗 SYSTEM RNG——S-18）
+        // 转换物品（模板路径；未知名走确定性散列回退——S-18 零分区 RNG 消耗）
         EquipmentStack eq;
         ManualStack mn;
         Pill pill;
@@ -581,12 +575,12 @@ inline void executeAutoBuy(GameState& state, rng::RngManager& rng) {
         Seed sd;
         bool converted = true;
         const std::string& type = merchantItem.type;
-        if (type == "equipment") { eq = toEquipment(merchantItem, rng); }
-        else if (type == "manual") { mn = toManual(merchantItem, rng); }
-        else if (type == "pill") { pill = toPill(merchantItem, rng); }
-        else if (type == "material") { mt = toMaterial(merchantItem, rng); }
-        else if (type == "herb") { hb = toHerb(merchantItem, rng); }
-        else if (type == "seed") { sd = toSeed(merchantItem, rng); }
+        if (type == "equipment") { eq = toEquipment(merchantItem); }
+        else if (type == "manual") { mn = toManual(merchantItem); }
+        else if (type == "pill") { pill = toPill(merchantItem); }
+        else if (type == "material") { mt = toMaterial(merchantItem); }
+        else if (type == "herb") { hb = toHerb(merchantItem); }
+        else if (type == "seed") { sd = toSeed(merchantItem); }
         else if (type != "spiritstone") { converted = false; }
         if (!converted) continue;
 

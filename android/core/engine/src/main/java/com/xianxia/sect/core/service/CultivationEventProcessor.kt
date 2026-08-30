@@ -80,6 +80,12 @@ class CultivationEventProcessor @Inject constructor(
     internal val secretRealmAIProcessor: SecretRealmAIProcessor,
     internal val deathHandler: DiscipleDeathHandler
 ) {
+    init {
+        // 批 11-4（S-19 清偿）：任务系统 RNG 收敛于 GameRngManager.MISSION 分区——
+        // 本服务为唯一月变/任务编排入口（@Singleton），构造时幂等注入
+        MissionSystem.initialize(rngManager)
+    }
+
     private val scope get() = scopeProvider.scope
     companion object {
         internal const val TAG = "CultivationEventProc"

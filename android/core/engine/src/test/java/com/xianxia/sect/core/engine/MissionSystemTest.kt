@@ -8,10 +8,30 @@ import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.MissionType
 import com.xianxia.sect.core.model.EnemyType
 import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.util.GameRngManager
+import org.junit.After
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 
 class MissionSystemTest {
+
+    /** 批 11-4（S-19）：任务系统 RNG 收敛于 GameRngManager.MISSION 分区——
+     *  测试注入固定种子实例（确定性、可重放） */
+    @Before
+    fun injectFixedSeedRng() {
+        MissionSystem.initialize(GameRngManager().also {
+            it.initSystemSeed(20260901L)
+        })
+    }
+
+    @After
+    fun resetRng() {
+        // 隔离：避免注入实例泄漏到其他测试（生产经 CultivationEventProcessor
+        // 构造注入，测试间须显式复位）
+        MissionSystem.initialize(GameRngManager().also { it.initSystemSeed(0L) })
+    }
+
 
     private fun createDisciple(
         id: String = "d1",

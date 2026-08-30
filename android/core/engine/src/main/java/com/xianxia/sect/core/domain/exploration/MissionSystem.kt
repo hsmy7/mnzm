@@ -19,9 +19,36 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.EnemyGenerator
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 
 object MissionSystem {
-    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
+    /**
+     * 任务系统分区 RNG（批 11-4 确定性化，S-19 清偿）。
+     *
+     * 历史实现为 `DeterministicRng.fromSeed(System.nanoTime())` 惰性单例——
+     * 非托管、非确定性（违背确定性 RNG 规范）；现收敛于
+     * [GameRngManager] 的 [RngPartition.MISSION] 分区（存档 rngStates 8 号键，
+     * 读档恢复后任务随机序列可重放）。
+     *
+     * 注入时机：生产经 [CultivationEventProcessor]（@Singleton，唯一月变/任务
+     * 编排入口）构造时 [initialize]；测试须显式注入固定种子实例，否则访问
+     * [rng] 抛 IllegalStateException（拒绝静默非确定性降级）。
+     */
+    @Volatile
+    private var rngManager: GameRngManager? = null
+
+    /** 注入 RNG 管理器（幂等；生产经 CultivationEventProcessor 构造，测试注入固定种子实例） */
+    fun initialize(manager: GameRngManager) {
+        rngManager = manager
+    }
+
+    private val rng: DeterministicRng
+        get() = (rngManager ?: error(
+            "MissionSystem 未注入 GameRngManager——生产经 CultivationEventProcessor 构造注入，" +
+                "测试须调用 MissionSystem.initialize() 注入固定种子实例"
+        )).getRng(RngPartition.MISSION)
+
     const val REFRESH_INTERVAL_MONTHS = 3
     const val MAX_REFRESH_COUNT = 6
 

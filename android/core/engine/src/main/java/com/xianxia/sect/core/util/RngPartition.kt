@@ -21,5 +21,8 @@ enum class RngPartition(val id: Int) {
     /** AI 宗门：弟子生成/装备分配/修炼演化（与主游戏 RNG 隔离，避免跨线程污染） */
     AI_SECT(6),
     /** 远古秘境：秘境刷新/事件生成/妖兽属性/分支判定 */
-    SECRET_REALM(7);
+    SECRET_REALM(7),
+    /** 任务系统：任务刷新/任务奖励随机生成（批 11-4 自 nanoTime 非托管收敛——
+     *  存档 rngStates 8 号键；旧档缺失时按 systemSeed+8 播种） */
+    MISSION(8);
 }

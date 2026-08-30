@@ -2211,7 +2211,7 @@ TEST(AutoBuySettlement, DecemberAutoBuyMatchesKnownTemplate) {
     pill.rarity = 1; pill.price = 50; pill.quantity = 2; pill.grade = "中品";
     st.gameData.travelingMerchantItems = {sword, pill};
 
-    executeAutoBuy(st, core->rng());
+    executeAutoBuy(st);
 
     // 灵石扣除：精铁剑 3×100 + 聚气丹 2×50 = 400 → 10000-400
     EXPECT_EQ(9600LL, st.gameData.spiritStones);
@@ -2248,7 +2248,7 @@ TEST(AutoBuySettlement, DecemberAutoBuySkipsOnInsufficientFunds) {
     sword.rarity = 1; sword.price = 100; sword.quantity = 3;
     st.gameData.travelingMerchantItems = {sword};
 
-    executeAutoBuy(st, core->rng());
+    executeAutoBuy(st);
 
     // 可买 1 把（150/100=1）→ 扣除 100；商人剩余 2
     EXPECT_EQ(50LL, st.gameData.spiritStones);
@@ -2271,7 +2271,7 @@ TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {
     stone.rarity = 1; stone.price = 100; stone.quantity = 5;
     st.gameData.travelingMerchantItems = {stone};
 
-    executeAutoBuy(st, core->rng());
+    executeAutoBuy(st);
 
     // 中品灵石入袋 ×5；不存在物品条目跳过
     EXPECT_EQ(9500LL, st.gameData.spiritStones);   // 10000 - 5×100

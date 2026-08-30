@@ -1391,9 +1391,9 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     // 子事件 9：AI 兽战——未下沉（战斗边界：全路径经 BattleSystem.executeBattle，
     // 批 4-3 边界战斗执行保留 Kotlin——审计登记见文件头范围边界）
     // 子事件 10：12 月自动购买（批 11-3：AutoBuyService.executeAutoBuy 等价移植；
-    //   仅 month==12；零 RNG 主路径）
+    //   仅 month==12；全链零 RNG，S-18 回退分支确定性化）
     if (state.gameData.gameMonth == 12) {
-        merchant_settle::executeAutoBuy(state, rng);
+        merchant_settle::executeAutoBuy(state);
     }
     // 子事件 11：灵矿月度产出结算
     detail::processSpiritMineProductionMonthly(state, idx);
