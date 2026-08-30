@@ -352,5 +352,41 @@ TEST(JsonCodecTest, DumpStateNormalizesIntegralDoubles) {
     EXPECT_DOUBLE_EQ(parsed.disciples.materialize(0).cultivation, 12345.6);
 }
 
+
+TEST(JsonCodecTest, VassalBreakawayProtocolRoundTrip) {
+    // 批 10-4：附庸脱离子事件协议扩容往返（VassalContract 真实形状修正 +
+    // SectRelation.acquainted + aiSectDisciples（GameState 顶层）+
+    // sectBattleRecords）
+    GameData d;
+    d.vassalContracts.push_back(VassalContract{"ai-3", 1, 0});
+    d.sectRelations.push_back(SectRelation{"p1", "ai-3", 100, 3, 0, true});
+    d.sectBattleRecords.push_back(SectBattleRecord{3, "CONQUEST"});
+    d.sectBattleRecords.push_back(SectBattleRecord{4, "BATTLE_LOSS"});
+    GameState s;
+    s.gameData = d;
+    s.aiSectDisciples["ai-3"].push_back(Disciple{});
+    s.aiSectDisciples["ai-3"][0].id = "90";
+    s.aiSectDisciples["ai-3"][0].name = "玄水弟子";
+    s.aiSectDisciples["ai-3"][0].realm = 7;
+
+    const nlohmann::json j = s;
+    const GameState decoded = j.get<GameState>();
+    ASSERT_EQ(decoded.gameData.vassalContracts.size(), 1u);
+    EXPECT_EQ(decoded.gameData.vassalContracts[0].vassalSectId, "ai-3");
+    EXPECT_EQ(decoded.gameData.vassalContracts[0].establishedYear, 1);
+    EXPECT_EQ(decoded.gameData.vassalContracts[0].lastTributeYear, 0);
+    ASSERT_EQ(decoded.gameData.sectRelations.size(), 1u);
+    EXPECT_EQ(decoded.gameData.sectRelations[0].sectId1, "p1");
+    EXPECT_EQ(decoded.gameData.sectRelations[0].favor, 100);
+    EXPECT_TRUE(decoded.gameData.sectRelations[0].acquainted);
+    ASSERT_EQ(decoded.aiSectDisciples.at("ai-3").size(), 1u);
+    EXPECT_EQ(decoded.aiSectDisciples.at("ai-3")[0].id, "90");
+    EXPECT_EQ(decoded.aiSectDisciples.at("ai-3")[0].realm, 7);
+    ASSERT_EQ(decoded.gameData.sectBattleRecords.size(), 2u);
+    EXPECT_EQ(decoded.gameData.sectBattleRecords[0].year, 3);
+    EXPECT_EQ(decoded.gameData.sectBattleRecords[0].type, "CONQUEST");
+    EXPECT_EQ(decoded.gameData.sectBattleRecords[1].type, "BATTLE_LOSS");
+}
+
 }  // namespace
 }  // namespace gamecore::state

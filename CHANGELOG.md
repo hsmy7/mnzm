@@ -8,6 +8,27 @@
 - **验证**：GTest 561/561（+3：从众门控零抽取锁/逃脱黄金序列含装备功法清理与 SYSTEM 分区快照锁/捕获黄金序列含长老智力·政策·重插行序·引导计数·事件锁）· **DiffMonthSettlementTest 换装真实 LawEnforcementProcessor**（原 mock 不消耗 RNG 无法对拍叛逃流）+ 叛逃候选场景 1/1 跨语言逐位一致（rngStates 结构对拍覆盖抽取序）· engine JUnit 2925/2925（0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿
 - **兼容性**：无存档/序列化变更；生产月变真相源仍在 Kotlin（C++ 侧经对拍守护）
 
+### 新增（月变残留执行器增量 C++ 化批 10-3：S8 月度偷盗兜底全链下沉 + lastTheftJudgementYears 纯内存列 + stats::baseStats）
+
+> 执法堂域第二件（承接批 10-2 叛逃）：Kotlin `processTheftIfNeeded → processTheftMonthly → processSingleDiscipleTheft` 非事务版全链等价移植（cpp-engine.md §7.3 批 10-3）。
+
+- **S8 子事件 3 月度偷盗兜底**：`theftJudgementsThisMonth` 无条件归零（Kotlin 首行）→ 前置链（灵石>0/年度成功上限 3/从众门控/hasCandidate 门）→ 候选收集（道德<30 + IDLE + 保护期 12 月 + 年判定去重，take(3) 消耗名额制）+ canDiscipleAttemptTheft 复检（判定标记先于概率抽取，未遂同计数）→ 四步偷盗链（偷盗概率道德差×0.01 clamp 宵禁减免 → 执法堂捕获原位 REFLECTING → 仓库驻守智力比拼 nextInt 选仓 → 成功偷窃金额新公式 clamp [100, 灵石×10%] + 六类堆叠轨道加权物品选取 + 储物袋入袋 + warehouse_theft 事件 + annualTheftCount）→ 偷盗后叛逃（desertDiscipleCleanup 参数化复用批 10-2 清理体）
+- **配套**：DiscipleStore 新增 `lastTheftJudgementYears` 纯内存列（deathYears 同款：读档归零/upsert 保序/removeById 随行清除/不进 JSON 协议）+ `stats::baseStats` 完整基础属性（Kotlin getBaseStats 等价，血炼 null 口径）
+- **S-14 登记**：月变执法域 committed 读口径差（生产真实 store 嵌套 update 读事务前快照 vs C++/对拍当前态口径——偿还时机=月变真相源切换批）
+- **验证**：GTest 581/581（+20 种子扫描黄金序列 + SYSTEM 分区快照锁）· DiffMonthSettlementTest 偷盗保护期候选场景 1/1（道德 10 + 入伍月 13 保护期排除零抽取——虚假抽取即移位叛逃序列对拍失败）· engine JUnit 2925/2925（0 skip）· NDK 通过 · detekt 全模块全绿
+- **兼容性**：无存档/序列化变更；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
+### 新增（月变残留执行器增量 C++ 化批 10-4：S8 附庸脱离检查下沉 + aiSectDisciples 协议扩容）
+
+> 外交域附庸体系第一件：Kotlin `VassalService.processMonthlyBreakawayCheck` 等价移植（cpp-engine.md §7.3 批 10-4）。
+
+- **S8 子事件 13 附庸脱离检查**：契约空/无玩家宗门纯早退零抽取 → 战报近 3 年窗口（year ≥ gameYear-3）四类计数（征服/丢失/胜负）→ 玩家战力（存活弟子 stats::baseStats 血炼 null 口径 × 六参战力公式）vs AI 战力（aiSectDisciples 同公式）→ 好感双向匹配默认 50 → 等级映射（越界 HOSTILE）→ 概率委托既有批 4-4 `sectBreakawayChance`（战力反向分档 + 丢失比例×0.30 + 失败比例×0.15 + 好感分值×0.15，clamp [0,0.40]）→ 每契约恰抽 1 次 SYSTEM（宗门已不存在无抽取直接移除；AI 战力 0 不脱离）→ 契约过滤移除 + WORLD `vassal_breakaway` 事件；接线进 processMonthlyEvents 子事件 13 位，月结未下沉子事件 11→10 件
+- **协议扩容**：`VassalContract` 修正为 Kotlin 真实形状（vassalSectId/establishedYear/lastTributeYear——原占位结构系批 4-5 误植 GarrisonSlot 形状，休眠未暴露）+ `SectRelation.acquainted` 补齐 + `sectBattleRecords` 入 GameData + **`aiSectDisciples` 入 GameState 顶层**（Kotlin `GameData.aiSectDisciples` @Transient 重型数据不入 kotlinx 序列化——快照协议改经 `NativeGameState.aiSectDisciples` 顶层可空字段承载，null=旧 .so 未导出镜像不回写，非 null 写回；DirtyTracker 仅跟踪 gameData 字段与固定集合清单 → 脏导出/镜像通道零污染）
+- **途中发现并根治协议缺口**：@Transient aiSectDisciples 不入快照 → C++ 侧 AI 战力恒 0 致脱离永不触发（对拍 SYSTEM 5 抽 vs Kotlin 6 抽实锤定位）
+- **S-15 登记**：C++ aiSectDisciples 反向增量回导缺口（当前生产 coreMode 不触发 C++ 月变、无功能影响；偿还时机=月变真相源切换批）
+- **验证**：GTest 591/591（+10：协议往返含顶层字段/契约空与无玩家宗门零抽取/宗门缺失静默移除/零 AI 战力/至交+战力比≥5x 概率 0.0 黄金序列/战力比 0 敌对 0.40 种子扫描脱离+留守双分支/战报窗口边界/JSON 导出导入后 SYSTEM 抽取连续）· **DiffMonthSettlementTest 换装真实 VassalService** + 玩家宗门/附属 ai-3 场景 1/1 跨语言逐位一致（SYSTEM 终态 6 抽 = 4 配对+1 叛逃+1 附庸）· engine JUnit 2925/2925（0 skip）· NDK 通过 · detekt 全模块全绿
+- **兼容性**：无存档/序列化变更（aiSectDisciples 协议为进程内通道，Room GameHeavyData 表与 kotlinx-proto 存档编码零改动）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ## [4.01.14] - 2026-08-29
 
 ### 新增（月变残留执行器增量 C++ 化批 10-1：S8 侦察过期清理下沉 + 宗门详情域协议扩容）

@@ -17,6 +17,8 @@
 #include "gamecore/system/government.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/inventory.h"
+#include "gamecore/system/sect_decision.h"
+#include "gamecore/system/sect_power.h"
 #include "gamecore/system/settlement_detail.h"
 #include "gamecore/system/slot_cleanup.h"
 #include "gamecore/system/spirit_field.h"
@@ -68,8 +70,9 @@
 //     场景自动政策全关 → 双端纯早退；住所忠诚已实现
 //   - S8 子事件下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
 //     scoutExpiry（批 10-1）/ 月度叛逃检测（批 10-2）/ 月度偷盗兜底
-//     （批 10-3）六件，其余十件（招募/任务/洞天/AI 兽战/12 月自动购买/
-//     购买/附赋/任务刷新/秘境×2）场景规避 + 登记对应批次
+//     （批 10-3）/ 附庸脱离检查（批 10-4）七件，其余九件（招募/任务/
+//     洞天/AI 兽战/12 月自动购买/购买/任务刷新/秘境×2）场景规避 +
+//     登记对应批次
 //   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
 //     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
 // ============================================================
@@ -538,9 +541,9 @@ inline void checkGameOverCondition(GameState& state) {
 // completedMissions → aiSectOperations → gameOverCheck → scoutExpiry →
 // aiBeastRemaining → [12月 autoBuy] → spiritMine → disciplePurchase →
 // vassalBreakaway → missionRefresh → secretRealmExpiry → secretRealmAiTeams。
-// 已下沉六件（recruitReset/spiritMine/gameOverCheck/scoutExpiry 批 10-1/
-// lawEnforcementMonthly 批 10-2/theft 月度兜底批 10-3），其余场景规避 +
-// 登记批次（文件头范围边界）；相对序与 Kotlin 一致。
+// 已下沉七件（recruitReset/spiritMine/gameOverCheck/scoutExpiry 批 10-1/
+// lawEnforcementMonthly 批 10-2/theft 月度兜底批 10-3/vassalBreakaway
+// 批 10-4），其余场景规避 + 登记批次（文件头范围边界）；相对序与 Kotlin 一致。
 
 /// 子事件 8：侦察信息过期清理（Kotlin CultivationEventDiplomacyOps.
 /// applyScoutInfoExpiry 等价移植；零 RNG 纯数据变换）。
@@ -1252,6 +1255,152 @@ inline void processTheftMonthlyFallback(
     }
 }
 
+// ── 子事件 12：附庸脱离检查（批 10-4：Kotlin VassalService.
+//    processMonthlyBreakawayCheck 等价移植）──────────────────────────
+//
+// 全链读事务内 state（Kotlin 经 MutableGameState 重载——无 S-14 口径差）；
+// RNG 契约（对拍命门）：每份契约在"宗门存在且 AI 战力 > 0"门后恰抽
+// SYSTEM nextDouble 1 次（< 脱离概率 → 契约移除 + 事件）；宗门已不存在
+// → 无抽取直接移除（无事件，worldMapSects 查不到名字）；AI 战力 0 →
+// 无抽取不脱离。
+//
+// 依赖协议扩容（本批）：aiSectDisciples（GameState 顶层 Map<String,
+// List<Disciple>>，Kotlin GameData.aiSectDisciples @Transient 重型数据）/
+// sectBattleRecords / VassalContract 修正为 Kotlin 真实形状（原占位结构
+// 系批 4-5 误植，休眠未暴露）/ SectRelation.acquainted 补齐。
+//
+// 战力口径：SectCombatPowerCalculator.calculateSectPower = 存活弟子
+// getPermanentBaseStats（血炼 null 口径）战力之和——玩家与 AI 同一公式。
+
+/// 弟子战力（Kotlin calculateDisciplePower(aggregate, null)——永久基础属性）
+inline int64_t sectPowerOfDisciple(const state::Disciple& d) {
+    const auto st = stats::baseStats(d);
+    return discipleCombatPower(st.physicalAttack, st.magicAttack, st.maxHp,
+                               st.physicalDefense, st.magicDefense, st.speed);
+}
+
+/// 宗门总战力（Kotlin calculateSectPower：filter isAlive + sumOf Long）
+inline int64_t calculateSectPower(const state::DiscipleStore& ds) {
+    int64_t power = 0;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        power += sectPowerOfDisciple(ds.materialize(row));
+    }
+    return power;
+}
+
+/// AI 宗门总战力（同一公式，作用于 aiSectDisciples 弟子列表）
+inline int64_t calculateAiSectPower(
+    const std::map<std::string, std::vector<state::Disciple>>& aiSectDisciples,
+    const std::string& sectId) {
+    const auto it = aiSectDisciples.find(sectId);
+    if (it == aiSectDisciples.end()) return 0;
+    int64_t power = 0;
+    for (const auto& d : it->second) {
+        if (!d.isAlive) continue;
+        power += sectPowerOfDisciple(d);
+    }
+    return power;
+}
+
+/// 好感度查询（Kotlin FavorDomain.findRelation：双向匹配首条，缺失默认 50）
+inline int32_t breakawayFavor(const std::vector<state::SectRelation>& sectRelations,
+                              const std::string& playerSectId,
+                              const std::string& vassalSectId) {
+    for (const auto& r : sectRelations) {
+        if ((r.sectId1 == playerSectId && r.sectId2 == vassalSectId) ||
+            (r.sectId1 == vassalSectId && r.sectId2 == playerSectId)) {
+            return r.favor;
+        }
+    }
+    return 50;
+}
+
+/// 好感等级（Kotlin SectRelationLevel.fromFavor → ordinal 0..4；越界回 HOSTILE）
+inline int32_t favorLevelOrdinal(int32_t favor) {
+    if (favor >= 80) return 4;    // INTIMATE
+    if (favor >= 60) return 3;    // FRIENDLY
+    if (favor >= 40) return 2;    // NORMAL
+    if (favor >= 20) return 1;    // ANTAGONISTIC
+    return 0;                     // HOSTILE（含负值默认分支）
+}
+
+/// 单附属脱离判定（Kotlin checkSingleVassalBreakaway，true=脱离移除）
+inline bool checkSingleVassalBreakaway(
+    GameState& state, const state::VassalContract& contract,
+    int64_t playerPower, const std::string& playerSectId,
+    int32_t conquests, int32_t losses, int32_t battleWins, int32_t battleLosses,
+    rng::DeterministicRng& rngSystem) {
+    // 宗门已不存在 → 移除（无抽取；事件由调用方按 worldMapSects 查名，查不到不发）
+    bool sectExists = false;
+    for (const auto& s : state.gameData.worldMapSects) {
+        if (s.id == contract.vassalSectId) { sectExists = true; break; }
+    }
+    if (!sectExists) return true;
+    const int64_t aiPower =
+        calculateAiSectPower(state.aiSectDisciples, contract.vassalSectId);
+    if (aiPower <= 0) return false;
+    // Kotlin powerRatio = playerPower(Long) / aiPower.toDouble()
+    const double powerRatio = static_cast<double>(playerPower) /
+                              static_cast<double>(aiPower);
+    const double breakChance = sectBreakawayChance(
+        powerRatio, conquests, losses, battleWins, battleLosses,
+        favorLevelOrdinal(breakawayFavor(state.gameData.sectRelations,
+                                         playerSectId, contract.vassalSectId)));
+    return rngSystem.nextDouble() < breakChance;
+}
+
+/// 附庸脱离检查主流程（Kotlin processMonthlyBreakawayCheck）
+inline void processVassalBreakaway(GameState& state, rng::RngManager& rng) {
+    const auto& contracts = state.gameData.vassalContracts;
+    if (contracts.empty()) return;
+    // 玩家宗门（无 isPlayerSect 条目 → 纯早退，零抽取）
+    const state::WorldSect* playerSect = nullptr;
+    for (const auto& s : state.gameData.worldMapSects) {
+        if (s.isPlayerSect) { playerSect = &s; break; }
+    }
+    if (playerSect == nullptr) return;
+    // 近 3 年战报计数（year >= gameYear - 3）
+    const int32_t minYear = state.gameData.gameYear - 3;
+    int32_t conquests = 0, losses = 0, battleWins = 0, battleLosses = 0;
+    for (const auto& r : state.gameData.sectBattleRecords) {
+        if (r.year < minYear) continue;
+        if (r.type == "CONQUEST") ++conquests;
+        else if (r.type == "LOST_SECT") ++losses;
+        else if (r.type == "BATTLE_WIN") ++battleWins;
+        else if (r.type == "BATTLE_LOSS") ++battleLosses;
+    }
+    const int64_t playerPower = calculateSectPower(state.disciples);
+    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    std::vector<std::string> removedIds;
+    for (const auto& contract : contracts) {
+        if (checkSingleVassalBreakaway(state, contract, playerPower,
+                                       playerSect->id, conquests, losses,
+                                       battleWins, battleLosses, rngSystem)) {
+            removedIds.push_back(contract.vassalSectId);
+        }
+    }
+    if (removedIds.empty()) return;
+    auto& remaining = state.gameData.vassalContracts;
+    remaining.erase(std::remove_if(remaining.begin(), remaining.end(),
+                                   [&](const state::VassalContract& c) {
+                                       return std::find(removedIds.begin(),
+                                                        removedIds.end(),
+                                                        c.vassalSectId) !=
+                                              removedIds.end();
+                                   }),
+                    remaining.end());
+    for (const auto& sectId : removedIds) {
+        for (const auto& s : state.gameData.worldMapSects) {
+            if (s.id == sectId) {
+                recordGameEvent(state, "WORLD", "vassal_breakaway",
+                                s.name + "脱离了附属关系");
+                break;
+            }
+        }
+    }
+}
+
 inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  const std::map<int32_t, std::size_t>& idx) {
     // 子事件 1：招募月度计数归零
@@ -1268,6 +1417,8 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
                                  state.gameData.gameMonth);
     // 子事件 11：灵矿月度产出结算
     detail::processSpiritMineProductionMonthly(state, idx);
+    // 子事件 13：附庸脱离检查（批 10-4）
+    detail::processVassalBreakaway(state, rng);
     // 其余子事件未下沉——见文件头范围边界（rng 参数供后续批次接线）
 }
 

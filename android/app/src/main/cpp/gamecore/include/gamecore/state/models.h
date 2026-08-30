@@ -648,13 +648,13 @@ struct Alliance {
     std::string initiatorId;
 };
 
-/// VassalContract（附属契约）
+/// VassalContract（附属契约；批 10-4 修正为 Kotlin GameDataAlliance.VassalContract
+/// 真实形状——原占位结构 index/discipleId/… 系批 4-5 补齐模型时误植 GarrisonSlot
+/// 形状，因既有对拍场景从不填充该字段而休眠未暴露）
 struct VassalContract {
-    int32_t index = 0;
-    std::string discipleId;
-    std::string discipleName;
-    std::string discipleRealm;
-    std::string discipleSpiritRootColor;
+    std::string vassalSectId;
+    int32_t establishedYear = 0;
+    int32_t lastTributeYear = 0;
 };
 
 /// SectRelation（AI 宗门间关系）
@@ -664,6 +664,13 @@ struct SectRelation {
     int32_t favor = 0;
     int32_t lastInteractionYear = 0;
     int32_t noGiftYears = 0;
+    bool acquainted = false;   // 批 10-4 补齐（Kotlin SectRelation.acquainted）
+};
+
+/// SectBattleRecord（宗门战报；批 10-4 附庸脱离近 3 年计数消费）
+struct SectBattleRecord {
+    int32_t year = 0;
+    std::string type;          // SectBattleType.name（CONQUEST/LOST_SECT/BATTLE_WIN/BATTLE_LOSS）
 };
 
 // ── 宗门详情域（批 10-1：S8 侦察过期清理子事件协议扩容）──────────
@@ -1183,6 +1190,8 @@ struct GameData {
     std::vector<Alliance> alliances;
     std::vector<VassalContract> vassalContracts;
     std::vector<SectRelation> sectRelations;
+    // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
+    std::vector<SectBattleRecord> sectBattleRecords;
     std::map<std::string, SectDetail> sectDetails;      // Map<String, SectDetail>（批 10-1）
     std::map<std::string, SectScoutInfo> scoutInfo;     // Map<String, SectScoutInfo>（批 10-1）
     SectPolicies sectPolicies;
@@ -1220,6 +1229,12 @@ namespace gamecore::state {
 struct GameState {
     GameData gameData;
     DiscipleStore disciples;                    // SoA 列式存储（计划 v2 阶段 3）
+    // 批 10-4：AI 宗门弟子池（Kotlin GameData.aiSectDisciples 为 @Transient
+    // 重型数据——不进存档序列化，故快照协议置于顶层，与 Kotlin
+    // NativeGameState.aiSectDisciples 一一对应；DirtyTracker 仅跟踪 gameData
+    // 字段与固定集合清单，本字段不进脏导出——镜像通道零污染，Kotlin 侧
+    // 不回写保持权威，反向回导随月变真相源切换批接线（S-15））
+    std::map<std::string, std::vector<Disciple>> aiSectDisciples;
     std::vector<EquipmentStack> equipmentStacks;
     std::vector<EquipmentInstance> equipmentInstances;
     std::vector<ManualStack> manualStacks;

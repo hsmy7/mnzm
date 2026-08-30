@@ -558,22 +558,31 @@ void from_json(const nlohmann::json& j, SectDetail& v) {
 
 void to_json(nlohmann::json& j, const VassalContract& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, index); GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
-    GC_TO(v, j, discipleRealm); GC_TO(v, j, discipleSpiritRootColor);
+    GC_TO(v, j, vassalSectId); GC_TO(v, j, establishedYear); GC_TO(v, j, lastTributeYear);
 }
 void from_json(const nlohmann::json& j, VassalContract& v) {
-    GC_FROM(j, v, index); GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
-    GC_FROM(j, v, discipleRealm); GC_FROM(j, v, discipleSpiritRootColor);
+    GC_FROM(j, v, vassalSectId); GC_FROM(j, v, establishedYear); GC_FROM(j, v, lastTributeYear);
 }
 
 void to_json(nlohmann::json& j, const SectRelation& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, sectId1); GC_TO(v, j, sectId2);
     GC_TO(v, j, favor); GC_TO(v, j, lastInteractionYear); GC_TO(v, j, noGiftYears);
+    GC_TO(v, j, acquainted);
 }
 void from_json(const nlohmann::json& j, SectRelation& v) {
     GC_FROM(j, v, sectId1); GC_FROM(j, v, sectId2);
     GC_FROM(j, v, favor); GC_FROM(j, v, lastInteractionYear); GC_FROM(j, v, noGiftYears);
+    GC_FROM(j, v, acquainted);
+}
+
+// ── 批 10-4：SectBattleRecord（宗门战报；SectBattleType 存 name） ──
+void to_json(nlohmann::json& j, const SectBattleRecord& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, year); GC_TO(v, j, type);
+}
+void from_json(const nlohmann::json& j, SectBattleRecord& v) {
+    GC_FROM(j, v, year); GC_FROM(j, v, type);
 }
 
 // ── 批 4-5：槽位清理补充模型（定义于 WorldSect 前，WorldSect 引用） ──
@@ -1185,6 +1194,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, placedBuildings); GC_TO(v, j, spiritFieldPlants);
     GC_TO(v, j, residenceSlots); GC_TO(v, j, patrolConfig); GC_TO(v, j, patrolConfigs);
     GC_TO(v, j, alliances); GC_TO(v, j, vassalContracts); GC_TO(v, j, sectRelations);
+    // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
+    GC_TO(v, j, sectBattleRecords);
     GC_TO(v, j, sectPolicies);
     // 批 10-1：宗门详情域（S8 侦察过期清理子事件）
     GC_TO(v, j, sectDetails); GC_TO(v, j, scoutInfo);
@@ -1260,6 +1271,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, placedBuildings); GC_FROM(j, v, spiritFieldPlants);
     GC_FROM(j, v, residenceSlots); GC_FROM(j, v, patrolConfig); GC_FROM(j, v, patrolConfigs);
     GC_FROM(j, v, alliances); GC_FROM(j, v, vassalContracts); GC_FROM(j, v, sectRelations);
+    // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
+    GC_FROM(j, v, sectBattleRecords);
     GC_FROM(j, v, sectPolicies);
     // 批 10-1：宗门详情域（S8 侦察过期清理子事件）
     GC_FROM(j, v, sectDetails); GC_FROM(j, v, scoutInfo);
@@ -1282,6 +1295,13 @@ void from_json(const nlohmann::json& j, GameData& v) {
 void to_json(nlohmann::json& j, const GameState& v) {
     j = nlohmann::json::object();
     j["gameData"] = v.gameData;
+    // 批 10-4：AI 宗门弟子池（顶层字段——Kotlin GameData.aiSectDisciples
+    // @Transient 不入 gameData 序列化，见 models.h GameState 注释）。
+    // 空表不导出该键：与 Kotlin NativeGameState.aiSectDisciples 可空语义
+    // 对称（null/未携带 ↔ 空表），null 往返保持 null，镜像空表不覆盖
+    if (!v.aiSectDisciples.empty()) {
+        j["aiSectDisciples"] = v.aiSectDisciples;
+    }
     // 弟子：SoA 列存储 → 平铺对象数组（协议零变更；行序 == 数组序）
     nlohmann::json disciplesArr = nlohmann::json::array();
     for (std::size_t i = 0; i < v.disciples.size(); ++i) {
@@ -1300,6 +1320,11 @@ void to_json(nlohmann::json& j, const GameState& v) {
 }
 void from_json(const nlohmann::json& j, GameState& v) {
     if (j.contains("gameData")) j.at("gameData").get_to(v.gameData);
+    // 批 10-4：顶层可空字段——Kotlin encodeDefaults=true 下 null 会显式编码，
+    // null/缺失一律宽松跳过（保持默认空表；旧 .so 导出/旧快照兼容）
+    if (j.contains("aiSectDisciples") && !j.at("aiSectDisciples").is_null()) {
+        j.at("aiSectDisciples").get_to(v.aiSectDisciples);
+    }
     if (j.contains("disciples") && j.at("disciples").is_array()) {
         std::vector<Disciple> tmp;
         j.at("disciples").get_to(tmp);

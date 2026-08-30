@@ -38,6 +38,9 @@ import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.VassalContract
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -80,10 +83,13 @@ import org.junit.Test
  * （绝对月差 14-13=1 < 12，双端口径均 < 12）→ 候选排除，零抽取零标记——
  * 任何虚假 SYSTEM 抽取都会移位叛逃候选抽取序列而对拍失败；门控通过
  * （平均忠诚 42 < 50）与 hasCandidate 路径（道德 < 30）仍被真实覆盖。
+ * ⑦（批 10-4）附庸脱离：玩家宗门 p1 + 附属 ai-3（至交 100，战力比 ≥5x
+ * → 概率 0.0）恰抽 1 次 SYSTEM 必不脱离——契约保留零事件；玩家宗门在场
+ * 使 gameOverCheck 走"本宗未被占领 → 不触发"路径。
  * 规避清单落实：政策仅开仁政爱徒（自动排班六开关全关）/ 除弟子 16 外
  * morality≥阈值（reactive 偷盗钩子零触发）/ consentRequired=false /
- * worldLevels·worldMapSects 空 / spiritFieldPlants 空 / activeBloodRefinements
- * 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
+ * worldLevels 空（precomputeTargets 纯早退）/ spiritFieldPlants 空 /
+ * activeBloodRefinements 空 / 无秘境·巡逻·任务 / 非 12 月 / timestamp 对拍排除。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */
@@ -135,8 +141,7 @@ class DiffMonthSettlementTest {
             // 场景②前提：自动配对模式（提案分支不在协议）
             daoCompanionConsentRequired = false
             // 场景④（批 10-1）：侦察过期清理——ai-1 过期(1,1)、ai-2 未过期(2,2)；
-            // AI 宗门无玩家宗门（gameOverCheck 纯早退）+ worldLevels 空
-            // （precomputeTargets 纯早退）+ aiSectDisciples 空（AI 域路径恒等）
+            // worldLevels 空（precomputeTargets 纯早退）
             scoutInfo = mapOf(
                 "ai-1" to SectScoutInfo(
                     sectId = "ai-1", sectName = "青岚宗",
@@ -159,13 +164,14 @@ class DiffMonthSettlementTest {
                     )
                 )
             )
-            worldMapSects = listOf(
-                WorldSect(id = "ai-1", name = "青岚宗", isKnown = true),
-                WorldSect(id = "ai-2", name = "赤水宗", isKnown = true)
-            )
+            // 场景⑦（批 10-4）：附庸脱离场景（玩家宗门 + 至交附属 + AI 弟子）
+            applyVassalBreakawayScene()
         }
         return NativeGameState(
             gameData = gameData,
+            // 批 10-4：AI 弟子池经顶层字段承载（GameData 侧 @Transient 不入
+            // gameData 序列化——快照协议顶层键，C++ GameState.aiSectDisciples）
+            aiSectDisciples = gameData.aiSectDisciples,
             disciples = listOf(
                 pairingDisciple("11", "甲一", "male"),
                 pairingDisciple("12", "甲二", "male"),
@@ -187,6 +193,38 @@ class DiffMonthSettlementTest {
                     usage = UsageTracking(recruitedMonth = PROTECTED_THIEF_RECRUITED_MONTH)
                 )
             )
+        )
+    }
+
+    /**
+     * 场景⑦（批 10-4）：附庸脱离——玩家宗门在场（gameOverCheck 判"本宗未被
+     * 占领" → 不触发）；附属 ai-3 至交好感 100 + 战力比 ≥5x（powerScore 0）
+     * → 脱离概率 0.0，恰抽 1 次 SYSTEM 必不脱离；契约保留 + 零事件。AI 弟子
+     * 与玩家弟子同规格（realm 9 无天赋）→ 战力比 = 存活弟子数（5 或 6，由
+     * 叛逃结果决定）≥ 5 精确成立。
+     */
+    private fun GameData.applyVassalBreakawayScene() {
+        vassalContracts = listOf(
+            VassalContract(vassalSectId = "ai-3", establishedYear = 1)
+        )
+        sectRelations = listOf(
+            SectRelation(sectId1 = "p1", sectId2 = "ai-3", favor = 100)
+        )
+        aiSectDisciples = mapOf(
+            "ai-3" to listOf(
+                Disciple(
+                    id = "90", name = "玄一", realm = 9, realmLayer = 1,
+                    cultivation = 10.0, spiritRootType = "metal",
+                    age = 20, gender = "male",
+                    combat = CombatAttributes(currentHp = -1, currentMp = -1)
+                )
+            )
+        )
+        worldMapSects = listOf(
+            WorldSect(id = "p1", name = "青云宗", isKnown = true, isPlayerSect = true),
+            WorldSect(id = "ai-1", name = "青岚宗", isKnown = true),
+            WorldSect(id = "ai-2", name = "赤水宗", isKnown = true),
+            WorldSect(id = "ai-3", name = "玄水宗", isKnown = true)
         )
     }
 
@@ -353,7 +391,13 @@ class DiffMonthSettlementTest {
             equipmentManager = mockSmart(),
             manualManager = mockSmart(),
             autoBuyService = mockSmart(),
-            vassalService = mockSmart(),
+            // 批 10-4：真实附庸服务（脱离流对拍主体——玩家宗门 + 至交附属
+            // 场景下恰抽 1 次 SYSTEM 且必不脱离）
+            vassalService = VassalService(
+                stateStore = store,
+                spiritStoneWallet = wallet,
+                rngManager = gameRng
+            ),
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
             // 批 10-2：真实执法堂处理器（叛逃流对拍主体）——lifecycle 用 mock：
@@ -441,6 +485,8 @@ class DiffMonthSettlementTest {
         )
         return NativeGameState(
             gameData = store.gameDataValue,
+            // 批 10-4：AI 弟子池经顶层字段承载（与 C++ 导出键对齐）
+            aiSectDisciples = store.gameDataValue.aiSectDisciples,
             disciples = store.disciplesValue
         )
     }
@@ -457,6 +503,20 @@ class DiffMonthSettlementTest {
         }
         assertEquals("偷盗兜底不应产生年度偷盗计数",
             0, actual.gameData.annualTheftCount)
+    }
+
+    /**
+     * ⑦（批 10-4）附庸脱离零效果断言：至交好感 + 战力比 ≥5x → 概率 0.0，
+     * 恰抽 1 次 SYSTEM 必不脱离——契约保留、零脱离事件。
+     */
+    private fun assertVassalBreakawayStays(actualGd: GameData) {
+        assertEquals("附属契约不应脱离", 1, actualGd.vassalContracts.size)
+        assertEquals("附属契约应保持原附属", "ai-3",
+            actualGd.vassalContracts[0].vassalSectId)
+        assertTrue(
+            "不应产生脱离事件",
+            actualGd.gameEventRecords.none { it.eventType == "vassal_breakaway" }
+        )
     }
 
     /** 场景显式断言（可读性优先，全量结构对拍兜底） */
@@ -500,6 +560,9 @@ class DiffMonthSettlementTest {
             10000L - BENEVOLENT_MONTHLY_COST_PER_DISCIPLE * DISCIPLE_COUNT,
             actualGd.spiritStones
         )
+        // ⑦（批 10-4）附庸脱离：至交好感 + 战力比 ≥5x → 概率 0.0，恰抽 1 次
+        //    SYSTEM 必不脱离——契约保留、零脱离事件
+        assertVassalBreakawayStays(actualGd)
         // ② 伴侣配对：0.006 概率下预期无命中（partnerId 保持 null）；
         //    SYSTEM 分区终态已含 4 组合各一次 nextDouble 的状态推进（全量对拍兜底）
         for (d in actual.disciples) {

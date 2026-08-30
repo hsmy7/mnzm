@@ -156,6 +156,12 @@ class StateSyncService @Inject constructor(
             } else {
                 mergeGameData(gameData, snapshot.gameData, exportedGameDataKeys)
             }
+            // 批 10-4：AI 宗门弟子池经顶层字段承载（GameData 侧 @Transient）。
+            // 仅在 C++ 导出携带（非 null）时写回——旧 .so 未导出则保留
+            // Kotlin 既有值，镜像永不主动清空该域
+            snapshot.aiSectDisciples?.let { carried ->
+                gameData = gameData.copy(aiSectDisciples = carried)
+            }
             if (snapshot.disciples.isNotEmpty()) {
                 discipleTables.replaceAll(snapshot.disciples)
             }
@@ -201,6 +207,9 @@ class StateSyncService @Inject constructor(
         val snapshot = stateStore.takeAtomicSnapshot()
         return NativeGameState(
             gameData = snapshot.gameData,
+            // 批 10-4：AI 宗门弟子池经顶层字段显式承载（GameData 侧
+            // @Transient 不入序列化——见 NativeGameState KDoc）
+            aiSectDisciples = snapshot.gameData.aiSectDisciples,
             disciples = snapshot.disciples,
             equipmentStacks = snapshot.equipmentStacks,
             equipmentInstances = snapshot.equipmentInstances,

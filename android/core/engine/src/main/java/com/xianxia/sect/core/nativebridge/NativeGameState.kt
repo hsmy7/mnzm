@@ -29,6 +29,12 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class NativeGameState(
     val gameData: GameData = GameData(),
+    // 批 10-4：AI 宗门弟子池（顶层字段——GameData.aiSectDisciples 为
+    // @Transient 重型数据，不进 kotlinx 序列化；快照协议经本字段显式承载，
+    // 与 C++ GameState.aiSectDisciples 一一对应，见 models.h GameState）。
+    // 可空语义：null = 旧 .so 未导出（镜像不回写，Kotlin 侧保持权威）；
+    // 非 null = C++ 导出值（镜像写回 gameData.aiSectDisciples）
+    val aiSectDisciples: Map<String, List<Disciple>>? = null,
     val disciples: List<Disciple> = emptyList(),
     val equipmentStacks: List<EquipmentStack> = emptyList(),
     val equipmentInstances: List<EquipmentInstance> = emptyList(),

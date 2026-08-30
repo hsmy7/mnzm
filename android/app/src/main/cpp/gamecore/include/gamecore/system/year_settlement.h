@@ -27,7 +27,7 @@
 //   ✅ #10 garrisonAndReport 年报快照段：worldMapSects 空时驻军轮换恒等返回
 //      （AISectGarrisonManager.kt:79 无玩家宗门直接 return gameData）→ C++
 //      只需年报追加 + annual* 十二项清零；轮换完整移植随 AI 宗门批次登记
-//      （aiSectDisciples 域不在快照协议）
+//      （aiSectDisciples 已入快照协议——批 10-4 GameState 顶层，见 models.h）
 //   ✅ gameMonth==1 时年俸（processAnnualSalary 全逻辑含不足分支）
 //   ❌ 附庸×2（附庸批次）/ 弟子生命周期 aging×3 与监牢释放（生命周期批次）/
 //      招募三件套（招募批次）/ 商人赠予（商人批次）/ autoBuy（购买批次）/

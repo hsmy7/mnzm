@@ -1679,4 +1679,263 @@ TEST(MonthSettlementTest, TheftAmountCoerceUnderflowThrowsDirectly) {
     EXPECT_NO_THROW(gamecore::system::detail::calcTheftAmount(d, 1000, sys2));
 }
 
+// ── S8 子事件 12：附庸脱离检查（批 10-4）────────────────────────────
+
+/// 附庸脱离场景：玩家宗门 p1 + 附属 ai-9（玄水宗）契约 + AI 弟子 + N 名
+/// 同规格玩家弟子（realm 9 全同 → 战力比 = N 精确整数倍）。玩家弟子
+/// morality 50（≥30 偷盗候选门控零抽取——spiritStones>0 场景必需）+ 忠诚
+/// 40（≥30 非叛逃候选）→ 月度 SYSTEM 抽取仅剩附庸判定 1 次。
+void setupVassalScene(GameState& st, int playerDiscipleCount) {
+    state::WorldSect player;
+    player.id = "p1"; player.name = "青云宗"; player.isPlayerSect = true;
+    st.gameData.worldMapSects.push_back(player);
+    state::WorldSect vassal;
+    vassal.id = "ai-9"; vassal.name = "玄水宗"; vassal.isKnown = true;
+    st.gameData.worldMapSects.push_back(vassal);
+    state::VassalContract contract;
+    contract.vassalSectId = "ai-9"; contract.establishedYear = 1;
+    st.gameData.vassalContracts.push_back(contract);
+    state::Disciple ai = baseDisciple("90");
+    st.aiSectDisciples["ai-9"].push_back(ai);
+    for (int k = 0; k < playerDiscipleCount; ++k) {
+        Disciple d = baseDisciple(std::to_string(k + 1));
+        d.loyalty = 40;   // 从众门开但不落入叛逃/偷盗候选
+        d.morality = 50;  // ≥30 → 偷盗候选门控关闭（灵石>0 场景零抽取）
+        st.disciples.appendDisciple(d);
+    }
+}
+
+TEST(MonthSettlementTest, VassalBreakawayEmptyContractsZeroDraws) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_TRUE(st.gameData.vassalContracts.empty());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, VassalBreakawayNoPlayerSectZeroDraws) {
+    // 有契约但无 isPlayerSect 宗门 → 纯早退零抽取
+    auto core = makeCore(42);
+    auto& st = core->state();
+    state::VassalContract contract;
+    contract.vassalSectId = "ai-9"; contract.establishedYear = 1;
+    st.gameData.vassalContracts.push_back(contract);
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(1u, st.gameData.vassalContracts.size());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, VassalBreakawaySectMissingRemovesSilentlyNoDraw) {
+    // 附属宗门已不存在 → 契约静默移除（无抽取无事件）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    state::WorldSect player;
+    player.id = "p1"; player.name = "青云宗"; player.isPlayerSect = true;
+    st.gameData.worldMapSects.push_back(player);
+    state::VassalContract contract;
+    contract.vassalSectId = "gone"; contract.establishedYear = 1;
+    st.gameData.vassalContracts.push_back(contract);
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_TRUE(st.gameData.vassalContracts.empty());
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, VassalBreakawayZeroAiPowerNoDraw) {
+    // 附属宗门存在但 aiSectDisciples 缺失 → aiPower 0 → 不脱离零抽取
+    auto core = makeCore(42);
+    auto& st = core->state();
+    setupVassalScene(st, 1);
+    st.aiSectDisciples.clear();
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+    EXPECT_EQ(1u, st.gameData.vassalContracts.size());
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
+TEST(MonthSettlementTest, VassalBreakawayIntimateFavorStaysGolden) {
+    // 6 名同规格弟子 vs 1 AI 弟子 → 战力比 6.0 ≥ 5x → powerScore 0；
+    // 至交好感 100 → favorScore 0 → 脱离概率 0.0：恰抽 1 次，必不脱离
+    auto core = makeCore(42);
+    auto& st = core->state();
+    setupVassalScene(st, 6);
+    state::SectRelation relation;
+    relation.sectId1 = "p1"; relation.sectId2 = "ai-9"; relation.favor = 100;
+    st.gameData.sectRelations.push_back(relation);
+
+    auto sys = sysReplica(42);
+    sys.nextDouble();   // 唯一抽取（< 0.0 不可能）
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1u, st.gameData.vassalContracts.size());
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, VassalBreakawayWeakPlayerBreaksGolden) {
+    // 玩家无存活弟子 → 战力比 0 → BREAKAWAY_BASE_WEAK 0.35 + 敌对好感
+    // 0.15 = 0.50 → clamp 0.40；种子扫描 d1 < 0.40 → 脱离 + 事件
+    int64_t seed = -1;
+    for (int64_t s = 7000; s < 7000 + 100000; ++s) {
+        auto probe = gamecore::rng::DeterministicRng::fromSeed(s + 3);
+        if (probe.nextDouble() < 0.40) { seed = s; break; }
+    }
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    setupVassalScene(st, 0);   // 无玩家弟子
+    state::SectRelation relation;
+    relation.sectId1 = "p1"; relation.sectId2 = "ai-9"; relation.favor = 0;
+    st.gameData.sectRelations.push_back(relation);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();   // 唯一抽取
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_TRUE(st.gameData.vassalContracts.empty());
+    // 附属宗门本体保留（仅契约移除）+ 事件
+    EXPECT_EQ(2u, st.gameData.worldMapSects.size());
+    ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
+    EXPECT_EQ("WORLD", st.gameData.gameEventRecords[0].category);
+    EXPECT_EQ("vassal_breakaway", st.gameData.gameEventRecords[0].eventType);
+    EXPECT_EQ("玄水宗脱离了附属关系", st.gameData.gameEventRecords[0].summary);
+    // AI 弟子域不受影响
+    EXPECT_EQ(1u, st.aiSectDisciples.at("ai-9").size());
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, VassalBreakawayRollFailStays) {
+    // 同场景，种子扫描 d1 ≥ 0.40 → 判定不脱离，恰抽 1 次
+    int64_t seed = -1;
+    for (int64_t s = 7000; s < 7000 + 100000; ++s) {
+        auto probe = gamecore::rng::DeterministicRng::fromSeed(s + 3);
+        if (probe.nextDouble() >= 0.40) { seed = s; break; }
+    }
+    ASSERT_GE(seed, 0);
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    setupVassalScene(st, 0);
+    state::SectRelation relation;
+    relation.sectId1 = "p1"; relation.sectId2 = "ai-9"; relation.favor = 0;
+    st.gameData.sectRelations.push_back(relation);
+
+    auto sys = sysReplica(seed);
+    sys.nextDouble();
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_EQ(1u, st.gameData.vassalContracts.size());
+    EXPECT_TRUE(st.gameData.gameEventRecords.empty());
+    auto states = core->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+TEST(MonthSettlementTest, VassalBreakawayBattleRecordWindowAndCountsGolden) {
+    // 近 3 年窗口边界（year ≥ gy-3）+ 四类计数：战力比 6.0 → powerScore 0；
+    // occLoss 0.5×0.30 + skLoss 0.5×0.15 + 普通好感 0.4×0.15 = 0.285；
+    // gy-4 的战报不入窗（双端边界口径）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 5;
+    setupVassalScene(st, 6);   // ratio 6.0 ≥ 5x → powerScore 0
+    st.gameData.sectBattleRecords.push_back(state::SectBattleRecord{2, "CONQUEST"});   // gy-3 窗内
+    st.gameData.sectBattleRecords.push_back(state::SectBattleRecord{2, "LOST_SECT"});
+    st.gameData.sectBattleRecords.push_back(state::SectBattleRecord{2, "BATTLE_WIN"});
+    st.gameData.sectBattleRecords.push_back(state::SectBattleRecord{2, "BATTLE_LOSS"});
+    st.gameData.sectBattleRecords.push_back(state::SectBattleRecord{1, "BATTLE_WIN"}); // gy-4 窗外
+    st.gameData.sectBattleRecords.push_back(state::SectBattleRecord{1, "CONQUEST"});   // 窗外
+    // 无 sectRelations 条目 → favor 默认 50（NORMAL 0.4×0.15=0.06）
+    const double expectedChance = 0.5 * 0.30 + 0.5 * 0.15 + 0.4 * 0.15;
+
+    // 扫描两个种子分别钉住脱离/不脱离分支（抽取数恒 1）
+    int64_t breakSeed = -1, staySeed = -1;
+    for (int64_t s = 7000; s < 7000 + 100000 && (breakSeed < 0 || staySeed < 0); ++s) {
+        auto probe = gamecore::rng::DeterministicRng::fromSeed(s + 3);
+        const double d1 = probe.nextDouble();
+        if (d1 < expectedChance && breakSeed < 0) breakSeed = s;
+        if (d1 >= expectedChance && staySeed < 0) staySeed = s;
+    }
+    ASSERT_GE(breakSeed, 0);
+    ASSERT_GE(staySeed, 0);
+
+    // 脱离分支
+    {
+        auto core2 = makeCore(breakSeed);
+        auto& st2 = core2->state();
+        st2.gameData.gameYear = 5;
+        setupVassalScene(st2, 6);
+        for (const auto& r : st.gameData.sectBattleRecords) {
+            st2.gameData.sectBattleRecords.push_back(r);
+        }
+        system::runMonthSettlement(st2, core2->rng());
+        EXPECT_TRUE(st2.gameData.vassalContracts.empty());
+        ASSERT_EQ(1u, st2.gameData.gameEventRecords.size());
+        EXPECT_EQ("vassal_breakaway", st2.gameData.gameEventRecords[0].eventType);
+    }
+    // 留守分支
+    {
+        auto core2 = makeCore(staySeed);
+        auto& st2 = core2->state();
+        st2.gameData.gameYear = 5;
+        setupVassalScene(st2, 6);
+        for (const auto& r : st.gameData.sectBattleRecords) {
+            st2.gameData.sectBattleRecords.push_back(r);
+        }
+        system::runMonthSettlement(st2, core2->rng());
+        EXPECT_EQ(1u, st2.gameData.vassalContracts.size());
+        EXPECT_TRUE(st2.gameData.gameEventRecords.empty());
+    }
+}
+
+
+TEST(VassalProbe, JsonImportThenMonthlyDrawCount) {
+    auto core = makeCore(20260901);
+    {
+        auto& st = core->state();
+        st.gameData.gameYear = 1; st.gameData.gameMonth = 1;
+        st.gameData.spiritStones = 10000;
+        st.gameData.sectPolicies.benevolentGovernance = true;
+        st.gameData.daoCompanionConsentRequired = false;
+        setupVassalScene(st, 6);
+        state::SectRelation relation;
+        relation.sectId1 = "p1"; relation.sectId2 = "ai-9"; relation.favor = 100;
+        st.gameData.sectRelations.push_back(relation);
+        // 预推进 SYSTEM 分区 3 次（直接作用于实时分区——exportStateJson 先
+        // syncRngStates 以分区实时状态覆盖 gameData.rngStates，手动写
+        // gameData.rngStates 会被冲掉）
+        auto presys = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
+        presys.nextInt(); presys.nextInt(); presys.nextInt();
+        core->rng().restoreStates({{3, presys.snapshot()}});
+    }
+    const std::string json = core->exportStateJson();
+    auto core2 = makeCore(20260901);
+    ASSERT_TRUE(core2->importStateJson(json));
+    auto& st2 = core2->state();
+    // 导入域校验
+    EXPECT_EQ(1u, st2.gameData.vassalContracts.size());
+    EXPECT_EQ(1u, st2.aiSectDisciples.at("ai-9").size());
+    EXPECT_TRUE(st2.gameData.worldMapSects[0].isPlayerSect);
+    EXPECT_EQ(1u, st2.aiSectDisciples.count("ai-9"));
+    // 跑月变：场景弟子 morality 50（偷盗候选门控关闭）+ loyalty 40（非叛逃
+    // 候选）+ 未成年（不参与配对）→ SYSTEM 恰抽 1 次 = 附庸脱离判定
+    auto sys = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
+    sys.nextInt(); sys.nextInt(); sys.nextInt();
+    sys.nextDouble();
+    st2.gameData.gamePhase = 2;
+    core2->advancePhases(1);
+    auto states = core2->rng().exportStates();
+    EXPECT_EQ(sys.snapshot(),
+              states[static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
 }  // namespace
