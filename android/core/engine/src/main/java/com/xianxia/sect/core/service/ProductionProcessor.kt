@@ -928,7 +928,14 @@ class ProductionProcessor @Inject constructor(
             .toSet()
         val allAssignments = computeResidenceAssignments(state, data, policies, occupiedResidentIds)
         val assignedResidentIds = allAssignments.values.map { it.first }.toSet()
+        // 住所弟子不参与生产自动分配：本次新分配住所（assignedResidentIds）与
+        // 已住住所（occupiedResidentIds）均排除——住所虽与工作"被动共存"（清理/自愈
+        // 不清住所），但自动管理不应把已住住所弟子当作空闲捕获到生产槽位，
+        // 否则形成"住所+生产"双槽位（用户反馈：弟子处于住所槽位仍被安排其他工作槽位）。
+        // 状态推导无住所 flag（deriveDiscipleStatus），已住住所弟子 status==IDLE，
+        // 若不排除会被第一层 IDLE 过滤放过，制造双槽位。
         idleDisciples.removeAll { it.id in assignedResidentIds }
+        idleDisciples.removeAll { it.id in occupiedResidentIds }
 
         // ── 生产槽位候选预计算（按优先级逐级筛选，候选从 idleDisciples 移除） ──
         // 每类型仅取"空槽数"上限的候选：超出上限的合格弟子保留在池中，回流给

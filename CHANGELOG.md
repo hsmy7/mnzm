@@ -1,5 +1,9 @@
 ## [4.01.15] - 2026-08-29
 
+### 修复（天枢殿自动管理：已住住所弟子被重复排班）
+
+> 用户反馈：弟子已住进住所（residenceSlots 占用），天枢殿自动管理（月度 `processAutoAssign`）仍将其安排到灵植/灵矿/炼丹/锻造生产槽位，形成"住所+生产"双槽位。根因：`processAutoAssign` 构建空闲候选池时只排除了本次新分配住所的弟子（`assignedResidentIds`），**已住住所的弟子（`occupiedResidentIds`）未排除**——而住所不推导状态（`deriveDiscipleStatus` 无住所 flag），已住住所弟子 status==IDLE 且不在 `buildOccupiedSlotDiscipleIds`（住所与工作"被动共存"有意排除），被第一层 IDLE 过滤放过，捕获进生产分配候选。修复：`idleDisciples` 同时移除 `occupiedResidentIds`，与 `assignedResidentIds` 处理一致；住所分配（`computeResidenceAssignments`）仍保留"无视状态入住"设计不变。验证：新增 `ProductionSlotDualWriteGuardTest.processAutoAssign - 已住住所的 IDLE 弟子不被排班` 复现守卫；对照组（健康空闲弟子仍可被分配）不受影响；core:engine 全量测试通过；lint 通过。
+
 ### 优化（触控交互：命中宽容 / 建筑拖动 / 视角流畅）
 
 > 宗门地图与世界地图触控交互完善（方案：宗门地图触控交互优化方案）。根因链：① 1×1 建筑（灵田等）命中区 = 单格 32 世界像素 ≈ 15dp，远低于 44pt/48dp 最小触控目标；② BuildingDrag 期间每次 MOVE 无条件边缘平移（`0.016f` 硬编码在 120Hz 设备约 2 倍速），拖建筑时整张地图误动；③ 软件渲染路径预览走 RenderFrame 33ms 帧率门控（30fps），建筑预览相对 60fps 相机步进；④ fling 惯性滑行固定 33ms（30fps）卡顿；⑤ MOVE 事件历史采样被丢弃。均为交互输入逻辑（输入桥，终态 Kotlin，不涉 C++ 迁移）。
