@@ -20,6 +20,7 @@ import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
+import com.xianxia.sect.core.engine.service.ProductionProcessor
 import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
 import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
@@ -79,6 +80,23 @@ internal fun buildLawEnforcement(
     rngManager = gameRng,
     discipleLifecycleProcessor = mockSmart(),
     lootCalculator = LootCalculator(gameRng)
+)
+
+/** 批 13-3：真实 ProductionProcessor（月变步骤 6 自动排班对拍主体） */
+internal fun buildProductionProcessor(
+    store: FakeGameStateStore,
+    gameRng: GameRngManager,
+    scopeProvider: CoroutineScopeProvider
+): ProductionProcessor = ProductionProcessor(
+    stateStore = store,
+    inventorySystem = mockSmart(),
+    productionCoordinator = mockSmart(),
+    productionSlotRepository = mockSmart(),
+    formulaService = mockSmart(),
+    rngManager = gameRng,
+    scopeProvider = scopeProvider,
+    ioDispatcher = mockSmart(),
+    inventoryConfig = com.xianxia.sect.core.config.InventoryConfig()
 )
 
 /** 月变对拍服务装配（真实 CultivationService + 定向真实依赖 + mock 惰性面） */
@@ -185,6 +203,10 @@ internal fun buildMonthDiffService(
         store, core, handler, settlement, gameRng, scopeProvider,
         aiBeastAttackProcessor
     )
+    // 批 13-3：真实 ProductionProcessor（月变步骤 6 自动排班对拍主体——
+    // 灵矿分配路径不依赖 BuildingFeature 注册表/repo 回滚面；生产/住所
+    // 面由 GTest 黄金序列守护；其余依赖 mock 惰性）
+    val productionProcessor = buildProductionProcessor(store, gameRng, scopeProvider)
     return Triple(
         CultivationService(
             stateStore = store,
@@ -192,7 +214,7 @@ internal fun buildMonthDiffService(
             breakthroughHandler = handler,
             cultivationSettlement = settlement,
             eventProcessor = eventProcessor,
-            productionProcessor = mockSmart(),
+            productionProcessor = productionProcessor,
             recruitService = mockSmart(),
             merchantAndRecruitService = mockSmart(),
             caveExplorationProcessor = mockSmart(),

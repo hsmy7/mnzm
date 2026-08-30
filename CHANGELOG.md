@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（月变残留执行器增量 C++ 化批 13-3：S8 步骤 6 月度自动排班下沉）
+
+> 承接批 13-2c（cpp-engine.md §7.5）：月变八步第六步的月度自动排班（住所 + 灵植/灵矿/炼丹/锻造）等价移植 C++——生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。
+
+- **S8 步骤 6 月度自动排班**：Kotlin `ProductionProcessor.processAutoAssign` 等价移植 C++（零 RNG 纯数据变换）——11 槽占用扫描（长老 10 单槽+7 列表/灵矿/藏经阁/仓库驻守/巡视/宗门驻守/战斗队伍/活跃任务/秘境/洞穴活跃队伍/血炼/生产槽）+ idle 池 + 住所分配（单人/多人政策 + 候选排序 + 逐空槽）+ 四类生产候选（超出空槽数回流池供低优先级）+ 原子写入（只写槽位镜像字段不写 DiscipleStatus——Kotlin 事务内同语义）；接线 runMonthSettlement 步骤 6 位
+- **协议修正**：`ResidenceSlot` 对齐 Kotlin 真实形状（`slotIndex` 补齐、`sectId` 误植删除——原 C++ 形状含 Kotlin 无的 sectId，空槽对拍未暴露）；住所建筑表静态数据（BuildingFeature Residence 分类子集，双端守卫防漂移）
+- **验证**：GTest 621/621（+3：住所分配黄金序列（comprehension 降序+零 RNG 锁）/生产分配+池回流黄金/政策全关纯早退）· DiffMonthSettlementTest 场景⑮（灵矿分配跨语言逐位一致——mining 最高入矿；灵矿路径不依赖 BuildingFeature 注册表/repo 回滚面，住所/生产由 GTest 守护）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：ResidenceSlot 协议字段变更（slotIndex 新增默认 0、sectId 删除——C++ 快照进程内通道，Kotlin 侧解码宽松；存档 kotlinx-proto 零改动）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ### 修复（批 13-2c：C-12 清偿——nextGaussian 跨语言精度内嵌 fdlibm）
 
 > 审查登记项 C-12（2026-08-16 登记）：JVM Math.cos/log/sqrt 与 C++ std::cos/log/sqrt 可能最后一位差异。新增 DiffRngTest nextGaussian 对拍后**实测实锤**：JVM `Math.cos`（平台 intrinsic）与 C++ std::cos 差 1 ULP、`Math.log` 在部分输入差 1 ULP（glibc 与 fdlibm 版本差异）——确定性迁移的位级一致性隐患。

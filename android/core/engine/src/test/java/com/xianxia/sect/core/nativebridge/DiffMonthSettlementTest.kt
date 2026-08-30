@@ -463,6 +463,56 @@ class DiffMonthSettlementTest {
         )
     }
 
+    /**
+     * 场景⑮（批 13-3）：月度自动排班——灵矿分配（autoMineRootCounts={1} +
+     * 2 名 mining 60/40 弟子 + 1 灵矿空槽，月变步骤 6 执行）。选择灵矿路径
+     * 对拍：不依赖 BuildingFeature 注册表（feature/game 测试环境未注册——
+     * 住所分配空）与 repo 回滚面（生产槽 batchAssign 异步回写 mock 会回滚
+     * 镜像）；灵矿为直接 state 写入，跨语言逐位一致。住所/生产分配由
+     * GTest 黄金序列守护（AutoAssign* 3 用例）。
+     */
+    private fun buildAutoAssignSnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000L
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            // 批 13-2b：预置刷新月（13）→ 不刷新
+            worldLevelLastRefreshMonth = 1 * 12 + 1
+            // 批 13-3：自动灵矿政策（灵根 1 根匹配）
+            sectPolicies = sectPolicies.copy(
+                autoMineRootCounts = listOf(1), autoMineThreshold = 1
+            )
+            // 灵矿 1 空槽
+            spiritMineSlots = listOf(
+                com.xianxia.sect.core.model.SpiritMineSlot(index = 0)
+            )
+            // 非空 AI 弟子池（规避空表协议不对称）
+            aiSectDisciples = mapOf(
+                "ai-1" to listOf(
+                    Disciple(
+                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
+                        cultivation = 10.0, spiritRootType = "metal",
+                        age = 20, gender = "male",
+                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
+                    )
+                )
+            )
+        }
+        return NativeGameState(
+            gameData = gameData,
+            aiSectDisciples = gameData.aiSectDisciples,
+            disciples = listOf(
+                pairingDisciple("11", "甲一", "male").copy(
+                    skills = SkillStats(mining = 60)
+                ),
+                pairingDisciple("12", "甲二", "male").copy(
+                    skills = SkillStats(mining = 40)
+                )
+            )
+        )
+    }
+
     @Test
     fun `purchase settlement matches Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
@@ -591,6 +641,35 @@ class DiffMonthSettlementTest {
         assertEquals("EXPLORATION 分区终态不一致（生成+移动消费）",
             expected.gameData.rngStates[RngPartition.EXPLORATION.id],
             actual.gameData.rngStates[RngPartition.EXPLORATION.id])
+
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
+
+    @Test
+    fun `auto assign mine matches Kotlin bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+
+        val snapshot = buildAutoAssignSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
+
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+
+        // 场景⑮ 显式断言：灵矿空槽由 mining 最高弟子（60）占用——11 槽占用
+        // 扫描排除已占用弟子、候选排序按 mining 降序
+        val mineSlot = actual.gameData.spiritMineSlots.firstOrNull()
+        assertEquals("灵矿空槽应被占用", "11", mineSlot?.discipleId)
+        assertEquals("灵矿分配弟子名", "甲一", mineSlot?.discipleName)
 
         assertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))

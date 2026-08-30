@@ -761,12 +761,12 @@ void from_json(const nlohmann::json& j, WorldSect& v) {
 
 void to_json(nlohmann::json& j, const ResidenceSlot& v) {
     j = nlohmann::json::object();
-    GC_TO(v, j, buildingInstanceId); GC_TO(v, j, discipleId);
-    GC_TO(v, j, discipleName); GC_TO(v, j, sectId);
+    GC_TO(v, j, buildingInstanceId); GC_TO(v, j, slotIndex);
+    GC_TO(v, j, discipleId); GC_TO(v, j, discipleName);
 }
 void from_json(const nlohmann::json& j, ResidenceSlot& v) {
-    GC_FROM(j, v, buildingInstanceId); GC_FROM(j, v, discipleId);
-    GC_FROM(j, v, discipleName); GC_FROM(j, v, sectId);
+    GC_FROM(j, v, buildingInstanceId); GC_FROM(j, v, slotIndex);
+    GC_FROM(j, v, discipleId); GC_FROM(j, v, discipleName);
 }
 
 void to_json(nlohmann::json& j, const SpiritFieldPlant& v) {

@@ -872,12 +872,14 @@ struct WorldSect {
     std::vector<GarrisonSlot> garrisonSlots;   // 玩家宗门驻防槽位（批 4-5）
 };
 
-/// ResidenceSlot（住所槽位）
+/// ResidenceSlot（住所槽位——批 13-3 修正为 Kotlin 真实形状：
+/// buildingInstanceId/slotIndex/discipleId/discipleName；原 sectId 系误植
+/// 冗余字段（Kotlin 无），删除对齐协议）
 struct ResidenceSlot {
     std::string buildingInstanceId;
+    int32_t slotIndex = 0;
     std::string discipleId;
     std::string discipleName;
-    std::string sectId;
 };
 
 /// SpiritFieldPlant（灵田种植状态）

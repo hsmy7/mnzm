@@ -75,8 +75,9 @@
 //   - S4 炼丹/锻造自动排班与完成结算（Room 仓储/物品数据库域）：
 //     场景无到期槽位且自动政策全关；ForgeSystem 本为异步 launch（事务内零效果）
 //   - S4 邮件（MailService.processMonthlyMails 为异步网络拉取，事务内零状态效果）
-//   - S6 自动排班 processAutoAssign（11 槽占用扫描跨多未迁移域）：
-//     场景自动政策全关 → 双端纯早退；住所忠诚已实现
+//   - S6 自动排班 ✅（批 13-3 下沉：11 槽占用扫描 + 住所分配 + 四类生产
+//     候选 + 原子写入——ResidenceSlot 协议修正（slotIndex 补齐、sectId
+//     删除对齐 Kotlin）；住所建筑表静态数据 + 双端守卫）
 //   - S8 子事件下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
 //     scoutExpiry（批 10-1）/ 月度叛逃检测（批 10-2）/ 月度偷盗兜底
 //     （批 10-3）/ 附庸脱离检查（批 10-4）/ autoRecruit（批 11-1）/
@@ -322,6 +323,400 @@ inline void processBloodRefinementCompletions(
     }
     if (remaining.size() != active.size()) {
         active = std::move(remaining);
+    }
+}
+
+// ── 步骤 6a：月度自动排班（批 13-3：Kotlin ProductionProcessor.
+//    processAutoAssign 等价移植；零 RNG 纯数据变换）────────────────────
+// 语义（对齐 Kotlin 源码）：
+//   occupiedIds = 11 槽占用弟子（长老/灵矿/藏经阁/仓库驻守/巡视/宗门驻守/
+//     战斗队伍/活跃任务/秘境/洞穴活跃队伍/血炼/生产槽）
+//   idleDisciples = 存活 + IDLE + 非 occupied（可变池——候选按行号维护）
+//   住所分配（单人/多人政策 → 建筑识别 → 候选排序 → 逐空槽）
+//   生产候选（灵植/灵矿/炼丹/锻造：政策开关 → 筛选排序 → take(空槽数)，
+//     超出空槽数的合格候选回流池供低优先级类型）
+//   原子写入（住所/生产/灵矿——只写镜像槽位字段，不写 DiscipleStatus，
+//     Kotlin 事务内同语义——状态由 UI 层 syncAllDiscipleStatuses 派生）
+
+/// 住所建筑定义（Kotlin BuildingFeature 注册表 Residence 分类子集——
+/// displayName → slotsPerInstance；双端守卫测试防漂移，批 13-3 静态数据）
+struct ResidenceBuildingDef {
+    const char* displayName;
+    int32_t slotsPerInstance;
+};
+inline const ResidenceBuildingDef kResidenceBuildings[] = {
+    {"初级单人住所", 1}, {"中级单人住所", 1},
+    {"初级多人住所", 4}, {"中级多人住所", 4},
+};
+
+inline bool isResidenceSingle(const std::string& name) {
+    for (const auto& d : kResidenceBuildings) {
+        if (d.slotsPerInstance == 1 && name == d.displayName) return true;
+    }
+    return false;
+}
+inline bool isResidenceMulti(const std::string& name) {
+    for (const auto& d : kResidenceBuildings) {
+        if (d.slotsPerInstance == 4 && name == d.displayName) return true;
+    }
+    return false;
+}
+
+/// 长老槽位占用弟子（Kotlin collectElderSlotDiscipleIds：10 单槽 + 7 列表）
+inline void collectElderSlotDiscipleIds(const state::ElderSlots& es,
+                                        std::set<std::string>& out) {
+    const std::string* singles[] = {
+        &es.viceSectMaster, &es.herbGardenElder, &es.alchemyElder,
+        &es.forgeElder, &es.outerElder, &es.preachingElder,
+        &es.lawEnforcementElder, &es.innerElder, &es.qingyunPreachingElder,
+        &es.recruitingElder,
+    };
+    for (const auto* s : singles) {
+        if (!s->empty()) out.insert(*s);
+    }
+    const std::vector<state::DirectDiscipleSlot>* lists[] = {
+        &es.preachingMasters, &es.lawEnforcementDisciples,
+        &es.qingyunPreachingMasters, &es.herbGardenDisciples,
+        &es.alchemyDisciples, &es.forgeDisciples,
+        &es.spiritMineDeaconDisciples,
+    };
+    for (const auto* l : lists) {
+        for (const auto& d : *l) {
+            if (!d.discipleId.empty()) out.insert(d.discipleId);
+        }
+    }
+}
+
+/// 11 槽占用弟子 ID 收集（Kotlin buildOccupiedSlotDiscipleIds）
+inline std::set<std::string> buildOccupiedSlotDiscipleIds(
+    const state::GameData& gd) {
+    std::set<std::string> out;
+    collectElderSlotDiscipleIds(gd.elderSlots, out);
+    for (const auto& s : gd.spiritMineSlots) {
+        if (!s.discipleId.empty()) out.insert(s.discipleId);
+    }
+    for (const auto& s : gd.librarySlots) {
+        if (!s.discipleId.empty()) out.insert(s.discipleId);
+    }
+    for (const auto& s : gd.warehouseGarrisons) {
+        if (!s.discipleId.empty()) out.insert(s.discipleId);
+    }
+    for (const auto& s : gd.patrolSlots) {
+        if (!s.discipleId.empty()) out.insert(s.discipleId);
+    }
+    for (const auto& sect : gd.worldMapSects) {
+        if (!sect.isPlayerSect) continue;
+        for (const auto& g : sect.garrisonSlots) {
+            if (!g.discipleId.empty()) out.insert(g.discipleId);
+        }
+    }
+    for (const auto& t : gd.battleTeams) {
+        for (const auto& sl : t.slots) {
+            if (!sl.discipleId.empty()) out.insert(sl.discipleId);
+        }
+    }
+    for (const auto& m : gd.activeMissions) {
+        for (const auto& id : m.discipleIds) out.insert(id);
+    }
+    if (!gd.secretRealmState.id.empty()) {
+        for (const auto& m : gd.secretRealmSession.members) {
+            if (!m.isDead) out.insert(m.discipleId);
+        }
+    }
+    for (const auto& t : gd.caveExplorationTeams) {
+        if (t.status == "TRAVELING" || t.status == "EXPLORING") {
+            for (const auto& id : t.memberIds) out.insert(id);
+        }
+    }
+    for (const auto& [k, p] : gd.activeBloodRefinements) {
+        if (!p.discipleId.empty()) out.insert(p.discipleId);
+    }
+    for (const auto& s : gd.productionSlots) {
+        if (s.assignedDiscipleId && !s.assignedDiscipleId->empty()) {
+            out.insert(*s.assignedDiscipleId);
+        }
+    }
+    return out;
+}
+
+/// 自动排班候选（行号 + 排序键——Kotlin Disciple 对象池的行等价）
+struct AutoAssignRow {
+    std::size_t row;
+    bool followed;
+    int32_t rootCount;
+    int32_t attr;
+};
+inline bool autoAssignRowLess(const AutoAssignRow& a, const AutoAssignRow& b) {
+    // Kotlin compareByDescending { followed } thenBy { rootCount }
+    //   thenByDescending { attr }
+    if (a.followed != b.followed) return a.followed > b.followed;
+    if (a.rootCount != b.rootCount) return a.rootCount < b.rootCount;
+    return a.attr > b.attr;
+}
+
+/// 生产槽候选提取（Kotlin takeCandidates：政策关闭 → 空；筛选排序后
+/// take(maxCount)，超出回流池）
+template <typename AttrFn>
+inline std::vector<std::size_t> takeAutoAssignCandidates(
+    std::vector<std::size_t>& pool, int32_t maxCount, bool focused,
+    const std::vector<int32_t>& rootCounts, int32_t threshold,
+    const state::DiscipleStore& ds, AttrFn attrOf) {
+    if (!focused && rootCounts.empty()) return {};
+    std::vector<AutoAssignRow> sorted;
+    for (const auto row : pool) {
+        const bool followed =
+            ds.statusData[row].count("followed") > 0 &&
+            ds.statusData[row].at("followed") == "true";
+        const bool matchesFilter =
+            (focused && followed) ||
+            (std::find(rootCounts.begin(), rootCounts.end(),
+                       spiritRootCount(ds.spiritRootTypes[row])) !=
+             rootCounts.end());
+        if (!matchesFilter) continue;
+        if (attrOf(row) < threshold) continue;
+        sorted.push_back(
+            AutoAssignRow{row, followed, spiritRootCount(ds.spiritRootTypes[row]),
+                          attrOf(row)});
+    }
+    std::stable_sort(sorted.begin(), sorted.end(), autoAssignRowLess);
+    std::vector<std::size_t> taken;
+    taken.reserve(static_cast<std::size_t>(std::max(maxCount, 0)));
+    for (const auto& c : sorted) {
+        if (static_cast<int32_t>(taken.size()) >= std::max(maxCount, 0)) break;
+        taken.push_back(c.row);
+    }
+    // 从池移除（Kotlin pool.remove(it)——按 id 等价）
+    for (const auto row : taken) {
+        pool.erase(std::remove(pool.begin(), pool.end(), row), pool.end());
+    }
+    return taken;
+}
+
+/// 单档位住所分配（Kotlin computeResidenceAssignmentsForSlots）：
+/// 候选筛选（关注/灵根数 + 悟性阈值）→ 排序 → 逐空槽（key=buildingInstanceId:slotIndex）
+inline void computeResidenceForSlots(
+    const std::vector<std::size_t>& allCandidates,
+    const std::set<std::string>& buildingIds, const state::GameData& gd,
+    const state::DiscipleStore& ds, bool focused,
+    const std::vector<int32_t>& rootCounts, int32_t threshold,
+    const std::set<std::string>& excludeAssignedIds,
+    std::map<std::string, std::pair<std::string, std::string>>& out) {
+    if (buildingIds.empty()) return;
+    std::vector<AutoAssignRow> sorted;
+    for (const auto row : allCandidates) {
+        const bool followed =
+            ds.statusData[row].count("followed") > 0 &&
+            ds.statusData[row].at("followed") == "true";
+        const bool matchesFilter =
+            (focused && followed) ||
+            (std::find(rootCounts.begin(), rootCounts.end(),
+                       spiritRootCount(ds.spiritRootTypes[row])) !=
+             rootCounts.end());
+        if (ds.ids[row].empty()) continue;
+        if (excludeAssignedIds.count(ds.ids[row])) continue;
+        if (!matchesFilter) continue;
+        if (ds.comprehensions[row] < threshold) continue;
+        sorted.push_back(
+            AutoAssignRow{row, followed, spiritRootCount(ds.spiritRootTypes[row]),
+                          ds.comprehensions[row]});
+    }
+    std::stable_sort(sorted.begin(), sorted.end(), autoAssignRowLess);
+
+    // 空槽（Kotlin residenceSlots.filter { buildingInstanceId in buildingIds &&
+    //   discipleId.isEmpty() }——遍历序 == Kotlin 列表序）
+    std::vector<const state::ResidenceSlot*> emptySlots;
+    for (const auto& s : gd.residenceSlots) {
+        if (buildingIds.count(s.buildingInstanceId) && s.discipleId.empty()) {
+            emptySlots.push_back(&s);
+        }
+    }
+    for (std::size_t i = 0; i < emptySlots.size(); ++i) {
+        if (i >= sorted.size()) break;
+        const auto& c = sorted[i];
+        const std::string key = emptySlots[i]->buildingInstanceId + ":" +
+                                std::to_string(emptySlots[i]->slotIndex);
+        out[key] = {ds.ids[c.row], ds.names[c.row]};
+    }
+}
+
+/// 住所分配（Kotlin computeResidenceAssignments：单人 + 多人两档）
+inline std::map<std::string, std::pair<std::string, std::string>>
+computeResidenceAssignmentsCpp(const state::GameData& gd,
+                               const state::DiscipleStore& ds,
+                               const state::SectPolicies& policies,
+                               const std::set<std::string>& occupiedResidentIds) {
+    std::map<std::string, std::pair<std::string, std::string>> assignments;
+    const bool singleEnabled =
+        policies.autoSingleResidenceFocused ||
+        !policies.autoSingleResidenceRootCounts.empty();
+    const bool multiEnabled =
+        policies.autoMultiResidenceFocused ||
+        !policies.autoMultiResidenceRootCounts.empty();
+    if (!singleEnabled && !multiEnabled) return assignments;
+
+    std::set<std::string> singleIds;
+    std::set<std::string> multiIds;
+    for (const auto& b : gd.placedBuildings) {
+        if (singleEnabled && isResidenceSingle(b.displayName)) {
+            singleIds.insert(b.instanceId);
+        }
+        if (multiEnabled && isResidenceMulti(b.displayName)) {
+            multiIds.insert(b.instanceId);
+        }
+    }
+
+    // 候选 = 存活 + 非 occupiedResident（Kotlin assembleAll filter）
+    std::vector<std::size_t> allCandidates;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        if (occupiedResidentIds.count(ds.ids[row])) continue;
+        allCandidates.push_back(row);
+    }
+
+    if (singleEnabled) {
+        computeResidenceForSlots(
+            allCandidates, singleIds, gd, ds, policies.autoSingleResidenceFocused,
+            policies.autoSingleResidenceRootCounts,
+            policies.autoSingleResidenceThreshold, {}, assignments);
+    }
+    // 多人排除单人已分配
+    std::set<std::string> singleAssigned;
+    for (const auto& [k, v] : assignments) singleAssigned.insert(v.first);
+    if (multiEnabled) {
+        computeResidenceForSlots(
+            allCandidates, multiIds, gd, ds, policies.autoMultiResidenceFocused,
+            policies.autoMultiResidenceRootCounts,
+            policies.autoMultiResidenceThreshold, singleAssigned, assignments);
+    }
+    return assignments;
+}
+
+/// 月度自动排班主流程（Kotlin ProductionProcessor.processAutoAssign）
+inline void processAutoAssign(GameState& state) {
+    auto& gd = state.gameData;
+    const auto& policies = gd.sectPolicies;
+    const auto& ds = state.disciples;
+
+    // 1. 11 槽占用
+    const auto occupiedIds = buildOccupiedSlotDiscipleIds(gd);
+
+    // 2. idle 池（存活 + IDLE + 非 occupied）
+    std::vector<std::size_t> pool;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        if (ds.statuses[row] != "IDLE") continue;
+        if (occupiedIds.count(ds.ids[row])) continue;
+        pool.push_back(row);
+    }
+
+    // 3. 住所分配
+    std::set<std::string> occupiedResidentIds;
+    for (const auto& s : gd.residenceSlots) {
+        if (!s.discipleId.empty()) occupiedResidentIds.insert(s.discipleId);
+    }
+    auto allAssignments =
+        computeResidenceAssignmentsCpp(gd, ds, policies, occupiedResidentIds);
+    std::set<std::string> assignedResidentIds;
+    for (const auto& [k, v] : allAssignments) assignedResidentIds.insert(v.first);
+    pool.erase(
+        std::remove_if(pool.begin(), pool.end(),
+                       [&](std::size_t row) {
+                           return assignedResidentIds.count(ds.ids[row]) > 0;
+                       }),
+        pool.end());
+
+    // 4. 空槽计数
+    const auto countEmpty = [&gd](const char* type) {
+        int32_t n = 0;
+        for (const auto& s : gd.productionSlots) {
+            // Kotlin assignedDiscipleId.isNullOrEmpty()——nullopt 或空串均未分配
+            if (s.buildingType == type &&
+                (!s.assignedDiscipleId || s.assignedDiscipleId->empty()) &&
+                s.status == "IDLE") {
+                ++n;
+            }
+        }
+        return n;
+    };
+    const int32_t emptyHerbSlots = countEmpty("HERB_GARDEN");
+    int32_t emptyMineSlots = 0;
+    for (const auto& s : gd.spiritMineSlots) {
+        if (s.discipleId.empty()) ++emptyMineSlots;
+    }
+    const int32_t emptyAlchemySlots = countEmpty("ALCHEMY");
+    const int32_t emptyForgeSlots = countEmpty("FORGE");
+
+    // 5. 四类候选（takeCandidates——属性读取列）
+    const auto herbCandidates = takeAutoAssignCandidates(
+        pool, emptyHerbSlots, policies.autoPlantFocused,
+        policies.autoPlantRootCounts, policies.autoPlantThreshold, ds,
+        [&ds](std::size_t row) { return ds.spiritPlantings[row]; });
+    const auto mineCandidates = takeAutoAssignCandidates(
+        pool, emptyMineSlots, policies.autoMineFocused,
+        policies.autoMineRootCounts, policies.autoMineThreshold, ds,
+        [&ds](std::size_t row) { return ds.minings[row]; });
+    const auto alchemyCandidates = takeAutoAssignCandidates(
+        pool, emptyAlchemySlots, policies.autoAlchemyFocused,
+        policies.autoAlchemyRootCounts, policies.autoAlchemyThreshold, ds,
+        [&ds](std::size_t row) { return ds.pillRefinings[row]; });
+    const auto forgeCandidates = takeAutoAssignCandidates(
+        pool, emptyForgeSlots, policies.autoForgeFocused,
+        policies.autoForgeRootCounts, policies.autoForgeThreshold, ds,
+        [&ds](std::size_t row) { return ds.artifactRefinings[row]; });
+
+    // 6. 全空早退
+    if (allAssignments.empty() && herbCandidates.empty() &&
+        mineCandidates.empty() && alchemyCandidates.empty() &&
+        forgeCandidates.empty()) {
+        return;
+    }
+
+    // 7. 原子写入（applyAutoAssignments）
+    // 7.1 住所
+    if (!allAssignments.empty()) {
+        std::set<std::string> writtenIds;
+        for (auto& slot : gd.residenceSlots) {
+            const std::string key =
+                slot.buildingInstanceId + ":" + std::to_string(slot.slotIndex);
+            const auto it = allAssignments.find(key);
+            if (it != allAssignments.end() && slot.discipleId.empty() &&
+                !writtenIds.count(it->second.first)) {
+                writtenIds.insert(it->second.first);
+                slot.discipleId = it->second.first;
+                slot.discipleName = it->second.second;
+            }
+        }
+    }
+    // 7.2 生产槽（灵植/炼丹/锻造——迭代器填空槽）
+    const auto assignProduction =
+        [&gd](const char* type,
+              const std::vector<std::size_t>& cands,
+              const state::DiscipleStore& dss) {
+            if (cands.empty()) return;
+            std::size_t ci = 0;
+            for (auto& s : gd.productionSlots) {
+                if (s.buildingType != type) continue;
+                if (s.assignedDiscipleId && !s.assignedDiscipleId->empty()) continue;
+                if (s.status != "IDLE") continue;
+                if (ci >= cands.size()) break;
+                s.assignedDiscipleId = dss.ids[cands[ci]];
+                s.assignedDiscipleName = dss.names[cands[ci]];
+                ++ci;
+            }
+        };
+    assignProduction("HERB_GARDEN", herbCandidates, ds);
+    assignProduction("ALCHEMY", alchemyCandidates, ds);
+    assignProduction("FORGE", forgeCandidates, ds);
+    // 7.3 灵矿
+    if (!mineCandidates.empty()) {
+        std::size_t mi = 0;
+        for (auto& s : gd.spiritMineSlots) {
+            if (!s.discipleId.empty()) continue;
+            if (mi >= mineCandidates.size()) break;
+            s.discipleId = ds.ids[mineCandidates[mi]];
+            s.discipleName = ds.names[mineCandidates[mi]];
+            ++mi;
+        }
     }
 }
 
@@ -1792,7 +2187,9 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 步骤 5：血炼完成检测
     detail::processBloodRefinementCompletions(state, idx);
 
-    // 步骤 6：月度自动排班（未下沉，场景自动政策全关纯早退）+ 住所忠诚
+    // 步骤 6：月度自动排班（批 13-3：processAutoAssign 等价移植——零 RNG
+    // 纯数据变换，政策全关纯早退）+ 住所忠诚
+    detail::processAutoAssign(state);
     detail::processResidenceLoyalty(state);
 
     // 步骤 7：丹药持续效果月度衰减

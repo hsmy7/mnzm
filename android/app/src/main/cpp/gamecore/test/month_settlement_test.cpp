@@ -2814,4 +2814,91 @@ TEST(MonthSettlementTest, WorldLevelRefreshSkippedWhenRecentRefresh) {
     EXPECT_EQ(before, core->rng().exportStates());         // 零 RNG 消费
 }
 
+// ── 步骤 6a：月度自动排班（批 13-3：Kotlin ProductionProcessor.
+//    processAutoAssign 等价移植；零 RNG 纯数据变换）───────────────────
+// 直接测 detail::processAutoAssign（政策开启场景；零 RNG 快照锁）。
+
+TEST(MonthSettlementTest, AutoAssignResidenceGolden) {
+    // 单人住所 2 空槽 + 2 弟子（comprehension 50/30，灵根 1 根匹配
+    // rootCounts={1}）→ 按 comprehension 降序分配（followed 同 false →
+    // rootCount 同 1 → attr 降序）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.sectPolicies.autoSingleResidenceRootCounts = {1};
+    Disciple d1 = baseDisciple("1");
+    d1.comprehension = 50;
+    Disciple d2 = baseDisciple("2");
+    d2.comprehension = 30;
+    st.disciples.appendDisciple(d1);
+    st.disciples.appendDisciple(d2);
+    state::GridBuildingData b;
+    b.displayName = "初级单人住所"; b.instanceId = "b1";
+    st.gameData.placedBuildings.push_back(b);
+    for (int i = 0; i < 2; ++i) {
+        state::ResidenceSlot slot;
+        slot.buildingInstanceId = "b1";
+        slot.slotIndex = i;
+        st.gameData.residenceSlots.push_back(slot);
+    }
+
+    const auto before = core->rng().exportStates();
+    gamecore::system::detail::processAutoAssign(st);
+
+    ASSERT_EQ(2u, st.gameData.residenceSlots.size());
+    EXPECT_EQ("1", st.gameData.residenceSlots[0].discipleId);
+    EXPECT_EQ("弟子1", st.gameData.residenceSlots[0].discipleName);
+    EXPECT_EQ("2", st.gameData.residenceSlots[1].discipleId);
+    EXPECT_EQ(before, core->rng().exportStates());   // 零 RNG
+}
+
+TEST(MonthSettlementTest, AutoAssignProductionGoldenWithPoolReflow) {
+    // 灵植 1 空槽 + 灵矿 1 空槽 + 3 弟子（spiritPlanting 50/40/30，
+    // 灵根 1 根匹配 rootCounts={1}）：灵植优先 take(1) 取 50；灵矿
+    // take(1) 取回流后的 40；30 无槽未分配
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.sectPolicies.autoPlantRootCounts = {1};
+    st.gameData.sectPolicies.autoMineRootCounts = {1};
+    for (int i = 1; i <= 3; ++i) {
+        Disciple d = baseDisciple(std::to_string(i));
+        d.spiritPlanting = 60 - i * 10;   // 50/40/30
+        st.disciples.appendDisciple(d);
+    }
+    state::GridBuildingData hb;
+    hb.displayName = "灵植阁"; hb.instanceId = "b1";
+    st.gameData.placedBuildings.push_back(hb);
+    state::ProductionSlot herb;
+    herb.slotIndex = 0; herb.buildingType = "HERB_GARDEN";
+    herb.status = "IDLE";
+    st.gameData.productionSlots.push_back(herb);
+    state::SpiritMineSlot mine;
+    mine.index = 0;
+    st.gameData.spiritMineSlots.push_back(mine);
+
+    gamecore::system::detail::processAutoAssign(st);
+
+    ASSERT_EQ(1u, st.gameData.productionSlots.size());
+    ASSERT_TRUE(st.gameData.productionSlots[0].assignedDiscipleId.has_value());
+    EXPECT_EQ("1", *st.gameData.productionSlots[0].assignedDiscipleId);  // 灵植 50
+    ASSERT_EQ(1u, st.gameData.spiritMineSlots.size());
+    EXPECT_EQ("2", st.gameData.spiritMineSlots[0].discipleId);           // 灵矿 40
+}
+
+TEST(MonthSettlementTest, AutoAssignPoliciesDisabledNoop) {
+    // 政策全关 → 纯早退零写入零 RNG
+    auto core = makeCore(42);
+    auto& st = core->state();
+    Disciple d = baseDisciple("1");
+    st.disciples.appendDisciple(d);
+    state::ResidenceSlot slot;
+    slot.buildingInstanceId = "b1"; slot.slotIndex = 0;
+    st.gameData.residenceSlots.push_back(slot);
+
+    const auto before = core->rng().exportStates();
+    gamecore::system::detail::processAutoAssign(st);
+
+    EXPECT_TRUE(st.gameData.residenceSlots[0].discipleId.empty());
+    EXPECT_EQ(before, core->rng().exportStates());
+}
+
 }  // namespace
