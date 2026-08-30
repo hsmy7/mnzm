@@ -9,6 +9,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -194,5 +195,115 @@ class DiffStateSyncTest {
         assertEquals(500L, store.gameDataValue.spiritStones)
         assertEquals("青云宗", store.gameDataValue.sectName)
         assertEquals(42, store.gameDataValue.jadeSymbols)
+    }
+
+    // ── 批 10-5（S-15 修复族）：@Transient aiSectDisciples 镜像/反向通道 ──
+
+    @Test
+    fun `mergeGameData keeps transient aiSectDisciples`() {
+        // @Transient 字段永不进 gameData JSON——解码必然丢失，按"未迁移字段
+        // 保留既有值"语义回填（镜像永不因解码丢失清空 AI 弟子池）
+        val store = FakeGameStateStore()
+        store.gameDataValue = GameData().apply {
+            spiritStones = 100
+            aiSectDisciples = mapOf("ai-1" to listOf(Disciple().apply {
+                id = "90"; name = "玄水弟子"; realm = 7
+            }))
+        }
+        val service = StateSyncService(store)
+
+        val snapshotGameData = GameData().apply { spiritStones = 500 }
+        val merged = service.mergeGameData(store.gameDataValue, snapshotGameData,
+            exportedKeys = setOf("spiritStones"))
+
+        assertEquals(500L, merged.spiritStones)
+        assertEquals("AI 弟子池应保留", 1, merged.aiSectDisciples.size)
+        assertEquals("90", merged.aiSectDisciples["ai-1"]?.first()?.id)
+    }
+
+    @Test
+    fun `applySnapshot full replace keeps aiSectDisciples when not carried`() {
+        // C++ 导出未携带 aiSectDisciples（空表不导出键）→ 全量替换分支也保留
+        // 事务内既有值，镜像永不主动清空该域
+        val store = FakeGameStateStore()
+        store.gameDataValue = GameData().apply {
+            spiritStones = 100
+            aiSectDisciples = mapOf("ai-1" to listOf(Disciple().apply {
+                id = "90"; name = "玄水弟子"; realm = 7
+            }))
+        }
+        val service = StateSyncService(store)
+        service.applySnapshot(
+            NativeGameState(gameData = GameData().apply { spiritStones = 500 })
+        )
+
+        assertEquals(500L, store.gameDataValue.spiritStones)
+        assertEquals("全量替换不应清空 AI 弟子池", 1, store.gameDataValue.aiSectDisciples.size)
+        assertEquals("90", store.gameDataValue.aiSectDisciples["ai-1"]?.first()?.id)
+    }
+
+    @Test
+    fun `applySnapshot overrides aiSectDisciples when carried by native`() {
+        // C++ 顶层导出携带新值（非 null）→ 覆盖 Kotlin 既有值（批 10-4 协议）
+        val store = FakeGameStateStore()
+        store.gameDataValue = GameData().apply {
+            aiSectDisciples = mapOf("ai-1" to listOf(Disciple().apply {
+                id = "90"; name = "玄水弟子"; realm = 7
+            }))
+        }
+        val service = StateSyncService(store)
+        val carried = mapOf("ai-9" to listOf(Disciple().apply {
+            id = "99"; name = "玄水新"; realm = 9
+        }))
+        service.applySnapshot(
+            NativeGameState(
+                gameData = GameData().apply { spiritStones = 500 },
+                aiSectDisciples = carried
+            ),
+            exportedGameDataKeys = setOf("spiritStones")
+        )
+
+        assertEquals("C++ 携带新值应覆盖", setOf("ai-9"),
+            store.gameDataValue.aiSectDisciples.keys)
+        assertEquals("99", store.gameDataValue.aiSectDisciples["ai-9"]?.first()?.id)
+    }
+
+    @Test
+    fun `reverse envelope carries aiSectDisciples only when changed`() {
+        // S-15 反向回导：@Transient aiSectDisciples 单独全量段；变化检测
+        //（缓存对齐）避免每 tick 重发重型数据——未变化不携带，变化才携带
+        val store = FakeGameStateStore()
+        val sent = mutableListOf<String>()
+        val service = StateSyncService(store, reverseSender = { bytes ->
+            sent.add(bytes.decodeToString()); true
+        })
+        store.gameDataValue = GameData().apply {
+            aiSectDisciples = mapOf("ai-1" to listOf(Disciple().apply {
+                id = "90"; name = "玄水弟子"; realm = 7
+            }))
+        }
+
+        // 窗口 1：gameData 变化（缓存 null 未同步）→ 携带 aiSectDisciples 段
+        store.update { gameData = gameData.copy(gameYear = 2) }
+        assertTrue("首次应携带 aiSectDisciples 段", service.applyDirtyToNative())
+        assertTrue(sent.last().contains("\"aiSectDisciples\""))
+        assertTrue(sent.last().contains("\"玄水弟子\""))
+
+        // 窗口 2：gameData 再变（aiSectDisciples 未变）→ 不携带
+        store.update { gameData = gameData.copy(gameYear = 3) }
+        assertTrue(service.applyDirtyToNative())
+        assertFalse("未变化不应携带 aiSectDisciples 段", sent.last().contains("\"aiSectDisciples\""))
+
+        // 窗口 3：aiSectDisciples 变化 → 携带新值
+        store.update {
+            gameData = gameData.copy(
+                aiSectDisciples = mapOf("ai-2" to listOf(Disciple().apply {
+                    id = "91"; name = "赤火弟子"; realm = 8
+                }))
+            )
+        }
+        assertTrue(service.applyDirtyToNative())
+        assertTrue("变化应携带 aiSectDisciples 段", sent.last().contains("\"ai-2\""))
+        assertTrue(sent.last().contains("\"赤火弟子\""))
     }
 }

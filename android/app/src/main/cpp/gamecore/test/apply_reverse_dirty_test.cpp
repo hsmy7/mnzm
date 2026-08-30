@@ -134,6 +134,50 @@ TEST_F(ApplyReverseDirtyTest, UnknownCollectionIgnoredForForwardCompat) {
     EXPECT_TRUE(core.applyReverseDirty(env));
 }
 
+TEST_F(ApplyReverseDirtyTest, AiSectDisciplesSegmentAppliedAndOverwritten) {
+    // S-15：aiSectDisciples 顶层段应用（GameState 顶层字段——Kotlin
+    // GameData.aiSectDisciples @Transient 不入 gameData JSON，反向信封单独
+    // 携带全量段）。语义 = 整体替换（非合并），与 Kotlin 侧缓存对齐。
+    GameCore core(&clock_, &logger_);
+    initCore(core);
+    importBase(core);
+    EXPECT_TRUE(core.state().aiSectDisciples.empty());
+
+    const std::string env = R"({
+        "version": 1,
+        "changed": {
+            "gameData": {"gameYear": 2},
+            "aiSectDisciples": {
+                "ai-1": [{"id": "90", "name": "玄水弟子", "realm": 7, "isAlive": true}]
+            }
+        },
+        "removed": {}
+    })";
+    EXPECT_TRUE(core.applyReverseDirty(env));
+    ASSERT_EQ(1u, core.state().aiSectDisciples.size());
+    ASSERT_EQ(1u, core.state().aiSectDisciples.at("ai-1").size());
+    EXPECT_EQ("90", core.state().aiSectDisciples.at("ai-1")[0].id);
+    EXPECT_EQ("玄水弟子", core.state().aiSectDisciples.at("ai-1")[0].name);
+    EXPECT_EQ(7, core.state().aiSectDisciples.at("ai-1")[0].realm);
+    // gameData 覆盖不受影响（aiSectDisciples 已不在 GameData 内）
+    EXPECT_EQ(2, core.state().gameData.gameYear);
+
+    // 再次回导：整体替换语义（ai-1 消失，ai-2 新入）
+    const std::string env2 = R"({
+        "version": 2,
+        "changed": {
+            "aiSectDisciples": {
+                "ai-2": [{"id": "91", "name": "赤火弟子", "realm": 8, "isAlive": true}]
+            }
+        },
+        "removed": {}
+    })";
+    EXPECT_TRUE(core.applyReverseDirty(env2));
+    EXPECT_EQ(1u, core.state().aiSectDisciples.size());
+    EXPECT_EQ(1u, core.state().aiSectDisciples.count("ai-2"));
+    EXPECT_EQ(0u, core.state().aiSectDisciples.count("ai-1"));
+}
+
 TEST_F(ApplyReverseDirtyTest, RejectsBeforeInitAndMalformedJson) {
     GameCore core(&clock_, &logger_);
     EXPECT_FALSE(core.applyReverseDirty(R"({"version":1,"changed":{},"removed":{}})"));

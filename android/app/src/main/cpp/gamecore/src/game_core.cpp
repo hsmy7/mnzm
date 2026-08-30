@@ -355,6 +355,13 @@ bool GameCore::applyReverseDirty(const std::string& dirtyJson) {
                     if (value.is_object()) {
                         state_.gameData = value.get<state::GameData>();
                     }
+                } else if (name == "aiSectDisciples") {
+                    // S-15：AI 宗门弟子池全量段（GameState 顶层字段——Kotlin
+                    // GameData.aiSectDisciples @Transient 不入 gameData JSON）
+                    if (value.is_object()) {
+                        state_.aiSectDisciples = value.get<
+                            std::map<std::string, std::vector<state::Disciple>>>();
+                    }
                 } else if (value.is_array()) {
                     applyCollectionUpsert(state_, name, value);
                 }

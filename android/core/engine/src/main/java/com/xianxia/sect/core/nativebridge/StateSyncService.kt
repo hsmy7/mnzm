@@ -151,16 +151,17 @@ class StateSyncService @Inject constructor(
      */
     fun applySnapshot(snapshot: NativeGameState, exportedGameDataKeys: Set<String> = emptySet()) {
         stateStore.update {
-            gameData = if (exportedGameDataKeys.isEmpty()) {
-                snapshot.gameData
+            val carriedAi = snapshot.aiSectDisciples
+            gameData = (if (exportedGameDataKeys.isEmpty()) {
+                // 全量替换：aiSectDisciples 不在快照 gameData（@Transient 不入
+                // kotlinx 序列化）——以事务内当前值回填（顶层字段携带时下方覆盖）
+                snapshot.gameData.copy(aiSectDisciples = gameData.aiSectDisciples)
             } else {
                 mergeGameData(gameData, snapshot.gameData, exportedGameDataKeys)
-            }
-            // 批 10-4：AI 宗门弟子池经顶层字段承载（GameData 侧 @Transient）。
-            // 仅在 C++ 导出携带（非 null）时写回——旧 .so 未导出则保留
-            // Kotlin 既有值，镜像永不主动清空该域
-            snapshot.aiSectDisciples?.let { carried ->
-                gameData = gameData.copy(aiSectDisciples = carried)
+            }).let { base ->
+                // 批 10-4：AI 宗门弟子池经顶层字段承载——C++ 导出携带（非 null）
+                // 才覆盖；未携带保留事务内当前值，镜像永不主动清空该域
+                if (carriedAi != null) base.copy(aiSectDisciples = carriedAi) else base
             }
             if (snapshot.disciples.isNotEmpty()) {
                 discipleTables.replaceAll(snapshot.disciples)
@@ -196,7 +197,11 @@ class StateSyncService @Inject constructor(
                 if (k in exportedKeys) put(k, v)
             }
         }
-        return json.decodeFromJsonElement(GameData.serializer(), merged)
+        val decoded = json.decodeFromJsonElement(GameData.serializer(), merged)
+        // 批 10-5（S-15 修复族）：@Transient aiSectDisciples 永不进 gameData JSON
+        //（kotlinx 序列化排除）——解码必然丢失，按"未迁移字段保留 Kotlin 既有值"
+        // 语义显式回填，镜像永不因解码丢失清空该域
+        return decoded.copy(aiSectDisciples = current.aiSectDisciples)
     }
 
     /**
@@ -237,11 +242,17 @@ class StateSyncService @Inject constructor(
         // 双实现并行契约：native 不可用降级 false（不崩溃，Kotlin 引擎照常）
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         return try {
-            if (restoreRng) {
+            val ok = if (restoreRng) {
                 GameCoreBridge.nativeImportState(encoded.encodeToByteArray())
             } else {
                 GameCoreBridge.nativeImportStateNoRng(encoded.encodeToByteArray())
             }
+            if (ok) {
+                // S-15：全量导入后 C++ 的 AI 弟子池与 Kotlin 一致——缓存对齐，
+                // 反向通道仅在后续变化时重发（含降级全量回导兜底路径）
+                lastAiSectDisciplesSent = state.gameData.aiSectDisciples
+            }
+            ok
         } catch (e: Throwable) {
             false
         }
@@ -253,6 +264,17 @@ class StateSyncService @Inject constructor(
 
     /** Kotlin → C++ 反向增量回导版本号（单调递增；C++ 侧校验严格递增防乱序） */
     private var reverseVersion = 0L
+
+    /**
+     * S-15：上次回导给 C++ 的 AI 宗门弟子池（[GameData.aiSectDisciples]）。
+     *
+     * 变化检测缓存：该字段 @Transient 不入 gameData JSON，反向信封单独携带全量段
+     * （AI 招募/战斗才更新）——避免每 tick 重发重型数据。初始 null 表示"未同步"
+     * （首次 gameDataChanged 必发一次）；[importToNative] 全量导入成功后与 C++
+     * 对齐置为导入值；[sendReverseEnvelope] 发送成功后置为已发送值。引擎线程
+     * 串行访问（tick 调度器），无需同步。
+     */
+    private var lastAiSectDisciplesSent: Map<String, List<Disciple>>? = null
 
     /**
      * 反向增量回导：把 AUTHORITATIVE 残留窗口内 Kotlin 侧的状态变化增量发给 C++。
@@ -285,10 +307,11 @@ class StateSyncService @Inject constructor(
 
     /** 构建反向信封并发送（版本单调递增；native 失败返回 false 由调用方降级全量）。 */
     private fun sendReverseEnvelope(snapshot: GameStateStore.ReverseDirtySnapshot): Boolean {
+        val gameData = stateStore.gameData.value
         val envelope = buildReverseEnvelope(
             snapshot = snapshot,
             tables = stateStore.discipleTables,
-            gameData = stateStore.gameData.value
+            gameData = gameData
         )
         val encoded = envelope.toString().encodeToByteArray()
         // 双实现并行契约：native 失败降级 false（调用方回退全量）
@@ -297,6 +320,8 @@ class StateSyncService @Inject constructor(
             val ok = reverseSender(encoded)
             if (ok) {
                 reverseVersion++
+                // S-15：发送成功后缓存与 C++ 一致（下次仅在变化时重发）
+                lastAiSectDisciplesSent = gameData.aiSectDisciples
                 true
             } else {
                 false
@@ -318,6 +343,13 @@ class StateSyncService @Inject constructor(
         // gameData：整对象引用变化 → 全量发送（排除 rngStates——native RNG 真相源）
         if (snapshot.gameDataChanged) {
             changed["gameData"] = gameDataJsonWithoutRng(gameData)
+            // S-15：aiSectDisciples @Transient 不入 gameData JSON——单独全量段回导；
+            // 变化检测（AI 招募/战斗才更新）避免每 tick 重发重型数据
+            if (gameData.aiSectDisciples != lastAiSectDisciplesSent) {
+                changed["aiSectDisciples"] = json.encodeToJsonElement(
+                    serializer<Map<String, List<Disciple>>>(), gameData.aiSectDisciples
+                )
+            }
         }
 
         // 弟子：窗口内变化 id → 当前表组装全实体（upsert，id 升序）；
@@ -494,6 +526,9 @@ class StateSyncService @Inject constructor(
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         gameData = try {
             json.decodeFromJsonElement(GameData.serializer(), merged)
+                // 批 10-5（S-15 修复族）：@Transient aiSectDisciples 解码必然
+                // 丢失——显式回填事务内当前值（dirty 路径同样永不清空该域）
+                .copy(aiSectDisciples = gameData.aiSectDisciples)
         } catch (e: Exception) {
             // 变更值与 schema 不符（版本漂移防御）——保留 Kotlin 现状
             gameData

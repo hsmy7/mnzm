@@ -29,6 +29,15 @@
 - **验证**：GTest 591/591（+10：协议往返含顶层字段/契约空与无玩家宗门零抽取/宗门缺失静默移除/零 AI 战力/至交+战力比≥5x 概率 0.0 黄金序列/战力比 0 敌对 0.40 种子扫描脱离+留守双分支/战报窗口边界/JSON 导出导入后 SYSTEM 抽取连续）· **DiffMonthSettlementTest 换装真实 VassalService** + 玩家宗门/附属 ai-3 场景 1/1 跨语言逐位一致（SYSTEM 终态 6 抽 = 4 配对+1 叛逃+1 附庸）· engine JUnit 2925/2925（0 skip）· NDK 通过 · detekt 全模块全绿
 - **兼容性**：无存档/序列化变更（aiSectDisciples 协议为进程内通道，Room GameHeavyData 表与 kotlinx-proto 存档编码零改动）；生产月变真相源仍在 Kotlin；玩家可见行为不变
 
+### 修复（批 10-5：S-15 清偿——aiSectDisciples 反向回导 + 镜像 @Transient 保留修复）
+
+> 批 10-4 途中登记的三项收尾：① S-15 反向回导缺口清偿；② 批 10-3 CHANGELOG 补登（已并入上方条目）；③ 预存疑点核验确认——镜像合并路径对 @Transient 字段解码丢失。
+
+- **根因修复（预存问题，非本批引入）**：`mergeGameData`/`mergeGameDataChanges`/`applySnapshot` 全量替换分支经 `GameData.serializer` 解码时，`@Transient aiSectDisciples`（重型数据，Room GameHeavyData 表单独存）**解码必然丢失** → AUTHORITATIVE 每 tick 的 forward 镜像会把 Kotlin 侧 AI 弟子池清空，随后被 `checkAndRepairAiSectDisciples` 自愈重新随机生成——表现为 **AI 宗门弟子进度/装备反复重置丢失**（长期潜伏，被自愈掩盖）。修复：三处解码后显式回填事务内既有值（"未迁移字段保留 Kotlin 既有值"语义完整性）；`applySnapshot` 顶层字段携带（非 null）才覆盖，镜像永不主动清空该域
+- **S-15 清偿（aiSectDisciples 反向回导）**：反向信封 `changed.gameData`（@Transient 不入 gameData JSON）新增独立 `changed["aiSectDisciples"]` 全量段；`StateSyncService` 维护 `lastAiSectDisciplesSent` 变化检测缓存（importToNative 全量导入后对齐、sendReverseEnvelope 发送成功后对齐——AI 招募/战斗才重发，避免每 tick 重发重型数据）；C++ `applyReverseDirty` 新增 `aiSectDisciples` 段应用（整体替换语义）；**S-15 关闭**
+- **验证**：GTest 592/592（+1：aiSectDisciples 段应用 + 整体替换 + gameData 覆盖不受影响）· DiffStateSyncTest +4（mergeGameData 保留/全量替换保留/C++ 携带覆盖/反向信封变化检测——首次携带、未变不携带、变化携带新值）· engine JUnit 2929/2929（0 skip）· NDK 通过 · detekt 全模块全绿 · lintRelease 通过
+- **兼容性**：无存档/序列化变更；反向信封协议新增 `aiSectDisciples` 段（旧 .so 忽略未知段，向前兼容）；玩家可见行为修复（AI 宗门弟子不再被镜像清空重生成）
+
 ## [4.01.14] - 2026-08-29
 
 ### 新增（月变残留执行器增量 C++ 化批 10-1：S8 侦察过期清理下沉 + 宗门详情域协议扩容）
