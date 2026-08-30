@@ -458,7 +458,7 @@ SaveValidator.validate(SaveData)
 | R-04 | 根治批次交付盘点 | **lintRelease 存量 10 条警告 + 3 条基线过滤**（app/lint-baseline.xml） | 🟢 低 | 逐条销账或补豁免理由，目标零警告 |
 | R-05 | 根治批次交付盘点 | **proguard 宽规则"按序试删"未实际执行**：kotlinx.serialization / coroutines / lifecycle / room 整包 keep 保留（assembleRelease 已通过，但未逐条试删验证可否进一步收窄） | 🟡 中 | 按 T-PRO 顺序在下次 R8 发布验证时实际执行试删（每次删一条 + 完整 R8 + 存档读写回归） |
 | R-06 | 根治批次交付盘点 | **测试代码数百处 `!!` 断言风格**（生产代码已清零，测试保留） | 🟢 低 | 项目决策：纳入规范统一清理或正式豁免测试断言 |
-| R-07 | 根治批次交付盘点 | **CI 全绿未经真实 push 验证**：GitHub Actions 仅在 push 后实跑，本地验证门不等同 CI 结果 | 🟢 低 | 下次 push 后观察首次实跑；失败即修 |
+| R-07 | 根治批次交付盘点 | **CI 全绿未经真实 push 验证**：GitHub Actions 仅在 push 后实跑，本地验证门不等同 CI 结果 | 🟢 低 | 下次 push 后观察首次实跑；失败即修。**2026-08-30 实证（push 05ce3c5f）**：`cpp-engine-test` ✅ 全过；`cpp-diff-jni-test` 的 JNI 桥构建 ✅（批 12-6 新增 job 链路有效）但测试步骤 ❌（原因待日志——无 GH token 无法下载，本地 --rerun-tasks 等价命令全绿，疑 Linux 环境特有）；**`build` job compileReleaseKotlin ❌——确认预存故障**：08-25 历史 run（cf99f56/7269ab6）同样在 Compile check 步骤失败，与本批改动无关；修复需 CI 日志定位（Linux 编译环境差异，疑似 Gradle 内存/依赖缓存），待用户提供 GH_TOKEN 或日志后处理 |
 | R-08 | 根治批次交付盘点 | **Kotlin 2.2 注解目标警告（KT-73255）**：`@ApplicationContext` 等限定符注解在构造参数上，全库同模式（AndroidAudioPlayer/BuglyCrashReporter 编译时已现警告） | 🟢 低 | 项目级决策：`-Xannotation-default-target=param-property` 或逐处 `@param:` 迁移 |
 | R-09 | 2026-08-08 批次"途中发现" | **`withOverflowMailSuppressed` 8 个调用点语义审计**：D-01 新机制下语义变为纯"凭据类不转邮件"，是否保留待审计 | 🟡 中 | 逐调用点核对语义与 CLAUDE.md 13.3 溢出语义分类 |
 | R-10 | docs/build-perf/test-split.md 已知限制 | **app / feature:game 测试拆分门控未实施**（Robolectric 占比 41% / 39% 未过门控） | 🟢 低 | 按 test-split.md 门控执行模块拆分 |
