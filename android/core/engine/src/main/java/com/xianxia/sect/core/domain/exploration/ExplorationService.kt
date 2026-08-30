@@ -49,7 +49,6 @@ import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.spiritPlanting
-import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
@@ -60,8 +59,6 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.core.wallet.DeductResult
-import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import java.util.UUID
@@ -74,8 +71,9 @@ import javax.inject.Singleton
  * 探索系统 Facade — 委派具体职责到各子领域系统。
  *
  * 保留的对外接口：
- * - [processMonthlyWorldLevels] — 由 ExplorationTickSystem 调用
- * - [resolveBeastAttackPayTribute] / [resolveBeastAttackFight] — 玩家主动操作
+ * - [processMonthlyWorldLevels] — 由 ExplorationTickSystem 调用（含排期妖兽攻击自动执行）
+ * - [executeScheduledBeastAttack] — 月度结算内执行排期妖兽攻击（自动防守）
+ * - [resolveBeastAttackFight] — 世界地图手动进攻（带遭遇战）路径
  * - [consumePendingPatrolResults] — UI 层定时消费
  */
 @Singleton
@@ -115,6 +113,7 @@ class ExplorationService @Inject constructor(
     /**
      * 月度世界事件处理 — 委派给子领域系统。
      *
+     * 0. 执行上月排期的妖兽攻击（自动防守）——弹窗未关闭时此处自动关闭
      * 1. WorldLevelManager — 关卡刷新/过期清理/妖兽移动
      * 2. PatrolBattleSystem — 巡视楼自动攻击（先于检测，避免已击败妖兽产生预警）
      * 3. BeastAttackDetector — 检测妖兽攻击（仅检测巡视楼未击败的剩余妖兽）
@@ -126,6 +125,12 @@ class ExplorationService @Inject constructor(
         val playerAvgRealm = if (aliveDisciples.isNotEmpty()) {
             aliveDisciples.map { it.realm }.average().toInt()
         } else null
+
+        // Step 0: 执行上月排期的妖兽攻击（自动防守）。
+        // 排期妖兽若已被击败/消失（巡视塔、AI 宗门、玩家手动进攻、过期清理），
+        // 自动跳过不战斗；全部处理完后清空排期——玩家未关闭预警弹窗时，
+        // 排期清空即弹窗自动关闭（游戏时间不暂停，预警为纯通知）。
+        executeScheduledBeastAttacks(state)
 
         // Step 1: 世界关卡惰性管理（纯函数）
         try {
@@ -172,43 +177,61 @@ class ExplorationService @Inject constructor(
         return patrolResults + defenseResults
     }
 
-    // ── 妖兽袭击处理（玩家主动操作） ──────────────────────────────────────
+    // ── 妖兽袭击处理 ──────────────────────────────────────────────────────
 
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
-        val gd = stateStore.gameData.value
-        val level = gd.worldLevels.find { it.id == beastLevelId } ?: return false
-        if (level.defeated) return false
-        val targetSect = gd.worldMapSects.find {
-            it.isPlayerSect || it.isPlayerOccupied
-        }
-        val tribute = (gd.spiritStones *
-            GameConfig.WorldMap.BEAST_TRIBUTE_RATIO).toLong()
-            .coerceAtLeast(GameConfig.WorldMap.BEAST_TRIBUTE_MIN)
-
-        var paid = false
-        stateStore.update {
-            val deductResult = spiritStoneWallet.deduct(
-                this, tribute, SpiritStoneGrade.LOW,
-                SpiritStoneReason.BeastTribute,
-                SpiritStoneSource.Internal
-            )
-            if (deductResult !is DeductResult.Success) return@update
-            paid = true
-            gameData = gameData.copy(
-                worldLevels = gameData.worldLevels.map {
-                    if (it.id == beastLevelId) it.copy(defeated = true) else it
+    /**
+     * 执行上月排期的妖兽攻击（自动防守）并清空排期。
+     *
+     * 排期妖兽若已被击败/消失（巡视塔、AI 宗门、玩家手动进攻、过期清理），
+     * 自动跳过不战斗；全部处理完后清空排期——玩家未关闭预警弹窗时，
+     * 排期清空即弹窗自动关闭。单只失败仅记日志，不阻断月度结算。
+     * 必须在本月结算事务（[GameStateStore.update]）内调用。
+     *
+     * @param state 事务内可变状态
+     */
+    private fun executeScheduledBeastAttacks(state: MutableGameState) {
+        try {
+            val scheduled = stateStore.pendingBeastAttacks.value
+            if (scheduled.isEmpty()) return
+            for (attack in scheduled) {
+                try {
+                    executeScheduledBeastAttack(state, attack.beastLevel.id)
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e
+                } catch (e: Exception) {
+                    DomainLog.e(TAG, "executeScheduledBeastAttacks failed: " +
+                        "beastId=${attack.beastLevel.id}", e)
                 }
-            )
-            battleLogs = (battleLogs + BattleLog(
-                year = gameData.gameYear, month = gameData.gameMonth,
-                type = BattleType.PVE,
-                attackerName = level.beastName.ifEmpty { "妖兽" },
-                defenderName = targetSect?.name ?: "",
-                result = BattleResult.WIN,
-                details = "上交${tribute}灵石，妖兽退去"
-            )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+            }
+            stateStore.setPendingBeastAttacks(emptyList())
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "executeScheduledBeastAttacks failed", e)
         }
-        return paid
+    }
+
+    /**
+     * 执行已排期的妖兽攻击（月度结算内自动防守）。
+     *
+     * 排期于上月 [BeastAttackDetector.detectAttacks] 生成，本月结算时自动执行；
+     * 必须在本月结算事务（[GameStateStore.update]）内调用。
+     * 妖兽已不在（被击败/过期/清理）时直接视为已处理（返回 false，仅清理排期）。
+     *
+     * @param state 事务内可变状态
+     * @param beastLevelId 妖兽关卡 ID
+     * @return 是否真正执行了战斗（false = 妖兽已不存在/已击败，仅需清理排期）
+     */
+    fun executeScheduledBeastAttack(
+        state: MutableGameState,
+        beastLevelId: String
+    ): Boolean {
+        val level = state.gameData.worldLevels.find { it.id == beastLevelId }
+        if (level == null || level.defeated) return false
+        // 遭遇战检查：妖兽附近有 AI 宗门拦截（与弹窗"迎战"路径一致）
+        val resolvedByEncounter = resolveEncounterPath(state, beastLevelId, level, null)
+        if (!resolvedByEncounter) {
+            state.resolveBeastFightInternal(beastLevelId, level)
+        }
+        return true
     }
 
     suspend fun resolveBeastAttackFight(

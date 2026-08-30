@@ -9,7 +9,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -17,28 +16,24 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 /**
- * 妖兽进攻预警弹窗（半屏）。
- * 玩家可选择上交灵石取消进攻，或迎战。
+ * 妖兽进攻预警弹窗（半屏，纯通知）。
+ * 仅"知道了"按钮；无论是否点击，下月结算自动执行防守战（弹窗自动关闭）。
  */
 @Composable
 internal fun BeastAttackWarningDialog(
     attack: PendingBeastAttack,
-    currentSpiritStones: Long,
-    onPayTribute: () -> Unit,
-    onFight: () -> Unit,
+    onDismiss: () -> Unit,
     scrimEnabled: Boolean = true
 ) {
-    val canPay = currentSpiritStones >= GameConfig.WorldMap.BEAST_TRIBUTE_MIN
-
     UnifiedGameDialog(
-        onDismissRequest = onFight,
+        onDismissRequest = onDismiss,
         title = "妖兽来袭",
         mode = DialogMode.Half,
         scrimEnabled = scrimEnabled,
         scrollableContent = false,
         showCloseButton = false,
         dismissOnClickOutside = false,
-        dismissOnBackPress = false
+        dismissOnBackPress = true
     ) {
         Column(
             modifier = Modifier
@@ -66,27 +61,26 @@ internal fun BeastAttackWarningDialog(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "妖兽将于下月对我宗发起进攻，请提前做好准备",
+                fontSize = 14.sp,
+                color = GameColors.TextPrimary,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(modifier = Modifier.weight(1f))
 
-            // 按钮区域（居中靠下）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                GameButton(
-                    text = "上交宝物",
-                    onClick = onPayTribute,
-                    enabled = canPay
-                )
-
-                Spacer(modifier = Modifier.width(24.dp))
-
-                GameButton(
-                    text = "迎战",
-                    onClick = onFight
-                )
-            }
+            // 按钮区域（居中靠下）：仅"知道了"，纯关闭弹窗不取消排期攻击
+            GameButton(
+                text = "知道了",
+                onClick = onDismiss,
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(56.dp)
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
         }

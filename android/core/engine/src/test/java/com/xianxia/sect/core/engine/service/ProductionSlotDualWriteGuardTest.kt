@@ -19,6 +19,7 @@ import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmState
@@ -311,6 +312,19 @@ class ProductionSlotDualWriteGuardTest {
             )
         }
         assertNull("血炼占用弟子不得被重复分配到灵田槽", herbSlot?.assignedDiscipleId)
+    }
+
+    @Test
+    fun `processAutoAssign - 已住住所的 IDLE 弟子不被排班`() = runTest {
+        val processor = newProcessorWithHerbSlot()
+        val herbSlot = runOccupiedScenario(processor) { data ->
+            data.copy(
+                residenceSlots = listOf(
+                    ResidenceSlot(discipleId = DISCIPLE_A, discipleName = "弟子A")
+                )
+            )
+        }
+        assertNull("已住住所的弟子不得被重复分配到灵田槽（住所与生产槽位不应双占）", herbSlot?.assignedDiscipleId)
     }
 
     @Test

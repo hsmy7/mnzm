@@ -29,7 +29,7 @@ internal fun AttackWarningDialog(
         title = "进攻预警",
         mode = DialogMode.Half,
         scrollableContent = false,
-        showCloseButton = true,
+        showCloseButton = false,
         dismissOnClickOutside = false,
         dismissOnBackPress = true,
         scrimEnabled = scrimEnabled

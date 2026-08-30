@@ -479,10 +479,22 @@ class GameViewModel @Inject constructor(
 
     // ── BeastAttack / Warning ──
 
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) = beastAttack.resolveBeastAttackPayTribute(beastLevelId)
     suspend fun resolveBeastAttackFight(beastLevelId: String) = beastAttack.resolveBeastAttackFight(beastLevelId)
-    fun clearPendingBeastAttacks() = beastAttack.clearPendingBeastAttacks()
     fun removePendingBeastAttack(beastLevelId: String) = beastAttack.removePendingBeastAttack(beastLevelId)
+
+    /** 已点"知道了"的妖兽攻击预警 ID（运行时展示状态：仅关闭弹窗，不取消排期攻击） */
+    private val _acknowledgedBeastAttackIds = MutableStateFlow<Set<String>>(emptySet())
+    val acknowledgedBeastAttackIds: StateFlow<Set<String>> = _acknowledgedBeastAttackIds.asStateFlow()
+
+    /** 标记妖兽攻击预警已读：弹窗关闭且不再重复弹出，排期攻击照常下月执行。 */
+    fun markBeastAttackShown(beastLevelId: String) {
+        _acknowledgedBeastAttackIds.value = _acknowledgedBeastAttackIds.value + beastLevelId
+    }
+
+    /** 剪枝已读标记：只保留仍在排期中的妖兽（防集合无限增长）。 */
+    fun pruneAcknowledgedBeastAttackIds(keep: Set<String>) {
+        _acknowledgedBeastAttackIds.value = _acknowledgedBeastAttackIds.value intersect keep
+    }
 
     // ── 婚姻提议审批 ─────────────────────────────────────────
 

@@ -12,8 +12,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.WorldLevel
-import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
@@ -22,7 +20,6 @@ import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.domain.battle.EncounterBattleService
-import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.DomainResult
@@ -58,11 +55,7 @@ class ResolveBeastAttackFightTest {
         val encounterBattleService = mockSmart(EncounterBattleService::class.java)
         val cultivationService = mockSmart(CultivationService::class.java)
         val spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java)
-        // deduct 返回 sealed class DeductResult（ByteBuddy 无法代理 sealed）→ doReturn 风格。
-        // 本文件用例全为失败路径：not found/defeated 在 deduct 前提前返回，
-        // 灵石不足用例正需要 Insufficient（非 Success → paid=false）
-        Mockito.doReturn(DeductResult.Insufficient(balance = 0, required = 0))
-            .`when`(spiritStoneWallet).deduct(any(), any(), any(), any(), any(), any(), any())
+        // 本文件用例全为失败路径：not found/defeated 在 deduct 前提前返回
 
         `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
@@ -106,34 +99,6 @@ class ResolveBeastAttackFightTest {
         stateStore.setGameData(GameData(worldLevels = listOf(beast)))
         val result = service.resolveBeastAttackFight("b1")
         assertFalse(result)
-    }
-
-    @Test
-    fun `resolveBeastAttackPayTribute returns false when beast not found`() = runBlocking {
-        stateStore.setGameData(GameData(worldLevels = emptyList()))
-        val result = service.resolveBeastAttackPayTribute("nonexistent")
-        assertFalse(result)
-    }
-
-    @Test
-    fun `resolveBeastAttackPayTribute returns false when beast already defeated`() = runBlocking {
-        val beast = WorldLevel(id = "b1", type = LevelType.BEAST, defeated = true)
-        stateStore.setGameData(GameData(worldLevels = listOf(beast)))
-        val result = service.resolveBeastAttackPayTribute("b1")
-        assertFalse(result)
-    }
-
-    @Test
-    fun `resolveBeastAttackPayTribute returns false when spirit stones insufficient`() = runBlocking {
-        // 灵石不足时 deduct 失败，DeductResult 非 Success → return@update → paid=false
-        val beast = WorldLevel(id = "b1", type = LevelType.BEAST, defeated = false, x = 500f, y = 500f)
-        stateStore.setGameData(GameData(
-            worldLevels = listOf(beast),
-            worldMapSects = listOf(WorldSect(isPlayerSect = true, x = 500f, y = 500f, name = "玩家宗门")),
-            spiritStones = 0  // 无灵石
-        ))
-        val result = service.resolveBeastAttackPayTribute("b1")
-        assertFalse("灵石不足时应返回 false", result)
     }
 
     // ── runWithoutStoreUpdate tests for resolveBeastFightInternal ───────

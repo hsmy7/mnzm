@@ -222,9 +222,6 @@ class GameEngine @Inject constructor(
     fun clearPendingMarriageProposals() { stateStore.clearPendingMarriageProposals() }
     fun clearPendingBeastAttacks() { stateStore.clearPendingBeastAttacks() }
     fun removePendingBeastAttack(beastLevelId: String) { stateStore.removePendingBeastAttack(beastLevelId) }
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
-        return explorationService.resolveBeastAttackPayTribute(beastLevelId)
-    }
     suspend fun resolveBeastAttackFight(
         beastLevelId: String,
         manualDefenders: List<Disciple>? = null

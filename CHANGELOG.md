@@ -250,6 +250,16 @@
 - **87 个 ActionId 全量清点六类裁决**：① 已接线生产 10（批 8-2/8-3 库存家族）；② 月结/年结/旬结内部路径 16（AUTHORITATIVE tick 已在 C++ 侧执行，不接线=已接线）；③ 纯函数/影子对拍基准 46（SECRET_REALM_*/SECT_*/BATTLE_* 等，Kotlin 消费方为系统内部计算，随双实现退役自然消失）；④ 查询动作留守 4（WALLET_BALANCE/TOTAL_SELL_VALUE、INV_CAN_ADD_ITEM/CAPACITY_INFO——事务内消费 + C++ 只读通道 tick 间落后 Kotlin）；⑤ **事务内变更原语留守 3（钱包族 WALLET_ADD/DEDUCT/BATCH 行为审计完成）**——C++ economy.h 与 Kotlin SpiritStoneWallet 纯逻辑逐项等价（add 饱和回绕/deduct 自动售卖补差价/batch 预检查原子回滚/年度报告累积），留守依据：syncFromNative store 级镜像与事务内调用不兼容（闭包提交覆盖镜像）、可观察契约含 Kotlin 独有平台效应（Ledger 流水/pendingEvents 事件暂存/flush）、JSON execute 1.1× 无性能收益；C++ 侧收敛由反向增量通道保证；⑥ 无独立生产调用点/嵌套调用面留守 8（remove 5 族仅被 sell*/consume 组合操作内部消费、instance 族 ItemAdder 无外部调用点、INV_ADD_STORAGE_BAG 调用面嵌套形态混杂）
 - **文档收口**：docs/cpp-engine.md 头部基线 + §5.1（"剩余·GameEngine 方法转发"/"剩余·全量切换"两行改判收口）+ §7.1 批 8-4 行与六类裁决表；docs/architecture.md C-06 行更新（转发接线阶段终结，全量退役转退役专项）
 
+### 变更（妖兽/AI 宗门进攻预警弹窗纯通知化——仅"知道了" + 不暂停 + 攻击时自动关闭）
+
+> 需求：妖兽靠近宗门的警告界面弹出时会"拦住"玩家直到做出选择（上交宝物/迎战），改为纯通知（仅"知道了"），弹出时不暂停游戏时间；玩家一直不关闭时，妖兽/AI 宗门真正进攻玩家宗门时弹窗自动关闭。AI 宗门进攻警告（单级"即将进攻"）本就为纯通知、攻击后预警消费自动消失，仅去掉右上角关闭按钮保持一致。
+
+- **妖兽攻击自动执行（对齐 AI 宗门"下月进攻"语义）**：`ExplorationService.processMonthlyWorldLevels` 新增 Step 0——月度结算先执行上月排期（`pendingBeastAttacks`）的妖兽攻击（复用自动防守选人逻辑：优先巡视塔弟子，其次宗门内弟子，排除任务/血炼等状态；遭遇战路径保留），完成后清空排期；妖兽已被击败/消失（巡视塔、AI 宗门、玩家手动进攻、过期清理）时自动跳过。弹窗为纯通知，玩家未关闭时排期清空即自动关闭；`知道了`仅标记已读（ViewModel 运行时集合，防重复弹出），不取消排期攻击
+- **上交宝物功能整体移除**：`resolveBeastAttackPayTribute` 全链路（ExplorationService/GameEngine/BeastAttackDelegate/GameViewModel/GameOverlayHost）删除；`BeastAttackChoice` sealed interface 与 `GameConfig.WorldMap.BEAST_TRIBUTE_RATIO/BEAST_TRIBUTE_MIN`（死代码）删除；`SpiritStoneReason.BeastTribute` 保留（旧战斗日志展示映射仍在用）。`resolveBeastAttackFight` 保留（世界地图手动进攻妖兽的遭遇战路径仍依赖）
+- **弹窗 UI**：`BeastAttackWarningDialog` 仅"知道了"（新增"妖兽将于下月对我宗发起进攻"文案，`dismissOnBackPress=true` 与 AI 弹窗一致）；`AttackWarningDialog` `showCloseButton=false`（去掉关闭 X）；`GameOverlayHost` 已击败妖兽清理由"清空全部排期"改为按 ID 移除单个（修正误伤同批其他活妖兽排期的预存缺陷）
+- **验证**：新增 `ScheduledBeastAttackTest` 8 用例（执行/跳过/掠夺路径/战斗路径/排期清空/检测续写）· `GameViewModelTest` +2（已读标记/剪枝）· `ResolveBeastAttackFightTest` -3（上贡测试随功能删除）· engine JUnit 全量 + feature:game 测试 + detekt + lintRelease + compileReleaseKotlin 通过
+- **兼容性**：无 Entity/Migration/存档/序列化变更（排期为运行时状态，与现状一致）；世界地图手动进攻、巡视塔、AI 讨伐路径不受影响；多妖兽同月自动进攻时战斗结果沿用现有"队列最新一条弹窗 + 战斗日志完整"语义（与巡视塔多结果一致）
+
 ## [4.01.11] - 2026-08-29
 
 ### 新增（C++ 引擎迁移计划 v2 批 8：C-06 转发收尾续作——监控器接口化 + 库存家族生产接线）

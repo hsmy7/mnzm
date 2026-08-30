@@ -903,6 +903,29 @@ class GameViewModelTest {
         verify { adService.setPersonalizedAdsEnabled(initial) }
     }
 
+    // ── 妖兽攻击预警已读标记（markBeastAttackShown / pruneAcknowledgedBeastAttackIds）──
+
+    @Test
+    fun `markBeastAttackShown - 加入已读集合且不触碰引擎`() = runTest(testDispatcher) {
+        assertTrue(viewModel.acknowledgedBeastAttackIds.value.isEmpty())
+
+        viewModel.markBeastAttackShown("beast-1")
+        viewModel.markBeastAttackShown("beast-2")
+        viewModel.markBeastAttackShown("beast-1")  // 重复标记幂等
+
+        assertEquals(setOf("beast-1", "beast-2"), viewModel.acknowledgedBeastAttackIds.value)
+    }
+
+    @Test
+    fun `pruneAcknowledgedBeastAttackIds - 仅保留给定集合`() = runTest(testDispatcher) {
+        viewModel.markBeastAttackShown("beast-1")
+        viewModel.markBeastAttackShown("beast-2")
+
+        viewModel.pruneAcknowledgedBeastAttackIds(setOf("beast-2"))
+
+        assertEquals(setOf("beast-2"), viewModel.acknowledgedBeastAttackIds.value)
+    }
+
     // ════════════════════════════════════════════════════════════════
     // 辅助方法
     // ════════════════════════════════════════════════════════════════

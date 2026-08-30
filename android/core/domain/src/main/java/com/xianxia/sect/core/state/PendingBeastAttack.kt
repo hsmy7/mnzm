@@ -3,8 +3,9 @@ package com.xianxia.sect.core.state
 import com.xianxia.sect.core.model.WorldLevel
 
 /**
- * 待处理的妖兽攻击预警。
- * 结算期间检测到妖兽接近宗门时暂存，结算完成后由 UI 弹窗展示。
+ * 待处理的妖兽攻击预警（排期）。
+ * 结算期间检测到妖兽接近宗门时暂存，UI 弹窗展示纯通知；
+ * 下月结算由探索系统自动执行防守战（弹窗未关闭时自动消失）。
  */
 data class PendingBeastAttack(
     val beastLevel: WorldLevel,
@@ -12,13 +13,3 @@ data class PendingBeastAttack(
     val targetSectName: String,
     val distance: Float
 )
-
-/**
- * 玩家对妖兽攻击预警的选择。
- */
-sealed interface BeastAttackChoice {
-    /** 上交灵石，妖兽取消进攻 */
-    data object PayTribute : BeastAttackChoice
-    /** 关闭预警，妖兽发动进攻 */
-    data object Fight : BeastAttackChoice
-}

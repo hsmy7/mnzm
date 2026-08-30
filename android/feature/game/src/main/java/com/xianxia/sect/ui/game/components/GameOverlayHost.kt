@@ -8,8 +8,6 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
@@ -101,8 +99,6 @@ fun GameOverlayHost(
         currentAttack = data.currentAttack,
         beastStillAlive = data.beastStillAlive,
         dialogRenderable = data.dialogRenderable,
-        gdSnapshot = data.gdSnapshot,
-        coroutineScope = data.coroutineScope,
         viewModel = viewModel,
         attackWarnings = data.attackWarnings,
         shownWarningStageIds = data.shownWarningStageIds
@@ -148,8 +144,6 @@ private data class GameOverlayDialogData(
     val disciples: List<DiscipleAggregate>,
     val dialogRenderable: Boolean,
     val currentAttack: PendingBeastAttack?,
-    val coroutineScope: CoroutineScope,
-    val gdSnapshot: GameData,
     val beastStillAlive: Boolean,
     val attackWarnings: List<AttackWarning>,
     val shownWarningStageIds: List<String>,
@@ -230,14 +224,23 @@ private fun rememberGameOverlayDialogData(
     // 妖兽进攻预警
     val pendingBeastAttacks by viewModel.pendingBeastAttacks
         .collectAsStateWithLifecycle()
-    val currentAttack = pendingBeastAttacks.firstOrNull()
-    val coroutineScope = rememberCoroutineScope()
+    // 已点"知道了"的妖兽预警不重复弹出；排期攻击仍保留（下月自动执行）
+    val acknowledgedBeastAttackIds by viewModel.acknowledgedBeastAttackIds
+        .collectAsStateWithLifecycle()
+    val currentAttack = pendingBeastAttacks.firstOrNull {
+        it.beastLevel.id !in acknowledgedBeastAttackIds
+    }
     val gdSnapshot by viewModel.gameDataUi.collectAsStateWithLifecycle()
-    // 跳过已击败妖兽的预警弹窗（可能被 AI 宗门等异步处理击败）
+    // 已读标记剪枝：只保留仍在排期中的妖兽（防集合无限增长）
+    LaunchedEffect(pendingBeastAttacks) {
+        val pendingIds = pendingBeastAttacks.map { it.beastLevel.id }.toSet()
+        viewModel.pruneAcknowledgedBeastAttackIds(pendingIds)
+    }
+    // 跳过已击败妖兽的排期弹窗（可能被 AI 宗门等异步处理击败）——只移除该只，不误伤同批其他排期
     val beastStillAlive = isBeastStillAlive(currentAttack, gdSnapshot)
     if (currentAttack != null && !beastStillAlive) {
         LaunchedEffect(currentAttack) {
-            viewModel.clearPendingBeastAttacks()
+            viewModel.removePendingBeastAttack(currentAttack.beastLevel.id)
         }
     }
     // 单例遮罩层：无论开几个界面，永远只画一层遮罩
@@ -261,7 +264,6 @@ private fun rememberGameOverlayDialogData(
         currentDialogType = currentDialogType, pendingNotification = pendingNotification,
         currentProposal = pendingMarriageProposals.firstOrNull(), disciples = disciples,
         dialogRenderable = dialogRenderable, currentAttack = currentAttack,
-        coroutineScope = coroutineScope, gdSnapshot = gdSnapshot,
         beastStillAlive = beastStillAlive, attackWarnings = attackWarnings,
         shownWarningStageIds = shownWarningStageIds, anyDialogVisible = anyDialogVisible
     )
@@ -308,15 +310,11 @@ private fun GameOverlayScrim(visible: Boolean) {
 }
 
 /** 妖兽进攻预警 + AI 宗门进攻预警弹窗（GameOverlayHost 拆分） */
-// 拆分聚合:平铺参数搬移自原公共函数
-@Suppress("LongParameterList")
 @Composable
 private fun GameOverlayAttackSections(
     currentAttack: PendingBeastAttack?,
     beastStillAlive: Boolean,
     dialogRenderable: Boolean,
-    gdSnapshot: GameData,
-    coroutineScope: CoroutineScope,
     viewModel: GameViewModel,
     attackWarnings: List<AttackWarning>,
     shownWarningStageIds: List<String>
@@ -324,27 +322,9 @@ private fun GameOverlayAttackSections(
     if (dialogRenderable && currentAttack != null && beastStillAlive) {
         BeastAttackWarningDialog(
             attack = currentAttack,
-            currentSpiritStones = gdSnapshot.spiritStones,
             scrimEnabled = false,
-            onPayTribute = {
-                coroutineScope.launch {
-                    viewModel.resolveBeastAttackPayTribute(
-                        currentAttack.beastLevel.id
-                    )
-                    viewModel.removePendingBeastAttack(
-                        currentAttack.beastLevel.id
-                    )
-                }
-            },
-            onFight = {
-                coroutineScope.launch {
-                    viewModel.resolveBeastAttackFight(
-                        currentAttack.beastLevel.id
-                    )
-                    viewModel.removePendingBeastAttack(
-                        currentAttack.beastLevel.id
-                    )
-                }
+            onDismiss = {
+                viewModel.markBeastAttackShown(currentAttack.beastLevel.id)
             }
         )
     }
