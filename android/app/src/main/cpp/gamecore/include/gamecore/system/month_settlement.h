@@ -12,6 +12,7 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/blood_refinement.h"
+#include "gamecore/system/child_birth.h"
 #include "gamecore/system/disciple_purchase.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
@@ -182,6 +183,15 @@ inline void processSpiritFieldHarvestStep(GameState& state, rng::RngManager& rng
     processSpiritFieldHarvest(state, rng, overflowMail);
     // overflowMail 内容即 Kotlin sendOverflowMail 的邮件草稿——C++ 无邮件协议，
     // 显式弃用（与"邮件域阶段 4 迁移"边界一致）
+}
+
+// ── 步骤 4d：生育（批 13-4c：child_birth.h 等价移植） ─────────────
+// Kotlin ChildBirthSystem.processMonthlyBirth——SYSTEM 分区消费序逐位对齐
+//（性别/名字/灵根继承或 SpiritRootGenerator/弟子生成六段；父死分支零消费）
+
+inline void processChildBirthStep(GameState& state, rng::RngManager& rng) {
+    child_birth::processMonthlyBirth(
+        state, rng.getRng(rng::RngPartition::kSystem));
 }
 
 // ── 步骤 4f：伴侣配对（PartnerSystem.processPartnerMatching 完整移植） ──
@@ -2106,8 +2116,10 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 4b Forge(211)：异步自动锻造 launch——事务内零效果（未下沉无影响面）
     // 4c Planting(214)：灵田成熟收获 + 续种（SYSTEM 种子 roll）
     detail::processSpiritFieldHarvestStep(state, rng);
-    // 4d ChildBirth(235)：生育——未下沉（弟子生成批次；场景 childBirthMonth
-    //   全空 → 双端零效果零抽取）
+    // 4d ChildBirth(235)：生育（批 13-4c：processMonthlyBirth 等价移植——
+    //   child_birth.h；到期母亲逐人生育 + 新生儿入 recruitList + 自动招募
+    //   惰性重置 + processAutoRecruit；SYSTEM 分区消费序逐位对齐）
+    detail::processChildBirthStep(state, rng);
     // 4e Exploration(240)：世界关卡惰性管理（清理 + 刷新生成 + 移动；
     //   批 13-2b：LevelGenerator（批 4-1）接线——shouldRefresh 判定 + 玩家
     //   宗门门控 + playerAvgRealm 安全兜底 + 生成 + lastRefreshMonth 推进）

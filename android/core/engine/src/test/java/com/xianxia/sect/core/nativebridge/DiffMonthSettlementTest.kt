@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.model.WorldSect
@@ -118,6 +119,13 @@ class DiffMonthSettlementTest {
             "equipmentStacks", "equipmentInstances", "manualStacks",
             "manualInstances", "pills", "materials", "herbs", "seeds", "storageBags"
         )
+
+        /** 批 13-4c 场景⑯：母亲 id（到期生育；DiscipleTables 列式存储要求
+         *  id 为数字字符串） */
+        const val MOTHER_ID = "20"
+
+        /** 批 13-4c 场景⑯：父亲 id（partner 互指） */
+        const val FATHER_ID = "21"
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
@@ -803,6 +811,96 @@ class DiffMonthSettlementTest {
         assertEquals("ai-2 isKnown 应保持", true, sectById["ai-2"]?.isKnown)
     }
 
+    /**
+     * 场景⑯（批 13-4c）：生育——母亲到期（childBirthMonth = 月变时当前月 2，
+     * 自 (1,1) 推进 3 旬跨 1→2 月界）+ partner 互指；无自动招募 filter
+     * （processAutoRecruit 纯早退，聚焦生育）。配偶系统排除已有伴侣者
+     * （母亲/父亲不参与配对；x1 单男 → eligibleFemales 空早退零抽取）。
+     */
+    private fun buildChildBirthSnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000L
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            // 批 13-2b：预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
+            worldLevelLastRefreshMonth = 1 * 12 + 1
+            // 自动配对模式（提案分支不在协议）
+            daoCompanionConsentRequired = false
+            // 非空 AI 弟子池（规避空表协议不对称）
+            aiSectDisciples = mapOf(
+                "ai-1" to listOf(
+                    Disciple(
+                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
+                        cultivation = 10.0, spiritRootType = "metal",
+                        age = 20, gender = "male",
+                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
+                    )
+                )
+            )
+        }
+        return NativeGameState(
+            gameData = gameData,
+            aiSectDisciples = gameData.aiSectDisciples,
+            disciples = listOf(
+                // 母亲：到期（月变时 gameMonth=2）+ partner 互指
+                pairingDisciple(MOTHER_ID, "母一", "female").copy(
+                    social = SocialData(partnerId = FATHER_ID, childBirthMonth = 2)
+                ),
+                // 父亲：partner 互指（不参与配对——已有伴侣者排除）
+                pairingDisciple(FATHER_ID, "父一", "male").copy(
+                    social = SocialData(partnerId = MOTHER_ID)
+                ),
+                // 额外弟子：名字集合非空 + 弟子表非空（单男无女 → 配对早退）
+                pairingDisciple("22", "闲一", "male")
+            )
+        )
+    }
+
+    @Test
+    fun `child birth matches Kotlin bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+
+        val snapshot = buildChildBirthSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
+
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+
+        // 生育断言：新生儿入 recruitList（恰 1 名）+ 母亲状态更新
+        assertEquals("应生育 1 名新生儿", 1, expected.gameData.recruitList.size)
+        val child = expected.gameData.recruitList.single()
+        assertEquals("新生儿应为 1 岁", 1, child.age)
+        assertEquals("新生儿父亲应匹配", FATHER_ID, child.social.parentId2)
+        // 与 GTest 黄金序列（child_birth_test.cpp 同种子同消费序）闭环锚定
+        assertEquals("新生儿名字应与 GTest 黄金一致", "父丹青", child.name)
+        assertEquals("新生儿性别应与 GTest 黄金一致", "male", child.gender)
+        assertEquals("新生儿灵根应与 GTest 黄金一致", "metal", child.spiritRootType)
+        assertEquals("新生儿资质应与 GTest 黄金一致", 80, child.skills.aptitude)
+        assertEquals("新生儿肖像应与 GTest 黄金一致", "male_disciple_1", child.portraitRes)
+        assertEquals("新生儿体质应与 GTest 黄金一致",
+            listOf("r2_phys_hybrid_off", "neg_phys_offense"), child.physiqueIds)
+        val mother = expected.disciples.single { it.id == MOTHER_ID }
+        assertEquals("母亲 lastChildYear 应推进", 1, mother.social.lastChildYear)
+        assertEquals("母亲 childBirthMonth 应清空", null, mother.social.childBirthMonth)
+
+        // recruitList 新生儿 id 为镜像生成字段（Kotlin UUID vs C++ 空串）——
+        // diff 排除；名字/性别/灵根/属性/双亲逐字段一致
+        assertCppSurfaceMatches(
+            json.encodeToJsonElement(expected),
+            json.encodeToJsonElement(actual)
+        )
+    }
+
     /** ③ 政策忠诚 + ⑤（批 10-2/10-3）叛逃/偷盗 + ② 伴侣配对 组合断言 */
     private fun assertLoyaltyAndLawEnforcementEffects(
         actual: NativeGameState,
@@ -916,6 +1014,7 @@ class DiffMonthSettlementTest {
         k == "timestamp" -> true
         k == "id" && path.contains("availableMissions") -> true
         k == "id" && path.contains("worldLevels") -> true   // 批 13-2b：Kotlin UUID vs C++ 空串
+        k == "id" && path.contains("recruitList") -> true   // 批 13-4c：新生儿 Kotlin UUID vs C++ 空串
         k == "id" && isMirrorIdPath(path) -> true
         else -> false
     }

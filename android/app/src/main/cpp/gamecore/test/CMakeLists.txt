@@ -52,6 +52,7 @@ add_executable(game-core-tests
     month_settlement_test.cpp
     year_settlement_test.cpp
     breakthrough_test.cpp
+    child_birth_test.cpp
     lifecycle_test.cpp
     battle_test.cpp
     government_test.cpp

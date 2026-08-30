@@ -30,6 +30,8 @@ import com.xianxia.sect.core.engine.system.PartnerSystem
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.ExplorationTickSystem
 import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.ChildBirthSystem
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.exploration.LootCalculator
@@ -344,7 +346,16 @@ internal fun buildMonthDiffExecutor(
         cultivationService = service,
         aiSectBeastAttackProcessor = aiBeastAttackProcessor,
         systemManager = SystemManager(
-            setOf(PartnerSystem(gameRng), explorationSystem)
+            setOf(
+                PartnerSystem(gameRng),
+                explorationSystem,
+                // 批 13-4c：真实 ChildBirthSystem（月变步骤 4d 生育对拍主体）
+                ChildBirthSystem(
+                    stateStore = store,
+                    discipleFactory = DiscipleFactory(),
+                    rngManager = gameRng
+                )
+            )
         )
     )
 }

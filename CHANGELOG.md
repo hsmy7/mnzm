@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（批 13-4c：月变步骤 4d 生育下沉 C++——ChildBirthSystem 等价移植）
+
+> 承接批 13-4b（cpp-engine.md §7.5）：月变八步第四步的生育子事件等价移植 C++——到期母亲（childBirthMonth 匹配当前月）逐人生育，新生儿入招募列表并触发自动招募检查。生产月变真相源仍在 Kotlin（C++ 侧经对拍守护）。
+
+- **C++ 等价移植**：`gamecore/system/child_birth.h`——SpiritRootGenerator（灵根数权重分档 + Fisher-Yates 洗牌）+ createChild（性别/继承姓氏名字/灵根继承或随机生成/弟子生成六段——复用批 13-4a 名字服务与批 13-4b 弟子工厂）+ 父亲死亡分支清孕期 + 新生儿入 recruitList + 自动招募惰性重置 + processAutoRecruit 复用（批 11-1 下沉）
+- **RNG 消费序逐位对齐**：SYSTEM 分区串行驱动（性别 1 次 nextInt + 名字生成 + 灵根 1 次 nextInt/随机洗牌 + 弟子生成固定序）；Kotlin 侧 `seed.nextInt` 与 `seed.random` 是同一 PRNG 的两个适配器，跨语言同种子同消费序产出逐位一致新生儿
+- **验证**：GTest 630/630（+4：生育黄金序列（新生儿全字段+母亲状态）/父亲死亡清孕期/无到期母亲早退/双母按序生育）· **DiffMonthSettlementTest 场景⑯ 新建对拍**（母亲到期 + partner 互指——新生儿入招募列表逐位一致；新生儿 id 为镜像生成字段（Kotlin UUID vs C++ 占位）diff 排除；黄金值三方闭环：Kotlin 值 == C++ 输出 == GTest 常量）· engine JUnit 2942/2942（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：纯新增 C++ 侧实现 + 对拍场景，生产生育路径仍在 Kotlin；玩家可见行为不变
+
 ### 新增（批 13-4b：弟子创建工厂下沉 C++——DiscipleFactory.create 等价移植）
 
 > 承接批 13-4a（cpp-engine.md §7.5）：弟子创建六段逻辑（方差/悟性资质/技能/基础属性/寿命/三分类特质）等价移植 C++——recruitDisciple/refreshRecruitList/createChild 三构造站点共用逻辑的 C++ 复刻，为月变步骤 4d 生育下沉（批 13-4c）铺路。
