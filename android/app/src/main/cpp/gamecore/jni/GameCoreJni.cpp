@@ -26,7 +26,11 @@
 #include "gamecore/rng/pcg_xsh_rr.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/system/battle.h"
+#include "gamecore/system/battle_ai.h"
 #include "gamecore/system/battle_calculator.h"
+#include "gamecore/system/battle_execution.h"
+#include "gamecore/system/battle_json.h"
+#include "gamecore/system/sect_battle.h"
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
@@ -1065,100 +1069,16 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreExecute(
 namespace {
 
 using gamecore::battle::AffixCombatEffects;
+using gamecore::battle::buffFromJson;
+using gamecore::battle::buffToJson;
+using gamecore::battle::combatantFromJson;
+using gamecore::battle::combatantToJson;
 using gamecore::battle::CombatBuff;
 using gamecore::battle::CombatSkill;
 using gamecore::battle::Combatant;
 using gamecore::battle::PhysiqueCombatFactors;
-
-CombatBuff buffFromJson(const nlohmann::json& j) {
-    CombatBuff b;
-    b.type = gamecore::battle::buffTypeFromName(j.value("type", "HP_BOOST"));
-    b.value = j.value("value", 0.0);
-    b.remainingDuration = j.value("remainingDuration", 0);
-    b.sourceRealm = j.value("sourceRealm", 9);
-    b.sourceRealmLayer = j.value("sourceRealmLayer", 0);
-    return b;
-}
-
-CombatSkill skillFromJson(const nlohmann::json& j) {
-    CombatSkill s;
-    s.name = j.value("name", "");
-    s.skillType = j.value("skillType", "ATTACK") == "SUPPORT"
-        ? gamecore::battle::SkillType::kSupport : gamecore::battle::SkillType::kAttack;
-    s.damageType = j.value("damageType", "PHYSICAL") == "MAGIC"
-        ? gamecore::battle::DamageType::kMagic : gamecore::battle::DamageType::kPhysical;
-    s.damageMultiplier = j.value("damageMultiplier", 1.0);
-    s.mpCost = j.value("mpCost", 0);
-    s.cooldown = j.value("cooldown", 0);
-    s.hits = j.value("hits", 1);
-    s.healPercent = j.value("healPercent", 0.0);
-    s.healFixed = j.value("healFixed", 0);
-    s.healType = j.value("healType", "HP") == "MP"
-        ? gamecore::battle::HealType::kMp : gamecore::battle::HealType::kHp;
-    if (j.contains("buffType") && !j["buffType"].is_null()) {
-        s.buffType = gamecore::battle::buffTypeFromName(j.at("buffType").get<std::string>());
-    }
-    s.buffValue = j.value("buffValue", 0.0);
-    s.buffDuration = j.value("buffDuration", 0);
-    if (j.contains("buffs") && j["buffs"].is_array()) {
-        for (const auto& e : j.at("buffs")) {
-            s.buffs.emplace_back(
-                gamecore::battle::buffTypeFromName(e.value("type", "HP_BOOST")),
-                e.value("value", 0.0), e.value("duration", 0));
-        }
-    }
-    s.currentCooldown = j.value("currentCooldown", 0);
-    s.isAoe = j.value("isAoe", false);
-    s.targetScope = j.value("targetScope", "self");
-    s.shieldPercent = j.value("shieldPercent", 0.0);
-    s.turnAdvancePercent = j.value("turnAdvancePercent", 0.0);
-    s.damageSharePercent = j.value("damageSharePercent", 0.0);
-    s.damageLinkPercent = j.value("damageLinkPercent", 0.0);
-    return s;
-}
-
-Combatant combatantFromJson(const nlohmann::json& j) {
-    Combatant c;
-    c.id = j.value("id", "");
-    c.name = j.value("name", "");
-    c.side = j.value("side", "DEFENDER") == "ATTACKER"
-        ? gamecore::battle::CombatantSide::kAttacker
-        : gamecore::battle::CombatantSide::kDefender;
-    c.hp = j.value("hp", 0);
-    c.maxHp = j.value("maxHp", 0);
-    c.mp = j.value("mp", 0);
-    c.maxMp = j.value("maxMp", 0);
-    c.physicalAttack = j.value("physicalAttack", 0);
-    c.magicAttack = j.value("magicAttack", 0);
-    c.physicalDefense = j.value("physicalDefense", 0);
-    c.magicDefense = j.value("magicDefense", 0);
-    c.speed = j.value("speed", 0);
-    c.critRate = j.value("critRate", 0.05);
-    if (j.contains("skills") && j["skills"].is_array()) {
-        for (const auto& s : j.at("skills")) c.skills.push_back(skillFromJson(s));
-    }
-    if (j.contains("buffs") && j["buffs"].is_array()) {
-        for (const auto& b : j.at("buffs")) c.buffs.push_back(buffFromJson(b));
-    }
-    c.realm = j.value("realm", 9);
-    c.realmLayer = j.value("realmLayer", 0);
-    c.element = j.value("element", "");
-    if (j.contains("physique")) {
-        const auto& p = j.at("physique");
-        c.physique.damageAmplification = p.value("damageAmplification", 0.0);
-        c.physique.critDamageBonus = p.value("critDamageBonus", 0.0);
-        c.physique.damageReduction = p.value("damageReduction", 0.0);
-        c.physique.defenseBonus = p.value("defenseBonus", 0.0);
-    }
-    if (j.contains("affix")) {
-        const auto& a = j.at("affix");
-        c.affix.damageAmplification = a.value("damageAmplification", 0.0);
-        c.affix.critDamageBonus = a.value("critDamageBonus", 0.0);
-        c.affix.damageReduction = a.value("damageReduction", 0.0);
-        c.affix.defenseBonus = a.value("defenseBonus", 0.0);
-    }
-    return c;
-}
+using gamecore::battle::skillFromJson;
+using gamecore::battle::skillToJson;
 
 /// DamageResult → JSON（对拍输出键与 Kotlin DamageResult 字段对应）
 nlohmann::json damageResultToJson(const gamecore::battle::DamageResult& r) {
@@ -1267,6 +1187,80 @@ nlohmann::json execBattleOp(const nlohmann::json& op) {
         const auto skill = skillFromJson(op.at("skill"));
         result["value"] = gamecore::battle::estimateDamage(
             attacker, defender, skill, nullptr, op.value("damageModifier", 1.0));
+    } else if (opName == "decideAction") {
+        // 战斗批次 B：统一战斗 AI 决策（decideAction 8 层级联，g_rng 随机源）
+        const auto unit = combatantFromJson(op.at("unit"));
+        std::vector<Combatant> allies;
+        if (op.contains("allies") && op["allies"].is_array()) {
+            for (const auto& a : op.at("allies")) allies.push_back(combatantFromJson(a));
+        }
+        std::vector<Combatant> enemies;
+        if (op.contains("enemies") && op["enemies"].is_array()) {
+            for (const auto& e : op.at("enemies")) enemies.push_back(combatantFromJson(e));
+        }
+        if (!g_rng) result["error"] = "rng not initialized";
+        else {
+            const auto action = gamecore::battle::decideAction(
+                unit, allies, enemies, *g_rng, op.value("playerDamageModifier", 1.0));
+            result["actionType"] = gamecore::battle::aiActionTypeName(action.actionType);
+            if (action.skill.has_value()) result["skillName"] = action.skill->name;
+            if (action.targetId.has_value()) result["targetId"] = *action.targetId;
+        }
+    } else if (opName == "executeBattle") {
+        // 战斗批次 C：回合编排全链（executeBattle 状态段；日志保持 Kotlin diff 排除）
+        std::vector<Combatant> team;
+        if (op.contains("team") && op["team"].is_array()) {
+            for (const auto& t : op.at("team")) team.push_back(combatantFromJson(t));
+        }
+        std::vector<Combatant> beasts;
+        if (op.contains("beasts") && op["beasts"].is_array()) {
+            for (const auto& b : op.at("beasts")) beasts.push_back(combatantFromJson(b));
+        }
+        if (!g_rng) result["error"] = "rng not initialized";
+        else {
+            gamecore::battle::BattleState state;
+            state.team = std::move(team);
+            state.beasts = std::move(beasts);
+            state.maxTurns = op.value("maxTurns", gamecore::battle::kMaxTurns);
+            const auto out = gamecore::battle::executeBattle(
+                state, op.value("playerDamageModifier", 1.0), *g_rng,
+                op.value("timeoutMs", -1LL), nullptr);
+            result["turn"] = out.turn;
+            result["timedOut"] = out.timedOut;
+            result["winner"] = out.winner == gamecore::battle::BattleWinner::kTeam
+                ? "TEAM"
+                : (out.winner == gamecore::battle::BattleWinner::kBeasts ? "BEASTS" : "DRAW");
+            result["rewards"] = out.rewards;
+            result["rounds"] = gamecore::battle::roundsToJson(out.rounds);
+            result["team"] = nlohmann::json::array();
+            for (const auto& c : out.team) result["team"].push_back(combatantToJson(c));
+            result["beasts"] = nlohmann::json::array();
+            for (const auto& c : out.beasts) result["beasts"].push_back(combatantToJson(c));
+        }
+    } else if (opName == "executeAiBattle") {
+        // 战斗批次 D-3：AI 宗门战第三引擎（executeUnifiedAIBattle 对拍）
+        std::vector<Combatant> attackers;
+        if (op.contains("attackers") && op["attackers"].is_array()) {
+            for (const auto& a : op.at("attackers")) attackers.push_back(combatantFromJson(a));
+        }
+        std::vector<Combatant> defenders;
+        if (op.contains("defenders") && op["defenders"].is_array()) {
+            for (const auto& d : op.at("defenders")) defenders.push_back(combatantFromJson(d));
+        }
+        if (!g_rng) result["error"] = "rng not initialized";
+        else {
+            const auto out = gamecore::battle::executeAiBattle(
+                std::move(attackers), std::move(defenders), *g_rng);
+            result["turns"] = out.turns;
+            result["winner"] = out.winner == gamecore::battle::AiBattleWinner::kAttacker
+                ? "ATTACKER"
+                : (out.winner == gamecore::battle::AiBattleWinner::kDefender ? "DEFENDER" : "DRAW");
+            result["rounds"] = gamecore::battle::roundsToJson(out.rounds);
+            result["attackers"] = nlohmann::json::array();
+            for (const auto& c : out.attackers) result["attackers"].push_back(combatantToJson(c));
+            result["defenders"] = nlohmann::json::array();
+            for (const auto& c : out.defenders) result["defenders"].push_back(combatantToJson(c));
+        }
     } else {
         result["error"] = "unknown op: " + opName;
     }

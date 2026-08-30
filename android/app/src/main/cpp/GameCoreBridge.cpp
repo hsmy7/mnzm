@@ -9,6 +9,9 @@
 #include "gamecore/core/game_config.h"
 #include "gamecore/system/engine_loop.h"
 #include "gamecore/map/road_compositor.h"
+#include "gamecore/system/battle_execution.h"
+#include "gamecore/system/battle_json.h"
+#include "gamecore/system/sect_battle.h"
 
 // ============================================================
 // GameCoreBridge — JNI 实现（Android 专用）
@@ -314,6 +317,130 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativePollEvents(
     JNIEnv* env, jobject /*thiz*/) {
     if (!g_gameCore) return stringToJbytes(env, "[]");
     return stringToJbytes(env, g_gameCore->pollEventsJson());
+}
+
+// ============================================================
+// 战斗执行通道（战斗批次 D：AI 兽战/任务完成生产接线）
+//
+// 输入 op JSON：{"team":[Combatant...], "beasts":[Combatant...],
+//               "playerDamageModifier":1.0, "maxTurns":25, "timeoutMs":-1}
+// 输出：{"turn":N, "timedOut":bool, "winner":"TEAM|BEASTS|DRAW",
+//        "rewards":{...}, "team":[Combatant...], "beasts":[Combatant...]}
+//
+// RNG：消费 GameCore 的 BATTLE 分区（kBattle）——AUTHORITATIVE 下委托式
+// RNG 单一真相源（Kotlin NativeBackedRng 委托同一分区，序列天然一致）。
+// 超时：timeoutMs<0 不检查（生产默认传 -1 由调用方保证轻量战斗）；>0 时
+// 用 Android 单调时钟检查（对齐 Kotlin MAX_BATTLE_DURATION_MS 语义）。
+// ============================================================
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeBattleExecute(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray opJson) {
+    if (!g_gameCore) {
+        return stringToJbytes(env, R"({"error":"GameCore not initialized"})");
+    }
+    try {
+        const std::string input = jbytesToString(env, opJson);
+        const auto op = nlohmann::json::parse(input);
+        std::vector<gamecore::battle::Combatant> team;
+        if (op.contains("team") && op["team"].is_array()) {
+            for (const auto& t : op.at("team")) {
+                team.push_back(gamecore::battle::combatantFromJson(t));
+            }
+        }
+        std::vector<gamecore::battle::Combatant> beasts;
+        if (op.contains("beasts") && op["beasts"].is_array()) {
+            for (const auto& b : op.at("beasts")) {
+                beasts.push_back(gamecore::battle::combatantFromJson(b));
+            }
+        }
+        gamecore::battle::BattleState state;
+        state.team = std::move(team);
+        state.beasts = std::move(beasts);
+        state.maxTurns = op.value("maxTurns", gamecore::battle::kMaxTurns);
+        auto& battleRng = g_gameCore->rng().getRng(gamecore::rng::RngPartition::kBattle);
+        const auto out = gamecore::battle::executeBattle(
+            state, op.value("playerDamageModifier", 1.0), battleRng,
+            op.value("timeoutMs", -1LL), &g_androidMonoClock);
+        nlohmann::json result;
+        result["turn"] = out.turn;
+        result["timedOut"] = out.timedOut;
+        result["winner"] = out.winner == gamecore::battle::BattleWinner::kTeam
+            ? "TEAM"
+            : (out.winner == gamecore::battle::BattleWinner::kBeasts ? "BEASTS" : "DRAW");
+        result["rewards"] = out.rewards;
+        result["rounds"] = gamecore::battle::roundsToJson(out.rounds);
+        result["team"] = nlohmann::json::array();
+        for (const auto& c : out.team) {
+            result["team"].push_back(gamecore::battle::combatantToJson(c));
+        }
+        result["beasts"] = nlohmann::json::array();
+        for (const auto& c : out.beasts) {
+            result["beasts"].push_back(gamecore::battle::combatantToJson(c));
+        }
+        return stringToJbytes(env, result.dump());
+    } catch (const std::exception& e) {
+        nlohmann::json err = {{"error", e.what()}};
+        return stringToJbytes(env, err.dump());
+    }
+}
+
+// ============================================================
+// AI 宗门战执行通道（战斗批次 D-3：洞天 AI 操作生产接线）
+//
+// 输入 op JSON：{"attackers":[Combatant...], "defenders":[Combatant...]}
+// 输出：{"turns":N, "winner":"ATTACKER|DEFENDER|DRAW",
+//        "rounds":[...], "attackers":[Combatant...], "defenders":[Combatant...]}
+//
+// 第三战斗引擎 executeUnifiedAIBattle 等价（sect_battle.h）——AI vs AI
+// 宗门战/洞天 AI 操作 100% 共用；RNG 消费 BATTLE 分区（与主战斗同一分区，
+// 委托式真相源）。失败返回 {"error":"..."}（调用方回退 Kotlin）。
+// ============================================================
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAiBattleExecute(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray opJson) {
+    if (!g_gameCore) {
+        return stringToJbytes(env, R"({"error":"GameCore not initialized"})");
+    }
+    try {
+        const std::string input = jbytesToString(env, opJson);
+        const auto op = nlohmann::json::parse(input);
+        std::vector<gamecore::battle::Combatant> attackers;
+        if (op.contains("attackers") && op["attackers"].is_array()) {
+            for (const auto& a : op.at("attackers")) {
+                attackers.push_back(gamecore::battle::combatantFromJson(a));
+            }
+        }
+        std::vector<gamecore::battle::Combatant> defenders;
+        if (op.contains("defenders") && op["defenders"].is_array()) {
+            for (const auto& d : op.at("defenders")) {
+                defenders.push_back(gamecore::battle::combatantFromJson(d));
+            }
+        }
+        auto& battleRng = g_gameCore->rng().getRng(gamecore::rng::RngPartition::kBattle);
+        const auto out = gamecore::battle::executeAiBattle(
+            std::move(attackers), std::move(defenders), battleRng,
+            -1, &g_androidMonoClock);
+        nlohmann::json result;
+        result["turns"] = out.turns;
+        result["winner"] = out.winner == gamecore::battle::AiBattleWinner::kAttacker
+            ? "ATTACKER"
+            : (out.winner == gamecore::battle::AiBattleWinner::kDefender ? "DEFENDER" : "DRAW");
+        result["rounds"] = gamecore::battle::roundsToJson(out.rounds);
+        result["attackers"] = nlohmann::json::array();
+        for (const auto& c : out.attackers) {
+            result["attackers"].push_back(gamecore::battle::combatantToJson(c));
+        }
+        result["defenders"] = nlohmann::json::array();
+        for (const auto& c : out.defenders) {
+            result["defenders"].push_back(gamecore::battle::combatantToJson(c));
+        }
+        return stringToJbytes(env, result.dump());
+    } catch (const std::exception& e) {
+        nlohmann::json err = {{"error", e.what()}};
+        return stringToJbytes(env, err.dump());
+    }
 }
 
 // ============================================================

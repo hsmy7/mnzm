@@ -1,4 +1,4 @@
-package com.xianxia.sect.core.engine.domain.battle
+﻿package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
@@ -23,6 +23,13 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.nativebridge.GameCoreBridge
+import com.xianxia.sect.core.nativebridge.NativeEngineFlag
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.putJsonArray
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
@@ -343,7 +350,9 @@ object AISectAttackManager {
         val defenseTeam = createDefenseTeam(defenderDisciples)
         val combatDefenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
-        val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
+        // 战斗批次 D-3：AUTHORITATIVE 下经 C++ 第三战斗引擎执行（降级回退 Kotlin）
+        val result = tryExecuteUnifiedNative(combatAttackers, combatDefenders)
+            ?: executeUnifiedAIBattle(combatAttackers, combatDefenders)
 
         val survivorAttackerIds = result.attackers.map { it.id }.toSet()
         val survivorDefenderIds = result.defenders.map { it.id }.toSet()
@@ -835,7 +844,8 @@ object AISectAttackManager {
         )
     }
 
-    private data class UnifiedAIBattleResult(
+    /** AI 宗门战结果（executeUnifiedAIBattle 返回；internal 供批次 D-3 对拍） */
+    internal data class UnifiedAIBattleResult(
         val attackers: List<Combatant>,
         val defenders: List<Combatant>,
         val winner: AIBattleWinner,
@@ -892,7 +902,76 @@ object AISectAttackManager {
         }
     }
 
-    private fun executeUnifiedAIBattle(
+    /**
+     * 战斗批次 D-3：AUTHORITATIVE 下经 C++ 第三战斗引擎执行 AI 宗门战
+     * （sect_battle.h executeUnifiedAIBattle 等价）。降级契约：flag 关 /
+     * native 未加载 / 失败信封 → null，调用方回退 Kotlin。
+     */
+    @Suppress("ReturnCount")  // 多 return 为降级契约（flag 关/native 不可用/失败信封逐级返回）
+    private fun tryExecuteUnifiedNative(
+        combatAttackers: List<Combatant>,
+        combatDefenders: List<Combatant>
+    ): UnifiedAIBattleResult? {
+        if (!NativeEngineFlag.authoritative) return null
+        if (!GameCoreBridge.isLoaded) return null
+        val op = buildJsonObject {
+            putJsonArray("attackers") { combatAttackers.forEach { add(BattleJsonCodec.combatantJson(it)) } }
+            putJsonArray("defenders") { combatDefenders.forEach { add(BattleJsonCodec.combatantJson(it)) } }
+        }
+        val out = Json.parseToJsonElement(
+            GameCoreBridge.nativeAiBattleExecute(op.toString().encodeToByteArray()).decodeToString()
+        ).jsonObject
+        if (out.containsKey("error")) return null
+
+        val winner = when (out["winner"]?.jsonPrimitive?.content) {
+            "ATTACKER" -> AIBattleWinner.ATTACKER
+            "DEFENDER" -> AIBattleWinner.DEFENDER
+            else -> AIBattleWinner.DRAW
+        }
+        val turns = out["turns"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+        val attackers = (out["attackers"] as? kotlinx.serialization.json.JsonArray)
+            ?.map { BattleJsonCodec.combatantFromJson(it.jsonObject) } ?: emptyList()
+        val defenders = (out["defenders"] as? kotlinx.serialization.json.JsonArray)
+            ?.map { BattleJsonCodec.combatantFromJson(it.jsonObject) } ?: emptyList()
+        return UnifiedAIBattleResult(
+            attackers = attackers,
+            defenders = defenders,
+            winner = winner,
+            turns = turns,
+            rounds = rebuildAiRounds(out)
+        )
+    }
+
+    /** C++ rounds JSON → Kotlin BattleLogRound 列表（确定性动作重建）。 */
+    private fun rebuildAiRounds(out: kotlinx.serialization.json.JsonObject): List<BattleLogRound> =
+        (out["rounds"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull { rj ->
+            val r = rj.jsonObject
+            val actions = (r["actions"] as? kotlinx.serialization.json.JsonArray)
+                ?.mapNotNull { aj ->
+                    val o = aj.jsonObject
+                    BattleLogAction(
+                        type = o["type"]?.jsonPrimitive?.content ?: return@mapNotNull null,
+                        attacker = o["attacker"]?.jsonPrimitive?.content ?: "",
+                        attackerType = o["attackerType"]?.jsonPrimitive?.content ?: "",
+                        target = o["target"]?.jsonPrimitive?.content ?: "",
+                        damage = o["damage"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                        isCrit = o["isCrit"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false,
+                        isKill = o["isKill"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: false,
+                        message = "",
+                        skillName = o["skillName"]?.jsonPrimitive?.content
+                    )
+                } ?: emptyList()
+            BattleLogRound(
+                roundNumber = r["roundNumber"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0,
+                actions = actions
+            )
+        } ?: emptyList()
+
+    /**
+     * AI 宗门战核心（第三战斗引擎；批次 D-3 对拍入口——internal 供
+     * DiffSectBattleTest 同模块访问，生产私有路由经 executeSectBattleCore）。
+     */
+    internal fun executeUnifiedAIBattle(
         attackers: List<Combatant>,
         defenders: List<Combatant>
     ): UnifiedAIBattleResult {

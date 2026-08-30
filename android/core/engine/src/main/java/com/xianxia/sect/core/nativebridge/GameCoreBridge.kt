@@ -112,6 +112,33 @@ object GameCoreBridge {
      */
     external fun nativeExecute(actionId: Int, paramsJson: ByteArray, nowMs: Long): ByteArray
 
+    /**
+     * 战斗执行通道（战斗批次 D：AI 兽战/任务完成生产接线）。
+     *
+     * 输入 op JSON 字节：`{"team":[Combatant...], "beasts":[Combatant...],
+     * "playerDamageModifier":1.0, "maxTurns":25, "timeoutMs":-1}`；
+     * 输出：`{"turn":N, "timedOut":bool, "winner":"TEAM|BEASTS|DRAW",
+     * "rewards":{...}, "team":[Combatant...], "beasts":[Combatant...]}`。
+     *
+     * RNG：C++ 侧消费 BATTLE 分区（kBattle）——AUTHORITATIVE 下委托式 RNG
+     * 单一真相源，与 Kotlin NativeBackedRng 委托同一分区，序列天然一致。
+     * 失败返回 `{"error":"..."}`（调用方回退 Kotlin 战斗执行）。
+     */
+    external fun nativeBattleExecute(opJson: ByteArray): ByteArray
+
+    /**
+     * AI 宗门战执行通道（战斗批次 D-3：洞天 AI 操作生产接线）。
+     *
+     * 输入 op JSON 字节：`{"attackers":[Combatant...], "defenders":[Combatant...]}`；
+     * 输出：`{"turns":N, "winner":"ATTACKER|DEFENDER|DRAW",
+     * "rounds":[...], "attackers":[Combatant...], "defenders":[Combatant...]}`。
+     *
+     * 第三战斗引擎 executeUnifiedAIBattle 等价（sect_battle.h）——AI vs AI
+     * 宗门战/洞天 AI 操作 100% 共用；RNG 消费 BATTLE 分区（委托式真相源）。
+     * 失败返回 `{"error":"..."}`（调用方回退 Kotlin）。
+     */
+    external fun nativeAiBattleExecute(opJson: ByteArray): ByteArray
+
     // ============================================================
     // 状态快照
     // ============================================================

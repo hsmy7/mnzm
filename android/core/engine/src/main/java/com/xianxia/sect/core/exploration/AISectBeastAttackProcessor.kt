@@ -4,6 +4,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.domain.battle.EncounterBattleService
@@ -254,7 +255,9 @@ class AISectBeastAttackProcessor @Inject constructor(
             beasts = teamBCombatants,
             maxTurns = GameConfig.Battle.MAX_TURNS
         )
-        val pvpResult = battleSystem.executeBattle(pvpBattle)
+        // 战斗批次 D：AUTHORITATIVE 下经 C++ 战斗引擎执行（降级回退 Kotlin）
+        val pvpResult = BattleExecutionRouter.tryExecuteNative(pvpBattle)
+            ?: battleSystem.executeBattle(pvpBattle)
 
         val teamADead = pvpResult.battle.team.filter { it.isDead }.map { it.id }.toSet()
         val teamBDead = pvpResult.battle.beasts.filter { it.isDead }.map { it.id }.toSet()
@@ -306,7 +309,8 @@ class AISectBeastAttackProcessor @Inject constructor(
         year: Int
     ) {
         val beastBattle = createAIBattle(winnerDisciples, beast)
-        val beastResult = battleSystem.executeBattle(beastBattle)
+        val beastResult = BattleExecutionRouter.tryExecuteNative(beastBattle)
+            ?: battleSystem.executeBattle(beastBattle)
 
         if (beastResult.victory) {
             markBeastDefeated(state, beast.id)
@@ -336,7 +340,8 @@ class AISectBeastAttackProcessor @Inject constructor(
         if (disciples.isEmpty()) return
 
         val battle = createAIBattle(disciples, beast)
-        val result = battleSystem.executeBattle(battle)
+        val result = BattleExecutionRouter.tryExecuteNative(battle)
+            ?: battleSystem.executeBattle(battle)
 
         if (result.victory) {
             markBeastDefeated(state, beast.id)

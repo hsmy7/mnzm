@@ -123,6 +123,39 @@ inline BuffType buffTypeFromName(const std::string& name) {
     return it == kMap.end() ? BuffType::kHpBoost : it->second;
 }
 
+/// BuffType → name 字符串（对拍 JSON 输出，Kotlin 枚举 name 对应）
+inline std::string buffTypeName(BuffType t) {
+    switch (t) {
+        case BuffType::kHpBoost: return "HP_BOOST";
+        case BuffType::kMpBoost: return "MP_BOOST";
+        case BuffType::kSpeedBoost: return "SPEED_BOOST";
+        case BuffType::kPhysicalAttackBoost: return "PHYSICAL_ATTACK_BOOST";
+        case BuffType::kMagicAttackBoost: return "MAGIC_ATTACK_BOOST";
+        case BuffType::kPhysicalDefenseBoost: return "PHYSICAL_DEFENSE_BOOST";
+        case BuffType::kMagicDefenseBoost: return "MAGIC_DEFENSE_BOOST";
+        case BuffType::kCritRateBoost: return "CRIT_RATE_BOOST";
+        case BuffType::kPhysicalAttackReduce: return "PHYSICAL_ATTACK_REDUCE";
+        case BuffType::kMagicAttackReduce: return "MAGIC_ATTACK_REDUCE";
+        case BuffType::kPhysicalDefenseReduce: return "PHYSICAL_DEFENSE_REDUCE";
+        case BuffType::kMagicDefenseReduce: return "MAGIC_DEFENSE_REDUCE";
+        case BuffType::kSpeedReduce: return "SPEED_REDUCE";
+        case BuffType::kCritRateReduce: return "CRIT_RATE_REDUCE";
+        case BuffType::kPoison: return "POISON";
+        case BuffType::kBurn: return "BURN";
+        case BuffType::kStun: return "STUN";
+        case BuffType::kFreeze: return "FREEZE";
+        case BuffType::kSilence: return "SILENCE";
+        case BuffType::kTaunt: return "TAUNT";
+        case BuffType::kDamageBoost: return "DAMAGE_BOOST";
+        case BuffType::kDamageReduction: return "DAMAGE_REDUCTION";
+        case BuffType::kShield: return "SHIELD";
+        case BuffType::kDamageShare: return "DAMAGE_SHARE";
+        case BuffType::kDamageLink: return "DAMAGE_LINK";
+        case BuffType::kTurnAdvance: return "TURN_ADVANCE";
+    }
+    return "HP_BOOST";
+}
+
 /// isDebuff（Kotlin BuffType.isDebuff 集合）
 inline bool isDebuff(BuffType t) {
     switch (t) {
@@ -225,6 +258,7 @@ struct Combatant {
     int32_t realm = 9;
     int32_t realmLayer = 0;
     std::string element;
+    bool isBeast = false;
     PhysiqueCombatFactors physique;
     AffixCombatEffects affix;
 

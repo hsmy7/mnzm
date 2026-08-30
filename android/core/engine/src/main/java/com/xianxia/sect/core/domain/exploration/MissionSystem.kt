@@ -14,6 +14,7 @@ import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.MissionType
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleExecutionRouter
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.EnemyGenerator
@@ -559,7 +560,9 @@ object MissionSystem {
                     manualProficiencies = manualProficiencies,
                     bloodRefinementMap = bloodRefinementMap
                 )
-                battleSystem.executeBattle(battle)
+                // 战斗批次 D-2：AUTHORITATIVE 下经 C++ 战斗引擎执行（降级回退 Kotlin）
+                BattleExecutionRouter.tryExecuteNative(battle)
+                    ?: battleSystem.executeBattle(battle)
             }
             EnemyType.HUMAN -> {
                 val humanCount = activeMission.template.humanCountRange.first + rng.nextInt(
@@ -580,7 +583,9 @@ object MissionSystem {
                     isFinished = false,
                     winner = null
                 )
-                battleSystem.executeBattle(battle)
+                // 战斗批次 D-2：AUTHORITATIVE 下经 C++ 战斗引擎执行（降级回退 Kotlin）
+                BattleExecutionRouter.tryExecuteNative(battle)
+                    ?: battleSystem.executeBattle(battle)
             }
         }
     }
