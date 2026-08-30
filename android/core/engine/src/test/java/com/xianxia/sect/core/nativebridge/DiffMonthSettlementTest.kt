@@ -21,6 +21,7 @@ import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
 import com.xianxia.sect.core.engine.service.RelativeGiftHandler
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmAIProcessor
+import com.xianxia.sect.core.engine.service.DisciplePurchaseService
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.engine.system.PartnerSystem
@@ -35,8 +36,10 @@ import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.UsageTracking
@@ -332,6 +335,122 @@ class DiffMonthSettlementTest {
         )
     }
 
+    /**
+     * 场景⑪（批 12-1）：弟子智能购买——(1,1,上旬) 起 3 旬跨 1→2 月界，
+     * 月结时子事件 12 触发。上架已知模板（精铁剑/聚气丹，模板路径确定性
+     * 回退散列选池）、仓库有货、弟子有灵石 → 决策 + 扣仓库 + 入袋 +
+     * 灵石（先袋后身）+ 宗门入账。SYSTEM 分区 shuffled（单元素洗牌零
+     * 消费——决策集各 1 名候选，规避 RNG 序列跨语言对拍风险）。
+     */
+    private fun buildPurchaseSnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 0L
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            // 上架商品（玩家卖出后进 playerListedItems；itemId 指向仓库堆叠）
+            playerListedItems = listOf(
+                MerchantItem(
+                    id = "list-e1", name = "精铁剑", type = "equipment",
+                    itemId = "wh-e1", rarity = 1, price = 100, quantity = 1
+                ),
+                MerchantItem(
+                    id = "list-p1", name = "聚气丹", type = "pill",
+                    itemId = "wh-p1", rarity = 1, price = 50, quantity = 1,
+                    grade = "中品"
+                )
+            )
+            // 非空 AI 弟子池（规避空表协议不对称）
+            aiSectDisciples = mapOf(
+                "ai-1" to listOf(
+                    Disciple(
+                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
+                        cultivation = 10.0, spiritRootType = "metal",
+                        age = 20, gender = "male",
+                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
+                    )
+                )
+            )
+        }
+        // 仓库库存 + 弟子（批 12-1：购买候选有灵石）
+        val equipmentStacks = purchaseEquipmentStacks()
+        val pills = purchasePills()
+        val disciples = purchaseDisciples()
+        return NativeGameState(
+            gameData = gameData,
+            aiSectDisciples = gameData.aiSectDisciples,
+            disciples = disciples,
+            equipmentStacks = equipmentStacks,
+            pills = pills
+        )
+    }
+
+    /** 购买场景仓库装备堆叠（精铁剑 ×1 未锁定） */
+    private fun purchaseEquipmentStacks(): List<EquipmentStack> = listOf(
+        EquipmentStack(
+            id = "wh-e1", name = "精铁剑", rarity = 1, quantity = 1,
+            slot = com.xianxia.sect.core.model.EquipmentSlot.WEAPON,
+            minRealm = 9
+        )
+    )
+
+    /** 购买场景仓库丹药（聚气丹 ×1 未锁定） */
+    private fun purchasePills(): List<com.xianxia.sect.core.model.Pill> = listOf(
+        com.xianxia.sect.core.model.Pill(
+            id = "wh-p1", name = "聚气丹", rarity = 1, quantity = 1,
+            grade = PillGrade.MEDIUM
+        )
+    )
+
+    /** 购买场景弟子：2 名成年练气弟子，随身/储物袋灵石充足 */
+    private fun purchaseDisciples(): List<Disciple> = listOf(
+        pairingDisciple("11", "甲一", "male").copy(
+            equipment = pairingDisciple("11", "甲一", "male").equipment.copy(
+                spiritStones = 1000
+            )
+        ),
+        pairingDisciple("12", "甲二", "male").copy(
+            equipment = pairingDisciple("12", "甲二", "male").equipment.copy(
+                storageBagSpiritStones = 600
+            )
+        )
+    )
+
+    @Test
+    fun `purchase settlement matches Kotlin bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+
+        val snapshot = buildPurchaseSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        val expected = advanceKotlinSide(snapshot, PHASES)
+
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+
+        // 场景⑪ 显式断言：购买发生（仓库扣减 + 入袋 + 弟子灵石扣减 +
+        // 宗门灵石入账）——精铁剑 100 + 聚气丹 50 = 150 入宗门
+        assertEquals("购买后宗门灵石应为 150", 150L, actual.gameData.spiritStones)
+        assertEquals("精铁剑堆叠应被扣减", 0, actual.equipmentStacks.size)
+        assertEquals("聚气丹堆叠应被扣减", 0, actual.pills.size)
+        val buyer = actual.disciples.first { d ->
+            d.equipment.storageBagItems.isNotEmpty() ||
+                d.equipment.spiritStones < 1000 ||
+                d.equipment.storageBagSpiritStones < 600
+        }
+        assertTrue("至少一名弟子应购买入袋", buyer.equipment.storageBagItems.isNotEmpty())
+
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
+
     @Test
     fun `december settlement triggers autoBuy matching Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
@@ -498,6 +617,7 @@ class DiffMonthSettlementTest {
     }
 
     /** 真实 CultivationEventProcessor + 定向惰性依赖（论证见 t2-2-report.md §A） */
+    @Suppress("LongMethod")  // 测试装配：按 27 个构造参数逐个传参，行数随依赖面自然增长
     private fun buildEventProcessor(
         store: FakeGameStateStore,
         core: CultivationCore,
@@ -553,7 +673,14 @@ class DiffMonthSettlementTest {
                 spiritStoneWallet = wallet,
                 rngManager = gameRng
             ),
-            disciplePurchaseService = mockSmart(),
+            // 批 12-1：真实弟子智能购买（购买流对拍主体——场景⑪ playerListedItems
+            // 非空 + 仓库有货 + 弟子有灵石）
+            disciplePurchaseService = DisciplePurchaseService(
+                stateStore = store,
+                inventorySystem = inventorySystem,
+                inventoryConfig = inventoryConfig,
+                rngManager = gameRng
+            ),
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
             // 批 10-2：真实执法堂处理器（叛逃流对拍主体）——lifecycle 用 mock：
             // 逃脱路径的 11 槽清理在场景中恒等（叛逃候选无任何槽位引用）
@@ -568,7 +695,10 @@ class DiffMonthSettlementTest {
             // 批 11-2：真实秘境 AI 派遣处理器（纯数据变换零 RNG——秘境存在 +
             // 有存活 AI 弟子 → 逐月派遣队伍，幂等去重）
             secretRealmAIProcessor = SecretRealmAIProcessor(),
-            deathHandler = mockSmart()
+            deathHandler = mockSmart(),
+            // 批 12（S-10/S-13）：真实配置 provider（GameConfigNativeBridge
+            // register 时 isLoaded=false 安全跳过）
+            gameConfigProvider = configProvider
         )
     }
 
@@ -627,6 +757,16 @@ class DiffMonthSettlementTest {
         val store = FakeGameStateStore().also {
             it.gameDataValue = snapshot.gameData
             it.disciplesValue = snapshot.disciples
+            // 批 12-1：仓库库存灌入（弟子购买 hasWarehouseStock 依赖）
+            it.equipmentStacksValue = snapshot.equipmentStacks
+            it.equipmentInstancesValue = snapshot.equipmentInstances
+            it.manualStacksValue = snapshot.manualStacks
+            it.manualInstancesValue = snapshot.manualInstances
+            it.pillsValue = snapshot.pills
+            it.materialsValue = snapshot.materials
+            it.herbsValue = snapshot.herbs
+            it.seedsValue = snapshot.seeds
+            it.storageBagsValue = snapshot.storageBags
         }
         val serviceAndRng = buildService(store, snapshot.gameData.rngStates)
         val service = serviceAndRng.first
@@ -842,8 +982,9 @@ class DiffMonthSettlementTest {
     /**
      * diff 面排除的镜像生成/边界字段：
      * - timestamp：现实墙钟（Clock 注入边界）
-     * - availableMissions：任务刷新（S8#14）为 Kotlin 非托管 RNG（nanoTime）
-     *   生成——任务批次边界 S-19
+     * - 任务 id（批 12-2）：Mission.id 为镜像生成（C++ 确定性自增 vs Kotlin
+     *   UUID，语义等价仅保证唯一）；任务内容（template/rewards/difficulty）
+     *   双端一致参与对拍——S-19 清偿后 MISSION(8) 分区双端消费对齐
      * - 库存集合 + 年度 by-source：InventorySystem 嵌套 update 写入
      *   （FakeGameStateStore 嵌套事务不回写外层 buffer——S-14 committed 读
      *   口径差家族），Kotlin-Fake 臂丢失，C++ 侧 GTest 黄金守护（603/603
@@ -852,11 +993,8 @@ class DiffMonthSettlementTest {
      *   仅保证唯一——inventory.h generateNewId 同款契约）
      */
     private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
-        k == "timestamp" || k == "availableMissions" -> true
-        // 批 11-4（S-19）：任务刷新（S8#14）为 Kotlin 侧唯一消费 MISSION(8) 分区的
-        // 路径——C++ 任务逻辑未下沉，12 月对拍 rngStates 8 号键失配；任务批次
-        // 下沉后双端消费对齐，本特判移除
-        k == "8" && path.contains("rngStates") -> true
+        k == "timestamp" -> true
+        k == "id" && path.contains("availableMissions") -> true
         k == "id" && isMirrorIdPath(path) -> true
         else -> false
     }

@@ -270,7 +270,8 @@ class DiffAuthoritativeTickTest {
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
             lawEnforcementProcessor = mockSmart<LawEnforcementProcessor>(),
             rngManager = gameRng, secretRealmService = mockSmart(),
-            secretRealmAIProcessor = mockSmart(), deathHandler = mockSmart()
+            secretRealmAIProcessor = mockSmart(), deathHandler = mockSmart(),
+            gameConfigProvider = configProvider
         )
         val service = CultivationService(
             stateStore = store, cultivationCore = core, breakthroughHandler = handler,

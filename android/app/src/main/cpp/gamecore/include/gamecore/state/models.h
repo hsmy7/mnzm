@@ -652,6 +652,104 @@ struct AutoBuyEntry {
     int32_t rarity = 0;
 };
 
+// ── 任务域模型（批 12-2：S8 子事件 14 任务刷新下沉） ──────────────
+// 枚举按 name-string 约定承载（Kotlin @Serializable 枚举经 kotlinx JSON
+// 序列化为 name），与 EquipmentSlot 等既有枚举约定一致。
+
+/// MissionDifficulty（任务难度；name-string）
+struct MissionDifficulty {
+    static constexpr const char* kSimple = "SIMPLE";
+    static constexpr const char* kNormal = "NORMAL";
+    static constexpr const char* kHard = "HARD";
+    static constexpr const char* kForbidden = "FORBIDDEN";
+};
+
+/// MissionType（任务类型；name-string）
+struct MissionTypeName {
+    static constexpr const char* kNoCombat = "NO_COMBAT";
+    static constexpr const char* kCombatRequired = "COMBAT_REQUIRED";
+    static constexpr const char* kCombatRandom = "COMBAT_RANDOM";
+};
+
+/// EnemyType（敌人类型；name-string）
+struct EnemyTypeName {
+    static constexpr const char* kBeast = "BEAST";
+    static constexpr const char* kHuman = "HUMAN";
+};
+
+/// MissionTemplate（24 个任务模板枚举；name-string，对应 Kotlin MissionTemplate）
+struct MissionTemplateName {
+    // 低阶（SIMPLE）
+    static constexpr const char* kEscortCaravan = "ESCORT_CARAVAN";
+    static constexpr const char* kPatrolTerritory = "PATROL_TERRITORY";
+    static constexpr const char* kDeliverSupplies = "DELIVER_SUPPLIES";
+    static constexpr const char* kSuppressLowBeasts = "SUPPRESS_LOW_BEASTS";
+    static constexpr const char* kClearBandits = "CLEAR_BANDITS";
+    static constexpr const char* kExploreAbandonedMine = "EXPLORE_ABANDONED_MINE";
+    // 中阶（NORMAL）
+    static constexpr const char* kEscortSpiritCaravan = "ESCORT_SPIRIT_CARAVAN";
+    static constexpr const char* kInvestigateAnomaly = "INVESTIGATE_ANOMALY";
+    static constexpr const char* kDeliverPills = "DELIVER_PILLS";
+    static constexpr const char* kSuppressJindanBeasts = "SUPPRESS_JINDAN_BEASTS";
+    static constexpr const char* kDestroyMagicOutpost = "DESTROY_MAGIC_OUTPOST";
+    static constexpr const char* kExploreAncientCave = "EXPLORE_ANCIENT_CAVE";
+    // 高阶（HARD）
+    static constexpr const char* kEscortImmortalEnvoy = "ESCORT_IMMORTAL_ENVOY";
+    static constexpr const char* kRepairAncientFormation = "REPAIR_ANCIENT_FORMATION";
+    static constexpr const char* kSearchMissingElder = "SEARCH_MISSING_ELDER";
+    static constexpr const char* kSuppressHuashenBeastKing = "SUPPRESS_HUASHEN_BEAST_KING";
+    static constexpr const char* kDestroyMagicBranch = "DESTROY_MAGIC_BRANCH";
+    static constexpr const char* kExploreAncientBattlefield = "EXPLORE_ANCIENT_BATTLEFIELD";
+    // 顶阶（FORBIDDEN）
+    static constexpr const char* kEscortRelicArtifact = "ESCORT_RELIC_ARTIFACT";
+    static constexpr const char* kSealSpatialRift = "SEAL_SPATIAL_RIFT";
+    static constexpr const char* kSearchSecretRealmClue = "SEARCH_SECRET_REALM_CLUE";
+    static constexpr const char* kSuppressAncientFiend = "SUPPRESS_ANCIENT_FIEND";
+    static constexpr const char* kDestroyMagicHeadquarters = "DESTROY_MAGIC_HEADQUARTERS";
+    static constexpr const char* kExploreCoreBattlefield = "EXPLORE_CORE_BATTLEFIELD";
+};
+
+/// MissionRewardConfig（任务奖励配置；Kotlin MissionRewardConfig 21 字段）
+struct MissionRewardConfig {
+    int32_t spiritStones = 0;
+    int32_t spiritStonesMax = 0;
+    int32_t materialCountMin = 0;
+    int32_t materialCountMax = 0;
+    int32_t materialMinRarity = 1;
+    int32_t materialMaxRarity = 2;
+    int32_t pillCountMin = 0;
+    int32_t pillCountMax = 0;
+    int32_t pillMinRarity = 1;
+    int32_t pillMaxRarity = 1;
+    double equipmentChance = 0.0;
+    int32_t equipmentMinRarity = 1;
+    int32_t equipmentMaxRarity = 1;
+    double manualChance = 0.0;
+    int32_t manualMinRarity = 1;
+    int32_t manualMaxRarity = 1;
+    int32_t baseSpiritStones = 0;
+    int32_t baseMaterialCountMin = 0;
+    int32_t baseMaterialCountMax = 0;
+    int32_t baseMaterialMinRarity = 1;
+    int32_t baseMaterialMaxRarity = 1;
+};
+
+/// Mission（任务；Kotlin Mission @Serializable 全字段）
+struct Mission {
+    std::string id;
+    std::string template_;       // MissionTemplate.name（template 为 C++ 关键字，用 template_）
+    std::string name;
+    std::string description;
+    std::string difficulty;      // MissionDifficulty.name
+    int32_t duration = 0;
+    MissionRewardConfig rewards;
+    std::string missionType;     // MissionType.name
+    std::string enemyType;       // EnemyType.name
+    double triggerChance = 0.0;
+    int32_t createdYear = 1;
+    int32_t createdMonth = 1;
+};
+
 /// Alliance（结盟关系）
 struct Alliance {
     std::string id;
@@ -1228,6 +1326,8 @@ struct GameData {
     std::vector<WarehouseGarrisonSlot> warehouseGarrisons;
     std::vector<CaveExplorationTeam> caveExplorationTeams;
     std::vector<ActiveMissionLite> activeMissions;
+    // ── 批 12-2：任务域（S8 子事件 14 任务刷新下沉） ──
+    std::vector<Mission> availableMissions;   // Kotlin GameData.availableMissions
 };
 
 }  // namespace gamecore::state

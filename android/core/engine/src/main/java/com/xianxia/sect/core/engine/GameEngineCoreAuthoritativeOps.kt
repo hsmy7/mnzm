@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.GameCoreRngChannel
@@ -110,6 +111,9 @@ internal fun GameEngineCore.ensureAuthoritativeNative(): Boolean {
             )
             if (!initialized) return false
             gameRngManager.attachNativeChannel(GameCoreRngChannel)
+            // 批 12（S-10/S-13 清偿）：native 初始化完成后补注运行时配置
+            // （CultivationEventProcessor 构造时 native 可能未加载——此处幂等补注）
+            GameConfigNativeBridge.ensureInjected()
             if (!stateSyncServiceRef.importToNative()) return false
             // 阶段 5：引擎循环时钟基准启动（防 PhaseClock 残留 lastWallMs 造成
             // 首帧巨量 delta → 追补上限截断丢时间）

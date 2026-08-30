@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import com.xianxia.sect.core.engine.mockSmart
@@ -204,7 +206,8 @@ class CultivationEventMonthlyOpsTest {
             rngManager = mockSmart(),
             secretRealmService = secretRealmService,
             secretRealmAIProcessor = mockSmart(),
-            deathHandler = mockSmart()
+            deathHandler = mockSmart(),
+            gameConfigProvider = GameConfigProvider(ConfigLoader({ null }))
         )
         return ProcessorHarness(
             processor, vassalService, recruitService, merchantAndRecruitService,

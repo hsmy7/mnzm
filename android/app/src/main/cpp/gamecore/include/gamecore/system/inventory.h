@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "gamecore/core/game_config.h"
 #include "gamecore/state/models.h"
 
 // ============================================================
@@ -474,23 +475,21 @@ private:
 
 // ── 仓库容量（Kotlin GameConfig.Warehouse + computeMaxSlots 等价）──
 
-/// 仓库基础容量（GameConfig.Warehouse.BASE_CAPACITY 默认值）
-constexpr int32_t kWarehouseBaseCapacity = 50;
-/// 每栋仓库建筑增加容量（CAPACITY_PER_BUILDING 默认值）
-constexpr int32_t kWarehouseCapacityPerBuilding = 75;
-
 /// Int 回绕加法（Kotlin Int 溢出回绕语义；文档第 4 节确定性保真）
 inline int32_t wrapAdd(int32_t a, int32_t b) {
     return static_cast<int32_t>(static_cast<uint32_t>(a) + static_cast<uint32_t>(b));
 }
 
-/// 计算最大槽位数（placedBuildings 中 displayName == "仓库" 计数）
+/// 计算最大槽位数（placedBuildings 中 displayName == "仓库" 计数；
+/// S-10 清偿：容量来自注入配置 gameConfig()，默认值与 game_config.json 一致）
 inline int32_t computeMaxSlots(const state::GameState& state) {
+    const auto& cfg = gamecore::gameConfig();
     int32_t warehouseCount = 0;
     for (const auto& b : state.gameData.placedBuildings) {
         if (b.displayName == "仓库") warehouseCount++;
     }
-    return kWarehouseBaseCapacity + warehouseCount * kWarehouseCapacityPerBuilding;
+    return cfg.warehouseBaseCapacity +
+           warehouseCount * cfg.warehouseCapacityPerBuilding;
 }
 
 /// 当前已用槽位数（equipmentStacks + manualStacks + pills + materials + herbs + seeds）
@@ -653,7 +652,15 @@ inline void sortWarehouse(state::GameState& state) {
 template <typename T>
 inline InventoryResult<T> validateStackableItem(const T& item) {
     InventoryResult<T> r;
-    if (item.name.empty()) {
+    // S-11 清偿（批 12 顺带）：Kotlin 用 name.isBlank()（空串或全空白）——
+    // 原实现 name.empty() 仅拒空串，纯空白名会漏过（语义差异登记见
+    // docs/cpp-engine.md §8 S-11）
+    const bool blank = std::all_of(item.name.begin(), item.name.end(),
+        [](unsigned char c) {
+            return c == ' ' || c == '\t' || c == '\n' ||
+                   c == '\r' || c == '\f' || c == '\v';
+        });
+    if (item.name.empty() || blank) {
         r.status = InventoryStatus::kFailure;
         r.error.type = InventoryErrorType::kInvalidName;
         return r;

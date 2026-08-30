@@ -350,7 +350,8 @@ class DiffPhaseSettlementTest {
             rngManager = gameRng,
             secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(),
-            deathHandler = mockSmart()
+            deathHandler = mockSmart(),
+            gameConfigProvider = GameConfigProvider(ConfigLoader({ null }))
         )
     }
 

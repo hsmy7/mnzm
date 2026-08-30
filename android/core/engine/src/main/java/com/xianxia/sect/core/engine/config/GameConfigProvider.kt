@@ -54,6 +54,24 @@ class GameConfigProvider @Inject constructor(
         val capacityPerBuilding: Int get() = s.capacityPerBuilding
     }
 
+    /** 执法堂配置（S-13 清偿：注入 C++ 消除双端漂移） */
+    val lawEnforcement: LawEnforcementConfig get() = LawEnforcementConfig(config.lawEnforcement)
+
+    class LawEnforcementConfig(private val s: GameConfigData.LawEnforcementSection) {
+        val loyaltyThreshold: Int get() = s.loyaltyThreshold
+        val moralityThreshold: Int get() = s.moralityThreshold
+        val herdLoyaltyThreshold: Int get() = s.herdLoyaltyThreshold
+        val probPerPoint: Double get() = s.probPerPoint
+        val maxProb: Double get() = s.maxProb
+        val baseCaptureRate: Double get() = s.baseCaptureRate
+        val intelligenceBase: Int get() = s.intelligenceBase
+        val elderBonusPerPoint: Double get() = s.elderBonusPerPoint
+        val discipleIntelligenceStep: Int get() = s.discipleIntelligenceStep
+        val discipleBonusPerStep: Double get() = s.discipleBonusPerStep
+        val reflectionYears: Int get() = s.reflectionYears
+        val newDiscipleProtectionMonths: Int get() = s.newDiscipleProtectionMonths
+    }
+
     companion object {
         private const val TAG = "GameConfigProvider"
     }

@@ -28,6 +28,8 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
@@ -78,12 +80,16 @@ class CultivationEventProcessor @Inject constructor(
     internal val rngManager: GameRngManager,
     internal val secretRealmService: SecretRealmService,
     internal val secretRealmAIProcessor: SecretRealmAIProcessor,
-    internal val deathHandler: DiscipleDeathHandler
+    internal val deathHandler: DiscipleDeathHandler,
+    internal val gameConfigProvider: GameConfigProvider
 ) {
     init {
         // 批 11-4（S-19 清偿）：任务系统 RNG 收敛于 GameRngManager.MISSION 分区——
         // 本服务为唯一月变/任务编排入口（@Singleton），构造时幂等注入
         MissionSystem.initialize(rngManager)
+        // 批 12（S-10/S-13 清偿）：运行时配置注入 C++（注册 Provider + native
+        // 已加载则立即注入；未加载时由 ensureAuthoritativeNative 补注——双点幂等）
+        GameConfigNativeBridge.register(gameConfigProvider)
     }
 
     private val scope get() = scopeProvider.scope

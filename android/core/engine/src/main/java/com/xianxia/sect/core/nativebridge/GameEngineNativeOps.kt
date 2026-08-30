@@ -39,13 +39,17 @@ object GameEngineNativeOps {
     /**
      * 尝试经 C++ 执行动作并镜像结果。
      *
-     * @param stateSyncService 镜像服务（成功执行后把 C++ 状态宽松合并回 Kotlin）
+     * @param stateSyncService 镜像服务（成功执行后把 C++ 状态宽松合并回 Kotlin）；
+     *        可空——S-12 清偿（登记见 docs/cpp-engine.md §8）：原非空参数的内在
+     *        null 检查在函数入口（早于 flag/isLoaded 早退）即触发，测试 mock 未
+     *        stub `stateSyncServiceRef` 时返回 null 必触 NPE；改可空 + 内部守卫，
+     *        镜像服务缺失时正常降级（不阻塞 flag 关闭/未加载的既有降级路径）
      * @return 成功时返回 C++ 结果 JSON 的 data 字段；flag 关闭/native 不可用/
      *         执行失败返回 null（调用方回退 Kotlin 实现）
      */
     @Suppress("ReturnCount")  // 多 return 为降级契约（flag 关/未加载/异常/失败信封逐级返回 null）
     fun tryExecuteNative(
-        stateSyncService: StateSyncService,
+        stateSyncService: StateSyncService?,
         actionId: Int,
         paramsJson: ByteArray,
         nowMs: Long = System.currentTimeMillis()
@@ -70,10 +74,11 @@ object GameEngineNativeOps {
         val obj = parsed as? JsonObject ?: return null
         if (obj["status"]?.toString() != "\"success\"") return null
         // 状态已变 → 镜像回 Kotlin（宽松合并，未迁移字段保留）；
-        // 镜像失败不阻断转发结果（调用方仍以 C++ 计算值为准）
+        // 镜像服务缺失（S-12 守卫）或镜像失败不阻断转发结果（调用方仍以
+        // C++ 计算值为准）
         @Suppress("TooGenericExceptionCaught", "SwallowedException")
         try {
-            stateSyncService.syncFromNative()
+            stateSyncService?.syncFromNative()
         } catch (e: Throwable) {
             // 镜像失败不阻断转发结果（调用方仍以 C++ 计算值为准）
         }

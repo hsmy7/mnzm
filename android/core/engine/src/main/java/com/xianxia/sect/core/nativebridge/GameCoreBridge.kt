@@ -222,6 +222,32 @@ object GameCoreBridge {
         thermalThresholdOffsetC: Float
     )
 
+    /**
+     * 运行时游戏配置注入（S-10/S-13 清偿：Kotlin GameConfigProvider →
+     * C++ 全局 GameConfig，消除库存容量/执法堂配置双端漂移）。
+     * 引擎初始化后调用（引擎线程串行）；参数与 Kotlin
+     * GameConfigData.WarehouseSection / LawEnforcementSection 字段一一对应。
+     */
+    @Suppress("LongParameterList")  // JNI 标量通道：16 个配置字段与 C++ GameConfig 一一对应
+    external fun nativeSetGameConfig(
+        warehouseBaseCapacity: Int,
+        warehouseCapacityPerBuilding: Int,
+        lawLoyaltyThreshold: Int,
+        lawMoralityThreshold: Int,
+        lawHerdLoyaltyThreshold: Int,
+        lawProbPerPoint: Double,
+        lawMaxProb: Double,
+        lawBaseCaptureRate: Double,
+        lawIntelligenceBase: Int,
+        lawElderBonusPerPoint: Double,
+        lawDiscipleIntelligenceStep: Int,
+        lawDiscipleBonusPerStep: Double,
+        lawReflectionYears: Int,
+        lawNewDiscipleProtectionMonths: Int,
+        lawMaxTheftPerYear: Int,
+        lawMaxTheftJudgementsPerMonth: Int
+    )
+
     // ============================================================
     // 渲染合成器通道（计划 v2 阶段 6：道路逐格合成单一权威）
     // ============================================================

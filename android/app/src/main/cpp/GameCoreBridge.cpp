@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "gamecore/game_core.h"
+#include "gamecore/core/game_config.h"
 #include "gamecore/system/engine_loop.h"
 #include "gamecore/map/road_compositor.h"
 
@@ -393,6 +394,46 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopSetBatteryStatu
     jboolean isLowBattery, jboolean isPowerSaveMode, jint fpsCap, jfloat offsetC) {
     g_batteryProvider.set(isLowBattery == JNI_TRUE, isPowerSaveMode == JNI_TRUE,
                           static_cast<int>(fpsCap), static_cast<float>(offsetC));
+}
+
+// ============================================================
+// 运行时配置注入（S-10/S-13 清偿：消除 C++ 硬编码默认值与 Kotlin
+// GameConfigProvider 的双端漂移；引擎初始化后调用，引擎线程串行）
+// ============================================================
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSetGameConfig(
+    JNIEnv* env, jobject /*thiz*/,
+    jint warehouseBaseCapacity, jint warehouseCapacityPerBuilding,
+    jint lawLoyaltyThreshold, jint lawMoralityThreshold,
+    jint lawHerdLoyaltyThreshold, jdouble lawProbPerPoint, jdouble lawMaxProb,
+    jdouble lawBaseCaptureRate, jint lawIntelligenceBase,
+    jdouble lawElderBonusPerPoint, jint lawDiscipleIntelligenceStep,
+    jdouble lawDiscipleBonusPerStep, jint lawReflectionYears,
+    jint lawNewDiscipleProtectionMonths, jint lawMaxTheftPerYear,
+    jint lawMaxTheftJudgementsPerMonth) {
+    gamecore::GameConfig cfg;
+    cfg.warehouseBaseCapacity = static_cast<int32_t>(warehouseBaseCapacity);
+    cfg.warehouseCapacityPerBuilding =
+        static_cast<int32_t>(warehouseCapacityPerBuilding);
+    cfg.lawLoyaltyThreshold = static_cast<int32_t>(lawLoyaltyThreshold);
+    cfg.lawMoralityThreshold = static_cast<int32_t>(lawMoralityThreshold);
+    cfg.lawHerdLoyaltyThreshold = static_cast<int32_t>(lawHerdLoyaltyThreshold);
+    cfg.lawProbPerPoint = static_cast<double>(lawProbPerPoint);
+    cfg.lawMaxProb = static_cast<double>(lawMaxProb);
+    cfg.lawBaseCaptureRate = static_cast<double>(lawBaseCaptureRate);
+    cfg.lawIntelligenceBase = static_cast<int32_t>(lawIntelligenceBase);
+    cfg.lawElderBonusPerPoint = static_cast<double>(lawElderBonusPerPoint);
+    cfg.lawDiscipleIntelligenceStep =
+        static_cast<int32_t>(lawDiscipleIntelligenceStep);
+    cfg.lawDiscipleBonusPerStep = static_cast<double>(lawDiscipleBonusPerStep);
+    cfg.lawReflectionYears = static_cast<int32_t>(lawReflectionYears);
+    cfg.lawNewDiscipleProtectionMonths =
+        static_cast<int32_t>(lawNewDiscipleProtectionMonths);
+    cfg.lawMaxTheftPerYear = static_cast<int32_t>(lawMaxTheftPerYear);
+    cfg.lawMaxTheftJudgementsPerMonth =
+        static_cast<int32_t>(lawMaxTheftJudgementsPerMonth);
+    gamecore::setGameConfig(cfg);
+    (void)env;
 }
 
 // ============================================================

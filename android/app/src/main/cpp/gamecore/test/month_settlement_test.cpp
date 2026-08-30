@@ -2280,4 +2280,220 @@ TEST(AutoBuySettlement, DecemberAutoBuySpiritstoneAndNonMatch) {
     EXPECT_TRUE(st.equipmentStacks.empty());
 }
 
+// ── 子事件 12：弟子智能购买（批 12-1） ─────────────────────────────
+
+using gamecore::system::disciple_purchase::processDisciplePurchase;
+
+/// 构造单弟子购买场景：练气弟子（realm 9）随身 1000 灵石、无装备功法；
+/// 上架功法/装备/丹药各 1 件（均已知模板、仓库有货、未锁定）
+TEST(DisciplePurchaseSettlement, SingleDiscipleBuysAllThreeCategories) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.spiritStones = 0;   // 宗门初始 0，验证购买款入账
+
+    // 弟子：存活 + 随身 1000 灵石（无储物袋灵石）
+    Disciple d = baseDisciple("1");
+    d.spiritStones = 1000;
+    st.disciples.appendDisciple(d);
+
+    // 上架商品（playerListedItems）：
+    state::MerchantItem manualItem;
+    manualItem.id = "list-m1"; manualItem.name = "青云心法";
+    manualItem.type = "manual"; manualItem.rarity = 1; manualItem.price = 100;
+    manualItem.quantity = 1; manualItem.itemId = "wh-m1";
+    state::MerchantItem equipItem;
+    equipItem.id = "list-e1"; equipItem.name = "精铁剑";
+    equipItem.type = "equipment"; equipItem.rarity = 1; equipItem.price = 200;
+    equipItem.quantity = 1; equipItem.itemId = "wh-e1";
+    state::MerchantItem pillItem;
+    pillItem.id = "list-p1"; pillItem.name = "聚气丹";
+    pillItem.type = "pill"; pillItem.rarity = 1; pillItem.price = 50;
+    pillItem.quantity = 1; pillItem.itemId = "wh-p1"; pillItem.grade = "中品";
+    st.gameData.playerListedItems = {manualItem, equipItem, pillItem};
+
+    // 仓库库存（未锁定、数量 1）：
+    state::ManualStack whManual;
+    whManual.id = "wh-m1"; whManual.name = "青云心法"; whManual.rarity = 1;
+    whManual.quantity = 1;
+    st.manualStacks.push_back(whManual);
+    state::EquipmentStack whEquip;
+    whEquip.id = "wh-e1"; whEquip.name = "精铁剑"; whEquip.rarity = 1;
+    whEquip.quantity = 1; whEquip.slot = "WEAPON";
+    st.equipmentStacks.push_back(whEquip);
+    state::Pill whPill;
+    whPill.id = "wh-p1"; whPill.name = "聚气丹"; whPill.rarity = 1;
+    whPill.quantity = 1; whPill.grade = "MEDIUM";
+    st.pills.push_back(whPill);
+
+    processDisciplePurchase(st, core->rng());
+
+    // 弟子灵石：1000 - 100(功法) - 200(装备) - 50(丹药) = 650
+    const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+    const auto row = idx.at(1);
+    EXPECT_EQ(650, st.disciples.spiritStones[row]);
+    // 宗门灵石入账：100 + 200 + 50 = 350
+    EXPECT_EQ(350LL, st.gameData.spiritStones);
+    // 储物袋三件条目（顺序：功法 → 装备 → 丹药）
+    const auto& bag = st.disciples.storageBagItems[row];
+    ASSERT_EQ(3u, bag.size());
+    EXPECT_EQ("equipment_stack", bag[1].itemType);
+    EXPECT_EQ("manual_stack", bag[0].itemType);
+    EXPECT_EQ("pill", bag[2].itemType);
+    EXPECT_EQ("WEAPON", bag[1].stackedData->slot);
+    EXPECT_EQ("MIND", bag[0].stackedData->manualType);
+    EXPECT_EQ("中品", *bag[2].grade);
+    EXPECT_TRUE(bag[2].effect.has_value());
+    // 仓库库存清空（各扣 1）
+    EXPECT_TRUE(st.manualStacks.empty());
+    EXPECT_TRUE(st.equipmentStacks.empty());
+    EXPECT_TRUE(st.pills.empty());
+    // RNG：makeCore 的 rng 为 initSystemSeed(20260901) 未额外抽取（对比 Diag
+    // 测试显式 restoreStates 场景）——购买 3 次 nextInt()（功法/装备/丹药
+    // 各 1 候选 shuffled）
+    auto sys0 = gamecore::rng::DeterministicRng::fromSeed(20260901 + 3);
+    sys0.nextInt();
+    sys0.nextInt();
+    sys0.nextInt();
+    EXPECT_EQ(sys0.snapshot(), core->rng().exportStates()[
+        static_cast<int32_t>(gamecore::rng::RngPartition::kSystem)]);
+}
+
+/// 无资金弟子：不上架商品时零写入零 RNG
+TEST(DisciplePurchaseSettlement, NoListedItemsOrNoFundsZeroEffects) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.spiritStones = 0;   // 宗门初始 0
+    Disciple d = baseDisciple("1");
+    d.spiritStones = 0;   // 无资金
+    st.disciples.appendDisciple(d);
+
+    const auto before = core->rng().exportStates();
+    processDisciplePurchase(st, core->rng());
+    EXPECT_EQ(before, core->rng().exportStates());
+    EXPECT_EQ(0, st.gameData.spiritStones);
+    EXPECT_TRUE(st.disciples.storageBagItems[0].empty());
+}
+
+/// 仓库无货：决策生成但扣减失败 → 跳过购买（listing 保留）
+TEST(DisciplePurchaseSettlement, NoWarehouseStockSkipsPurchase) {
+    auto core = makeCore(20260901);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 2;
+    st.gameData.spiritStones = 0;   // 宗门初始 0
+    Disciple d = baseDisciple("1");
+    d.spiritStones = 1000;
+    st.disciples.appendDisciple(d);
+
+    state::MerchantItem manualItem;
+    manualItem.id = "list-m1"; manualItem.name = "青云心法";
+    manualItem.type = "manual"; manualItem.rarity = 1; manualItem.price = 100;
+    manualItem.quantity = 1; manualItem.itemId = "wh-m1";
+    st.gameData.playerListedItems = {manualItem};
+    // 仓库无对应库存 → 扣减失败
+
+    processDisciplePurchase(st, core->rng());
+
+    // 弟子灵石不变（购买未发生）；listing 保留
+    const auto idx = gamecore::system::settle_util::indexById(st.disciples);
+    const auto row = idx.at(1);
+    EXPECT_EQ(1000, st.disciples.spiritStones[row]);
+    EXPECT_EQ(0LL, st.gameData.spiritStones);
+    EXPECT_EQ(1u, st.gameData.playerListedItems.size());
+    EXPECT_TRUE(st.disciples.storageBagItems[row].empty());
+}
+
+// ── 子事件 14：任务刷新（批 12-2） ─────────────────────────────────
+
+using gamecore::system::mission_settle::processMissionRefresh;
+using gamecore::state::Mission;
+
+/// MISSION 分区黄金序列预演：seed+8 播种（kMission 分区 id=8）
+gamecore::rng::DeterministicRng missionReplica(int64_t seed) {
+    return gamecore::rng::DeterministicRng::fromSeed(seed + 8);
+}
+
+TEST(MissionSettlement, RefreshMonthGeneratesMissions) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 3;   // 3 % 3 == 0 → 刷新月
+
+    // 旧任务列表（刷新月应被清空）
+    Mission old;
+    old.id = "old-1"; old.name = "旧任务"; old.template_ = "ESCORT_CARAVAN";
+    st.gameData.availableMissions = {old};
+
+    // 预演 MISSION 序列：nextInt(7) 决定刷新数，每任务 1 次 nextDouble 加权
+    auto mission = missionReplica(42);
+    const int32_t refreshCount = mission.nextInt(7);
+    std::vector<std::string> expectedTemplates;
+    for (int32_t i = 0; i < refreshCount; ++i) {
+        const auto pool = gamecore::system::mission_settle::buildWeightedPool();
+        const double totalWeight = pool.back().second;
+        const double roll = mission.nextDouble() * totalWeight;
+        for (const auto& [t, cumulative] : pool) {
+            if (roll < cumulative) { expectedTemplates.push_back(t); break; }
+        }
+    }
+
+    processMissionRefresh(st, core->rng());
+
+    // 刷新月：旧列表清空，新任务 = refreshCount 个
+    EXPECT_EQ(static_cast<std::size_t>(refreshCount),
+              st.gameData.availableMissions.size());
+    for (std::size_t i = 0; i < expectedTemplates.size(); ++i) {
+        EXPECT_EQ(expectedTemplates[i], st.gameData.availableMissions[i].template_);
+        // name = difficulty.displayName + template.displayName
+        const auto& m = st.gameData.availableMissions[i];
+        EXPECT_FALSE(m.name.empty());
+        EXPECT_FALSE(m.description.empty());
+        EXPECT_FALSE(m.difficulty.empty());
+        EXPECT_GT(m.duration, 0);
+        EXPECT_EQ(1, m.createdYear);
+        EXPECT_EQ(3, m.createdMonth);
+    }
+    // MISSION 分区快照与预演一致（抽取序：nextInt(7) + refreshCount 次 nextDouble）
+    const auto states = core->rng().exportStates();
+    EXPECT_EQ(mission.snapshot(), states.at(
+        static_cast<int32_t>(gamecore::rng::RngPartition::kMission)));
+}
+
+TEST(MissionSettlement, NonRefreshMonthKeepsExisting) {
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 1;
+    st.gameData.gameMonth = 4;   // 4 % 3 != 0 → 非刷新月
+
+    Mission old;
+    old.id = "old-1"; old.name = "旧任务"; old.template_ = "ESCORT_CARAVAN";
+    st.gameData.availableMissions = {old};
+
+    const auto before = core->rng().exportStates();
+    processMissionRefresh(st, core->rng());
+
+    // 非刷新月：零写入零 RNG
+    EXPECT_EQ(before, core->rng().exportStates());
+    ASSERT_EQ(1u, st.gameData.availableMissions.size());
+    EXPECT_EQ("old-1", st.gameData.availableMissions[0].id);
+}
+
+TEST(MissionSettlement, RewardConfigCoversAllTemplates) {
+    // 24 模板全覆盖：createRewardConfig 非零（任一会回退到正确档）
+    for (const auto& t :
+         gamecore::system::mission_settle::missionTemplateEntries()) {
+        const auto c = gamecore::system::mission_settle::createRewardConfig(t);
+        const bool nonZero = c.spiritStones > 0 || c.materialCountMin > 0 ||
+                             c.pillCountMin > 0 || c.baseSpiritStones > 0 ||
+                             c.equipmentChance > 0.0 || c.manualChance > 0.0;
+        EXPECT_TRUE(nonZero) << "模板 " << t << " 奖励配置全零";
+        EXPECT_FALSE(c.equipmentChance > 0.0 && c.manualChance > 0.0)
+            << "模板 " << t << " 装备与功法概率并存（Kotlin 语义互斥）";
+    }
+}
+
 }  // namespace

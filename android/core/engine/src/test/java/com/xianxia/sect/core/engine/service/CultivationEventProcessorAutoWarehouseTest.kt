@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
@@ -81,7 +83,8 @@ class CultivationEventProcessorAutoWarehouseTest {
             rngManager = mock(),
             secretRealmService = mock(),
             secretRealmAIProcessor = mock(),
-            deathHandler = mock()
+            deathHandler = mock(),
+            gameConfigProvider = GameConfigProvider(ConfigLoader({ null }))
         )
     }
 

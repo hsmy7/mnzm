@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <algorithm>
 #include <cmath>
@@ -12,12 +12,14 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/blood_refinement.h"
+#include "gamecore/system/disciple_purchase.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/exploration.h"
 #include "gamecore/system/government.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/merchant_settlement.h"
+#include "gamecore/system/mission_settlement.h"
 #include "gamecore/system/recruit_settlement.h"
 #include "gamecore/system/sect_decision.h"
 #include "gamecore/system/secret_realm_settlement.h"
@@ -74,8 +76,9 @@
 //   - S8 子事件下沉 recruitCountThisMonth 归零 / 灵矿月产 / gameOverCheck /
 //     scoutExpiry（批 10-1）/ 月度叛逃检测（批 10-2）/ 月度偷盗兜底
 //     （批 10-3）/ 附庸脱离检查（批 10-4）/ autoRecruit（批 11-1）/
-//     秘境到期关闭+AI 队伍派遣（批 11-2）/ 12 月自动购买（批 11-3）十一件；
-//     其余五件（任务完成/洞天/AI 兽战/购买/任务刷新）场景规避 +
+//     秘境到期关闭+AI 队伍派遣（批 11-2）/ 12 月自动购买（批 11-3）/
+//     弟子智能购买（批 12-1）/ 任务刷新（批 12-2）十三件；
+//     其余三件（任务完成/洞天/AI 兽战）场景规避 +
 //     登记对应批次（用户指示收窄范围，S-16~S-19 见 docs/cpp-engine.md §8）
 //   - S2 教化之道道德增量后的偷盗判定钩子（SYSTEM）未随本批下沉——
 //     与 T2.1 D2 同源（执法堂批次）；场景道德 ≥ 阈值规避
@@ -574,25 +577,47 @@ inline void applyScoutInfoExpiry(GameState& state, int32_t year, int32_t month) 
 // ── 子事件 4：月度叛逃检测（批 10-2：Kotlin LawEnforcementProcessor.
 //    processLawEnforcementMonthly 等价移植）──────────────────────────
 //
-// 配置常量取 Kotlin GameConfig.LawEnforcementConfig 默认值（config() 为
-// 远程配置可空覆盖——C++ 侧暂取默认值，远程配置注入 S-10 同族债务）。
+// 配置读取（S-13 清偿：远程配置注入 gameConfig()，默认值与
+// game_config.json 一致；const val 类常量保持编译期）。
 // RNG 契约（对拍命门）：按 at-risk 行序，每名弟子先 SYSTEM 抽 1 次
 // nextDouble 与叛逃概率比较（≥ 概率跳过）；判定通过再抽第 2 次与捕获率
 // 比较（< 捕获率 → 捕获思过；否则逃脱清理）。捕获/逃脱路径零额外抽取。
 
-// 执法堂配置默认值（GameConfig.LawEnforcementConfig）
-constexpr int32_t kLawLoyaltyThreshold = 30;
-constexpr double kLawDesertionProbPerPoint = 0.01;
-constexpr double kLawDesertionMaxProb = 0.90;
-constexpr double kLawBaseCaptureRate = 0.0;
-constexpr int32_t kLawIntelligenceBase = 50;
-constexpr double kLawElderBonusPerPoint = 0.01;
-constexpr int32_t kLawDiscipleIntelligenceStep = 5;
-constexpr double kLawDiscipleBonusPerStep = 0.01;
-constexpr int32_t kLawReflectionYears = 5;
-constexpr int32_t kLawNewDiscipleProtectionMonths = 12;
-constexpr int32_t kLawHerdLoyaltyThreshold = 50;
-// 政策加成（GameConfig.PolicyConfig）
+// 执法堂配置（可远程覆盖段——Kotlin GameConfig.LawEnforcementConfig 默认值）
+inline int32_t lawLoyaltyThreshold() {
+    return gamecore::gameConfig().lawLoyaltyThreshold;       // 30
+}
+inline double lawDesertionProbPerPoint() {
+    return gamecore::gameConfig().lawProbPerPoint;           // 0.01
+}
+inline double lawDesertionMaxProb() {
+    return gamecore::gameConfig().lawMaxProb;                // 0.90
+}
+inline double lawBaseCaptureRate() {
+    return gamecore::gameConfig().lawBaseCaptureRate;        // 0.0
+}
+inline int32_t lawIntelligenceBase() {
+    return gamecore::gameConfig().lawIntelligenceBase;       // 50
+}
+inline double lawElderBonusPerPoint() {
+    return gamecore::gameConfig().lawElderBonusPerPoint;     // 0.01
+}
+inline int32_t lawDiscipleIntelligenceStep() {
+    return gamecore::gameConfig().lawDiscipleIntelligenceStep;  // 5
+}
+inline double lawDiscipleBonusPerStep() {
+    return gamecore::gameConfig().lawDiscipleBonusPerStep;   // 0.01
+}
+inline int32_t lawReflectionYears() {
+    return gamecore::gameConfig().lawReflectionYears;        // 5
+}
+inline int32_t lawNewDiscipleProtectionMonths() {
+    return gamecore::gameConfig().lawNewDiscipleProtectionMonths;  // 12
+}
+inline int32_t lawHerdLoyaltyThreshold() {
+    return gamecore::gameConfig().lawHerdLoyaltyThreshold;   // 50
+}
+// 政策加成（GameConfig.PolicyConfig；const val 类）
 constexpr double kEnhancedSecurityEffect = 0.20;
 constexpr double kRewardPunishEffect = 0.30;
 
@@ -613,7 +638,7 @@ inline bool isAverageLoyaltyLowEnough(const state::DiscipleStore& ds) {
         sum += ds.loyalties[row];
     }
     if (count == 0) return false;
-    return (sum / count) < kLawHerdLoyaltyThreshold;
+    return (sum / count) < lawHerdLoyaltyThreshold();
 }
 
 /// 捕获率 = 基础 + 长老智力加成（× 职务乘算因子）+ 执法弟子阶梯加成 + 政策，
@@ -622,18 +647,18 @@ inline double calculateCaptureRate(GameState& state,
                                    const std::map<int32_t, std::size_t>& idx) {
     const auto& gd = state.gameData;
     const auto& ds = state.disciples;
-    double captureRate = kLawBaseCaptureRate;
+    double captureRate = lawBaseCaptureRate();
     const auto& elderId = gd.elderSlots.lawEnforcementElder;
     if (!elderId.empty()) {
         if (const auto eid = toIntOrNull(elderId)) {
             const auto it = idx.find(*eid);
             if (it != idx.end()) {
                 const int32_t intel = stats::baseIntelligence(ds, it->second);
-                const int32_t above = intel > kLawIntelligenceBase
-                                          ? intel - kLawIntelligenceBase : 0;
+                const int32_t above = intel > lawIntelligenceBase()
+                                          ? intel - lawIntelligenceBase() : 0;
                 const double posBonus = stats::positionEffectBonus(
                     ds, it->second, "LAW_ENFORCEMENT");
-                captureRate += above * kLawElderBonusPerPoint * (1.0 + posBonus);
+                captureRate += above * lawElderBonusPerPoint() * (1.0 + posBonus);
             }
         }
     }
@@ -643,11 +668,11 @@ inline double calculateCaptureRate(GameState& state,
             const auto it = idx.find(*did);
             if (it == idx.end()) continue;
             const int32_t intel = stats::baseIntelligence(ds, it->second);
-            const int32_t above = intel > kLawIntelligenceBase
-                                      ? intel - kLawIntelligenceBase : 0;
+            const int32_t above = intel > lawIntelligenceBase()
+                                      ? intel - lawIntelligenceBase() : 0;
             captureRate += (static_cast<double>(above) /
-                            kLawDiscipleIntelligenceStep) *
-                           kLawDiscipleBonusPerStep;
+                            lawDiscipleIntelligenceStep()) *
+                           lawDiscipleBonusPerStep();
         }
     }
     if (gd.sectPolicies.enhancedSecurity) captureRate += kEnhancedSecurityEffect;
@@ -659,9 +684,9 @@ inline double calculateCaptureRate(GameState& state,
 
 /// 叛逃概率 = (阈值 − 忠诚) × 每点概率，clamp [0, 0.90]
 inline double calcDesertionProbability(int32_t loyal) {
-    double p = (kLawLoyaltyThreshold - loyal) * kLawDesertionProbPerPoint;
+    double p = (lawLoyaltyThreshold() - loyal) * lawDesertionProbPerPoint();
     if (p < 0.0) p = 0.0;
-    if (p > kLawDesertionMaxProb) p = kLawDesertionMaxProb;
+    if (p > lawDesertionMaxProb()) p = lawDesertionMaxProb();
     return p;
 }
 
@@ -677,7 +702,7 @@ inline void captureDiscipleForReflection(GameState& state, int32_t id,
     d.status = "REFLECTING";
     d.statusData["reflectionStartYear"] = std::to_string(currentYear);
     d.statusData["reflectionEndYear"] =
-        std::to_string(currentYear + kLawReflectionYears);
+        std::to_string(currentYear + lawReflectionYears());
     state.disciples.appendDisciple(d);
     state.gameData.guideCounters["discipleImprisoned"] += 1;
     recordGameEvent(state, "SECT", "desertion_caught",
@@ -780,9 +805,9 @@ inline void processLawEnforcementMonthly(GameState& state,
     for (std::size_t row = 0; row < ds.size(); ++row) {
         if (ds.isAlive[row] != 1) continue;
         if (isDesertionImmuneStatus(ds.statuses[row])) continue;
-        if (ds.loyalties[row] >= kLawLoyaltyThreshold) continue;
+        if (ds.loyalties[row] >= lawLoyaltyThreshold()) continue;
         if (currentMonthValue - ds.recruitedMonths[row] <
-            kLawNewDiscipleProtectionMonths) {
+            lawNewDiscipleProtectionMonths()) {
             continue;
         }
         const int32_t id = toIntOrNull(ds.ids[row]).value_or(-1);
@@ -794,7 +819,7 @@ inline void processLawEnforcementMonthly(GameState& state,
             captureDiscipleForReflection(state, id, state.gameData.gameYear,
                                          indexById(ds));
         } else {
-            desertDiscipleCleanup(state, id, kLawLoyaltyThreshold,
+            desertDiscipleCleanup(state, id, lawLoyaltyThreshold(),
                                   indexById(ds));
         }
     }
@@ -820,14 +845,21 @@ inline void processLawEnforcementMonthly(GameState& state,
 // 后续判定全部实时可见；生产真实 store 的 committed 快照读与此存在口径差，
 // 登记 S-14（随月变真相源切换批次消除）。
 
-// 偷盗配置默认值（GameConfig.LawEnforcementConfig；PROB_PER_POINT/MAX_PROB
-// 与叛逃同源常量，复用 kLawDesertion*）
-constexpr int32_t kLawMoralityThreshold = 30;
-constexpr int32_t kLawMaxTheftPerYear = 3;
-constexpr int32_t kLawMaxTheftJudgementsPerMonth = 3;
-// 政策：宵禁偷盗概率减免（GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION）
+// 偷盗配置（可远程覆盖段——Kotlin GameConfig.LawEnforcementConfig；
+// PROB_PER_POINT/MAX_PROB 复用叛逃 getter）
+inline int32_t lawMoralityThreshold() {
+    return gamecore::gameConfig().lawMoralityThreshold;    // 30
+}
+inline int32_t lawMaxTheftPerYear() {
+    return gamecore::gameConfig().lawMaxTheftPerYear;      // 3
+}
+inline int32_t lawMaxTheftJudgementsPerMonth() {
+    return gamecore::gameConfig().lawMaxTheftJudgementsPerMonth;  // 3
+}
+// 政策：宵禁偷盗概率减免（GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION；
+// const val 类）
 constexpr double kCurfewEventReduction = 0.30;
-// 境界基准偷盗量（等比 ×4，下标 = 弟子 realm 1..9）
+// 境界基准偷盗量（等比 ×4，下标 = 弟子 realm 1..9；const val 类）
 constexpr int64_t kTheftRealmBaseAmounts[10] = {0, 500, 2'000, 8'000, 32'000,
                                                 128'000, 512'000, 2'000'000,
                                                 8'000'000, 32'000'000};
@@ -854,9 +886,9 @@ struct LootedItemEntry {
 /// 偷盗尝试有效概率（Kotlin shouldAttemptTheft 公式段：道德差 × 每点概率
 /// clamp [0, 0.90]，宵禁 ×(1−0.30)）
 inline double theftAttemptProbability(int32_t morality, bool curfew) {
-    double p = (kLawMoralityThreshold - morality) * kLawDesertionProbPerPoint;
+    double p = (lawMoralityThreshold() - morality) * lawDesertionProbPerPoint();
     if (p < 0.0) p = 0.0;
-    if (p > kLawDesertionMaxProb) p = kLawDesertionMaxProb;
+    if (p > lawDesertionMaxProb()) p = lawDesertionMaxProb();
     if (curfew) p *= (1.0 - kCurfewEventReduction);
     return p;
 }
@@ -875,7 +907,7 @@ inline void captureDiscipleForTheft(GameState& state,
     auto& sd = ds.statusData[row];
     sd["reflectionStartYear"] = std::to_string(state.gameData.gameYear);
     sd["reflectionEndYear"] =
-        std::to_string(state.gameData.gameYear + kLawReflectionYears);
+        std::to_string(state.gameData.gameYear + lawReflectionYears());
     recordGameEvent(state, "SECT", "theft_caught", disciple.name + "偷盗被捕",
                     disciple.id, disciple.name);
 }
@@ -1128,7 +1160,7 @@ inline void processTheftMonthlyFallback(
         // ① 月度判定计数器归零（Kotlin 首行无条件 update）
         gd.theftJudgementsThisMonth = 0;
         if (gd.spiritStones <= 0) return;
-        if (gd.annualTheftCount >= kLawMaxTheftPerYear) return;
+        if (gd.annualTheftCount >= lawMaxTheftPerYear()) return;
         if (!isAverageLoyaltyLowEnough(ds)) return;
         // hasCandidate 门控（Kotlin 无保护期检查——与候选收集 deliberate 差异保留）
         const int32_t currentYear = gd.gameYear;
@@ -1136,7 +1168,7 @@ inline void processTheftMonthlyFallback(
         for (std::size_t row = 0; row < ds.size() && !hasCandidate; ++row) {
             if (ds.isAlive[row] != 1) continue;
             if (ds.statuses[row] != "IDLE") continue;
-            if (ds.moralities[row] >= kLawMoralityThreshold) continue;
+            if (ds.moralities[row] >= lawMoralityThreshold()) continue;
             if (ds.lastTheftJudgementYears[row] == currentYear) continue;
             hasCandidate = true;
         }
@@ -1149,9 +1181,9 @@ inline void processTheftMonthlyFallback(
         for (std::size_t row = 0; row < ds.size(); ++row) {
             if (ds.isAlive[row] != 1) continue;
             if (ds.statuses[row] != "IDLE") continue;
-            if (ds.moralities[row] >= kLawMoralityThreshold) continue;
+            if (ds.moralities[row] >= lawMoralityThreshold()) continue;
             if (currentMonth - ds.recruitedMonths[row] <
-                kLawNewDiscipleProtectionMonths) {
+                lawNewDiscipleProtectionMonths()) {
                 continue;
             }
             if (ds.lastTheftJudgementYears[row] == currentYear) continue;
@@ -1163,7 +1195,7 @@ inline void processTheftMonthlyFallback(
         // 候选 take(3)：无论判定成败均消耗候选名额
         const std::size_t judgeCount =
             std::min(candidateIds.size(),
-                     static_cast<std::size_t>(kLawMaxTheftJudgementsPerMonth));
+                     static_cast<std::size_t>(lawMaxTheftJudgementsPerMonth()));
         for (std::size_t k = 0; k < judgeCount; ++k) {
             const int32_t id = candidateIds[k];
             // 前一候选叛逃会移除行——行序重解析（Kotlin 以 id 寻址等价）
@@ -1177,12 +1209,12 @@ inline void processTheftMonthlyFallback(
             if (ds.isAlive[row] != 1) continue;
             if (ds.statuses[row] != "IDLE") continue;
             if (currentMonth - ds.recruitedMonths[row] <
-                kLawNewDiscipleProtectionMonths) {
+                lawNewDiscipleProtectionMonths()) {
                 continue;
             }
             if (ds.lastTheftJudgementYears[row] == currentYear) continue;
-            if (gd.theftJudgementsThisMonth >= kLawMaxTheftJudgementsPerMonth) continue;
-            if (gd.annualTheftCount >= kLawMaxTheftPerYear) continue;
+            if (gd.theftJudgementsThisMonth >= lawMaxTheftJudgementsPerMonth()) continue;
+            if (gd.annualTheftCount >= lawMaxTheftPerYear()) continue;
             // 标记判定（先于概率抽取——尝试失败同样计数）
             gd.theftJudgementsThisMonth += 1;
             ds.lastTheftJudgementYears[row] = currentYear;
@@ -1215,7 +1247,7 @@ inline void processTheftMonthlyFallback(
             // Step 4: 偷盗后叛逃判定（仅看忠诚；抽取无条件）
             const double desertionProb = calcDesertionProbability(st.loyalty);
             if (rngSystem.nextDouble() < desertionProb) {
-                desertDiscipleCleanup(state, id, kLawLoyaltyThreshold,
+                desertDiscipleCleanup(state, id, lawLoyaltyThreshold(),
                                       indexById(ds), "theft_desertion",
                                       "偷盗后叛逃");
             }
@@ -1397,10 +1429,16 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     }
     // 子事件 11：灵矿月度产出结算
     detail::processSpiritMineProductionMonthly(state, idx);
-    // 子事件 12：弟子智能购买——未下沉（购买批次；场景 playerListedItems 空规避）
+    // 子事件 12：弟子智能购买（批 12-1：DisciplePurchaseService.executePurchase
+    //   等价移植；SYSTEM 分区 shuffled——位于灵矿后、附庸前，与 Kotlin 月变
+    //   编排相对序一致）
+    disciple_purchase::processDisciplePurchase(state, rng);
     // 子事件 13：附庸脱离检查（批 10-4）
     detail::processVassalBreakaway(state, rng);
-    // 子事件 14：任务刷新——未下沉（任务批次；场景 month%3!=0 规避）
+    // 子事件 14：任务刷新（批 12-2：CultivationEventMissionOps.
+    //   processMissionRefreshIfDue 等价移植；month%3==0 才刷新，消费
+    //   MISSION 分区——位于附庸后、秘境前，与 Kotlin 月变编排相对序一致）
+    mission_settle::processMissionRefresh(state, rng);
     // 子事件 15：秘境现世期满自动关闭（批 11-2 状态段：钱包/背包/会话清场；
     //   邮件与 gate 保留 Kotlin——S-17 登记）
     secret_realm_settle::processMonthlyExpiryCheck(state, state.gameData.gameYear);

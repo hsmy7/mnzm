@@ -494,6 +494,54 @@ void from_json(const nlohmann::json& j, AutoBuyEntry& v) {
     GC_FROM(j, v, itemName); GC_FROM(j, v, itemType); GC_FROM(j, v, rarity);
 }
 
+// ── 批 12-2：任务域（S8 子事件 14 任务刷新下沉） ──
+
+void to_json(nlohmann::json& j, const MissionRewardConfig& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, spiritStones); GC_TO(v, j, spiritStonesMax);
+    GC_TO(v, j, materialCountMin); GC_TO(v, j, materialCountMax);
+    GC_TO(v, j, materialMinRarity); GC_TO(v, j, materialMaxRarity);
+    GC_TO(v, j, pillCountMin); GC_TO(v, j, pillCountMax);
+    GC_TO(v, j, pillMinRarity); GC_TO(v, j, pillMaxRarity);
+    GC_TO(v, j, equipmentChance);
+    GC_TO(v, j, equipmentMinRarity); GC_TO(v, j, equipmentMaxRarity);
+    GC_TO(v, j, manualChance);
+    GC_TO(v, j, manualMinRarity); GC_TO(v, j, manualMaxRarity);
+    GC_TO(v, j, baseSpiritStones);
+    GC_TO(v, j, baseMaterialCountMin); GC_TO(v, j, baseMaterialCountMax);
+    GC_TO(v, j, baseMaterialMinRarity); GC_TO(v, j, baseMaterialMaxRarity);
+}
+void from_json(const nlohmann::json& j, MissionRewardConfig& v) {
+    GC_FROM(j, v, spiritStones); GC_FROM(j, v, spiritStonesMax);
+    GC_FROM(j, v, materialCountMin); GC_FROM(j, v, materialCountMax);
+    GC_FROM(j, v, materialMinRarity); GC_FROM(j, v, materialMaxRarity);
+    GC_FROM(j, v, pillCountMin); GC_FROM(j, v, pillCountMax);
+    GC_FROM(j, v, pillMinRarity); GC_FROM(j, v, pillMaxRarity);
+    GC_FROM(j, v, equipmentChance);
+    GC_FROM(j, v, equipmentMinRarity); GC_FROM(j, v, equipmentMaxRarity);
+    GC_FROM(j, v, manualChance);
+    GC_FROM(j, v, manualMinRarity); GC_FROM(j, v, manualMaxRarity);
+    GC_FROM(j, v, baseSpiritStones);
+    GC_FROM(j, v, baseMaterialCountMin); GC_FROM(j, v, baseMaterialCountMax);
+    GC_FROM(j, v, baseMaterialMinRarity); GC_FROM(j, v, baseMaterialMaxRarity);
+}
+
+void to_json(nlohmann::json& j, const Mission& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, id); j["template"] = v.template_;
+    GC_TO(v, j, name); GC_TO(v, j, description);
+    GC_TO(v, j, difficulty); GC_TO(v, j, duration); GC_TO(v, j, rewards);
+    GC_TO(v, j, missionType); GC_TO(v, j, enemyType); GC_TO(v, j, triggerChance);
+    GC_TO(v, j, createdYear); GC_TO(v, j, createdMonth);
+}
+void from_json(const nlohmann::json& j, Mission& v) {
+    GC_FROM(j, v, id); v.template_ = j.value("template", std::string());
+    GC_FROM(j, v, name); GC_FROM(j, v, description);
+    GC_FROM(j, v, difficulty); GC_FROM(j, v, duration); GC_FROM(j, v, rewards);
+    GC_FROM(j, v, missionType); GC_FROM(j, v, enemyType); GC_FROM(j, v, triggerChance);
+    GC_FROM(j, v, createdYear); GC_FROM(j, v, createdMonth);
+}
+
 void to_json(nlohmann::json& j, const Alliance& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id); GC_TO(v, j, sectIds); GC_TO(v, j, startYear); GC_TO(v, j, initiatorId);
@@ -1218,6 +1266,8 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, activeBloodRefinements); GC_TO(v, j, patrolSlots);
     // T2.1：每旬结算依赖字段
     GC_TO(v, j, librarySlots); GC_TO(v, j, gameEventRecords);
+    // 批 12-2：任务域（S8 子事件 14 任务刷新下沉）
+    GC_TO(v, j, availableMissions);
 }
 void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, id); GC_FROM(j, v, sectName); GC_FROM(j, v, currentSlot);
@@ -1298,6 +1348,8 @@ void from_json(const nlohmann::json& j, GameData& v) {
     // 批 4-5：槽位清理补充字段
     GC_FROM(j, v, battleTeams); GC_FROM(j, v, warehouseGarrisons);
     GC_FROM(j, v, caveExplorationTeams); GC_FROM(j, v, activeMissions);
+    // 批 12-2：任务域（S8 子事件 14 任务刷新下沉）
+    GC_FROM(j, v, availableMissions);
 }
 
 // ── Full snapshot ────────────────────────────────────────────────────

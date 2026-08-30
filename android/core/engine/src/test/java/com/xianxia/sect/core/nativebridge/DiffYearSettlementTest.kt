@@ -289,7 +289,8 @@ class DiffYearSettlementTest {
             rngManager = gameRng,
             secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(),
-            deathHandler = mockSmart()
+            deathHandler = mockSmart(),
+            gameConfigProvider = GameConfigProvider(ConfigLoader({ null }))
         )
     }
 

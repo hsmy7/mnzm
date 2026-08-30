@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.config.ConfigLoader
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.engine.mockSmart
@@ -111,7 +113,8 @@ class CultivationEventProcessorTest {
             rngManager = mockSmart(),
             secretRealmService = mockSmart(),
             secretRealmAIProcessor = mockSmart(),
-            deathHandler = deathHandler
+            deathHandler = deathHandler,
+            gameConfigProvider = GameConfigProvider(ConfigLoader({ null }))
         )
     }
 
