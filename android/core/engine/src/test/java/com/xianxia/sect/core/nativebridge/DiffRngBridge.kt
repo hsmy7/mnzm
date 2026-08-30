@@ -40,6 +40,9 @@ object DiffRngBridge {
     external fun nativeNameInherit(
         surname: String, gender: String, existingJson: String
     ): String
+    /** 批 13-4b：弟子创建对拍（Kotlin DiscipleFactory.create vs C++
+     *  createDisciple——输入 seed JSON，返回弟子生成结果 JSON，g_rng 为随机源） */
+    external fun nativeCreateDisciple(seedJson: String): String
     external fun nativeSnapshot(): Long
 
     // ── RngManager（分区）通道 ───────────────────────────────

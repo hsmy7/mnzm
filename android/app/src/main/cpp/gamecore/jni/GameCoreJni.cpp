@@ -29,6 +29,7 @@
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
+#include "gamecore/system/disciple_factory.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/economy.h"
 #include "gamecore/system/engine_loop.h"
@@ -169,6 +170,63 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeNameInherit(
     const auto result =
         gamecore::system::inheritName(surnameStr, genderStr, existing, *g_rng);
     return env->NewStringUTF(result.fullName.c_str());
+}
+
+// 批 13-4b：弟子创建对拍（Kotlin DiscipleFactory.create vs C++ disciple_factory.h
+// createDisciple——同种子同消费序，逐字段位级一致）。输入 seed JSON，返回
+// 弟子生成结果 JSON（g_rng 为随机源，与 Kotlin 侧同一底层 PRNG 独立同序列消费）。
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCreateDisciple(
+    JNIEnv* env, jobject /*thiz*/, jstring seedJson) {
+    if (!g_rng) return env->NewStringUTF("");
+    const std::string json = jstringToString(env, seedJson);
+    gamecore::system::DiscipleCreationSeed seed;
+    try {
+        const auto obj = nlohmann::json::parse(json);
+        seed.id = obj.value("id", "");
+        seed.gender = obj.value("gender", "male");
+        seed.fullName = obj.value("fullName", "");
+        seed.surname = obj.value("surname", "");
+        seed.spiritRootType = obj.value("spiritRootType", "metal");
+        seed.age = obj.value("age", 16);
+        seed.realm = obj.value("realm", 9);
+        seed.realmLayer = obj.value("realmLayer", 1);
+    } catch (const std::exception&) {
+        return env->NewStringUTF("");
+    }
+    const auto d = gamecore::system::createDisciple(seed, *g_rng);
+    nlohmann::json out;
+    out["portraitRes"] = d.portraitRes;
+    out["hpVariance"] = d.hpVariance;
+    out["mpVariance"] = d.mpVariance;
+    out["physicalAttackVariance"] = d.physicalAttackVariance;
+    out["magicAttackVariance"] = d.magicAttackVariance;
+    out["physicalDefenseVariance"] = d.physicalDefenseVariance;
+    out["magicDefenseVariance"] = d.magicDefenseVariance;
+    out["speedVariance"] = d.speedVariance;
+    out["comprehension"] = d.comprehension;
+    out["aptitude"] = d.aptitude;
+    out["intelligence"] = d.intelligence;
+    out["charm"] = d.charm;
+    out["loyalty"] = d.loyalty;
+    out["morality"] = d.morality;
+    out["artifactRefining"] = d.artifactRefining;
+    out["pillRefining"] = d.pillRefining;
+    out["spiritPlanting"] = d.spiritPlanting;
+    out["mining"] = d.mining;
+    out["teaching"] = d.teaching;
+    out["baseHp"] = d.baseHp;
+    out["baseMp"] = d.baseMp;
+    out["basePhysicalAttack"] = d.basePhysicalAttack;
+    out["baseMagicAttack"] = d.baseMagicAttack;
+    out["basePhysicalDefense"] = d.basePhysicalDefense;
+    out["baseMagicDefense"] = d.baseMagicDefense;
+    out["baseSpeed"] = d.baseSpeed;
+    out["lifespan"] = d.lifespan;
+    out["talentIds"] = d.talentIds;
+    out["physiqueIds"] = d.physiqueIds;
+    out["affixIds"] = d.affixIds;
+    return env->NewStringUTF(out.dump().c_str());
 }
 
 // ============================================================

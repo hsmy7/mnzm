@@ -46,6 +46,7 @@ add_executable(game-core-tests
     inventory_test.cpp
     spirit_field_test.cpp
     disciple_test.cpp
+    disciple_factory_test.cpp
     cultivation_test.cpp
     phase_settlement_test.cpp
     month_settlement_test.cpp

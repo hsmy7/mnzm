@@ -15,11 +15,7 @@ import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.ln
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 // ---- 魔法数字命名常量 ----
 private const val VARIANCE_MIN = -50
@@ -56,6 +52,10 @@ private const val VARIANCE_SIGMA = 16.667   // 方差标准差（50/3，3-sigma�
 /**
  * 通过 Box-Muller 变换从 [nextInt] 均匀随机源生成正态分布整数值。
  * 每次调用恰好消耗 2 次 nextInt(from, until) 调用。
+ *
+ * C-12 同族修正（批 13-4b）：sqrt/ln/cos 改用 [StrictMath]（纯 Java fdlibm，
+ * 无平台 intrinsic——与 DeterministicRng.nextGaussian 同口径），保证跨
+ * 桌面 JVM/Android 位级一致；C++ 侧用内嵌 fdlibm（gamecore/rng/fdlibm.h）。
  */
 private fun gaussianInt(
     nextInt: (Int, Int) -> Int,
@@ -66,7 +66,7 @@ private fun gaussianInt(
 ): Int {
     val u1 = nextInt(1, 10001).toDouble() / 10000.0  // (0, 1]
     val u2 = nextInt(0, 10001).toDouble() / 10000.0  // [0, 1]
-    val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+    val z = StrictMath.sqrt(-2.0 * StrictMath.log(u1)) * StrictMath.cos(2.0 * StrictMath.PI * u2)
     return (z * sigma + mean).roundToInt().coerceIn(min, max)
 }
 

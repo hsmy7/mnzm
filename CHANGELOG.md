@@ -1,5 +1,14 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（批 13-4b：弟子创建工厂下沉 C++——DiscipleFactory.create 等价移植）
+
+> 承接批 13-4a（cpp-engine.md §7.5）：弟子创建六段逻辑（方差/悟性资质/技能/基础属性/寿命/三分类特质）等价移植 C++——recruitDisciple/refreshRecruitList/createChild 三构造站点共用逻辑的 C++ 复刻，为月变步骤 4d 生育下沉（批 13-4c）铺路。
+
+- **C++ 等价移植**：`gamecore/system/disciple_factory.h`——WeightedRoll 分布（数量 0-5 与品阶四档）+ 天赋/体质/词条三分类同构生成（template 去重 + 旧天赋类型过滤）+ gaussianInt（C-12 同族 fdlibm，Kotlin 侧同改 StrictMath）+ 灵根数阶梯（悟性/资质 1根80-100…5根1-20，资质避开哨兵 50）+ 肖像池 + 技能（正态分布，忠诚上限 100）+ 基础属性（创建期基准公式）+ 寿命（天赋+词条加成 × 境界基准）
+- **RNG 消费序逐位对齐**：单个确定性 RNG 串行驱动（14 次方差 + 2 次阶梯 + 三分类生成 + 1 次肖像 + 18 次技能）——Kotlin seed.nextInt 与 seed.random 是同一 PRNG 的两个适配器，跨语言同种子同消费序产出逐位一致弟子
+- **验证**：GTest 626/626（+5：两种子黄金序列（覆盖负面体质抽取/三分类多特质/template 去重）/确定性重放/统计不变式/境界寿命基准）· **DiffDiscipleFactoryTest 新建对拍**（3 种子 × 2 性别 × 灵根阶梯全分支 + realm 5/7 寿命基准 + 12 种子负面池耗尽路径——肖像/方差/悟性/资质/技能/基础属性/寿命/三分类 id 逐字段一致）· engine JUnit 2941/2941（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：纯新增 C++ 侧实现 + 对拍通道，生产创建路径仍在 Kotlin（Kotlin 侧仅 gaussianInt 改 StrictMath——1 ULP 级数值末位差异，随 C-12 同族登记）；玩家可见行为不变
+
 ### 修复（批 13-4a：生育前置——中文名生成分区化 + C++ 等价）
 
 > 生育批次前置（cpp-engine.md §7.5）：`NameService.inheritName` 原用 JVM 全局 Random（非确定性、不入 rngStates，跨语言不可对拍）——S-19 同族确定性缺口，随生育下沉修正。
