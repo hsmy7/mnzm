@@ -18,6 +18,7 @@
 #include "gamecore/system/government.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/inventory.h"
+#include "gamecore/system/level_generator.h"
 #include "gamecore/system/merchant_settlement.h"
 #include "gamecore/system/mission_settlement.h"
 #include "gamecore/system/recruit_settlement.h"
@@ -67,8 +68,9 @@
 //     aiSectBeastSkipCooldowns/lockedBeastIds 入 GameState 顶层快照协议——
 //     Kotlin 同名 GameData 字段 @Transient 纯运行态；消费方巡视楼/子事件 9
 //     保留 Kotlin）；剩余 S4 关卡刷新生成等见下
-//   - S4 关卡刷新生成（LevelGenerator）/巡视楼战斗/妖兽攻击检测：战斗与
-//     生成域未迁移；场景无玩家宗门 → 刷新不触发、检测/巡视纯早退
+//   - S4 关卡刷新生成 ✅（批 13-2b 接线：LevelGenerator 生成 + playerAvgRealm
+//     兜底 + lastRefreshMonth 推进；巡视楼战斗/妖兽攻击检测仍战斗域未迁移，
+//     场景 patrolSlots 为空 + 无玩家宗门 → 检测/巡视纯早退）
 //   - S4 生育（DiscipleFactory 弟子生成批次）：场景 childBirthMonth 全空 → 双端零效果
 //   - S4 炼丹/锻造自动排班与完成结算（Room 仓储/物品数据库域）：
 //     场景无到期槽位且自动政策全关；ForgeSystem 本为异步 launch（事务内零效果）
@@ -1711,17 +1713,75 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     detail::processSpiritFieldHarvestStep(state, rng);
     // 4d ChildBirth(235)：生育——未下沉（弟子生成批次；场景 childBirthMonth
     //   全空 → 双端零效果零抽取）
-    // 4e Exploration(240)：世界关卡惰性管理（清理 + 移动；刷新生成属
-    //   LevelGenerator 批次未下沉 → allowRefresh 恒 false，与"无玩家宗门"
-    //   路径语义一致：不生成、不推进 lastRefreshMonth）
+    // 4e Exploration(240)：世界关卡惰性管理（清理 + 刷新生成 + 移动；
+    //   批 13-2b：LevelGenerator（批 4-1）接线——shouldRefresh 判定 + 玩家
+    //   宗门门控 + playerAvgRealm 安全兜底 + 生成 + lastRefreshMonth 推进）
     {
-        const auto monthly = processWorldLevelsMonthly(
-            state.gameData.worldLevels,
-            state.gameData.worldLevelLastRefreshMonth,
-            state.gameData.gameYear, state.gameData.gameMonth,
-            rng, /*allowRefresh=*/false);
-        state.gameData.worldLevels = std::move(monthly.levels);
-        // refreshed 恒 false（生成未下沉）→ lastRefreshMonth 保持不变
+        auto& wl = state.gameData.worldLevels;
+        const int32_t absMonth = state.gameData.gameYear * 12 +
+                                 state.gameData.gameMonth;
+        const bool shouldRefresh =
+            state.gameData.worldLevelLastRefreshMonth == 0 ||
+            (absMonth - state.gameData.worldLevelLastRefreshMonth) >=
+                kLevelRefreshIntervalMonths;
+        if (shouldRefresh) {
+            bool hasPlayerSect = false;
+            for (const auto& sect : state.gameData.worldMapSects) {
+                if (sect.isPlayerSect) {
+                    hasPlayerSect = true;
+                    break;
+                }
+            }
+            if (hasPlayerSect) {
+                // 清理过期（Kotlin 步骤 1：每月都做，早于刷新判定）
+                auto remaining =
+                    filterExpiredLevels(wl, state.gameData.gameYear,
+                                        state.gameData.gameMonth);
+                // playerAvgRealm：存活弟子平均境界 toInt（Kotlin assembleAll
+                // filter isAlive → average().toInt()；无存活 → null）
+                int32_t avgRealm = 0;
+                int32_t aliveCount = 0;
+                double realmSum = 0.0;
+                for (std::size_t row = 0; row < state.disciples.size(); ++row) {
+                    if (state.disciples.isAlive[row] != 1) continue;
+                    realmSum += static_cast<double>(
+                        state.disciples.realms[row]);
+                    ++aliveCount;
+                }
+                const int32_t* avgRealmPtr =
+                    aliveCount > 0 ? &avgRealm : nullptr;
+                if (avgRealmPtr) {
+                    avgRealm = static_cast<int32_t>(realmSum / aliveCount);
+                }
+                const auto generated = generateWorldLevels(
+                    rng, state.gameData.worldMapSects,
+                    state.gameData.gameYear, state.gameData.gameMonth,
+                    remaining, kMaxNewLevelsDefault, avgRealmPtr);
+                auto merged = remaining;
+                for (auto& l : generated.levels) merged.push_back(std::move(l));
+                // 步骤 3：妖兽移动（Kotlin moveBeasts 在刷新后统一执行）
+                state.gameData.worldLevels =
+                    moveBeasts(merged, state.gameData.gameYear,
+                               state.gameData.gameMonth, rng);
+                state.gameData.worldLevelLastRefreshMonth = absMonth;
+            } else {
+                // 无玩家宗门：只清理不生成不推进（Kotlin 提前 return 分支；
+                // moveBeasts 随后在 else 统一执行）
+                auto remaining =
+                    filterExpiredLevels(wl, state.gameData.gameYear,
+                                        state.gameData.gameMonth);
+                state.gameData.worldLevels =
+                    moveBeasts(remaining, state.gameData.gameYear,
+                               state.gameData.gameMonth, rng);
+            }
+        } else {
+            // 非刷新月：清理 + 移动（原 processWorldLevelsMonthly 语义）
+            const auto monthly = processWorldLevelsMonthly(
+                wl, state.gameData.worldLevelLastRefreshMonth,
+                state.gameData.gameYear, state.gameData.gameMonth,
+                rng, /*allowRefresh=*/false);
+            state.gameData.worldLevels = std::move(monthly.levels);
+        }
     }
     // 巡视楼战斗 / 妖兽攻击检测：战斗域未下沉；场景 patrolSlots 为空 +
     // 无玩家宗门 → 双端纯早退零抽取

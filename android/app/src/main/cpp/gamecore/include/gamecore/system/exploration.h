@@ -34,6 +34,9 @@ constexpr double kMapHeight = 926.0;
 constexpr double kBorderPadding = 34.0;
 constexpr double kBeastMoveDistance = 25.0;
 constexpr int32_t kLevelRefreshIntervalMonths = 3;
+/// 单次刷新新关卡数量上限（Kotlin LevelGenerator.generateWorldLevels 的
+/// maxNewLevels 默认值 6——数量 = nextInt(6) + 1）
+constexpr int32_t kMaxNewLevelsDefault = 6;
 constexpr double kPi = 3.14159265358979323846;
 
 /// 关卡过期判定（Kotlin WorldLevel.checkExpired）

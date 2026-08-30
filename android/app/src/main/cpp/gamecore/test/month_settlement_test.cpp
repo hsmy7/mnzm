@@ -1734,6 +1734,9 @@ TEST(MonthSettlementTest, VassalBreakawaySectMissingRemovesSilentlyNoDraw) {
     state::WorldSect player;
     player.id = "p1"; player.name = "青云宗"; player.isPlayerSect = true;
     st.gameData.worldMapSects.push_back(player);
+    // 批 13-2b：预置刷新月（==当前绝对月 13）→ 关卡刷新不触发（零抽取断言
+    // 不受步骤 4e 生成干扰）
+    st.gameData.worldLevelLastRefreshMonth = 1 * 12 + 1;
     state::VassalContract contract;
     contract.vassalSectId = "gone"; contract.establishedYear = 1;
     st.gameData.vassalContracts.push_back(contract);
@@ -1749,6 +1752,7 @@ TEST(MonthSettlementTest, VassalBreakawayZeroAiPowerNoDraw) {
     auto core = makeCore(42);
     auto& st = core->state();
     setupVassalScene(st, 1);
+    st.gameData.worldLevelLastRefreshMonth = 1 * 12 + 1;   // 批 13-2b：不刷新
     st.aiSectDisciples.clear();
     const auto before = core->rng().exportStates();
     system::runMonthSettlement(st, core->rng());
@@ -2743,6 +2747,71 @@ TEST(MonthSettlementTest, MoralEducationHookRespectsMonthlyCap) {
     EXPECT_EQ(29, st.disciples.materialize(0).morality);       // 道德仍提升
     EXPECT_EQ(3, st.gameData.theftJudgementsThisMonth);        // 计数不变
     EXPECT_EQ(before, core->rng().exportStates());             // 零抽取
+}
+
+// ── 步骤 4e：世界关卡刷新生成接线（批 13-2b：LevelGenerator 批 4-1 接线）─
+//
+// Kotlin WorldLevelManager.processMonthly 语义：清理过期 → shouldRefresh 判定
+// （lastRefreshMonth==0 || 差值>=3）→ 玩家宗门门控（无 → 只清理不生成不推进）
+// → LevelGenerator.generateWorldLevels（maxNewLevels=6 → nextInt(6)+1 个）+
+// playerAvgRealm 安全兜底 → lastRefreshMonth 推进 → 妖兽移动。
+// 直接测 runMonthSettlement 步骤 4e 效果（场景无灵田/配对/政策 → 其余步骤
+// 零 RNG；EXPLORATION 消费仅来自 4e——生成 + 移动）。
+
+TEST(MonthSettlementTest, WorldLevelRefreshGeneratesLevelsWithPlayerSect) {
+    // 玩家宗门 + lastRefreshMonth=0 → 应刷新：生成 1~6 个新关卡 + 推进刷新月
+    auto core = makeCore(42);
+    auto& st = core->state();
+    state::WorldSect player;
+    player.id = "p1"; player.isPlayerSect = true;
+    st.gameData.worldMapSects.push_back(player);
+    Disciple d = baseDisciple("1");   // realm 9 → playerAvgRealm=9
+    st.disciples.appendDisciple(d);
+
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_FALSE(st.gameData.worldLevels.empty());     // 生成了新关卡
+    EXPECT_EQ(1 * 12 + 1, st.gameData.worldLevelLastRefreshMonth);  // 推进
+    // 生成数量 = nextInt(6)+1（1~6）；每关卡含妖兽属性生成（EXPLORATION 消费）
+    ASSERT_LE(1u, st.gameData.worldLevels.size());
+    ASSERT_LE(st.gameData.worldLevels.size(), 6u);
+}
+
+TEST(MonthSettlementTest, WorldLevelRefreshSkippedWithoutPlayerSect) {
+    // 无玩家宗门：只清理不生成不推进（Kotlin 提前 return 分支）——零消费
+    auto core = makeCore(42);
+    auto& st = core->state();
+    state::WorldSect ai;
+    ai.id = "ai-1"; ai.isPlayerSect = false;
+    st.gameData.worldMapSects.push_back(ai);
+    Disciple d = baseDisciple("1");
+    st.disciples.appendDisciple(d);
+
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_TRUE(st.gameData.worldLevels.empty());
+    EXPECT_EQ(0, st.gameData.worldLevelLastRefreshMonth);  // 未推进
+    EXPECT_EQ(before, core->rng().exportStates());         // 零 RNG 消费
+}
+
+TEST(MonthSettlementTest, WorldLevelRefreshSkippedWhenRecentRefresh) {
+    // lastRefreshMonth=当前绝对月（13）→ 差值 0 < 3 → 不刷新（非刷新月路径）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    state::WorldSect player;
+    player.id = "p1"; player.isPlayerSect = true;
+    st.gameData.worldMapSects.push_back(player);
+    st.gameData.worldLevelLastRefreshMonth = 1 * 12 + 1;
+    Disciple d = baseDisciple("1");
+    st.disciples.appendDisciple(d);
+
+    const auto before = core->rng().exportStates();
+    system::runMonthSettlement(st, core->rng());
+
+    EXPECT_TRUE(st.gameData.worldLevels.empty());
+    EXPECT_EQ(1 * 12 + 1, st.gameData.worldLevelLastRefreshMonth);  // 保持
+    EXPECT_EQ(before, core->rng().exportStates());         // 零 RNG 消费
 }
 
 }  // namespace

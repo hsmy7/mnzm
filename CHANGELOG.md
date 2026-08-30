@@ -1,5 +1,15 @@
 ## [4.01.15] - 2026-08-29
 
+### 新增（月变残留执行器增量 C++ 化批 13-2b：S8 步骤 4e 世界关卡刷新生成接线）
+
+> 承接批 13-2a（cpp-engine.md §7.5）：月变八步第四步的世界关卡刷新生成（LevelGenerator 批 4-1 接线）等价移植 C++——生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。
+
+- **S8 步骤 4e 世界关卡刷新生成**：Kotlin `WorldLevelManager.processMonthly` 等价移植 C++——shouldRefresh 判定（lastRefreshMonth==0 || 差值≥3）→ 玩家宗门门控（无 → 只清理不生成不推进）→ `generateWorldLevels`（maxNewLevels=6 → nextInt(6)+1 个，playerAvgRealm 存活弟子平均境界 toInt 安全兜底）→ lastRefreshMonth 推进绝对月 → 妖兽移动（刷新后统一执行，对齐 Kotlin 步骤序）；接线 runMonthSettlement 步骤 4e 位
+- **对拍臂换装真实 ExplorationTickSystem**：WorldLevelManager/LevelGenerator 真实（EXPLORATION 分区消费与 C++ 逐位对齐），巡视/攻击检测 mock（纯早退零效果）——世界关卡刷新对拍主体（场景⑭）
+- **测试基建（LargeClass 拆分）**：DiffMonthSettlementTest 从 1281 行拆分——Kotlin 臂装配提取 `DiffMonthSettlementFixture.kt`（internal 顶层函数：buildMonthDiffService/buildMonthDiffEventProcessor/buildMonthDiffExecutor/advanceKotlinMonthSide 等，语义零变更）；现有 4 场景预置 worldLevelLastRefreshMonth 当前月（不刷新零生成，专注政策/执法域）；diff 面排除 worldLevels id（Kotlin UUID vs C++ 空串，镜像生成字段）
+- **验证**：GTest 618/618（+3：玩家宗门+lastRefreshMonth=0 生成 1~6 关卡+推进/无玩家宗门不生成不推进零消费/最近刷新不刷新零消费；既有 2 附庸用例预置刷新月适配）· DiffMonthSettlementTest 场景⑭（p1 + 空 worldLevels 跨语言逐位一致——生成关卡非空 + lastRefreshMonth=14 + EXPLORATION 分区逐位一致）· engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿
+- **兼容性**：无存档/序列化变更（worldLevelLastRefreshMonth/worldLevels 为既有快照字段）；生产月变真相源仍在 Kotlin；玩家可见行为不变
+
 ### 新增（月变残留执行器增量 C++ 化批 13-2a：S8 步骤 2 教化之道偷盗判定钩子下沉）
 
 > 承接批 13-1（cpp-engine.md §7.5）：月变八步第二步的教化之道低道德偷盗判定钩子等价移植 C++——生产月变真相源仍在 Kotlin（C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。

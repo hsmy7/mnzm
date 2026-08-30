@@ -1,41 +1,9 @@
 package com.xianxia.sect.core.nativebridge
 
-import com.xianxia.sect.core.config.ConfigLoader
-import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.config.GameConfigProvider
-import com.xianxia.sect.core.engine.mockSmart
-import com.xianxia.sect.core.engine.service.AutoPillService
-import com.xianxia.sect.core.engine.service.CultivationCore
-import com.xianxia.sect.core.engine.service.CultivationRateCalculator
-import com.xianxia.sect.core.engine.service.CultivationService
-import com.xianxia.sect.core.engine.service.CultivationSettlement
-import com.xianxia.sect.core.engine.service.CultivationSharedState
-import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
-import com.xianxia.sect.core.engine.service.EquipmentNurtureService
-import com.xianxia.sect.core.engine.service.HpMpRecoveryService
-import com.xianxia.sect.core.engine.service.ManualProficiencyService
-import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
-import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
-import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
-import com.xianxia.sect.core.engine.service.RelativeGiftHandler
-import com.xianxia.sect.core.engine.service.CultivationEventProcessor
-import com.xianxia.sect.core.engine.domain.exploration.SecretRealmAIProcessor
-import com.xianxia.sect.core.engine.service.DisciplePurchaseService
-import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.RecruitService
-import com.xianxia.sect.core.engine.system.PartnerSystem
-import com.xianxia.sect.core.engine.system.SystemManager
-import com.xianxia.sect.core.engine.system.TimeSystem
-import com.xianxia.sect.core.event.EventBus
-import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
-import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.model.AutoBuyEntry
-import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
@@ -49,15 +17,8 @@ import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.model.loyalty
 import com.xianxia.sect.core.model.partnerId
-import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
-import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.engine.service.AutoBuyService
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
-import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.core.wallet.SpiritStoneLedger
-import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -168,6 +129,9 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
+            // 批 13-2b：预置刷新月 == 当前绝对月（13）→ 关卡刷新不触发
+            //（既有场景专注政策/执法域；世界关卡刷新对拍由场景⑭独立覆盖）
+            worldLevelLastRefreshMonth = 1 * 12 + 1
             // 场景③：仁政爱徒（S1 按弟子数计费 100×N + S2 忠诚 +1）
             sectPolicies = sectPolicies.copy(benevolentGovernance = true)
             // 场景②前提：自动配对模式（提案分支不在协议）
@@ -300,6 +264,8 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
+            // 批 13-2b：预置刷新月 == 月变时绝对月（12 月 = 24）→ 不刷新
+            worldLevelLastRefreshMonth = 1 * 12 + 12
             autoBuyList = listOf(
                 AutoBuyEntry(itemName = "精铁剑", itemType = "equipment", rarity = 1),
                 AutoBuyEntry(itemName = "聚气丹", itemType = "pill", rarity = 1)
@@ -348,6 +314,8 @@ class DiffMonthSettlementTest {
             spiritStones = 0L
         ).apply {
             rngStates = initialRngStates(SEED)
+            // 批 13-2b：预置刷新月（13）→ 不刷新
+            worldLevelLastRefreshMonth = 1 * 12 + 1
             // 上架商品（玩家卖出后进 playerListedItems；itemId 指向仓库堆叠）
             playerListedItems = listOf(
                 MerchantItem(
@@ -431,6 +399,8 @@ class DiffMonthSettlementTest {
             spiritStones = 10000L
         ).apply {
             rngStates = initialRngStates(SEED)
+            // 批 13-2b：预置刷新月（13）→ 不刷新（场景⑬ 专注教化之道钩子）
+            worldLevelLastRefreshMonth = 1 * 12 + 1
             sectPolicies = sectPolicies.copy(moralEducation = true)
             // 非空 AI 弟子池（规避空表 null vs {} 协议不对称——批 10-4 同款；
             // worldLevels 空 → precomputeTargets 纯早退，零影响）
@@ -456,6 +426,43 @@ class DiffMonthSettlementTest {
         )
     }
 
+    /**
+     * 场景⑭（批 13-2b）：世界关卡刷新生成——玩家宗门 p1 + worldLevels 空 +
+     * lastRefreshMonth=0（默认应刷新）+ 1 名 realm 9 弟子（playerAvgRealm=9），
+     * (1,1) 起 3 旬跨 1→2 月界。月结步骤 4e：shouldRefresh（0==0）→ p1 存在 →
+     * LevelGenerator.generateWorldLevels（maxNewLevels=6 → nextInt(6)+1 个）+
+     * lastRefreshMonth 推进 14 + 妖兽移动（EXPLORATION 消费与 Kotlin 真实
+     * ExplorationSystem 逐位对齐）。
+     */
+    private fun buildWorldLevelRefreshSnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 1, gameMonth = 1, gamePhase = 0,
+            spiritStones = 10000L
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            // 玩家宗门（刷新门控通过）+ 无初始关卡（从零生成）
+            worldMapSects = listOf(
+                WorldSect(id = "p1", name = "青云宗", isPlayerSect = true, x = 0f, y = 0f)
+            )
+            // 非空 AI 弟子池（规避空表协议不对称）
+            aiSectDisciples = mapOf(
+                "ai-1" to listOf(
+                    Disciple(
+                        id = "90", name = "玄一", realm = 9, realmLayer = 1,
+                        cultivation = 10.0, spiritRootType = "metal",
+                        age = 20, gender = "male",
+                        combat = CombatAttributes(currentHp = -1, currentMp = -1)
+                    )
+                )
+            )
+        }
+        return NativeGameState(
+            gameData = gameData,
+            aiSectDisciples = gameData.aiSectDisciples,
+            disciples = listOf(pairingDisciple("11", "甲一", "male"))
+        )
+    }
+
     @Test
     fun `purchase settlement matches Kotlin bit-for-bit`() {
         assumeTrue(DiffRngBridge.isAvailable())
@@ -465,7 +472,7 @@ class DiffMonthSettlementTest {
         val snapshot = buildPurchaseSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
 
-        val expected = advanceKotlinSide(snapshot, PHASES)
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
 
         assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
             encoded.encodeToByteArray()))
@@ -500,7 +507,7 @@ class DiffMonthSettlementTest {
         val snapshot = buildDecemberSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
 
-        val expected = advanceKotlinSide(snapshot, PHASES)
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
 
         assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
             encoded.encodeToByteArray()))
@@ -533,7 +540,7 @@ class DiffMonthSettlementTest {
         val snapshot = buildMoralEducationSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
 
-        val expected = advanceKotlinSide(snapshot, PHASES)
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
 
         assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
             encoded.encodeToByteArray()))
@@ -553,6 +560,37 @@ class DiffMonthSettlementTest {
         assertEquals("SYSTEM 分区终态不一致（钩子 1 抽 + 兜底 0 抽）",
             expected.gameData.rngStates[RngPartition.SYSTEM.id],
             actual.gameData.rngStates[RngPartition.SYSTEM.id])
+
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
+    }
+
+    @Test
+    fun `world level refresh generates levels matching Kotlin bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+
+        val snapshot = buildWorldLevelRefreshSnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
+
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+
+        // 场景⑭ 显式断言：生成 1~6 个新关卡 + 刷新月推进 14（1 年 2 月绝对月）
+        assertTrue("世界关卡刷新应生成新关卡", actual.gameData.worldLevels.isNotEmpty())
+        assertEquals("lastRefreshMonth 应推进到月变绝对月",
+            1 * 12 + 2, actual.gameData.worldLevelLastRefreshMonth)
+        assertEquals("EXPLORATION 分区终态不一致（生成+移动消费）",
+            expected.gameData.rngStates[RngPartition.EXPLORATION.id],
+            actual.gameData.rngStates[RngPartition.EXPLORATION.id])
 
         assertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
@@ -579,260 +617,6 @@ class DiffMonthSettlementTest {
         return states
     }
 
-    // ── Kotlin 基准侧（与 DiffPhaseSettlementTest 装配同构） ──────────
-
-    private fun buildService(
-        store: FakeGameStateStore,
-        rngStates: Map<Int, Long>
-    ): Triple<CultivationService, GameRngManager, AISectBeastAttackProcessor> {
-        DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
-            override fun getBaseStats(disciple: Disciple) =
-                DiscipleStatCalculator.getBaseStats(disciple)
-            override fun getBaseStats(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: Disciple) =
-                DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) =
-                DiscipleStatCalculator.getTalentEffects(aggregate)
-            override fun getStatsWithEquipment(
-                d: Disciple, e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>
-            ) = DiscipleStatCalculator.getStatsWithEquipment(d, e)
-            override fun getStatsWithEquipment(
-                a: DiscipleAggregate, e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>
-            ) = DiscipleStatCalculator.getStatsWithEquipment(a, e)
-            override fun getFinalStats(
-                d: Disciple,
-                e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
-                m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-                p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
-            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, bloodRefinementPct)
-            override fun getFinalStats(
-                a: DiscipleAggregate,
-                e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
-                m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-                p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-                bloodRefinementPct: BloodRefinementPctTotal?
-            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
-            override fun calculateCultivationSpeed(
-                d: Disciple,
-                manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-                mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-                bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
-            )
-            override fun calculateCultivationSpeed(
-                a: DiscipleAggregate,
-                manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
-                mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
-                bb: Double, ab: Double, peb: Double, pmb: Double,
-                csb: Double, pcb: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
-                a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
-            )
-            override fun getBreakthroughChance(
-                d: Disciple, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
-            override fun getBreakthroughChance(
-                a: DiscipleAggregate, iec: Int, oec: Int, pb: Double,
-                ab: Double, gcp: Double, mdb: Double
-            ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
-        }
-        val core = CultivationCore(
-            hpMpRecoveryService = HpMpRecoveryService(),
-            autoPillService = AutoPillService(
-                DisciplePillManager(PillEffectApplier()),
-                mockSmart()
-            ),
-            equipmentNurtureService = EquipmentNurtureService(),
-            manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(store)
-        )
-        val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
-        // 批 13-1：真实 AISectBeastAttackProcessor（precomputeTargets 对拍主体；
-        // battleSystem/encounterBattleService 用 mock——对拍场景 targets 空
-        // 或未触发子事件 9 战斗，processRemainingTargets 纯早退不调用）
-        val aiBeastAttackProcessor = buildBeastAttackProcessor(store, gameRng)
-        val handler = DiscipleBreakthroughHandler(
-            stateStore = store,
-            cultivationCore = core,
-            scopeProvider = mockSmart(),
-            relativeGiftHandler = RelativeGiftHandler(gameRng),
-            rngManager = gameRng,
-            analyticsTracker = mockSmart()
-        )
-        val scopeProvider = UnconfinedCoroutineScopeProvider()
-        val wallet = SpiritStoneWallet(
-            store, SpiritStoneLedger(), EventBus(scopeProvider)
-        )
-        val configProvider = GameConfigProvider(ConfigLoader({ null }))
-        // 批 13-2a：教化之道偷盗判定钩子对拍主体——CultivationSettlement
-        // 换装真实 LawEnforcementProcessor（与 eventProcessor 同实例；
-        // lifecycle 用 mock——捕获思过/叛逃清理在场景中不触达或恒等）
-        val lawEnforcement = buildLawEnforcement(store, gameRng)
-        val settlement = CultivationSettlement(
-            stateStore = store,
-            scopeProvider = scopeProvider,
-            spiritStoneWallet = wallet,
-            lawEnforcementProcessor = lawEnforcement,
-            gameConfigProvider = configProvider
-        )
-        val eventProcessor = buildEventProcessor(
-            store, core, handler, settlement, gameRng, scopeProvider,
-            aiBeastAttackProcessor
-        )
-        return Triple(
-            CultivationService(
-                stateStore = store,
-                cultivationCore = core,
-                breakthroughHandler = handler,
-                cultivationSettlement = settlement,
-                eventProcessor = eventProcessor,
-                productionProcessor = mockSmart(),
-                recruitService = mockSmart(),
-                merchantAndRecruitService = mockSmart(),
-                caveExplorationProcessor = mockSmart(),
-                sharedState = CultivationSharedState(),
-                discipleService = mockSmart()
-            ),
-            gameRng,
-            aiBeastAttackProcessor
-        )
-    }
-
-    /** 批 13-1：真实 AISectBeastAttackProcessor（precomputeTargets 对拍主体） */
-    private fun buildBeastAttackProcessor(
-        store: FakeGameStateStore,
-        gameRng: GameRngManager
-    ): AISectBeastAttackProcessor = AISectBeastAttackProcessor(
-        stateStore = store,
-        battleSystem = mockSmart(),
-        rngManager = gameRng,
-        encounterBattleService = mockSmart()
-    )
-
-    /** 批 13-2a：真实 LawEnforcementProcessor（教化之道偷盗判定钩子对拍主体；
-     *  lifecycle 用 mock——捕获思过/叛逃清理在钩子场景中不触达或恒等） */
-    private fun buildLawEnforcement(
-        store: FakeGameStateStore,
-        gameRng: GameRngManager
-    ): LawEnforcementProcessor = LawEnforcementProcessor(
-        stateStore = store,
-        rngManager = gameRng,
-        discipleLifecycleProcessor = mockSmart(),
-        lootCalculator = LootCalculator(gameRng)
-    )
-
-    /** 真实 CultivationEventProcessor + 定向惰性依赖（论证见 t2-2-report.md §A） */
-    @Suppress("LongMethod")  // 测试装配：按 27 个构造参数逐个传参，行数随依赖面自然增长
-    private fun buildEventProcessor(
-        store: FakeGameStateStore,
-        core: CultivationCore,
-        handler: DiscipleBreakthroughHandler,
-        settlement: CultivationSettlement,
-        gameRng: GameRngManager,
-        scopeProvider: CoroutineScopeProvider,
-        aiBeastAttackProcessor: AISectBeastAttackProcessor
-    ): CultivationEventProcessor {
-        val wallet = SpiritStoneWallet(
-            store, SpiritStoneLedger(), EventBus(scopeProvider)
-        )
-        val inventoryConfig = com.xianxia.sect.core.config.InventoryConfig()
-        val configProvider = GameConfigProvider(ConfigLoader({ null }))
-        // 批 11-3：真实库存系统 + 自动购买（12 月场景对拍主体）——溢出转邮件
-        // NoOp（diff 面不可见，与 C++ 草稿丢弃侧等价）
-        val inventorySystem = InventorySystem(
-            stateStore = store,
-            inventoryConfig = inventoryConfig,
-            spiritStoneWallet = wallet,
-            gameConfigProvider = configProvider,
-            overflowMailHandler = com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
-        )
-        return CultivationEventProcessor(
-            stateStore = store,
-            spiritStoneWallet = wallet,
-            inventorySystem = inventorySystem,
-            inventoryConfig = inventoryConfig,
-            scopeProvider = scopeProvider,
-            discipleService = mockSmart(),
-            cultivationCore = core,
-            breakthroughHandler = handler,
-            cultivationSettlement = settlement,
-            battleSystem = mockSmart(),
-            recruitService = mockSmart(),
-            merchantAndRecruitService = mockSmart(),
-            caveExplorationProcessor = mockSmart(),
-            discipleLifecycleProcessor = mockSmart(),
-            diplomacyEventProcessor = mockSmart(),
-            diplomacyService = mockSmart(),
-            equipmentManager = mockSmart(),
-            manualManager = mockSmart(),
-            autoBuyService = AutoBuyService(
-                stateStore = store,
-                inventorySystem = inventorySystem,
-                inventoryConfig = inventoryConfig,
-                merchantAndRecruitService = mockSmart(),
-                spiritStoneWallet = wallet
-            ),
-            // 批 10-4：真实附庸服务（脱离流对拍主体——玩家宗门 + 至交附属
-            // 场景下恰抽 1 次 SYSTEM 且必不脱离）
-            vassalService = VassalService(
-                stateStore = store,
-                spiritStoneWallet = wallet,
-                rngManager = gameRng
-            ),
-            // 批 12-1：真实弟子智能购买（购买流对拍主体——场景⑪ playerListedItems
-            // 非空 + 仓库有货 + 弟子有灵石）
-            disciplePurchaseService = DisciplePurchaseService(
-                stateStore = store,
-                inventorySystem = inventorySystem,
-                inventoryConfig = inventoryConfig,
-                rngManager = gameRng
-            ),
-            aiSectBeastAttackProcessor = aiBeastAttackProcessor,
-            // 批 10-2：真实执法堂处理器（叛逃流对拍主体）——lifecycle 用 mock：
-            // 逃脱路径的 11 槽清理在场景中恒等（叛逃候选无任何槽位引用）
-            lawEnforcementProcessor = LawEnforcementProcessor(
-                stateStore = store,
-                rngManager = gameRng,
-                discipleLifecycleProcessor = mockSmart(),
-                lootCalculator = LootCalculator(gameRng)
-            ),
-            rngManager = gameRng,
-            secretRealmService = mockSmart(),
-            // 批 11-2：真实秘境 AI 派遣处理器（纯数据变换零 RNG——秘境存在 +
-            // 有存活 AI 弟子 → 逐月派遣队伍，幂等去重）
-            secretRealmAIProcessor = SecretRealmAIProcessor(),
-            deathHandler = mockSmart(),
-            // 批 12（S-10/S-13）：真实配置 provider（GameConfigNativeBridge
-            // register 时 isLoaded=false 安全跳过）
-            gameConfigProvider = configProvider
-        )
-    }
-
-    /** 月变编排器（SystemManager 仅装 PartnerSystem——缺席 ≡ 场景恒零，见报告 §A；
-     *  批 13-1：步骤 3 换装真实 AISectBeastAttackProcessor——precomputeTargets
-     *  对拍主体，worldLevels 空场景纯早退零效果） */
-    private fun buildMonthExecutor(
-        service: CultivationService,
-        gameRng: GameRngManager,
-        aiBeastAttackProcessor: AISectBeastAttackProcessor
-    ): MonthSettlementExecutor = MonthSettlementExecutor(
-        cultivationService = service,
-        aiSectBeastAttackProcessor = aiBeastAttackProcessor,
-        systemManager = SystemManager(setOf(PartnerSystem(gameRng)))
-    )
-
-    private class UnconfinedCoroutineScopeProvider : CoroutineScopeProvider {
-        override val scope =
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
-        override val ioScope =
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
-    }
-
     // ── 验收测试 ───────────────────────────────────────────────────
 
     @Test
@@ -847,7 +631,7 @@ class DiffMonthSettlementTest {
         val snapshot = buildSnapshot()
         val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
 
-        val expected = advanceKotlinSide(snapshot, PHASES)
+        val expected = advanceKotlinMonthSide(snapshot, PHASES)
 
         // ── C++ 被测侧 ──
         assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
@@ -861,62 +645,6 @@ class DiffMonthSettlementTest {
         assertExplicitAssertions(actual)
         assertCppSurfaceMatches(json.encodeToJsonElement(expected),
                                 json.encodeToJsonElement(actual))
-    }
-
-    /** Kotlin 组合管线：N 旬旬结算 + 月变（跨界检测同生产 tick 序） */
-    private fun advanceKotlinSide(
-        snapshot: NativeGameState,
-        phases: Int = PHASES
-    ): NativeGameState {
-        val store = FakeGameStateStore().also {
-            it.gameDataValue = snapshot.gameData
-            it.disciplesValue = snapshot.disciples
-            // 批 12-1：仓库库存灌入（弟子购买 hasWarehouseStock 依赖）
-            it.equipmentStacksValue = snapshot.equipmentStacks
-            it.equipmentInstancesValue = snapshot.equipmentInstances
-            it.manualStacksValue = snapshot.manualStacks
-            it.manualInstancesValue = snapshot.manualInstances
-            it.pillsValue = snapshot.pills
-            it.materialsValue = snapshot.materials
-            it.herbsValue = snapshot.herbs
-            it.seedsValue = snapshot.seeds
-            it.storageBagsValue = snapshot.storageBags
-        }
-        val (service, gameRng, aiBeastAttackProcessor) =
-            buildService(store, snapshot.gameData.rngStates)
-        val phaseExecutor = PhaseSettlementExecutor(service)
-        val monthExecutor = buildMonthExecutor(service, gameRng, aiBeastAttackProcessor)
-        val timeSystem = TimeSystem(store)
-        store.update {
-            repeat(phases) {
-                val prevMonth = gameData.gameMonth
-                timeSystem.onPhaseTick(this, phasesToSettle = 1)
-                phaseExecutor.execute(this)
-                if (gameData.gameMonth != prevMonth) {
-                    monthExecutor.execute(this)
-                }
-            }
-        }
-        store.gameDataValue = store.gameDataValue.copy(
-            rngStates = gameRng.exportStates().toMutableMap()
-        )
-        return NativeGameState(
-            gameData = store.gameDataValue,
-            // 批 10-4：AI 弟子池经顶层字段承载（与 C++ 导出键对齐）
-            aiSectDisciples = store.gameDataValue.aiSectDisciples,
-            disciples = store.disciplesValue,
-            // 批 11-4：库存集合参与对拍（FakeGameStateStore 嵌套事务修复后
-            // Kotlin 臂的库存写入保留于 store——含 12 月 autoBuy 入库）
-            equipmentStacks = store.equipmentStacksValue,
-            equipmentInstances = store.equipmentInstancesValue,
-            manualStacks = store.manualStacksValue,
-            manualInstances = store.manualInstancesValue,
-            pills = store.pillsValue,
-            materials = store.materialsValue,
-            herbs = store.herbsValue,
-            seeds = store.seedsValue,
-            storageBags = store.storageBagsValue
-        )
     }
 
     /**
@@ -1108,6 +836,7 @@ class DiffMonthSettlementTest {
     private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
         k == "timestamp" -> true
         k == "id" && path.contains("availableMissions") -> true
+        k == "id" && path.contains("worldLevels") -> true   // 批 13-2b：Kotlin UUID vs C++ 空串
         k == "id" && isMirrorIdPath(path) -> true
         else -> false
     }
