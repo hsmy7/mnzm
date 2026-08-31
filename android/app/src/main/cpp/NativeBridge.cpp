@@ -597,8 +597,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             for (int row = minRow; row <= maxRow; row++) {
                 float wy = (float)(row * tileSize);
                 for (int col = minCol; col <= maxCol; col++) {
-                    const int mask = roads[row * cols + col];
-                    if (mask == 0) continue;
+                    // ★ 2026-08-31 根因修复：roadData 为 1-based（0=非道路，1=单格道路
+                    // 原掩码 0，2..16=原掩码 1..15）——直接存掩码会把单格道路（掩码 0）
+                    // 当非道路格跳过（玩家放置的第一格无邻居 → 掩码 0 → 永不显示）
+                    const int raw = roads[row * cols + col];
+                    if (raw == 0) continue;
+                    const int mask = raw - 1;
                     float wx = (float)(col * tileSize);
                     if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 

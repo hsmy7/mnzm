@@ -15,6 +15,7 @@ import com.xianxia.sect.core.engine.moveBuildingDirect
 import com.xianxia.sect.core.engine.removeBuilding
 import com.xianxia.sect.core.engine.removeBuildings
 import com.xianxia.sect.core.engine.removeFromResidenceAtomic
+import com.xianxia.sect.core.engine.placeRoad
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
@@ -211,6 +212,18 @@ class BuildingDelegate(
         if (!goldFingerState.isActive || goldFingerState.canBuildCount <= 0) return
         gameEngine.launchOnEngine {
             val name = goldFingerState.buildingName
+            // ★ 2026-08-31 根因修复：石板路不在 BuildingFeatureRegistry（findByDisplayName
+            // 返回 null → doPlaceBuilding 早退 → 金手指批量道路 0 建 0 扣）——批量道路
+            // 必须走 RoadFacade 逐格放置（每格扣 20 灵石、落 roads、即时回导 C++）
+            if (name == GameConfig.Road.DISPLAY_NAME) {
+                for ((cellKey, valid) in goldFingerState.cellValidity) {
+                    if (!valid) continue
+                    val gx = (cellKey shr 32).toInt()
+                    val gy = (cellKey and 0xFFFF_FFFF).toInt()
+                    gameEngine.placeRoad(gx, gy)
+                }
+                return@launchOnEngine
+            }
             val (gw, gh) = buildingConfigService.getBuildingGridSize(name)
             val cost = goldFingerState.buildingCost
 

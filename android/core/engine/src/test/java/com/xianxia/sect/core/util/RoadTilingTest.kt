@@ -51,11 +51,24 @@ class RoadTilingTest {
             RoadData(3, 4, 0, RoadTileType.SINGLE.name),
             RoadData(4, 4, 0, RoadTileType.SINGLE.name)
         )
+        // ★ 2026-08-31 根因修复：数组值为 1-based（0=非道路，1=单格道路，2..16=掩码 1..15）——
+        // 渲染端取 raw-1 还原；此处还原后再映射形态
         val mask = RoadTiling.buildRoadMaskArray(roads, 10, 10)
-        val m34 = mask!![4 * 10 + 3]
-        val m44 = mask!![4 * 10 + 4]
+        val m34 = mask!![4 * 10 + 3] - 1
+        val m44 = mask!![4 * 10 + 4] - 1
         assertEquals(RoadTileType.HORIZONTAL, RoadTiling.tileTypeForBitmask(m34))
         assertEquals(RoadTileType.HORIZONTAL, RoadTiling.tileTypeForBitmask(m44))
+    }
+
+    @Test
+    fun `single road renders as mask 1 not 0`() {
+        // 根因守护：单格道路（无邻居，邻接掩码 0）在渲染数组中必须是 1（非 0）——
+        // 0 表示"非道路格"，旧实现把单格道路存成 0 → 渲染端 mask==0 跳过 → 永不显示
+        val roads = listOf(RoadData(5, 5, 0, RoadTileType.SINGLE.name))
+        val mask = RoadTiling.buildRoadMaskArray(roads, 10, 10)!!
+        assertEquals("单格道路数组值应为 1（原掩码 0 + 1）", 1, mask[5 * 10 + 5])
+        assertEquals("其余格仍为非道路 0", 0, mask[5 * 10 + 6])
+        assertEquals(RoadTileType.SINGLE, RoadTiling.tileTypeForBitmask(mask[5 * 10 + 5] - 1))
     }
 
     @Test
@@ -64,12 +77,12 @@ class RoadTilingTest {
         val roads = mutableListOf<RoadData>()
         for (y in 3..5) for (x in 2..6) roads.add(RoadData(x, y, 0, RoadTileType.SINGLE.name))
         val mask = RoadTiling.buildRoadMaskArray(roads, 10, 10)!!
-        // 中间行 y=4 的内部格（上/下/左/右皆道路）→ 十字，且描边掩码为 0
-        val mid = RoadTiling.tileTypeForBitmask(mask[4 * 10 + 4])
+        // 中间行 y=4 的内部格（上/下/左/右皆道路）→ 十字，且描边掩码为 0（数组值 -1 还原）
+        val mid = RoadTiling.tileTypeForBitmask(mask[4 * 10 + 4] - 1)
         assertEquals(RoadTileType.CROSS, mid)
-        assertEquals(0, RoadTiling.roadBorderMask(mask[4 * 10 + 4]))
+        assertEquals(0, RoadTiling.roadBorderMask(mask[4 * 10 + 4] - 1))
         // 顶行 y=3 只需描上边（边界），内部左/右/下不描
-        assertEquals(RoadTiling.DIR_UP, RoadTiling.roadBorderMask(mask[3 * 10 + 4]))
+        assertEquals(RoadTiling.DIR_UP, RoadTiling.roadBorderMask(mask[3 * 10 + 4] - 1))
     }
 
     @Test

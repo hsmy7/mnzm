@@ -406,8 +406,11 @@ class SoftwareCanvasBackend(
             for (r in startRow until endRow) {
                 for (c in startCol until endCol) {
                     val idx = r * cols + c
-                    val mask = roadData[idx]
-                    if (mask == 0) continue
+                    // ★ 2026-08-31 根因修复：数组为 1-based（0=非道路，1=单格道路原掩码 0，
+                    // 2..16=原掩码 1..15）——直接存掩码会把单格道路（掩码 0）当非道路跳过
+                    val raw = roadData[idx]
+                    if (raw == 0) continue
+                    val mask = raw - 1
 
                     val ops = RoadCompositorBridge.compose(mask, tileSize) ?: return
                     val chunkOffX = c * tileSize - startCol * tileSize

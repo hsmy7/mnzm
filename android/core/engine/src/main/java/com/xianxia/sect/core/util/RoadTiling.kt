@@ -134,8 +134,16 @@ object RoadTiling {
     }
 
     /**
-     * 从道路集合构建渲染用每格位掩码数组（展平，index = row*cols+col；0 = 非道路）。
-     * @return null 表示无道路（渲染端跳过整层）。
+     * 从道路集合构建渲染用每格位掩码数组（展平，index = row*cols+col）。
+     *
+     * **★ 2026-08-31 根因修复：数组值为「位掩码 + 1」（1-based）**——原实现直接存
+     * 位掩码（0 = 非道路），但**单格道路（无邻居）的邻接掩码也是 0**，渲染端
+     * `mask == 0` 跳过判据把单格道路当非道路格跳过 → 玩家放置的第一格（无邻居）
+     * 道路永不显示。改 1-based 后：0 = 非道路格；1 = 单格道路（原掩码 0）；
+     * 2..16 = 原掩码 1..15。渲染端取 `raw - 1` 还原后交给合成器
+     * （[RoadCompositorBridge] / C++ emitRoadDrawOps 均接收原始掩码 0..15）。
+     *
+     * @return null 表示无道路（渲染端跳过整层）
      */
     fun buildRoadMaskArray(roads: Collection<RoadData>, cols: Int, rows: Int): IntArray? {
         if (roads.isEmpty()) return null
@@ -144,7 +152,8 @@ object RoadTiling {
         val mask = IntArray(cols * rows)
         for (r in roads) {
             if (r.gridX in 0 until cols && r.gridY in 0 until rows) {
-                mask[r.gridY * cols + r.gridX] = bitmaskAt(cells, r.gridX, r.gridY, cols, rows)
+                // +1：单格道路（掩码 0）与"非道路格（数组默认 0）"解耦（渲染端 -1 还原）
+                mask[r.gridY * cols + r.gridX] = bitmaskAt(cells, r.gridX, r.gridY, cols, rows) + 1
             }
         }
         return mask
