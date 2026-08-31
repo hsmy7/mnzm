@@ -1,5 +1,9 @@
 ## [4.01.15] - 2026-08-29
 
+### 修复（云读档后游戏世界被本地存档覆盖：读档/新游戏/重启未重导 C++ native 引擎基线）
+
+> 用户实报：读取云存档后进入游戏，先显示本地存档1的世界；短暂出现云档建筑/灵石数据后又变回本地档1。根因：`NativeEngineFlag` 生产默认 `AUTHORITATIVE`（C++ game-core 为每旬结算真相源），但读档链路（`loadData`/`createNewGame`/`restartGameInternal`）只更新 Kotlin `GameStateStore`，**从未调用 `loadNativeBaseline`（Kotlin→C++ 全量导入）**——该函数唯一调用点 `GameEngineCore.loadSnapshot` 生产代码无调用方。用户先玩本地档1时 native 引擎已初始化并导入本地档1；随后读云档，`ensureAuthoritativeNative` 因 `nativeIsInitialized()==true` 跳过重新导入，tick 反向镜像（`syncFromNative`/`applyDirtyFromNative`）把 C++ 残留的本地档1状态覆盖回 Kotlin → 云档被本地档1顶替（本地读档/新游戏/重启在 native 已初始化后同样受影响）。修复：`GameEngine` 新增 `syncNativeBaselineAfterLoad()`，在 `loadData`/`createNewGame`/`restartGameInternal` 末尾（引擎线程、状态装载完成后）调用，把新档状态全量导入 C++ 基线；native 未加载/不可用时 `loadNativeBaseline` 内部守卫静默跳过（降级契约不变）。验证：`GameEngineCoordinationTest` 新增 4 用例（三个入口 importToNative 守卫 + native 未加载降级守卫）· engine JUnit 全量通过 · feature:game 云读档测试通过 · compileReleaseKotlin 通过。
+
 ### 修复（血炼池卸任无反应：REFINING 受保护状态解除未重置）
 
 > 用户反馈：血炼池中点"卸任"（或详情页对血炼中弟子卸任并确认）后无反应，弟子仍显示"血炼池中"、无法卸任/重新分配。根因：血炼的 `REFINING` 是受保护状态（`deriveDiscipleStatus` 对 `currentStatus==REFINING` 永不回退），而三条 REFINING 解除路径（`cancelBloodRefinement`/`settleSingleRefinement`/`releaseDiscipleFromAllSlotsAtomic` REFINING 分支）只清 `statusData["buildingId"]`、不重置 `statuses` 列——与思过（REFLECTING）解除路径（显式 `statuses[id]=IDLE`）模式不一致，导致血炼进度已删但弟子永久卡"血炼池中"。修复：三处补显式 `statuses=IDLE`（血炼自然完成按既有契约"重置弟子为空闲"一并修正）；`releaseDiscipleForReassignment` REFINING 分支补 `releaseDiscipleAssignment`（gate 释放）；读档自愈 `healDuplicateSlotAssignments` 对"血炼非赢家/进度丢失"场景补 `resetStaleRefiningStatus`（血炼在扫描优先级低于长老/灵矿/巡逻等）；血炼池 UI `loadActiveProgress` 重开对话框时回填血炼中弟子（否则槽位为空、无卸任入口）；C++ `month_settlement.h::settleSingleRefinement` 同步重置（移除"Kotlin 怪癖保留"注释）+ GTest 断言更新。验证：`GameEngineDualSlotGuardTest` 新增 4 用例（取消/完成/通用释放/自愈）· C++ GTest `BloodRefinementDueSettlesWithEvent` 加 IDLE 断言 · engine 相关回归全绿 · detekt 全绿。

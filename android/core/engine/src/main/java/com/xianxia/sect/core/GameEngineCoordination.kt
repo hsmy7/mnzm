@@ -386,6 +386,10 @@ suspend fun GameEngine.loadData(
         initSpiritMineLastSettledMonth()
         // 邮件永久保留：resetAndInitSlot 不删除任何邮件，未领取的溢出/直发邮件跨读档保留
         try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
+        // 2026-09 根因修复：读档后把 Kotlin 新档状态导入 C++ native 引擎基线——
+        // 否则 AUTHORITATIVE tick 反向镜像会把 native 残留的旧档状态覆盖回 Kotlin
+        //（用户实报"云读档后游戏世界变回本地档1"；本地读档/云下载同路径）
+        syncNativeBaselineAfterLoad()
     }
 }
 
@@ -592,6 +596,9 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         // Note: isGameStarted is set to true later in SaveLoadViewModel.startNewGame()
         // after startGameLoop() succeeds, ensuring UI doesn't appear without a running game loop
         try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
+        // 2026-09 根因修复：新游戏世界状态导入 C++ native 引擎基线（同 loadData，
+        // 防 AUTHORITATIVE tick 反向镜像把 native 残留旧档覆盖回新档）
+        syncNativeBaselineAfterLoad()
     }
 }
 
@@ -652,6 +659,9 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 )
             }
         }
+        // 2026-09 根因修复：重启新世界状态导入 C++ native 引擎基线（同 loadData，
+        // 防 AUTHORITATIVE tick 反向镜像把 native 残留旧世界覆盖回重启后的新世界）
+        syncNativeBaselineAfterLoad()
     }
 }
 

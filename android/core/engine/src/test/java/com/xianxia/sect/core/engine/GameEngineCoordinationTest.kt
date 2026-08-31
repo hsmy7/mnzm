@@ -40,6 +40,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 
@@ -219,6 +221,118 @@ class GameEngineCoordinationTest {
         assertEquals("placedBuildings 不应被 enterSect 修改", 1, data.placedBuildings.size)
         assertEquals("建筑内容不应变化", mine, data.placedBuildings.single())
     }
+
+    // ── 2026-09 根因修复守卫：读档/新游戏/重启后必须重导 C++ native 引擎基线 ──
+    // 用户实报"云读档后游戏世界变回本地档1"：loadData 只更新 Kotlin GameStateStore，
+    // 若不同步 C++（AUTHORITATIVE 真相源），tick 反向镜像会把 native 残留的旧档
+    // 状态覆盖回 Kotlin。以下守卫验证三个状态替换入口都会触发 importToNative。
+    //（测试通过反射置 GameCoreBridge.loaded=true 模拟 native 已加载；finally 恢复，
+    //  避免污染其他用例——GameCoreBridge 为进程级单例）
+
+    /** 测试用真实 ProductionSlotRepository（依赖全 mock，scope 用真实作用域使 stateIn 可初始化） */
+    private fun realSlotRepository(): com.xianxia.sect.core.repository.ProductionSlotRepository {
+        val scopeProvider = mock<com.xianxia.sect.core.util.CoroutineScopeProvider>()
+        val scope = kotlinx.coroutines.CoroutineScope(
+            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Unconfined
+        )
+        whenever(scopeProvider.scope).thenReturn(scope)
+        whenever(scopeProvider.ioScope).thenReturn(scope)
+        return com.xianxia.sect.core.repository.ProductionSlotRepository(
+            dao = mock(),
+            configService = mock(),
+            scopeProvider = scopeProvider
+        )
+    }
+
+    @Test
+    fun `loadData - 完成后重导 native 基线（云读档防旧档覆盖）`() = runBlocking {
+        val env = EngineTestEnv()
+        val syncMock = mock<com.xianxia.sect.core.nativebridge.StateSyncService>()
+        whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
+        // alignProductionSlotsWithRepository 直读 repository.getSlots()——该函数与属性 slots
+        //（StateFlow）的 getter 同名，Mockito 按名匹配会抛 WrongTypeOfReturnValue（BootSequenceControllerTest
+        // 同坑注释），故用真实 ProductionSlotRepository 实例（依赖全 mock，getSlots 返回真实空列表）。
+        // 注意：必须先完成 realSlotRepository 的内部 stub，再赋给外层 stub（thenReturn 参数求值
+        // 中不得再 stub 其他 mock，否则 UnfinishedStubbingException）
+        val realRepo = realSlotRepository()
+        whenever(env.engine.productionCoordinator.repository).thenReturn(realRepo)
+        setGameCoreLoaded(true)
+        try {
+            env.engine.loadData(
+                gameData = GameData().apply { sectName = "云档" },
+                disciples = emptyList(),
+                equipmentStacks = emptyList(),
+                equipmentInstances = emptyList(),
+                manualStacks = emptyList(),
+                manualInstances = emptyList(),
+                pills = emptyList()
+            )
+            verify(syncMock).importToNative()
+            Unit
+        } finally {
+            setGameCoreLoaded(false)
+        }
+    }
+
+    @Test
+    fun `createNewGame - 完成后重导 native 基线（新游戏防旧档覆盖）`() = runBlocking {
+        val env = EngineTestEnv()
+        val syncMock = mock<com.xianxia.sect.core.nativebridge.StateSyncService>()
+        whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
+        setGameCoreLoaded(true)
+        try {
+            env.engine.createNewGame("青云宗", 1)
+            verify(syncMock).importToNative()
+            Unit
+        } finally {
+            setGameCoreLoaded(false)
+        }
+    }
+
+    @Test
+    fun `restartGameSuspend - 完成后重导 native 基线（重启防旧世界覆盖）`() = runBlocking {
+        val env = EngineTestEnv()
+        val syncMock = mock<com.xianxia.sect.core.nativebridge.StateSyncService>()
+        whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
+        setGameCoreLoaded(true)
+        try {
+            env.engine.restartGameSuspend("", 1)
+            verify(syncMock).importToNative()
+            Unit
+        } finally {
+            setGameCoreLoaded(false)
+        }
+    }
+
+    @Test
+    fun `native 未加载时读档静默跳过基线导入（降级契约）`() = runBlocking {
+        val env = EngineTestEnv()
+        val syncMock = mock<com.xianxia.sect.core.nativebridge.StateSyncService>()
+        whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
+        val realRepo = realSlotRepository()
+        whenever(env.engine.productionCoordinator.repository).thenReturn(realRepo)
+        // GameCoreBridge.loaded 保持默认 false（.so 未加载）：loadNativeBaseline 首行短路，
+        // importToNative 不得被调用，读档照常成功（双实现并行契约降级）
+        env.engine.loadData(
+            gameData = GameData().apply { sectName = "本地档" },
+            disciples = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
+            pills = emptyList()
+        )
+        verify(syncMock, never()).importToNative()
+        Unit
+    }
+
+    /** 反射设置 GameCoreBridge.loaded（模拟 native 库已加载；测试后必须恢复） */
+    private fun setGameCoreLoaded(loaded: Boolean) {
+        val field = com.xianxia.sect.core.nativebridge.GameCoreBridge::class.java
+            .getDeclaredField("loaded")
+        field.isAccessible = true
+        field.setBoolean(com.xianxia.sect.core.nativebridge.GameCoreBridge, loaded)
+    }
 }
 
 // ── 测试用 GameEngine + GameStateStore 的最小化环境 ──
@@ -237,6 +351,8 @@ private class EngineTestEnv {
         val mockPC = mock<ProductionCoordinator>()
         org.mockito.kotlin.whenever(mockPC.repository).thenReturn(mock())
         org.mockito.kotlin.whenever(it.productionCoordinator).thenReturn(mockPC)
+        // loadData 链路 checkAndCollectCompletedSlots → buildingFacade.autoHarvestCompletedAlchemySlots
+        org.mockito.kotlin.whenever(it.buildingFacade).thenReturn(mock())
     }
     private val mockEconomyFacade = mock<EconomyFacade>().also {
         val mockInventoryFacade = mock<InventoryFacade>()
@@ -245,8 +361,16 @@ private class EngineTestEnv {
         org.mockito.kotlin.whenever(it.mailService).thenReturn(mock())
     }
 
+    // 2026-09 根因修复配套：loadData/createNewGame/restartGame 末尾调用
+    // syncNativeBaselineAfterLoad → loadNativeBaseline(stateSyncService)——
+    // stateSyncServiceRef 必须 stub 非 null（否则 Kotlin 非空参数检查抛 NPE）；
+    // 默认 GameCoreBridge.isLoaded=false 使 loadNativeBaseline 首行短路，零副作用
+    val mockGameEngineCore = mock<GameEngineCore>().also {
+        org.mockito.kotlin.whenever(it.stateSyncServiceRef).thenReturn(mock())
+    }
+
     val engine = GameEngine(
-        gameEngineCore = mock(),
+        gameEngineCore = mockGameEngineCore,
         engineContextDispatcher = FakeEngineContextDispatcher(),
         stateStore = store,
         gameRngManager = mock(),

@@ -321,6 +321,23 @@ class GameEngine @Inject constructor(
             .stateIn(gameEngineCore.scopeForStateIn(), kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), WorldMapRenderData())
     }
 
+    /**
+     * 读档/新游戏/重启后同步 C++ native 引擎基线（AUTHORITATIVE 模式）。
+     *
+     * 根因（2026-09 用户实报"云读档后游戏世界变回本地档1"）：读档/新游戏/重启
+     * 路径只更新 Kotlin [GameStateStore]，若不把新档状态导入 C++ game-core，
+     * native 引擎残留上一次会话状态（`ensureAuthoritativeNative` 因
+     * `nativeIsInitialized()==true` 跳过重新导入），tick 反向镜像
+     * （`syncFromNative`/`applyDirtyFromNative`）会把残留旧档状态覆盖回 Kotlin。
+     *
+     * 调用方必须在引擎线程（`engineContextDispatcher.withEngineContext` 内）、
+     * 状态装载完成之后调用；native 未加载/不可用时由 `loadNativeBaseline`
+     * 内部守卫静默跳过，降级契约不变。
+     */
+    internal suspend fun syncNativeBaselineAfterLoad() {
+        gameEngineCore.loadNativeBaseline(stateSyncService)
+    }
+
     // ── Nested types for backward compat ────────────────────────────────
 
     data class BulkSellOperation(val id: String, val name: String, val quantity: Int, val itemType: String)
