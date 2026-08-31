@@ -42,34 +42,38 @@ class DisciplePillManager @Inject constructor(
 ) {
 
     data class PillUseResult(
-        val disciple: Disciple,
-        val events: List<String>
+        val disciple: Disciple
     )
 
     // ── 自动服用（主入口）──────────────────────────────────────────
 
+    /**
+     * 自动服用储物袋丹药（非突破/非战斗临时丹）。
+     *
+     * @param nurtureEffect A2（2026-08-31）：孕养度丹（nurtureAdd）效果回调——
+     *                      由调用方把 N 点孕养度均分到已装备装备实例
+     *                      （PillEffectApplier 无装备实例访问权，故经回调注入）
+     */
+    @Suppress("ReturnCount")  // 空袋/无可服丹药/成功 三出口
     fun processAutoUsePills(
         disciple: Disciple,
-        gameYear: Int,
-        gameMonth: Int,
-        gamePhase: Int,
-        instantMessage: Boolean = false
+        nurtureEffect: ((Int) -> Unit)? = null
     ): PillUseResult {
-        val events = mutableListOf<String>()
-
         if (disciple.equipment.storageBagItems.isEmpty()) {
-            return PillUseResult(disciple, events)
+            return PillUseResult(disciple)
         }
 
         var updatedDisciple = disciple
 
         // 按规则优先级 > 品阶排序：永久 → 直接修为 → 持续/临时
-        // 突破丹由 DiscipleBreakthroughHandler 内联处理，不在此处消费
+        // 突破丹由 DiscipleBreakthroughHandler 内联处理，不在此处消费；
+        // 战斗临时丹（C2，2026-08-31）不自动服用（保留手动/战前结算）
         val pillItems = disciple.equipment.storageBagItems
             .filter { it.itemType == "pill" && it.effect != null }
             .filterNot {
                 val effect = checkNotNull(it.effect) { "Effect null: ${it.name}" }
-                classify(effect) == PillRule.BREAKTHROUGH
+                val rule = classify(effect)
+                rule == PillRule.BREAKTHROUGH || rule == PillRule.TEMPORARY_BATTLE
             }
             .sortedWith(
                 compareByDescending<StorageBagItem> {
@@ -82,31 +86,67 @@ class DisciplePillManager @Inject constructor(
             )
 
         if (pillItems.isEmpty()) {
-            return PillUseResult(updatedDisciple, events)
+            return PillUseResult(updatedDisciple)
         }
 
         for (pillItem in pillItems) {
-            val check = canUsePill(updatedDisciple, pillItem)
-            if (!check.canUse) continue
-
-            updatedDisciple = pillEffectApplier.applyToDisciple(
-                updatedDisciple, pillItem
-            )
-
-            updatedDisciple = updatedDisciple.copy(
-                equipment = updatedDisciple.equipment.copy(
-                    storageBagItems = StorageBagUtils.decreaseItemQuantity(
-                        updatedDisciple.equipment.storageBagItems,
-                        pillItem.itemId
-                    )
-                )
-            )
-
-            val messagePrefix = if (instantMessage) "立即" else "自动"
-            events.add("${updatedDisciple.name} ${messagePrefix}使用了丹药 ${pillItem.name}")
+            updatedDisciple = tryConsumePill(updatedDisciple, pillItem, nurtureEffect)
+                ?: continue
         }
 
-        return PillUseResult(updatedDisciple, events)
+        return PillUseResult(updatedDisciple)
+    }
+
+    /**
+     * 单颗丹药尝试服用（C1-C3 门槛判定；跳过返回 null）。
+     * C3（2026-08-31）：满修为/全功法满级时不浪费修为丹/功法经验丹
+     */
+    @Suppress("ReturnCount")  // 资格拒绝/效果缺失/浪费跳过/成功 四出口
+    private fun tryConsumePill(
+        disciple: Disciple,
+        pillItem: StorageBagItem,
+        nurtureEffect: ((Int) -> Unit)?
+    ): Disciple? {
+        val check = canUsePill(disciple, pillItem)
+        if (!check.canUse) return null
+
+        val effect = pillItem.effect ?: return null
+        if (isWastefulUse(disciple, effect)) return null
+
+        var updated = disciple
+        // A2（2026-08-31）：孕养度丹效果（装备实例均分由调用方执行）
+        if (effect.nurtureAdd > 0) {
+            nurtureEffect?.invoke(effect.nurtureAdd)
+        }
+
+        updated = pillEffectApplier.applyToDisciple(updated, pillItem)
+
+        return updated.copy(
+            equipment = updated.equipment.copy(
+                storageBagItems = StorageBagUtils.decreaseItemQuantity(
+                    updated.equipment.storageBagItems,
+                    pillItem.itemId
+                )
+            )
+        )
+    }
+
+    /**
+     * C3（2026-08-31）：满修为/全功法满级时服用即浪费。
+     */
+    @Suppress("ReturnCount")  // 修为满/功法满/不浪费 三出口
+    private fun isWastefulUse(disciple: Disciple, effect: ItemEffect): Boolean {
+        if (effect.cultivationAdd > 0 &&
+            disciple.cultivation >= disciple.maxCultivation
+        ) {
+            return true
+        }
+        if (effect.skillExpAdd > 0) {
+            val allMaxed = disciple.manualMasteries.isNotEmpty() &&
+                disciple.manualMasteries.all { it.value >= MANUAL_MASTERY_CAP }
+            if (allMaxed) return true
+        }
+        return false
     }
 
     // ── 服用资格检查 ──────────────────────────────────────────────
@@ -121,6 +161,12 @@ class DisciplePillManager @Inject constructor(
 
         if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, effect.minRealm)) {
             return PillUseCheck(false, "境界不足")
+        }
+
+        // C1（2026-08-31）：治疗/回蓝丹按需服用——满血/满蓝不自动服用
+        // （口径 = applyHealAndRecover 同源 getBaseStats maxHp/maxMp）
+        if (isHealGatingBlocked(disciple, effect)) {
+            return PillUseCheck(false, "当前状态已满")
         }
 
         return when (classify(effect)) {
@@ -147,6 +193,29 @@ class DisciplePillManager @Inject constructor(
     }
 
     // ── Pill → ItemEffect 转换 ──────────────────────────────────────
+
+    /**
+     * C1（2026-08-31）：治疗/回蓝丹满状态拦截（canUsePill 内部判定）。
+     * 口径 = applyHealAndRecover 同源 getBaseStats maxHp/maxMp（与 C++
+     * pill_system::healGatingBlocked 逐位一致）。
+     */
+    @Suppress("ReturnCount")  // 无治疗效果/满血/满蓝/可通过 四出口
+    private fun isHealGatingBlocked(disciple: Disciple, effect: ItemEffect): Boolean {
+        if (effect.healMaxHpPercent <= 0.0 && effect.mpRecoverMaxMpPercent <= 0.0) {
+            return false
+        }
+        val maxHp = disciple.maxHp
+        val maxMp = disciple.maxMp
+        if (effect.healMaxHpPercent > 0.0) {
+            val curHp = if (disciple.combat.currentHp < 0) maxHp else disciple.combat.currentHp
+            if (curHp >= maxHp) return true
+        }
+        if (effect.mpRecoverMaxMpPercent > 0.0) {
+            val curMp = if (disciple.combat.currentMp < 0) maxMp else disciple.combat.currentMp
+            if (curMp >= maxMp) return true
+        }
+        return false
+    }
 
     fun pillToItemEffect(pill: Pill): ItemEffect {
         return ItemEffect(
@@ -197,6 +266,9 @@ class DisciplePillManager @Inject constructor(
     companion object {
 
         private const val TAG = "DisciplePillManager"
+
+        /** 功法熟练度上限（ManualProficiencySystem.MAX_PROFICIENCY 场景门槛 10000） */
+        private const val MANUAL_MASTERY_CAP = 10000
 
         /**
          * 根据丹药效果分类到对应规则。

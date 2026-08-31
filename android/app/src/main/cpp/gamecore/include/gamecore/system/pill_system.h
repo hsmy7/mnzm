@@ -129,9 +129,35 @@ inline bool meetsRealmRequirement(int32_t discipleRealm, int32_t minRealm) {
     return discipleRealm <= minRealm;
 }
 
+/// 治疗/回蓝丹满状态拦截（C1 共用：canUsePill / hasUsablePills 同源口径；
+/// maxHp/maxMp = getBaseStats()，与 applyHealAndRecover 完全一致）
+inline bool healGatingBlocked(const Disciple& d, const ItemEffect& e) {
+    if (e.healMaxHpPercent <= 0.0 && e.mpRecoverMaxMpPercent <= 0.0) {
+        return false;
+    }
+    const auto fx = gamecore::stats::mergeEffects(
+        gamecore::stats::talentEffectsFor(d.talentIds),
+        gamecore::stats::affixEffectsFor(d.affixIds));
+    int32_t maxHp = 0, maxMp = 0;
+    gamecore::stats::computeBaseHpMp(d.realm, d.realmLayer, d.hpVariance,
+                                     d.mpVariance, fx, nullptr, maxHp, maxMp);
+    if (e.healMaxHpPercent > 0.0) {
+        const int32_t cur = d.currentHp < 0 ? maxHp : d.currentHp;
+        if (cur >= maxHp) return true;
+    }
+    if (e.mpRecoverMaxMpPercent > 0.0) {
+        const int32_t cur = d.currentMp < 0 ? maxMp : d.currentMp;
+        if (cur >= maxMp) return true;
+    }
+    return false;
+}
+
 /// 服用资格检查（canUsePill）
+/// C1（2026-08-31）：治疗/回蓝丹按需服用——满血/满蓝时不可自动服用
+/// （避免满状态白吃）
 inline bool canUsePill(const Disciple& d, const ItemEffect& effect) {
     if (!meetsRealmRequirement(d.realm, effect.minRealm)) return false;
+    if (healGatingBlocked(d, effect)) return false;
     switch (classify(effect)) {
         case PillRule::kPermanentBaseAttr: {
             const auto keys = buildUsedKeys(effect, effect.tier);

@@ -11,6 +11,7 @@
 
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
+#include "gamecore/system/auto_gear.h"
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
 #include "gamecore/system/disciple.h"
@@ -40,8 +41,9 @@
 // JSON 数组）。恢复/修炼/熟练度/孕养/丹药服用零 RNG。
 //
 // 已知范围边界（详见 .superpowers/sdd/t2-1-report.md）：
-//   - Kotlin 循环首步 processAutoFromWarehouseRealtime（自动装备/学习）不在
-//     本批结算范围（简报 §1 结算范围六项之外），开关全关时为纯早退；
+//   - 循环首步 processAutoFromWarehouseRealtime（自动装备/学习）已于
+//     2026-08-31（B 批）下沉：仓库 + 储物袋候选 + 更高品阶替换
+//     （auto_gear.h）；此前开关全关为纯早退；
 //   - 丹药写回中的偷盗判定钩子（道德<阈值 → 执法堂 SYSTEM RNG）属执法系统，
 //     突破后的亲属赠送（SYSTEM RNG）属社交系统，均未随本批下沉；
 //     对拍场景以"无亲属关系 + 低道德丹药缺席"保证双端语义一致。
@@ -567,6 +569,32 @@ inline bool applyNurtureExp(EquipmentInstance& eq, double gain) {
     return true;
 }
 
+/// 孕养度丹应用（A2，2026-08-31）：N 点均分到已装备装备实例
+/// （向下取整，余数给第一件；满级装备跳过——该件增益不累积）。
+/// 无装备实例时零效果（丹药照常扣除，与 Kotlin 镜像一致）。
+inline void applyNurtureEffect(state::GameState& state, Disciple& d,
+                               int32_t nurtureAdd) {
+    if (nurtureAdd <= 0) return;
+    std::vector<std::string> equippedIds;
+    if (!d.weaponId.empty()) equippedIds.push_back(d.weaponId);
+    if (!d.armorId.empty()) equippedIds.push_back(d.armorId);
+    if (!d.bootsId.empty()) equippedIds.push_back(d.bootsId);
+    if (!d.accessoryId.empty()) equippedIds.push_back(d.accessoryId);
+    if (equippedIds.empty()) return;
+    const int32_t per = nurtureAdd / static_cast<int32_t>(equippedIds.size());
+    const int32_t remainder =
+        nurtureAdd % static_cast<int32_t>(equippedIds.size());
+    for (std::size_t i = 0; i < equippedIds.size(); ++i) {
+        const int32_t gain = per + (i == 0 ? remainder : 0);
+        if (gain <= 0) continue;
+        for (state::EquipmentInstance& eq : state.equipmentInstances) {
+            if (eq.id != equippedIds[i]) continue;
+            applyNurtureExp(eq, static_cast<double>(gain));
+            break;
+        }
+    }
+}
+
 /// 步骤 4：单弟子四槽孕养增长（批量模式：从共享快照映射读原值，
 /// 更新累积到 updates——与 Kotlin settleNurtureInPlace 读写面一致）
 inline void processEquipmentNurture(
@@ -628,6 +656,8 @@ inline bool hasUsablePills(const Disciple& d) {
         switch (pill::classify(*item.effect)) {
             case pill::PillRule::kBreakthrough:
                 continue;   // 突破丹由突破处理器内联消费
+            case pill::PillRule::kTemporaryBattle:
+                continue;   // C2：战斗临时丹不自动服用（保留手动/战前结算）
             case pill::PillRule::kPermanentBaseAttr: {
                 bool allUsed = true;
                 for (const auto& k :
@@ -644,21 +674,27 @@ inline bool hasUsablePills(const Disciple& d) {
                 if (!containsString(d.usedExtendLifePillTypes,
                                     item.effect->pillType)) return true;
                 continue;
-            default:
+            default: {
+                // C1：满血/满蓝治疗丹指纹排除（与 canUsePill 同源口径）
+                if (pill::healGatingBlocked(d, *item.effect)) continue;
                 return true;
+            }
         }
     }
     return false;
 }
 
 /// 自动服用主流程（DisciplePillManager.processAutoUsePills；返回是否实际服用。
-/// 排序：规则优先级降序 + 稀有度降序的稳定排序；突破丹被排除）
-inline bool autoUsePills(Disciple& d) {
+/// 排序：规则优先级降序 + 稀有度降序的稳定排序；突破丹被排除。
+/// C2（2026-08-31）：战斗临时丹（kTemporaryBattle）不自动服用；
+/// C3（2026-08-31）：满修为不浪费修为丹、全功法满级不浪费功法经验丹）
+inline bool autoUsePills(Disciple& d, state::GameState& state) {
     std::vector<const StorageBagItem*> pillItems;
     for (const StorageBagItem& item : d.storageBagItems) {
         if (item.itemType != "pill") continue;
         if (!item.effect.has_value()) continue;
         if (pill::classify(*item.effect) == pill::PillRule::kBreakthrough) continue;
+        if (pill::classify(*item.effect) == pill::PillRule::kTemporaryBattle) continue;
         pillItems.push_back(&item);
     }
     if (pillItems.empty()) return false;
@@ -675,6 +711,25 @@ inline bool autoUsePills(Disciple& d) {
     for (const StorageBagItem* item : pillItems) {
         // canUsePill 以"已应用前序丹药的最新弟子状态"判定（Kotlin updatedDisciple 链）
         if (!pill::canUsePill(working, *item->effect)) continue;
+        const state::ItemEffect& e = *item->effect;
+        // C3：满修为/全功法满级时不浪费修为丹/功法经验丹
+        if (e.cultivationAdd > 0) {
+            const double maxCult = computeMaxCultivation(
+                working.realm, working.realmLayer, working.cultivation);
+            if (working.cultivation >= maxCult) continue;
+        }
+        if (e.skillExpAdd > 0) {
+            bool skip = working.manualMasteries.empty();
+            if (!skip) {
+                skip = true;
+                for (const auto& kv : working.manualMasteries) {
+                    if (kv.second < 10000) { skip = false; break; }
+                }
+            }
+            if (skip) continue;
+        }
+        // A2：孕养度丹均分至已装备装备实例（nurtureAdd>0 才生效）
+        if (e.nurtureAdd > 0) applyNurtureEffect(state, working, e.nurtureAdd);
         pill::applyToDisciple(working, *item);
         working.storageBagItems = pill::decreaseItemQuantity(
             working.storageBagItems, item->itemId, 1);
@@ -748,7 +803,7 @@ inline void processAutoPills(GameState& state,
         Disciple d = ds.materialize(row);
         if (!hasUsablePills(d)) continue;
         Disciple working = d;
-        if (!autoUsePills(working)) continue;   // result.disciple == disciple → 跳过
+        if (!autoUsePills(working, state)) continue;   // result.disciple == disciple → 跳过
         writePillResult(d, working, state.gameData);
         ds.upsertDisciple(d);                   // 原位写回（保序）
     }
@@ -910,7 +965,12 @@ inline void applyBreakthroughFailure(Disciple& d) {
 /// 自动服用突破丹（attemptAutoPill）：仓库优先 → 储物袋兜底。
 /// @param pillTargetRealm 丹药目标境界（满层大境界突破取 realm-1）
 /// @return (突破率加成, 是否修改了弟子储物袋)；两处 maxByOrNull 均
-///         取"首个最大值"（Kotlin maxByOrNull 语义，严格大于才替换）
+///         取"首个最大值"（Kotlin maxByOrNull 语义，严格大于才替换）。
+/// 消耗语义（2026-08-31 根因修复）：**逐颗扣减**——仓库堆叠 quantity>1
+/// 减一保留、=1 整条移除（对齐 LootCalculator 的 update+filterInPlace
+/// 消费模式）；储物袋经 decreaseItemQuantity 减一。修复此前整叠删除
+/// （EntityStore.minus / List.minus 按相等元素整条移除、忽略 quantity
+/// ——堆叠 quantity=10 一次突破吃 1 颗删 10 颗）的 P0 数量丢失 bug。
 inline std::pair<double, bool> attemptAutoPill(
         Disciple& d, int32_t pillTargetRealm, GameState& state) {
     const GameData& gd = state.gameData;
@@ -943,14 +1003,17 @@ inline std::pair<double, bool> attemptAutoPill(
         }
     }
     if (best != nullptr) {
-        state.pills.erase(state.pills.begin() +
-                          static_cast<std::ptrdiff_t>(bestIndex));
+        // 逐颗扣减：quantity>1 减一保留，=1 整条移除
+        if (state.pills[bestIndex].quantity > 1) {
+            state.pills[bestIndex].quantity -= 1;
+        } else {
+            state.pills.erase(state.pills.begin() +
+                              static_cast<std::ptrdiff_t>(bestIndex));
+        }
         return {bestChance, false};
     }
 
-    // 储物袋兜底（命中后**整条移除**并返回已修改弟子——对齐 Kotlin
-    // `storageBagItems - bestPill` 的 List.minus(element) 全量相等移除语义，
-    // 非 decreaseItemQuantity(quantity-1)；itemId 袋内唯一为生产不变量）
+    // 储物袋兜底（逐颗扣减：decreaseItemQuantity(quantity-1)，quantity=1 移除）
     const StorageBagItem* bagBest = nullptr;
     double bagBestChance = -1.0;
     for (const StorageBagItem& item : d.storageBagItems) {
@@ -964,13 +1027,8 @@ inline std::pair<double, bool> attemptAutoPill(
         }
     }
     if (bagBest != nullptr) {
-        std::vector<StorageBagItem> remaining;
-        remaining.reserve(d.storageBagItems.size());
-        for (StorageBagItem& item : d.storageBagItems) {
-            if (item.itemId == bagBest->itemId) continue;   // 整条移除
-            remaining.push_back(std::move(item));
-        }
-        d.storageBagItems = std::move(remaining);
+        d.storageBagItems = pill::decreaseItemQuantity(
+            d.storageBagItems, bagBest->itemId, 1);
         return {bagBestChance, true};
     }
     return {0.0, false};
@@ -1196,6 +1254,12 @@ inline void runPhaseSettlement(state::GameState& state,
         committedDisciples.push_back(state.disciples.materialize(i));
     }
     const auto secretIds = detail::secretRealmMemberIds(state.gameData);
+
+    // 0) 自动装备/学习（仓库 + 储物袋候选 + 更高品阶替换；B 2026-08-31）。
+    //    在结算入口快照之后执行——对齐 Kotlin execute 的
+    //    processAutoFromWarehouseRealtime 首步：本旬自动装配不影响突破概率
+    //    的长老快照判定（committed 视图语义）。
+    detail::processAutoFromWarehouse(state);
 
     runPhaseCoreBatch(state);
 

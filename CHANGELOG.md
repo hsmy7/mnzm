@@ -220,6 +220,19 @@
 - **验证**：GTest 592/592（+1：aiSectDisciples 段应用 + 整体替换 + gameData 覆盖不受影响）· DiffStateSyncTest +4（mergeGameData 保留/全量替换保留/C++ 携带覆盖/反向信封变化检测——首次携带、未变不携带、变化携带新值）· engine JUnit 2929/2929（0 skip）· NDK 通过 · detekt 全模块全绿 · lintRelease 通过
 - **兼容性**：无存档/序列化变更；反向信封协议新增 `aiSectDisciples` 段（旧 .so 忽略未知段，向前兼容）；玩家可见行为修复（AI 宗门弟子不再被镜像清空重生成）
 
+### 新增/修复（弟子自动装备/学习增强 + 丹药自动服用优化——C++ 双端，2026-08-31）
+
+> 需求分析结论：自动装备/学习此前仅以宗门仓库为源且"只装备不更换"（储物袋仅作卸装/遗忘/没收的汇）；丹药自动服用存在两处 P0 缺陷。本次按 C++ 优先规则（rules/cpp-priority.md 边界规则 1/4）双端实现（game-core C++ 主实现 + Kotlin 残留执行器镜像，GTest 黄金序列 + Diff 对拍双守护）。
+
+- **修复（P0，双端同病）**：突破丹自动服用**整叠删除**——`state.pills - listOf(...)`（EntityStore.minus = items - set，按相等元素整条移除、忽略 quantity）与储物袋 `storageBagItems - bestPill`（List.minus 同理）导致堆叠 quantity=10 时一次突破消耗 1 颗删 10 颗。根因修复：仓库改 `EntityStore.update(quantity-1)` + `filterInPlace`（对齐 LootCalculator 消费模式）、袋内改 `StorageBagUtils.decreaseItemQuantity`（C++ `phase_settlement.h::attemptAutoPill` + Kotlin `DiscipleBreakthroughHandler.attemptAutoPill` 镜像；C++ 侧原为忠实复刻该 bug 的 diff 基准，同批修正）
+- **新增（A2）**：孕养度丹（nurtureAdd：蕴器丹~天蕴丹）效果落地——此前 `classify` 归为 INSTANT_CULTIVATION 但全引擎无效果消费点，自动服用即白吃。现均分至已装备装备实例（向下取整、余数给第一件，复用升级规则 `EquipmentNurtureSystem.updateNurtureExp` / C++ `applyNurtureExp`）；补守卫测试（classify 支持字段 ↔ applier 实现覆盖）
+- **优化（C1-C3）**：治疗/回蓝丹**满血/满蓝不自动服用**（`canUsePill` 新增 `healGatingBlocked` 门槛，口径与 C++ `pill_system::healGatingBlocked` 逐位一致）；**战斗临时丹不自动服用**（保留手动/战前结算，C2）；**满修为/全功法满级不浪费**修为丹/功法经验丹（C3）
+- **新增（B，C++ 新建 `gamecore/system/auto_gear.h`）**：自动装备/学习候选源统一（宗门仓库 + 弟子储物袋——`equipment_instance`/`manual_instance` 保真直接装配、`equipment_stack`/`manual_stack` 按名模板重建，模板缺失丢弃对齐 BagItemReconstructor）+ **更高品阶自动替换**（统一比较键：品阶 → 攻击类型匹配 → 孕养等级；被替换装备/功法必回储物袋不丢失；功法替换同步清残留熟练度；每槽每旬至多一次防震荡）；Kotlin `DiscipleEquipmentManager`/`DiscipleManualManager`/`CultivationEventProcessor` 镜像
+- **途中发现并修复（本批引入的 UB）**：C++ 自动学习替换路径 `forgetManualToBag` 先 erase 实例表致引用悬垂、`depositEquippedToBag`/`forgetManualToBag` push 储物袋致候选 bag 指针悬垂——先拷贝 id/动作数据再变更（调试期 GTest 实锤）
+- **验证**：GTest 659→672（+13：突破丹逐颗扣减仓库/袋、治疗丹按需/满血跳过、战斗丹排除、满修为跳过、孕养度均分、袋内实例装配/替换、仓库装备/学习、替换最差功法+熟练度清理、秘境跳过、全开关零变化）· engine JUnit 3028/3028（含 DiffPhaseSettlementTest/DiffAuthoritativeTickTest/DiffMonthSettlementTest 桌面对拍桥 0 skip）· detekt 全模块全绿 · compileReleaseKotlin 通过
+- **清理（死代码）**：同步删除自动装备/学习/丹药路径的死参数（`gamePhase`/`maxStack`/`instantMessage`、`processAutoUsePills` 的 `gameYear/gameMonth/gamePhase`）与死结果字段（`replacedEquipmentStacks`/`replacedManualStack`/`events`）及 `MAX_EQUIPMENT_STACK`/`MAX_MANUAL_STACK` 常量，调用链（AutoPillService/CultivationCore/CultivationService/CultivationEventProcessor）同步收窄；R-15 技术债登记：`PillEffectApplier` 与 `DiscipleFacadeImpl.applyPillEffectsToDisciple` 丹药效果双实现（含 cultivationAdd 封顶差异）待手动路径 C++ 化时统一
+- **兼容性**：无存档/Proto/Room/Migration 变更（不新增配置开关）；行为仅在既有激活机制（已关注/灵根数）内增强；老档零变化；UI 文案同步（自动装备/学习标题改为含储物袋与自动更换说明）
+
 ## [4.01.14] - 2026-08-29
 
 ### 新增（月变残留执行器增量 C++ 化批 10-1：S8 侦察过期清理下沉 + 宗门详情域协议扩容）

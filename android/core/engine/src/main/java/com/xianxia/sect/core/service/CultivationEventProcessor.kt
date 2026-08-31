@@ -206,10 +206,10 @@ class CultivationEventProcessor @Inject constructor(
      */
     fun processAutoFromWarehouseRealtime(state: MutableGameState) {
         val d = state.gameData
-        processAutoFromWarehouse(d.gameYear, d.gameMonth, d.gamePhase, state)
+        processAutoFromWarehouse(d.gameYear, d.gameMonth, state)
     }
     private fun processAutoFromWarehouse(
-        year: Int, month: Int, phase: Int, state: MutableGameState
+        year: Int, month: Int, state: MutableGameState
     ) {
         val gameData = state.gameData
         val equipFocused = gameData.autoEquipFromWarehouseFocused
@@ -243,28 +243,81 @@ class CultivationEventProcessor @Inject constructor(
         val mnInstancesById = state.manualInstances.associateById()
         val newEqInstances = mutableListOf<EquipmentInstance>()
         val newMnInstances = mutableListOf<ManualInstance>()
+        // B（2026-08-31）：袋内实例装配 / 被替换旧实例（已回袋，需从实例表移除）
+        val attachedEqInstances = mutableListOf<EquipmentInstance>()
+        val replacedEqInstances = mutableListOf<EquipmentInstance>()
+        val attachedMnInstances = mutableListOf<ManualInstance>()
+        val replacedMnInstances = mutableListOf<ManualInstance>()
         val sortedIndices = updatedDisciples.indices
             .sortedWith(compareByDescending<Int> { updatedDisciples[it].statusData["followed"] == "true" }
                 .thenBy { updatedDisciples[it].realm }
                 .thenByDescending { updatedDisciples[it].realmLayer })
         for (idx in sortedIndices) {
-            val disciple = updatedDisciples[idx]
-            var d = disciple
-            if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
-                val result = processSingleAutoEquip(d, year, month, phase, tables, eqStacks, eqInstancesById, newEqInstances)
-                d = result.first
-                eqStacks = result.second
+            val step = processSingleDiscipleAuto(
+                updatedDisciples[idx], year, month, tables,
+                equipFocused, equipRootCounts, learnFocused, learnRootCounts,
+                eqStacks, mnStacks, eqInstancesById, mnInstancesById,
+                newEqInstances, attachedEqInstances, replacedEqInstances,
+                newMnInstances, attachedMnInstances, replacedMnInstances
+            )
+            if (step.disciple !== updatedDisciples[idx]) {
+                updatedDisciples[idx] = step.disciple
             }
-            if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
-                val result = processSingleAutoLearn(d, year, month, phase, tables, mnStacks, mnInstancesById, newMnInstances)
-                d = result.first
-                mnStacks = result.second
-            }
-            if (d !== disciple) {
-                updatedDisciples[idx] = d
-            }
+            eqStacks = step.eqStacks
+            mnStacks = step.mnStacks
         }
-        writeAutoWarehouseResults(state, tables, updatedDisciples, eqStacks, mnStacks, newEqInstances, newMnInstances)
+        writeAutoWarehouseResults(
+            state, tables, updatedDisciples, eqStacks, mnStacks,
+            newEqInstances, newMnInstances,
+            attachedEqInstances, replacedEqInstances,
+            attachedMnInstances, replacedMnInstances
+        )
+    }
+
+    /** 单弟子自动装备/学习结果（B：袋内实例装配 / 被替换旧实例） */
+    private data class AutoWarehouseResult(
+        val disciple: Disciple,
+        val eqStacks: List<EquipmentStack>,
+        val mnStacks: List<ManualStack>
+    )
+
+    /** 单个弟子的自动装备 + 自动学习（先装备后学习，对齐 Kotlin 编排） */
+    private fun processSingleDiscipleAuto(
+        disciple: Disciple,
+        year: Int, month: Int,
+        tables: DiscipleTables,
+        equipFocused: Boolean, equipRootCounts: Set<Int>,
+        learnFocused: Boolean, learnRootCounts: Set<Int>,
+        eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
+        eqInstancesById: Map<String, EquipmentInstance>,
+        mnInstancesById: Map<String, ManualInstance>,
+        newEqInstances: MutableList<EquipmentInstance>,
+        attachedEqInstances: MutableList<EquipmentInstance>,
+        replacedEqInstances: MutableList<EquipmentInstance>,
+        newMnInstances: MutableList<ManualInstance>,
+        attachedMnInstances: MutableList<ManualInstance>,
+        replacedMnInstances: MutableList<ManualInstance>
+    ): AutoWarehouseResult {
+        var d = disciple
+        var eqs = eqStacks
+        var mns = mnStacks
+        if (qualifiesForSectAutoPublic(d, equipFocused, equipRootCounts)) {
+            val result = processSingleAutoEquip(
+                d, year, month, tables, eqs, eqInstancesById,
+                newEqInstances, attachedEqInstances, replacedEqInstances
+            )
+            d = result.first
+            eqs = result.second
+        }
+        if (qualifiesForSectAutoPublic(d, learnFocused, learnRootCounts)) {
+            val result = processSingleAutoLearn(
+                d, year, month, tables, mns, mnInstancesById,
+                newMnInstances, attachedMnInstances, replacedMnInstances
+            )
+            d = result.first
+            mns = result.second
+        }
+        return AutoWarehouseResult(d, eqs, mns)
     }
 
     /**
@@ -302,19 +355,27 @@ class CultivationEventProcessor @Inject constructor(
      * @return (更新后的弟子, 更新后的装备堆叠列表)
      */
     private fun processSingleAutoEquip(
-        d: Disciple, year: Int, month: Int, phase: Int, tables: DiscipleTables,
+        d: Disciple, year: Int, month: Int, tables: DiscipleTables,
         eqStacks: List<EquipmentStack>, eqInstancesById: Map<String, EquipmentInstance>,
-        newEqInstances: MutableList<EquipmentInstance>
+        newEqInstances: MutableList<EquipmentInstance>,
+        attachedEqInstances: MutableList<EquipmentInstance>,
+        replacedEqInstances: MutableList<EquipmentInstance>
     ): Pair<Disciple, List<EquipmentStack>> {
         val result = equipmentManager.processAutoEquipFromWarehouse(
             disciple = d, warehouseStacks = eqStacks, equipmentInstances = eqInstancesById,
-            gameYear = year, gameMonth = month, gamePhase = phase,
-            maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
+            gameYear = year, gameMonth = month
         )
-        if (result.newInstances.isEmpty()) return d to eqStacks
+        if (result.newInstances.isEmpty() && result.attachedInstances.isEmpty() &&
+            result.replacedInstances.isEmpty()
+        ) {
+            return d to eqStacks
+        }
         var stacks = eqStacks
         newEqInstances.addAll(result.newInstances)
-        val equipName = result.newInstances.firstOrNull()?.name ?: ""
+        // B：袋内实例装配（重建入表）与被替换旧实例（已回袋，从实例表移除）
+        attachedEqInstances.addAll(result.attachedInstances)
+        replacedEqInstances.addAll(result.replacedInstances)
+        val equipName = (result.newInstances.firstOrNull() ?: result.attachedInstances.firstOrNull())?.name ?: ""
         if (equipName.isNotEmpty()) {
             discipleService.addLifeEvent(d.id, "${tables.ages[d.id.toInt()]}岁：自动装备了${equipName}")
         }
@@ -330,19 +391,27 @@ class CultivationEventProcessor @Inject constructor(
      * @return (更新后的弟子, 更新后的功法堆叠列表)
      */
     private fun processSingleAutoLearn(
-        d: Disciple, year: Int, month: Int, phase: Int, tables: DiscipleTables,
+        d: Disciple, year: Int, month: Int, tables: DiscipleTables,
         mnStacks: List<ManualStack>, mnInstancesById: Map<String, ManualInstance>,
-        newMnInstances: MutableList<ManualInstance>
+        newMnInstances: MutableList<ManualInstance>,
+        attachedMnInstances: MutableList<ManualInstance>,
+        replacedMnInstances: MutableList<ManualInstance>
     ): Pair<Disciple, List<ManualStack>> {
         val result = manualManager.processAutoLearnFromWarehouse(
             disciple = d, warehouseStacks = mnStacks, manualInstances = mnInstancesById,
-            gameYear = year, gameMonth = month, gamePhase = phase,
-            maxStack = inventoryConfig.getMaxStackSize("manual_stack")
+            gameYear = year, gameMonth = month
         )
-        if (result.newInstance == null) return d to mnStacks
+        if (result.newInstance == null && result.attachedInstance == null &&
+            result.replacedInstance == null
+        ) {
+            return d to mnStacks
+        }
         var stacks = mnStacks
-        newMnInstances.add(result.newInstance)
-        val manualName = result.newInstance.name
+        result.newInstance?.let { newMnInstances.add(it) }
+        // B：袋内实例装配（重建入表）与被替换旧实例（已回袋，从实例表移除）
+        result.attachedInstance?.let { attachedMnInstances.add(it) }
+        result.replacedInstance?.let { replacedMnInstances.add(it) }
+        val manualName = (result.newInstance ?: result.attachedInstance)?.name ?: ""
         if (manualName.isNotEmpty()) {
             discipleService.addLifeEvent(d.id, "${tables.ages[d.id.toInt()]}岁：自动学习了${manualName}")
         }
@@ -360,7 +429,9 @@ class CultivationEventProcessor @Inject constructor(
         state: MutableGameState, tables: DiscipleTables,
         updatedDisciples: List<Disciple>,
         eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
-        newEqInstances: List<EquipmentInstance>, newMnInstances: List<ManualInstance>
+        newEqInstances: List<EquipmentInstance>, newMnInstances: List<ManualInstance>,
+        attachedEqInstances: List<EquipmentInstance>, replacedEqInstances: List<EquipmentInstance>,
+        attachedMnInstances: List<ManualInstance>, replacedMnInstances: List<ManualInstance>
     ) {
         for (disciple in updatedDisciples) {
             val id = disciple.id.toInt()
@@ -379,6 +450,25 @@ class CultivationEventProcessor @Inject constructor(
         state.manualStacks.setItems(mnStacks)
         newEqInstances.forEach { state.equipmentInstances.add(it) }
         newMnInstances.forEach { state.manualInstances.add(it) }
+        // B（2026-08-31）：袋内实例装配——可能不在实例表（防双持有），
+        // 在表内则更新保序、不在则新增
+        attachedEqInstances.forEach { attached ->
+            if (state.equipmentInstances.contains(attached.id)) {
+                state.equipmentInstances.update(attached.id) { attached }
+            } else {
+                state.equipmentInstances.add(attached)
+            }
+        }
+        attachedMnInstances.forEach { attached ->
+            if (state.manualInstances.contains(attached.id)) {
+                state.manualInstances.update(attached.id) { attached }
+            } else {
+                state.manualInstances.add(attached)
+            }
+        }
+        // B：被替换的旧实例已回储物袋，从实例表移除（防双持有）
+        replacedEqInstances.forEach { state.equipmentInstances.remove(it.id) }
+        replacedMnInstances.forEach { state.manualInstances.remove(it.id) }
     }
 
     /**

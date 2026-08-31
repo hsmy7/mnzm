@@ -263,6 +263,74 @@ class DiscipleBreakthroughHandlerTest {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — A1（2026-08-31）逐颗扣减回归：堆叠 quantity>1
+    // 一次突破尝试只消耗 1 颗（此前整叠删除 bug：3 颗全丢）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - warehouse pill stack quantity 3 deducts one`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 8)
+
+        val pill = Pill(
+            id = "pill_1",
+            name = "突破丹",
+            pillType = "breakthrough",
+            rarity = 3,
+            quantity = 3,
+            effects = PillEffect(
+                targetRealm = 9,
+                breakthroughChance = 0.5
+            )
+        )
+        state.pills = EntityStore(listOf(pill))
+        state.gameData = GameData(breakthroughAutoPillFocused = true)
+
+        val original = tables.assemble(1)
+        val discipleWithFollowed = original.copy(
+            statusData = mapOf("followed" to "true")
+        )
+
+        handler.performBreakthrough(discipleWithFollowed, state, state.gameData)
+
+        // 逐颗扣减：3 → 2（而非整叠删除 → 0）
+        val remaining = state.pills.all()
+        assertEquals("突破丹堆叠应剩 1 条", 1, remaining.size)
+        assertEquals("堆叠数量应 3→2", 2, remaining[0].quantity)
+    }
+
+    @Test
+    fun `performBreakthrough - storage bag pill stack quantity 3 deducts one`() {
+        insertDiscipleForBreakthrough(id = 1, realm = 9, realmLayer = 8)
+
+        val bagPill = StorageBagItem(
+            itemId = "bag_pill_1",
+            itemType = ITEM_TYPE_PILL,
+            name = "储物袋突破丹",
+            rarity = 3,
+            quantity = 3,
+            effect = ItemEffect(
+                pillType = "breakthrough",
+                breakthroughChance = 0.3,
+                targetRealm = 9
+            )
+        )
+        tables.storageBagItems[1] = listOf(bagPill)
+        state.gameData = GameData(breakthroughAutoPillFocused = true)
+
+        val original = tables.assemble(1)
+        val discipleWithFollowed = original.copy(
+            statusData = mapOf("followed" to "true")
+        )
+
+        val result = handler.performBreakthrough(discipleWithFollowed, state, state.gameData)
+
+        // 逐颗扣减：3 → 2（而非整条删除 → 0）
+        val remaining = result.equipment.storageBagItems
+        assertEquals("储物袋突破丹应剩 1 条", 1, remaining.size)
+        assertEquals("袋内数量应 3→2", 2, remaining[0].quantity)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // performBreakthrough — counts are written
     // ═══════════════════════════════════════════════════════════════
 

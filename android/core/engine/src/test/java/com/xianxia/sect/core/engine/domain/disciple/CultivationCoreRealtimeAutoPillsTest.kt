@@ -62,6 +62,67 @@ class CultivationCoreRealtimeAutoPillsTest {
     @Before
     fun setUp() {
         pillManager = DisciplePillManager(PillEffectApplier())
+        // C1（2026-08-31）：治疗丹满血判定经 disciple.maxHp（getBaseStats）——
+        // 纯 JUnit 需手动绑定晚绑定属性计算器（对齐 Diff 对拍测试模式）
+        com.xianxia.sect.core.model.DiscipleAggregate.statsProvider =
+            object : com.xianxia.sect.core.model.DiscipleStatsProvider {
+                override fun getBaseStats(disciple: com.xianxia.sect.core.model.Disciple) =
+                    DiscipleStatCalculator.getBaseStats(disciple)
+                override fun getBaseStats(aggregate: com.xianxia.sect.core.model.DiscipleAggregate) =
+                    DiscipleStatCalculator.getBaseStats(aggregate)
+                override fun getTalentEffects(disciple: com.xianxia.sect.core.model.Disciple) =
+                    DiscipleStatCalculator.getTalentEffects(disciple)
+                override fun getTalentEffects(aggregate: com.xianxia.sect.core.model.DiscipleAggregate) =
+                    DiscipleStatCalculator.getTalentEffects(aggregate)
+                override fun getStatsWithEquipment(
+                    d: com.xianxia.sect.core.model.Disciple,
+                    e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>
+                ) = DiscipleStatCalculator.getStatsWithEquipment(d, e)
+                override fun getStatsWithEquipment(
+                    a: com.xianxia.sect.core.model.DiscipleAggregate,
+                    e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>
+                ) = DiscipleStatCalculator.getStatsWithEquipment(a, e)
+                override fun getFinalStats(
+                    d: com.xianxia.sect.core.model.Disciple,
+                    e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
+                    m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
+                    p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
+                    bloodRefinementPct: com.xianxia.sect.core.model.BloodRefinementPctTotal?
+                ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, bloodRefinementPct)
+                override fun getFinalStats(
+                    a: com.xianxia.sect.core.model.DiscipleAggregate,
+                    e: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
+                    m: Map<String, com.xianxia.sect.core.model.ManualInstance>,
+                    p: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
+                    bloodRefinementPct: com.xianxia.sect.core.model.BloodRefinementPctTotal?
+                ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
+                override fun calculateCultivationSpeed(
+                    d: com.xianxia.sect.core.model.Disciple,
+                    manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
+                    mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
+                    bb: Double, ab: Double, peb: Double, pmb: Double,
+                    csb: Double, pcb: Double, gcp: Double, mdb: Double
+                ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                    d, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                )
+                override fun calculateCultivationSpeed(
+                    a: com.xianxia.sect.core.model.DiscipleAggregate,
+                    manuals: Map<String, com.xianxia.sect.core.model.ManualInstance>,
+                    mps: Map<String, com.xianxia.sect.core.model.ManualProficiencyData>,
+                    bb: Double, ab: Double, peb: Double, pmb: Double,
+                    csb: Double, pcb: Double, gcp: Double, mdb: Double
+                ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                    a, manuals, mps, bb, peb, pmb, csb, pcb, gcp
+                )
+                override fun getBreakthroughChance(
+                    d: com.xianxia.sect.core.model.Disciple, iec: Int, oec: Int, pb: Double,
+                    ab: Double, gcp: Double, mdb: Double
+                ) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)
+                override fun getBreakthroughChance(
+                    a: com.xianxia.sect.core.model.DiscipleAggregate, iec: Int, oec: Int, pb: Double,
+                    ab: Double, gcp: Double, mdb: Double
+                ) = DiscipleStatCalculator.getBreakthroughChance(a, iec, oec, pb, ab, gcp, mdb)
+            }
     }
 
     // ── 辅助方法 ──────────────────────────────────────────────────
@@ -148,7 +209,7 @@ class CultivationCoreRealtimeAutoPillsTest {
         val id = 1
         val cultBefore = state.discipleTables.cultivations[id]
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         // 无丹药弟子 — 状态不变
         assertTrue(state.discipleTables.storageBagItems.getOrNull(id)?.isEmpty() ?: true)
@@ -165,7 +226,7 @@ class CultivationCoreRealtimeAutoPillsTest {
         )
         val state = stateWithDisciple(id = 1, storageBagItems = equipmentOnly)
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         val items = state.discipleTables.storageBagItems.getOrNull(1) ?: emptyList()
         assertEquals(1, items.size)
@@ -183,7 +244,7 @@ class CultivationCoreRealtimeAutoPillsTest {
         )
         val cultBefore = state.discipleTables.cultivations[1]
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         // 突破丹仍在储物袋（指纹检测直接跳过，未 assemble）
         val items = state.discipleTables.storageBagItems.getOrNull(1) ?: emptyList()
@@ -200,7 +261,7 @@ class CultivationCoreRealtimeAutoPillsTest {
             id = 1, storageBagItems = listOf(breakthroughPill(targetRealm = 9))
         )
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         val items = state.discipleTables.storageBagItems.getOrNull(1) ?: emptyList()
         assertEquals("突破丹应保留给突破检测", 1, items.size)
@@ -217,7 +278,7 @@ class CultivationCoreRealtimeAutoPillsTest {
             cultivation = 5.0
         )
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         // 丹药已消费
         val items = state.discipleTables.storageBagItems.getOrNull(1) ?: emptyList()
@@ -241,7 +302,7 @@ class CultivationCoreRealtimeAutoPillsTest {
             id = 1, storageBagItems = pills, cultivation = 0.0
         )
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         val newCult = state.discipleTables.cultivations[1]
         // 两种修为丹均被消费，修为增加
@@ -281,7 +342,7 @@ class CultivationCoreRealtimeAutoPillsTest {
         )
         state.discipleTables.usedPermanentPillKeys[1] = usedKeys
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         // 丹药未消费（指纹已排除）
         val items = state.discipleTables.storageBagItems.getOrNull(1) ?: emptyList()
@@ -291,19 +352,39 @@ class CultivationCoreRealtimeAutoPillsTest {
     // ── 治疗丹 ────────────────────────────────────────────────────
 
     @Test
-    fun `heal pill consumed`() {
+    fun `heal pill consumed when injured`() {
+        // C1（2026-08-31）：受伤（currentHp < maxHp）时自动服用治疗丹
         val state = stateWithDisciple(
             id = 1,
             storageBagItems = listOf(healPill(healPercent = 30.0)),
             cultivation = 0.0
         )
         val id = 1
+        state.discipleTables.currentHps[id] = 50   // 受伤（maxHp > 50）
 
-        PillsRealtime.process(state, pillManager, year = 1, month = 1, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
-        // 丹药被消费（即使 HP 恢复量受 maxHp 计算属性影响）
+        // 丹药被消费且 HP 恢复
         val items = state.discipleTables.storageBagItems.getOrNull(id) ?: emptyList()
         assertTrue("治疗丹应被消费", items.isEmpty())
+        assertTrue("HP 应恢复（50 → 增加）", state.discipleTables.currentHps[id] > 50)
+    }
+
+    @Test
+    fun `heal pill skipped at full hp`() {
+        // C1（2026-08-31）：满血（-1 哨兵）不自动吃治疗丹，保留袋内
+        val state = stateWithDisciple(
+            id = 1,
+            storageBagItems = listOf(healPill(healPercent = 30.0)),
+            cultivation = 0.0
+        )
+        val id = 1
+        state.discipleTables.currentHps[id] = -1   // 满血哨兵
+
+        PillsRealtime.process(state, pillManager)
+
+        val items = state.discipleTables.storageBagItems.getOrNull(id) ?: emptyList()
+        assertEquals("满血时治疗丹应保留", 1, items.size)
     }
 
     // ── 修炼速度丹：单倍写回 pillEffects（2026-08 修复） ─────────────
@@ -326,7 +407,7 @@ class CultivationCoreRealtimeAutoPillsTest {
         state.discipleTables.cultivationSpeedBonuses[1] = 0.5
         state.discipleTables.cultivationSpeedDurations[1] = 9
 
-        PillsRealtime.process(state, pillManager, year = 5, month = 3, phase = 1)
+        PillsRealtime.process(state, pillManager)
 
         val tables = state.discipleTables
         assertEquals("旧 cultivationSpeedBonus 字段应清零", 0.0, tables.cultivationSpeedBonuses[1], 0.001)
@@ -345,10 +426,7 @@ private object PillsRealtime {
 
     fun process(
         state: MutableGameState,
-        pillManager: DisciplePillManager,
-        year: Int,
-        month: Int,
-        phase: Int
+        pillManager: DisciplePillManager
     ) {
         val tables = state.discipleTables
         for (id in tables.ids) {
@@ -358,9 +436,7 @@ private object PillsRealtime {
             if (!hasAutoUsablePills(tables = tables, id = id)) continue
 
             val disciple = tables.assemble(id)
-            val result = pillManager.processAutoUsePills(
-                disciple, year, month, phase
-            )
+            val result = pillManager.processAutoUsePills(disciple)
             if (result.disciple == disciple) continue
 
             // 丹药效果写回弟子表

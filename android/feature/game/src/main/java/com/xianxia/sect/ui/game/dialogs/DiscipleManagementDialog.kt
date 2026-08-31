@@ -61,7 +61,7 @@ private fun AutoPillSection(gameData: GameData?, viewModel: GameViewModel) {
     var pillRootCounts by remember { mutableStateOf(gameData?.breakthroughAutoPillRootCounts ?: emptySet()) }
 
     AutoUseSection(
-        title = "弟子突破时自动使用仓库中突破丹药（优先高品阶）",
+        title = "弟子突破时自动使用突破丹药（优先高品阶，含储物袋）",
         focused = pillFocused,
         rootCounts = pillRootCounts,
         onFocusedToggle = {
@@ -84,7 +84,7 @@ private fun AutoEquipSection(gameData: GameData?, viewModel: GameViewModel) {
     var equipRootCounts by remember { mutableStateOf(gameData?.autoEquipFromWarehouseRootCounts ?: emptySet()) }
 
     AutoUseSection(
-        title = "弟子自动装备仓库中符合境界的装备（优先高品阶，只装备不更换）",
+        title = "弟子自动装备符合境界的装备（优先高品阶，含储物袋，自动更换更高品阶）",
         focused = equipFocused,
         rootCounts = equipRootCounts,
         onFocusedToggle = {
@@ -107,7 +107,7 @@ private fun AutoLearnSection(gameData: GameData?, viewModel: GameViewModel) {
     var learnRootCounts by remember { mutableStateOf(gameData?.autoLearnFromWarehouseRootCounts ?: emptySet()) }
 
     AutoUseSection(
-        title = "弟子自动学习仓库中符合境界的功法（优先高品阶，只学习不更换）",
+        title = "弟子自动学习符合境界的功法（优先高品阶，含储物袋，自动更换更高品阶）",
         focused = learnFocused,
         rootCounts = learnRootCounts,
         onFocusedToggle = {

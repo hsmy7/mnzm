@@ -26,6 +26,7 @@ import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.StorageBagUtils
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -122,17 +123,24 @@ class DiscipleBreakthroughHandler @Inject constructor(
             .filter { it.pillType == "breakthrough" && it.effects.targetRealm == pillTargetRealm }
             .maxByOrNull { it.effects.breakthroughChance }
         if (warehousePill != null) {
-            state.pills = state.pills - listOf(warehousePill)
+            // 2026-08-31 A1 根因修复：逐颗扣减（quantity>1 减一保留，=1 移除）。
+            // 此前 `state.pills - listOf(...)`（EntityStore.minus = items - set，
+            // 按相等元素整条移除、忽略 quantity）导致堆叠 quantity=10 时
+            // 一次突破尝试吃掉 1 颗却删掉整叠 10 颗。
+            state.pills.update(warehousePill.id) { it.copy(quantity = it.quantity - 1) }
+            state.pills.filterInPlace { it.quantity > 0 }
             return Pair(warehousePill.effects.breakthroughChance, null)
         }
 
-        // 储物袋丹药兜底
+        // 储物袋丹药兜底（同 A1 修复：逐颗扣减，非整条删除）
         val bestPill = d.equipment.storageBagItems
             .filter { it.itemType == ITEM_TYPE_PILL && it.effect?.pillType == "breakthrough" && it.effect?.targetRealm == pillTargetRealm }
             .maxByOrNull { it.effect?.breakthroughChance ?: 0.0 }
         return if (bestPill != null) {
             Pair(bestPill.effect?.breakthroughChance ?: 0.0, d.copy(equipment = d.equipment.copy(
-                storageBagItems = d.equipment.storageBagItems - bestPill
+                storageBagItems = StorageBagUtils.decreaseItemQuantity(
+                    d.equipment.storageBagItems, bestPill.itemId
+                )
             )))
         } else Pair(0.0, null)
     }

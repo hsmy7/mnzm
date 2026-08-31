@@ -83,8 +83,8 @@ class CultivationCore @Inject constructor(
     fun applyMonthlyDurationDecay(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) =
         hpMpRecoveryService.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
 
-    fun processRealtimeAutoPills(state: MutableGameState, year: Int, month: Int, phase: Int) =
-        autoPillService.processRealtimeAutoPills(state, year, month, phase)
+    fun processRealtimeAutoPills(state: MutableGameState) =
+        autoPillService.processRealtimeAutoPills(state)
 
     // ── 每旬熟练度 + 孕养增长 ────────────────────────────────
 

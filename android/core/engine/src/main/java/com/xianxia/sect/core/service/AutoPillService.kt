@@ -1,9 +1,11 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.PillRule
+import com.xianxia.sect.core.model.ItemEffect
 import com.xianxia.sect.core.model.secretRealmMemberIds
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.MutableGameState
@@ -36,15 +38,9 @@ class AutoPillService @Inject constructor(
      * 无丹药弟子跳过 [DiscipleTables.assemble]，避免分配开销。
      *
      * @param state 可变游戏状态
-     * @param year 当前游戏年
-     * @param month 当前游戏月
-     * @param phase 当前游戏旬
      */
     fun processRealtimeAutoPills(
-        state: MutableGameState,
-        year: Int,
-        month: Int,
-        phase: Int
+        state: MutableGameState
     ) {
         val tables = state.discipleTables
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
@@ -57,12 +53,44 @@ class AutoPillService @Inject constructor(
 
             val disciple = tables.assemble(id)
             val result = pillManager.processAutoUsePills(
-                disciple, year, month, phase
+                disciple,
+                // A2（2026-08-31）：孕养度丹效果——装备实例均分（余数给第一件）
+                nurtureEffect = { amount -> applyNurtureAddToEquipped(state, id, amount) }
             )
             if (result.disciple == disciple) continue
             writePillResultToTables(id, result.disciple, tables, state)
             // Checkpoint：丹药可能改变修炼速率（持续加速/瞬间增长），同步检查点
             tables.checkpointDisciple(id, currentMonth)
+        }
+    }
+
+    /**
+     * A2（2026-08-31）：孕养度丹效果——N 点均分到已装备装备实例
+     * （向下取整，余数给第一件；满级装备跳过，该件增益不累积）。
+     * 无装备实例时零效果（丹药照常扣除，与 C++ auto_gear 同源语义）。
+     */
+    private fun applyNurtureAddToEquipped(
+        state: MutableGameState,
+        discipleId: Int,
+        amount: Int
+    ) {
+        if (amount <= 0) return
+        val disciple = state.discipleTables.assemble(discipleId)
+        val equippedIds = listOfNotNull(
+            disciple.equipment.weaponId.takeIf { it.isNotEmpty() },
+            disciple.equipment.armorId.takeIf { it.isNotEmpty() },
+            disciple.equipment.bootsId.takeIf { it.isNotEmpty() },
+            disciple.equipment.accessoryId.takeIf { it.isNotEmpty() }
+        )
+        if (equippedIds.isEmpty()) return
+        val per = amount / equippedIds.size
+        val remainder = amount % equippedIds.size
+        equippedIds.forEachIndexed { index, eqId ->
+            val gain = per + if (index == 0) remainder else 0
+            if (gain <= 0) return@forEachIndexed
+            state.equipmentInstances.update(eqId) { eq ->
+                EquipmentNurtureSystem.updateNurtureExp(eq, gain.toDouble()).equipment
+            }
         }
     }
 
@@ -73,6 +101,11 @@ class AutoPillService @Inject constructor(
      *
      * 排除规则：
      * - 突破丹：由 [DiscipleBreakthroughHandler] 内联处理
+     * - 战斗临时丹（C2，2026-08-31）：不自动服用
+     * - 满血哨兵治疗丹（C1 保守指纹，2026-08-31）：currentHp < 0（-1 哨兵）
+     *   视为满血排除——完整满血判定需 getBaseStats maxHp（列不可达），
+     *   由 canUsePill 兜底精确判定（性能近似、行为等价，与 C++ 指纹
+     *   结构一致——C++ 侧因已物化弟子可做完整判定）
      * - 已服用过的永久属性丹：通过 [DiscipleTables.usedPermanentPillKeys] 查重
      * - 已服用过的延寿丹：通过 [DiscipleTables.usedExtendLifePillTypes] 查重
      *
@@ -93,6 +126,7 @@ class AutoPillService @Inject constructor(
             val effect = item.effect ?: return@any false
             when (DisciplePillManager.classify(effect)) {
                 PillRule.BREAKTHROUGH -> return@any false
+                PillRule.TEMPORARY_BATTLE -> return@any false
                 PillRule.PERMANENT_BASE_ATTR -> {
                     val keys = DisciplePillManager.buildUsedKeys(
                         effect, effect.tier
@@ -101,9 +135,39 @@ class AutoPillService @Inject constructor(
                 }
                 PillRule.PERMANENT_LIFE ->
                     effect.pillType !in usedExtendLifeTypes
-                else -> true
+                else -> {
+                    // C1：满血/满蓝治疗丹指纹排除（与 canUsePill 同源口径）
+                    if (isHealPillBlockedByFingerprint(id, tables, effect)) {
+                        return@any false
+                    }
+                    true
+                }
             }
         }
+    }
+
+    /**
+     * C1 保守指纹（2026-08-31）：满血哨兵（currentHp < 0 = -1）才排除治疗丹——
+     * 完整满血判定需 getBaseStats maxHp（列不可达），由 canUsePill 兜底精确判定
+     * （性能近似、行为等价，与 C++ 指纹结构一致——C++ 侧因已物化弟子可做完整判定）。
+     */
+    @Suppress("ReturnCount")  // 满血/满蓝/可通过 三出口
+    private fun isHealPillBlockedByFingerprint(
+        id: Int,
+        tables: DiscipleTables,
+        effect: ItemEffect
+    ): Boolean {
+        if (effect.healMaxHpPercent > 0.0 &&
+            (tables.currentHps.getOrNull(id) ?: 0) < 0
+        ) {
+            return true
+        }
+        if (effect.mpRecoverMaxMpPercent > 0.0 &&
+            (tables.currentMps.getOrNull(id) ?: 0) < 0
+        ) {
+            return true
+        }
+        return false
     }
 
     /**
