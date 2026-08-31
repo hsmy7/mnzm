@@ -280,10 +280,16 @@ inline void settleSingleRefinement(GameState& state, const std::string& building
     (void)buildingId;
     const auto dId = toIntOrNull(progress.discipleId);
     if (!dId.has_value() || idx.find(*dId) == idx.end()) return;
-    if (progress.selectedStat.empty()) return;
-    // 防御：血炼期间弟子可能因其他系统死亡（isAlive[dId] == 0 直接返回）
     DiscipleStore& ds = state.disciples;
     const std::size_t row = idx.at(*dId);
+    if (progress.selectedStat.empty()) {
+        // 数据异常防御：进度被 processBloodRefinementCompletions 移除，但
+        // REFINING 受保护状态须显式打破（与 Kotlin settleSingleRefinement 同步）
+        ds.statusData[row].erase("buildingId");
+        ds.statuses[row] = "IDLE";
+        return;
+    }
+    // 防御：血炼期间弟子可能因其他系统死亡（isAlive[dId] == 0 直接返回）
     if (ds.isAlive[row] == 0) return;
 
     // NaN 无法被 coerceAtLeast 拦下——先 isFinite 归零再取非负
@@ -306,8 +312,12 @@ inline void settleSingleRefinement(GameState& state, const std::string& building
     auto& refinements = state.gameData.bloodRefinements[progress.discipleId];
     refinements.push_back(progress.materialId);
 
-    // 仅清除 statusData["buildingId"]（status 保持 REFINING——Kotlin 怪癖保留）
+    // 清除 statusData["buildingId"] 并重置状态为 IDLE——REFINING 是受保护状态
+    // （Kotlin deriveDiscipleStatus 永不回退），须在结算事务内显式打破；
+    // 与 Kotlin settleSingleRefinement 语义同步（根因修复：血炼完成/取消后
+    // 弟子曾永久卡"血炼池中"）
     ds.statusData[row].erase("buildingId");
+    ds.statuses[row] = "IDLE";
 
     recordGameEvent(state, "SECT", "blood_refinement",
                     progress.discipleName + "的血练已完成！属性「" +

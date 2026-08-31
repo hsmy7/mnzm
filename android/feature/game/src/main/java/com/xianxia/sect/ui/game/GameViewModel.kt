@@ -59,6 +59,7 @@ import com.xianxia.sect.core.engine.recruitDisciple
 import com.xianxia.sect.core.engine.recruitDiscipleFromList
 import com.xianxia.sect.core.engine.redeemCode
 import com.xianxia.sect.core.engine.refreshTravelingMerchantManual
+import com.xianxia.sect.core.engine.releaseDiscipleAssignment
 import com.xianxia.sect.core.engine.releaseDiscipleFromAllSlotsAtomic
 import com.xianxia.sect.core.engine.releaseReflectionDisciple
 import com.xianxia.sect.core.engine.removePlantFromSpiritField
@@ -1099,6 +1100,9 @@ class GameViewModel @Inject constructor(
                 if (buildingInstanceId != null) {
                     gameEngine.launchOnEngine {
                         gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
+                        // 同步释放 gate 注册（cancelBloodRefinement 不清 gate，
+                        // 与 BloodRefiningViewModel.cancelRefine 的释放语义对齐）
+                        gameEngine.releaseDiscipleAssignment(discipleId)
                     }
                 } else {
                     releaseDiscipleFromAllSlotsAtomic(discipleId)

@@ -272,6 +272,9 @@ class SpiritMineViewModel @Inject constructor(
                     ?.key
                 if (buildingInstanceId != null) {
                     gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
+                    // 同步释放 gate 注册（cancelBloodRefinement 不清 gate，
+                    // 与 BloodRefiningViewModel.cancelRefine 的释放语义对齐）
+                    gameEngine.releaseDiscipleAssignment(discipleId)
                 } else {
                     gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
                 }

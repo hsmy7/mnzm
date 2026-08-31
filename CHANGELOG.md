@@ -1,5 +1,9 @@
 ## [4.01.15] - 2026-08-29
 
+### 修复（血炼池卸任无反应：REFINING 受保护状态解除未重置）
+
+> 用户反馈：血炼池中点"卸任"（或详情页对血炼中弟子卸任并确认）后无反应，弟子仍显示"血炼池中"、无法卸任/重新分配。根因：血炼的 `REFINING` 是受保护状态（`deriveDiscipleStatus` 对 `currentStatus==REFINING` 永不回退），而三条 REFINING 解除路径（`cancelBloodRefinement`/`settleSingleRefinement`/`releaseDiscipleFromAllSlotsAtomic` REFINING 分支）只清 `statusData["buildingId"]`、不重置 `statuses` 列——与思过（REFLECTING）解除路径（显式 `statuses[id]=IDLE`）模式不一致，导致血炼进度已删但弟子永久卡"血炼池中"。修复：三处补显式 `statuses=IDLE`（血炼自然完成按既有契约"重置弟子为空闲"一并修正）；`releaseDiscipleForReassignment` REFINING 分支补 `releaseDiscipleAssignment`（gate 释放）；读档自愈 `healDuplicateSlotAssignments` 对"血炼非赢家/进度丢失"场景补 `resetStaleRefiningStatus`（血炼在扫描优先级低于长老/灵矿/巡逻等）；血炼池 UI `loadActiveProgress` 重开对话框时回填血炼中弟子（否则槽位为空、无卸任入口）；C++ `month_settlement.h::settleSingleRefinement` 同步重置（移除"Kotlin 怪癖保留"注释）+ GTest 断言更新。验证：`GameEngineDualSlotGuardTest` 新增 4 用例（取消/完成/通用释放/自愈）· C++ GTest `BloodRefinementDueSettlesWithEvent` 加 IDLE 断言 · engine 相关回归全绿 · detekt 全绿。
+
 ### 修复（天枢殿自动管理：已住住所弟子被重复排班）
 
 > 用户反馈：弟子已住进住所（residenceSlots 占用），天枢殿自动管理（月度 `processAutoAssign`）仍将其安排到灵植/灵矿/炼丹/锻造生产槽位，形成"住所+生产"双槽位。根因：`processAutoAssign` 构建空闲候选池时只排除了本次新分配住所的弟子（`assignedResidentIds`），**已住住所的弟子（`occupiedResidentIds`）未排除**——而住所不推导状态（`deriveDiscipleStatus` 无住所 flag），已住住所弟子 status==IDLE 且不在 `buildOccupiedSlotDiscipleIds`（住所与工作"被动共存"有意排除），被第一层 IDLE 过滤放过，捕获进生产分配候选。修复：`idleDisciples` 同时移除 `occupiedResidentIds`，与 `assignedResidentIds` 处理一致；住所分配（`computeResidenceAssignments`）仍保留"无视状态入住"设计不变。验证：新增 `ProductionSlotDualWriteGuardTest.processAutoAssign - 已住住所的 IDLE 弟子不被排班` 复现守卫；对照组（健康空闲弟子仍可被分配）不受影响；core:engine 全量测试通过；lint 通过。

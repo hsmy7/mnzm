@@ -4,6 +4,7 @@ import com.xianxia.sect.core.engine.BloodRefinementStartResult
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.cancelBloodRefinement
 import com.xianxia.sect.core.engine.confirmAssignDisciple
+import com.xianxia.sect.core.engine.getAllDiscipleAggregates
 import com.xianxia.sect.core.engine.releaseDiscipleAssignment
 import com.xianxia.sect.core.engine.startBloodRefinementAtomic
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -71,10 +72,16 @@ class BloodRefiningViewModel @Inject constructor(
                 progress.startYear, progress.startMonth,
                 progress.durationMonths, currentYear, currentMonth
             )
+            // 血炼进行中：从引擎聚合数据找回血炼中的弟子填充槽位——
+            // 跨会话重开血炼池时 selectedDisciple 可能为 null，槽位会显示空"+"，
+            // 看不到血炼中的弟子、也没有"卸任/更换"入口（预存问题修复）
+            val refiningDisciple = gameEngine.getAllDiscipleAggregates()
+                .firstOrNull { it.id == progress.discipleId }
             _uiState.update { it.copy(
                 isRefining = true,
                 currentProgress = progress,
-                remainingMonths = remaining
+                remainingMonths = remaining,
+                selectedDisciple = refiningDisciple ?: it.selectedDisciple
             ) }
         } else {
             _uiState.update { it.copy(

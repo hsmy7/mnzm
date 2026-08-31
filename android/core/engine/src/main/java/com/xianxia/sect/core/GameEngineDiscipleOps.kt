@@ -73,6 +73,10 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
                     gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
                     val current = discipleTables.statusData.getOrDefault(id, emptyMap())
                     discipleTables.statusData[id] = current - "buildingId"
+                    // 血炼 REFINING 是受保护状态，须显式重置为 IDLE（与上方
+                    // REFLECTING 分支一致），否则事务外 syncSingleDiscipleStatus
+                    // 推导仍锁定 REFINING，弟子永远无法被释放/重新分配
+                    discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
                 else -> {
                     gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)

@@ -240,10 +240,12 @@ TEST(MonthSettlementTest, ResidenceLoyaltyGolden) {
 
 TEST(MonthSettlementTest, BloodRefinementDueSettlesWithEvent) {
     // 到期（elapsed >= duration）：百分比累加 + 材料记录 + 清 statusData +
-    // 事件记录（status 保持 REFINING 怪癖保留）；条目从 active 移除
+    // 事件记录；status 重置为 IDLE（血炼中 REFINING 受保护状态须显式打破——
+    // 根因修复：血炼完成后弟子不再卡"血炼池中"）；条目从 active 移除
     auto core = makeCore(42);
     auto& st = core->state();
     Disciple d = baseDisciple("1");
+    d.status = "REFINING";           // 血炼中状态（真实场景）
     d.statusData["buildingId"] = "pool-1";
     st.disciples.appendDisciple(d);
 
@@ -266,6 +268,7 @@ TEST(MonthSettlementTest, BloodRefinementDueSettlesWithEvent) {
     ASSERT_EQ(1u, st.gameData.bloodRefinements["1"].size());
     EXPECT_STREQ("mat-1", st.gameData.bloodRefinements["1"][0].c_str());
     EXPECT_EQ(0, st.disciples.materialize(0).statusData.count("buildingId"));
+    EXPECT_EQ("IDLE", st.disciples.statuses[0]);
     ASSERT_EQ(1u, st.gameData.gameEventRecords.size());
     EXPECT_STREQ("blood_refinement",
                  st.gameData.gameEventRecords[0].eventType.c_str());

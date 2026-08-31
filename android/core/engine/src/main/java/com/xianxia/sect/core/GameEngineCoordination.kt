@@ -1618,7 +1618,13 @@ private fun MutableGameState.settleSingleRefinement(
     val dId = progress.discipleId.toIntOrNull()
     if (dId == null || dId !in discipleTables.ids) return
     val statKey = progress.selectedStat
-    if (statKey.isEmpty()) return
+    if (statKey.isEmpty()) {
+        // 数据异常防御：进度被 processBloodRefinementCompletions 移除，但
+        // REFINING 受保护状态须显式打破，否则弟子永久卡"血炼池中"
+        discipleTables.clearBloodRefinementStatusData(dId)
+        discipleTables.statuses[dId] = DiscipleStatus.IDLE
+        return
+    }
 
     // 防御：血炼期间弟子可能因其他系统死亡
     if (discipleTables.isAlive[dId] == 0) return
@@ -1652,6 +1658,11 @@ private fun MutableGameState.settleSingleRefinement(
 
     discipleTables.clearBloodRefinementStatusData(dId)
 
+    // 血炼完成后恢复弟子为空闲：REFINING 是受保护状态（deriveDiscipleStatus
+    // 永不回退），须在事务内显式重置为 IDLE，与 CHANGELOG"重置弟子为空闲"
+    // 契约一致——否则月结后弟子永久卡"血炼池中"（根因：与思过解除模式不一致）
+    discipleTables.statuses[dId] = DiscipleStatus.IDLE
+
     val statName = STAT_DISPLAY_NAMES[statKey] ?: statKey
     recordGameEvent(
         GameEventCategory.SECT, GameEventType.BLOOD_REFINEMENT,
@@ -1669,6 +1680,10 @@ private fun MutableGameState.cancelBloodRefinement(
     val dId = discipleId.toIntOrNull()
     if (dId != null && dId in discipleTables.ids) {
         discipleTables.clearBloodRefinementStatusData(dId)
+        // 血炼 REFINING 是受保护状态（deriveDiscipleStatus 永不回退），须在
+        // 事务内显式重置为 IDLE——否则进度已删但弟子永久卡"血炼池中"，
+        // 卸任/取消血炼全部"无反应"（根因：与思过 REFLECTING 解除模式不一致）
+        discipleTables.statuses[dId] = DiscipleStatus.IDLE
     }
 }
 
