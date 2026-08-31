@@ -36,7 +36,10 @@ suspend fun GameEngine.loadFromSave(
     manualInstances: List<ManualInstance>, pills: List<Pill>, materials: List<Material>,
     herbs: List<Herb>, seeds: List<Seed>, battleLogs: List<BattleLog>
 ) = engineContextDispatcher.withEngineContext {
-    saveFacade.loadFromSave(loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks, manualInstances, pills, materials, herbs, seeds, battleLogs)
+    saveFacade.loadFromSave(
+        loadedGameData, disciples, equipmentStacks, equipmentInstances, manualStacks,
+        manualInstances, pills, materials, herbs, seeds, battleLogs
+    )
     // 2026-09 根因修复（与 loadData 同模式）：读档状态替换后同步 C++ native 引擎基线——
     // 否则 AUTHORITATIVE tick 反向镜像会把 native 残留旧档状态覆盖回 Kotlin
     //（loadFromSave 与 loadSnapshot 同为状态替换入口，同步语义必须一致）

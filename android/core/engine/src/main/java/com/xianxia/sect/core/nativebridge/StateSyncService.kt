@@ -150,7 +150,10 @@ class StateSyncService @Inject constructor(
      * 与 json_codec 宽松 from_json 语义对齐。
      */
     fun applySnapshot(snapshot: NativeGameState, exportedGameDataKeys: Set<String> = emptySet()) {
-        stateStore.update {
+        // ★ 2026-08-31 根因修复：镜像写入走 updateMirror（不参与反向捕获）——C++ 产生的
+        // 变更无需回导，不再污染玩家操作捕获窗口（旧 tick ②' 无条件清空累加器会误清
+        // 玩家放置/消耗捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源）
+        stateStore.updateMirror {
             val carriedAi = snapshot.aiSectDisciples
             val carriedBeastTargets = snapshot.aiSectBeastDirectTargets
             val carriedBeastCooldowns = snapshot.aiSectBeastSkipCooldowns
@@ -484,12 +487,12 @@ class StateSyncService @Inject constructor(
         }
     }
 
-    /** 应用非空变更集（单次 update 事务原子完成）。 */
+    /** 应用非空变更集（单次 updateMirror 事务原子完成——镜像写入不参与反向捕获）。 */
     private fun applyEnvelope(envelope: DirtyEnvelope): DirtyApplyResult {
         var changedFieldCount = 0
         var upsertCount = 0
         var removedCount = 0
-        stateStore.update {
+        stateStore.updateMirror {
             changedFieldCount = mergeGameDataChanges(envelope.changed)
             val applied = applyEntityCollections(envelope.changed, envelope.removed)
             upsertCount = applied.first

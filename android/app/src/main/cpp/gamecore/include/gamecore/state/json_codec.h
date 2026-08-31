@@ -57,6 +57,9 @@ void to_json(nlohmann::json& j, const ProductionSlot& v);
 void from_json(const nlohmann::json& j, ProductionSlot& v);
 void to_json(nlohmann::json& j, const GridBuildingData& v);
 void from_json(const nlohmann::json& j, GridBuildingData& v);
+// 2026-08-31：石板道路状态迁移批次（Kotlin RoadData ↔ C++ RoadData，字段名一致）
+void to_json(nlohmann::json& j, const RoadData& v);
+void from_json(const nlohmann::json& j, RoadData& v);
 void to_json(nlohmann::json& j, const MerchantItem& v);
 void from_json(const nlohmann::json& j, MerchantItem& v);
 void to_json(nlohmann::json& j, const Alliance& v);

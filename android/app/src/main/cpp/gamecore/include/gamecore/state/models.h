@@ -627,6 +627,17 @@ struct GridBuildingData {
     std::string instanceId;
 };
 
+/// RoadData（石板道路——Kotlin RoadData，2026-08-31 状态模型迁移批次）
+/// 玩家只负责放置，邻接位掩码/形态由 road_system.h 纯函数推导；
+/// 本字段仅做状态承载（C++ 无道路结算逻辑，settle 不修改），
+/// 随导入/反向回导与 Kotlin 双向一致（dirty_tracker 字段级自动 diff）。
+struct RoadData {
+    int32_t gridX = 0;
+    int32_t gridY = 0;
+    int32_t bitMask = 0;        // 邻接位掩码（上1右2下4左8；0=无邻居）
+    std::string roadType = "SINGLE";  // RoadTileType 名（Kotlin RoadTileType.name）
+};
+
 /// MerchantItem（旅行商人/玩家上架商品）
 struct MerchantItem {
     std::string id;
@@ -1296,6 +1307,9 @@ struct GameData {
     ElderSlots elderSlots;
     std::vector<ProductionSlot> productionSlots;
     std::vector<GridBuildingData> placedBuildings;
+    // ── 2026-08-31：石板道路状态迁移批次（Kotlin GameData.roads；C++ 仅承载状态，
+    //    放置/拼接逻辑在 Kotlin RoadFacade + C++ road_system.h 纯函数，settle 不修改）
+    std::vector<RoadData> roads;
     std::vector<SpiritFieldPlant> spiritFieldPlants;
     std::vector<ResidenceSlot> residenceSlots;
     PatrolConfig patrolConfig;

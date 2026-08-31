@@ -472,6 +472,16 @@ void from_json(const nlohmann::json& j, GridBuildingData& v) {
     GC_FROM(j, v, instanceId);
 }
 
+// ── 2026-08-31：石板道路状态迁移批次（Kotlin RoadData ↔ C++ RoadData） ──
+
+void to_json(nlohmann::json& j, const RoadData& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, gridX); GC_TO(v, j, gridY); GC_TO(v, j, bitMask); GC_TO(v, j, roadType);
+}
+void from_json(const nlohmann::json& j, RoadData& v) {
+    GC_FROM(j, v, gridX); GC_FROM(j, v, gridY); GC_FROM(j, v, bitMask); GC_FROM(j, v, roadType);
+}
+
 void to_json(nlohmann::json& j, const MerchantItem& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, id); GC_TO(v, j, name); GC_TO(v, j, type); GC_TO(v, j, itemId);
@@ -1249,7 +1259,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, merchantAcquisitionItems); GC_TO(v, j, autoBuyList);
     GC_TO(v, j, recruitList); GC_TO(v, j, worldLevels);
     GC_TO(v, j, elderSlots); GC_TO(v, j, productionSlots);
-    GC_TO(v, j, placedBuildings); GC_TO(v, j, spiritFieldPlants);
+    GC_TO(v, j, placedBuildings); GC_TO(v, j, roads); GC_TO(v, j, spiritFieldPlants);
     GC_TO(v, j, residenceSlots); GC_TO(v, j, patrolConfig); GC_TO(v, j, patrolConfigs);
     GC_TO(v, j, alliances); GC_TO(v, j, vassalContracts); GC_TO(v, j, sectRelations);
     // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）
@@ -1328,7 +1338,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, merchantAcquisitionItems); GC_FROM(j, v, autoBuyList);
     GC_FROM(j, v, recruitList); GC_FROM(j, v, worldLevels);
     GC_FROM(j, v, elderSlots); GC_FROM(j, v, productionSlots);
-    GC_FROM(j, v, placedBuildings); GC_FROM(j, v, spiritFieldPlants);
+    GC_FROM(j, v, placedBuildings); GC_FROM(j, v, roads); GC_FROM(j, v, spiritFieldPlants);
     GC_FROM(j, v, residenceSlots); GC_FROM(j, v, patrolConfig); GC_FROM(j, v, patrolConfigs);
     GC_FROM(j, v, alliances); GC_FROM(j, v, vassalContracts); GC_FROM(j, v, sectRelations);
     // 批 10-4：宗门战报（附庸脱离近 3 年计数消费）

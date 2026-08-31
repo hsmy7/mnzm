@@ -77,6 +77,19 @@ open class FakeGameStateStore : GameStateStore {
     private var activeTransaction: MutableGameState? = null
 
     override fun update(block: MutableGameState.() -> Unit) {
+        updateInternal(block, captureReverse = true)
+    }
+
+    /**
+     * 镜像专用事务更新（对齐生产 GameStateStoreImpl.updateMirror，2026-08-31）：
+     * C++ → Kotlin 前向镜像写入不参与反向捕获——镜像变更由 C++ 产生、无需回导，
+     * 不污染玩家操作捕获窗口（tick ⑤ 只发送玩家操作 + 残留执行器产生的变更）。
+     */
+    override fun updateMirror(block: MutableGameState.() -> Unit) {
+        updateInternal(block, captureReverse = false)
+    }
+
+    private fun updateInternal(block: MutableGameState.() -> Unit, captureReverse: Boolean) {
         val active = activeTransaction
         if (active != null) {
             active.block()
@@ -89,7 +102,9 @@ open class FakeGameStateStore : GameStateStore {
             val baseline = CaptureBaseline(gameDataValue, collectionValues())
             mgs.block()
             persistFrom(mgs)
-            captureReverse(baseline, mgs)
+            if (captureReverse) {
+                captureReverse(baseline, mgs)
+            }
         } finally {
             activeTransaction = null
         }

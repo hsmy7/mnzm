@@ -353,8 +353,9 @@ class DiffAuthoritativeTickTest {
                 val dirty = DiffRngBridge.nativeCoreExportDirty().decodeToString()
                 val applyResult = syncA.applyDirty(dirty)
                 assertEquals("镜像失败", false, applyResult == null)
-                // ②' 重置反向捕获窗口（生产同构：② 变更由 C++ 产生、无需回导）
-                storeA.resetReverseAccumulator()
+                // ★ 2026-08-31 根因修复：镜像写入经 updateMirror 不参与反向捕获，
+                //   生产已删除 ②' resetReverseAccumulator（无条件清空会误清玩家
+                //   操作捕获）——玩家操作捕获保留至 ⑤ 与残留/边界变更一并回导
                 storeA.update { exA.phase.executeResidual(this) }
                 if (flags != 0) {
                     val yearChangedA = (flags and GameCoreBridge.FLAG_YEAR_CHANGED) != 0

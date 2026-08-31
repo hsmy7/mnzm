@@ -50,12 +50,14 @@ internal suspend fun GameEngineCore.processAuthoritativeTick(phasesToAdvance: In
             // ① C++ 单旬推进（时间 + 步骤 1-5 核心结算）
             val settleFlags = GameCoreBridge.nativeSettlePhase()
             // ② 增量镜像；失败先试全量兜底，仍失败则走异常回退路径
+            // ★ 2026-08-31 根因修复：镜像写入经 updateMirror 不参与反向捕获，
+            //    已删除旧 ②' resetReverseAccumulator（无条件清空会把玩家操作捕获
+            //    ——放置/消耗灵石等 Kotlin 侧变更——一并清掉，导致其永不同步 C++
+            //    真相源并被前向镜像覆盖）
             val applied = stateSyncServiceRef.applyDirtyFromNative()
             if (applied == null && !stateSyncServiceRef.syncFromNative()) {
                 error("AUTHORITATIVE 镜像失败（增量+全量均不可用）")
             }
-            // ②' 重置反向捕获窗口：② 的变更由 C++ 产生、无需回导（阶段 3 反向通道）
-            stateStore.resetReverseAccumulator()
             // ③ Kotlin 残留执行器（单事务：自动装备/丹药/突破）
             stateStore.update { phaseSettlementExecutor.executeResidual(this) }
             // ④ 月/年边界：完整编排（年变先于月变）

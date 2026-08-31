@@ -239,6 +239,22 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun update(block: MutableGameState.() -> Unit)
 
     /**
+     * 镜像专用事务更新（2026-08-31 根因修复）：与 [update] 语义一致，但**不参与反向
+     * 增量捕获**（[consumeReverseDirty] 窗口）。
+     *
+     * 用途：C++ → Kotlin 前向镜像（[com.xianxia.sect.core.nativebridge.StateSyncService]
+     * 的 applyDirty/applySnapshot）——镜像写入的变更由 C++ 产生、无需回导，若混入反向
+     * 累加器会污染玩家操作捕获窗口（旧实现依赖 tick ②' 无条件清空累加器，同时误清玩家
+     * 放置/消耗等操作捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源）。
+     *
+     * 默认实现委托 [update]（保持既有 GameStateStore 实现零改动兼容；生产实现
+     * [GameStateStoreImpl] 与测试替身 FakeGameStateStore 覆写为"不捕获"）。
+     */
+    fun updateMirror(block: MutableGameState.() -> Unit) {
+        update(block)
+    }
+
+    /**
      * 带返回值的事务更新。替代 `update {}` + `var result = false` 闭包捕获反模式。
      *
      * @param block 在 [MutableGameState] 上下文中执行的 lambda，返回类型为 [R]

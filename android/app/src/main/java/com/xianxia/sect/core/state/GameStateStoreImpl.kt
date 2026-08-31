@@ -954,6 +954,33 @@ class GameStateStoreImpl @Inject constructor(
         }
     }
 
+    /**
+     * 镜像专用事务更新（2026-08-31 根因修复）：事务语义与 [update] 完全一致，
+     * 仅**跳过反向增量捕获**——C++ → Kotlin 前向镜像写入的变更由 C++ 产生、无需
+     * 回导，不再污染玩家操作捕获窗口（旧依赖 tick ②' 无条件清空累加器，误清玩家
+     * 放置/消耗捕获 → Kotlin 侧灵石扣除等变更永不同步 C++ 真相源，被前向镜像覆盖）。
+     */
+    override fun updateMirror(block: MutableGameState.() -> Unit) {
+        // 与 update 同构：主线程监护 + 锁内事务 + 锁外提交钩子/增量组装
+        if (!unsafeAllowMainThreadUpdateForTest && Looper.myLooper() == Looper.getMainLooper()) {
+            if (BuildConfig.DEBUG) {
+                error("stateStore.updateMirror() 被主线程调用，架构违规必须修复")
+            } else {
+                DomainLog.e(
+                    TAG,
+                    "updateMirror() 被主线程调用! 已跳过此次更新。",
+                    IllegalStateException("主线程调用堆栈")
+                )
+                return
+            }
+        }
+        val outcome = executeUpdateTransaction(block = block, captureReverse = false)
+        if (outcome.committed && outcome.txGen > 0L) fireCommitted(outcome.txGen)
+        if (outcome.disciplesNeedReassemble) {
+            dispatchAssemble()
+        }
+    }
+
     /** update 事务结果（update 拆分）：锁外阶段（fireCommitted/dispatchAssemble）所需状态 */
     private data class TransactionOutcome(
         val txGen: Long,
@@ -967,8 +994,14 @@ class GameStateStoreImpl @Inject constructor(
      * D-01 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
      * committed 标记事务是否成功提交——异常/取消传播到锁外时 finally 据此
      * fireRollback（草稿丢弃，防复制）；成功则在锁外 fireCommitted（草稿落盘）。
+     *
+     * @param captureReverse 是否参与反向增量捕获（[updateMirror] 传 false——
+     *        C++ → Kotlin 前向镜像写入不污染玩家操作捕获窗口）
      */
-    private fun executeUpdateTransaction(block: MutableGameState.() -> Unit): TransactionOutcome {
+    private fun executeUpdateTransaction(
+        block: MutableGameState.() -> Unit,
+        captureReverse: Boolean = true
+    ): TransactionOutcome {
         var txGen = 0L
         var committed = false
         var disciplesNeedReassemble = false
@@ -1005,7 +1038,9 @@ class GameStateStoreImpl @Inject constructor(
                     // ★ 已移除自动批量发射模式：该模式在 ≥3 字段变化时抑制个体发射，
                     // 导致时间和仓库显示冻结，而修炼流（锁外异步组装）继续更新。
                     emitStateFlows(baseline = baseline, flags = flags)
-                    disciplesNeedReassemble = commitUpdateState(baseline = baseline, flags = flags)
+                    disciplesNeedReassemble = commitUpdateState(
+                        baseline = baseline, flags = flags, captureReverse = captureReverse
+                    )
                     logSlowLockTime(lockStartNs = lockStartNs)
                 } finally {
                     reusableMutableState.discipleTables.writeAllowed = false
@@ -1033,7 +1068,11 @@ class GameStateStoreImpl @Inject constructor(
      *
      * @return 本次事务是否真的改了弟子数据（决定锁外是否触发全量 assemble）
      */
-    private fun commitUpdateState(baseline: UpdateBaseline, flags: CommitFlags): Boolean {
+    private fun commitUpdateState(
+        baseline: UpdateBaseline,
+        flags: CommitFlags,
+        captureReverse: Boolean = true
+    ): Boolean {
         // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
         // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
         // 用 isDirty 判定"本次事务是否真的改了弟子数据"：
@@ -1071,8 +1110,13 @@ class GameStateStoreImpl @Inject constructor(
         // P-3：捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
         // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
         lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
-        // 阶段 3：反向增量捕获（锁内提交阶段；非消费 peek，dispatchAssemble 随后正常消费）
-        captureReverseDirty(baseline = baseline, disciplesNeedReassemble = disciplesNeedReassemble)
+        // 阶段 3：反向增量捕获（锁内提交阶段；非消费 peek，dispatchAssemble 随后正常消费）。
+        // ★ 2026-08-31 根因修复：镜像事务（updateMirror）跳过捕获——C++ → Kotlin 前向
+        //   镜像变更无需回导，不再污染玩家操作捕获窗口（旧 tick ②' 无条件清空累加器
+        //   会误清玩家放置/消耗捕获 → Kotlin 侧灵石扣除永不同步 C++ 真相源）
+        if (captureReverse) {
+            captureReverseDirty(baseline = baseline, disciplesNeedReassemble = disciplesNeedReassemble)
+        }
         return disciplesNeedReassemble
     }
 

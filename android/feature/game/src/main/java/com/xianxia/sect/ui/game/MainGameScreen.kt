@@ -596,7 +596,13 @@ private fun rememberMainGameScreenViewportData(
     val cancelCameraAnim: () -> Unit = { cameraAnimator.cancel() }
     // P-7：地图视口抽离为 SectMapViewport（参数稳定引用——每旬 gameData 变化不触发
     // AndroidView update；相机/预览/建筑实际变化才重组）
-    val viewportParams = remember {
+    // ★ 2026-08-31 根因修复：key-less remember { derivedStateOf } 的计算 lambda 在
+    // 首次组合捕获首个 renderData 实例且永不重建——roadData/spiritCropData/
+    // demolishHighlightData 等"每旬/放置变化数据"被冻结在初始值（道路精灵不显示、
+    // 作物进度/拆除高亮不更新的根因；建筑因 RenderCommandBus 直达通道绕过本管线
+    // 而未暴露）。加 remember(renderData) key：renderData 关键字段引用变化时重建
+    // derivedStateOf；字段未变时新 params 与原实例 equals 相等，P-7 跳过重组语义保持。
+    val viewportParams = remember(renderData) {
         derivedStateOf {
             SectMapViewportParams(
                 nativeConfig = renderData.nativeConfig, cameraState = cameraState,

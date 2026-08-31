@@ -388,5 +388,47 @@ TEST(JsonCodecTest, VassalBreakawayProtocolRoundTrip) {
     EXPECT_EQ(decoded.gameData.sectBattleRecords[1].type, "BATTLE_LOSS");
 }
 
+// ── 2026-08-31：石板道路状态迁移批次（Kotlin RoadData ↔ C++ RoadData） ──
+
+TEST(JsonCodecTest, RoadDataRoundTrip) {
+    RoadData r;
+    r.gridX = 20;
+    r.gridY = 21;
+    r.bitMask = 5;                 // 上(1)|下(4)
+    r.roadType = "VERTICAL";
+    const nlohmann::json j = r;
+    const RoadData decoded = j.get<RoadData>();
+    EXPECT_EQ(decoded.gridX, 20);
+    EXPECT_EQ(decoded.gridY, 21);
+    EXPECT_EQ(decoded.bitMask, 5);
+    EXPECT_EQ(decoded.roadType, "VERTICAL");
+    // 默认字段不因往返改变
+    EXPECT_EQ(decoded.bitMask, r.bitMask);
+}
+
+TEST(JsonCodecTest, GameDataRoadsRoundTrip) {
+    GameData d;
+    d.roads.push_back(RoadData{3, 4, 0, "SINGLE"});
+    d.roads.push_back(RoadData{4, 4, 5, "HORIZONTAL"});
+    const nlohmann::json j = d;
+    const GameData decoded = j.get<GameData>();
+    ASSERT_EQ(decoded.roads.size(), 2u);
+    EXPECT_EQ(decoded.roads[0].gridX, 3);
+    EXPECT_EQ(decoded.roads[0].roadType, "SINGLE");
+    EXPECT_EQ(decoded.roads[1].gridX, 4);
+    EXPECT_EQ(decoded.roads[1].bitMask, 5);
+    EXPECT_EQ(decoded.roads[1].roadType, "HORIZONTAL");
+}
+
+TEST(JsonCodecTest, GameDataRoadsLenientMissingField) {
+    // 旧档/旧 .so 导出无 roads 字段：宽松 from_json 保持默认空列表（向前兼容）
+    nlohmann::json j = nlohmann::json::object();
+    j["sectName"] = "旧档";
+    j["spiritStones"] = 1000;
+    const GameData decoded = j.get<GameData>();
+    EXPECT_TRUE(decoded.roads.empty());
+    EXPECT_EQ(decoded.sectName, "旧档");
+}
+
 }  // namespace
 }  // namespace gamecore::state
