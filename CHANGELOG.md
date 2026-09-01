@@ -1,4 +1,13 @@
-## [4.01.15] - 2026-08-29
+## [4.01.11] - 2026-08-29
+
+### 调整（建造栏石板路置灰 + 点击提示"开发中"）
+
+> 用户要求：建造栏中的道路（石板路）暂未开放，置灰展示，点击弹提示"开发中"。根因链：石板路不在 `BuildingFeatureRegistry`（无 requiredSectLevel/造价配置），此前点击会直接进入放置模式并可正常铺设；现产品侧决定暂时关闭道路建造入口。
+
+- **建造栏通用化**：`BuildingConstructionBar` 新增 `underDevelopmentNames: Set<String>`（开发中建筑名集合）与 `onSelectBuildingUnderDevelopment: ((String) -> Unit)?`（点击回调）两个参数——开发中建筑卡片整体置灰（名称/造价文字 `Modifier.alpha`、图标 alpha 复用既有 `DISABLED_ALPHA=0.4f` 置灰模式，置灰判定提取为纯函数 `isBuildingIconDisabled` 可单测），点击优先分发到开发中回调，不再进入放置模式
+- **调用方接线**：`MainGameScreenBuildingBar` 传入 `underDevelopmentNames = setOf(GameConfig.Road.DISPLAY_NAME)`、回调 `viewModel.showUnderDevelopmentTip()`；`GameViewModel` 新增 `showUnderDevelopmentTip()` 统一走 `showSuccess("开发中")` → 游戏内"提示"弹窗（标题"提示"、文本"开发中"、确定按钮）
+- **兼容性**：纯 UI 层改动，无存档/序列化/DB/协议变更；`BuildingConstructionBar` 新参数带默认值，既有调用方零改动
+- **验证**：新增 `BuildingConstructionBarTest` 5 用例（纯函数置灰判定 3 例 + 点击分发 2 例：开发中建筑触发开发中回调且不进入放置、普通建筑正常触发选中且不触发开发中回调）· `compileReleaseKotlin` 通过 · detekt 通过
 
 ### 调整（金手指图标尺寸 36 → 40 世界像素）
 
@@ -269,8 +278,6 @@
 - **清理（死代码）**：同步删除自动装备/学习/丹药路径的死参数（`gamePhase`/`maxStack`/`instantMessage`、`processAutoUsePills` 的 `gameYear/gameMonth/gamePhase`）与死结果字段（`replacedEquipmentStacks`/`replacedManualStack`/`events`）及 `MAX_EQUIPMENT_STACK`/`MAX_MANUAL_STACK` 常量，调用链（AutoPillService/CultivationCore/CultivationService/CultivationEventProcessor）同步收窄；R-15 技术债登记：`PillEffectApplier` 与 `DiscipleFacadeImpl.applyPillEffectsToDisciple` 丹药效果双实现（含 cultivationAdd 封顶差异）待手动路径 C++ 化时统一
 - **兼容性**：无存档/Proto/Room/Migration 变更（不新增配置开关）；行为仅在既有激活机制（已关注/灵根数）内增强；老档零变化；UI 文案同步（自动装备/学习标题改为含储物袋与自动更换说明）
 
-## [4.01.14] - 2026-08-29
-
 ### 新增（月变残留执行器增量 C++ 化批 10-1：S8 侦察过期清理下沉 + 宗门详情域协议扩容）
 
 > 退役专项收口后的增量迁移主线首批（cpp-engine.md §7.3）：把 AUTHORITATIVE 生产管线中仍由 Kotlin 残留执行器承担的月变编排逐批下沉 C++。生产默认行为不变（月变真相源仍在 Kotlin，C++ 侧经对拍守护，真相源切换待下沉面收敛后单独立批）。
@@ -280,8 +287,6 @@
 - **途中修复协议默认值缺陷**：giftPreference C++ 默认空串 → "NONE"（Kotlin 枚举默认名，空串不可解码——Diff 对拍首轮暴露）
 - **验证**：GTest 558/558（+2：过期移除/isKnown 翻转/明细保留与新建刷新 + 无过期零写入）· DiffMonthSettlementTest 场景扩展 1/1（AI 宗门×2 + 嵌套 map 键）· engine JUnit 2925/2925（0 skip）· NDK externalNativeBuildRelease 通过 · detekt 绿
 - **兼容性**：无 Entity/Migration/存档变更（快照协议为进程内通道，存档编码仍由 Kotlin kotlinx-proto 承担）；玩家可见行为不变
-
-## [4.01.13] - 2026-08-29
 
 ### 变更（C++ 引擎迁移退役专项批 9-1/9-2：SHADOW 对拍态与纯 Kotlin 旬结算路径退役——tick 结算恒走 C++ 单引擎终态）
 
@@ -293,8 +298,6 @@
 - **对拍框架转长期回归基线**：Diff *Test 全套以桌面对拍桥持续运行（`-Dgamecore.jni.path`；本机已具备桌面工具链，原 194 个 Assume 跳过用例全部实跑）；Kotlin 臂（残留执行器 + TimeSystem 时间驱动）即回归基准
 - **验证**：engine JUnit 全量 2925/2925（桌面 JNI 对拍全执行 0 skip，零回归）· engine detekt 全绿 · compileReleaseKotlin（engine + app）通过 · C++ 侧零变更（NDK 构建不受影响）
 - **兼容性**：无 Entity/Migration/存档/序列化变更；生产默认行为不变（AUTHORITATIVE 下 tick 路径逐位等价——删除的仅是不可达的 OFF 旬结算分支与 SHADOW 影子推进）；`NativeEngineFlag` 运行时切 OFF 不再冻结游戏（tick 结算不受 flag 影响）
-
-## [4.01.12] - 2026-08-29
 
 ### 变更（C++ 引擎迁移计划 v2 批 8-4：C-06 转发收尾续作——接线面收口判定）
 
@@ -312,8 +315,6 @@
 - **弹窗 UI**：`BeastAttackWarningDialog` 仅"知道了"（新增"妖兽将于下月对我宗发起进攻"文案，`dismissOnBackPress=true` 与 AI 弹窗一致）；`AttackWarningDialog` `showCloseButton=false`（去掉关闭 X）；`GameOverlayHost` 已击败妖兽清理由"清空全部排期"改为按 ID 移除单个（修正误伤同批其他活妖兽排期的预存缺陷）
 - **验证**：新增 `ScheduledBeastAttackTest` 8 用例（执行/跳过/掠夺路径/战斗路径/排期清空/检测续写）· `GameViewModelTest` +2（已读标记/剪枝）· `ResolveBeastAttackFightTest` -3（上贡测试随功能删除）· engine JUnit 全量 + feature:game 测试 + detekt + lintRelease + compileReleaseKotlin 通过
 - **兼容性**：无 Entity/Migration/存档/序列化变更（排期为运行时状态，与现状一致）；世界地图手动进攻、巡视塔、AI 讨伐路径不受影响；多妖兽同月自动进攻时战斗结果沿用现有"队列最新一条弹窗 + 战斗日志完整"语义（与巡视塔多结果一致）
-
-## [4.01.11] - 2026-08-29
 
 ### 新增（C++ 引擎迁移计划 v2 批 8：C-06 转发收尾续作——监控器接口化 + 库存家族生产接线）
 
