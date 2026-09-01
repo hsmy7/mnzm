@@ -30,7 +30,7 @@ using gamecore::map::tileTypeForBitmask;
 namespace {
 
 /// 便利封装：产出单格操作序列。
-std::vector<RoadDrawOp> opsFor(int mask, int tileSize = 32) {
+std::vector<RoadDrawOp> opsFor(int mask, int tileSize = 36) {
     std::vector<RoadDrawOp> out(kMaxRoadDrawOpsPerTile);
     const int n = emitRoadDrawOps(mask, tileSize, out.data());
     out.resize(n);
@@ -56,8 +56,8 @@ TEST(RoadCompositorTest, BaseSpriteMatchesTileTypeForAllMasks) {
         // 主体铺满整格
         EXPECT_EQ(0, ops[0].x);
         EXPECT_EQ(0, ops[0].y);
-        EXPECT_EQ(32, ops[0].w);
-        EXPECT_EQ(32, ops[0].h);
+        EXPECT_EQ(36, ops[0].w);
+        EXPECT_EQ(36, ops[0].h);
     }
 }
 
@@ -85,7 +85,7 @@ TEST(RoadCompositorTest, OpCountConservationForAllMasks) {
 
 // ── 描边条几何：1/4 格厚，位置贴边 ─────────────────────────────
 TEST(RoadCompositorTest, EdgeGeometry) {
-    const int tileSize = 32;
+    const int tileSize = 36;
     const int quarter = tileSize / 4;
     // mask=0（孤格）：四边全描边
     auto ops = opsFor(0, tileSize);
@@ -107,7 +107,7 @@ TEST(RoadCompositorTest, EdgeGeometry) {
 
 // ── 转角件几何：quarter×quarter，贴外角 ────────────────────────
 TEST(RoadCompositorTest, CornerGeometry) {
-    const int tileSize = 32;
+    const int tileSize = 36;
     const int quarter = tileSize / 4;
     const auto ops = opsFor(0, tileSize);  // 孤格：四角全有
     ASSERT_EQ(9, static_cast<int>(ops.size()));
@@ -166,10 +166,10 @@ TEST(RoadCompositorTest, CrossCenterDecoration) {
     ASSERT_EQ(2, static_cast<int>(ops.size()));  // junction 主体 + 十字中心（无边无角）
     EXPECT_EQ(RoadSprite::JUNCTION, ops[0].sprite);
     EXPECT_EQ(RoadSprite::CROSS_CENTER, ops[1].sprite);
-    EXPECT_EQ(-16, ops[1].x);  // -tileSize/2（外溢半格）
-    EXPECT_EQ(-16, ops[1].y);
-    EXPECT_EQ(64, ops[1].w);   // 2×tileSize
-    EXPECT_EQ(64, ops[1].h);
+    EXPECT_EQ(-18, ops[1].x);  // -tileSize/2（外溢半格）
+    EXPECT_EQ(-18, ops[1].y);
+    EXPECT_EQ(72, ops[1].w);   // 2×tileSize
+    EXPECT_EQ(72, ops[1].h);
 }
 
 // ── T 型路口：junction 主体 + 单侧描边（T 只有一侧无邻居，无转角）──
@@ -179,7 +179,7 @@ TEST(RoadCompositorTest, TJunctionComposite) {
     ASSERT_EQ(2, static_cast<int>(ops.size()));
     EXPECT_EQ(RoadSprite::JUNCTION, ops[0].sprite);
     EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);
-    EXPECT_EQ(32 - 8, ops[1].y);  // 贴下缘
+    EXPECT_EQ(36 - 9, ops[1].y);  // 贴下缘
 }
 
 // ── 顺序契约：主体恒为首，描边条先于转角件先于十字中心 ─────────
@@ -202,7 +202,7 @@ TEST(RoadCompositorTest, OpOrderContractForAllMasks) {
 
 // ── 几何有界：格内局部坐标不越出 [-tileSize/2, tileSize*3/2] ────
 TEST(RoadCompositorTest, GeometryBoundedForAllMasks) {
-    const int tileSize = 32;
+    const int tileSize = 36;
     for (int mask = 0; mask <= kMaskAll; ++mask) {
         for (const auto& op : opsFor(mask, tileSize)) {
             EXPECT_GE(op.x, -tileSize / 2) << "mask=" << mask;
@@ -215,11 +215,11 @@ TEST(RoadCompositorTest, GeometryBoundedForAllMasks) {
     }
 }
 
-// ── 整型几何在 4 的倍数 tileSize 下与浮点一致（运行时 tileSize=32）──
+// ── 整型几何在 4 的倍数 tileSize 下与浮点一致（运行时 tileSize=36）──
 TEST(RoadCompositorTest, IntegralGeometryMatchesFloatAtRuntimeTileSize) {
-    // 运行时不变量：GameConfig.TILE_SIZE = 32（4 的倍数）——整型除法
+    // 运行时不变量：GameConfig.TILE_SIZE = 36（4 的倍数）——整型除法
     // 与 Vulkan 浮点表达式几何完全一致，无半像素漂移。
-    constexpr int kRuntimeTileSize = 32;
+    constexpr int kRuntimeTileSize = 36;
     const float tileSizeF = static_cast<float>(kRuntimeTileSize);
     const float quarterF = tileSizeF * 0.25f;
     // 贴边位置：整型 tileSize - tileSize/4 == 浮点 tileSizeF - quarterF

@@ -1,5 +1,15 @@
 ## [4.01.15] - 2026-08-29
 
+### 调整（宗门地图单格大小 32 → 36 世界像素）
+
+> 用户要求调整地图格尺寸，使建筑比例与布局观感更协调。单格由 32 世界像素改为 36（4 的倍数，保持 C++ 道路合成器整型几何与 Vulkan 浮点路径逐位一致的不变量）；世界像素由 4096×4096 → 4608×4608（128 格 × 36px），格数、建筑占地格数、云层速度（3 格/秒）等语义不变。
+
+- **权威定义**：`GameConfig.SectMap.TILE_SIZE = 36`（附 4 的倍数约束注释）· `GameConfigData.SectMapSection.tileSize = 36` · `game_config.json` 的 `sectMap.tileSize = 36`（三源一致，`GameConfigConsistencyTest` 守护）
+- **同步点**：`BootSequenceControllerTest` 断言改引用 `GameConfig.SectMap.TILE_SIZE`（消除硬编码漂移）· `SectCameraStateTest` 世界尺寸 4096 → 4608（注释中 minScale/defaultScale 期望值同步重算）· `DiffRoadComposeTest` 默认 tileSize 32 → 36 并重算全部几何断言（1/4 格 8→9、3/4 格 24→27、半格 16→18、2 格 64→72、有界范围 -16..24 → -18..27）· C++ `road_compositor_test.cpp` 同步（默认参数/主体铺满/描边角件几何/十字中心/`kRuntimeTileSize` 32 → 36）· `road_compositor.h`、`NativeBridge.cpp`、`GameCoreBridge.kt` KDoc 中"运行时不变量 tileSize=32"注释 → 36 · `docs/cpp-engine.md` 批 6-1 描述同步
+- **未改动（独立语义）**：纹理图集 `TILE_SIZE = 64`（贴图尺寸，渲染时按 `64/tileSize` 缩放铺满一格，随格大小自动适配）· 各测试文件中作为独立测试参数出现的 `tileSize = 32`（GridSystemTest/HitSlopPolicyTest/BuildingSpatialIndexTest 等，性质与具体取值无关）
+- **兼容性**：无存档/序列化/DB/协议变更（tileSize 为运行时配置，读档语义不变；`RoadData` 网格坐标基于格数不受影响）；渲染双路径（Vulkan/Canvas）共用同一 `tileSize` 参数自动跟随
+- **验证**：`compileReleaseKotlin` 通过 · `GameConfigConsistencyTest`/`BootSequenceControllerTest`/`SectCameraStateTest`/`DiffRoadComposeTest`/`CloudLayerAnimatorTest` 全绿 · C++ GTest `road_compositor_test` 12 用例全绿（36 仍为 4 的倍数，整型↔浮点一致性保持）· detekt 通过
+
 ### 修复（宗门地图石板路建造无效：道路精灵不显示 + 灵石不扣）
 
 > 用户实报：宗门地图铺设石板路后道路精灵不显示、灵石不扣；其他建筑无此问题。根因链两条 + 附带反馈缺口：

@@ -19,7 +19,7 @@
 // 由各端按枚举序号映射，图集改版不动合成器。
 //
 // 几何约定：格内局部**整型像素**（与 Kotlin Canvas 烘焙的整型算术逐位
-// 一致）；运行时 tileSize 恒为 GameConfig.TILE_SIZE=32（4 的倍数），
+// 一致）；运行时 tileSize 恒为 GameConfig.TILE_SIZE=36（4 的倍数），
 // Vulkan 侧转 float 几何完全一致。quarter = tileSize/4 取整除。
 //
 // 零依赖（仅 road_system.h）、纯函数，桌面 GTest 直接覆盖。

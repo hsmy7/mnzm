@@ -989,7 +989,9 @@ object GameConfig {
     }
     
     object SectMap {
-        const val TILE_SIZE = 32
+        /** 单格地图大小（世界像素）。4 的倍数：C++ 道路合成器整型几何
+         *  (tileSize/4、tileSize/2) 与浮点一致，无半像素漂移。 */
+        const val TILE_SIZE = 36
         const val WORLD_WIDTH_CELLS = 128
         const val WORLD_HEIGHT_CELLS = 128
         val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE

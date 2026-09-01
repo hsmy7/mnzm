@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.BattleLog
@@ -432,7 +433,7 @@ class BootSequenceControllerTest {
         capturedMapData?.let { data ->
             assertTrue("worldWidthCells should be positive", data.worldWidthCells > 0)
             assertTrue("worldHeightCells should be positive", data.worldHeightCells > 0)
-            assertEquals("tileSize should match GameConfig value", 32, data.tileSize)
+            assertEquals("tileSize should match GameConfig value", GameConfig.SectMap.TILE_SIZE, data.tileSize)
             assertTrue("flatTileData should be non-empty", data.flatTileData.isNotEmpty())
         }
     }

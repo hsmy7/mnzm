@@ -16,7 +16,7 @@ import org.junit.Test
  *
  * 守护目标：C++ gamecore::map::road_compositor（单一权威）经桌面对拍桥
  * `compose` op 产出的操作序列与**手算规格**一致——主体→描边条→转角件→
- * 十字中心的顺序契约 + 格内局部整型几何（tileSize=32 运行时不变量）。
+ * 十字中心的顺序契约 + 格内局部整型几何（tileSize=36 运行时不变量）。
  * 逐格合成逻辑已从 Kotlin 侧移除（SoftwareCanvasBackend 仅消费本通道），
  * 本测试是对拍桥通道 + 合成器语义的规格级守护（全掩码系统覆盖在
  * GTest road_compositor_test）。
@@ -35,7 +35,7 @@ class DiffRoadComposeTest {
         "road_cross_center"
     )
 
-    private fun cppCompose(mask: Int, tileSize: Int = 32): List<List<Int>> {
+    private fun cppCompose(mask: Int, tileSize: Int = 36): List<List<Int>> {
         val op = buildJsonObject { put("op", "compose"); put("mask", mask); put("tileSize", tileSize) }
         val result = DiffRngBridge.nativeRoadOp(
             json.encodeToString(JsonObject.serializer(), op).encodeToByteArray()
@@ -65,15 +65,15 @@ class DiffRoadComposeTest {
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0)
         assertEquals(9, ops.size)
-        ops.assertOp(0, sprite("road_junction"), 0, 0, 32, 32, "主体")
-        ops.assertOp(1, sprite("road_edge_h"), 0, 0, 32, 8, "上描边")
-        ops.assertOp(2, sprite("road_edge_h"), 0, 24, 32, 8, "下描边")
-        ops.assertOp(3, sprite("road_edge_v"), 0, 0, 8, 32, "左描边")
-        ops.assertOp(4, sprite("road_edge_v"), 24, 0, 8, 32, "右描边")
-        ops.assertOp(5, sprite("road_corner_tl"), 0, 0, 8, 8, "左上角")
-        ops.assertOp(6, sprite("road_corner_tr"), 24, 0, 8, 8, "右上角")
-        ops.assertOp(7, sprite("road_corner_bl"), 0, 24, 8, 8, "左下角")
-        ops.assertOp(8, sprite("road_corner_br"), 24, 24, 8, 8, "右下角")
+        ops.assertOp(0, sprite("road_junction"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_h"), 0, 0, 36, 9, "上描边")
+        ops.assertOp(2, sprite("road_edge_h"), 0, 27, 36, 9, "下描边")
+        ops.assertOp(3, sprite("road_edge_v"), 0, 0, 9, 36, "左描边")
+        ops.assertOp(4, sprite("road_edge_v"), 27, 0, 9, 36, "右描边")
+        ops.assertOp(5, sprite("road_corner_tl"), 0, 0, 9, 9, "左上角")
+        ops.assertOp(6, sprite("road_corner_tr"), 27, 0, 9, 9, "右上角")
+        ops.assertOp(7, sprite("road_corner_bl"), 0, 27, 9, 9, "左下角")
+        ops.assertOp(8, sprite("road_corner_br"), 27, 27, 9, 9, "右下角")
     }
 
     @Test
@@ -82,9 +82,9 @@ class DiffRoadComposeTest {
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0b0101)  // 上+下
         assertEquals(3, ops.size)
-        ops.assertOp(0, sprite("road_base_v"), 0, 0, 32, 32, "主体")
-        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 8, 32, "左描边")
-        ops.assertOp(2, sprite("road_edge_v"), 24, 0, 8, 32, "右描边")
+        ops.assertOp(0, sprite("road_base_v"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 9, 36, "左描边")
+        ops.assertOp(2, sprite("road_edge_v"), 27, 0, 9, 36, "右描边")
     }
 
     @Test
@@ -93,12 +93,12 @@ class DiffRoadComposeTest {
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0b0001)  // 仅上邻居
         assertEquals(6, ops.size)
-        ops.assertOp(0, sprite("road_base_v"), 0, 0, 32, 32, "主体(纵向)")
-        ops.assertOp(1, sprite("road_edge_h"), 0, 24, 32, 8, "下描边")
-        ops.assertOp(2, sprite("road_edge_v"), 0, 0, 8, 32, "左描边")
-        ops.assertOp(3, sprite("road_edge_v"), 24, 0, 8, 32, "右描边")
-        ops.assertOp(4, sprite("road_corner_bl"), 0, 24, 8, 8, "左下角")
-        ops.assertOp(5, sprite("road_corner_br"), 24, 24, 8, 8, "右下角")
+        ops.assertOp(0, sprite("road_base_v"), 0, 0, 36, 36, "主体(纵向)")
+        ops.assertOp(1, sprite("road_edge_h"), 0, 27, 36, 9, "下描边")
+        ops.assertOp(2, sprite("road_edge_v"), 0, 0, 9, 36, "左描边")
+        ops.assertOp(3, sprite("road_edge_v"), 27, 0, 9, 36, "右描边")
+        ops.assertOp(4, sprite("road_corner_bl"), 0, 27, 9, 9, "左下角")
+        ops.assertOp(5, sprite("road_corner_br"), 27, 27, 9, 9, "右下角")
     }
 
     @Test
@@ -107,8 +107,8 @@ class DiffRoadComposeTest {
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0b1111)
         assertEquals(2, ops.size)
-        ops.assertOp(0, sprite("road_junction"), 0, 0, 32, 32, "主体")
-        ops.assertOp(1, sprite("road_cross_center"), -16, -16, 64, 64, "十字中心")
+        ops.assertOp(0, sprite("road_junction"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_cross_center"), -18, -18, 72, 72, "十字中心")
     }
 
     @Test
@@ -120,15 +120,15 @@ class DiffRoadComposeTest {
             assertTrue("mask=$mask 至少主体 1 op", ops.size >= 1)
             assertTrue("mask=$mask 上限 10 op", ops.size <= 10)
             // 首操作恒为主体（铺满整格）
-            assertEquals("mask=$mask 主体铺满", listOf(ops[0][0], 0, 0, 32, 32), ops[0])
+            assertEquals("mask=$mask 主体铺满", listOf(ops[0][0], 0, 0, 36, 36), ops[0])
             assertTrue("mask=$mask 主体是 base/base_v/junction 之一", ops[0][0] in 0..2)
             for (op in ops) {
                 assertEquals("mask=$mask 每条记录 5 元素", 5, op.size)
                 assertEquals("mask=$mask sprite 枚举界内", true, op[0] in spriteKeys.indices)
                 assertTrue("mask=$mask w>0", op[3] > 0)
                 assertTrue("mask=$mask h>0", op[4] > 0)
-                assertTrue("mask=$mask x 有界", op[1] in -16..24)
-                assertTrue("mask=$mask y 有界", op[2] in -16..24)
+                assertTrue("mask=$mask x 有界", op[1] in -18..27)
+                assertTrue("mask=$mask y 有界", op[2] in -18..27)
             }
         }
     }

@@ -285,7 +285,7 @@ object GameCoreBridge {
      * 无状态纯函数——不依赖引擎实例，可在 nativeInit 前调用（仅需库已加载）。
      *
      * @param mask 4-bit 邻接掩码（0 调用方应跳过；返回仍为主体 1 op）
-     * @param tileSize 格像素尺寸（运行时恒为 GameConfig.TILE_SIZE=32，
+     * @param tileSize 格像素尺寸（运行时恒为 GameConfig.TILE_SIZE=36，
      *   4 的倍数下整型几何与 Vulkan 浮点路径逐位一致）
      * @return 扁平 IntArray：[sprite, x, y, w, h] × N——sprite 序 =
      *   RoadSprite 枚举序 = ROAD_RECTS 声明序（RoadCompositorBridge.SPRITE_KEYS

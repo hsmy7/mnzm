@@ -606,7 +606,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     float wx = (float)(col * tileSize);
                     if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 
-                    // 单一权威合成器：格内局部整型几何（运行时 tileSize=32，
+                    // 单一权威合成器：格内局部整型几何（运行时 tileSize=36，
                     // 4 的倍数下与浮点逐位一致——road_compositor.h 几何约定）
                     gamecore::map::RoadDrawOp ops[gamecore::map::kMaxRoadDrawOpsPerTile];
                     const int opCount = gamecore::map::emitRoadDrawOps(mask, tileSize, ops);
