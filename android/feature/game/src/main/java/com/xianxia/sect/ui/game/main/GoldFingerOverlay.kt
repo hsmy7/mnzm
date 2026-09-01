@@ -21,8 +21,11 @@ import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import com.xianxia.sect.ui.theme.GameColors
 
+/** 金手指图标基准尺寸（世界像素）— 固定 40px，屏幕显示随相机缩放（激活图标 = 40 × scale）。 */
+private const val GOLDEN_FINGER_ICON_SIZE_PX = 40
+
 /**
- * 金手指图标 — 建筑预览框右下角单格内显示，
+ * 金手指图标 — 建筑预览框右下角显示，
  * 提示玩家可长按进入批量建造模式。
  */
 @Composable
@@ -38,7 +41,7 @@ internal fun GoldFingerIcon(
         (gridX * tileSize).toFloat()) / density
     val sy = cameraState.worldToScreenY(
         (gridY * tileSize).toFloat()) / density
-    val iconDp = (tileSize / density).dp
+    val iconDp = (GOLDEN_FINGER_ICON_SIZE_PX / density).dp
 
     Box(
         modifier = Modifier
@@ -180,10 +183,10 @@ private fun DrawScope.drawGoldFingerSelection(
         size = Size(2f, geo.selH))
     drawRect(color = bClr, topLeft = Offset(geo.selW - 2f, 0f),
         size = Size(2f, geo.selH))
-    // 3. 金手指图标（拖拽末端）
+    // 3. 金手指图标（拖拽末端）— 固定 40px 基准，随相机缩放
     val bmp = goldenFingerBmp ?: return
-    val iw = (geo.ts * geo.scale).toInt()
-    val ih = (geo.ts * geo.scale).toInt()
+    val iw = (GOLDEN_FINGER_ICON_SIZE_PX * geo.scale).toInt()
+    val ih = (GOLDEN_FINGER_ICON_SIZE_PX * geo.scale).toInt()
     // 先乘 scale 再取整（与 iw/ih 取整时机一致），避免先取整丢失亚格精度
     val ix = ((g.endGridX - geo.gMinX) * geo.ts * geo.scale).toInt()
     val iy = ((g.endGridY - geo.gMinY) * geo.ts * geo.scale).toInt()
