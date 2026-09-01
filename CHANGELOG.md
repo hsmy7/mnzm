@@ -338,6 +338,13 @@
 - **验证**：`RenderScalePolicyTest` 新增手机 SOFTWARE 各 GPU 档断言 + Vulkan 手机恒 1.0 守护 + 热控叠加 clamp · `GameEngineCoreFpsPolicyTest` MAP_SCROLL 断言 30→60（三性能模式）· `SoftwareCanvasBackendRenderScaleTest` 回归 · 待真机验收（强制软件渲染拖动 ≥50fps、fling 平滑）
 - **兼容性**：无存档/序列化/DB 变更（无 Migration）；渲染双路径契约不变；性能模式三档语义不变
 
+### 优化（世界地图拖动视角卡顿修复：标记层相机读取下沉 graphicsLayer）
+
+> 承接宗门地图拖动卡顿同批排查：世界地图（WorldMapDialog）标记层在**组合作用域**读相机状态（`SectMarker`/`LevelMarker`/`SecretRealmMarker` 的 `worldToScreenX/Y`、`WorldMapScreen` 的 `isVisible` 剔除）——每次拖动 pan 都触发整棵标记树（30+ 宗门 + 关卡 + 秘境）重组 + 布局重排 + 全图重绘（违反"禁止 Composition 内读 State"规范，拖动帧率上不去）。修复：三个 marker 的位置计算改为 `Modifier.graphicsLayer` lambda（draw 阶段求值——读相机只重算图层平移，零组合零布局）；`WorldMapScreen` 移除组合内 `isVisible` 剔除（视口外 marker 由图层裁剪兜底，几十个节点的绘制开销远小于每帧重组）。行为不变：marker 屏幕位置仍随缩放/平移正确跟随（graphicsLayer 变换参与命中测试），点击/惯性滑动不变。
+
+- **验证**：新增 `WorldMapScreenRecompositionTest` 2 用例（拖动相机组合层重组计数不变 / marker 屏幕位置随相机平移，graphicsLayer 变换链路守护）· compileReleaseKotlin 通过 · 待真机验收（世界地图对话框拖动流畅）
+- **兼容性**：纯 Compose 层重构，无存档/序列化/渲染后端变更；与宗门地图修复（RenderScalePolicy 手机 SOFTWARE 降载 + MAP_SCROLL 60fps）同批发布
+
 ## [4.01.10] - 2026-08-24
 
 ### 新增（C++ 引擎迁移计划 v2 阶段 7：Kotlin 降级纯平台层 + 存档决策）

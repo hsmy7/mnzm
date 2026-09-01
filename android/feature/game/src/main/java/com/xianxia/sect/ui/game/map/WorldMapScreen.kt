@@ -71,10 +71,11 @@ fun WorldMapScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Layer 2: 标记（宗门 + 关卡）
+        // Layer 2: 标记（宗门 + 关卡 + 秘境）
+        // ★ 2026 修复：不再在组合作用域读相机（isVisible/worldToScreen 已下沉到
+        // marker 的 graphicsLayer draw 阶段）——拖动视角零重组零布局，仅重绘。
+        // 视口外 marker 由 Compose 图层裁剪兜底，几十个节点的绘制开销远小于每帧重组。
         items.forEach { item ->
-            if (!cameraState.isVisible(item.worldX, item.worldY)) return@forEach
-
             when (item) {
                 is MapItem.Sect -> SectMarker(
                     item = item,

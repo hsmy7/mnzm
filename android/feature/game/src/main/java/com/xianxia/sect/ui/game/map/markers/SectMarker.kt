@@ -10,14 +10,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapStyle
 import com.xianxia.sect.ui.game.map.world.WorldCameraState
-
-private fun Float.toIntCoerced(): Int =
-    this.coerceIn(Int.MIN_VALUE.toFloat(), Int.MAX_VALUE.toFloat()).toInt()
 
 @Composable
 fun SectMarker(
@@ -31,19 +28,14 @@ fun SectMarker(
     val fontSize = if (item.isPlayerSect) MapStyle.Typography.sectNamePlayer else MapStyle.Typography.sectNameNormal
     val borderWidth = if (item.isHighlighted) MapStyle.Dimensions.sectHighlightedBorderWidth else MapStyle.Dimensions.sectBorderWidth
 
-    val x = cameraState.worldToScreenX(item.worldX)
-    val y = cameraState.worldToScreenY(item.worldY)
-
     Box(
         modifier = Modifier
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                layout(constraints.maxWidth, constraints.maxHeight) {
-                    placeable.place(
-                        (x - placeable.width / 2f).toIntCoerced(),
-                        (y - placeable.height / 2f).toIntCoerced()
-                    )
-                }
+            // ★ 2026 修复：相机读取仅发生在 graphicsLayer lambda（draw 阶段求值）——
+            // 拖动视角时只重算图层平移，不触发组合/布局。原实现组合内读
+            // worldToScreenX/Y + layout{} 重排，每次 pan 全量重组几十个标记 → 卡顿
+            .graphicsLayer {
+                translationX = cameraState.worldToScreenX(item.worldX) - size.width / 2f
+                translationY = cameraState.worldToScreenY(item.worldY) - size.height / 2f
             }
     ) {
         // 外层：最小命中面积（40dp）承载点击，视觉盒居中——文字标记的命中区不再随字号缩水
