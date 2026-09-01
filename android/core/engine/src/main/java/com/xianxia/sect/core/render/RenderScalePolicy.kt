@@ -32,12 +32,16 @@ enum class ScreenPixelAreaTier {
  * （-30% GPU 负载 / -10% 系统功耗，官方建议缩放 ≥70%）；米哈游 iPad 端同款降档做法。
  *
  * ## 档位规则
- * - COMPACT（手机）恒 1.0：零改动回归基线，热控/GPU 档均不触发缩放
+ * - COMPACT（手机）+ Vulkan：恒 1.0（零改动回归基线，热控/GPU 档均不触发缩放）
+ * - COMPACT（手机）+ SOFTWARE：按 `GPU档cap × 软件路径factor` 降载——CPU 逐像素
+ *   全屏合成成本远高于 GPU 路径，低端真机（联发科/麒麟等被 VulkanPolicy 判为
+ *   SOFTWARE_ONLY 的国产机型）此前在手机上无任何分辨率降载手段，拖动视角卡顿；
+ *   对照行业：Android Game Mode backbuffer 缩放、米哈游移动端降分辨率保帧率
  * - 非 COMPACT：`min(GPU档cap, 面积factor) × 路径factor × qualityFactor`，
  *   向下取到 0.05 离散档 + clamp [0.5, 1.0]
  * - SOFTWARE 路径额外 ×0.8（CPU 满分辨率逐像素绘制是黑名单平板耗电大头）
  * - qualityFactor 由引擎聚合热控×性能模式（[com.xianxia.sect.core.GameEngineCore]
- *   `renderingQualityFactor` StateFlow），仅在非 COMPACT 面积上生效
+ *   `renderingQualityFactor` StateFlow），非 COMPACT 面积与手机 SOFTWARE 路径生效
  *
  * ## 离散档与重算时机
  * 结果离散化（0.5/0.55/.../1.0），只在 surface 初始化/resize/热控/省电变化时重算，
@@ -97,7 +101,8 @@ object RenderScalePolicy {
      * 计算渲染缩放（唯一决策入口，双后端同一函数同一常量）。
      *
      * 档位示例：
-     * - 手机 1080×2400（COMPACT）任意 GPU/路径/qualityFactor → 1.0（逐位不变基线）
+     * - 手机 1080×2400（COMPACT）+ Vulkan 任意 GPU/路径/qualityFactor → 1.0（回归基线）
+     * - 手机 + SOFTWARE：LOW → 0.5、MEDIUM → 0.6、HIGH/ULTRA → 0.8（CPU 逐像素路径降载）
      * - 平板 2560×1600 HIGH+Vulkan → 0.8；MEDIUM+Vulkan → 0.8；MEDIUM+SOFTWARE → 0.6
      * - 平板 2880×1800 ULTRA+Vulkan → 0.7；8K → 0.7（XLARGE 封顶）
      * - 平板 LARGE + qualityFactor 0.6（ORANGE 热控）→ 0.5（下限 clamp）
@@ -117,8 +122,10 @@ object RenderScalePolicy {
         qualityFactor: Float
     ): Float {
         val screenFactor = screenFactor(classifyScreenArea(screenWidth, screenHeight))
-        // COMPACT（手机）恒 1.0：手机渲染行为逐位不变是本方案的回归基线
-        if (screenFactor >= 1.0f) return 1.0f
+        // COMPACT（手机）+ Vulkan 恒 1.0（回归基线）；COMPACT + SOFTWARE 仍降载——
+        // CPU 逐像素全屏合成成本高，手机 SOFTWARE 此前被短路而无任何降载手段
+        //（低端真机拖动视角卡顿根因，2026 修复）
+        if (screenFactor >= 1.0f && !softwarePath) return 1.0f
         val baseCap = GpuRenderConfig.forTier(gpuTier).baseRenderScale
         val pathFactor = if (softwarePath) SOFTWARE_PATH_FACTOR else 1.0f
         val thermalFactor = if (qualityFactor.isFinite()) {

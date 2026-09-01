@@ -58,27 +58,46 @@ class RenderScalePolicyTest {
         assertEquals(ScreenPixelAreaTier.COMPACT, RenderScalePolicy.classifyScreenArea(-1, 1080))
     }
 
-    // ── COMPACT 恒 1.0（手机逐位不变回归基线） ──
+    // ── COMPACT（手机） ──
 
     @Test
-    fun `compute - compact phone always returns 1_0`() {
-        // 任意 GPU 档/路径/qualityFactor 组合，手机均不缩放
+    fun `compute - compact phone vulkan always returns 1_0`() {
+        // 手机 + Vulkan：任意 GPU 档/qualityFactor 组合均不缩放（回归基线）
         for (tier in GpuTier.values()) {
-            for (software in listOf(true, false)) {
-                assertEquals(
-                    "tier=$tier software=$software 应恒 1.0",
-                    1.0f,
-                    RenderScalePolicy.computeRenderScale(tier, software, 2400, 1080, 1.0f),
-                    0.001f
-                )
-                // 热控降质（qualityFactor 0.4）也不触发缩放
-                assertEquals(
-                    1.0f,
-                    RenderScalePolicy.computeRenderScale(tier, software, 2400, 1080, 0.4f),
-                    0.001f
-                )
-            }
+            assertEquals(
+                "tier=$tier 应恒 1.0",
+                1.0f,
+                RenderScalePolicy.computeRenderScale(tier, false, 2400, 1080, 1.0f),
+                0.001f
+            )
+            // 热控降质（qualityFactor 0.4）也不触发缩放
+            assertEquals(
+                1.0f,
+                RenderScalePolicy.computeRenderScale(tier, false, 2400, 1080, 0.4f),
+                0.001f
+            )
         }
+    }
+
+    @Test
+    fun `compute - compact phone software scales by gpu tier`() {
+        // 手机 + SOFTWARE：CPU 逐像素全屏合成成本高，按 GPU 档 × 软件路径因子降载
+        // LOW: min(0.6,1.0)×0.8 = 0.48 → floorTo05 0.45 → clamp 0.5
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.LOW, true, 2400, 1080, 1.0f), 0.001f)
+        // MEDIUM: min(0.8,1.0)×0.8 = 0.64 → floorTo05 0.6
+        assertEquals(0.6f, RenderScalePolicy.computeRenderScale(GpuTier.MEDIUM, true, 2400, 1080, 1.0f), 0.001f)
+        // HIGH/ULTRA: min(1.0,1.0)×0.8 = 0.8
+        assertEquals(0.8f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, true, 2400, 1080, 1.0f), 0.001f)
+        assertEquals(0.8f, RenderScalePolicy.computeRenderScale(GpuTier.ULTRA, true, 2400, 1080, 1.0f), 0.001f)
+    }
+
+    @Test
+    fun `compute - compact phone software thermal quality clamps to 0_5`() {
+        // 热控降质（qualityFactor 0.4）叠加后低于下限 → clamp 0.5
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.LOW, true, 2400, 1080, 0.4f), 0.001f)
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.MEDIUM, true, 2400, 1080, 0.4f), 0.001f)
+        // HIGH: 1.0×0.8×0.4 = 0.32 → floorTo05 0.3 → clamp 0.5
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, true, 2400, 1080, 0.4f), 0.001f)
     }
 
     // ── 平板档位矩阵 ──

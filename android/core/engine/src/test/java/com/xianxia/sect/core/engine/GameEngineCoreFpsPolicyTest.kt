@@ -79,7 +79,7 @@ class GameEngineCoreFpsPolicyTest {
     @Test
     fun `sceneFpsFor - balanced mode full matrix`() {
         assertEquals(10, core.sceneFpsFor(PerformanceMode.BALANCED, GameEngineCore.GameScene.IDLE))
-        assertEquals(30, core.sceneFpsFor(PerformanceMode.BALANCED, GameEngineCore.GameScene.MAP_SCROLL))
+        assertEquals(60, core.sceneFpsFor(PerformanceMode.BALANCED, GameEngineCore.GameScene.MAP_SCROLL))
         assertEquals(60, core.sceneFpsFor(PerformanceMode.BALANCED, GameEngineCore.GameScene.GAMEPLAY))
         assertEquals(30, core.sceneFpsFor(PerformanceMode.BALANCED, GameEngineCore.GameScene.GAMEPLAY_IDLE))
         assertEquals(60, core.sceneFpsFor(PerformanceMode.BALANCED, GameEngineCore.GameScene.BATTLE))
@@ -88,7 +88,7 @@ class GameEngineCoreFpsPolicyTest {
     @Test
     fun `sceneFpsFor - energy saving locks 30 except deep idle 10`() {
         assertEquals(10, core.sceneFpsFor(PerformanceMode.ENERGY_SAVING, GameEngineCore.GameScene.IDLE))
-        assertEquals(30, core.sceneFpsFor(PerformanceMode.ENERGY_SAVING, GameEngineCore.GameScene.MAP_SCROLL))
+        assertEquals(60, core.sceneFpsFor(PerformanceMode.ENERGY_SAVING, GameEngineCore.GameScene.MAP_SCROLL))
         assertEquals(30, core.sceneFpsFor(PerformanceMode.ENERGY_SAVING, GameEngineCore.GameScene.GAMEPLAY))
         assertEquals(30, core.sceneFpsFor(PerformanceMode.ENERGY_SAVING, GameEngineCore.GameScene.GAMEPLAY_IDLE))
         assertEquals(30, core.sceneFpsFor(PerformanceMode.ENERGY_SAVING, GameEngineCore.GameScene.BATTLE))

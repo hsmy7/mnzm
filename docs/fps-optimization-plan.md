@@ -225,7 +225,7 @@ data class GameViewState(
 // 按场景动态切换目标帧率
 enum class TargetFrameRate(val fps: Int, val frameBudgetMs: Long) {
     IDLE(10, 100),     // 后台/无操作
-    MAP_SCROLL(30, 33),// 地图滚动静止
+    MAP_SCROLL(60, 16),// 地图滚动/惯性滑行（2026 修复：原 30fps 与手势引擎 16ms 节拍不匹配，惯性滚动丢帧卡顿；交互期滚动恒满帧，省电仅影响松手后数秒）
     GAMEPLAY(60, 16),  // 正常游戏
     BATTLE(60, 16)     // 战斗场景
 }
@@ -234,7 +234,7 @@ enum class TargetFrameRate(val fps: Int, val frameBudgetMs: Long) {
 | 场景 | 当前 | 优化后 | 省电 |
 |------|------|--------|------|
 | 后台/息屏 | 50ms 循环 | **100ms (10fps)** | 省电 50%+ |
-| 地图静止 | 50ms 循环 | **33ms (30fps)** | 省电 40% |
+| 地图滚动/惯性滑行 | 33ms (30fps) | **16ms (60fps)** | 交互期满帧（惯性仅数秒） |
 | 游戏操作 | 50ms 循环 | **16ms (60fps)** | — |
 | 战斗动画 | 50ms 循环 | **16ms (60fps)** | — |
 

@@ -334,7 +334,7 @@ interface SaveValidationRule {
 
 | 机制 | 决策/实现 | 位置 |
 |------|----------|------|
-| 渲染分辨率缩放 | `RenderScalePolicy`（面积分级 COMPACT/STANDARD/LARGE/XLARGE × GPU 档 cap × 软件路径 0.8 × qualityFactor，floorTo05 离散 + clamp [0.5,1.0]；**COMPACT 手机恒 1.0 逐位不变基线**） | `core/engine/.../render/RenderScalePolicy.kt` |
+| 渲染分辨率缩放 | `RenderScalePolicy`（面积分级 COMPACT/STANDARD/LARGE/XLARGE × GPU 档 cap × 软件路径 0.8 × qualityFactor，floorTo05 离散 + clamp [0.5,1.0]；COMPACT 手机 + Vulkan 恒 1.0 基线；**COMPACT 手机 + SOFTWARE 降载**（LOW→0.5/MEDIUM→0.6/HIGH→0.8——2026 修复：手机 SOFTWARE 此前被短路无降载，低端真机拖动视角卡顿）） | `core/engine/.../render/RenderScalePolicy.kt` |
 | Vulkan 降采样渲染 | 离屏颜色目标 + `vkCmdBlitImage` 上采样；blit 能力守卫回退直渲；setRenderScale 重建语义同 resize | `VulkanBackend.cpp/.h` |
 | Canvas 降采样渲染 | 帧缓冲 = round(物理×renderScale) + drawScale 公式适配 + 双线性上采样提交 | `SoftwareCanvasBackend.kt` / `SoftwareRenderBackend.kt` |
 | 帧率↔刷新率联动 | `FrameRateDeclarationPolicy`：>60Hz 面板 {60,30} 两档（首帧 60 恰逢淡入）+ 升档 2s 防抖；≤60Hz 旧行为一致 | `feature/game/.../sect/FrameRateDeclarationPolicy.kt` |

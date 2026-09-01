@@ -328,6 +328,16 @@
 - **测试**：GTest 550+3+3（溢出草稿回传 3 + 仓库整理动作 3，待 CI 桌面构建执行）· JUnit 全模块全绿（新增 GameEngineInventoryForwardTest 6 用例回退契约；BootSequenceControllerTest 12 用例暴露并修复转发层 NPE）· NDK externalNativeBuildRelease 通过 · 全模块 detekt + lintRelease + compileReleaseKotlin 通过
 - **兼容性**：无 Entity/Migration/存档/序列化变更（DATABASE_VERSION 不变）；AUTHORITATIVE 生产默认不变（新增接线仍受 NativeEngineFlag 三态守卫，OFF/SHADOW 回退契约保留）；新增 ActionId 1027~1029（进程内协议，存档无关）；玩家可见行为不变（溢出邮件投递精度与原路径一致）
 
+### 优化（宗门地图拖动视角卡顿修复：SOFTWARE 手机渲染降载 + fling 场景帧率 60fps）
+
+> 用户实报：真机宗门地图拖动视角明显卡顿。根因链两条：① `VulkanPolicy` 对联发科/麒麟等国产芯片判 `PROBLEMATIC → SOFTWARE_ONLY`（CPU 软件渲染），而 `RenderScalePolicy.computeRenderScale` 对 COMPACT（手机）恒返回 1.0 短路——手机 SOFTWARE 路径无任何分辨率降载，每帧 CPU 全屏合成（chunk blit + lockCanvas 全屏提交，物理分辨率 10-18MB/帧）→ 拖动帧率 30-45fps；② fling 时 `onFlingStart` 切 `MAP_SCROLL` 场景，均衡模式下帧率档 30fps，与手势引擎 16ms（60fps）节拍不匹配——相机 60fps 更新被渲染 30fps 丢帧，惯性滚动跳动。
+
+- **修复①（渲染降载）**：`RenderScalePolicy.computeRenderScale` 取消 COMPACT 对 SOFTWARE 路径短路——手机 SOFTWARE 按 `GPU 档 cap × 软件路径因子 0.8` 降载（LOW→0.5、MEDIUM→0.6、HIGH/ULTRA→0.8 渲染分辨率，帧缓冲面积降 36-75%，CPU 合成/提交成本同比例下降），上采样由 `SoftwareRenderBackend.commitBitmap` 双线性处理（已有），世界/相机/命中测试契约不变；`RenderFlags.renderScaleEnabled=false` 可一键回退 1.0；Vulkan 手机恒 1.0（回归基线）与平板行为不变
+- **修复②（fling 帧率）**：`GameEngineCore.sceneFpsFor` 的 `MAP_SCROLL` 恒 60fps（原均衡/节能 30fps）+ `GameScene.MAP_SCROLL.targetFrameTimeMs` 33→16——惯性滚动渲染 60fps 与手势节拍对齐；省电仅影响松手后数秒
+- **对标行业**：Android Game Mode backbuffer 缩放（官方建议 ≥70%，-30% GPU/-10% 功耗）· Unity/UE 动态分辨率 · 米哈游移动端降分辨率保帧率 · 滚动交互满帧（Android Frame Pacing / UE Frame Pacing）· Supercell Titan 低端设备优先
+- **验证**：`RenderScalePolicyTest` 新增手机 SOFTWARE 各 GPU 档断言 + Vulkan 手机恒 1.0 守护 + 热控叠加 clamp · `GameEngineCoreFpsPolicyTest` MAP_SCROLL 断言 30→60（三性能模式）· `SoftwareCanvasBackendRenderScaleTest` 回归 · 待真机验收（强制软件渲染拖动 ≥50fps、fling 平滑）
+- **兼容性**：无存档/序列化/DB 变更（无 Migration）；渲染双路径契约不变；性能模式三档语义不变
+
 ## [4.01.10] - 2026-08-24
 
 ### 新增（C++ 引擎迁移计划 v2 阶段 7：Kotlin 降级纯平台层 + 存档决策）

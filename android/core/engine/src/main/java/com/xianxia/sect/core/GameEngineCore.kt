@@ -170,8 +170,8 @@ class GameEngineCore @Inject constructor(
     enum class GameScene(val displayName: String, val targetFrameTimeMs: Long) {
         /** 后台/息屏/无操作 — 最低帧率保电 */
         IDLE("后台", 100L),
-        /** 地图滚动/惯性滑行 — 30fps 足够 */
-        MAP_SCROLL("地图滚动", 33L),
+        /** 地图滚动/惯性滑行 — 60fps（惯性滚动是高频交互，30fps 视觉丢帧） */
+        MAP_SCROLL("地图滚动", 16L),
         /** 正常游戏（Tab、对话框操作）— 活跃 60fps */
         GAMEPLAY("游戏", 16L),
         /** 挂机静止（均衡模式动态帧率中间档）— 30fps 保电 */
@@ -255,7 +255,9 @@ class GameEngineCore @Inject constructor(
      */
     internal fun sceneFpsFor(mode: PerformanceMode, scene: GameScene): Int = when (scene) {
         GameScene.IDLE -> FPS_IDLE
-        GameScene.MAP_SCROLL -> if (mode == PerformanceMode.PERFORMANCE) FPS_ACTIVE else FPS_STILL
+        // 滚动/惯性滑行是玩家注意力集中交互：恒 60fps（原 30fps 与手势引擎 16ms 节拍
+        // 不匹配，相机 60fps 更新被渲染 30fps 丢帧 → 惯性滚动卡顿；省电仅影响松手后数秒）
+        GameScene.MAP_SCROLL -> FPS_ACTIVE
         GameScene.GAMEPLAY -> if (mode == PerformanceMode.ENERGY_SAVING) FPS_STILL else FPS_ACTIVE
         GameScene.GAMEPLAY_IDLE -> FPS_STILL
         GameScene.BATTLE -> if (mode == PerformanceMode.ENERGY_SAVING) FPS_STILL else FPS_ACTIVE
