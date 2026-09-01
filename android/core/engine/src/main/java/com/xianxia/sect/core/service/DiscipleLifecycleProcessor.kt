@@ -406,6 +406,35 @@ class DiscipleLifecycleProcessor @Inject constructor(
         stateStore.update { discipleTables.cullDeadDisciples(cullThreshold) }
     }
 
+    /**
+     * 批 Y-3（T1-③ 年变死亡链下沉）：事务外平台效应——Room 生产槽 Repository
+     * 清理（DAO 主源同步，防读档重建残留死亡弟子）+ DeathEvent 事件分发。
+     * C++ 侧已完成状态面（11 槽镜像/哀悼/解绑/血炼/装备清/死亡记录/事件/计数），
+     * 本方法仅补 Kotlin 平台效应（与 [processDiscipleAging] 的事务外段语义一致——
+     * DAO 批量清理毫秒级、DeathEvent 无消费方，实害为零）。
+     *
+     * @param deaths 死亡弟子草稿（nativeSettleYear 信封回传）
+     */
+    internal fun applyAgedDeathPlatformEffects(
+        deaths: List<com.xianxia.sect.core.engine.AgedDeathDraft>
+    ) {
+        if (deaths.isEmpty()) return
+        // 双存储同步：清 Room 生产槽 Repository（镜像清理已在 C++ 事务内完成）
+        kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
+            productionCoordinator.clearDisciplesFromRepository(
+                deaths.map { it.discipleId }
+            )
+        }
+        for (d in deaths) {
+            eventBus.emitSync(DeathEvent(
+                discipleId = d.discipleId,
+                discipleName = d.name,
+                cause = d.cause,
+                deathYear = d.deathYear
+            ))
+        }
+    }
+
     fun processReflectionRelease(year: Int) {
         stateStore.update {
             val currentList = discipleTables.assembleAll()

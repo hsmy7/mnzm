@@ -92,6 +92,42 @@ constexpr int32_t kRecruitRefreshIntervalYears = 3;
 
 namespace detail {
 
+// ════════════════════════════════════════════════════════════════
+// 批 Y-3（T1-③ 死亡链）平台效应草稿——C++ 死亡链状态面（老化/槽位/哀悼/
+// 解绑/血炼/装备清/死亡记录）完成后，Kotlin 残留执行器经草稿执行平台效应：
+// 袋物品物化回仓库（含溢出邮件）/DAO 清理/DeathEvent/死亡记录档案/
+// lifeEvents 丧亲事件。与 S-17 秘境草稿同构（信封回传）。
+// 定义于 detail 前（detail 函数前置依赖），detail 结束后以
+// `using detail::YearSettlementDraft` 导出到 gamecore::system。
+// ════════════════════════════════════════════════════════════════
+
+/// 死亡弟子草稿（Kotlin 残留：袋物品物化 + DAO 清理 + DeathEvent + addDeathRecord）
+struct AgedDeathDraft {
+    std::string discipleId;
+    std::string name;
+    std::string surname;
+    int32_t age = 0;
+    int32_t realm = 9;
+    int32_t realmLayer = 1;
+    int32_t deathYear = 0;
+    std::string cause = "age";
+    std::vector<state::StorageBagItem> storageBagItems;  // 袋物品（物化回仓库）
+};
+
+/// 丧亲事件草稿（Kotlin 残留：lifeEvents 瞬态列写入）
+struct BereavementDraft {
+    int32_t grievingId = 0;
+    std::string relationship;   // 道侣/父/母/亲属
+    std::string deceasedName;
+    int32_t grievingAge = 0;
+};
+
+/// 年变平台效应草稿集合（runYearSettlement 可选 out + nativeSettleYear 信封）
+struct YearSettlementDraft {
+    std::vector<AgedDeathDraft> agedDeaths;
+    std::vector<BereavementDraft> bereavements;
+};
+
 using gamecore::state::Disciple;
 using gamecore::state::DiscipleStore;
 using gamecore::state::GameData;
@@ -891,6 +927,237 @@ inline void processRefreshRecruitList(GameState& state, int32_t year,
     recruit_settle::processAutoRecruit(state);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 批 Y-3（T1-③ 弟子老化死亡链）：C++ 状态面 + 平台效应草稿
+// Kotlin DiscipleLifecycleProcessor.processDiscipleAging 等价移植——
+// 老化判定（age+1、5 岁境界层回正、computeMaxAge 寿元耗尽）→ 逐死者
+// 状态面（11 槽清理/哀悼传播/道侣师徒解绑/血炼清理/袋物品草稿/装备功法
+// 清除/死亡记录/事件/年死亡计数）→ 统一移除 + 活弟子老化。
+// 平台效应（袋物品物化回仓库含溢出邮件/DAO 清理/DeathEvent/死亡记录档案/
+// lifeEvents 丧亲事件）经 YearSettlementDraft 草稿回传 Kotlin 残留执行器。
+// ════════════════════════════════════════════════════════════════
+
+/// 亲属判定（Kotlin DiscipleStatCalculator.areRelatives：道侣/父母/子女/兄弟姐妹）
+inline bool isRelatives(const state::DiscipleStore& ds, std::size_t a, std::size_t b) {
+    // 道侣
+    if (!ds.partnerIds[a].empty() && ds.partnerIds[a] == ds.ids[b]) return true;
+    if (!ds.partnerIds[b].empty() && ds.partnerIds[b] == ds.ids[a]) return true;
+    // 父母-子女
+    if (!ds.parentId1s[a].empty() && ds.parentId1s[a] == ds.ids[b]) return true;
+    if (!ds.parentId2s[a].empty() && ds.parentId2s[a] == ds.ids[b]) return true;
+    if (!ds.parentId1s[b].empty() && ds.parentId1s[b] == ds.ids[a]) return true;
+    if (!ds.parentId2s[b].empty() && ds.parentId2s[b] == ds.ids[a]) return true;
+    // 兄弟姐妹（共同父母；Kotlin 单亲也支持）
+    const std::string& a1 = ds.parentId1s[a];
+    const std::string& a2 = ds.parentId2s[a];
+    if (a1.empty() && a2.empty()) return false;
+    return (!a1.empty() && (a1 == ds.parentId1s[b] || a1 == ds.parentId2s[b])) ||
+           (!a2.empty() && (a2 == ds.parentId1s[b] || a2 == ds.parentId2s[b]));
+}
+
+/// 哀悼期传播 + 丧亲草稿（Kotlin computeGriefEndYearMap +
+/// computeBereavementRecords——列行版：对死者行，存活且非本人且 isRelatives →
+/// griefEndYear = max(既有, currentYear+1) 列写；新进入哀悼者（原列哨兵 -1）
+/// 生成丧亲记录草稿——关系文本按列直读（道侣/父/母/亲属，第 4 分支"子女"
+/// 因对称不可达输出"亲属"——对齐 Kotlin 注释））
+inline void applyGriefToRelativesStep(state::DiscipleStore& ds,
+                                      std::size_t deadRow,
+                                      int32_t currentYear,
+                                      YearSettlementDraft* draft) {
+    const int32_t griefEndYear = currentYear + 1;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (row == deadRow) continue;
+        if (ds.isAlive[row] != 1) continue;
+        if (!isRelatives(ds, row, deadRow)) continue;
+        const int32_t existing = ds.griefEndYears[row];
+        const int32_t newEnd =
+            (existing != kGriefYearNullSentinel && existing > griefEndYear)
+                ? existing
+                : griefEndYear;
+        ds.griefEndYears[row] = newEnd;
+        // 新进入哀悼者（原哨兵）→ 丧亲草稿（Kotlin computeBereavementRecords）
+        if (existing == kGriefYearNullSentinel && draft != nullptr) {
+            BereavementDraft bd;
+            const std::string& deadId = ds.ids[deadRow];
+            const std::string relationship =
+                (!ds.partnerIds[row].empty() && ds.partnerIds[row] == deadId) ? "道侣"
+                : (!ds.parentId1s[row].empty() && ds.parentId1s[row] == deadId) ? "父/母"
+                : (!ds.parentId2s[row].empty() && ds.parentId2s[row] == deadId) ? "父/母"
+                : "亲属";
+            const auto gid = settle_util::toIntOrNull(ds.ids[row]);
+            if (gid.has_value()) {
+                bd.grievingId = *gid;
+                bd.relationship = relationship;
+                bd.deceasedName = ds.names[deadRow];
+                bd.grievingAge = ds.ages[row];
+                draft->bereavements.push_back(std::move(bd));
+            }
+        }
+    }
+}
+
+/// 道侣解绑（Kotlin unbindPartnerColumns——列行版：清空死者伴侣行指向）
+inline void unbindPartnerColumnsStep(state::DiscipleStore& ds,
+                                     std::size_t deadRow) {
+    const auto partnerInt = settle_util::toIntOrNull(ds.partnerIds[deadRow]);
+    if (!partnerInt.has_value()) return;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (settle_util::toIntOrNull(ds.ids[row]) == partnerInt) {
+            ds.partnerIds[row].clear();
+            return;
+        }
+    }
+}
+
+/// 师徒解绑（Kotlin unbindMasterColumns：扫描 masterIds 列清空指向死者的徒弟行）
+inline void unbindMasterColumnsStep(state::DiscipleStore& ds,
+                                    const std::string& deadId) {
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.masterIds[row] == deadId) ds.masterIds[row].clear();
+    }
+}
+
+/// 11 槽位清理（Kotlin clearAllSlotsState——SlotCleanupInput 构造 + 应用；
+/// slot_cleanup.h 的 SlotCleanupInput/Result 定义于 gamecore::system 直接）
+inline void applySlotCleanupStep(GameState& state, const std::string& discipleId) {
+    auto& gd = state.gameData;
+    SlotCleanupInput in;
+    in.spiritMineSlots = gd.spiritMineSlots;
+    in.librarySlots = gd.librarySlots;
+    in.elderSlots = gd.elderSlots;
+    in.residenceSlots = gd.residenceSlots;
+    in.activeBloodRefinements = gd.activeBloodRefinements;
+    in.patrolSlots = gd.patrolSlots;
+    in.warehouseGarrisons = gd.warehouseGarrisons;
+    in.battleTeams = gd.battleTeams;
+    in.worldMapSects = gd.worldMapSects;
+    in.productionSlots = gd.productionSlots;
+    in.caveExplorationTeams = gd.caveExplorationTeams;
+    in.activeMissions = gd.activeMissions;
+    const SlotCleanupResult out =
+        clearAllSlotsDataOnly(in, discipleId, /*includeResidence=*/true);
+    gd.spiritMineSlots = out.spiritMineSlots;
+    gd.librarySlots = out.librarySlots;
+    gd.elderSlots = out.elderSlots;
+    gd.residenceSlots = out.residenceSlots;
+    gd.activeBloodRefinements = out.activeBloodRefinements;
+    gd.patrolSlots = out.patrolSlots;
+    gd.warehouseGarrisons = out.warehouseGarrisons;
+    gd.battleTeams = out.battleTeams;
+    gd.worldMapSects = out.worldMapSects;
+    gd.productionSlots = out.productionSlots;
+    gd.caveExplorationTeams = out.caveExplorationTeams;
+    gd.activeMissions = out.activeMissions;
+}
+
+/// 装备/功法清除（Kotlin：四槽装备 id + 功法 id 从实例集合过滤）
+inline void clearEquipmentAndManuals(GameState& state, std::size_t deadRow) {
+    auto& ds = state.disciples;
+    std::set<std::string> deleteEquipIds;
+    if (!ds.weaponIds[deadRow].empty()) deleteEquipIds.insert(ds.weaponIds[deadRow]);
+    if (!ds.armorIds[deadRow].empty()) deleteEquipIds.insert(ds.armorIds[deadRow]);
+    if (!ds.bootsIds[deadRow].empty()) deleteEquipIds.insert(ds.bootsIds[deadRow]);
+    if (!ds.accessoryIds[deadRow].empty()) deleteEquipIds.insert(ds.accessoryIds[deadRow]);
+    const std::set<std::string> deleteManualIds(
+        ds.manualIds[deadRow].begin(), ds.manualIds[deadRow].end());
+    auto& eq = state.equipmentInstances;
+    eq.erase(std::remove_if(eq.begin(), eq.end(),
+                            [&](const state::EquipmentInstance& e) {
+                                return deleteEquipIds.count(e.id) != 0;
+                            }),
+             eq.end());
+    auto& mn = state.manualInstances;
+    mn.erase(std::remove_if(mn.begin(), mn.end(),
+                            [&](const state::ManualInstance& m) {
+                                return deleteManualIds.count(m.id) != 0;
+                            }),
+             mn.end());
+}
+
+/// T1-③ 弟子老化死亡链主入口（Kotlin DiscipleLifecycleProcessor.
+/// processDiscipleAging 等价——状态面 + 平台效应草稿）。
+/// 零 RNG。多死者顺序：逐死者状态面（列操作，remove 前列号有效）→
+/// 统一 removeById（旋转同步索引）→ 活弟子老化。
+inline void processDiscipleAgingStep(GameState& state, int32_t currentYear,
+                                     YearSettlementDraft* draft) {
+    auto& ds = state.disciples;
+    auto& gd = state.gameData;
+
+    // 1. 老化判定（物化快照：age+1、5 岁境界层回正 + status=IDLE、computeMaxAge）
+    std::vector<std::size_t> deadRows;
+    std::vector<state::Disciple> agedSnapshots;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        state::Disciple aged = ds.materialize(row);
+        aged.age += 1;
+        if (aged.age == 5 && aged.realmLayer == 0) {
+            aged.realmLayer = 1;
+            aged.status = "IDLE";
+        }
+        if (aged.age >= discipleAgeMax(aged)) {
+            deadRows.push_back(row);
+            agedSnapshots.push_back(std::move(aged));
+        }
+    }
+
+    // 2. 逐死者状态面（列操作，行号有效）
+    for (std::size_t i = 0; i < deadRows.size(); ++i) {
+        const std::size_t deadRow = deadRows[i];
+        const std::string& id = ds.ids[deadRow];
+        // 槽位清理（11 类）
+        applySlotCleanupStep(state, id);
+        // 哀悼期传播 + 丧亲草稿
+        applyGriefToRelativesStep(ds, deadRow, currentYear, draft);
+        // 道侣/师徒解绑
+        unbindPartnerColumnsStep(ds, deadRow);
+        unbindMasterColumnsStep(ds, id);
+        // 血炼清理
+        gd.bloodRefinementBonusTotals.erase(id);
+        gd.bloodRefinements.erase(id);
+        // 装备/功法清除
+        clearEquipmentAndManuals(state, deadRow);
+        // 死亡草稿（平台效应：袋物品物化/DAO/DeathEvent/死亡记录）
+        if (draft != nullptr) {
+            AgedDeathDraft ad;
+            const auto& aged = agedSnapshots[i];
+            ad.discipleId = id;
+            ad.name = aged.name;
+            ad.surname = aged.surname;
+            ad.age = aged.age;
+            ad.realm = aged.realm;
+            ad.realmLayer = aged.realmLayer;
+            ad.deathYear = currentYear;
+            ad.cause = "age";
+            ad.storageBagItems = aged.storageBagItems;
+            draft->agedDeaths.push_back(std::move(ad));
+        }
+        // 死亡记录（列：deathYears = currentYear；remove 前写）
+        ds.deathYears[deadRow] = currentYear;
+        gd.annualDeceasedDisciples += 1;
+        settle_util::recordGameEvent(state, "SECT", "death",
+                                     ds.names[deadRow] + "陨落（寿元耗尽）",
+                                     id, ds.names[deadRow]);
+    }
+
+    // 3. 统一移除死亡弟子（removeById——旋转同步索引）
+    for (const auto& aged : agedSnapshots) {
+        ds.removeById(aged.id);
+    }
+
+    // 4. 活弟子老化（age+1 + 5 岁境界层回正——跳过死亡）
+    std::set<std::string> deadIds;
+    for (const auto& aged : agedSnapshots) deadIds.insert(aged.id);
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        if (deadIds.count(ds.ids[row]) != 0) continue;
+        const int32_t agedAge = ds.ages[row] + 1;
+        ds.ages[row] = agedAge;
+        if (agedAge == 5 && ds.realmLayers[row] == 0) {
+            ds.realmLayers[row] = 1;
+        }
+    }
+}
+
 }  // namespace detail
 
 /// 年俸结算主体（processAnnualSalary：计划 → canAfford → 发放/忠诚惩罚）。
@@ -920,11 +1187,20 @@ inline void processAnnualSalary(state::GameState& state) {
     detail::paySalariesToDisciples(state, plan, frugality);
 }
 
+// 年变平台效应草稿导出到 gamecore::system（runYearSettlement 签名 + nativeSettleYear 信封）
+using detail::AgedDeathDraft;
+using detail::BereavementDraft;
+using detail::YearSettlementDraft;
+
 /// 年变编排主入口（注册进 SettlementEngine::onYearChange）。
 /// @param state 完整游戏状态（就地修改）
 /// @param rng   RNG 分区管理器（本钩子全程零消耗；参数供后续批次接线）
+/// @param draft 年变平台效应草稿（批 Y-3 T1-③ 死亡链：可为 null——承载
+///   死亡弟子（袋物品物化/DAO 清理/DeathEvent/死亡记录）与丧亲事件
+///   （lifeEvents）供 Kotlin 残留执行器消费；null 时仅状态面）
 inline void runYearSettlement(state::GameState& state,
-                              rng::RngManager& rng) {
+                              rng::RngManager& rng,
+                              YearSettlementDraft* draft = nullptr) {
     (void)rng;   // 年变 T1/T2 批 Y-1 子集零 RNG 抽取（其余项场景规避，见文件头）
 
     // ── processYearlyEvents(year)：T1 立即组（Kotlin 严格相对序
@@ -933,6 +1209,10 @@ inline void runYearSettlement(state::GameState& state,
     detail::processYearlyTribute(state);
     // #2 附属宗门年贡（T1-② 批 Y-1）
     detail::processYearlyVassalTribute(state, state.gameData.gameYear);
+    // #3 弟子老化死亡链（T1-③ 批 Y-3：老化判定 + 逐死者状态面（11 槽/哀悼/
+    // 解绑/血炼/装备清/死亡记录/事件）+ 平台效应草稿（袋物品物化/DAO/
+    // DeathEvent/死亡记录档案/丧亲 lifeEvents））
+    detail::processDiscipleAgingStep(state, state.gameData.gameYear, draft);
     // #4 招募列表刷新（T1-④ 批 Y-3：SYSTEM 生成链——数量/性别/名字/灵根/
     // 弟子工厂 + 长老加成 + 广纳门徒政策；差值判据内部）
     detail::processRefreshRecruitList(state, state.gameData.gameYear, rng);

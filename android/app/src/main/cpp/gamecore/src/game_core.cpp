@@ -239,11 +239,42 @@ void GameCore::resetAutoRecruitIdle() {
 
 std::string GameCore::settleYear() {
     if (!initialized_) return "{}";
-    system::runYearSettlement(state_, rng_);
-    // 年变信封当前为空——T1-③/④ 与 T2-②/③/④ 残留为 Kotlin 侧纯状态 +
-    // 平台效应（死亡链 DAO 清理/AI 招募/商人收购/交易刷新），无 C++ 草稿；
-    // 未来下沉面收敛后按需扩展
-    return "{}";
+    system::YearSettlementDraft draft;
+    system::runYearSettlement(state_, rng_, &draft);
+
+    // 信封 JSON（nativeSettleYear 回传 Kotlin 残留执行器的平台效应输入：
+    // agedDeaths → 袋物品物化/DAO 清理/DeathEvent/死亡记录档案；
+    // bereavements → lifeEvents 丧亲事件）
+    nlohmann::json env = nlohmann::json::object();
+    nlohmann::json deaths = nlohmann::json::array();
+    for (const auto& d : draft.agedDeaths) {
+        nlohmann::json j = {{"discipleId", d.discipleId},
+                            {"name", d.name},
+                            {"surname", d.surname},
+                            {"age", d.age},
+                            {"realm", d.realm},
+                            {"realmLayer", d.realmLayer},
+                            {"deathYear", d.deathYear},
+                            {"cause", d.cause}};
+        nlohmann::json bags = nlohmann::json::array();
+        for (const auto& item : d.storageBagItems) {
+            nlohmann::json itemJson;
+            to_json(itemJson, item);   // 完整协议（物化回仓库需要实例/堆叠重建数据）
+            bags.push_back(std::move(itemJson));
+        }
+        j["storageBagItems"] = std::move(bags);
+        deaths.push_back(std::move(j));
+    }
+    env["agedDeaths"] = std::move(deaths);
+    nlohmann::json bereavements = nlohmann::json::array();
+    for (const auto& b : draft.bereavements) {
+        bereavements.push_back({{"grievingId", b.grievingId},
+                                {"relationship", b.relationship},
+                                {"deceasedName", b.deceasedName},
+                                {"grievingAge", b.grievingAge}});
+    }
+    env["bereavements"] = std::move(bereavements);
+    return env.dump();
 }
 
 // ── 引擎循环 + 看门狗（计划 v2 阶段 5） ─────────────────────────────

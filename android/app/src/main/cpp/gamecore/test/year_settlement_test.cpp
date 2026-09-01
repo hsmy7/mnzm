@@ -974,4 +974,125 @@ TEST(YearSettlementTest, Y3T1RefreshRecruitListNoPlayerFallback) {
     EXPECT_GE(st.gameData.recruitList.size(), 1u);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 批 Y-3（T1-③ 弟子老化死亡链）黄金序列
+// ════════════════════════════════════════════════════════════════
+
+TEST(YearSettlementTest, Y3T1AgingAliveDisciplesWithoutDeath) {
+    // 无死亡：活弟子 age+1；5 岁境界层回正
+    auto core = makeCore(42);
+    auto& st = core->state();
+    Disciple d1;
+    d1.id = "1";
+    d1.name = "少年";
+    d1.age = 4;
+    d1.realmLayer = 0;   // 老化后 5 岁 → 回正 1
+    d1.isAlive = true;
+    st.disciples.appendDisciple(d1);
+    Disciple d2;
+    d2.id = "2";
+    d2.name = "青年";
+    d2.age = 30;
+    d2.isAlive = true;
+    st.disciples.appendDisciple(d2);
+
+    system::YearSettlementDraft draft;
+    system::detail::processDiscipleAgingStep(st, /*currentYear=*/2, &draft);
+
+    ASSERT_EQ(2u, st.disciples.size());
+    EXPECT_EQ(5, st.disciples.materialize(0).age);
+    EXPECT_EQ(1, st.disciples.materialize(0).realmLayer);   // 5 岁回正
+    EXPECT_EQ(31, st.disciples.materialize(1).age);
+    EXPECT_TRUE(draft.agedDeaths.empty());
+}
+
+TEST(YearSettlementTest, Y3T1AgingDeathRemovesAndDrafts) {
+    // 寿元耗尽死亡：age 79（lifespan 80）老化后 80 >= maxAge 80 → 死亡——
+    // store 移除 + annualDeceasedDisciples+1 + 死亡事件 + 草稿（agedDeaths）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.annualDeceasedDisciples = 0;
+    Disciple elder;
+    elder.id = "1";
+    elder.name = "老寿";
+    elder.age = 79;
+    elder.lifespan = 80;
+    elder.realm = 9;
+    elder.isAlive = true;
+    st.disciples.appendDisciple(elder);
+    Disciple young;
+    young.id = "2";
+    young.name = "后辈";
+    young.age = 30;
+    young.isAlive = true;
+    st.disciples.appendDisciple(young);
+
+    system::YearSettlementDraft draft;
+    system::detail::processDiscipleAgingStep(st, /*currentYear=*/3, &draft);
+
+    ASSERT_EQ(1u, st.disciples.size());                     // 老者移除
+    EXPECT_EQ("2", st.disciples.materialize(0).id);
+    EXPECT_EQ(31, st.disciples.materialize(0).age);         // 活者老化
+    EXPECT_EQ(1, st.gameData.annualDeceasedDisciples);
+    ASSERT_EQ(1u, draft.agedDeaths.size());
+    EXPECT_EQ("1", draft.agedDeaths[0].discipleId);
+    EXPECT_EQ("老寿", draft.agedDeaths[0].name);
+    EXPECT_EQ(80, draft.agedDeaths[0].age);
+    EXPECT_EQ(3, draft.agedDeaths[0].deathYear);
+}
+
+TEST(YearSettlementTest, Y3T1AgingGriefPropagationAndUnbind) {
+    // 哀悼传播 + 解绑：夫妻互指 partnerIds，夫死 → 妻 griefEndYears=year+1 +
+    // partnerIds 清空 + 丧亲草稿（道侣）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    Disciple husband;
+    husband.id = "1";
+    husband.name = "夫君";
+    husband.age = 79;
+    husband.lifespan = 80;
+    husband.isAlive = true;
+    husband.partnerId = "2";
+    st.disciples.appendDisciple(husband);
+    Disciple wife;
+    wife.id = "2";
+    wife.name = "妻子";
+    wife.age = 30;
+    wife.isAlive = true;
+    wife.partnerId = "1";
+    st.disciples.appendDisciple(wife);
+
+    system::YearSettlementDraft draft;
+    system::detail::processDiscipleAgingStep(st, /*currentYear=*/5, &draft);
+
+    ASSERT_EQ(1u, st.disciples.size());
+    const auto w = st.disciples.materialize(0);
+    EXPECT_EQ(6, w.griefEndYear);                     // currentYear+1
+    EXPECT_TRUE(w.partnerId.empty());                 // 解绑
+    ASSERT_EQ(1u, draft.bereavements.size());
+    EXPECT_EQ(2, draft.bereavements[0].grievingId);
+    EXPECT_EQ("道侣", draft.bereavements[0].relationship);
+    EXPECT_EQ("夫君", draft.bereavements[0].deceasedName);
+}
+
+TEST(YearSettlementTest, Y3T1AgingSlotCleanupClearsElder) {
+    // 槽位清理：死亡弟子在纳徒长老槽 → 槽清空（elderSlots.recruitingElder）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    Disciple elder;
+    elder.id = "1";
+    elder.name = "长老";
+    elder.age = 79;
+    elder.lifespan = 80;
+    elder.isAlive = true;
+    st.disciples.appendDisciple(elder);
+    st.gameData.elderSlots.recruitingElder = "1";
+
+    system::YearSettlementDraft draft;
+    system::detail::processDiscipleAgingStep(st, /*currentYear=*/3, &draft);
+
+    EXPECT_EQ(0u, st.disciples.size());
+    EXPECT_TRUE(st.gameData.elderSlots.recruitingElder.empty());
+}
+
 }  // namespace

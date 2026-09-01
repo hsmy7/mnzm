@@ -13,6 +13,8 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.CultivationSettlement
 import com.xianxia.sect.core.engine.service.CultivationSharedState
 import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
+import com.xianxia.sect.core.engine.service.DiscipleLifecycleProcessor
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
@@ -266,6 +268,23 @@ class DiffYearSettlementTest {
         val wallet = SpiritStoneWallet(
             store, SpiritStoneLedger(), EventBus(scopeProvider)
         )
+        // 批 Y-3（T1-③ 下沉）：换装真实 DiscipleLifecycleProcessor——C++
+        // runYearSettlement 已执行死亡链（老化 age+1/死亡处理），Kotlin 臂必须
+        // 真实老化（mock 零行为 → age 失配）；场景弟子 age 低不死亡 → 槽位/
+        // 哀悼/DAO 平台效应零触发（discipleSlotCleanup/productionCoordinator/
+        // inventorySystem/deathHandler mock 无害）
+        val lifecycle = DiscipleLifecycleProcessor(
+            stateStore = store,
+            scopeProvider = scopeProvider,
+            productionCoordinator = mockSmart(),
+            eventBus = EventBus(scopeProvider),
+            discipleSlotCleanup = mockSmart(),
+            lawEnforcementProcessor = mockSmart(),
+            discipleStatusService = mockSmart(),
+            ioDispatcher = IoDispatcher(),
+            inventorySystem = mockSmart(),
+            deathHandler = mockSmart()
+        )
         return CultivationEventProcessor(
             stateStore = store,
             spiritStoneWallet = wallet,
@@ -280,7 +299,7 @@ class DiffYearSettlementTest {
             recruitService = mockSmart(),
             merchantAndRecruitService = mockSmart(),
             caveExplorationProcessor = mockSmart(),
-            discipleLifecycleProcessor = mockSmart(),
+            discipleLifecycleProcessor = lifecycle,
             diplomacyEventProcessor = mockSmart(),
             diplomacyService = mockSmart(),
             equipmentManager = mockSmart(),
