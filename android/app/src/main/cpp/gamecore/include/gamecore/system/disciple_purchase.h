@@ -668,9 +668,21 @@ inline bool addToWarehouseAndBag(GameState& state, const MerchantItem& item,
 
 // ── 购买决策应用（applyPurchaseDecisions） ─────────────────────────
 
+/// S-20：弟子智能购买日志草稿（Kotlin DiscipleTables.lifeEvents 为类体属性
+/// @Ignore 非协议字段——C++ 无该列，购买发生时记录草稿，Kotlin 侧写瞬态列；
+/// 日志格式 "${age}岁：购买了${itemName}"，与 Kotlin applyPurchaseDecisions
+/// 购买点逐条对齐）。定义于本属主文件（applyPurchaseDecisions 内部填充），
+/// month_settlement.h 的 MonthSettlementResult 引用它。
+struct PurchaseLogDraft {
+    std::string discipleId;                // Kotlin Disciple.id（String）
+    std::string itemName;
+    int32_t age = 0;                       // 购买时年龄
+};
+
 inline void applyPurchaseDecisions(GameState& state,
                                    const std::vector<PurchaseEntry>& decisions,
-                                   int32_t year, int32_t month) {
+                                   int32_t year, int32_t month,
+                                   std::vector<PurchaseLogDraft>* purchaseLogs) {
     for (const auto& decision : decisions) {
         const MerchantItem& item = *decision.item;
         const std::size_t dRow = decision.discipleRow;
@@ -682,16 +694,26 @@ inline void applyPurchaseDecisions(GameState& state,
         deductSpiritStones(state, dRow, item.price);
         // 弟子支付的灵石计入宗门仓库
         state.gameData.spiritStones += item.price;
-        // 购买日志（lifeEvents）为 Kotlin 类体属性非协议字段——C++ 侧
-        // 无该列，登记 S-20（见文件头）
+        // S-20：购买日志草稿（Kotlin lifeEvents 瞬态列——C++ 无该列，
+        // 记录草稿由 Kotlin 残留执行器写回；格式 "${age}岁：购买了${name}"）
+        if (purchaseLogs != nullptr) {
+            PurchaseLogDraft log;
+            log.discipleId = state.disciples.ids[dRow];
+            log.itemName = item.name;
+            log.age = state.disciples.ages[dRow];
+            purchaseLogs->push_back(std::move(log));
+        }
     }
 }
 
 // ── 主入口（executePurchase 等价） ────────────────────────────────
 
-/// 执行弟子智能购买（S8 子事件 12；零 RNG 主路径之外的 SYSTEM 洗牌）
+/// 执行弟子智能购买（S8 子事件 12；零 RNG 主路径之外的 SYSTEM 洗牌）。
+/// @param purchaseLogs S-20 草稿（可为 null）：实际购买发生时逐条追加
+///   （discipleId/itemName/age），随 nativeSettleMonth 信封回传 Kotlin。
 inline void processDisciplePurchase(GameState& state,
-                                    gamecore::rng::RngManager& rng) {
+                                    gamecore::rng::RngManager& rng,
+                                    std::vector<PurchaseLogDraft>* purchaseLogs = nullptr) {
     const std::vector<MerchantItem>& listedItems = state.gameData.playerListedItems;
     if (listedItems.empty()) return;
 
@@ -706,7 +728,7 @@ inline void processDisciplePurchase(GameState& state,
     if (decisions.empty()) return;
 
     applyPurchaseDecisions(state, decisions, state.gameData.gameYear,
-                           state.gameData.gameMonth);
+                           state.gameData.gameMonth, purchaseLogs);
 }
 
 }  // namespace gamecore::system::disciple_purchase

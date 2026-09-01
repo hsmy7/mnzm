@@ -121,8 +121,8 @@ class ChildBirthSystem @Inject constructor(
             state.gameData = state.gameData.copy(
                 recruitList = state.gameData.recruitList.toList() + child
             )
-            // 新生儿产生后立即执行自动招募检查 + 重置惰性
-            RecruitService.RecruitLazyState.autoRecruitIdle = false
+            // 新生儿产生后立即执行自动招募检查 + 重置惰性（S-16：同步 C++ 惰性门）
+            RecruitService.resetAutoRecruitIdle()
             RecruitService.RecruitLazyState.autoRejectIdle = false
             RecruitService.processAutoRecruit(state)
 

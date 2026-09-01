@@ -54,6 +54,16 @@ class CultivationService @Inject constructor(
 
     private val _highFrequencyData get() = sharedState.highFrequencyData
 
+    /**
+     * 月变/年变事件编排中枢访问入口（批 M-1：月变真相源切换后 GameEngineCore
+     * 经此访问残留执行器所需的事件域服务——caveExplorationProcessor/
+     * aiSectBeastAttackProcessor/secretRealmService 等 internal 成员）。
+     * 独立访问器而非构造参数可见性变更——detekt baseline 按构造签名匹配，
+     * 保持 private 参数避免 LongParameterList 豁免失配。
+     */
+    internal val eventProcessorForMonthSettlement: CultivationEventProcessor
+        get() = eventProcessor
+
     var cachedCultivationRates: Map<String, Double>
         get() = sharedState.cachedCultivationRates
         set(value) { sharedState.cachedCultivationRates = value }

@@ -96,6 +96,26 @@ public:
     /// 月/年结算由 Kotlin 残留执行器按标志处理。未初始化返回 0。
     int settleOnePhase();
 
+    /// 单月推进（月变真相源切换批 M-1 新增）：直接执行完整月变结算
+    /// （runMonthSettlement——八步事务编排 + 十六子事件已下沉面），返回
+    /// JSON 信封（MonthSettlementResult：policyCosts.disabledPolicies +
+    /// secretRealmClose 草稿 S-17 + purchaseLogs 草稿 S-20）供 Kotlin 残留
+    /// 执行器消费平台效应（checkpointAllProduction/秘境邮件与 gate/
+    /// lifeEvents 日志）。未初始化返回空对象。
+    std::string settleMonth();
+
+    /// 重置自动招募惰性门（S-16 清偿：Kotlin 侧重置点——年度招募刷新/玩家
+    /// 改筛选/生育/净化——经 JNI 通知 C++ 复位 autoRecruitIdle，防月变真相源
+    /// 切换后 C++ 侧 autoRecruit 永久惰性）。未初始化忽略。
+    void resetAutoRecruitIdle();
+
+    /// 单年推进（年变真相源切换批 Y-switch）：直接执行完整年变结算
+    /// （runYearSettlement——T1 已下沉面 + T2 已下沉面 + 年报 + 年俸），返回
+    /// JSON 信封（当前为空——年变残留执行器（死亡链/招募生成/AI 招募/商人
+    /// 收购/交易刷新）为 Kotlin 侧纯状态 + 平台效应，无 C++ 草稿回传）。
+    /// 未初始化返回空对象。
+    std::string settleYear();
+
     // ── RNG 分区标量通道（T2.4：Kotlin 抽取委托单一真相源） ──────────
     /// 指定分区抽取下一个 32 位整数（PCG-XSH-RR 原始输出，与 Kotlin
     /// DeterministicRng.nextInt() 逐位一致）；非法分区返回 0 并记日志。

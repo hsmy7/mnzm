@@ -282,8 +282,8 @@ class CaveExplorationProcessor @Inject constructor(
             aiSectDisciples = updatedAiDisciples,
             recruitList = updatedRecruitList
         )
-        // 被占领AI宗门产生新弟子后立即执行自动招募检查 + 重置惰性
-        RecruitService.RecruitLazyState.autoRecruitIdle = false
+        // 被占领AI宗门产生新弟子后立即执行自动招募检查 + 重置惰性（S-16：同步 C++ 惰性门）
+        RecruitService.resetAutoRecruitIdle()
         RecruitService.RecruitLazyState.autoRejectIdle = false
         RecruitService.processAutoRecruit(state)
     }

@@ -49,6 +49,18 @@ constexpr int32_t kAiTeamSize = 4;
 /// 秘境现世年数（GameConfig.SecretRealm.OPEN_YEARS）
 constexpr int32_t kOpenYears = 50;
 
+/// S-17：秘境到期关闭草稿（月变真相源切换后 Kotlin 侧不再执行
+/// processMonthlyExpiryCheck——本结构承载 C++ 侧关闭时的平台效应输入：
+/// 关闭邮件附件（背包清空前快照）与 assignmentGate.release 的 memberIds）。
+/// 定义于本属主文件（closeSecretRealmByExpiry 内部填充），
+/// month_settlement.h 的 MonthSettlementResult 引用它。
+struct SecretRealmCloseDraft {
+    bool closed = false;                   // 本次月变是否实际发生秘境到期关闭
+    std::vector<std::string> memberIds;    // gate release（Kotlin 纯内存注册表）
+    state::SecretRealmBackpack backpack;   // 关闭邮件附件（清空前快照）
+    int32_t slotId = 0;                    // 邮件归属存档槽位（GameData.currentSlot）
+};
+
 /// 队伍 id 生成（确定性自增——Kotlin UUID，语义等价：仅保证唯一）
 inline std::string nextTeamId() {
     static uint64_t counter = 0;
@@ -130,11 +142,25 @@ inline void processMonthlyAiTeams(GameState& state) {
 ///    杜绝邮件+入仓双发放）；
 /// ④ endSession(EXPIRED)：会话 active → settleBackpack（已空 → no-op）；
 ///    清空秘境/冷却年=year/会话/AI 队伍 + SECT secret_realm 事件
-inline void closeSecretRealmByExpiry(GameState& state) {
+///
+/// @param closeDraft S-17 草稿（可为 null）：实际关闭时填充 memberIds（会话
+///   成员 id，供 Kotlin assignmentGate.release）与背包快照（清空前六类物品，
+///   供 Kotlin buildExpiryCloseMail 邮件附件）并置 closed=true。
+inline void closeSecretRealmByExpiry(GameState& state,
+                                     SecretRealmCloseDraft* closeDraft) {
     auto& gd = state.gameData;
     const bool exists = !gd.secretRealmState.id.empty();
     const bool sessionActive = !gd.secretRealmSession.members.empty();
     if (!exists && !sessionActive) return;
+
+    if (closeDraft != nullptr) {
+        closeDraft->closed = true;
+        for (const auto& m : gd.secretRealmSession.members) {
+            closeDraft->memberIds.push_back(m.discipleId);
+        }
+        // 背包快照（清空前——邮件附件按六类物品逐条）
+        closeDraft->backpack = gd.secretRealmSession.backpack;
+    }
 
     if (gd.secretRealmSession.backpack.spiritStones > 0) {
         gamecore::system::SpiritStoneWallet::add(
@@ -159,14 +185,16 @@ inline void closeSecretRealmByExpiry(GameState& state) {
 /// 零 RNG）。边界（登记 S-17）：关闭邮件（buildExpiryCloseMail + sendDirectMail
 /// 异步落库）与 assignmentGate.release（纯内存注册表）保留 Kotlin——背包物品
 /// 走邮件不回宗门仓库，C++ 侧只做状态段（灵石入钱包 + 背包清空 + 会话/秘境/
-/// AI 队伍清场 + 冷却年 + SECT 事件），邮件草稿通道随月变真相源切换接线。
-inline void processMonthlyExpiryCheck(GameState& state, int32_t year) {
+/// AI 队伍清场 + 冷却年 + SECT 事件）；S-17 草稿经 [closeDraft] 回传，随
+/// 月变真相源切换接线（nativeSettleMonth 信封）。
+inline void processMonthlyExpiryCheck(GameState& state, int32_t year,
+                                      SecretRealmCloseDraft* closeDraft = nullptr) {
     auto& gd = state.gameData;
     const auto& realm = gd.secretRealmState;
     const bool exists = !realm.id.empty();
     if (!exists) return;
     if (year < realm.spawnYear + kOpenYears) return;
-    closeSecretRealmByExpiry(state);
+    closeSecretRealmByExpiry(state, closeDraft);
 }
 
 }  // namespace gamecore::system::secret_realm_settle

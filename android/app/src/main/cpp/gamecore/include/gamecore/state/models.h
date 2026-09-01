@@ -1364,6 +1364,11 @@ struct GameState {
     // 切换前），C++ 侧仅月结子事件内部置 true——跨层同步随月变真相源切换批接线
     //（S-16 登记）。Diff 对拍须双侧显式复位。
     bool autoRecruitIdle = false;
+    // 自动拒绝惰性门（Kotlin RecruitService.RecruitLazyState.autoRejectIdle 等价；
+    // 批 Y-1 年变 T1-⑤ processAutoReject 下沉新增）：纯内存运行态，不进 JSON
+    // 协议，读档即 false；重置点（年度刷新/净化/玩家改筛选）在 Kotlin 侧与
+    // autoRecruitIdle 同族（RecruitService.resetAutoRejectIdle 同步入口）。
+    bool autoRejectIdle = false;
     // 批 10-4：AI 宗门弟子池（Kotlin GameData.aiSectDisciples 为 @Transient
     // 重型数据——不进存档序列化，故快照协议置于顶层，与 Kotlin
     // NativeGameState.aiSectDisciples 一一对应；DirtyTracker 仅跟踪 gameData

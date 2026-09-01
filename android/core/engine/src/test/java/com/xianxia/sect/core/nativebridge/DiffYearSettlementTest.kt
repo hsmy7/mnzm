@@ -109,6 +109,10 @@ class DiffYearSettlementTest {
             yearlySalaryEnabled = mapOf(9 to true)
             // 规避清单：招募刷新差值判据不满足（year-last ≥ 3 才刷新）
             lastRecruitYear = 1
+            // 批 Y-1 规避：商人刷新机会首次授予（T1-⑥——Kotlin 臂 mock 的
+            // merchantAndRecruitService 零行为，C++ 侧 lastGrant==0 会授予 →
+            // 置 lastGrant=当前年使 C++ 侧差值不满足 → 双端零效果）
+            merchantLastRefreshChanceGrantYear = 1
             // 年报快照可观察输入：旧年计数非零
             annualTotalIncome = 3000L
             annualAlchemyCount = 2

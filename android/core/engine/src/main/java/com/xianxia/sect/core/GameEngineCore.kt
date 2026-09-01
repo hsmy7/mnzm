@@ -5,7 +5,9 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
+import com.xianxia.sect.core.engine.service.MonthSettlementResidualExecutor
 import com.xianxia.sect.core.engine.service.YearSettlementExecutor
+import com.xianxia.sect.core.engine.service.YearSettlementResidualExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
@@ -1634,34 +1636,64 @@ class GameEngineCore @Inject constructor(
     
     internal suspend fun processMonthYearChange(monthChanged: Boolean, yearChanged: Boolean) {
         if (yearChanged) {
-            // 两步年变编排（processYearlyEvents 分帧 + 1 月年俸）已提取至
-            // YearSettlementExecutor（T2.3，生产 tick 与跨语言对拍测试共用
-            // 同一入口）；本方法仅保留委托。
-            val gd = stateStore.gameData.value
-            yearSettlementExecutor.execute(
-                gameYear = gd.gameYear,
-                isJanuary = gd.gameMonth == 1
-            )
+            // 年变真相源切换（批 Y-switch）：native 就绪走 C++ runYearSettlement
+            // + Kotlin 残留执行器互插；native 未就绪回退 Kotlin 完整编排
+            //（C++ 状态未变更——回退安全；nativeSettleYear 后失败传播自愈）
+            if (!settleYearNative()) {
+                // 两步年变编排（processYearlyEvents 分帧 + 1 月年俸）已提取至
+                // YearSettlementExecutor（T2.3，生产 tick 与跨语言对拍测试共用
+                // 同一入口）；本方法仅保留委托。
+                val gd = stateStore.gameData.value
+                yearSettlementExecutor.execute(
+                    gameYear = gd.gameYear,
+                    isJanuary = gd.gameMonth == 1
+                )
+            }
         }
         if (monthChanged) {
-            // 八步月变编排（政策扣除/月效/AI 预计算/七系统扇出/血炼/排班忠诚/
-            // 月衰减/月度事件）已提取至 MonthSettlementExecutor（T2.2，
-            // 生产 tick 与跨语言对拍测试共用同一入口）；本方法仅保留委托与
-            // 事务外三件。
-            // 策略成本结果需要在事务外检查以决定是否重算生产 checkpoints
-            var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
-            stateStore.update {
-                policyResult = monthSettlementExecutor.execute(this)
+            // 月变真相源切换（批 M-1）：AUTHORITATIVE 下 C++ runMonthSettlement
+            // + Kotlin 残留执行器互插；native 未就绪回退 Kotlin 完整八步编排。
+            val env = try {
+                settleMonthNative()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // nativeSettleMonth 已执行则 C++ 状态已变更——必须传播给外层
+                // processAuthoritativeTick 的 refund + 看门狗自愈路径，**不得**
+                // 回退 Kotlin 编排（C++ 已结算 + Kotlin 再结算 = 双份执行）
+                DomainLog.w(TAG, "tickInternal: 月变 native 管线异常（传播自愈）: ${e.message}")
+                throw e
             }
-            if (policyResult is PolicyCostResult.SomeDisabled) {
-                val disabledList = (policyResult as PolicyCostResult.SomeDisabled).disabledPolicies
-                cultivationService.checkpointAllProduction()
-                DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
-                    "${disabledList.joinToString(", ")}")
+            if (env == null) {
+                // 回退：native 未就绪（C++ 状态未变更——回退安全）
+                // 八步月变编排（政策扣除/月效/AI 预计算/七系统扇出/血炼/排班忠诚/
+                // 月衰减/月度事件）已提取至 MonthSettlementExecutor（T2.2，
+                // 生产 tick 与跨语言对拍测试共用同一入口）；本方法仅保留委托与
+                // 事务外三件。
+                var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
+                stateStore.update {
+                    policyResult = monthSettlementExecutor.execute(this)
+                }
+                if (policyResult is PolicyCostResult.SomeDisabled) {
+                    val disabledList = (policyResult as PolicyCostResult.SomeDisabled).disabledPolicies
+                    cultivationService.checkpointAllProduction()
+                    DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
+                        "${disabledList.joinToString(", ")}")
+                }
+                missionCheck?.invoke()
+                // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
+                spiritStoneWallet.flushPendingEvents(eventBus)
+            } else {
+                // native 路径：policyCosts 决策（政策被禁用 → 重算生产 checkpoints）
+                if (env.disabledPolicies.isNotEmpty()) {
+                    cultivationService.checkpointAllProduction()
+                    DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
+                        "${env.disabledPolicies.joinToString(", ")}")
+                }
+                missionCheck?.invoke()
+                // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
+                spiritStoneWallet.flushPendingEvents(eventBus)
             }
-            missionCheck?.invoke()
-            // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
-            spiritStoneWallet.flushPendingEvents(eventBus)
         }
     }
 
@@ -1679,6 +1711,31 @@ class GameEngineCore @Inject constructor(
     private val monthSettlementExecutor: MonthSettlementExecutor by lazy {
         MonthSettlementExecutor(
             cultivationService, aiSectBeastAttackProcessor, systemManager
+        )
+    }
+
+    /**
+     * 月变真相源切换残留执行器（批 M-1）：nativeSettleMonth（C++ 完整月变）
+     * 之后的 Kotlin 未下沉扇出 + 平台效应草稿应用（生产结算/战斗三件/邮件/
+     * S-17 秘境邮件与 gate/S-20 购买日志）。手动构造（与 MonthSettlementExecutor
+     * 同风格）；依赖经 cultivationService.eventProcessor 访问事件域服务。
+     */
+    internal val monthSettlementResidualExecutor: MonthSettlementResidualExecutor by lazy {
+        MonthSettlementResidualExecutor(
+            eventProcessor = cultivationService.eventProcessorForMonthSettlement,
+            systemManager = systemManager
+        )
+    }
+
+    /**
+     * 年变真相源切换残留执行器（批 Y-switch）：nativeSettleYear（C++ 完整年变）
+     * 之后的 Kotlin 未下沉扇出（死亡链 ③ + 招募生成 ④ + AI 招募 ② + 商人收购
+     * ③ + 交易刷新 ④）。手动构造；依赖经 cultivationService.eventProcessor 访问
+     * 事件域服务。
+     */
+    internal val yearSettlementResidualExecutor: YearSettlementResidualExecutor by lazy {
+        YearSettlementResidualExecutor(
+            eventProcessor = cultivationService.eventProcessorForMonthSettlement
         )
     }
 

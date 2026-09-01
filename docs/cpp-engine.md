@@ -1,6 +1,6 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> 更新日期：2026-08-30。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
+> 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
 > 当前基线：**桌面 GTest 659/659（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH；批 12-1/12-2 新增 6 用例、批 13-1 新增 3 用例、批 13-2a 新增 3 用例、批 13-2b 新增 3 用例、批 13-3 新增 3 用例、批 13-4b 新增 5 用例、批 13-4c 新增 4 用例、战斗批次 A 新增 7 用例、战斗批次 B 新增 15 用例、战斗批次 C 新增 7 用例） · engine JUnit 2979/2979（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
@@ -21,6 +21,8 @@
 > **退役专项批 9-1/9-2 完成**（SHADOW 对拍态 + 纯 Kotlin 旬结算路径删除——tick 结算
 > 恒走 native 单引擎终态；对拍框架转长期回归基线，见 §7.2）；**月变残留执行器增量
 > C++ 化批 10-1 完成**（S8 侦察过期清理下沉 + 宗门详情域协议扩容，见 §7.3）；**批 10-2 完成**（S8 月度叛逃检测下沉 + 执法堂配置/职务加成辅助入 C++）；**批 10-3 完成**（S8 月度偷盗兜底全链下沉 + lastTheftJudgementYears 纯内存列 + stats::baseStats，S-14 登记，见 §7.3）；**批 10-4 完成**（S8 附庸脱离检查下沉 + aiSectDisciples 协议扩容——GameState 顶层承载 @Transient 重型数据，S-15 登记，见 §7.3）；**批 10-5 完成**（S-15 清偿——aiSectDisciples 反向回导 + 镜像 @Transient 保留修复，见 §7.3）；**批 11-1~11-3 完成**（S8 子事件 2 自动招募 / 15·16 秘境到期关闭+AI 队伍派遣 / 10 十二月自动购买下沉——GTest 603/603，S-16~S-19 登记，见 §7.3 批 11 行）；**批 12-1~12-2 完成**（S8 子事件 12 弟子智能购买 / 14 任务刷新下沉——GTest 609/609，C-11 shuffled 算法修复、S-19 特判移除、S-20 登记，见 §7.4）；**批 12-3/12-4 审计判定**（任务完成/AI 兽战/洞天 AI 操作三件战斗边界保持 Kotlin，见 §7.4）；**批 12-5 S 系列清偿**（S-10/S-11/S-12/S-13——配置注入 C++ 通道 + 空白名校验 + 转发辅助 NPE 守卫，见 §7.4）；**批 12-6 对拍框架长期化**（CI `cpp-diff-jni-test` job + build-desktop-jni-linux.sh，见 §7.4）；**批 13-1 完成**（月变步骤 3 AI 兽袭目标预计算下沉——aiSectBeastDirectTargets/aiSectBeastSkipCooldowns/lockedBeastIds 协议扩容 + detail::precomputeTargets 等价移植 + DiffPrecomputeTargetsTest 新建对拍，GTest 612/612，见 §7.5）。**2026-08-31（B 批，残留执行器增量下沉 + 双端修正）**：① 自动装备/学习下沉 C++（新建 `system/auto_gear.h`——仓库 + 弟子储物袋候选统一（equipment/manual 实例保真装配、堆叠按名模板重建）+ 更高品阶自动替换，接入 runPhaseSettlement 步骤 0，对齐 Kotlin execute 首步）；② 丹药/突破双端修正（突破丹自动服用逐颗扣减、修复整叠删除 P0——C++ `attemptAutoPill` 原为忠实复刻该 bug 的 diff 基准，同批修正；治疗/回蓝丹满状态门槛 `healGatingBlocked`；战斗临时丹不自动服用；满修为/全功法满级跳过；孕养度丹 nurtureAdd 效果落地——均分至已装备实例）——GTest 659→672（+13），engine JUnit 3028/3028（桌面对拍桥 0 skip），详见 CHANGELOG.md。
+
+> **2026-09-01（批 M-1：月变真相源切换）**：生产月变路径从 Kotlin `MonthSettlementExecutor` 八步编排切换为 **C++ `runMonthSettlement` + Kotlin 残留执行器互插**（旬结算同构模式）——`GameCore::settleMonth()`（`nativeSettleMonth` JNI 信封：policyCosts.disabledPolicies + S-17 秘境关闭草稿 + S-20 购买日志草稿）+ Kotlin `settleMonthNative` 管线（nativeSettleMonth → 增量镜像 → `MonthSettlementResidualExecutor` 单事务（生产结算 4a/4b + 战斗三件子事件 5/6/9 + 邮件 4g + S-17/S-20 草稿应用）→ 反向回导）+ `GameEngineCore.processMonthYearChange` 月变分支切换（native 未就绪回退 Kotlin 完整编排）；**S-14/S-16/S-17/S-20 清偿**（S-14：执法域随月变编排整体入 C++，Kotlin committed 读消灭；S-16：`RecruitService.resetAutoRecruitIdle` 经 `nativeResetAutoRecruitIdle` 同步 C++ 惰性门——重置点收敛；S-17：秘境关闭草稿回传（背包快照 + memberIds）→ `SecretRealmService.applyExpiryCloseDraft` 重建关闭邮件 + gate release；S-20：购买日志草稿 → lifeEvents 瞬态列写入）；**行为基线登记**：残留执行器（生产结算 SYSTEM/任务完成 MISSION）在 C++ 全部消耗之后执行——SYSTEM/MISSION 序列与切换前 Kotlin 编排不同（月变编排整体入 C++ 的必然），C++ 侧 GTest 黄金序列锁定、残留侧委托式 NativeBackedRng 保证确定性；验证：engine JUnit 全量（桌面 JNI 0 skip）+ NDK externalNativeBuildRelease + detekt 全绿 + app compileReleaseKotlin 通过，详见 CHANGELOG.md 与 §7.6。
 
 ## 1. 目标架构
 
@@ -313,6 +315,88 @@ android/app/src/main/cpp/
 | 13-9 ✅（战斗批次 D-2：任务完成接线 + 动作序列输出） | **子事件 5 任务完成接入 C++ 战斗引擎 + C++ 战斗动作序列（rounds）输出**：**C++ 动作层**——battle_execution.h 补记录链：TurnContext.actions（BattleActionRecord 确定性字段：type/attacker/attackerType/target/damage/damageType/isCrit/isKill/isInstantKill/skillName）+ recordTurnAction（斩杀/支援/技能 AOE 总伤/普攻分支，isKill 用攻击时目标 hp 快照——AttackResult.targetHp 新增）+ 拉条立即行动记录（buildAdvancedActionLog 等价）+ 控制记录（眩晕/冰冻）+ DoT 记录（持续伤害）+ executeTurn 逐回合打包 BattleRound（EndBattle 早退回合不推进对齐 Kotlin）+ BattleResult.rounds；Combatant 补 isBeast（attackerType 判定）+ battle_json.h 编解码；**JNI 双桥输出 rounds**（roundsToJson/actionRecordToJson 共享）；**Kotlin 重建**——BattleExecutionRouter 从 C++ rounds 重建 BattleRoundData/BattleActionData（message 为确定性摘要——原 BattleDescriptionGenerator 用 JVM 全局 Random 随机措辞，评估报告"diff 排除 message"同源决策）；**调用点改造**——MissionSystem.executeMissionBattle 两处（BEAST/HUMAN 敌人）`tryExecuteNative ?: executeBattle`；**编解码拆分**——BattleJsonCodec.kt（生产协议编解码从 Router 拆出，TooManyFunctions 真修） | engine JUnit 2974/2974（DiffBattleExecutionTest rounds 对拍扩展：**rounds 数量 + 每回合 roundNumber + 逐动作 type/attacker/attackerType/target/damage/damageType/isCrit/isKill/isInstantKill/skillName 逐位一致**——途中根因修复：拉条立即行动未记录（processTurnAdvance 补 buildAdvancedActionLog）；BattleExecutionRouterTest 协议键对齐扩展 isBeast）· NDK externalNativeBuildRelease 通过 · detekt 全绿 · app compileReleaseKotlin 通过 |
 | 13-10 ✅（战斗批次 D-3：洞天 AI 操作生产接线） | **子事件 6 洞天 AI 操作接入 C++ 第三战斗引擎**（批次 D 最后一件——AISectBattleProcessor → executeSectBattle → `AISectAttackManager.executeUnifiedAIBattle` 第三引擎）：**C++ 等价移植**——`gamecore/system/sect_battle.h`（AISectAttackManager.kt 895-1474 行）：executeUnifiedAIBattle 主循环（MAX 200 回合/超时 Clock 注入/ended 判定）+ executeAiRound（超时检查 + 回合开始存活快照速度稳定序 + 逐行动 **每步后 filter 死亡列表压缩** + DoT 按 side 写回）+ executeAiCombatantTurn（控制跳过/沉默/决策复用 BattleAI + 普攻/单体技能/AOE/支援四分支）+ 行动执行（斩杀 hp=0/dodged/正常护盾吸收+debuff+链接/分摊——aiApplyLinkDebuff/aiApplyShareAndLink 先 team 后 beasts）+ 支援（ally nextInt 随机选友方/治疗 clamp/团队 BUFF/冷却）+ resolveAiWinner（防御空 ATTACKER/攻击空 DEFENDER/超时存活数）+ rounds 复用 BattleRound；**两处 Kotlin 语义深坑对拍实锤并修复**：① **支援后施放者自身新 buff 丢失**——Kotlin `updateSupportCooldown` 用 applySupportTeamBuffs **之前**的 caster 值覆盖（疾风阵给施放者加的 SPEED_BOOST 被旧值覆盖丢失——round[2] 速度序分叉根因），C++ 引用语义需显式 casterSnapshot 复刻；② **支援日志 target 用全体 allies 名连接**（Kotlin buildSupportActionLog 用 allies 参数非实际目标）——C++ 原用 supportAllies 致 ally 单目标日志漂移；**生产接线**——GameCoreBridge.cpp nativeAiBattleExecute（BATTLE 分区 RNG）+ Kotlin external + AISectAttackManager.tryExecuteUnifiedNative（AUTHORITATIVE 守卫/结果重建含 rounds/降级回退）+ executeSectBattleCore 路由；executeUnifiedAIBattle/UnifiedAIBattleResult 改 internal（对拍入口） | engine JUnit 2979/2979（+5：**DiffSectBattleTest 新建 5 场景**——基础战斗（3 种子）/支援+控制（3 种子）/AOE+护盾/链接+分摊/全灭胜负——turns/winner + 逐 Combatant hp/mp/buffs/skills 冷却 + rounds 动作序列逐位一致；RNG 终态逐位一致）· GTest 659/659（C++ 引擎零回归）· NDK externalNativeBuildRelease 通过（nativeAiBattleExecute 编译）· detekt 全绿（tryExecuteUnifiedNative rounds 重建拆分）· app compileReleaseKotlin 通过；生产路由测试环境（bridge 未加载）恒走 Kotlin 回退零回归 |
 
+### 7.6 批 M-1：月变真相源切换（2026-09-01）
+
+> 范围：文档 §7.3 "真相源切换（月变编排整体走 C++）待下沉面收敛后单独立批" 的正式批次。
+> 下沉面判定（审计 2026-09-01）：月变八步 + 十六子事件已下沉 13 件（战斗三件 5/6/9 的战斗执行
+> 已随批 13-8/13-9/13-10 生产接线 C++），未下沉扇出（生产结算 4a/4b——Room 仓储域、邮件 4g——
+> 异步网络、战斗三件后处理 5/6/9）按旬结算同构模式作为 **Kotlin 残留执行器** 保留（非退役范畴）。
+> 架构模式与旬结算 `PhaseSettlementExecutor.executeResidual` 完全同构。
+
+| 项 | 内容 | 验证 |
+|---|---|---|
+| M-1 ✅ | **月变真相源切换**（生产月变路径 Kotlin `MonthSettlementExecutor` 八步编排 → C++ `runMonthSettlement` + Kotlin 残留执行器互插）：
+  - **C++ 侧**：`MonthSettlementResult` 扩展（policyCosts + **S-17 秘境关闭草稿** SecretRealmCloseDraft（closed/memberIds/backpack/slotId——closeSecretRealmByExpiry 清空前快照）+ **S-20 购买日志草稿** PurchaseLogDraft（discipleId/itemName/age——applyPurchaseDecisions 购买点记录）；`GameCore::settleMonth()`（runMonthSettlement → JSON 信封，SecretRealmBackpack 复用协议 to_json）+ `GameCore::resetAutoRecruitIdle()`（S-16 瞬态门复位）；JNI：`nativeSettleMonth`/`nativeResetAutoRecruitIdle`
+  - **Kotlin 侧**：`settleMonthNative` 管线（nativeSettleMonth → applyDirtyFromNative 增量镜像（失败全量兜底）→ `MonthSettlementResidualExecutor` 单事务（AlchemySystem/ForgeSystem/MailSystem 扇出 + 任务完成 5 + 洞天 6 + AI 兽战 9 + S-20 lifeEvents 写入 + S-17 `SecretRealmService.applyExpiryCloseDraft`）→ 返回信封）；`processMonthYearChange` 月变分支切换（native 未就绪回退 Kotlin 完整编排——C++ 状态未变更回退安全；nativeSettleMonth 后任何失败传播给外层 refund + 看门狗自愈，**不回退**（防双份结算））；事务外三件（checkpointAllProduction 按信封 disabledPolicies/missionCheck/flushPendingEvents）语义保留
+  - **S-16 清偿**：`RecruitService.resetAutoRecruitIdle` 统一收口 5 个重置点（年度刷新 refreshRecruitList/sanitizeRecruitList/玩家改筛选/洞天招募/生育）→ 重置 Kotlin 惰性 + `nativeResetAutoRecruitIdle` 同步 C++（isLoaded 守卫，纯 Kotlin 回退路径静默跳过）
+  - **S-14 清偿**：执法域（偷盗/叛逃）随月变编排整体入 C++ 执行，Kotlin committed 读口径差自然消灭（对拍 FakeGameStateStore 重入语义修复随批 11-4 已就位）
+  - **行为基线登记**：残留执行器（生产结算 SYSTEM/任务完成 MISSION）在 C++ 全部消耗之后执行——SYSTEM/MISSION 抽取序与切换前 Kotlin 编排（生产结算在步骤 4a、任务完成在子事件 5）不同，属"月变编排整体入 C++"的必然行为基线；C++ 侧确定性由 GTest 黄金序列锁定，残留侧由委托式 NativeBackedRng 单一真相源保证；BATTLE（洞天 decideAttacks/战斗）与 AI 独立分区（AISectDiscipleManager 派生种子）不污染主序列 | engine JUnit 3028/3028 全量（桌面 JNI 0 skip，含 DiffMonthSettlementTest 全场景对拍零回归——对拍场景本就规避残留扇出）+ **GameEngineCoreMonthOpsTest 新建 9 用例**（信封解析全分支：空/非法 JSON 宽松默认/disabledPolicies/S-17 closed=true 草稿含背包快照/closed=false 与缺失为 null/purchaseLogs 逐条/损坏背包回退空背包/全信封组合）· NDK externalNativeBuildRelease 通过（新 JNI 符号编译）· detekt 全绿 · app compileReleaseKotlin 通过 · 回退契约：native 未加载恒走 Kotlin 完整编排（测试环境/降级路径零行为变化） |
+
+**途中清理**：
+- `MonthSettlementResidualExecutor` 与 `CultivationService.eventProcessor` 构造签名保持 private（detekt baseline 按构造签名匹配 LongParameterList 豁免——改可见性会失配新增违规），新增 `eventProcessorForMonthSettlement` 访问器承载批 M-1 依赖
+- 信封解析宽松契约（旧 .so 无草稿段/损坏 JSON → 空默认），`GameEngineCoreMonthOpsTest` 守卫
+
+**遗留（不属本批）**：年变编排（`YearSettlementExecutor`）仍为 Kotlin——年变 22 项下沉审计已完成（T1 11 项 + T2 11 项规模/RNG 分区/依赖域全表见 2026-09-01 子代理审计报告），批次切分：零 RNG 小件 10 项（T1-①/②/⑤/⑥/⑦/⑧ + T2-①/⑥/⑦/⑨/⑩）/中件 5 项（T1-⑨ 条件 SYSTEM、T1-⑩ 驻军轮换、T2-③ SYSTEM 稀有度、T2-④ 局部种子编排、T2-⑪ SECRET_REALM 编排）/大件 3 项（T1-③ 死亡链、T1-④ 招募生成、T2-② AI 招募）+ no-op 2 项（T2-⑤/⑧）；**executeResidual 自动丹药/突破**接线与 **S-21 孤儿入口** 评估随批 Y 收尾。
+
+### 7.7 批 Y-1：年变零 RNG 小件下沉（2026-09-01）
+
+> 范围：年变 22 项审计的**零 RNG 小件 10 项 + no-op 2 项**（T2-⑤/⑧ 空实现无下沉必要）。
+> 每件 = Kotlin 源码逐条审计 → C++ 等价移植（year_settlement.h detail 命名空间）→
+> GTest 黄金序列（手算期望）→ 现有 DiffYearSettlementTest 规避适配（场景置
+> merchantLastRefreshChanceGrantYear=1 防 T1-⑥ 首次授予与 Kotlin mock 臂失配）。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| Y-1 ✅ | **年变零 RNG 小件下沉 11 件**（Kotlin 等价移植，逐件语义对齐源码）：
+  - **T1-① 附庸年贡**（`VassalService.processYearlyTribute`）：suzerainSectId 非空 + income×0.5（>0 保底 1）→ 钱包扣 LOW/VassalTribute/Internal
+  - **T1-② 附属宗门年贡**（`processYearlyVassalTribute`）：establishedYear/lastTributeYear 双门槛跳过、宗门缺失移除契约、按等级查表（0:20万/1:80万/2:300万/3:1000万/默认5万）+ lastTributeYear 更新 + 钱包 add 总额
+  - **T1-⑤ 自动拒绝**（`RecruitService.processAutoReject`）：autoRejectIdle 惰性门（GameState 新增 autoRejectIdle 瞬态字段——autoRecruitIdle 同族不进协议）+ 灵根数 filter + 损坏条目保留 + 无匹配置惰性
+  - **T1-⑥ 商人刷新机会**（`giveMerchantRefreshChanceIfDue`）：lastGrant==0 首次/差值≥30 → +1（cap 999）+ 更新授予年
+  - **T1-⑦ 年度老化清理**（`processYearlyAging`）：deathYears ≤ currentYear-1 的弟子整行移除（cullDeadDisciples 列语义）
+  - **T1-⑧ 招募老化+净化**（`ageRecruitList`）：age+1 + 超寿元移除 + sanitizeRecruitList 等价（isValidRecruit 损坏过滤/三级去重（id/内容/同人签名）/跨表 isSamePerson 已入宗门残留移除）
+  - **T2-① AI 弟子老化**（`processSectDisciplesAging`）：非玩家宗门 age+1 + 超寿元过滤；玩家宗门不动（aiSectDisciples 键升序边界同批 10-4）
+  - **T2-⑥ 联盟到期**（`checkAllianceExpiry`）：年差 ≥5 解散 + 成员宗门清 alliance 字段
+  - **T2-⑦ 联盟好感过低**（`checkAllianceFavorDrop`）：player 哨兵 + 好感到期 <80 → 解散
+  - **T2-⑨ 好感衰减**（`processFavorDecay`）：玩家相关 + favor>80 + 距上次交互 ≥1 年 → 减 1 保底 80 + noGiftYears+1
+  - **T2-⑩ 哀悼期到期**（`processGriefExpiry`）：griefEndYears 到期 → 置 -1（哨兵列直写）
+  - runYearSettlement 按 Kotlin T1/T2 相对序接线（T2 无分帧同步执行——行为基线登记：C++ 无 yearlyOpsQueue 分帧概念，T2 由"延迟 drain"变"同步执行"，语义等价（T2 全部最终执行），时序变化随年变真相源切换批统一登记） | **GTest 691/691**（+16：T1-① 三用例（扣减/无主宗与零收入早退/保底 1）、T1-②（等级查表+双门槛+缺失移除）、T1-⑤（过滤+损坏保留/惰性置位）、T1-⑥（30 年授予+cap）、T1-⑦（deathYears 阈值清理）、T1-⑧（老化+净化）、T2-①（AI 老化+玩家不动）、T2-⑥（到期解散+未到期保留）、T2-⑦（低好感解散/高好感保留）、T2-⑨（衰减+阈值+非玩家不动）、T2-⑩（哨兵到期））· **DiffYearSettlementTest 规避适配**（场景置 merchantLastRefreshChanceGrantYear=1——T1-⑥ 首次授予与 Kotlin mock 臂（merchantAndRecruitService mockSmart）失配）零回归 · engine JUnit 全量（桌面 JNI 0 skip）· NDK externalNativeBuildRelease 通过 · detekt 全绿 · app compileReleaseKotlin 通过 |
+
+**遗留（批 Y 后续）**：
+- **批 Y-1 对拍扩展**：年变 Kotlin 臂换装真实服务（VassalService/RecruitService/MerchantAndRecruitService/DiplomacyEventProcessor/FavorEventProcessor/CaveExplorationProcessor——现为 mockSmart）+ 批 Y-1 场景（有附庸/招募/联盟/好感/AI 弟子）双端逐字段对拍——与批 Y-2/Y-3 的 Kotlin 臂完整装配合并执行（一次性换装全部年变服务更高效）
+- **批 Y-2 剩余**：T2-③（refreshAcquisition SYSTEM 稀有度曲线 + 商人池）、T2-④（sectTradeRefresh 局部种子编排 + 交易模板池）——商人/交易域中件，随批 Y-2 续作
+- **批 Y-3**：T1-③（discipleAging 死亡链）、T1-④（refreshRecruitList SYSTEM 生成链）、T2-②（sectYearlyRecruitment AI 独立 RNG + 占领路由）
+
+### 7.8 批 Y-2：年变中件下沉（2026-09-01，3/5 完成）
+
+> 范围：年变 22 项审计的**中件 5 项**——T1-⑨（reflectionRelease 条件性 SYSTEM 偷盗钩子）、
+> T1-⑩（驻军轮换）、T2-⑪（秘境年变刷新 SECRET_REALM 编排）已完成；T2-③（商人收购
+> SYSTEM 稀有度曲线）、T2-④（宗门交易局部种子编排）续作中。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| Y-2 ✅（3/5） | **年变中件下沉**（逐件语义对齐 Kotlin 源码）：
+  - **T1-⑨ 思过到期释放**（`DiscipleLifecycleProcessor.processReflectionRelease`）：statusData.reflectionEndYear <= year → IDLE + 清思过字段 + 道德/忠诚 +5（cap 200/100）；释放后道德 < 阈值（30）→ **单弟子偷盗判定**（复用月变 `judgeSingleTheftCandidate`——year_settlement.h include month_settlement.h，detail 同名命名空间共享；SYSTEM 条件性抽取序逐位一致）
+  - **T1-⑩ 占领宗门驻军轮换**（`AISectGarrisonManager.rotateGarrisonSlots`）：玩家在场 + AI 占领宗门（occupierSectId 非空非玩家）→ 每占领者存活弟子 realm 升序稳定排序，前 10 留守、第 11 名起填 GARRISON_SLOT_COUNT(10) 槽；realmName（level_generator.h）+ 灵根数颜色 countColor（新移植 1..5 固定色）；分组顺序 std::map 键升序与 Kotlin groupBy 插入序结果等价（各占领者独立候选池）
+  - **T2-⑪ 远古秘境年变刷新**（`SecretRealmService.processYearlySpawn`）：未现世 + 冷却满（coerceAtLeast 0 → year-diff >= 50）→ SECRET_REALM 分区：findSecretRealmPosition（≤100×2 nextInt + 兜底扫描零 RNG）+ 1×nextInt(变体 3)；SecretRealmState.id 为镜像生成字段（Kotlin UUID，C++ 空串占位） | **GTest 700/700**（+9：T1-⑨ 三用例（释放+加成/道德忠诚 cap/低道德触发偷盗——SYSTEM 快照变化断言）、T1-⑩ 三用例（12 弟子轮换黄金序列——realm 升序第 11/12 名 d8/d12 逐位固化/无玩家宗门恒等/无占领宗门恒等）、T2-⑪ 三用例（生成/冷却未满零抽取/已现世零抽取））· **engine JUnit 3057/3057 全量（新桥强制重跑，DiffYearSettlementTest 场景规避批 Y-2 路径（无 REFLECTING/无占领/冷却未满）零回归）** · NDK externalNativeBuildRelease 通过 · 桌面对拍桥编译通过 · detekt 无 Kotlin 改动 |
+
+**遗留**：T2-③（refreshMerchantAcquisition——buildMerchantItemPools 池构建 + selectRarity 稀有度曲线（rarity_progression.h）+ createMerchantItem（价格波动 sect_trade.h）+ mergeMerchantItems 合并）、T2-④（refreshAllSectTrades——局部种子 sectId.hashCode()+year + generateSectTradeItems 模板池实例化）——商人/交易域续作；**Kotlin 臂完整换装对拍**（批 Y-1/Y-2/Y-3 全部下沉后）随批 Y-switch 合并。
+
+### 7.9 批 Y-switch：年变真相源切换（2026-09-01）
+
+> 范围：目标③主线——生产年变路径从 Kotlin `YearSettlementExecutor` 编排切换为
+> **C++ `runYearSettlement` + Kotlin 残留执行器互插**（与月变切换批 M-1 完全同构）。
+> 切换不依赖 T2-③/④ 下沉（残留模式）——未下沉扇出（T1-③ 死亡链 / T1-④ 招募生成 /
+> T2-② AI 招募 / T2-③ 商人收购 / T2-④ 交易刷新）作为 Kotlin 残留执行器保留。
+
+| 批 | 内容 | 验证 |
+|---|---|---|
+| Y-switch ✅ | **年变真相源切换**（生产年变路径 C++ `runYearSettlement` + Kotlin 残留执行器互插）：
+  - **C++ 侧**：`GameCore::settleYear()`（runYearSettlement——T1 已下沉面（①/②/⑤/⑥/⑦/⑧/⑨/⑩）+ 年报快照 + annual* 清零 + 年俸 + T2 已下沉面（①/⑥/⑦/⑨/⑩/⑪）→ 空信封（年变残留无 C++ 草稿——死亡链 DAO 清理/招募生成/AI 招募/商人收购/交易刷新均为 Kotlin 纯状态 + 平台效应））；JNI `nativeSettleYear`
+  - **Kotlin 侧**：`settleYearNative` 管线（nativeSettleYear → applyDirtyFromNative 增量镜像（失败全量兜底）→ `YearSettlementResidualExecutor` 单事务（T1-③ 死亡链 + T1-④ 招募生成 + T2-② AI 招募（差值判据）+ T2-③ 商人收购 + T2-④ 交易刷新））；`processMonthYearChange` 年变分支切换（native 未就绪回退 Kotlin 完整编排——C++ 状态未变更回退安全；nativeSettleYear 后失败传播看门狗自愈不回退）
+  - **RNG 行为基线登记**：C++ 已下沉年变面零 SYSTEM 消耗（T1 各件零 RNG、T2-⑪ 为 SECRET_REALM 分区）——残留执行器（T1-④ SYSTEM / T2-③ SYSTEM）消耗序与 Kotlin 原编排基本一致；唯一差异：T1-⑨（C++ 条件性 SYSTEM 偷盗钩子）先于 T1-④（残留）执行——SYSTEM 序 ⑨→④→③ vs 原序 ④→⑨→③，属年变编排整体入 C++ 的必然行为基线（同月变切换登记） | engine JUnit 3057/3057 全量（新桥强制重跑——生产切换在测试环境恒回退 Kotlin（GameCoreBridge 库未加载），零回归）· NDK externalNativeBuildRelease 通过（nativeSettleYear 编译）· detekt 全绿 · 桌面对拍桥编译通过 · app compileReleaseKotlin 通过 |
+
+**目标③完成状态**：年变真相源切换达成（C++ runYearSettlement 为生产真相源 + Kotlin 残留执行器互插）；T2-③/④ 与批 Y-3（T1-③/④ + T2-②）的**增量下沉**（消除残留）为后续可选续作（不阻塞切换）；**对拍扩展**（年变 Kotlin 臂换装真实服务——Vassal/Recruit/MerchantAndRecruit/Diplomacy/Favor/CaveExploration）随续作合并。
+
 ## 8. 存量问题清理清单（S 系列，迁移全程途中发现）
 
 > 来源：迁移架构报告与子代理深潜途中发现（死代码/过时文档/设计缺口），统一登记并分配清理时机，防止遗漏。
@@ -333,11 +417,11 @@ android/app/src/main/cpp/
 | ~~S-11~~ ✅ | **空白名校验差异**：C++ `validateStackableItem` 用 `name.empty()`，Kotlin `isBlank()` 拒绝纯空白名 | `inventory.h` | 语义差异（低风险） | ✅ **已清偿（批 12-5）**：`validateStackableItem` 改 isBlankString 语义（空串或全空白拒绝，与 Kotlin isBlank 一致） |
 | ~~S-13~~ ✅ | **执法堂配置常量 C++ 硬编码默认值**：批 10-2 的 kLaw* 常量取 GameConfig.LawEnforcementConfig 默认值，Kotlin 读远程配置可空覆盖——远程配置改动时双端漂移 | `month_settlement.h` | 配置单源缺口（S-10 同族） | ✅ **已清偿（批 12-5）**：kLaw* 常量改 getter 消费注入配置（gameConfig()，默认值兜底 = game_config.json 值）；const val 类（THEFT_REALM_BASE_AMOUNTS 等）保持编译期 |
 | ~~S-12~~ ✅ | **转发辅助入口 NPE 语义**：`GameEngineNativeOps.tryExecuteNative` 的 Kotlin 非空参数 `stateSyncService` 的内在 null 检查在函数入口即触发（早于 flag/isLoaded 早退）——生产恒非空无影响，测试 mock（未 stub `stateSyncServiceRef`）返回 null 必触；InventoryNativeForward.tryForward 已先行空过滤 | `GameEngineNativeOps.kt` | 降级契约缺口（测试场景） | ✅ **已清偿（批 12-5）**：`tryExecuteNative` 参数改可空 + 内部守卫（`stateSyncService?.syncFromNative()`），镜像服务缺失时正常降级不 NPE |
-| S-14 | **月变执法域 committed 读口径差**：生产月变（真实 `GameStateStore`）中执法域经嵌套 `stateStore.update` 读 `gameData.value`/`discipleTables`/`disciples.value` 为**事务前已提交快照**（偷盗域：spiritStones/theftJudgementsThisMonth/annualTheftCount/sectPolicies/elderSlots/placedBuildings/warehouseGarrisons/组装弟子；叛逃域同），写经重入进外层事务 buffer；C++ 移植与对拍基线（`FakeGameStateStore` 每次嵌套 update 独立 fork 且**立即持久化**、外层提交覆盖写）均为当前态口径——对拍场景以保护期/未触发规避分歧面；生产真实 store 与 C++ 在"政策月费改变灵石后再判定"等场景存在读数口径差（对拍 Fake 不可达） | `month_settlement.h` / `LawEnforcementProcessor.kt` | 语义口径差（对拍不可达面，S-10/S-13 同族） | 偿还时机：月变真相源切换批（届时 Kotlin committed 读随月变编排整体入 C++ 自然消灭，C++ 当前读成为唯一口径；登记后 GTest 黄金序列即语义权威）。**批 11-4 部分清偿**：`FakeGameStateStore` 对齐生产 ReentrantLock 重入语义（嵌套 update 复用最外层事务 buffer，内层写入进入外层事务，最外层统一提交）——12 月 autoBuy 对拍库存集合与年度 by-source 纳入 diff 面逐位一致；执法域 committed 读口径差（生产 store 特有）仍待月变真相源切换批 |
+| S-14 | **月变执法域 committed 读口径差**：生产月变（真实 `GameStateStore`）中执法域经嵌套 `stateStore.update` 读 `gameData.value`/`discipleTables`/`disciples.value` 为**事务前已提交快照**（偷盗域：spiritStones/theftJudgementsThisMonth/annualTheftCount/sectPolicies/elderSlots/placedBuildings/warehouseGarrisons/组装弟子；叛逃域同），写经重入进外层事务 buffer；C++ 移植与对拍基线（`FakeGameStateStore` 每次嵌套 update 独立 fork 且**立即持久化**、外层提交覆盖写）均为当前态口径——对拍场景以保护期/未触发规避分歧面；生产真实 store 与 C++ 在"政策月费改变灵石后再判定"等场景存在读数口径差（对拍 Fake 不可达） | `month_settlement.h` / `LawEnforcementProcessor.kt` | 语义口径差（对拍不可达面，S-10/S-13 同族） | ✅ **已清偿（批 M-1，2026-09-01）**：月变真相源切换后执法域（偷盗/叛逃）随月变编排整体由 C++ `runMonthSettlement` 执行（C++ 当前读口径成为唯一口径），Kotlin committed 读随编排退役自然消灭；批 11-4 的 FakeGameStateStore 重入语义修复（对拍基建）同步就位。**批 11-4 部分清偿**：`FakeGameStateStore` 对齐生产 ReentrantLock 重入语义（嵌套 update 复用最外层事务 buffer，内层写入进入外层事务，最外层统一提交）——12 月 autoBuy 对拍库存集合与年度 by-source 纳入 diff 面逐位一致；执法域 committed 读口径差（生产 store 特有）已随批 M-1 切换消灭 |
 | S-15 | **C++ `aiSectDisciples` 反向增量回导缺口**（批 10-4 协议扩容引入）：`GameData.aiSectDisciples` @Transient → 反向脏信封 `changed.gameData`（经 `GameData.serializer` 全量）不携带其变更，生产 AUTHORITATIVE 下 C++ 侧 AI 弟子池随 Kotlin 招募/战斗更新而陈旧。当前无功能影响：生产 `coreMode` 不触发 `runMonthSettlement`（C++ 不消费该字段）+ 镜像经 `NativeGameState.aiSectDisciples` 可空语义回写（非 null 才覆盖，Kotlin 权威保持）。 | `StateSyncService.kt` / `game_core.cpp` | 同步通道缺口（协议层） | ✅ **已清偿（批 10-5）**：反向信封新增独立 `changed["aiSectDisciples"]` 全量段（`lastAiSectDisciplesSent` 变化检测缓存——importToNative 全量导入后对齐、发送成功后对齐，AI 招募/战斗才重发）+ C++ `applyReverseDirty` 段应用（整体替换语义）+ GTest/JUnit 守护 |
-| S-16 | **招募惰性门跨层同步缺口**（批 11-1 引入）：`autoRecruitIdle` 为 GameState 瞬态字段（不进 JSON 协议，读档即 false），重置点（年度招募列表刷新/玩家改筛选/生育/净化）仍在 Kotlin 侧——月变真相源切换前 C++ 侧惰性只进不出（Kotlin 重置不回传）；对拍场景双侧显式复位规避 | `recruit_settlement.h` / `models.h` | 同步通道缺口（纯内存态） | 偿还时机：月变真相源切换批（重置点随年度事件下沉或经瞬态通道回传） |
-| S-17 | **秘境到期关闭邮件/gate 边界**（批 11-2 登记）：`closeSecretRealmByExpiry` 的关闭邮件（buildExpiryCloseMail + sendDirectMail 异步落库）与 `assignmentGate.release`（纯内存注册表）保留 Kotlin——背包物品走邮件不回宗门仓库，C++ 侧只做状态段；对拍场景背包物品为空或仅灵石规避 | `secret_realm_settlement.h` / `SecretRealmService.kt` | 平台效应边界 | 偿还时机：月变真相源切换批（邮件经草稿回传通道接线，参照批 8-2 overflowDrafts 通道） |
+| S-16 | **招募惰性门跨层同步缺口**（批 11-1 引入）：`autoRecruitIdle` 为 GameState 瞬态字段（不进 JSON 协议，读档即 false），重置点（年度招募列表刷新/玩家改筛选/生育/净化）仍在 Kotlin 侧——月变真相源切换前 C++ 侧惰性只进不出（Kotlin 重置不回传）；对拍场景双侧显式复位规避 | `recruit_settlement.h` / `models.h` | 同步通道缺口（纯内存态） | ✅ **已清偿（批 M-1，2026-09-01）**：`RecruitService.resetAutoRecruitIdle` 统一收口 5 个重置点（refreshRecruitList/sanitizeRecruitList/玩家改筛选/洞天招募/生育）→ Kotlin 惰性复位 + `GameCoreBridge.nativeResetAutoRecruitIdle` 同步 C++ `GameState.autoRecruitIdle`（isLoaded 守卫——纯 Kotlin 回退路径静默跳过；C++ 生育已内置惰性重置，月变切换后 ChildBirthSystem 不再执行不产生缺口） |
+| S-17 | **秘境到期关闭邮件/gate 边界**（批 11-2 登记）：`closeSecretRealmByExpiry` 的关闭邮件（buildExpiryCloseMail + sendDirectMail 异步落库）与 `assignmentGate.release`（纯内存注册表）保留 Kotlin——背包物品走邮件不回宗门仓库，C++ 侧只做状态段；对拍场景背包物品为空或仅灵石规避 | `secret_realm_settlement.h` / `SecretRealmService.kt` | 平台效应边界 | ✅ **已清偿（批 M-1，2026-09-01）**：C++ `closeSecretRealmByExpiry` 关闭时记录 **S-17 草稿**（SecretRealmCloseDraft：memberIds + 背包清空前快照）→ `nativeSettleMonth` 信封回传 → Kotlin `SecretRealmService.applyExpiryCloseDraft`（复用 buildExpiryCloseMail 重建关闭邮件 + sendDirectMail + gate release）——月变真相源切换后邮件/gate 行为与切换前一致（防背包物品丢失） |
 | S-18 | **商人转换回退分支随机源差异**（批 11-3 登记）：MerchantItemConverter 未知物品回退 Kotlin 用 JVM 全局 Random（非确定性、非分区），C++ 用 SYSTEM 分区（确定性）——回退分支仅在物品名无对应模板（损坏数据）时触达；另溢出邮件草稿 C++ 月结上下文丢弃（Kotlin 真相源发送），对拍场景仓库容量充足规避 | `merchant_settlement.h` | 语义差异（低风险，仅损坏数据触达） | ✅ **已清偿（批 11-4）**：C++ 回退改物品名稳定散列选池（FNV-1a）——零分区 RNG 消耗（损坏数据触达不污染确定性流），跨语言内容本就无法对齐（Kotlin 每次进程不同），C++ 侧确定性自洽；剩余面 = 溢出邮件草稿通道（随月变真相源切换接线，S-17 同族） |
 | S-19 | **任务域非托管 RNG**（批 11-3 对拍途中登记）：`MissionSystem.rng` 为 nanoTime 播种的单例（非 GameRngManager 分区、不入 rngStates）——任务刷新（S8#14）与任务完成奖励（S8#5）内容跨语言不可对拍；C++ 侧无 availableMissions 协议字段（diff 面天然排除），12 月 autoBuy 对拍排除该字段 | `MissionSystem.kt` | 确定性缺口（预存设计债，任务批次边界） | ✅ **已清偿（批 11-4）**：`RngPartition` 新增 `MISSION(8)`（Kotlin + C++ `kMission` 双端，initSystemSeed seed+8；旧档 rngStates 缺 8 号键 → restore 跳过按种子播种，向前兼容）；`MissionSystem` 收敛于 `GameRngManager.getRng(MISSION)`——生产经 `CultivationEventProcessor`（@Singleton 月变/任务编排中枢）构造幂等注入，测试须显式注入固定种子实例（拒绝静默非确定性降级）；任务随机序列存档可重放。对拍侧：12 月 rngStates 8 号键特判（C++ 任务逻辑未下沉不消费，任务批次下沉后双端消费对齐移除特判——**批 12-2 已移除**，availableMissions 内容双端一致参与对拍，仅 Mission.id 镜像生成排除） |
-| S-20 | **购买日志 lifeEvents 跨层边界**（批 12-1 登记）：弟子购买日志（"X岁：购买了Y"）写入 Kotlin `DiscipleTables.lifeEvents`——该字段为 Kotlin 类体属性（@Ignore 非序列化、不进快照协议，models.h 注释同源），C++ 侧无对应列，购买子事件下沉后该日志不更新（玩家弟子履历缺购买记录）；对拍 diff 面天然排除（协议外字段） | `disciple_purchase.h` / `Disciple.kt` | 平台效应边界（纯内存态） | 偿还时机：月变真相源切换批（lifeEvents 经瞬态通道回传或协议扩容，参照 S-16 重置点处理） |
+| S-20 | **购买日志 lifeEvents 跨层边界**（批 12-1 登记）：弟子购买日志（"X岁：购买了Y"）写入 Kotlin `DiscipleTables.lifeEvents`——该字段为 Kotlin 类体属性（@Ignore 非序列化、不进快照协议，models.h 注释同源），C++ 侧无对应列，购买子事件下沉后该日志不更新（玩家弟子履历缺购买记录）；对拍 diff 面天然排除（协议外字段） | `disciple_purchase.h` / `Disciple.kt` | 平台效应边界（纯内存态） | ✅ **已清偿（批 M-1，2026-09-01）**：C++ `applyPurchaseDecisions` 购买点记录 **S-20 草稿**（PurchaseLogDraft：discipleId/itemName/age）→ `nativeSettleMonth` 信封回传 → Kotlin `MonthSettlementResidualExecutor` 写 lifeEvents 瞬态列（"${age}岁：购买了${itemName}"，与原 executePurchase 日志逐条一致） |
 | S-21 | **孤儿读档/恢复入口 `GameEngineCore.loadSnapshot` 与 `GameEngine.loadFromSave` 生产无调用方**（2026-09 云读档被本地档覆盖根因排查途中确认）：两条链均会整体替换 Kotlin 状态（`stateStore.loadFromSnapshot`），其中 `loadSnapshot` 自带 `loadNativeBaseline`（安全但无人用），`loadFromSave`（→ `saveFacade.loadFromSave` → `saveService.loadFromSave`）缺 native 基线导入——若未来接入调用方会复现"读档后 native 残留旧档反向覆盖"（与云读档 bug 同根因）。**本轮已为 `loadFromSave` 补 `withEngineContext` + `syncNativeBaselineAfterLoad()`**（与 loadData 三入口同步语义对齐，含守卫测试），剩余清理选项：① 删除两入口（确认全仓库无引用后，低风险最小修改）；② 保留作为未来批量恢复/测试入口。另知识库 `getEffectiveCultivation` 亦为无生产调用方入口（仅测试引用），可一并评估 | `GameEngineCore.kt:1919` / `GameEngineSaveOps.kt:33` / `SaveService.kt:121` | 死代码（孤儿 API） | 可选：删除（先全仓库引用确认 + 全量测试守护）或保留登记；不阻塞任何阶段 |

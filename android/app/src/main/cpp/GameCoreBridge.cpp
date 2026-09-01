@@ -217,6 +217,27 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettlePhase(
     return static_cast<jint>(g_gameCore->settleOnePhase());
 }
 
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettleMonth(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_gameCore) return stringToJbytes(env, "{}");
+    return stringToJbytes(env, g_gameCore->settleMonth());
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeResetAutoRecruitIdle(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    if (!g_gameCore) return;
+    g_gameCore->resetAutoRecruitIdle();
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeSettleYear(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_gameCore) return stringToJbytes(env, "{}");
+    return stringToJbytes(env, g_gameCore->settleYear());
+}
+
 extern "C" JNIEXPORT jint JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRngNextInt(
     JNIEnv* /*env*/, jobject /*thiz*/, jint partitionId) {

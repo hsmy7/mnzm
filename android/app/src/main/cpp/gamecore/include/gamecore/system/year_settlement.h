@@ -4,12 +4,21 @@
 #include <cmath>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
+#include "gamecore/system/disciple_factory.h"
+#include "gamecore/system/disciple_stats.h"
+#include "gamecore/system/economy.h"
 #include "gamecore/system/government.h"
+#include "gamecore/system/level_generator.h"
+#include "gamecore/system/lifecycle.h"
+#include "gamecore/system/month_settlement.h"
+#include "gamecore/system/recruit_settlement.h"
+#include "gamecore/system/secret_realm.h"
 #include "gamecore/system/settlement_detail.h"
 
 // ============================================================
@@ -42,6 +51,28 @@ namespace gamecore::system {
 
 /// 年度报告保留条数上限（GameConfig.Logs.MAX_YEARLY_REPORTS）
 constexpr std::size_t kMaxYearlyReports = 100;
+
+// ── 批 Y-1 常量（年变零 RNG 小件；逐条对齐 Kotlin 配置源）──────────
+// 附庸年贡（GameConfig.AIAttack.VASSAL_TRIBUTE_RATIO / VASSAL_TRIBUTE_MIN）
+constexpr double kVassalTributeRatio = 0.5;
+constexpr int64_t kVassalTributeMin = 1;
+// 附属宗门年贡按等级（VassalConfig.TRIBUTE_BY_SECT_LEVEL 0..3 + 未知等级默认）
+constexpr int64_t kVassalTributeDefault = 50'000;
+// 商人手动刷新机会（MerchantAndRecruitService.MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS /
+// GameConfig.JadePurchase.MERCHANT_REFRESH_MAX）
+constexpr int32_t kMerchantRefreshChanceIntervalYears = 30;
+constexpr int32_t kMerchantRefreshMax = 999;
+// 好感度衰减（FavorConfig.DECAY_NO_GIFT_YEARS / DECAY_AMOUNT / DECAY_THRESHOLD）
+constexpr int32_t kFavorDecayNoGiftYears = 1;
+constexpr int32_t kFavorDecayAmount = 1;
+constexpr int32_t kFavorDecayThreshold = 80;
+// 联盟（FavorConfig.MIN_ALLIANCE_FAVOR / ALLIANCE_DURATION_YEARS）
+constexpr int32_t kMinAllianceFavor = 80;
+constexpr int32_t kAllianceDurationYears = 5;
+// 死亡弟子清理年限（DiscipleLifecycleProcessor.CULL_DEAD_AFTER_YEARS）
+constexpr int32_t kCullDeadAfterYears = 1;
+// 哀悼期哨兵（DiscipleTables.GRIEF_YEAR_NULL_SENTINEL = -1：无丧亲期）
+constexpr int32_t kGriefYearNullSentinel = -1;
 
 namespace detail {
 
@@ -168,6 +199,570 @@ inline void paySalariesToDisciples(GameState& state, const SalaryPlan& plan,
     }
 }
 
+// ════════════════════════════════════════════════════════════════
+// 批 Y-1：年变零 RNG 小件下沉（T1 六件 + T2 五件 + T1-⑧ 净化）
+// 等价移植 Kotlin CultivationEventMonthlyOps.processYearlyEvents /
+// enqueueYearlyOps 的零 RNG 子项（审计 2026-09-01；每件语义逐条对齐源码，
+// 生产年变仍在 Kotlin——本组函数供 runYearSettlement 接线 + 对拍基准）。
+// ════════════════════════════════════════════════════════════════
+
+/// 弟子最大寿元（Kotlin Disciple.computeMaxAge 等价——寿元计算唯一来源，
+/// 口径与 DiscipleAgePolicy.kt 一致：lifespan / realmMaxAge /
+/// realmMaxAge×(1+天赋+词条 lifespan 加成) 三者取 max，上限 20000）
+inline int32_t discipleAgeMax(const state::Disciple& d) {
+    double bonus = 0.0;
+    for (const auto& id : d.talentIds) {
+        if (auto t = gamecore::data::talentById(id)) {
+            const auto it = t->effects.find("lifespan");
+            if (it != t->effects.end()) bonus += it->second;
+        }
+    }
+    for (const auto& id : d.affixIds) {
+        if (auto a = gamecore::data::affixById(id)) {
+            const auto it = a->effects.find("lifespan");
+            if (it != a->effects.end()) bonus += it->second;
+        }
+    }
+    const int32_t realmMax = realmMaxAge(d.realm);
+    const int32_t traitLifespan =
+        std::max(static_cast<int32_t>(realmMax * (1.0 + bonus)), 1);
+    // 嵌套 max 替代 initializer_list 重载（NDK libc++ 可移植性）
+    const int32_t raw = std::max(std::max(d.lifespan, realmMax), traitLifespan);
+    return std::min(raw, kAbsoluteMaxAgeCeiling);
+}
+
+/// 好感度查询（与 month_settlement.h breakawayFavor 同源——Kotlin
+/// FavorDomain.findRelation：双向匹配首条，缺失默认 50）
+inline int32_t findRelationFavor(
+    const std::vector<state::SectRelation>& sectRelations,
+    const std::string& playerSectId, const std::string& otherSectId) {
+    for (const auto& r : sectRelations) {
+        if ((r.sectId1 == playerSectId && r.sectId2 == otherSectId) ||
+            (r.sectId1 == otherSectId && r.sectId2 == playerSectId)) {
+            return r.favor;
+        }
+    }
+    return 50;
+}
+
+/// T1-① 附庸年贡（Kotlin VassalService.processYearlyTribute）：
+/// 玩家是附庸时按上年收入比例向上主宗缴纳年贡（钱包扣 LOW/VassalTribute/
+/// Internal，autoConvert=true 与 Kotlin 默认一致）；无主宗/贡额 0 → 早退。
+/// 零 RNG。
+inline void processYearlyTribute(GameState& state) {
+    auto& gd = state.gameData;
+    if (gd.suzerainSectId.empty()) return;
+    const int64_t income = gd.lastYearSpiritStoneIncome;
+    // 统一 int64_t（NDK 下 int64_t=long，与 0LL 的 long long 三元推导冲突——
+    // 全显式 int64_t 保证 libc++ 可移植）
+    const int64_t minTribute = income > 0 ? kVassalTributeMin : static_cast<int64_t>(0);
+    const int64_t tribute = std::max(
+        static_cast<int64_t>(static_cast<double>(income) * kVassalTributeRatio),
+        minTribute);
+    if (tribute <= 0) return;
+    // 钱包扣减（Kotlin 失败仅记日志——C++ 静默等价）
+    SpiritStoneWallet::deduct(gd, tribute, SpiritStoneGrade::LOW,
+                              "VassalTribute", "Internal", true);
+}
+
+/// T1-② 玩家附属宗门年贡（Kotlin VassalService.processYearlyVassalTribute）：
+/// 遍历附属契约——新建立当年不计贡（establishedYear >= year）、本年已贡跳过
+/// （lastTributeYear >= year）、宗门已不存在 → 移除契约；否则按宗门等级查表
+/// （未知等级默认 50000）累计 + 更新 lastTributeYear=year；有变更 → 钱包
+/// add 总额（LOW/Internal）+ 契约列表写回。零 RNG。
+inline void processYearlyVassalTribute(GameState& state, int32_t year) {
+    auto& gd = state.gameData;
+    std::vector<state::VassalContract> updated;
+    updated.reserve(gd.vassalContracts.size());
+    int64_t totalTribute = 0;
+    bool changed = false;
+    for (const auto& contract : gd.vassalContracts) {
+        if (contract.establishedYear >= year) {
+            updated.push_back(contract);
+            continue;
+        }
+        if (contract.lastTributeYear >= year) {
+            updated.push_back(contract);
+            continue;
+        }
+        // 宗门不存在 → 移除
+        bool found = false;
+        for (const auto& sect : gd.worldMapSects) {
+            if (sect.id == contract.vassalSectId) { found = true; break; }
+        }
+        if (!found) {
+            changed = true;
+            continue;
+        }
+        int64_t amount = kVassalTributeDefault;
+        for (const auto& sect : gd.worldMapSects) {
+            if (sect.id == contract.vassalSectId) {
+                switch (sect.level) {
+                    case 0: amount = 200'000LL; break;
+                    case 1: amount = 800'000LL; break;
+                    case 2: amount = 3'000'000LL; break;
+                    case 3: amount = 10'000'000LL; break;
+                    default: amount = kVassalTributeDefault; break;
+                }
+                break;
+            }
+        }
+        totalTribute += amount;
+        state::VassalContract c = contract;
+        c.lastTributeYear = year;
+        updated.push_back(std::move(c));
+        changed = true;
+    }
+    if (changed) {
+        SpiritStoneWallet::add(gd, totalTribute, SpiritStoneGrade::LOW, "Internal");
+        gd.vassalContracts = std::move(updated);
+    }
+}
+
+/// T1-⑤ 自动拒绝（Kotlin RecruitService.processAutoReject）：
+/// 惰性门 autoRejectIdle → 0；筛选空/无有效灵根数 → 0；recruitList 按
+/// 灵根数 ∈ filter 分区（distinctBy id 等价——列表 id 唯一性由净化维护）；
+/// 损坏条目（isValidRecruit 失败）不拒绝保留；validRejected 空 → 置惰性。
+/// 零 RNG。
+inline int32_t processAutoReject(GameState& state) {
+    auto& gd = state.gameData;
+    if (state.autoRejectIdle) return 0;
+    if (gd.autoRejectSpiritRootFilter.empty()) return 0;
+    std::set<int32_t> validFilter;
+    for (int32_t v : gd.autoRejectSpiritRootFilter) {
+        if (v >= 1 && v <= 5) validFilter.insert(v);
+    }
+    if (validFilter.empty()) return 0;
+
+    std::vector<state::Disciple> kept;
+    std::vector<state::Disciple> rejected;
+    std::vector<state::Disciple> corruptedRejected;
+    for (const auto& d : gd.recruitList) {
+        const int32_t rootCount = recruit_settle::nonBlankRootCount(d.spiritRootType);
+        if (validFilter.count(rootCount) != 0) {
+            if (recruit_settle::isValidRecruit(d)) {
+                rejected.push_back(d);
+            } else {
+                corruptedRejected.push_back(d);
+            }
+        } else {
+            kept.push_back(d);
+        }
+    }
+    if (rejected.empty()) {
+        state.autoRejectIdle = true;
+        return 0;
+    }
+    kept.insert(kept.end(), corruptedRejected.begin(), corruptedRejected.end());
+    gd.recruitList = std::move(kept);
+    return static_cast<int32_t>(rejected.size());
+}
+
+/// T1-⑥ 商人手动刷新机会（Kotlin MerchantAndRecruitService.
+/// giveMerchantRefreshChanceIfDue）：year<=0 防御；已达上限（999）跳过；
+/// lastGrant==0 首次或差值 ≥30 年 → +1（coerceAtMost 999）+ 更新授予年。
+/// 零 RNG。
+inline void processMerchantRefreshChance(GameState& state, int32_t year) {
+    if (year <= 0) return;
+    auto& gd = state.gameData;
+    if (gd.merchantRefreshChances >= kMerchantRefreshMax) return;
+    if (gd.merchantLastRefreshChanceGrantYear == 0 ||
+        year - gd.merchantLastRefreshChanceGrantYear >= kMerchantRefreshChanceIntervalYears) {
+        gd.merchantRefreshChances =
+            std::min(gd.merchantRefreshChances + 1, kMerchantRefreshMax);
+        gd.merchantLastRefreshChanceGrantYear = year;
+    }
+}
+
+/// T1-⑦ 年度老化清理（Kotlin DiscipleLifecycleProcessor.processYearlyAging）：
+/// cullDeadDisciples(currentYear - 1)——deathYears 有条目（>0）且
+/// <= 阈值（死亡满 CULL_DEAD_AFTER_YEARS=1 年）的弟子整行移除。
+/// Kotlin 同时记录 _deathRecords（纯内存，C++ 无对应）。零 RNG。
+inline void processYearlyAging(GameState& state, int32_t currentYear) {
+    const int32_t threshold = currentYear - kCullDeadAfterYears;
+    state::DiscipleStore& ds = state.disciples;
+    std::vector<std::string> toRemove;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.deathYears[row] != 0 && ds.deathYears[row] <= threshold) {
+            toRemove.push_back(ds.ids[row]);
+        }
+    }
+    for (const auto& id : toRemove) {
+        ds.removeById(id);
+    }
+}
+
+/// T1-⑧ 招募列表老化 + 净化（Kotlin RecruitService.ageRecruitList）：
+/// ① 全员 age+1，age >= computeMaxAge 视为寿元耗尽移除；
+/// ② sanitizeRecruitList 等价——损坏过滤（isValidRecruit）+ 三级去重
+/// （id/内容/同人签名——保留首个）+ 已入宗门残留移除（isSamePerson 跨表）。
+/// 零 RNG。
+inline void processRecruitAging(GameState& state) {
+    auto& gd = state.gameData;
+    // ① 老化 + 超寿元移除
+    std::vector<state::Disciple> alive;
+    for (const auto& d : gd.recruitList) {
+        state::Disciple aged = d;
+        aged.age = d.age + 1;
+        const int32_t maxAge = discipleAgeMax(aged);
+        if (aged.age < maxAge) alive.push_back(std::move(aged));
+    }
+    // ② 净化：损坏过滤 + 三级去重 + 已入宗门残留
+    std::vector<state::Disciple> valid;
+    for (const auto& d : alive) {
+        if (recruit_settle::isValidRecruit(d)) valid.push_back(d);
+    }
+    // 二级去重（id / 内容）+ 同人签名去重（保留首个；isSamePerson 年龄容差）
+    std::vector<state::Disciple> deduped;
+    std::set<std::string> idSeen;
+    for (const auto& d : valid) {
+        if (idSeen.insert(d.id).second) deduped.push_back(d);
+    }
+    std::vector<state::Disciple> contentDeduped;
+    std::vector<state::Disciple> contentSeen;
+    for (const auto& d : deduped) {
+        bool dup = false;
+        for (const auto& prev : contentSeen) {
+            if (recruit_settle::discipleContentEquals(prev, d)) { dup = true; break; }
+        }
+        if (!dup) {
+            contentDeduped.push_back(d);
+            contentSeen.push_back(d);
+        }
+    }
+    // 已入宗门残留（跨表 isSamePerson——签名 + 年龄容差）
+    std::vector<state::Disciple> sectDisciples;
+    for (std::size_t row = 0; row < state.disciples.size(); ++row) {
+        sectDisciples.push_back(state.disciples.materialize(row));
+    }
+    std::vector<state::Disciple> result;
+    for (const auto& d : contentDeduped) {
+        bool inSect = false;
+        for (const auto& s : sectDisciples) {
+            if (recruit_settle::isSamePerson(d, s)) { inSect = true; break; }
+        }
+        if (!inSect) result.push_back(d);
+    }
+    gd.recruitList = std::move(result);
+}
+
+/// T2-① AI 宗门弟子老化（Kotlin CaveExplorationProcessor.
+/// processSectDisciplesAging → AISectDiscipleManager.processAging）：
+/// 非玩家宗门 aiSectDisciples 全员 age+1，超寿元（> computeMaxAge）置
+/// isAlive=false 后过滤移除。aiSectDisciples 为 std::map 键升序（Kotlin
+/// LinkedHashMap 插入序——顺序归一化边界见批 10-4，对拍以键升序构造）。
+/// 零 RNG（AI 独立分区在生成期，不在本件）。
+inline void processSectDisciplesAging(GameState& state) {
+    std::map<std::string, std::vector<state::Disciple>> updated;
+    for (const auto& kv : state.aiSectDisciples) {
+        const std::string& sectId = kv.first;
+        bool isPlayer = false;
+        for (const auto& sect : state.gameData.worldMapSects) {
+            if (sect.id == sectId && sect.isPlayerSect) { isPlayer = true; break; }
+        }
+        if (isPlayer) {
+            updated[sectId] = kv.second;
+            continue;
+        }
+        std::vector<state::Disciple> aged;
+        for (const auto& d : kv.second) {
+            state::Disciple a = d;
+            a.age = d.age + 1;
+            a.isAlive = a.age <= discipleAgeMax(a);
+            if (a.isAlive) aged.push_back(std::move(a));
+        }
+        updated[sectId] = std::move(aged);
+    }
+    state.aiSectDisciples = std::move(updated);
+}
+
+/// T2-⑥ 联盟到期解散（Kotlin DiplomacyEventProcessor.checkAllianceExpiry）：
+/// 年差 >= ALLIANCE_DURATION_YEARS(5) 的联盟到期——从 alliances 移除 +
+/// 成员宗门 worldMapSects.allianceId/allianceStartYear 清零。零 RNG。
+inline void processAllianceExpiry(GameState& state, int32_t year) {
+    auto& gd = state.gameData;
+    std::vector<state::Alliance> expired;
+    for (const auto& a : gd.alliances) {
+        if (year - a.startYear >= kAllianceDurationYears) expired.push_back(a);
+    }
+    if (expired.empty()) return;
+    std::vector<state::Alliance> remaining;
+    for (const auto& a : gd.alliances) {
+        if (year - a.startYear < kAllianceDurationYears) remaining.push_back(a);
+    }
+    std::vector<state::WorldSect> sects = gd.worldMapSects;
+    for (auto& sect : sects) {
+        for (const auto& a : expired) {
+            const bool isMember =
+                std::find(a.sectIds.begin(), a.sectIds.end(), sect.id) != a.sectIds.end();
+            if (isMember) { sect.allianceId = ""; sect.allianceStartYear = 0; break; }
+        }
+    }
+    gd.alliances = std::move(remaining);
+    gd.worldMapSects = std::move(sects);
+}
+
+/// T2-⑦ 联盟好感度过低自动解散（Kotlin FavorEventProcessor.
+/// checkAllianceFavorDrop）：玩家参与的联盟——盟友好感 < MIN_ALLIANCE_FAVOR(80)
+/// → 解散（移除联盟 + 成员宗门清 alliance 字段）。零 RNG。
+inline void processAllianceFavorDrop(GameState& state) {
+    auto& gd = state.gameData;
+    // 玩家宗门 id（"player" 哨兵——Kotlin sectIds.contains("player")）
+    std::string playerSectId;
+    for (const auto& sect : gd.worldMapSects) {
+        if (sect.isPlayerSect) { playerSectId = sect.id; break; }
+    }
+    std::vector<state::Alliance> dissolved;
+    for (const auto& alliance : gd.alliances) {
+        const bool hasPlayer =
+            std::find(alliance.sectIds.begin(), alliance.sectIds.end(), "player") !=
+            alliance.sectIds.end();
+        if (!hasPlayer) continue;
+        const std::string* sectId = nullptr;
+        for (const auto& sid : alliance.sectIds) {
+            if (sid != "player") { sectId = &sid; break; }
+        }
+        if (sectId == nullptr || playerSectId.empty()) continue;
+        const int32_t favor = findRelationFavor(gd.sectRelations, playerSectId, *sectId);
+        if (favor < kMinAllianceFavor) dissolved.push_back(alliance);
+    }
+    if (dissolved.empty()) return;
+    std::vector<state::Alliance> remaining;
+    for (const auto& a : gd.alliances) {
+        const bool isDissolved =
+            std::find_if(dissolved.begin(), dissolved.end(),
+                         [&](const state::Alliance& x) { return x.id == a.id; }) !=
+            dissolved.end();
+        if (!isDissolved) remaining.push_back(a);
+    }
+    std::vector<state::WorldSect> sects = gd.worldMapSects;
+    for (auto& sect : sects) {
+        for (const auto& a : dissolved) {
+            const bool isMember =
+                std::find(a.sectIds.begin(), a.sectIds.end(), sect.id) != a.sectIds.end();
+            if (isMember) { sect.allianceId = ""; sect.allianceStartYear = 0; break; }
+        }
+    }
+    gd.alliances = std::move(remaining);
+    gd.worldMapSects = std::move(sects);
+}
+
+/// T2-⑨ 好感度自然衰减（Kotlin FavorEventProcessor.processFavorDecay）：
+/// 玩家相关 + 已相识 + shouldDecay（favor>80 且距上次交互 ≥1 年）→
+/// favor 减 1（coerceAtLeast 80）+ noGiftYears+1；有变化才写回。零 RNG。
+inline void processFavorDecay(GameState& state, int32_t currentYear) {
+    auto& gd = state.gameData;
+    std::string playerSectId;
+    for (const auto& sect : gd.worldMapSects) {
+        if (sect.isPlayerSect) { playerSectId = sect.id; break; }
+    }
+    if (playerSectId.empty()) return;
+    std::vector<state::SectRelation> updated = gd.sectRelations;
+    bool changed = false;
+    for (auto& relation : updated) {
+        if (!relation.acquainted) continue;
+        const bool involvesPlayer =
+            relation.sectId1 == playerSectId || relation.sectId2 == playerSectId;
+        if (!involvesPlayer) continue;
+        if (relation.favor <= kFavorDecayThreshold) continue;
+        const int32_t yearsSinceGift = currentYear - relation.lastInteractionYear;
+        if (yearsSinceGift < kFavorDecayNoGiftYears) continue;
+        relation.favor = std::max(relation.favor - kFavorDecayAmount, kFavorDecayThreshold);
+        relation.noGiftYears += 1;
+        changed = true;
+    }
+    if (changed) gd.sectRelations = std::move(updated);
+}
+
+/// T2-⑩ 哀悼期到期（Kotlin DiscipleLifecycleProcessor.processGriefExpiry）：
+/// griefEndYears 列直写——到期（griefEnd != -1 且 currentYear >= griefEnd）→ 置 -1。
+/// 零 RNG。
+inline void processGriefExpiry(GameState& state, int32_t currentYear) {
+    state::DiscipleStore& ds = state.disciples;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.griefEndYears[row] != kGriefYearNullSentinel &&
+            currentYear >= ds.griefEndYears[row]) {
+            ds.griefEndYears[row] = kGriefYearNullSentinel;
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 批 Y-2：年变中件下沉（T1-⑨ 条件 SYSTEM + T1-⑩ 驻军轮换）
+// ════════════════════════════════════════════════════════════════
+
+/// 思过释放道德增量（DiscipleLifecycleProcessor.REFLECTION_RELEASE_MORALITY_BONUS）
+constexpr int32_t kReflectionReleaseMoralityBonus = 5;
+/// 思过释放忠诚增量（DiscipleLifecycleProcessor.REFLECTION_RELEASE_LOYALTY_BONUS）
+constexpr int32_t kReflectionReleaseLoyaltyBonus = 5;
+/// 驻军槽位数量（AISectGarrisonManager.GARRISON_SLOT_COUNT）
+constexpr int32_t kGarrisonSlotCount = 10;
+/// 驻军留守名额（AISectGarrisonManager：占领者最强 10 名留守宗门）
+constexpr int32_t kGarrisonStayCount = 10;
+
+/// 灵根数 → 颜色（Kotlin SpiritRoot.countColor：1..5 固定色，其余兜底灰）
+inline std::string spiritRootCountColor(const std::string& spiritRootType) {
+    int32_t count = 1;
+    if (!spiritRootType.empty()) {
+        count = 1 + static_cast<int32_t>(std::count(
+            spiritRootType.begin(), spiritRootType.end(), ','));
+    }
+    switch (count) {
+        case 1: return "#E74C3C";
+        case 2: return "#F39C12";
+        case 3: return "#9B59B6";
+        case 4: return "#27AE60";
+        default: return "#95A5A6";
+    }
+}
+
+/// T1-⑨ 思过到期释放（Kotlin DiscipleLifecycleProcessor.
+/// processReflectionRelease）：到期（statusData.reflectionEndYear <= year）
+/// 思过弟子释放为 IDLE + 清思过字段 + 道德/忠诚 +5（cap 200/100）；
+/// 释放后道德 < 偷盗阈值 → 单弟子偷盗判定（SYSTEM 钩子——judgeSingleTheftCandidate
+/// 与月变教化之道钩子同源，抽取序逐位一致）。RNG：条件性 SYSTEM（仅道德<阈值
+/// 弟子触发，每名 1..6 次判定抽取）。
+inline void processReflectionRelease(GameState& state, int32_t year,
+                                     rng::RngManager& rng) {
+    auto& gd = state.gameData;
+    auto& ds = state.disciples;
+    auto& rngSystem = rng.getRng(rng::RngPartition::kSystem);
+    const int32_t currentMonth = gd.gameYear * 12 + gd.gameMonth;
+    for (std::size_t row = 0; row < ds.size(); ++row) {
+        if (ds.isAlive[row] != 1) continue;
+        if (ds.statuses[row] != "REFLECTING") continue;
+        const auto endIt = ds.statusData[row].find("reflectionEndYear");
+        if (endIt == ds.statusData[row].end()) continue;
+        const auto endYearOpt = settle_util::toIntOrNull(endIt->second);
+        if (!endYearOpt.has_value() || year < *endYearOpt) continue;
+        // 释放：IDLE + 清思过字段 + 道德/忠诚 +5（cap）
+        ds.statuses[row] = "IDLE";
+        ds.statusData[row].erase("reflectionStartYear");
+        ds.statusData[row].erase("reflectionEndYear");
+        ds.moralities[row] =
+            std::min(ds.moralities[row] + kReflectionReleaseMoralityBonus,
+                     stats::kSkillMax);
+        ds.loyalties[row] =
+            std::min(ds.loyalties[row] + kReflectionReleaseLoyaltyBonus,
+                     kMaxLoyalty);
+        // 道德 < 阈值 → 单弟子偷盗判定（与 Kotlin 事务内版一致）
+        if (ds.moralities[row] < lawMoralityThreshold()) {
+            const auto idOpt = settle_util::toIntOrNull(ds.ids[row]);
+            if (idOpt.has_value()) {
+                judgeSingleTheftCandidate(state, *idOpt, currentMonth,
+                                          rngSystem);
+            }
+        }
+    }
+}
+
+/// T1-⑩ 占领宗门驻军轮换（Kotlin AISectGarrisonManager.rotateGarrisonSlots）：
+/// 玩家宗门在场 + 存在 AI 占领宗门（occupierSectId 非空且非玩家）时——按占领者
+/// 分组，每占领者存活弟子按 realm 升序（1 最强 → 9 最弱），前 10 名留守宗门、
+/// 第 11 名起逐占领宗门填满 GARRISON_SLOT_COUNT(10) 个驻军槽。
+/// 分组顺序不影响结果（各占领者独立构建候选池）——std::map 键升序与 Kotlin
+/// groupBy 插入序结果等价。零 RNG。
+inline void processGarrisonRotation(GameState& state) {    auto& gd = state.gameData;
+    std::string playerSectId;
+    for (const auto& sect : gd.worldMapSects) {
+        if (sect.isPlayerSect) { playerSectId = sect.id; break; }
+    }
+    if (playerSectId.empty()) return;
+
+    std::vector<const state::WorldSect*> occupiedByAi;
+    for (const auto& sect : gd.worldMapSects) {
+        if (!sect.isPlayerSect && !sect.occupierSectId.empty() &&
+            sect.occupierSectId != playerSectId) {
+            occupiedByAi.push_back(&sect);
+        }
+    }
+    if (occupiedByAi.empty()) return;
+
+    std::map<std::string, std::vector<const state::WorldSect*>> grouped;
+    for (const auto* sect : occupiedByAi) {
+        grouped[sect->occupierSectId].push_back(sect);
+    }
+    std::vector<state::WorldSect> updated = gd.worldMapSects;
+
+    for (const auto& kv : grouped) {
+        const std::string& occupierId = kv.first;
+        const auto it = state.aiSectDisciples.find(occupierId);
+        if (it == state.aiSectDisciples.end()) continue;
+        std::vector<const state::Disciple*> alive;
+        for (const auto& d : it->second) {
+            if (d.isAlive) alive.push_back(&d);
+        }
+        if (alive.empty()) continue;
+        std::stable_sort(alive.begin(), alive.end(),
+                         [](const state::Disciple* a, const state::Disciple* b) {
+                             return a->realm < b->realm;
+                         });
+        // 前 10 留守，第 11 名起外派
+        std::vector<const state::Disciple*> pool;
+        for (std::size_t i = static_cast<std::size_t>(kGarrisonStayCount);
+             i < alive.size(); ++i) {
+            pool.push_back(alive[i]);
+        }
+        for (const auto* sect : kv.second) {
+            std::vector<state::GarrisonSlot> newSlots;
+            newSlots.reserve(static_cast<std::size_t>(kGarrisonSlotCount));
+            for (int32_t index = 0; index < kGarrisonSlotCount; ++index) {
+                if (!pool.empty()) {
+                    const state::Disciple* d = pool.front();
+                    pool.erase(pool.begin());
+                    state::GarrisonSlot slot;
+                    slot.index = index;
+                    slot.discipleId = d->id;
+                    slot.discipleName = d->name;
+                    slot.discipleRealm = realmName(d->realm);
+                    slot.discipleSpiritRootColor =
+                        spiritRootCountColor(d->spiritRootType);
+                    slot.portraitRes = d->portraitRes;
+                    newSlots.push_back(std::move(slot));
+                } else {
+                    state::GarrisonSlot slot;
+                    slot.index = index;
+                    newSlots.push_back(std::move(slot));
+                }
+            }
+            for (auto& s : updated) {
+                if (s.id == sect->id) {
+                    s.garrisonSlots = std::move(newSlots);
+                    break;
+                }
+            }
+        }
+    }
+    gd.worldMapSects = std::move(updated);
+}
+
+/// T2-⑪ 远古秘境年变刷新（Kotlin SecretRealmService.processYearlySpawn）：
+/// 未现世（secretRealmState 空）且冷却满（year - cooldown(coerceAtLeast 0) >= 50）
+/// → SECRET_REALM 分区：findSecretRealmPosition（≤100 次尝试 × 2 nextInt +
+/// 兜底扫描零 RNG）→ 1×nextInt(SPRITE_VARIANT_COUNT) 精灵变体 → 写
+/// SecretRealmState（id 为镜像生成字段——Kotlin UUID，C++ 空串占位，diff 排除）
+/// + SECT secret_realm 事件。RNG 消费序：位置尝试 → 变体（与 Kotlin 一致）。
+inline void processAncientSecretRealmSpawn(GameState& state, int32_t year,
+                                           rng::RngManager& rng) {
+    auto& gd = state.gameData;
+    if (!gd.secretRealmState.id.empty()) return;
+    const int32_t cooldown = std::max(gd.secretRealmCooldownYear, 0);
+    if (!secretRealmYearlySpawnEligible(year, cooldown)) return;
+
+    const auto pos = findSecretRealmPosition(rng, gd.worldMapSects);
+    state::SecretRealmState realm;
+    realm.id = "";   // UUID 镜像生成字段（Kotlin UUID.randomUUID）
+    realm.x = static_cast<float>(pos.first);
+    realm.y = static_cast<float>(pos.second);
+    realm.spawnYear = year;
+    realm.spawnMonth = gd.gameMonth;
+    realm.spriteIndex = rollSecretRealmSpriteIndex(rng);
+    gd.secretRealmState = std::move(realm);
+    settle_util::recordGameEvent(
+        state, "SECT", "secret_realm",
+        "远古秘境现世！传说中上古大能陨落之地，藏有无数机缘与凶险");
+}
+
 }  // namespace detail
 
 /// 年俸结算主体（processAnnualSalary：计划 → canAfford → 发放/忠诚惩罚）。
@@ -202,13 +797,44 @@ inline void processAnnualSalary(state::GameState& state) {
 /// @param rng   RNG 分区管理器（本钩子全程零消耗；参数供后续批次接线）
 inline void runYearSettlement(state::GameState& state,
                               rng::RngManager& rng) {
-    (void)rng;   // 年变 T1/T2 场景规避后零 RNG 抽取（见文件头）
+    (void)rng;   // 年变 T1/T2 批 Y-1 子集零 RNG 抽取（其余项场景规避，见文件头）
 
-    // ── processYearlyEvents(year)：T1 已下沉子集 ──
-    // #10 garrisonAndReport：年报快照 + annual* 清零（驻军轮换恒等，见上）
+    // ── processYearlyEvents(year)：T1 立即组（Kotlin 严格相对序
+    // #1→#2→#3→#4→#5→#6→#7→#8→#9→#10→#11；#3/#4 大件批 Y-3 未下沉）──
+    // #1 附庸年贡（T1-① 批 Y-1）
+    detail::processYearlyTribute(state);
+    // #2 附属宗门年贡（T1-② 批 Y-1）
+    detail::processYearlyVassalTribute(state, state.gameData.gameYear);
+    // #5 自动拒绝（T1-⑤ 批 Y-1）
+    detail::processAutoReject(state);
+    // #6 商人赠予（T1-⑥ 批 Y-1：手动刷新机会）
+    detail::processMerchantRefreshChance(state, state.gameData.gameYear);
+    // #7 年度老化清理（T1-⑦ 批 Y-1：死亡弟子列清理）
+    detail::processYearlyAging(state, state.gameData.gameYear);
+    // #8 招募老化+净化（T1-⑧ 批 Y-1）
+    detail::processRecruitAging(state);
+    // #9 思过释放（T1-⑨ 批 Y-2：释放 + 条件性 SYSTEM 偷盗钩子）
+    detail::processReflectionRelease(state, state.gameData.gameYear, rng);
+    // #10 garrisonAndReport：驻军轮换（T1-⑩ 批 Y-2）+ 年报快照 + annual* 清零
+    detail::processGarrisonRotation(state);
     detail::runYearlyReportSnapshot(state);
-    // #1/#2 附庸、#3/#7/#9 生命周期 aging 与监牢释放、#4/#5/#8 招募三件套、
-    // #6 商人赠予、#11 autoBuy、T2 十一项——场景规避 + 登记批次（文件头）
+    // #11 autoBuy 1 月（merchant_settlement.h 批 11-3；月变 12 月已接线）
+
+    // ── T2 延迟组（Kotlin yearlyOpsQueue 分帧 drain；C++ 无分帧——批 Y-1
+    //    下沉零 RNG 子项按原相对序同步执行，行为基线登记见 §7.6 批 Y 计划；
+    //    大件（AI 招募/交易刷新/秘境刷新）随批 Y-2/Y-3 下沉）──
+    // #4 AI 弟子老化（T2-① 批 Y-1）
+    detail::processSectDisciplesAging(state);
+    // #6 联盟到期（T2-⑥ 批 Y-1）
+    detail::processAllianceExpiry(state, state.gameData.gameYear);
+    // #7 联盟好感衰减检查（T2-⑦ 批 Y-1）
+    detail::processAllianceFavorDrop(state);
+    // #9 好感衰减（T2-⑨ 批 Y-1）
+    detail::processFavorDecay(state, state.gameData.gameYear);
+    // #10 哀悼期到期（T2-⑩ 批 Y-1）
+    detail::processGriefExpiry(state, state.gameData.gameYear);
+    // #22 远古秘境年变刷新（T2-⑪ 批 Y-2：SECRET_REALM 分区——位置 + 变体）
+    detail::processAncientSecretRealmSpawn(state, state.gameData.gameYear, rng);
 
     // ── gameMonth==1 时年俸（Kotlin processMonthYearChange 第二分支）──
     if (state.gameData.gameMonth == 1) {

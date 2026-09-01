@@ -82,6 +82,31 @@ object GameCoreBridge {
     external fun nativeSettlePhase(): Int
 
     /**
+     * 单月推进（月变真相源切换批 M-1）：C++ 完整月变结算（八步事务编排 +
+     * 十六子事件已下沉面），返回 JSON 信封字节——`policyCosts.disabledPolicies`
+     * （事务外 checkpointAllProduction 决策）+ `secretRealmClose`（S-17 秘境
+     * 到期关闭草稿：memberIds/backpack/slotId，Kotlin 发关闭邮件 + 释放 gate）
+     * + `purchaseLogs`（S-20 弟子购买日志草稿：discipleId/itemName/age，
+     * Kotlin 写 lifeEvents 瞬态列）。引擎未初始化返回 "{}"。
+     */
+    external fun nativeSettleMonth(): ByteArray
+
+    /**
+     * 重置自动招募惰性门（S-16 清偿）：Kotlin 侧重置点（年度招募刷新/玩家改
+     * 筛选/生育/净化）调用，通知 C++ 复位 autoRecruitIdle——月变真相源切换后
+     * autoRecruit 在 C++ 侧执行，重置点仍分布在 Kotlin，必须经此通道同步。
+     */
+    external fun nativeResetAutoRecruitIdle()
+
+    /**
+     * 单年推进（年变真相源切换批 Y-switch）：C++ 完整年变结算（T1 已下沉面 +
+     * T2 已下沉面 + 年报快照 + 年俸），返回 JSON 信封（当前为空对象——年变
+     * 残留执行器为 Kotlin 侧纯状态 + 平台效应，无 C++ 草稿回传）。引擎未
+     * 初始化返回 "{}"。
+     */
+    external fun nativeSettleYear(): ByteArray
+
+    /**
      * RNG 分区标量抽取：指定分区下一个 32 位整数（PCG-XSH-RR 原始输出，
      * 与 Kotlin [com.xianxia.sect.core.util.DeterministicRng.nextInt] 逐位一致）。
      * T2.4 起 AUTHORITATIVE 模式下 Kotlin 抽取经此通道委托单一真相源，

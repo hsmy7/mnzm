@@ -1,0 +1,130 @@
+package com.xianxia.sect.core.engine
+
+import com.xianxia.sect.core.model.SecretRealmBackpack
+import com.xianxia.sect.core.nativebridge.GameCoreBridge
+import com.xianxia.sect.core.util.DomainLog
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+/**
+ * 月变真相源切换批 M-1 的信封数据（nativeSettleMonth 回传草稿/决策信息）。
+ * 手工解析（字段少且非协议类型，避免 @Serializable 与 C++ nlohmann 键名
+ * 二次维护——SecretRealmBackpack 复用协议编解码）。
+ */
+internal data class MonthSettlementEnvelope(
+    /** 政策费用不足被自动禁用的政策名列表（事务外 checkpointAllProduction 决策） */
+    val disabledPolicies: List<String>,
+    /** S-17：秘境到期关闭草稿（memberIds → gate release；backpack → 关闭邮件附件） */
+    val secretRealmClose: MonthSecretRealmClose?,
+    /** S-20：弟子智能购买日志草稿（lifeEvents 瞬态列写入） */
+    val purchaseLogs: List<MonthPurchaseLog>
+)
+
+internal data class MonthSecretRealmClose(
+    val memberIds: List<String>,
+    val backpack: SecretRealmBackpack
+)
+
+internal data class MonthPurchaseLog(
+    val discipleId: String,
+    val itemName: String,
+    val age: Int
+)
+
+private const val MONTH_TAG = "GameEngineCore"
+
+/**
+ * 月变真相源切换管线（批 M-1）：生产月变路径从 Kotlin MonthSettlementExecutor
+ * 八步编排切换为 C++ `runMonthSettlement` + Kotlin 残留执行器互插——
+ * ① nativeSettleMonth——C++ 完整月变结算（八步 + 十六子事件已下沉 13 件），
+ *    信封含 policyCosts.disabledPolicies / S-17 秘境关闭草稿 / S-20 购买日志草稿；
+ * ② applyDirtyFromNative——增量镜像（失败先全量兜底，仍失败异常传播）；
+ * ③ Kotlin 残留执行器（单事务：生产结算 + 战斗三件 5/6/9 + 邮件 + 草稿应用）。
+ *
+ * 返回 null 表示 native 未就绪（调用方回退 Kotlin 完整编排——此时 C++ 状态
+ * 未变更，回退安全）；返回信封表示 C++ 状态已变更——**此点之后任何失败必须
+ * 抛异常传播（processAuthoritativeTick 的 refund + 看门狗自愈），不得回退
+ * Kotlin 编排**（否则 C++ 已结算 + Kotlin 再结算 = 双份执行）。
+ *
+ * 失败语义与旬 settleOnePhase 管线同构；RNG 序列变化（残留生产结算/任务完成
+ * 位于 C++ 全部消耗之后）为"月变编排整体入 C++"的行为基线，登记于
+ * MonthSettlementResidualExecutor KDoc。
+ */
+@Suppress("TooGenericExceptionCaught")  // 降级契约：native 链路失败统一 refund+重抛
+internal fun GameEngineCore.settleMonthNative(): MonthSettlementEnvelope? {
+    if (!GameCoreBridge.isLoaded || !GameCoreBridge.nativeIsInitialized()) return null
+    return try {
+        // ① C++ 完整月变结算（信封含草稿与决策信息）
+        val envJson = GameCoreBridge.nativeSettleMonth().decodeToString()
+        // ② 增量镜像；失败先全量兜底，仍失败走异常回退路径
+        val applied = stateSyncServiceRef.applyDirtyFromNative()
+        if (applied == null && !stateSyncServiceRef.syncFromNative()) {
+            error("月变镜像失败（增量+全量均不可用）")
+        }
+        val env = parseMonthSettlementEnvelope(envJson)
+        // ③ Kotlin 残留执行器（单事务：生产结算 + 战斗三件 + 邮件 +
+        //    草稿应用 S-17/S-20——C++ 状态已变更，此处失败必须传播）
+        stateStore.update { monthSettlementResidualExecutor.execute(this, env) }
+        env
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w(MONTH_TAG, "月变 native 管线异常（C++ 状态已变更，传播至看门狗自愈）: ${e.message}")
+        throw e
+    }
+}
+
+/** 解析 nativeSettleMonth 信封（宽松：缺键 → 空/默认，兼容旧 .so 无草稿段）。 */
+@Suppress("TooGenericExceptionCaught")  // 降级契约：信封损坏按空信封处理（旧 .so/异常输出）
+internal fun parseMonthSettlementEnvelope(envJson: String): MonthSettlementEnvelope {
+    val root = try {
+        Json.parseToJsonElement(envJson).jsonObject
+    } catch (e: Exception) {
+        DomainLog.w(MONTH_TAG, "月变信封解析失败，按空信封处理: ${e.message}")
+        return MonthSettlementEnvelope(emptyList(), null, emptyList())
+    }
+
+    val disabledPolicies = root["policyCosts"]?.jsonObject
+        ?.get("disabledPolicies")?.jsonArray
+        ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+
+    val secretRealmClose = root["secretRealmClose"]?.jsonObject?.let { close ->
+        val closed = close["closed"]?.jsonPrimitive?.booleanOrNull
+            ?: (close["closed"]?.jsonPrimitive?.contentOrNull == "true")
+        if (!closed) {
+            null
+        } else {
+            val backpack = runCatching {
+                val backpackEl = close["backpack"] ?: return@runCatching SecretRealmBackpack()
+                Json.decodeFromJsonElement<SecretRealmBackpack>(backpackEl)
+            }.getOrElse {
+                DomainLog.w(MONTH_TAG, "秘境关闭草稿背包解析失败，按空背包处理: ${it.message}")
+                SecretRealmBackpack()
+            }
+            MonthSecretRealmClose(
+                memberIds = close["memberIds"]?.jsonArray
+                    ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList(),
+                backpack = backpack
+            )
+        }
+    }
+
+    val purchaseLogs = root["purchaseLogs"]?.jsonArray?.mapNotNull { el ->
+        val obj = el.jsonObject
+        val discipleId = obj["discipleId"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+        MonthPurchaseLog(
+            discipleId = discipleId,
+            itemName = obj["itemName"]?.jsonPrimitive?.contentOrNull ?: "",
+            age = obj["age"]?.jsonPrimitive?.intOrNull ?: 0
+        )
+    } ?: emptyList()
+
+    return MonthSettlementEnvelope(disabledPolicies, secretRealmClose, purchaseLogs)
+}

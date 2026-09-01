@@ -1,5 +1,27 @@
 ## [4.01.11] - 2026-08-29
 
+### 优化（C++ 迁移续作批 Y：年变下沉 + 真相源切换）
+
+> 年变残留执行器下沉（批 Y-1/Y-2）+ 年变真相源切换（批 Y-switch）。详见 `docs/cpp-engine.md` §7.7~7.9。
+
+- **批 Y-1（年变零 RNG 小件 11 件）**：T1-① 附庸年贡 / ② 附属宗门年贡 / ⑤ 自动拒绝 / ⑥ 商人刷新机会 / ⑦ 年度死亡清理 / ⑧ 招募老化+净化 + T2-① AI 弟子老化 / ⑥ 联盟到期 / ⑦ 联盟好感过低解散 / ⑨ 好感衰减 / ⑩ 哀悼期到期——全部 C++ 等价移植（year_settlement.h）并接线 `runYearSettlement`；GTest +16
+- **批 Y-2 3/5（年变中件）**：T1-⑨ 思过到期释放（释放后道德 < 阈值触发单弟子偷盗判定——复用月变 `judgeSingleTheftCandidate`，SYSTEM 条件性抽取序逐位一致）/ T1-⑩ 占领宗门驻军轮换（realm 升序前 10 留守 + 第 11 名起填 10 槽）/ T2-⑪ 远古秘境年变刷新（SECRET_REALM 分区位置 + 精灵变体）；GTest +9
+- **批 Y-switch（年变真相源切换）**：生产年变路径从 Kotlin `YearSettlementExecutor` 编排切换为 **C++ `runYearSettlement` + Kotlin 残留执行器互插**（nativeSettleYear 通道 + `YearSettlementResidualExecutor`——死亡链 ③ + 招募生成 ④ + AI 招募 ② + 商人收购 ③ + 交易刷新 ④ 残留；native 未就绪回退 Kotlin 编排）
+- **行为基线登记**：年变 C++ 已下沉面零 SYSTEM 消耗——残留执行器 SYSTEM 消耗序与 Kotlin 原编排基本一致；唯一差异 T1-⑨（C++ 条件 SYSTEM 钩子）先于 T1-④（残留）执行（SYSTEM 序 ⑨→④→③ vs 原序 ④→⑨→③），属年变编排整体入 C++ 的必然
+- **验证**：GTest 700/700（+25 黄金序列）· engine JUnit 3057/3057 全量（桌面 JNI 0 skip，生产切换在测试环境恒回退 Kotlin 零回归）· NDK externalNativeBuildRelease 通过 · detekt 全绿 · app compileReleaseKotlin 通过
+- **遗留**：T2-③（商人收购 SYSTEM 稀有度曲线——需补静态数据：丹药价格/普通材料表）、T2-④（宗门交易局部种子——交易模板池）与批 Y-3（T1-③ 死亡链 / T1-④ 招募生成 / T2-② AI 招募的增量下沉，消除残留）为后续可选续作；年变 Kotlin 臂完整换装对拍随续作合并
+
+### 优化（C++ 迁移续作批 M-1：月变真相源切换）
+
+> 完成 C++ 迁移剩余工作主线第一步：生产月变路径从 Kotlin `MonthSettlementExecutor` 八步编排切换为 **C++ `runMonthSettlement` + Kotlin 残留执行器互插**（与旬结算 `executeResidual` 完全同构）。详见 `docs/cpp-engine.md` §7.6。
+
+- **C++ 侧**：`MonthSettlementResult` 扩展（policyCosts + S-17 秘境关闭草稿 SecretRealmCloseDraft（closed/memberIds/背包清空前快照/slotId）+ S-20 购买日志草稿 PurchaseLogDraft（discipleId/itemName/age））；`GameCore::settleMonth()`（runMonthSettlement → JSON 信封）+ `GameCore::resetAutoRecruitIdle()`（S-16）；JNI `nativeSettleMonth`/`nativeResetAutoRecruitIdle`（生产桥）
+- **Kotlin 侧**：`settleMonthNative` 管线（nativeSettleMonth → 增量镜像（失败全量兜底）→ `MonthSettlementResidualExecutor` 单事务（Alchemy/Forge/Mail 系统扇出 + 任务完成 5 + 洞天 6 + AI 兽战 9 + S-20 lifeEvents 写入 + S-17 关闭邮件/gate））；`processMonthYearChange` 月变分支切换（native 未就绪回退 Kotlin 完整编排；nativeSettleMonth 后失败传播看门狗自愈不回退——防双份结算）；事务外三件（checkpointAllProduction 按信封 disabledPolicies / missionCheck / flushPendingEvents）语义保留
+- **S 系列清偿**：S-14（执法域随月变编排整体入 C++，committed 读消灭）、S-16（`RecruitService.resetAutoRecruitIdle` 收口 5 重置点 + `nativeResetAutoRecruitIdle` 同步 C++ 惰性门）、S-17（秘境关闭草稿回传 → `SecretRealmService.applyExpiryCloseDraft` 重建关闭邮件 + gate release，防背包物品丢失）、S-20（购买日志草稿 → lifeEvents 瞬态列）
+- **行为基线登记**：残留执行器（生产结算 SYSTEM/任务完成 MISSION）在 C++ 全部消耗之后执行——SYSTEM/MISSION 抽取序与切换前 Kotlin 编排不同（月变编排整体入 C++ 的必然），C++ 侧 GTest 黄金序列锁定、残留侧委托式 NativeBackedRng 保证确定性；BATTLE（洞天）与 AI 独立分区不污染主序列
+- **验证**：engine JUnit 3028/3028 全量（桌面 JNI 0 skip，DiffMonthSettlementTest 全场景对拍零回归）· `GameEngineCoreMonthOpsTest` 新建 9 用例（信封解析全分支）· NDK externalNativeBuildRelease 通过（新 JNI 符号）· detekt 全绿 · app compileReleaseKotlin 通过
+- **遗留**：年变编排（`YearSettlementExecutor`）仍为 Kotlin——年变 22 项下沉审计完成（批次切分：零 RNG 小件 10 / 中件 5 / 大件 3 / no-op 2），随批 Y 推进；`executeResidual` 自动丹药/突破接线与 S-21 孤儿入口评估随批 Y 收尾
+
 ### 调整（建造栏石板路置灰 + 点击提示"开发中"）
 
 > 用户要求：建造栏中的道路（石板路）暂未开放，置灰展示，点击弹提示"开发中"。根因链：石板路不在 `BuildingFeatureRegistry`（无 requiredSectLevel/造价配置），此前点击会直接进入放置模式并可正常铺设；现产品侧决定暂时关闭道路建造入口。

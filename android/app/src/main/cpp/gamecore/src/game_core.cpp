@@ -202,6 +202,50 @@ int GameCore::settleOnePhase() {
     return settlement_.settleOnePhase(state_);
 }
 
+std::string GameCore::settleMonth() {
+    if (!initialized_) return "{}";
+    const system::MonthSettlementResult result =
+        system::runMonthSettlement(state_, rng_);
+
+    // 信封 JSON（nativeSettleMonth 回传 Kotlin 残留执行器的平台效应输入：
+    // disabledPolicies → checkpointAllProduction；secretRealmClose → 秘境
+    // 关闭邮件 + gate release；purchaseLogs → lifeEvents 瞬态列写入）
+    nlohmann::json env = nlohmann::json::object();
+    env["policyCosts"]["disabledPolicies"] =
+        result.policyCosts.disabledPolicies;
+    if (result.secretRealmClose.has_value()) {
+        const auto& c = result.secretRealmClose.value();
+        env["secretRealmClose"]["closed"] = c.closed;
+        env["secretRealmClose"]["memberIds"] = c.memberIds;
+        nlohmann::json bp;
+        to_json(bp, c.backpack);
+        env["secretRealmClose"]["backpack"] = std::move(bp);
+        env["secretRealmClose"]["slotId"] = c.slotId;
+    }
+    nlohmann::json logs = nlohmann::json::array();
+    for (const auto& log : result.purchaseLogs) {
+        logs.push_back({{"discipleId", log.discipleId},
+                        {"itemName", log.itemName},
+                        {"age", log.age}});
+    }
+    env["purchaseLogs"] = std::move(logs);
+    return env.dump();
+}
+
+void GameCore::resetAutoRecruitIdle() {
+    if (!initialized_) return;
+    state_.autoRecruitIdle = false;
+}
+
+std::string GameCore::settleYear() {
+    if (!initialized_) return "{}";
+    system::runYearSettlement(state_, rng_);
+    // 年变信封当前为空——T1-③/④ 与 T2-②/③/④ 残留为 Kotlin 侧纯状态 +
+    // 平台效应（死亡链 DAO 清理/AI 招募/商人收购/交易刷新），无 C++ 草稿；
+    // 未来下沉面收敛后按需扩展
+    return "{}";
+}
+
 // ── 引擎循环 + 看门狗（计划 v2 阶段 5） ─────────────────────────────
 
 void GameCore::setPlatformProviders(const PlatformProviders& providers) {

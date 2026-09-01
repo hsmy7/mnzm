@@ -956,6 +956,22 @@ inline void checkGameOverCondition(GameState& state) {
 // lawEnforcementMonthly 批 10-2/theft 月度兜底批 10-3/vassalBreakaway
 // 批 10-4），其余场景规避 + 登记批次（文件头范围边界）；相对序与 Kotlin 一致。
 
+// S-17 草稿结构 SecretRealmCloseDraft 定义于 secret_realm_settlement.h
+//（属主文件——closeSecretRealmByExpiry 内部填充）；
+// S-20 草稿结构 PurchaseLogDraft 定义于 disciple_purchase.h
+//（属主文件——applyPurchaseDecisions 内部填充）。
+
+/// 月变事务编排结果（Kotlin policyResult 等价——事务外 checkpointAllProduction
+/// 决策依据 + 平台效应草稿回传；当前真相源仍在 Kotlin，本结果仅供测试断言与
+/// nativeSettleMonth 信封——月变真相源切换后 Kotlin 残留执行器消费草稿）。
+/// 定义于 detail 命名空间（processMonthlyEvents 前置依赖），
+/// detail 结束后以 `using detail::MonthSettlementResult` 导出到 gamecore::system。
+struct MonthSettlementResult {
+    PolicyCostResult policyCosts;
+    std::optional<secret_realm_settle::SecretRealmCloseDraft> secretRealmClose;  // S-17
+    std::vector<disciple_purchase::PurchaseLogDraft> purchaseLogs;              // S-20
+};
+
 /// 子事件 8：侦察信息过期清理（Kotlin CultivationEventDiplomacyOps.
 /// applyScoutInfoExpiry 等价移植；零 RNG 纯数据变换）。
 ///
@@ -1861,7 +1877,8 @@ inline void processVassalBreakaway(GameState& state, rng::RngManager& rng) {
 }
 
 inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
-                                 const std::map<int32_t, std::size_t>& idx) {
+                                 const std::map<int32_t, std::size_t>& idx,
+                                 MonthSettlementResult& out) {
     // 子事件 1：招募月度计数归零
     state.gameData.recruitCountThisMonth = 0;
     // 子事件 2：自动招募（批 11-1：RecruitService.processAutoRecruit 等价移植；
@@ -1878,7 +1895,8 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     detail::applyScoutInfoExpiry(state, state.gameData.gameYear,
                                  state.gameData.gameMonth);
     // 子事件 9：AI 兽战——未下沉（战斗边界：全路径经 BattleSystem.executeBattle，
-    // 批 4-3 边界战斗执行保留 Kotlin——审计登记见文件头范围边界）
+    // 批 4-3 边界战斗执行保留 Kotlin——审计登记见文件头范围边界；月变真相源
+    // 切换后由 Kotlin 残留执行器执行，零主分区 RNG 污染——战斗 BATTLE 独立分区）
     // 子事件 10：12 月自动购买（批 11-3：AutoBuyService.executeAutoBuy 等价移植；
     //   仅 month==12；全链零 RNG，S-18 回退分支确定性化）
     if (state.gameData.gameMonth == 12) {
@@ -1888,8 +1906,8 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     detail::processSpiritMineProductionMonthly(state, idx);
     // 子事件 12：弟子智能购买（批 12-1：DisciplePurchaseService.executePurchase
     //   等价移植；SYSTEM 分区 shuffled——位于灵矿后、附庸前，与 Kotlin 月变
-    //   编排相对序一致）
-    disciple_purchase::processDisciplePurchase(state, rng);
+    //   编排相对序一致；S-20 购买日志草稿收集）
+    disciple_purchase::processDisciplePurchase(state, rng, &out.purchaseLogs);
     // 子事件 13：附庸脱离检查（批 10-4）
     detail::processVassalBreakaway(state, rng);
     // 子事件 14：任务刷新（批 12-2：CultivationEventMissionOps.
@@ -1897,8 +1915,17 @@ inline void processMonthlyEvents(GameState& state, rng::RngManager& rng,
     //   MISSION 分区——位于附庸后、秘境前，与 Kotlin 月变编排相对序一致）
     mission_settle::processMissionRefresh(state, rng);
     // 子事件 15：秘境现世期满自动关闭（批 11-2 状态段：钱包/背包/会话清场；
-    //   邮件与 gate 保留 Kotlin——S-17 登记）
-    secret_realm_settle::processMonthlyExpiryCheck(state, state.gameData.gameYear);
+    //   邮件与 gate 保留 Kotlin——S-17 草稿收集：关闭发生时回传 memberIds +
+    //   背包快照供 Kotlin 发邮件/释放 gate）
+    {
+        secret_realm_settle::SecretRealmCloseDraft closeDraft;
+        secret_realm_settle::processMonthlyExpiryCheck(
+            state, state.gameData.gameYear, &closeDraft);
+        if (closeDraft.closed) {
+            closeDraft.slotId = state.gameData.currentSlot;
+            out.secretRealmClose = std::move(closeDraft);
+        }
+    }
     // 子事件 16：秘境 AI 队伍月度派遣（批 11-2：SecretRealmAIProcessor.
     //   processMonthlyAiTeams 等价移植；零 RNG）
     secret_realm_settle::processMonthlyAiTeams(state);
@@ -2081,13 +2108,10 @@ inline void precomputeTargets(GameState& state, rng::RngManager& rng) {
 
 }  // namespace detail
 
-// ── 主入口：月变结算（注册进 SettlementEngine::onMonthChange） ─────
+// 月变编排结果导出到 gamecore::system（runMonthSettlement / nativeSettleMonth 信封）
+using detail::MonthSettlementResult;
 
-/// 月变事务编排结果（Kotlin policyResult 等价——事务外 checkpointAllProduction
-/// 决策依据；当前真相源仍在 Kotlin，本结果仅供测试断言与未来接线）
-struct MonthSettlementResult {
-    PolicyCostResult policyCosts;
-};
+// ── 主入口：月变结算（注册进 SettlementEngine::onMonthChange） ─────
 
 /// 执行一次月变结算（时间推进与月界检测由 SettlementEngine 负责）。
 /// @param state 完整游戏状态（就地修改）
@@ -2217,8 +2241,8 @@ inline MonthSettlementResult runMonthSettlement(state::GameState& state,
     // 步骤 7：丹药持续效果月度衰减
     detail::applyMonthlyDurationDecayAll(state);
 
-    // 步骤 8：月度事件（三件已下沉子事件）
-    detail::processMonthlyEvents(state, rng, idx);
+    // 步骤 8：月度事件（十六子事件已下沉面 + 草稿收集 S-17/S-20）
+    detail::processMonthlyEvents(state, rng, idx, out);
 
     return out;
 }

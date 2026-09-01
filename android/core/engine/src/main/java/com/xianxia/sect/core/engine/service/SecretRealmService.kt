@@ -1064,6 +1064,28 @@ class SecretRealmService @Inject constructor(
     }
 
     /**
+     * S-17 草稿应用（月变真相源切换批 M-1）：C++ 侧关闭秘境后经
+     * nativeSettleMonth 信封回传草稿（背包清空前快照 + 会话成员 id）——
+     * 本方法重建关闭邮件（复用 [buildExpiryCloseMail]）并释放成员 gate，
+     * 与 [closeSecretRealmByExpiry] 的邮件/gate 段语义一致（状态段——
+     * 灵石入钱包/背包清空/会话清场——已在 C++ 侧完成，Kotlin 不再执行
+     * processMonthlyExpiryCheck）。
+     *
+     * @param slotId 存档槽位（邮件归属）
+     * @param backpack 关闭时背包快照（六类物品——邮件附件来源）
+     * @param memberIds 会话成员弟子 id（assignmentGate.release）
+     */
+    fun applyExpiryCloseDraft(
+        slotId: Int,
+        backpack: SecretRealmBackpack,
+        memberIds: Set<String>
+    ) {
+        val mail = buildExpiryCloseMail(slotId, backpack, System.currentTimeMillis())
+        memberIds.forEach { assignmentGate.release(it) }
+        mail?.let { overflowMailSender.sendDirectMail(it) }
+    }
+
+    /**
      * 构造秘境关闭邮件：背包六类物品逐件转为附件（itemId 按名称+品阶解析模板，
      * 未命中为 null 由 MailService 回退品阶随机）。空背包返回 null（不产生无附件邮件）。
      */

@@ -21,6 +21,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
+import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -288,7 +289,7 @@ class RecruitService @Inject constructor(
             )
             if (report.removedCount > 0) {
                 state.gameData = state.gameData.copy(recruitList = report.cleaned)
-                RecruitLazyState.autoRecruitIdle = false
+                resetAutoRecruitIdle()
                 RecruitLazyState.autoRejectIdle = false
                 report.details.forEach { DomainLog.w(TAG, "sanitizeRecruitList: $it") }
             }
@@ -296,11 +297,19 @@ class RecruitService @Inject constructor(
         }
 
         /**
-         * 重置自动招募惰性状态。
+         * 重置自动招募惰性状态（S-16 清偿：同步 C++ 惰性门）。
          * 当玩家变更自动招募筛选条件时调用，使每月招募检测重新活跃。
+         *
+         * 月变真相源切换（批 M-1）后 autoRecruit 在 C++ 侧执行（C++ GameState
+         * autoRecruitIdle 瞬态字段只进不出）——Kotlin 侧重置点（年度刷新/玩家
+         * 改筛选/净化/生育）必须经 JNI 通道同步复位，否则 C++ 侧永久惰性。
+         * native 未加载（纯 Kotlin 回退路径）时静默跳过。
          */
         fun resetAutoRecruitIdle() {
             RecruitLazyState.autoRecruitIdle = false
+            if (GameCoreBridge.isLoaded) {
+                runCatching { GameCoreBridge.nativeResetAutoRecruitIdle() }
+            }
         }
 
         /**
@@ -403,8 +412,8 @@ class RecruitService @Inject constructor(
                 recruitList = gameData.recruitList + newRecruitDisciples,
                 lastRecruitYear = year
             )
-            // 新增弟子到列表 → 重置惰性状态
-            RecruitLazyState.autoRecruitIdle = false
+            // 新增弟子到列表 → 重置惰性状态（S-16：同步 C++ 惰性门）
+            resetAutoRecruitIdle()
             RecruitLazyState.autoRejectIdle = false
             processAutoRecruit(this)
             generatedCount = newRecruitDisciples.size
