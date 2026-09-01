@@ -386,8 +386,10 @@ class RecruitService @Inject constructor(
 
             repeat(recruitCount) {
                 val gender = if (rng.nextInt(2) == 0) "male" else "female"
+                // 批 Y-3：名字随机源分区化（S-19 同族——原默认 JVM 全局 Random
+                // 非确定性；传 SYSTEM 分区适配器与给定名/弟子生成同源）
                 val nameResult = NameService.generateName(
-                    gender, NameService.NameStyle.FULL, usedNames
+                    gender, NameService.NameStyle.FULL, usedNames, kotlinRng
                 )
                 val disciple = discipleFactory.create(
                     DiscipleFactory.DiscipleSeed(

@@ -32,6 +32,52 @@ inline const std::vector<std::string>& compoundSurnames() {
     return k;
 }
 
+/// 单姓表（Kotlin NameService.singleSurnames——批 Y-3 T1-④ 招募生成下沉）
+inline const std::vector<std::string>& singleSurnames() {
+    static const std::vector<std::string> k = {
+        "李", "张", "王", "刘", "陈", "杨", "赵", "黄", "周", "吴",
+        "孙", "郑", "冯", "蒋", "沈", "韩", "朱", "秦", "许", "何",
+        "吕", "施", "曹", "袁", "邓", "彭", "苏", "卢", "蔡", "丁",
+        "萧", "叶", "顾", "孟", "林", "徐", "方", "程", "谢", "宋",
+        "楚", "墨", "白", "青", "紫", "玄", "苍", "凌", "寒", "云",
+        "胡", "高", "郭", "马", "罗", "梁", "唐", "于", "董", "贺",
+    };
+    return k;
+}
+
+/// 通用姓氏（Kotlin NameService.commonSurnames——COMMON 风格）
+inline const std::vector<std::string>& commonSurnames() {
+    static const std::vector<std::string> k = {
+        "李", "王", "张", "刘", "陈", "杨", "赵", "黄", "周", "吴",
+        "孙", "郑", "冯", "蒋", "沈", "韩", "朱", "秦", "许", "何",
+        "吕", "施", "曹", "袁", "邓", "彭", "苏", "卢", "蔡", "丁",
+        "萧", "叶", "顾", "孟", "林", "徐", "方", "程", "谢", "宋",
+    };
+    return k;
+}
+
+/// 仙侠姓氏（Kotlin NameService.xianxiaSurnames——XIANXIA 风格：16 复合 + 14 单字）
+inline const std::vector<std::string>& xianxiaSurnames() {
+    static const std::vector<std::string> k = {
+        "慕容", "上官", "欧阳", "司徒", "南宫", "诸葛", "东方", "西门",
+        "独孤", "令狐", "皇甫", "公孙", "轩辕", "太史", "端木", "百里",
+        "楚", "墨", "白", "青", "紫", "玄", "苍", "凌", "寒", "云",
+        "风", "萧", "叶", "林",
+    };
+    return k;
+}
+
+/// 全姓氏（Kotlin NameService.allSurnames = singleSurnames + compoundSurnames）
+inline const std::vector<std::string>& allSurnames() {
+    static const std::vector<std::string> k = [] {
+        std::vector<std::string> v = singleSurnames();
+        const auto& c = compoundSurnames();
+        v.insert(v.end(), c.begin(), c.end());
+        return v;
+    }();
+    return k;
+}
+
 /// 男性双字名（Kotlin maleDoubleNames）
 inline const std::vector<std::string>& maleDoubleNames() {
     static const std::vector<std::string> k = {
@@ -147,6 +193,67 @@ inline NameResult inheritName(const std::string& parentSurname,
         ++suffix;
     } while (existingNames.count(unique) && suffix < 100);
     return {parentSurname, unique};
+}
+
+/// 名字风格（Kotlin NameService.NameStyle）
+enum class NameStyle { kCommon, kXianxia, kFull };
+
+/// 全新名字生成（Kotlin NameService.generateName——批 Y-3 T1-④ 招募刷新下沉；
+/// RNG 语义分区确定性：姓氏 1×nextInt + 给定名 1×nextDouble + 1×nextInt，
+/// 冲突规避 50 次循环同序；调用方传 SYSTEM 分区适配器与 Kotlin
+/// rng.asKotlinRandom() 同源）
+inline NameResult generateName(const std::string& gender, NameStyle style,
+                               const std::set<std::string>& existingNames,
+                               rng::DeterministicRng& rng) {
+    const auto pickSurname = [&](NameStyle s) -> const std::string& {
+        switch (s) {
+            case NameStyle::kCommon:
+                return commonSurnames()[rng.nextInt(
+                    static_cast<int32_t>(commonSurnames().size()))];
+            case NameStyle::kXianxia:
+                return xianxiaSurnames()[rng.nextInt(
+                    static_cast<int32_t>(xianxiaSurnames().size()))];
+            default:
+                return allSurnames()[rng.nextInt(
+                    static_cast<int32_t>(allSurnames().size()))];
+        }
+    };
+    const auto pickGivenName = [&](const std::string& g) -> const std::string& {
+        const bool useDouble = rng.nextDouble() < 0.75;
+        if (useDouble) {
+            if (g == "male") {
+                return maleDoubleNames()[rng.nextInt(
+                    static_cast<int32_t>(maleDoubleNames().size()))];
+            }
+            return femaleDoubleNames()[rng.nextInt(
+                static_cast<int32_t>(femaleDoubleNames().size()))];
+        } else {
+            if (g == "male") {
+                return maleSingleNames()[rng.nextInt(
+                    static_cast<int32_t>(maleSingleNames().size()))];
+            }
+            return femaleSingleNames()[rng.nextInt(
+                static_cast<int32_t>(femaleSingleNames().size()))];
+        }
+    };
+
+    for (int attempts = 0; attempts < 50; ++attempts) {
+        const auto& surname = pickSurname(style);
+        const auto& given = pickGivenName(gender);
+        const std::string full = surname + given;
+        if (!existingNames.count(full)) return {surname, full};
+    }
+    const auto& surname = pickSurname(style);
+    const auto& given = pickGivenName(gender);
+    const std::string base = surname + given;
+    if (!existingNames.count(base)) return {surname, base};
+    int32_t suffix = 2;
+    std::string unique;
+    do {
+        unique = base + std::to_string(suffix);
+        ++suffix;
+    } while (existingNames.count(unique) && suffix < 100);
+    return {surname, unique};
 }
 
 }  // namespace gamecore::system

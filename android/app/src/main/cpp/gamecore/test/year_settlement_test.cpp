@@ -890,4 +890,88 @@ TEST(YearSettlementTest, Y2T2SecretRealmSpawnAlreadyPresentSkips) {
     EXPECT_EQ(before, after) << "已现世必须零 SECRET_REALM 抽取";
 }
 
+// ════════════════════════════════════════════════════════════════
+// 批 Y-3：年变招募刷新（T1-④）黄金序列
+// ════════════════════════════════════════════════════════════════
+
+TEST(YearSettlementTest, Y3T1RefreshRecruitListSkipsWhenIntervalNotMet) {
+    // 差值判据：year - lastRecruitYear < 3 → 零刷新零 RNG
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 4;
+    st.gameData.lastRecruitYear = 2;   // 差值 2 < 3
+
+    const int64_t before = core->rng()
+        .getRng(rng::RngPartition::kSystem)
+        .snapshot();
+    system::detail::processRefreshRecruitList(st, /*year=*/4, core->rng());
+    const int64_t after = core->rng()
+        .getRng(rng::RngPartition::kSystem)
+        .snapshot();
+
+    EXPECT_TRUE(st.gameData.recruitList.empty());
+    EXPECT_EQ(before, after) << "差值未满必须零 SYSTEM 抽取";
+}
+
+TEST(YearSettlementTest, Y3T1RefreshRecruitListGeneratesRecruits) {
+    // 玩家宗门（大 1..10）+ lastRecruitYear 差值 3 → 刷新：recruitList 追加、
+    // lastRecruitYear 更新、弟子字段合法（名字非空/年龄 16..29/realm 9）
+    auto core = makeCore(2026);
+    auto& st = core->state();
+    st.gameData.gameYear = 5;
+    st.gameData.lastRecruitYear = 2;   // 差值 3 ≥ 3 ✅
+    state::WorldSect player;
+    player.id = "p1";
+    player.isPlayerSect = true;
+    player.level = 2;                  // 大（1..10）
+    st.gameData.worldMapSects.push_back(player);
+
+    system::detail::processRefreshRecruitList(st, /*year=*/5, core->rng());
+
+    EXPECT_EQ(5, st.gameData.lastRecruitYear);
+    ASSERT_FALSE(st.gameData.recruitList.empty());
+    EXPECT_LE(st.gameData.recruitList.size(), 10u);
+    for (const auto& r : st.gameData.recruitList) {
+        EXPECT_FALSE(r.name.empty()) << "名字非空";
+        EXPECT_GE(r.age, 16);
+        EXPECT_LE(r.age, 29);          // 16 + nextInt(14) → 16..29
+        EXPECT_EQ(9, r.realm);
+    }
+}
+
+TEST(YearSettlementTest, Y3T1RefreshRecruitListOpenRecruitmentBonus) {
+    // 广纳门徒政策 +50%（roundToInt）：固定数量场景验证政策加成生效
+    //（判据差值满足；政策开 → 数量 ≥ 无政策场景）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 6;
+    st.gameData.lastRecruitYear = 3;
+    st.gameData.sectPolicies.openRecruitment = true;
+    state::WorldSect player;
+    player.id = "p1";
+    player.isPlayerSect = true;
+    player.level = 3;                  // 顶级（1..15）
+    st.gameData.worldMapSects.push_back(player);
+
+    system::detail::processRefreshRecruitList(st, /*year=*/6, core->rng());
+
+    EXPECT_EQ(6, st.gameData.lastRecruitYear);
+    ASSERT_FALSE(st.gameData.recruitList.empty());
+    EXPECT_LE(st.gameData.recruitList.size(), 15u);
+}
+
+TEST(YearSettlementTest, Y3T1RefreshRecruitListNoPlayerFallback) {
+    // 无玩家宗门 → 兜底 nextInt(7) coerceAtLeast 1（≥1）
+    auto core = makeCore(2026);
+    auto& st = core->state();
+    st.gameData.gameYear = 8;
+    st.gameData.lastRecruitYear = 5;
+
+    system::detail::processRefreshRecruitList(st, /*year=*/8, core->rng());
+
+    EXPECT_EQ(8, st.gameData.lastRecruitYear);
+    ASSERT_FALSE(st.gameData.recruitList.empty());
+    EXPECT_GE(st.gameData.recruitList.size(), 1u);
+}
+
 }  // namespace

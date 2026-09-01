@@ -83,14 +83,17 @@ object NameService {
         gender: String,
         style: NameStyle = NameStyle.XIANXIA,
         existingNames: Set<String> = emptySet(),
-        // 批 13-4a：名字随机源分区化（S-19 同族）——inheritName 已分区；
-        // generateName 保持默认全局 Random（招募/兑换码/AI/弟子服务调用点
-        // 未迁移，行为不变；随对应批次下沉时分区化）
+        // 批 13-4a + 批 Y-3：名字随机源分区化（S-19 同族）——inheritName 已分区
+        // （生育）；generateName 的给定名在批 13-4a 已分区，姓氏 pickSurname
+        // 在批 Y-3（T1-④ 招募刷新下沉）分区化——原用 JVM 全局 Random
+        //（pickSurname 的 pool.random() 非确定性、不入 rngStates，跨语言不可
+        // 对拍）；招募调用点传 SYSTEM 分区 PRNG 适配器（rng.asKotlinRandom()），
+        // 默认 Random.Default 保持既有调用方（兑换码/AI/弟子服务）行为不变
         rng: kotlin.random.Random = kotlin.random.Random.Default
     ): NameResult {
         var attempts = 0
         while (attempts < 50) {
-            val surname = pickSurname(style)
+            val surname = pickSurname(style, rng)
             val givenName = pickGivenName(gender, rng)
             val fullName = "$surname$givenName"
             if (fullName !in existingNames) {
@@ -98,7 +101,7 @@ object NameService {
             }
             attempts++
         }
-        val surname = pickSurname(style)
+        val surname = pickSurname(style, rng)
         val givenName = pickGivenName(gender, rng)
         val baseName = "$surname$givenName"
         if (baseName !in existingNames) {
@@ -155,13 +158,15 @@ object NameService {
         return fullName.firstOrNull()?.toString() ?: ""
     }
 
-    private fun pickSurname(style: NameStyle): String {
+    private fun pickSurname(style: NameStyle, rng: kotlin.random.Random): String {
         val pool = when (style) {
             NameStyle.COMMON -> commonSurnames
             NameStyle.XIANXIA -> xianxiaSurnames
             NameStyle.FULL -> allSurnames
         }
-        return pool.random()
+        // 批 Y-3：分区化（原 pool.random() 用 JVM 全局 Random——非确定性不入
+        // rngStates，跨语言不可对拍；改 rng.nextInt(size) 与给定名同源）
+        return pool[rng.nextInt(pool.size)]
     }
 
     private fun pickGivenName(gender: String, rng: kotlin.random.Random): String {
