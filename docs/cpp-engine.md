@@ -2,6 +2,13 @@
 
 > 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
+>
+> **📌 快速恢复点（2026-09-01，上下文压缩/新会话从此继续）**：
+> - **基线**：GTest **704/704** · engine JUnit **3057/3057**（桌面 JNI 对拍 0 skip）· NDK externalNativeBuildRelease · detekt 全绿 · app compileReleaseKotlin 通过；全部改动已提交（git log 最新 dd42cb2c「批 Y-3 T1-④/⑪」）
+> - **已完成批次**（目标核心全部达成）：批 M-1 月变真相源切换（nativeSettleMonth + 残留执行器 + S-14/16/17/20 清偿，§7.6）→ 批 Y-1 年变零 RNG 小件 11 件（§7.7）→ 批 Y-2 3/5（T1-⑨/⑩ + T2-⑪，§7.8）→ 批 Y-switch 年变真相源切换（nativeSettleYear + YearSettlementResidualExecutor，§7.9）→ 批 Y-3 部分（T1-④ 招募刷新 + T1-⑪ autoBuy 接线 + 名字生成分区化，§7.10 状态行）；目标④（executeResidual 自动丹药/突破）确认已有 C++ 等价 + DiffPhaseSettlementTest 守护
+> - **剩余工作（4 件下沉 + 1 增强 + 收尾；不阻塞——切换已达成，残留执行器运行正常）**：① T1-③ discipleAging 死亡链（跨域大件：槽位/哀悼/解绑/血炼/库存物化/装备清/死亡记录——death_handler.h/slot_cleanup.h 部分已有）② T2-② AI 宗门招募（AI 独立 RNG + 占领路由）③ T2-③ 商人收购（**前置需补静态数据：丹药模板 rarity/price + 普通材料表**）④ T2-④ 交易刷新（sect_trade.h 核心 + 模板池）⑤ 年变对拍扩展（Kotlin 臂换装真实服务，可选）⑥ CHANGELOG 追加批 Y-3 条目 + 最终验证提交
+> - **恢复指引**：从 §7.10「目标③完成状态」继续 T1-③；每批 = Kotlin 源码审计 → C++ 移植（year_settlement.h detail）→ GTest 黄金序列 → 桌面对拍桥（scripts/build-desktop-jni.ps1）→ engine JUnit 强制重跑（--rerun-tasks）→ NDK/detekt；工作区另有 feature/game 4 项**预存非本任务改动**（建造栏石板路置灰）未提交，勿混入迁移提交
+
 > 当前基线：**桌面 GTest 659/659（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH；批 12-1/12-2 新增 6 用例、批 13-1 新增 3 用例、批 13-2a 新增 3 用例、批 13-2b 新增 3 用例、批 13-3 新增 3 用例、批 13-4b 新增 5 用例、批 13-4c 新增 4 用例、战斗批次 A 新增 7 用例、战斗批次 B 新增 15 用例、战斗批次 C 新增 7 用例） · engine JUnit 2979/2979（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过**。
 > **计划 v2 阶段 0~7 已完成**（阶段 2：批量结算下沉 + tick 真相源切换 AUTHORITATIVE
 > 过渡管线；阶段 3：反向增量通道 + DiscipleStore SoA 实体存储 + 静态数据单一源；阶段 4：
