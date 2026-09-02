@@ -480,6 +480,7 @@ class MailService @Inject constructor(
      * 消除手写"找第一个堆叠 + 追加"导致同种物品分裂为多个堆叠的问题。
      * 年度报告来源由 addXxx 内部按 `mail:...` 键自动累加，键格式与原手写统计一致。
      */
+    @Suppress("CyclomaticComplexMethod") // 附件类型分发表（12+ 类），分支多但非控制流纠结
     private fun distributeAttachmentsInline(
         state: MutableGameState,
         attachments: List<MailAttachment>
@@ -516,6 +517,9 @@ class MailService @Inject constructor(
                     "seed" -> distributeSeedAttachment(attachment, mailRng)
                     "disciple" -> distributeDiscipleAttachment(state, attachment, mailRng)
                     "storageBag" -> distributeStorageBagAttachment(attachment)
+                    else -> throw IllegalArgumentException(
+                        "未知邮件附件类型: type=${attachment.type}, name=${attachment.name}"
+                    )
                 }
             }
         }

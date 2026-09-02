@@ -221,6 +221,26 @@ class MailServiceTest {
         )
     }
 
+    @Test
+    fun `claimAttachment - unknown attachment type returns DistributeFailed and no mailRecord`() = runBlocking {
+        // 问题3 根因1：附件 type 不在已知 11 类（服务端别名字符串/新增类型）时，
+        // distributeAttachmentsInline 的 when 无 else 曾静默跳过（事务照常提交 →
+        // 领取"成功"但仓库无物品）。修复后 else 抛异常 → 同事务回滚（mailRecords 不写）
+        // → 返回 DistributeFailed，失败响亮且保留凭据可重试。
+        val mail = createUnclaimedMail().copy(
+            attachments = """[{"type":"mystery","name":"神秘物品","quantity":1,"rarity":1}]"""
+        )
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
+
+        val result = service.claimAttachment(testMailId, testSlotId)
+
+        assertTrue("未知附件类型必须返回 DistributeFailed", result is ClaimResult.DistributeFailed)
+        assertTrue(
+            "失败必须回滚，不得写入 mailRecords（否则会显示已领取但无物品）",
+            stateStore.gameData.value.mailRecords.none { it.mailId == testMailId }
+        )
+    }
+
     // ============================================================
     // claimAttachment — 其他边界条件
     // ============================================================

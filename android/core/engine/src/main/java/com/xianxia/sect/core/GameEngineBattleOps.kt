@@ -357,7 +357,12 @@ private fun GameEngine.occupySectRewards(
             // 宗门被占领后与其相关的所有附属关系一并清除
             vassalContracts = gameData.vassalContracts.filter { it.vassalSectId != sectId },
             suzerainSectId = if (gameData.suzerainSectId == sectId)
-                "" else gameData.suzerainSectId
+                "" else gameData.suzerainSectId,
+            // 预存问题根治：记录"玩家持有（占领）宗门"权威标记（isOwned）——独立于
+            // worldMapSects，随存档持久化且不被世界重生清除，供归一化/净化/重生保留判定。
+            sectDetails = gameData.sectDetails + (sectId to (
+                gameData.sectDetails[sectId] ?: SectDetail(sectId = sectId)
+            ).copy(isOwned = true))
         )
         grantWarRewardsInside(this, rewards)
         recordGameEvent(

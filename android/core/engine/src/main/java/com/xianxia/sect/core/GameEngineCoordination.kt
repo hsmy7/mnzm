@@ -211,6 +211,10 @@ private suspend fun GameEngine.regenerateAllWorldSects(sectName: String) {
         "从 FixedSectPositions 重生 worldMapSects (sectName=$sectName)")
     val generationResult = WorldMapGenerator.generateWorldSects(sectName)
     val newRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
+    // 问题1 选项2：世界重生保留玩家占领状态——按 sectDetails.isOwned（持久化、不随重生被清）
+    // 推导玩家持有宗门，在重新生成的 roster 上重标 isPlayerOccupied，避免占领进度被重生抹掉
+    //（预存问题1）。驻军槽位随重生丢失，交由玩家重新驻守。
+    val playerSectId = generationResult.sects.find { it.isPlayerSect }?.id ?: ""
     stateStore.update {
         // D26（2026-08-05）合并式重生：sectRelations 按 sectId 合并保留存量——
         // 此前整体替换重置外交关系（结盟/附庸/敌对清空）；重生触发原因若是
@@ -220,8 +224,15 @@ private suspend fun GameEngine.regenerateAllWorldSects(sectName: String) {
         val mergedRelations = newRelations.map { newRel ->
             oldByKey[relationKey(newRel)] ?: newRel
         }
+        val playerOwnedSectIds = derivePlayerOwnedSectIds(gameData.sectDetails, gameData.worldMapSects)
         gameData = gameData.copy(
-            worldMapSects = generationResult.sects,
+            worldMapSects = generationResult.sects.map { sect ->
+                if (sect.id in playerOwnedSectIds) {
+                    sect.copy(isPlayerOccupied = true, occupierSectId = playerSectId)
+                } else {
+                    sect
+                }
+            },
             sectRelations = mergedRelations,
             aiSectDisciples = if (gameData.aiSectDisciples.isEmpty())
                 generationResult.aiSectDisciples else gameData.aiSectDisciples
@@ -810,10 +821,12 @@ suspend fun GameEngine.enterSect(sectId: String) {
             // B4（R3 已知瞬态不修）：enterSect 后 UI 侧建筑索引（LaunchedEffect）异步重建，
             // 切换瞬间可能有单次点击落在旧索引上——无累积损坏，由 onTap 诊断日志观测。
             val worldSects = gameData.worldMapSects
+            // 问题1 选项2：推导"玩家持有（占领）宗门"权威集合，归一化/净化以其为准。
+            val playerOwnedSectIds = derivePlayerOwnedSectIds(gameData.sectDetails, worldSects)
             val norm = normalizeOrphanBuildingSectIds(
-                gameData.placedBuildings, gameData.spiritMineSlots, worldSects
+                gameData.placedBuildings, gameData.spiritMineSlots, worldSects, playerOwnedSectIds
             )
-            val purified = purifyStaleActiveSectId(sectId, worldSects)
+            val purified = purifyStaleActiveSectId(sectId, worldSects, playerOwnedSectIds)
             if (norm.buildings != gameData.placedBuildings ||
                 norm.spiritMineSlots != gameData.spiritMineSlots ||
                 purified != sectId

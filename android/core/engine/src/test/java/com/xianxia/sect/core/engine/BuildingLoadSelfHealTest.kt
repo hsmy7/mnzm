@@ -4,6 +4,7 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.config.BuildingConfigModel
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
@@ -103,14 +104,14 @@ class BuildingLoadSelfHealTest {
     @Test
     fun `normalizeOrphanBuildingSectIds_orphanSectId_归入本宗`() {
         val buildings = listOf(b("灵矿场", "sect_dead", "id_1"))
-        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects)
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
         assertEquals("", result.buildings.single().sectId)
     }
 
     @Test
     fun `normalizeOrphanBuildingSectIds_existingAiSect_不动`() {
         val buildings = listOf(b("炼丹炉", "sect_1", "id_1"), b("灵矿场", "", "id_2"))
-        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects)
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
         assertEquals("sect_1", result.buildings[0].sectId)
         assertEquals("", result.buildings[1].sectId)
     }
@@ -119,7 +120,7 @@ class BuildingLoadSelfHealTest {
     fun `normalizeOrphanBuildingSectIds_conqueredSect_不动`() {
         // 玩家占领宗门的建筑有真实归属，不得并入本宗
         val buildings = listOf(b("仓库", "sect_2", "id_1"))
-        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects)
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
         assertEquals("sect_2", result.buildings.single().sectId)
     }
 
@@ -128,22 +129,22 @@ class BuildingLoadSelfHealTest {
         // 世界重生（boot Step 5）之前 worldMapSects 为空——此时归一化会误伤，
         // 跳过等下次读档收敛
         val buildings = listOf(b("灵矿场", "sect_dead", "id_1"))
-        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), emptyList())
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), emptyList(), emptySet())
         assertEquals("sect_dead", result.buildings.single().sectId)
     }
 
     @Test
     fun `normalizeOrphanBuildingSectIds_blankSectId_不动`() {
         val buildings = listOf(b("灵矿场", "", "id_1"))
-        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects)
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
         assertEquals("", result.buildings.single().sectId)
     }
 
     @Test
     fun `normalizeOrphanBuildingSectIds_idempotent_两次归一化结果一致`() {
         val buildings = listOf(b("灵矿场", "sect_dead", "id_1"), b("炼丹炉", "sect_1", "id_2"))
-        val first = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects)
-        val second = normalizeOrphanBuildingSectIds(first.buildings, first.spiritMineSlots, worldSects)
+        val first = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
+        val second = normalizeOrphanBuildingSectIds(first.buildings, first.spiritMineSlots, worldSects, emptySet())
         assertEquals(first.buildings, second.buildings)
         assertEquals("", second.buildings[0].sectId)
     }
@@ -152,15 +153,89 @@ class BuildingLoadSelfHealTest {
     fun `normalizeOrphanBuildingSectIds_mineSlot_orphanSectId同步归空`() {
         val buildings = listOf(b("灵矿场", "sect_dead", "id_1"))
         val slots = listOf(SpiritMineSlot(index = 0, sectId = "sect_dead", buildingInstanceId = "id_1"))
-        val result = normalizeOrphanBuildingSectIds(buildings, slots, worldSects)
+        val result = normalizeOrphanBuildingSectIds(buildings, slots, worldSects, emptySet())
         assertEquals("", result.spiritMineSlots.single().sectId)
     }
 
     @Test
     fun `normalizeOrphanBuildingSectIds_mineSlot_existingSect不动`() {
         val slots = listOf(SpiritMineSlot(index = 0, sectId = "sect_1"))
-        val result = normalizeOrphanBuildingSectIds(emptyList(), slots, worldSects)
+        val result = normalizeOrphanBuildingSectIds(emptyList(), slots, worldSects, emptySet())
         assertEquals("sect_1", result.spiritMineSlots.single().sectId)
+    }
+
+    @Test
+    fun `normalizeOrphanBuildingSectIds_rosterBulkDiverged_跳过不误归主宗`() {
+        // 问题1 选项1 守卫：roster 非空但建筑引用多个（≥2）不在 roster 的宗门 id →
+        // 判定严重失配（世界重生/重型数据分叉异常态），跳过归一化、保留原 sectId；
+        // 否则"占领宗门内建建筑"会被误归 ""（主宗），显示到主宗地图。
+        val buildings = listOf(
+            b("仓库", "sect_x", "id_1"),
+            b("灵矿场", "sect_y", "id_2")
+        )
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
+        assertEquals("严重失配需保留占用宗门归属", "sect_x", result.buildings[0].sectId)
+        assertEquals("严重失配需保留占用宗门归属", "sect_y", result.buildings[1].sectId)
+    }
+
+    @Test
+    fun `normalizeOrphanBuildingSectIds_rosterBulkDiverged_mineSlots同步保留`() {
+        // 失配（≥2 个引用宗门缺失）同样作用于矿场槽位（与建筑同源 stamp），槽位 sectId 不被清空。
+        val buildings = listOf(
+            b("灵矿场", "sect_x", "id_1"),
+            b("仓库", "sect_y", "id_2")
+        )
+        val slots = listOf(SpiritMineSlot(index = 0, sectId = "sect_x", buildingInstanceId = "id_1"))
+        val result = normalizeOrphanBuildingSectIds(buildings, slots, worldSects, emptySet())
+        assertEquals("严重失配时矿场槽位归属保留", "sect_x", result.spiritMineSlots.single().sectId)
+    }
+
+    @Test
+    fun `normalizeOrphanBuildingSectIds_playerOwnedSectMissingFromRoster_保留归属`() {
+        // 问题1 选项2：玩家持有（占领）宗门缺失于 roster 时，建筑归属须保留（不误归主宗）——
+        // playerOwnedSectIds 为独立权威（sectDetails.isOwned）。此场景是单个被占宗门缺失
+        //（此前 ≥2 阈值守卫覆盖不到，且正是"只剩一个被占宗门"的常见报障场景）。
+        val buildings = listOf(b("仓库", "sect_x", "id_1"))
+        val result = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, setOf("sect_x"))
+        assertEquals("玩家持有宗门缺失于 roster 仍保留归属", "sect_x", result.buildings.single().sectId)
+    }
+
+    @Test
+    fun `normalizeOrphanBuildingSectIds_playerOwnedSect_mineSlot同步保留`() {
+        val buildings = listOf(b("灵矿场", "sect_x", "id_1"))
+        val slots = listOf(SpiritMineSlot(index = 0, sectId = "sect_x", buildingInstanceId = "id_1"))
+        val result = normalizeOrphanBuildingSectIds(buildings, slots, worldSects, setOf("sect_x"))
+        assertEquals("sect_x", result.spiritMineSlots.single().sectId)
+    }
+
+    @Test
+    fun `derivePlayerOwnedSectIds_sectDetailsIsOwned和worldMapSectsOccupied合并`() {
+        val details = mapOf("sect_a" to SectDetail(sectId = "sect_a", isOwned = true))
+        val sects = listOf(
+            WorldSect(id = "sect_b", isPlayerOccupied = true),
+            WorldSect(id = "sect_c")
+        )
+        val derived = derivePlayerOwnedSectIds(details, sects)
+        assertEquals("isOwned 与 isPlayerOccupied 合并去重", setOf("sect_a", "sect_b"), derived)
+    }
+
+    @Test
+    fun `backfillPlayerOwnedSectDetails_为当前占领宗门补标isOwned_幂等`() {
+        val details = mapOf("sect_a" to SectDetail(sectId = "sect_a", isOwned = true))
+        val sects = listOf(
+            WorldSect(id = "sect_a", isPlayerOccupied = true),
+            WorldSect(id = "sect_b", isPlayerOccupied = true)
+        )
+        val backfilled = backfillPlayerOwnedSectDetails(details, sects)
+        assertTrue("已持有宗门不动", backfilled["sect_a"]?.isOwned == true)
+        assertTrue("现状占领宗门补标 isOwned", backfilled["sect_b"]?.isOwned == true)
+        assertEquals("幂等：重复回填结果一致", backfilled, backfillPlayerOwnedSectDetails(backfilled, sects))
+    }
+
+    @Test
+    fun `purifyStaleActiveSectId_playerOwnedSectMissingFromRoster_保留`() {
+        // 预存问题3：玩家持有（占领）宗门缺失于 roster 时净化保留 activeSectId，不锁回主宗视角。
+        assertEquals("sect_x", purifyStaleActiveSectId("sect_x", worldSects, setOf("sect_x")))
     }
 
     // ================================================================
@@ -169,34 +244,34 @@ class BuildingLoadSelfHealTest {
 
     @Test
     fun `purifyStaleActiveSectId_blank_原样返回`() {
-        assertEquals("", purifyStaleActiveSectId("", worldSects))
+        assertEquals("", purifyStaleActiveSectId("", worldSects, emptySet()))
     }
 
     @Test
     fun `purifyStaleActiveSectId_nonExistentSect_归空`() {
-        assertEquals("", purifyStaleActiveSectId("sect_dead", worldSects))
+        assertEquals("", purifyStaleActiveSectId("sect_dead", worldSects, emptySet()))
     }
 
     @Test
     fun `purifyStaleActiveSectId_lostSect_归空`() {
         // 宗门存在但玩家已失守（非玩家持有）→ 残留 id 归空
-        assertEquals("", purifyStaleActiveSectId("sect_3", worldSects))
+        assertEquals("", purifyStaleActiveSectId("sect_3", worldSects, emptySet()))
     }
 
     @Test
     fun `purifyStaleActiveSectId_occupiedSect_保留`() {
-        assertEquals("sect_2", purifyStaleActiveSectId("sect_2", worldSects))
+        assertEquals("sect_2", purifyStaleActiveSectId("sect_2", worldSects, emptySet()))
     }
 
     @Test
     fun `purifyStaleActiveSectId_playerSect_保留`() {
-        assertEquals("player_sect", purifyStaleActiveSectId("player_sect", worldSects))
+        assertEquals("player_sect", purifyStaleActiveSectId("player_sect", worldSects, emptySet()))
     }
 
     @Test
     fun `purifyStaleActiveSectId_emptyWorldSects_归空`() {
         // 世界损坏待重生——任何残留 id 必无效
-        assertEquals("", purifyStaleActiveSectId("sect_1", emptyList()))
+        assertEquals("", purifyStaleActiveSectId("sect_1", emptyList(), emptySet()))
     }
 
     // ================================================================
@@ -224,7 +299,7 @@ class BuildingLoadSelfHealTest {
         )
 
         // 第一步：归一化 → 孤儿归入本宗 ""（与炼丹炉同网格）
-        val norm = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects)
+        val norm = normalizeOrphanBuildingSectIds(buildings, emptyList(), worldSects, emptySet())
         assertEquals("", norm.buildings[0].sectId)
 
         // 第二步：溢出迁移（按归一化后的 sectId 分组）→ 造价低的灵矿场被拆除

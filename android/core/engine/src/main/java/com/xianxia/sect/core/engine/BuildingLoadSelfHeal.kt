@@ -5,6 +5,7 @@ import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
@@ -34,6 +35,14 @@ data class MigrationResult(
 )
 
 private const val TAG = "BuildingSelfHeal"
+
+/**
+ * 问题1 选项1 守卫阈值：建筑/矿场槽位引用的宗门 id 在 worldMapSects 中缺失数
+ * 达到该值时，判定 roster 与建筑"严重失配"（世界重生/重型数据分叉异常态），
+ * 跳过归一化并保留原 sectId（而非静默归 "" 主宗）。单个真孤儿（缺失 1 个）仍归一化，
+ * 保证正常"宗门被摧毁→建筑归主宗恢复"语义不回归。
+ */
+private const val ORPHAN_BULK_DIVERGE_THRESHOLD = 2
 
 /**
  * 旧版住所显示名（2026-08-19 改名前的存档值）。
@@ -81,6 +90,46 @@ internal fun normalizeResidenceDisplayNames(
 }
 
 /**
+ * 推导"玩家持有（占领）宗门"权威 id 集合（问题1 选项2 根因）。
+ *
+ * 由 [SectDetail.isOwned]（持久化、不随世界重生被清）∪ [WorldSect.isPlayerOccupied]
+ * （当前占领状态）合成——作为归一化 / activeSectId 净化 / 世界重生保留判定的事实来源，
+ * 独立于可能分叉 / 重生的 worldMapSects。
+ *
+ * @param sectDetails 宗门详情（Map<宗门id, SectDetail>）
+ * @param worldSects 当前世界宗门列表
+ * @return 玩家持有（占领）宗门 id 集合
+ */
+internal fun derivePlayerOwnedSectIds(
+    sectDetails: Map<String, SectDetail>,
+    worldSects: List<WorldSect>
+): Set<String> = (
+    worldSects.filter { it.isPlayerOccupied }.map { it.id } +
+        sectDetails.filterValues { it.isOwned }.keys
+).toSet()
+
+/**
+ * 存量存档回填：把当前"正在被玩家占领"（[WorldSect.isPlayerOccupied]）的宗门在
+ * [SectDetail.isOwned] 上补标为已持有——否则老档的占领状态只存在于 worldMapSects
+ * （会被世界重生清除），未来重生死后占领进度仍会丢失。幂等：已是 isOwned 的项不动。
+ *
+ * @param sectDetails 宗门详情（Map<宗门id, SectDetail>）
+ * @param worldSects 当前世界宗门列表
+ * @return 回填后的宗门详情
+ */
+internal fun backfillPlayerOwnedSectDetails(
+    sectDetails: Map<String, SectDetail>,
+    worldSects: List<WorldSect>
+): Map<String, SectDetail> {
+    val occupiedIds = worldSects.filter { it.isPlayerOccupied }.map { it.id }
+    if (occupiedIds.isEmpty()) return sectDetails
+    return occupiedIds.fold(sectDetails) { acc, id ->
+        if (acc[id]?.isOwned == true) acc
+        else acc + (id to (acc[id] ?: SectDetail(sectId = id)).copy(isOwned = true))
+    }
+}
+
+/**
  * D-13：将"无对应宗门"的孤儿建筑归入本宗（""）。
  *
  * 仅处理 `sectId` 非空且不在 [worldSects] 中的建筑——`sectId=""`（本宗）与对应现存
@@ -91,21 +140,54 @@ internal fun normalizeResidenceDisplayNames(
  * @param buildings 全局建筑列表（跨宗门）
  * @param spiritMineSlots 灵矿场槽位列表
  * @param worldSects 当前世界宗门列表（含 isPlayerSect/isPlayerOccupied 标记）
+ * @param playerOwnedSectIds 玩家持有（占领）宗门 id 集合——独立于 roster 的权威标记
+ *   （sectDetails.isOwned ∪ worldMapSects.isPlayerOccupied），用于被占宗门缺失于 roster 时保留归属
  * @return 归一化后的建筑与槽位
  */
 internal fun normalizeOrphanBuildingSectIds(
     buildings: List<GridBuildingData>,
     spiritMineSlots: List<SpiritMineSlot>,
-    worldSects: List<WorldSect>
+    worldSects: List<WorldSect>,
+    playerOwnedSectIds: Set<String>
 ): SectNormalizationResult {
     if (worldSects.isEmpty()) return SectNormalizationResult(buildings, spiritMineSlots)
     val existingIds = worldSects.mapTo(mutableSetOf()) { it.id }
-    val normalized = buildings.map { b ->
-        if (b.sectId.isNotEmpty() && b.sectId !in existingIds) b.copy(sectId = "") else b
+
+    // 问题1 完整根因（选项2）：playerOwnedSectIds 是独立于 roster 的"玩家持有宗门"权威——
+    // 凡建筑 sectId 属于其中即保留，绝不静默归 ""（主宗），因为主宗 activeSectId="" 只显示
+    // sectId=="" 的建筑，赋 "" 正是"占领宗门内建建筑跑到主宗地图显示"的直接成因。
+    // 仅"真正孤儿"（既不在 worldMapSects、也不属玩家持有）才归并主宗（恢复语义）。
+    // 辅助守卫：roster 与建筑 sectId 集合"严重失配"（≥2 个非玩家持有引用宗门缺失，
+    // 世界重生/重型数据分叉异常态）时跳过归一化并保留原值+告警，避免异常态下大规模
+    // 改写制造不可逆误归。
+    val referencedSectIds = (buildings.map { it.sectId } + spiritMineSlots.map { it.sectId })
+        .filter { it.isNotEmpty() }
+        .toSet()
+    val missingSectIds = referencedSectIds - existingIds
+    val divergedOrphanIds = missingSectIds - playerOwnedSectIds
+    val rosterDiverged = divergedOrphanIds.size >= ORPHAN_BULK_DIVERGE_THRESHOLD
+    if (rosterDiverged) {
+        DomainLog.w(
+            TAG,
+            "sectId 归一化跳过：roster 与建筑严重失配（缺失非持有宗门 $divergedOrphanIds，" +
+                "引用宗门=${referencedSectIds.size}，现存=${existingIds.size}）——保留原 sectId"
+        )
     }
-    val normalizedSlots = if (normalized != buildings) {
+
+    val normalized = if (rosterDiverged) buildings else buildings.map { b ->
+        if (b.sectId.isNotEmpty() && b.sectId !in existingIds && b.sectId !in playerOwnedSectIds) {
+            b.copy(sectId = "")
+        } else {
+            b
+        }
+    }
+    val normalizedSlots = if (!rosterDiverged && normalized != buildings) {
         spiritMineSlots.map { s ->
-            if (s.sectId.isNotEmpty() && s.sectId !in existingIds) s.copy(sectId = "") else s
+            if (s.sectId.isNotEmpty() && s.sectId !in existingIds && s.sectId !in playerOwnedSectIds) {
+                s.copy(sectId = "")
+            } else {
+                s
+            }
         }
     } else {
         spiritMineSlots
@@ -126,12 +208,20 @@ internal fun normalizeOrphanBuildingSectIds(
  *
  * @param activeSectId 当前存档中的 activeSectId
  * @param worldSects 当前世界宗门列表
+ * @param playerOwnedSectIds 玩家持有（占领）宗门 id 集合（见 [derivePlayerOwnedSectIds]）
  * @return 净化后的 activeSectId
  */
-internal fun purifyStaleActiveSectId(activeSectId: String, worldSects: List<WorldSect>): String {
+internal fun purifyStaleActiveSectId(
+    activeSectId: String,
+    worldSects: List<WorldSect>,
+    playerOwnedSectIds: Set<String>
+): String {
     if (activeSectId.isEmpty()) return activeSectId
+    // 预存问题3：玩家持有（占领）宗门即使 roster 缺失（世界重生/重型数据分叉）也保留
+    // activeSectId——否则玩家被"锁"回主宗视角，其宗门地图建筑全部不可见/不可点。
+    val playerOwnedKeep = activeSectId in playerOwnedSectIds
     val sect = if (worldSects.isEmpty()) null else worldSects.find { it.id == activeSectId }
-    val keep = sect != null && (sect.isPlayerSect || sect.isPlayerOccupied)
+    val keep = playerOwnedKeep || (sect != null && (sect.isPlayerSect || sect.isPlayerOccupied))
     if (!keep) {
         DomainLog.w(TAG, "activeSectId 净化：\"$activeSectId\" 非玩家持有宗门，归回本宗")
     }

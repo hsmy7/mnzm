@@ -72,6 +72,22 @@
 - **DiffSectAttackDecisionTest（BATTLE 序列跨语言锁序，续作完成）**：桌面对拍桥 `GameCoreJni.cpp` 加 `nativeCoreCheckAttackConditions`/`nativeCoreDecidePlayerAttack` + `DiffRngBridge` externs；新建 `DiffSectAttackDecisionTest` 2 场景（checkAttackConditions + decidePlayerAttack）——Kotlin（authoritative=OFF 参照臂）vs C++ 直调逐位断言：决策一致 + BATTLE 分区终态逐位一致 + 门通过恰抽 1 次。**途中根因修复**：`isPlayerProtected` 为 Kotlin 计算属性（playerProtectionEnabled/startYear/hasAttackedAI 派生），非协议字段——C++ 原加 bool 字段不匹配，改在 `decidePlayerAttack` 按同式派生（移除字段 + codec）。
 - **G7-2 收尾（2026-09）**：AI 攻击决策下沉 + 生产路由 + Diff 锁序 + GTest 全部完成——战斗残余·宗门战副引擎（G7）闭合。
 
+### 修复（玩家反馈四问题验证与修复）
+
+> 对玩家反馈的 4 个问题做静态验证 + 修复。结论：① 真实 ② Kotlin 链路无 bug（次级缺陷已修，native 暂停待真机验证）③ 部分真实 ④ Kotlin 路径无崩溃（疑似 SDK/OS 层，待崩溃栈）。
+
+- **占领宗门内建建筑跑到主宗地图（真实，已根治——含预存问题1/3 一并解决）**：根因是归一化/净化以 `worldMapSects` 为权威，而它可能分叉/重生而缺失被占宗门 id。引入**独立权威集合** `derivePlayerOwnedSectIds`（`sectDetails.isOwned` ∪ `worldMapSects.isPlayerOccupied`；`sectDetails` 随存档持久化、不随世界重生清除）：
+  - `normalizeOrphanBuildingSectIds`：凡建筑 sectId 属玩家持有即保留，绝不静默归 ""（主宗）；仅"真正孤儿"（不在 roster 且非玩家持有）才归并主宗恢复。**单个被占宗门缺失也受保护**（此前 ≥2 阈值守卫覆盖不到）。
+  - `purifyStaleActiveSectId`：玩家持有宗门即使 roster 缺失也保留 `activeSectId`（**预存问题3**——否则玩家被"锁"回主宗视角、宗门地图建筑全不可见）。
+  - 占领时置 `sectDetails[sectId].isOwned=true`、被夺回时清 false（`occupySectRewards` 交 / `AISectOccupationResolver`）。
+  - 世界重生 `regenerateAllWorldSects` 按玩家持有集合重标 `isPlayerOccupied`——**占领进度不再被重生抹掉**（**预存问题1**）。
+  - 存量存档回填 `backfillPlayerOwnedSectDetails`（把当前 `isPlayerOccupied` 补标为 isOwned，幂等）。
+  - 保留 `rosterDiverged` 护卫（roster 与建筑严重失配即跳过 + 告警，防异常态大规模误归）。
+- **暂停按钮（Kotlin 链路无 bug，次级缺陷已修）**：主链路（togglePause→pause()→isPaused→循环暂停分支）自洽并经对拍锁定（无死锁/无状态分裂/循环同源响应）。修复：① `togglePause` TOCTOU——`wasPaused` 读取移入 `launchOnEngine` 引擎线程块，与写入原子化，消除连点/并发读到陈旧值→把刚设的暂停又恢复；② `setTimeSpeed` 暂停中不再自动 `resume`（原实现切倍速会解除暂停）；③ 删除死代码 `SaveLoadPauseDelegate`（`UnusedPrivateProperty`）。**待办**：AUTHORITATIVE 生产 `.so` 的暂停契约（`nativeLoopFrame` paused 入参）是否真正冻结时间需真机验证（`DiffEngineLoopTest: L216-223` 仅锁定对拍桥）。
+- **邮件领取（部分真实）**：① 「领取成功但仓库无物品」根因——`distributeAttachmentsInline` 的 `when(attachment.type)` 无 `else`，未知类型（服务端别名/新增类型）静默跳过、事务照常提交 → 领取标记成功但物品未入库；修复加 `else` 抛异常回滚（凭据类失败响亮且保留可重试）+ `MailDelegate.claimMailAttachment` 诊断 try/catch。② 「领取失败重启后成功」无法用链路确定性解释——容量失败是永久的，重启不修复，更可能是玩家清仓后重试或 UI 吞掉的非确定异常（已增强诊断）。③ `spiritHerbs` 发放到 `gameData.spiritHerbs`（L505-509）但仓库页 `WarehouseTab` 不展示（显示入口不一致，非数据丢失），列为 UX 后续。
+- **玉符广告重启（Kotlin 路径无崩溃）**：发放路径线程安全（`launchOnEngine` 派发引擎线程，主线程守卫不触发，无 check/require，不触发存档/读档/重载）；疑似 `com.tapsdk.tapad.*` 广告 SDK 崩溃或 OS 杀进程——`TapTapCrashGuard.isSuppressible`（L50-65）只匹配 `contains("taptap")`，未覆盖 `tapsdk`/`tapad`。**待真机崩溃栈确认后对症**（扩展 Guard 匹配 + 内存缓解 + Activity 生命周期审计），本批未改。
+- **验证**：`compileReleaseKotlin` 全绿 · `:core:engine`/`:feature:game`/`:app` detekt 全绿 · `BuildingLoadSelfHealTest`（新增 7 用例：孤儿归属/严重失配保留/玩家持有缺失保留/矿场槽位派生平/推导与回填/净化保留）/`MailServiceTest`（新增未知类型用例）/`SaveLoadViewModelLoadTest`（新增 setTimeSpeed 用例）/`BootSequenceControllerTest`/`GameEngineCoordinationTest`/`AISectBattleProcessorTest`/`GameEngineSectConvergenceTest` 全部通过 · 游戏内 `changelog_entries.json` 同步 4.01.12 条目
+
 
 ## [4.01.11] - 2026-08-29
 

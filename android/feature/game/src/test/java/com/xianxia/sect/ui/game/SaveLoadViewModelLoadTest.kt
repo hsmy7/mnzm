@@ -904,4 +904,18 @@ class SaveLoadViewModelLoadTest {
             viewModel.cloudSaveOperationState.value is CloudSaveOperationState.Error
         )
     }
+
+    @Test
+    fun `setTimeSpeed - paused state does not auto resume (fix)`() = runTest(testDispatcher) {
+        // 问题2 修复：暂停中调倍速不再自动恢复（原实现暂停态下 setTimeSpeed 会强制
+        // gameEngineCore.resume()，违背玩家意图，表现即"暂停却仍被解除"）。
+        every { stateStore.isPaused } returns MutableStateFlow(true)
+        every { gameEngineCore.isPausedDirect } returns true
+
+        viewModel.setTimeSpeed(2)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { gameEngineCore.resume() }
+        assertEquals("仅反馈 UI 倍速，不触发恢复", 2, viewModel.timeScale.value)
+    }
 }

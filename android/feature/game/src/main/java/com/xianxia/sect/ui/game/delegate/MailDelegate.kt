@@ -1,10 +1,12 @@
 package com.xianxia.sect.ui.game.delegate
 
+import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.RewardCardItem
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +23,10 @@ class MailDelegate(
     private val onShowError: (String) -> Unit = {}
 ) {
 
+    companion object {
+        private const val TAG = "MailDelegate"
+    }
+
     private val currentSlotId: Int get() = gameEngine.gameData.value?.slotId ?: 0
 
     val mails: StateFlow<List<MailEntity>> get() = mailService.activeMails
@@ -32,9 +38,20 @@ class MailDelegate(
     val mailRewardCards: StateFlow<List<RewardCardItem>> = _mailRewardCards.asStateFlow()
     private val mailCardQueueMutex = Mutex()
 
+    @Suppress("TooGenericExceptionCaught") // 防御兜底：领取路径不可预期异常须记录并让玩家可重试（CancellationException 已先重抛）
     fun claimMailAttachment(mailId: String, onResult: (ClaimResult) -> Unit = {}) {
         gameEngine.launchOnEngine {
-            val result = mailService.claimAttachment(mailId, currentSlotId)
+            // 诊断增强（问题3）：区分"引擎协程抛异常被吞→玩家无反应"与"正常失败→弹窗"。
+            // 正常情况下 claimAttachment 不抛异常（业务失败走 ClaimResult 三态），
+            // 一旦抛出说明存在未预期路径（如领取并发/状态损坏），须记录并让玩家可重试。
+            val result = try {
+                mailService.claimAttachment(mailId, currentSlotId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "claimAttachment failed: mailId=$mailId", e)
+                ClaimResult.DistributeFailed("领取失败，请重试")
+            }
             if (result is ClaimResult.Success && result.cards.isNotEmpty()) {
                 _mailRewardCards.value = result.cards
             }

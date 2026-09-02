@@ -132,10 +132,16 @@ class BootSequenceController @Inject constructor(
             // 为空时归一化自动跳过（防误伤），下次读档收敛。
             var legacyTianshuHalls: List<GridBuildingData> = emptyList()
             gameEngine.updateGameData { data ->
+                // 问题1 选项2：推导"玩家持有（占领）宗门"权威集合（sectDetails.isOwned ∪ isPlayerOccupied），
+                // 归一化/净化以其为准——被占宗门缺失于 roster 时保留归属而非误归主宗。
+                val playerOwnedSectIds = derivePlayerOwnedSectIds(data.sectDetails, data.worldMapSects)
                 val norm = normalizeOrphanBuildingSectIds(
-                    data.placedBuildings, data.spiritMineSlots, data.worldMapSects
+                    data.placedBuildings, data.spiritMineSlots, data.worldMapSects, playerOwnedSectIds
                 )
-                val purified = purifyStaleActiveSectId(data.activeSectId, data.worldMapSects)
+                val purified = purifyStaleActiveSectId(data.activeSectId, data.worldMapSects, playerOwnedSectIds)
+                // 存量存档回填：老档占领状态目前仅存于 worldMapSects.isPlayerOccupied（会被世界重生清除），
+                // 补标 sectDetails.isOwned（持久化、不随重生清除），保证未来重生死后占领进度不丢。
+                val backfilledSectDetails = backfillPlayerOwnedSectDetails(data.sectDetails, data.worldMapSects)
                 // 2026-08-23：旧档遗留天枢殿识别（占地尺寸与当前配置不符）——必须在 fixup
                 // 之前判定（fixup 会把尺寸统一修正为当前配置，先判定才能识别旧档遗留）；
                 // 删除 + 补偿邮件（1000 万灵石）由 Step 3.1 编排（先发邮件成功再删建筑）
@@ -153,14 +159,16 @@ class BootSequenceController @Inject constructor(
                 val mineSlotsChanged = norm.spiritMineSlots != data.spiritMineSlots
                 val namesRenamed = renamedBuildings != withIds
                 val countersChanged = renamedCounters != data.guideCounters
+                val sectDetailsChanged = backfilledSectDetails != data.sectDetails
                 val anySelfHealChanged = buildingsChanged || activeSectChanged || mineSlotsChanged ||
-                    namesRenamed || countersChanged
+                    namesRenamed || countersChanged || sectDetailsChanged
                 if (anySelfHealChanged) {
                     data.copy(
                         placedBuildings = renamedBuildings,
                         activeSectId = purified,
                         spiritMineSlots = norm.spiritMineSlots,
-                        guideCounters = renamedCounters
+                        guideCounters = renamedCounters,
+                        sectDetails = backfilledSectDetails
                     )
                 } else {
                     data

@@ -40,7 +40,6 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.ui.components.AtlasResult
-import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
@@ -67,7 +66,6 @@ class SaveLoadViewModel @Inject constructor(
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
     private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, persistenceFacade.storageFacade, stateStore) }
-    private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
 
     companion object {
         private const val TAG = SaveLoadViewModelConstants.TAG
@@ -2067,16 +2065,20 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun togglePause() {
-        val wasPaused = stateStore.isPaused.value
+        // 问题2 修复（TOCTOU）：wasPaused 的读取与 pause/resume 写入必须同在引擎线程，
+        // 原子化——否则主线程读旧值 + 异步派发，连续点击/并发写会读到陈旧值，
+        // 第二次点击把刚设的暂停又恢复（表现即"点了暂停游戏还在跑"）。
         gameEngine.launchOnEngine {
+            val wasPaused = stateStore.isPaused.value
             if (wasPaused) {
                 gameEngineCore.resume()
             } else {
                 gameEngineCore.pause()
             }
-        }
-        if (wasPaused && !gameEngineCore.isGameLoopRunning) {
-            startGameLoop()
+            // resume 且循环未运行时须重启循环（同引擎线程判断，避免与上面读取竞态）
+            if (wasPaused && !gameEngineCore.isGameLoopRunning) {
+                startGameLoop()
+            }
         }
     }
 
@@ -2096,14 +2098,10 @@ class SaveLoadViewModel @Inject constructor(
         val clamped = speed.coerceIn(1, 2)
         _timeScale.value = clamped  // UI 即时反馈
         gameClock.setSpeed(clamped)
-        if (gameEngineCore.isPausedDirect) {
-            gameEngine.launchOnEngine {
-                gameEngineCore.resume()
-            }
-            if (!gameEngineCore.isGameLoopRunning) {
-                startGameLoop()
-            }
-        }
+        // 问题2 修复：暂停中调速度不再自动恢复。用户处于暂停态时调整倍速，
+        // 期望的是"暂停不变，仅调整恢复后的速度"——自动 resume 会违背意图，
+        // 导致"暂停却仍被解除"的观感（暂停按钮无效）。
+        // 恢复时机由玩家显式点击"继续"控制。
     }
 
     fun resetAllDisciplesStatus() {

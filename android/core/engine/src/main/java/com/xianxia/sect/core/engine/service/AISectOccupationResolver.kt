@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
@@ -194,7 +195,11 @@ class AISectOccupationResolver @Inject constructor(
                             result.survivingAttackers
                         )
                     ) else s
-                }
+                },
+                // 预存问题根治：被夺回时同步清"玩家持有（占领）宗门"权威标记（isOwned）。
+                sectDetails = updatedData.sectDetails + (result.defenderSectId to (
+                    updatedData.sectDetails[result.defenderSectId] ?: SectDetail(sectId = result.defenderSectId)
+                ).copy(isOwned = false))
             )
         } else {
             updatedData.copy(
