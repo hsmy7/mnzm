@@ -217,8 +217,12 @@ TEST(YearSettlementTest, GhostBlankNameDiscipleSkipped) {
     EXPECT_EQ(0L, st.disciples.materialize(0).storageBagSpiritStones);
 }
 
-TEST(YearSettlementTest, YearChangeConsumesZeroRng) {
-    // 年变全程零 RNG 抽取：跨年后全部分区快照 == 播种初值
+TEST(YearSettlementTest, YearChangeConsumesOnlySystemPartition) {
+    // 批 Y-4b（T2-③ 商人收购）下沉后年变行为基线：T2-③ 收购刷新每年
+    // 消费 SYSTEM 分区（数量 1×nextInt(9) + 每 item 品阶/选池/库存/grade/
+    // 价格波动）；其余 8 分区（BATTLE/BREAKTHROUGH/EXPLORATION/ENEMY_GEN/
+    // MAIL/AI_SECT/SECRET_REALM/MISSION）保持播种初值不变（零消耗）。
+    // 场景无 sectDetails/worldMapSects → T2-④ 交易刷新与 T2-② AI 招募零效果。
     const int64_t seed = 77;
     auto core = makeCore(seed);
     auto& st = core->state();
@@ -226,9 +230,21 @@ TEST(YearSettlementTest, YearChangeConsumesZeroRng) {
     st.gameData.gameMonth = 12;
     st.gameData.gamePhase = 2;
 
+    const auto sysBefore =
+        core->rng().getRng(rng::RngPartition::kSystem).snapshot();
     core->advancePhases(1);
 
-    expectAllPartitionsUnchanged(*core, seed);
+    // SYSTEM 分区被 T2-③ 消耗
+    EXPECT_NE(sysBefore,
+              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
+    // 其余分区不变（遍历 0..8 跳过 SYSTEM）
+    for (int p = 0; p < 9; ++p) {
+        if (p == static_cast<int>(rng::RngPartition::kSystem)) continue;
+        auto fresh = rng::DeterministicRng::fromSeed(seed + p);
+        EXPECT_EQ(fresh.snapshot(),
+                  core->rng().getRng(static_cast<rng::RngPartition>(p)).snapshot())
+            << "partition " << p;
+    }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1093,6 +1109,306 @@ TEST(YearSettlementTest, Y3T1AgingSlotCleanupClearsElder) {
 
     EXPECT_EQ(0u, st.disciples.size());
     EXPECT_TRUE(st.gameData.elderSlots.recruitingElder.empty());
+}
+
+// ════════════════════════════════════════════════════════════════
+// 批 Y-4a（T2-④）：AI 宗门交易列表刷新黄金序列
+// 局部种子确定性 RNG（sectId.hashCode()+year）——**零分区 RNG 消耗**，
+// 每用例断言全部分区快照不变（抽取次数与顺序锁定的最强形式）。
+// id/itemId 为镜像生成字段（静态计数器自增），断言排除具体 id 值。
+// ════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// 构造 AI 宗门 + 详情（level 任意；tradeItems 可空）
+void addAiSect(state::GameState& st, const std::string& id, const std::string& name,
+               int32_t tradeLastRefreshYear, std::vector<state::MerchantItem> items) {
+    state::WorldSect sect;
+    sect.id = id;
+    sect.name = name;
+    sect.isPlayerSect = false;
+    st.gameData.worldMapSects.push_back(sect);
+    state::SectDetail detail;
+    detail.sectId = id;
+    detail.tradeLastRefreshYear = tradeLastRefreshYear;
+    detail.tradeItems = std::move(items);
+    st.gameData.sectDetails[id] = std::move(detail);
+}
+
+/// 断言两交易列表除 id/itemId 外逐字段一致（确定性验证）
+void expectTradeItemsEquivalent(const std::vector<state::MerchantItem>& a,
+                                const std::vector<state::MerchantItem>& b) {
+    ASSERT_EQ(a.size(), b.size());
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        EXPECT_EQ(a[i].name, b[i].name) << "idx " << i;
+        EXPECT_EQ(a[i].type, b[i].type) << "idx " << i;
+        EXPECT_EQ(a[i].rarity, b[i].rarity) << "idx " << i;
+        EXPECT_EQ(a[i].price, b[i].price) << "idx " << i;
+        EXPECT_EQ(a[i].quantity, b[i].quantity) << "idx " << i;
+        EXPECT_EQ(a[i].obtainedYear, b[i].obtainedYear) << "idx " << i;
+        EXPECT_EQ(a[i].obtainedMonth, b[i].obtainedMonth) << "idx " << i;
+        // grade 为 optional——分开断言（避免 GTest 对 optional 的打印依赖）
+        EXPECT_EQ(a[i].grade.has_value(), b[i].grade.has_value()) << "idx " << i;
+        if (a[i].grade.has_value() && b[i].grade.has_value()) {
+            EXPECT_EQ(*a[i].grade, *b[i].grade) << "idx " << i;
+        }
+    }
+}
+
+}  // namespace
+
+TEST(YearSettlementTest, Y4aT2SectTradeRefreshGeneratesTwentyItems) {
+    // 距上次刷新满 3 年 → 生成 20 条交易物品 + tradeLastRefreshYear 更新；
+    // 同 (sectId, year) 确定性重放非 id 字段逐字段一致；零分区 RNG 消耗
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 10;
+    addAiSect(st, "ai-1", "青云宗", /*tradeLastRefreshYear=*/0, {});
+
+    system::detail::refreshAllSectTrades(st, 10);
+
+    ASSERT_EQ(1u, st.gameData.sectDetails.size());
+    const auto& detail = st.gameData.sectDetails.at("ai-1");
+    EXPECT_EQ(10, detail.tradeLastRefreshYear);
+    ASSERT_EQ(20u, detail.tradeItems.size());
+    // 品阶降序（sortedByDescending 稳定排序）
+    for (std::size_t i = 1; i < detail.tradeItems.size(); ++i) {
+        EXPECT_GE(detail.tradeItems[i - 1].rarity, detail.tradeItems[i].rarity);
+    }
+    // 名称去重
+    std::set<std::string> names;
+    for (const auto& item : detail.tradeItems) {
+        EXPECT_TRUE(names.insert(item.name).second) << "重复名 " << item.name;
+    }
+    // 确定性：同 (sectId, year) 重放 → 非 id 字段逐字段一致
+    const auto replay = system::detail::generateSectTradeItems(10, "ai-1");
+    expectTradeItemsEquivalent(detail.tradeItems, replay);
+    // 零分区 RNG 消耗
+    expectAllPartitionsUnchanged(*core, seed);
+}
+
+TEST(YearSettlementTest, Y4aT2SectTradeRefreshSkipsWhenIntervalNotMet) {
+    // 距上次刷新 2 年（<3）且列表非空 → 不刷新（原 items 保留）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    state::MerchantItem existing;
+    existing.id = "keep";
+    existing.name = "旧物";
+    existing.type = "equipment";
+    existing.rarity = 1;
+    addAiSect(st, "ai-1", "青云宗", /*tradeLastRefreshYear=*/8, {existing});
+
+    system::detail::refreshAllSectTrades(st, 10);
+
+    ASSERT_EQ(1u, st.gameData.sectDetails.size());
+    const auto& detail = st.gameData.sectDetails.at("ai-1");
+    EXPECT_EQ(8, detail.tradeLastRefreshYear);              // 未推进
+    ASSERT_EQ(1u, detail.tradeItems.size());
+    EXPECT_EQ("旧物", detail.tradeItems[0].name);           // 原样保留
+}
+
+TEST(YearSettlementTest, Y4aT2SectTradeRefreshSkipsPlayerAndMissingDetails) {
+    // 玩家宗门跳过 + 无详情宗门跳过 + 列表空兜底刷新（lastRefresh 今年但空）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 10;
+    // 玩家宗门（有详情——不应刷新）
+    {
+        state::WorldSect player;
+        player.id = "player";
+        player.name = "玩家";
+        player.isPlayerSect = true;
+        st.gameData.worldMapSects.push_back(player);
+        state::SectDetail pd;
+        pd.sectId = "player";
+        pd.tradeLastRefreshYear = 0;
+        st.gameData.sectDetails["player"] = std::move(pd);
+    }
+    // 无详情宗门（不应刷新）
+    {
+        state::WorldSect noDetail;
+        noDetail.id = "ai-x";
+        noDetail.name = "无详情";
+        st.gameData.worldMapSects.push_back(noDetail);
+    }
+    // AI 宗门：列表空兜底（tradeLastRefreshYear 今年但 items 空 → 刷新）
+    addAiSect(st, "ai-1", "青云宗", /*tradeLastRefreshYear=*/10, {});
+
+    system::detail::refreshAllSectTrades(st, 10);
+
+    // 玩家宗门未刷新
+    EXPECT_EQ(0, st.gameData.sectDetails.at("player").tradeLastRefreshYear);
+    EXPECT_TRUE(st.gameData.sectDetails.at("player").tradeItems.empty());
+    // AI 宗门空列表兜底刷新
+    EXPECT_EQ(10, st.gameData.sectDetails.at("ai-1").tradeLastRefreshYear);
+    ASSERT_EQ(20u, st.gameData.sectDetails.at("ai-1").tradeItems.size());
+    // 无详情宗门未新增详情
+    EXPECT_EQ(0u, st.gameData.sectDetails.count("ai-x"));
+}
+
+TEST(YearSettlementTest, Y4aT2SectTradeRefreshEmptyDetailsNoOp) {
+    // sectDetails 空 → 零效果（无异常）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 10;
+    state::WorldSect sect;
+    sect.id = "ai-1";
+    sect.name = "青云宗";
+    st.gameData.worldMapSects.push_back(sect);
+
+    system::detail::refreshAllSectTrades(st, 10);
+
+    EXPECT_TRUE(st.gameData.sectDetails.empty());
+}
+
+TEST(YearSettlementTest, Y4aT2SectTradeGenerateHandlesAllTypes) {
+    // 全 7 类型生成路径覆盖：固定 (sectId, year) 下非空列表应覆盖
+    // equipment/manual/pill/material/herb/seed/spiritStone 中至少常见类型
+    //（20 条目 × 7 类型随机——统计上绝大多数类型出现；防御断言：
+    // 生成无异常 + 类型字符串合法 + 品阶/价格/数量合理）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 500;   // 高年份 → 品阶上限 6（灵石可出）
+
+    const auto items = system::detail::generateSectTradeItems(500, "ai-1");
+    ASSERT_EQ(20u, items.size());
+    static const std::set<std::string> kTypes = {
+        "equipment", "manual", "pill", "material", "herb", "seed", "spiritStone"};
+    for (const auto& item : items) {
+        EXPECT_TRUE(kTypes.count(item.type) == 1) << "非法类型 " << item.type;
+        EXPECT_GE(item.rarity, 1);
+        EXPECT_LE(item.rarity, 6);
+        EXPECT_GE(item.price, 1);
+        EXPECT_GE(item.quantity, 1);
+        EXPECT_EQ(500, item.obtainedYear);
+        EXPECT_EQ(1, item.obtainedMonth);
+        if (item.type == "pill") {
+            EXPECT_TRUE(item.grade.has_value());
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 批 Y-4b（T2-③）：商人收购刷新黄金序列
+// SYSTEM 分区消费（数量 1×nextInt(9) + 每 item 品阶/选池/库存/grade/价格）。
+// id/itemId 为镜像生成字段（静态计数器自增），断言排除具体 id 值。
+// ════════════════════════════════════════════════════════════════
+
+TEST(YearSettlementTest, Y4bT2MerchantAcquisitionGeneratesAndWrites) {
+    // 收购刷新：1..9 条 + 写回年份；SYSTEM 分区被消耗；同种子重放非 id
+    // 字段逐字段一致（确定性）
+    auto core = makeCore(42);
+    auto& st = core->state();
+    st.gameData.gameYear = 10;
+    const auto sysBefore =
+        core->rng().getRng(rng::RngPartition::kSystem).snapshot();
+
+    system::detail::refreshMerchantAcquisition(
+        st, core->rng().getRng(rng::RngPartition::kSystem), 10, 1);
+
+    EXPECT_EQ(10, st.gameData.merchantAcquisitionLastRefreshYear);
+    ASSERT_FALSE(st.gameData.merchantAcquisitionItems.empty());
+    EXPECT_LE(st.gameData.merchantAcquisitionItems.size(), 9u);
+    for (const auto& item : st.gameData.merchantAcquisitionItems) {
+        EXPECT_GE(item.rarity, 1);
+        EXPECT_LE(item.rarity, 6);
+        EXPECT_GE(item.price, 1);
+        EXPECT_GE(item.quantity, 1);
+        EXPECT_EQ(10, item.obtainedYear);
+        EXPECT_EQ(1, item.obtainedMonth);
+    }
+    // SYSTEM 分区被消耗（快照变化）
+    const auto sysAfter =
+        core->rng().getRng(rng::RngPartition::kSystem).snapshot();
+    EXPECT_NE(sysBefore, sysAfter);
+    // 确定性：同种子（SYSTEM = seed+3）重放 → 非 id 字段逐字段一致
+    auto rngA = rng::DeterministicRng::fromSeed(42 + 3);
+    auto rngB = rng::DeterministicRng::fromSeed(42 + 3);
+    state::GameState stA;
+    state::GameState stB;
+    stA.gameData.gameYear = 10;
+    stB.gameData.gameYear = 10;
+    system::detail::refreshMerchantAcquisition(stA, rngA, 10, 1);
+    system::detail::refreshMerchantAcquisition(stB, rngB, 10, 1);
+    expectTradeItemsEquivalent(stA.gameData.merchantAcquisitionItems,
+                               stB.gameData.merchantAcquisitionItems);
+}
+
+TEST(YearSettlementTest, Y4bT2MerchantAcquisitionMergeWeightedPrice) {
+    // mergeMerchantItems：同 key（name:type[:grade]）数量相加 + 加权平均价
+    //（Int 除法）；保持首次出现序；异 key 保留
+    state::MerchantItem a;
+    a.name = "聚灵丹";
+    a.type = "pill";
+    a.grade = "中品";
+    a.quantity = 2;
+    a.price = 100;
+    state::MerchantItem b;
+    b.name = "聚灵丹";
+    b.type = "pill";
+    b.grade = "中品";
+    b.quantity = 3;
+    b.price = 150;
+    state::MerchantItem c;
+    c.name = "精铁剑";
+    c.type = "equipment";
+    c.quantity = 1;
+    c.price = 4000;
+    std::vector<state::MerchantItem> items = {a, b, c};
+    const auto merged = system::detail::mergeMerchantItems(items);
+    ASSERT_EQ(2u, merged.size());
+    EXPECT_EQ("聚灵丹", merged[0].name);       // 首次出现序（非字典序）
+    EXPECT_EQ(5, merged[0].quantity);
+    EXPECT_EQ(130, merged[0].price);           // (100*2+150*3)/5 = 130
+    EXPECT_EQ("精铁剑", merged[1].name);
+    EXPECT_EQ(1, merged[1].quantity);
+    EXPECT_EQ(4000, merged[1].price);
+}
+
+TEST(YearSettlementTest, Y4bT2MerchantPoolsCoverAllCategories) {
+    // buildMerchantItemPools：六大类 + 灵石入池；rarityMap/priceMap 覆盖；
+    // 丹药池仅 MEDIUM 品阶（名去重）
+    const auto pools = system::detail::buildMerchantItemPools();
+    int total = 0;
+    for (const auto& pool : pools.poolByRarity) {
+        total += static_cast<int>(pool.size());
+    }
+    EXPECT_GT(total, 0);
+    EXPECT_TRUE(pools.rarityMap.count("精铁剑") == 1);    // 装备入池
+    EXPECT_TRUE(pools.rarityMap.count("中品灵石") == 1);
+    EXPECT_EQ(10000L, pools.priceMap.at("中品灵石"));     // RATIO
+    bool hasPill = false;
+    for (const auto& pool : pools.poolByRarity) {
+        for (const auto& e : pool) {
+            if (e.type == "pill") hasPill = true;
+        }
+    }
+    EXPECT_TRUE(hasPill);
+}
+
+TEST(YearSettlementTest, Y4bT2CreatePillItemAppliesGradePrice) {
+    // createMerchantItem 丹药：grade 随机（1×nextDouble）+ 价格 = basePrice
+    // × multiplier 后价格波动（1×nextDouble）；库存 1×nextInt
+    const auto pools = system::detail::buildMerchantItemPools();
+    std::optional<system::detail::PoolEntry> pillEntry;
+    for (const auto& pool : pools.poolByRarity) {
+        for (const auto& e : pool) {
+            if (e.type == "pill") { pillEntry = e; break; }
+        }
+        if (pillEntry.has_value()) break;
+    }
+    ASSERT_TRUE(pillEntry.has_value());
+    auto rng = rng::DeterministicRng::fromSeed(12345);
+    const auto item =
+        system::detail::createMerchantItem(*pillEntry, pools, rng, 10, 1);
+    EXPECT_EQ(pillEntry->name, item.name);
+    EXPECT_EQ("pill", item.type);
+    EXPECT_TRUE(item.grade.has_value());
+    EXPECT_GE(item.price, 1);
+    EXPECT_GE(item.quantity, 1);
+    EXPECT_EQ(10, item.obtainedYear);
+    EXPECT_EQ(1, item.obtainedMonth);
 }
 
 }  // namespace

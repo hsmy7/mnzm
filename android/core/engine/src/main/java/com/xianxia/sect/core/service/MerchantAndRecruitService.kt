@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlin.math.roundToLong
+import kotlin.random.Random
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.SpiritStoneExchange
@@ -15,6 +16,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RarityTimeProgression
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -214,7 +216,8 @@ class MerchantAndRecruitService @Inject constructor(
         pools: MerchantItemPools,
         year: Int,
         month: Int,
-        forcedRarity: Int? = null
+        forcedRarity: Int? = null,
+        random: kotlin.random.Random = Random.Default
     ): MerchantItem {
         val rarity = forcedRarity ?: pools.rarityMap[entry.name] ?: 1
         val basePrice = pools.priceMap[entry.name]
@@ -230,7 +233,11 @@ class MerchantAndRecruitService @Inject constructor(
             type = entry.type,
             itemId = java.util.UUID.randomUUID().toString(),
             rarity = rarity,
-            price = GameUtils.applyPriceFluctuation(adjustedPrice),
+            // S-22 清偿（批 Y-4b）：价格波动 RNG 收敛——收购路径（年变 T2-③
+            // 已下沉 C++）传 SYSTEM 分区（rng.asKotlinRandom()，确定性可对拍）；
+            // 旅行商人路径保持默认 Random.Default（JVM 全局随机——生成期随机、
+            // 结果落库后固定，对存档确定性无影响——S-22 剩余面登记）
+            price = GameUtils.applyPriceFluctuation(adjustedPrice, random),
             quantity = quantity,
             obtainedYear = year,
             obtainedMonth = month,
@@ -350,7 +357,9 @@ class MerchantAndRecruitService @Inject constructor(
                 ?: selectFirstAvailableItem(pools.poolByRarity)
 
             if (selectedItem != null) {
-                newItems.add(createMerchantItem(selectedItem, pools, year, month))
+                // S-22 清偿（批 Y-4b）：收购价格波动收敛 SYSTEM 分区——
+                // 年变 T2-③ 已下沉 C++（消费序逐位一致，跨语言可对拍）
+                newItems.add(createMerchantItem(selectedItem, pools, year, month, random = rng.asKotlinRandom()))
             }
         }
 

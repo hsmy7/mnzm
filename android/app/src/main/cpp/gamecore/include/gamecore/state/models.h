@@ -1301,6 +1301,7 @@ struct GameData {
     std::vector<MerchantItem> travelingMerchantItems;
     std::vector<MerchantItem> playerListedItems;
     std::vector<MerchantItem> merchantAcquisitionItems;
+    int32_t merchantAcquisitionLastRefreshYear = 0;   // 批 Y-4b：商人收购刷新年份（Kotlin @ProtoNumber(89)）
     std::vector<AutoBuyEntry> autoBuyList;   // 批 11-3：自动购买条目（Kotlin EconomicState）
     std::vector<Disciple> recruitList;
     std::vector<WorldLevel> worldLevels;

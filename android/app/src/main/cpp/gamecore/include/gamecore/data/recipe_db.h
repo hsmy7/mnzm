@@ -68,6 +68,10 @@ struct PillRecipeTemplate {
     std::string name;
     int32_t tier = 0;
     int32_t rarity = 0;
+    /// 模板价（批 Y-4 补全：Kotlin `ItemDatabase.PillTemplate.price`——
+    /// tierPrice(rarity) × gradeMultiplier ×（双属性功能/战斗丹 1.2），
+    /// 商人收购/交易池 priceMap 与 basePrice 用；非远程配置编译期常量）
+    int32_t price = 0;
     /// PillCategory.name（CULTIVATION/BATTLE/FUNCTIONAL）
     std::string category;
     /// PillGrade.name.lowercase()（low/medium/high）
@@ -170,6 +174,9 @@ static constexpr const char* kGradeLower[3] = {"low", "medium", "high"};
 static constexpr double kGradeMultiplier[3] = {0.5, 1.0, 2.0};
 /// PillGrade 突破成功率（LOW/MEDIUM/HIGH）
 static constexpr double kBreakChanceByGrade[3] = {0.05, 0.12, 0.20};
+
+/// GameConfig.Rarity.get(rarity).pillBasePrice（丹药模板价基准；下标 0 未用）
+static constexpr int32_t kPillBasePrice[7] = {0, 4000, 16000, 80000, 480000, 3360000, 26880000};
 
 /// REFERENCE_BASE_*（境界基准属性）
 static constexpr int32_t kBaseHp[7] = {0, 120, 780, 2040, 5400, 13200, 69600};
@@ -857,17 +864,30 @@ inline std::map<std::string, int32_t> herbMat(int tier, const std::vector<int>& 
 
 /// 从丹药模板构造配方（对应 Kotlin PillRecipe 构造；Kotlin 按类别显式
 /// 拷贝效果字段，而模板中非本类字段恒为 0，故整体拷贝等价）
+/// [dualPrice]：双属性丹（BATTLE dual / FUNCTIONAL dual）模板价 ×1.2
+///（Kotlin `tierPrice(tier) * 1.2 * grade.priceMultiplier`，单属性 ×1.0）。
 inline PillRecipeTemplate recipeFromTemplate(const PillTemplateSpec& t, int tier, int rarity,
                                              const std::string& category, const std::string& grade,
                                              const std::string& pillType,
                                              std::map<std::string, int32_t> materials,
                                              int duration, double successRate,
-                                             double breakthroughChance, int32_t targetRealm) {
+                                             double breakthroughChance, int32_t targetRealm,
+                                             bool dualPrice = false) {
     PillRecipeTemplate r;
     r.id = t.id;
     r.name = t.name;
     r.tier = tier;
     r.rarity = rarity;
+    // Kotlin PillTemplate.price：tierPrice(tier) × gradeMultiplier ×（dual 1.2）
+    // tierPrice = pillBasePrice(rarity)；gradeMultiplier 按 grade lower 名索引
+    {
+        int gi = 1;  // medium 默认（防御：未知 grade 按中品）
+        if (grade == "low") gi = 0;
+        else if (grade == "high") gi = 2;
+        const double base = static_cast<double>(kPillBasePrice[rarity]) *
+                            kGradeMultiplier[gi] * (dualPrice ? 1.2 : 1.0);
+        r.price = roundToInt(base);
+    }
     r.category = category;
     r.grade = grade;
     r.pillType = pillType;
@@ -1007,7 +1027,7 @@ inline void buildBattleDualRecipes(std::vector<PillRecipeTemplate>& out, int tie
             if (!tpl) continue;
             out.push_back(recipeFromTemplate(*tpl, tier, tier, "BATTLE", kGradeLower[g],
                                              cfg.pillType, materials, duration, successRate,
-                                             0.0, 0));
+                                             0.0, 0, /*dualPrice=*/true));
         }
     }
 }
@@ -1089,7 +1109,7 @@ inline void buildFunctionalDualRecipes(std::vector<PillRecipeTemplate>& out, int
             if (!tpl) continue;
             out.push_back(recipeFromTemplate(*tpl, tier, tier, "FUNCTIONAL", kGradeLower[g],
                                              cfg.pillType, materials, duration, successRate,
-                                             0.0, 0));
+                                             0.0, 0, /*dualPrice=*/true));
         }
     }
 }

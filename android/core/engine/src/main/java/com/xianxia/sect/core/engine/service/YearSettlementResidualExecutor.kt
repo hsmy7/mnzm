@@ -21,8 +21,10 @@ import com.xianxia.sect.core.state.MutableGameState
  *   差值判据内部）
  * - **T2-② AI 宗门周期性招募**（差值判据 + [CaveExplorationProcessor.
  *   processSectDisciplesYearlyRecruitment]——AI 独立分区 RNG）
- * - **T2-③ 商人收购刷新**（SYSTEM 稀有度曲线）
- * - **T2-④ 宗门交易列表刷新**（局部种子 RNG sectId.hashCode()+year）
+ * - ~~T2-③ 商人收购刷新~~（✅ 批 Y-4b 下沉 C++——SYSTEM 稀有度曲线，
+ *   本执行器不再调用）
+ * - ~~T2-④ 宗门交易列表刷新~~（✅ 批 Y-4a 下沉 C++——局部种子 RNG
+ *   sectId.hashCode()+year，本执行器不再调用）
  *
  * RNG 契约（切换行为基线登记）：C++ 已下沉年变面零 SYSTEM 消耗——残留执行器
  * （T1-④ SYSTEM / T2-③ SYSTEM）消耗序与 Kotlin 原编排基本一致；唯一差异：
@@ -58,10 +60,12 @@ internal class YearSettlementResidualExecutor(
             eventProcessor.caveExplorationProcessor.get()
                 .processSectDisciplesYearlyRecruitment(year, state)
         }
-        // T2-③ 商人收购刷新（SYSTEM 稀有度曲线——RarityTimeProgression）
-        eventProcessor.merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
-        // T2-④ 宗门交易列表刷新（局部种子 RNG——sectId.hashCode()+year）
-        eventProcessor.diplomacyService.refreshAllSectTrades(year)
+        // T2-③ 商人收购刷新已下沉 C++（refreshMerchantAcquisition——批 Y-4b：
+        // SYSTEM 稀有度曲线，本残留执行器不再调用 Kotlin refreshMerchantAcquisition，
+        // 防双份生成）
+        // T2-④ 宗门交易列表刷新已下沉 C++（refreshAllSectTrades——批 Y-4a：
+        // 局部种子 RNG sectId.hashCode()+year，本残留执行器不再调用 Kotlin
+        // refreshAllSectTrades，防双份生成）
     }
 
     /**

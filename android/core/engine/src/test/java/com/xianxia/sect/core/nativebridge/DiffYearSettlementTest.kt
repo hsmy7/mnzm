@@ -18,6 +18,7 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.EquipmentNurtureService
 import com.xianxia.sect.core.engine.service.HpMpRecoveryService
 import com.xianxia.sect.core.engine.service.ManualProficiencyService
+import com.xianxia.sect.core.engine.service.MerchantAndRecruitService
 import com.xianxia.sect.core.engine.service.MonthSettlementExecutor
 import com.xianxia.sect.core.engine.service.PhaseSettlementExecutor
 import com.xianxia.sect.core.engine.service.RelativeGiftHandler
@@ -35,6 +36,9 @@ import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.ManualDatabase.ManualTemplate
+import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
@@ -51,9 +55,13 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -69,13 +77,20 @@ import org.junit.Test
  *    annual* 十二项清零（含 annualTheftCount）
  * ② 年俸发放：yearlySalary[9]=500 enabled × 2 弟子 → spiritStones -1000、
  *    每人袋 +500、paidCount+1、loyalty 50→51（非开源节流）
- * ③ RNG 零消耗：年变 T1/T2 场景规避后全程零抽取——分区状态不变断言
- *    （抽取次数与顺序锁定的最强形式）
+ * ③ RNG 审计（批 Y-4b 行为基线更新）：T2-③ 商人收购每年消费 SYSTEM 分区
+ *    （数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍逐位守护；
+ *    BREAKTHROUGH/EXPLORATION 保持播种预抽后初值
  *
  * 规避清单落实（t2-3-semantics.md §4）：worldMapSects 空（驻军轮换恒等 +
  * gameOverCheck 不判定）/ lastRecruitYear=1 差值判据不满足 / recruitList 空 /
  * vassalContracts·scoutInfo·autoBuyEntries 空 / frugality=false /
  * morality≥阈值（执法堂沿用 T2.2 规避）/ timestamp 对拍排除。
+ *
+ * 批 Y-4b（T2-③）：Kotlin 臂换装真实 MerchantAndRecruitService（收购流
+ * 对拍主体——C++ runYearSettlement 每年执行收购）+ ManualDatabase 从静态
+ * 数据中性源快照（/templates/manual_db_sample.json，与 C++ manual_db.h
+ * 同源同序）注入真实功法表；年变后 flushYearlyOpsQueue forceDrain 触发
+ * T2 组执行（对齐生产引擎 tick drain）。
  *
  * 前置：桌面 JNI 已构建并注入 `-Dgamecore.jni.path`；未注入时跳过。
  */
@@ -99,6 +114,47 @@ class DiffYearSettlementTest {
     }
 
     // ── 场景构建 ────────────────────────────────────────────────────
+
+    /**
+     * 批 Y-4b（T2-③ 商人收购换装前置）：从静态数据中性源快照
+     *（/templates/manual_db_sample.json——与 C++ manual_db.h 同源同序，
+     * 由 scripts/gen-manual-db.mjs 生成）注入真实功法表——收购/交易池的
+     * 功法条目（name/rarity/price/type）与 C++ 侧逐条对齐（池大小/池序/
+     * 价格双端一致，nextInt(pool.size) 与选中条目可对拍）。
+     * 其余字段（stats/skill*）收购/交易生成不消费，默认值即可。
+     */
+    @Before
+    fun initManualDatabaseFromSnapshot() {
+        val resource = javaClass.getResourceAsStream("/templates/manual_db_sample.json")
+            ?: return
+        val root = json.parseToJsonElement(resource.readBytes().decodeToString()).jsonObject
+        val templates = mutableMapOf<String, ManualDatabase.ManualTemplate>()
+        root.getValue("entries").jsonArray.forEach { e ->
+            val o = e.jsonObject
+            val id = o.getValue("id").jsonPrimitive.content
+            templates[id] = ManualDatabase.ManualTemplate(
+                id = id,
+                name = o.getValue("name").jsonPrimitive.content,
+                type = when (o.getValue("type").jsonPrimitive.content) {
+                    "ATTACK" -> ManualType.ATTACK
+                    "DEFENSE" -> ManualType.DEFENSE
+                    "MIND" -> ManualType.MIND
+                    else -> ManualType.SUPPORT
+                },
+                rarity = o.getValue("rarity").jsonPrimitive.content.toInt(),
+                description = o["description"]?.jsonPrimitive?.content ?: "",
+                price = o["price"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+            )
+        }
+        ManualDatabase.resetForTest()
+        ManualDatabase.initializeWithManuals(templates)
+    }
+
+    /** 恢复未初始化态——防污染其他条件初始化 ManualDatabase 的测试类。 */
+    @org.junit.After
+    fun resetManualDatabase() {
+        ManualDatabase.resetForTest()
+    }
 
     private fun buildSnapshot(): NativeGameState {
         val gameData = GameData(
@@ -249,7 +305,9 @@ class DiffYearSettlementTest {
             eventProcessor = eventProcessor,
             productionProcessor = mockSmart(),
             recruitService = mockSmart(),
-            merchantAndRecruitService = mockSmart(),
+            // 批 Y-4b（T2-③）：真实商人服务——C++ runYearSettlement 每年执行
+            // 收购（SYSTEM 分区），Kotlin 臂必须真实执行（mock 零行为失配）
+            merchantAndRecruitService = MerchantAndRecruitService(store, gameRng),
             caveExplorationProcessor = mockSmart(),
             sharedState = CultivationSharedState(),
             discipleService = mockSmart()
@@ -297,7 +355,9 @@ class DiffYearSettlementTest {
             cultivationSettlement = settlement,
             battleSystem = mockSmart(),
             recruitService = mockSmart(),
-            merchantAndRecruitService = mockSmart(),
+            // 批 Y-4b（T2-③）：真实商人服务（收购流对拍主体——T2 #12 由
+            // flushYearlyOpsQueue 触发；功法表经 @Before 快照注入与 C++ 对齐）
+            merchantAndRecruitService = MerchantAndRecruitService(store, gameRng),
             caveExplorationProcessor = mockSmart(),
             discipleLifecycleProcessor = lifecycle,
             diplomacyEventProcessor = mockSmart(),
@@ -396,6 +456,11 @@ class DiffYearSettlementTest {
                         gameYear = gd.gameYear,
                         isJanuary = gd.gameMonth == 1
                     )
+                    // 批 Y-4b（T2-③）：年变 T2 延迟组（收购/交易/AI 招募）经
+                    // flushYearlyOpsQueue forceDrain 全量执行——对齐生产引擎
+                    // tick drain 语义；收购（真实 MerchantAndRecruitService）
+                    // 在独立事务消费 SYSTEM 分区，C++ 侧同序执行
+                    service.flushYearlyOpsQueue()
                 }
                 if (monthChanged) {
                     store.update { monthExecutor.execute(this) }
@@ -454,9 +519,11 @@ class DiffYearSettlementTest {
             )
         }
 
-        // ③ RNG 零消耗：SYSTEM/BREAKTHROUGH/EXPLORATION 分区状态 == 播种预抽后初值
-        for (p in listOf(RngPartition.SYSTEM, RngPartition.BREAKTHROUGH,
-                         RngPartition.EXPLORATION)) {
+        // ③ RNG 审计（批 Y-4b 行为基线更新）：T2-③ 商人收购每年消费 SYSTEM
+        // 分区（数量/品阶/选池/库存/grade/价格）——SYSTEM 终态由全量对拍
+        //（rngStates 结构）与 Kotlin 臂逐位一致守护；BREAKTHROUGH/EXPLORATION
+        // 保持播种预抽后初值（年变不消费）
+        for (p in listOf(RngPartition.BREAKTHROUGH, RngPartition.EXPLORATION)) {
             val fresh = DeterministicRng.fromSeed(SEED + p.id)
             repeat(3) { fresh.nextInt() }   // 复刻 initialRngStates 预抽序列
             assertEquals(
@@ -489,11 +556,25 @@ class DiffYearSettlementTest {
         path: String
     ) {
         for ((k, a) in actual) {
-            if (k == "timestamp") continue   // 现实墙钟：Clock 注入边界
+            if (isMirrorGeneratedField(path, k)) continue
             val e = expected[k]
             assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失（协议漂移）", e != null)
             assertNodeMatches(e!!, a, "$path.$k")
         }
+    }
+
+    /**
+     * diff 面排除的镜像生成/边界字段：
+     * - timestamp：现实墙钟（Clock 注入边界）
+     * - merchantAcquisitionItems 的 id/itemId（批 Y-4b）：Kotlin UUID vs
+     *   C++ 确定性自增（gc-trade-N），语义等价仅保证唯一——收购内容其余
+     *   字段（name/type/rarity/price/quantity/grade/年份，price 经 S-22
+     *   清偿已收敛 SYSTEM 分区）与 RNG 终态逐位对拍
+     */
+    private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
+        k == "timestamp" -> true
+        (k == "id" || k == "itemId") && path.contains("merchantAcquisitionItems") -> true
+        else -> false
     }
 
     private fun compareArrays(

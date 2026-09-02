@@ -3,13 +3,20 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
+#include "gamecore/data/beast_material_db.h"
+#include "gamecore/data/equipment_db.h"
+#include "gamecore/data/herb_db.h"
+#include "gamecore/data/manual_db.h"
+#include "gamecore/data/recipe_db.h"
 #include "gamecore/system/disciple_factory.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/economy.h"
@@ -18,7 +25,9 @@
 #include "gamecore/system/lifecycle.h"
 #include "gamecore/system/month_settlement.h"
 #include "gamecore/system/name_service.h"
+#include "gamecore/system/rarity_progression.h"
 #include "gamecore/system/recruit_settlement.h"
+#include "gamecore/system/sect_trade.h"
 #include "gamecore/system/secret_realm.h"
 #include "gamecore/system/settlement_detail.h"
 
@@ -89,6 +98,20 @@ constexpr int32_t kFallbackRecruitCount = 7;
 constexpr double kOpenRecruitmentPoolBonus = 0.50;
 // 招募列表刷新间隔（CultivationEventProcessor.RECRUIT_REFRESH_INTERVAL_YEARS）
 constexpr int32_t kRecruitRefreshIntervalYears = 3;
+
+// ── 批 Y-4a（T2-④ 交易刷新）常量（DiplomacyService companion 逐值对齐）──
+// AI 宗门交易刷新间隔（SECT_TRADE_REFRESH_INTERVAL_YEARS）
+constexpr int32_t kSectTradeRefreshIntervalYears = 3;
+// 交易物品数量（generateSectTradeItems itemCount）/ 最大尝试次数（×3）
+constexpr int32_t kSectTradeItemCount = 20;
+constexpr int32_t kSectTradeMaxAttempts = kSectTradeItemCount * 3;
+// 灵草/种子基准价（Kotlin GameConfig.Rarity.herbPrice/seedPrice——派生
+// getter：price = Rarity.get(rarity).herbPrice/seedPrice；下标 0 未用）
+constexpr int32_t kHerbBasePrice[7] = {0, 400, 1600, 8000, 48000, 336000, 2688000};
+constexpr int32_t kSeedBasePrice[7] = {0, 80, 320, 1600, 9600, 67200, 537600};
+// 材料基准价（Kotlin GameConfig.Rarity.materialBasePrice——收购池 priceMap
+// 兜底：池构建恒有价，仅防御性回退用）
+constexpr int32_t kMaterialBasePrice[7] = {0, 400, 1600, 8000, 48000, 336000, 2688000};
 
 namespace detail {
 
@@ -526,6 +549,502 @@ inline void processSectDisciplesAging(GameState& state) {
         updated[sectId] = std::move(aged);
     }
     state.aiSectDisciples = std::move(updated);
+}
+
+// ════════════════════════════════════════════════════════════════
+// 批 Y-4b（T2-③）：商人收购刷新（Kotlin MerchantAndRecruitService.
+// refreshMerchantAcquisition + buildMerchantItemPools/createMerchantItem/
+// mergeMerchantItems 等价移植）
+//
+// RNG 契约：SYSTEM 分区（调用方传 rng.getRng(kSystem)）——数量 1×nextInt(9)
+// + 每 item：品阶 1×nextDouble + 选池 1×nextInt + 库存 1×nextInt +
+// 丹药 grade 1×nextDouble + 价格波动 1×nextDouble（消费序与 Kotlin
+// 逐位一致）。已知边界（对拍排除）：MerchantItem.id/itemId 为 Kotlin
+// UUID 镜像生成字段——C++ 用确定性自增 id 占位（T2-③/④ 共用）。
+// ════════════════════════════════════════════════════════════════
+
+/// 商人物品确定性 id（Kotlin UUID——镜像生成字段，对拍排除；商人收购/
+/// 宗门交易共用）
+inline std::string nextTradeItemId() {
+    static uint64_t counter = 0;
+    return "gc-trade-" + std::to_string(++counter);
+}
+
+/// 商人池条目（Kotlin PoolEntry{name, type}）
+struct PoolEntry {
+    std::string name;
+    std::string type;
+};
+
+/// 商人物品池（Kotlin MerchantItemPools；poolByRarity 下标 0 未用 1..6）
+struct MerchantItemPools {
+    std::vector<std::vector<PoolEntry>> poolByRarity;
+    std::map<std::string, int32_t> rarityMap;
+    std::map<std::string, int64_t> priceMap;
+};
+
+/// 构建商人物品池（Kotlin buildMerchantItemPools）：装备/功法（Kotlin
+/// ManualDatabase.isInitialized 守卫——C++ 静态表恒真）/丹药（MEDIUM
+/// 品阶 + 名去重，批 Y-4 price 已补全）/妖兽材料/灵草/种子 +
+/// 中品/上品灵石（价格按下品结算 RATIO）。零 RNG。
+inline MerchantItemPools buildMerchantItemPools() {
+    MerchantItemPools pools;
+    pools.poolByRarity.assign(7, {});
+    constexpr int64_t kRatio = 10'000L;  // SpiritStoneExchange.RATIO
+    for (const auto& t : data::equipmentTemplates()) {
+        pools.poolByRarity[static_cast<std::size_t>(t.rarity)].push_back({t.name, "equipment"});
+        pools.rarityMap[t.name] = t.rarity;
+        pools.priceMap[t.name] = static_cast<int64_t>(t.price);
+    }
+    for (const auto& t : data::manualTemplates()) {
+        pools.poolByRarity[static_cast<std::size_t>(t.rarity)].push_back({t.name, "manual"});
+        pools.rarityMap[t.name] = t.rarity;
+        pools.priceMap[t.name] = static_cast<int64_t>(t.price);
+    }
+    // 丹药：MEDIUM 品阶 + 名字去重（Kotlin addedPillNames 首次出现序）
+    std::set<std::string> addedPills;
+    for (const auto& r : data::pillRecipes()) {
+        if (r.grade != "medium") continue;
+        if (addedPills.count(r.name) != 0) continue;
+        addedPills.insert(r.name);
+        pools.poolByRarity[static_cast<std::size_t>(r.rarity)].push_back({r.name, "pill"});
+        pools.rarityMap[r.name] = r.rarity;
+        pools.priceMap[r.name] = static_cast<int64_t>(r.price);
+    }
+    for (const auto& m : data::beastMaterialTemplates()) {
+        pools.poolByRarity[static_cast<std::size_t>(m.rarity)].push_back({m.name, "material"});
+        pools.rarityMap[m.name] = m.rarity;
+        pools.priceMap[m.name] = static_cast<int64_t>(m.price);
+    }
+    for (const auto& h : data::herbTemplates()) {
+        pools.poolByRarity[static_cast<std::size_t>(h.rarity)].push_back({h.name, "herb"});
+        pools.rarityMap[h.name] = h.rarity;
+        pools.priceMap[h.name] = static_cast<int64_t>(kHerbBasePrice[h.rarity]);
+    }
+    for (const auto& s : data::seedTemplates()) {
+        pools.poolByRarity[static_cast<std::size_t>(s.rarity)].push_back({s.name, "seed"});
+        pools.rarityMap[s.name] = s.rarity;
+        pools.priceMap[s.name] = static_cast<int64_t>(kSeedBasePrice[s.rarity]);
+    }
+    // 中品（3）/上品（4）灵石入收购池
+    pools.poolByRarity[3].push_back({"中品灵石", "spiritStone"});
+    pools.rarityMap["中品灵石"] = 3;
+    pools.priceMap["中品灵石"] = kRatio;
+    pools.poolByRarity[4].push_back({"上品灵石", "spiritStone"});
+    pools.rarityMap["上品灵石"] = 4;
+    pools.priceMap["上品灵石"] = kRatio * kRatio;
+    return pools;
+}
+
+/// 按品阶选池随机条目（Kotlin selectItemByRarity：池空 → null 零 RNG；
+/// 非空 → 1×nextInt）
+inline std::optional<PoolEntry> selectItemByRarity(const MerchantItemPools& pools,
+                                                   rng::DeterministicRng& rng,
+                                                   int32_t rarity) {
+    const auto& pool = pools.poolByRarity[static_cast<std::size_t>(rarity)];
+    if (pool.empty()) return std::nullopt;
+    return pool[static_cast<std::size_t>(
+        rng.nextInt(static_cast<int32_t>(pool.size())))];
+}
+
+/// 第一个非空品阶池随机条目（Kotlin selectFirstAvailableItem：
+/// (1..6) 升序首个非空池——1×nextInt）
+inline std::optional<PoolEntry> selectFirstAvailableItem(const MerchantItemPools& pools,
+                                                         rng::DeterministicRng& rng) {
+    for (int32_t rarity = 1; rarity <= 6; ++rarity) {
+        const auto& pool = pools.poolByRarity[static_cast<std::size_t>(rarity)];
+        if (!pool.empty()) {
+            return pool[static_cast<std::size_t>(
+                rng.nextInt(static_cast<int32_t>(pool.size())))];
+        }
+    }
+    return std::nullopt;
+}
+
+/// 商品库存量抽样（Kotlin calculateMerchantStock + capSpiritStoneStock：
+/// 消耗品/耐用品两档曲线；灵石 ≤3——sect_trade.h sectTradeStock 同源）
+inline int32_t calculateMerchantStock(rng::DeterministicRng& rng,
+                                      const std::string& type, int32_t rarity) {
+    int32_t stock = sectTradeStock(rng, type, rarity);
+    if (type == "spiritStone") stock = std::min(stock, 3);
+    return stock;
+}
+
+/// 丹药随机品阶（Kotlin selectMerchantPillGrade：1×nextDouble；
+/// <0.03 HIGH / <0.40 MEDIUM / else LOW——返回 grade.name）
+inline std::string selectMerchantPillGrade(rng::DeterministicRng& rng) {
+    const double roll = rng.nextDouble();
+    if (roll < 0.03) return "HIGH";
+    if (roll < 0.40) return "MEDIUM";
+    return "LOW";
+}
+
+/// 创建商人物品（Kotlin createMerchantItem：forcedRarity 缺省取池 rarityMap；
+/// 库存 1×nextInt + 丹药 grade 1×nextDouble + 价格波动 1×nextDouble；
+/// 丹药价 = basePrice × gradeMultiplier（MEDIUM 恒 1.0）roundToLong）
+inline state::MerchantItem createMerchantItem(const PoolEntry& entry,
+                                              const MerchantItemPools& pools,
+                                              rng::DeterministicRng& rng,
+                                              int32_t year, int32_t month,
+                                              std::optional<int32_t> forcedRarity = std::nullopt) {
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = entry.name;
+    item.type = entry.type;
+    item.itemId = nextTradeItemId();
+    const auto rit = pools.rarityMap.find(entry.name);
+    const int32_t rarity = forcedRarity.value_or(
+        rit != pools.rarityMap.end() ? rit->second : 1);
+    item.rarity = rarity;
+    const auto pit = pools.priceMap.find(entry.name);
+    const int64_t basePrice = pit != pools.priceMap.end()
+        ? pit->second : static_cast<int64_t>(kMaterialBasePrice[rarity]);
+    item.quantity = calculateMerchantStock(rng, entry.type, rarity);
+    std::optional<std::string> grade;
+    double priceMultiplier = 1.0;
+    if (entry.type == "pill") {
+        const std::string g = selectMerchantPillGrade(rng);
+        if (g == "HIGH") { grade = "上品"; priceMultiplier = 2.0; }
+        else if (g == "LOW") { grade = "下品"; priceMultiplier = 0.5; }
+        else { grade = "中品"; }
+    }
+    // Kotlin (basePrice * grade.priceMultiplier / MEDIUM.multiplier).roundToLong()
+    // MEDIUM.multiplier = 1.0 —— roundToLong = Math.round（半值向上）
+    const int64_t adjustedPrice = static_cast<int64_t>(
+        std::llround(static_cast<double>(basePrice) * priceMultiplier));
+    item.price = sectTradePriceFluctuation(adjustedPrice, rng);
+    item.obtainedYear = year;
+    item.obtainedMonth = month;
+    item.grade = grade;
+    return item;
+}
+
+/// 合并同键条目（Kotlin mergeMerchantItems：key = name:type[:grade]；
+/// 数量相加 + 加权平均价（Int 除法）；**保持首次出现序**——Kotlin
+/// LinkedHashMap 插入序，禁止 std::map 字典序）
+inline std::vector<state::MerchantItem> mergeMerchantItems(
+    std::vector<state::MerchantItem> items) {
+    std::vector<state::MerchantItem> merged;
+    std::map<std::string, std::size_t> keyToIndex;
+    for (const auto& item : items) {
+        std::string key = item.name + ":" + item.type;
+        if (item.grade.has_value()) key += ":" + *item.grade;
+        const auto it = keyToIndex.find(key);
+        if (it != keyToIndex.end()) {
+            state::MerchantItem& existing = merged[it->second];
+            const int64_t total =
+                static_cast<int64_t>(existing.quantity) + item.quantity;
+            const int64_t weighted =
+                (existing.price * existing.quantity + item.price * item.quantity) / total;
+            existing.quantity = static_cast<int32_t>(total);
+            existing.price = weighted;
+        } else {
+            keyToIndex[key] = merged.size();
+            merged.push_back(item);
+        }
+    }
+    return merged;
+}
+
+/// 商人收购刷新（Kotlin MerchantAndRecruitService.refreshMerchantAcquisition）：
+/// 数量 1×nextInt(9) → 逐 item 品阶/选池/库存/grade/价格 → 合并 →
+/// 写回 merchantAcquisitionItems + merchantAcquisitionLastRefreshYear。
+/// SYSTEM 分区（调用方传 rng.getRng(kSystem)）。
+inline void refreshMerchantAcquisition(GameState& state, rng::DeterministicRng& rng,
+                                       int32_t year, int32_t month) {
+    const MerchantItemPools pools = buildMerchantItemPools();
+    bool allEmpty = true;
+    for (const auto& pool : pools.poolByRarity) {
+        if (!pool.empty()) { allEmpty = false; break; }
+    }
+    if (allEmpty) return;
+    constexpr int32_t kAcqMin = 1, kAcqMax = 9;
+    const int32_t count = kAcqMin + rng.nextInt(kAcqMax - kAcqMin + 1);
+    std::vector<state::MerchantItem> newItems;
+    for (int32_t i = 0; i < count; ++i) {
+        const int32_t selectedRarity = rollRarity(rng, year);
+        std::optional<PoolEntry> selected = selectItemByRarity(pools, rng, selectedRarity);
+        if (!selected.has_value()) selected = selectFirstAvailableItem(pools, rng);
+        if (selected.has_value()) {
+            newItems.push_back(createMerchantItem(*selected, pools, rng, year, month));
+        }
+    }
+    auto merged = mergeMerchantItems(std::move(newItems));
+    state.gameData.merchantAcquisitionItems = std::move(merged);
+    state.gameData.merchantAcquisitionLastRefreshYear = year;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 批 Y-4a（T2-④）：AI 宗门交易列表年度刷新（Kotlin DiplomacyService.
+// refreshAllSectTrades + generateSectTradeItems 等价移植）
+//
+// RNG 契约：局部种子确定性 RNG——DeterministicRng.fromSeed(
+// sectId.hashCode() + year)（sect_trade.h sectTradeSeed），同 (sectId,
+// year) 生成结果完全可复现；**零分区 RNG 消耗**（SYSTEM 等分区不参与）。
+// 已知边界（对拍排除）：MerchantItem.id/itemId 为 Kotlin UUID 镜像
+// 生成字段——C++ 用确定性自增 id 占位（nextTradeItemId 定义于批 Y-4b）。
+// ════════════════════════════════════════════════════════════════
+
+/// 按品阶选池 + 随机选取（Kotlin `templates.random(random)` 等价：
+/// getByRarity(rarity) 非空选该品阶池，空则全池兜底——恰好 1×nextInt）
+template <typename T>
+inline const T& pickTradeTemplate(rng::DeterministicRng& rngLocal,
+                                  const std::vector<T>& templates,
+                                  int32_t rarity) {
+    std::vector<const T*> pool;
+    for (const auto& t : templates) {
+        if (t.rarity == rarity) pool.push_back(&t);
+    }
+    if (pool.empty()) {
+        for (const auto& t : templates) pool.push_back(&t);
+    }
+    return *pool[static_cast<std::size_t>(
+        rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
+}
+
+/// 装备类商品（Kotlin generateEquipmentItem）：模板池选 1×nextInt +
+/// 价格波动 1×nextDouble + 库存 1×nextInt
+inline state::MerchantItem generateTradeEquipmentItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto& tpl = pickTradeTemplate(rngLocal, data::equipmentTemplates(), rarity);
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = tpl.name;
+    item.type = "equipment";
+    item.itemId = nextTradeItemId();
+    item.rarity = tpl.rarity;
+    item.price = sectTradePriceFluctuation(static_cast<int64_t>(tpl.price), rngLocal);
+    item.quantity = sectTradeStock(rngLocal, "equipment", rarity);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    return item;
+}
+
+/// 功法类商品（Kotlin generateManualItem；isInitialized 守卫在 C++ 恒真
+/// ——manualTemplates() 静态表，生产恒加载）
+inline state::MerchantItem generateTradeManualItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto& tpl = pickTradeTemplate(rngLocal, data::manualTemplates(), rarity);
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = tpl.name;
+    item.type = "manual";
+    item.itemId = nextTradeItemId();
+    item.rarity = tpl.rarity;
+    item.price = sectTradePriceFluctuation(static_cast<int64_t>(tpl.price), rngLocal);
+    item.quantity = sectTradeStock(rngLocal, "manual", rarity);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    return item;
+}
+
+/// 丹药类商品（Kotlin generatePillItem）：getPillsByRarity 空 → null
+///（零 RNG）；非空 → 1×nextInt 选模板 + 价格波动 + 库存；grade =
+/// PillGrade.displayName（批 Y-4 price 已补全）
+inline std::optional<state::MerchantItem> generateTradePillItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto& recipes = data::pillRecipes();
+    std::vector<const data::PillRecipeTemplate*> pool;
+    for (const auto& r : recipes) {
+        if (r.rarity == rarity) pool.push_back(&r);
+    }
+    if (pool.empty()) return std::nullopt;
+    const auto& tpl = *pool[static_cast<std::size_t>(
+        rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = tpl.name;
+    item.type = "pill";
+    item.itemId = nextTradeItemId();
+    item.rarity = tpl.rarity;
+    item.price = sectTradePriceFluctuation(static_cast<int64_t>(tpl.price), rngLocal);
+    item.quantity = sectTradeStock(rngLocal, "pill", rarity);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    // PillGrade.displayName（grade lower 名 → 显示名）
+    if (tpl.grade == "low") item.grade = "下品";
+    else if (tpl.grade == "high") item.grade = "上品";
+    else item.grade = "中品";
+    return item;
+}
+
+/// 材料类商品（Kotlin generateMaterialItem）：getMaterialsByRarity 空 → null
+inline std::optional<state::MerchantItem> generateTradeMaterialItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto& templates = data::beastMaterialTemplates();
+    std::vector<const data::BeastMaterialTemplate*> pool;
+    for (const auto& t : templates) {
+        if (t.rarity == rarity) pool.push_back(&t);
+    }
+    if (pool.empty()) return std::nullopt;
+    const auto& tpl = *pool[static_cast<std::size_t>(
+        rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = tpl.name;
+    item.type = "material";
+    item.itemId = nextTradeItemId();
+    item.rarity = tpl.rarity;
+    item.price = sectTradePriceFluctuation(static_cast<int64_t>(tpl.price), rngLocal);
+    item.quantity = sectTradeStock(rngLocal, "material", rarity);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    return item;
+}
+
+/// 草药类商品（Kotlin generateHerbItem）：getByRarity 空 → null
+inline std::optional<state::MerchantItem> generateTradeHerbItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto& templates = data::herbTemplates();
+    std::vector<const data::HerbTemplate*> pool;
+    for (const auto& t : templates) {
+        if (t.rarity == rarity) pool.push_back(&t);
+    }
+    if (pool.empty()) return std::nullopt;
+    const auto& tpl = *pool[static_cast<std::size_t>(
+        rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = tpl.name;
+    item.type = "herb";
+    item.itemId = nextTradeItemId();
+    item.rarity = tpl.rarity;
+    // Kotlin Herb.price 为派生 getter（GameConfig.Rarity.herbPrice）
+    item.price = sectTradePriceFluctuation(
+        static_cast<int64_t>(kHerbBasePrice[tpl.rarity]), rngLocal);
+    item.quantity = sectTradeStock(rngLocal, "herb", rarity);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    return item;
+}
+
+/// 种子类商品（Kotlin generateSeedItem）：getSeedsByRarity 空 → null
+inline std::optional<state::MerchantItem> generateTradeSeedItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto& templates = data::seedTemplates();
+    std::vector<const data::SeedTemplate*> pool;
+    for (const auto& t : templates) {
+        if (t.rarity == rarity) pool.push_back(&t);
+    }
+    if (pool.empty()) return std::nullopt;
+    const auto& tpl = *pool[static_cast<std::size_t>(
+        rngLocal.nextInt(static_cast<int32_t>(pool.size())))];
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = tpl.name;
+    item.type = "seed";
+    item.itemId = nextTradeItemId();
+    item.rarity = tpl.rarity;
+    // Kotlin Seed.price 为派生 getter（GameConfig.Rarity.seedPrice）
+    item.price = sectTradePriceFluctuation(
+        static_cast<int64_t>(kSeedBasePrice[tpl.rarity]), rngLocal);
+    item.quantity = sectTradeStock(rngLocal, "seed", rarity);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    return item;
+}
+
+/// 灵石类商品（Kotlin generateSpiritStoneItem）：品阶超当年上限 → null
+///（零 RNG）；非空 → 价格波动 1×nextDouble + 库存 1×nextInt（≤3）
+inline std::optional<state::MerchantItem> generateTradeSpiritStoneItem(
+    rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    const auto mapped = sectTradeSpiritStone(rarity, year);
+    if (!mapped.has_value()) return std::nullopt;
+    state::MerchantItem item;
+    item.id = nextTradeItemId();
+    item.name = (rarity >= 4) ? "上品灵石" : "中品灵石";
+    item.type = "spiritStone";
+    item.itemId = nextTradeItemId();
+    item.rarity = mapped->first;
+    item.price = sectTradePriceFluctuation(mapped->second, rngLocal);
+    item.quantity = std::min(sectTradeStock(rngLocal, "spiritStone", rarity), 3);
+    item.obtainedYear = year;
+    item.obtainedMonth = 1;
+    return item;
+}
+
+/// 生成宗门交易物品列表（Kotlin DiplomacyService.generateSectTradeItems）：
+/// 局部种子 RNG——20 个条目、7 类型随机（1×nextInt(7)）、品阶曲线抽样
+/// （1×nextDouble）、类型内生成、名称去重、最多 60 次尝试；按品阶降序
+/// 稳定排序（Kotlin sortedByDescending 稳定）。
+inline std::vector<state::MerchantItem> generateSectTradeItems(
+    int32_t year, const std::string& sectId) {
+    auto rngLocal = rng::DeterministicRng::fromSeed(sectTradeSeed(sectId, year));
+    std::vector<state::MerchantItem> items;
+    std::set<std::string> generatedNames;
+    int32_t attempts = 0;
+    while (static_cast<int32_t>(items.size()) < kSectTradeItemCount &&
+           attempts < kSectTradeMaxAttempts) {
+        ++attempts;
+        // 7 类型随机（Kotlin types[rngLocal.nextInt(7)]）
+        static const char* kTypes[7] = {
+            "equipment", "manual", "pill", "material", "herb", "seed", "spiritStone"};
+        const char* type = kTypes[rngLocal.nextInt(7)];
+        // 品阶曲线（1×nextDouble——RarityTimeProgression.rollRarity）
+        const int32_t rarity = rollRarity(rngLocal, year);
+        std::optional<state::MerchantItem> item;
+        if (std::strcmp(type, "equipment") == 0) {
+            item = generateTradeEquipmentItem(rngLocal, rarity, year);
+        } else if (std::strcmp(type, "manual") == 0) {
+            item = generateTradeManualItem(rngLocal, rarity, year);
+        } else if (std::strcmp(type, "pill") == 0) {
+            item = generateTradePillItem(rngLocal, rarity, year);
+        } else if (std::strcmp(type, "material") == 0) {
+            item = generateTradeMaterialItem(rngLocal, rarity, year);
+        } else if (std::strcmp(type, "herb") == 0) {
+            item = generateTradeHerbItem(rngLocal, rarity, year);
+        } else if (std::strcmp(type, "seed") == 0) {
+            item = generateTradeSeedItem(rngLocal, rarity, year);
+        } else {
+            item = generateTradeSpiritStoneItem(rngLocal, rarity, year);
+        }
+        if (!item.has_value()) continue;
+        if (generatedNames.count(item->name) != 0) continue;
+        generatedNames.insert(item->name);
+        items.push_back(std::move(*item));
+    }
+    std::stable_sort(items.begin(), items.end(),
+        [](const state::MerchantItem& a, const state::MerchantItem& b) {
+            return a.rarity > b.rarity;
+        });
+    return items;
+}
+
+/// 交易刷新判据（Kotlin shouldRefreshSectTrade：距上次刷新满 3 年，或
+/// 列表空兜底；tradeLastRefreshYear 未来值按 0 自愈）
+inline bool shouldRefreshSectTrade(int32_t year, const state::SectDetail& detail) {
+    const int32_t lastRefresh =
+        detail.tradeLastRefreshYear > year ? 0 : detail.tradeLastRefreshYear;
+    return year - lastRefresh >= kSectTradeRefreshIntervalYears ||
+           detail.tradeItems.empty();
+}
+
+/// 年度强制刷新所有 AI 宗门交易列表（Kotlin DiplomacyService.
+/// refreshAllSectTrades）：sectDetails 空早退；遍历 worldMapSects 跳过
+/// 玩家宗门/无详情；判据满足 → 局部种子生成；统一写回 sectDetails
+///（tradeLastRefreshYear = year）。零分区 RNG 消耗。
+inline void refreshAllSectTrades(GameState& state, int32_t year) {
+    auto& gd = state.gameData;
+    if (gd.sectDetails.empty()) return;
+    std::map<std::string, std::vector<state::MerchantItem>> refreshed;
+    for (const auto& sect : gd.worldMapSects) {
+        if (sect.isPlayerSect) continue;
+        auto it = gd.sectDetails.find(sect.id);
+        if (it == gd.sectDetails.end()) continue;
+        if (!shouldRefreshSectTrade(year, it->second)) continue;
+        refreshed[sect.id] = generateSectTradeItems(year, sect.id);
+    }
+    if (refreshed.empty()) return;
+    auto updated = gd.sectDetails;
+    for (const auto& kv : refreshed) {
+        state::SectDetail detail = updated.count(kv.first) != 0
+            ? updated.at(kv.first) : state::SectDetail{};
+        detail.sectId = kv.first;
+        detail.tradeItems = kv.second;
+        detail.tradeLastRefreshYear = year;
+        updated[kv.first] = std::move(detail);
+    }
+    gd.sectDetails = std::move(updated);
 }
 
 /// T2-⑥ 联盟到期解散（Kotlin DiplomacyEventProcessor.checkAllianceExpiry）：
@@ -1238,6 +1757,13 @@ inline void runYearSettlement(state::GameState& state,
     //    大件（AI 招募/交易刷新/秘境刷新）随批 Y-2/Y-3 下沉）──
     // #4 AI 弟子老化（T2-① 批 Y-1）
     detail::processSectDisciplesAging(state);
+    // #12 商人收购刷新（T2-③ 批 Y-4b：SYSTEM 分区——数量 1×nextInt(9) +
+    // 每 item 品阶 1×nextDouble + 选池 1×nextInt + 库存/grade/价格波动；
+    // Kotlin T2 序 #10 AI 招募 在本项之前，随批 Y-4c 于本调用点之前插入）
+    detail::refreshMerchantAcquisition(state, rng.getRng(rng::RngPartition::kSystem),
+                                       state.gameData.gameYear, 1);
+    // #13 AI 宗门交易列表刷新（T2-④ 批 Y-4a：局部种子——零分区 RNG）
+    detail::refreshAllSectTrades(state, state.gameData.gameYear);
     // #6 联盟到期（T2-⑥ 批 Y-1）
     detail::processAllianceExpiry(state, state.gameData.gameYear);
     // #7 联盟好感衰减检查（T2-⑦ 批 Y-1）
