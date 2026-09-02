@@ -1,8 +1,12 @@
 # ADR: ECS 数据导向基础（ecs-foundation-design）
 
-> 状态：草稿（待行业对标研究集成后定稿）。日期：2026-09。
+> 状态：**已实施（2026-09 续作）**。日期：2026-09。
 > 背景：用户已拍板"打好 ECS 基础"。本文档基于现有代码地基，给出可落地的 C++20 ECS 骨架设计。
-> 【待集成】行业对标研究（Unity DOTS / EnTT / Flecs / Bevy / Overwatch GDC / Mike Acton）正在调研中，第 6 节的"对比与选型依据"待研究返回后填充定稿。
+> 【已实施】§0.3 的 **①②③④ 阶段全部完成**（通用 ECS 骨架 / System 调度框架 / JobSystem 并行 / 弟子组件化接入），
+> 落地为 `gamecore/include/gamecore/ecs/*`（纯头文件，C++20、零平台依赖），配套 GTest 35 用例
+> （桌面全量 757/757 通过，含 722 基线零回归）。**本批只建"基础"**——现有结算/内政系统
+> **尚未**经 ECS System 调度驱动（设计 §2.4/§2.3：现有系统暂不改，留作"过程式"对照基线，
+> 后续逐步迁移）；实际收益见 docs/cpp-engine.md §0.3 顺序。行业对标研究已集成（见 §9）。
 
 ## 1. 背景与目标
 
@@ -74,19 +78,25 @@ gamecore/include/gamecore/ecs/
   world.h           World(EntityManager+Registry), WorldView
 ```
 
-## 3. 影响范围清单
+## 3. 影响范围清单（本批已落地）
 
 | 文件 | 变更类型 | 说明 |
 |---|---|---|
-| `gamecore/include/gamecore/ecs/*`（新增） | 新增 | 通用 ECS 骨架（如上）。 |
-| `gamecore/include/gamecore/state/disciple_store.h` | 保持/适配 | 保留 SoA 权威；可选加 EntityId↔row 映射层。 |
-| `gamecore/src/ecs/*`（新增） | 新增 | ECS 实现。 |
-| `gamecore/test/ecs_*_test.cpp`（新增） | 新增 | GTest：entity 复用/悬垂、storage 插入删除、query 迭代、system 调度确定性。 |
-| `gamecore/include/gamecore/system/*` | 保留 | 现有系统暂不改，作为"过程式"基线对照；后续逐步迁移到 ECS System。 |
-| `gamecore/CMakeLists.txt` | 修改 | 接入新源文件 + 测试。 |
-| `docs/cpp-engine.md` / `docs/architecture.md` | 修改 | 记录 ECS 边界决策与进度。 |
+| `gamecore/include/gamecore/ecs/entity.h`（新增） | 新增 | EntityId(index+generation) 句柄 + EntityManager（create/destroy/isAlive/entityAtIndex，freelist+代数防悬垂）。 |
+| `gamecore/include/gamecore/ecs/component.h`（新增） | 新增 | ComponentTypeId + `componentTypeId<T>()`（EnTT 家族模式惰性绑定，进程内唯一）。 |
+| `gamecore/include/gamecore/ecs/storage.h`（新增） | 新增 | `ComponentStorage<T>`：SoA 列向量 + **保序 SparseSet**（entity.index→dense 行 O(1) 查找，无哈希迭代）；`IStorage` 类型擦除基类（无 RTTI）。 |
+| `gamecore/include/gamecore/ecs/registry.h`（新增） | 新增 | `ComponentRegistry`：类型→类型擦除存储；storage<T>()/hasStorage/eraseFromAll/clearAll。 |
+| `gamecore/include/gamecore/ecs/world.h`（新增） | 新增 | `World` = EntityManager + ComponentRegistry 组合门面；createEntity/destroyEntity（先清组件再回收）。 |
+| `gamecore/include/gamecore/ecs/view.h`（新增） | 新增 | `View<Cs...>`：组件子集查询/迭代（首组件插入序 + 其余存在性过滤），forEach(count)。 |
+| `gamecore/include/gamecore/ecs/system.h`（新增） | 新增 | `ISystem`（name/priority/isParallelizable/run）+ `SystemScheduler`（优先级+挂载序串行确定性调度）。 |
+| `gamecore/include/gamecore/ecs/job_system.h`（新增） | 新增 | `JobSystem` 线程池（submit/wait/parallelFor 静态连续分块，索引确定性）。 |
+| `gamecore/include/gamecore/ecs/disciple_component.h`（新增） | 新增 | `DiscipleRef{row}` 组件 + build/destroy 弟子实体（row↔entity 对齐，行序红线不破）。 |
+| `gamecore/test/ecs_*_test.cpp`（新增×5） | 新增 | GTest 35 用例（实体/存储/系统/JobSource/弟子）。 |
+| `gamecore/test/CMakeLists.txt` | 修改 | 接入 5 个 ECS 测试文件。 |
+| `docs/adr/ecs-foundation-design.md` / `docs/cpp-engine.md` / `CHANGELOG.md` | 修改 | 记录实施与边界决策。 |
 
-> 注意：**不改 `state/models.h`、`json_codec.*`、`rng/*`、`state/disciple_store` 的 JSON 协议**——存档零变更。
+> **未改**：`state/models.h`、`json_codec.*`、`rng/*`、`state/disciple_store.h`——ECS 零协议依赖，**存档零变更**。
+> **未改**：现有 `system/*`（month_settlement 等）——作为"过程式"对照基线保留，未驱动经 ECS System 调度。
 
 ## 4. 兼容性分析
 - **存档/序列化**：ECS 骨架不触碰 `json_codec`/`rngStates`/kotlinx 协议；DiscipleStore SoA JSON 协议零变更。**无 Migration。**
@@ -94,9 +104,14 @@ gamecore/include/gamecore/ecs/
 - **Android/iOS**：`gamecore/ecs/*` 纯 C++20，零平台依赖，桌面/iOS 可编译。
 
 ## 5. 测试方案
-- GTest：`EntityManager`（创建/复用/回收/generation 悬挂）、`ComponentStorage`（SoA 插入/removeById/swapRows 保序）、`SystemScheduler`（优先级、串行确定性）、`Query`（组件子集过滤、连续迭代）。
-- 确定性守护：`DiffEcsTest`（跨语言行为不变：弟子迭代序与现有 SoA 一致）。
-- 回归：现有 GTest 722 全绿；engine JUnit 对拍 0 skip。
+- GTest 35 用例（本批新增，已实现并全部通过）：
+  - `ecs_entity_test.cpp`：EntityManager 创建/复用/回收/generation 防悬垂（6）
+  - `ecs_storage_test.cpp`：ComponentStorage（SoA 插入/覆盖/悬垂/保序删除/扩容/清空）+ ComponentRegistry（类型存储复用）+ World（创建/销毁清组件）+ View（查询过滤/写/顺序）（12）
+  - `ecs_system_test.cpp`：SystemScheduler 优先级+挂载序、确定性、View 批量处理、默认不可并行、clear（5）
+  - `ecs_job_test.cpp`：JobSystem submit/wait、parallelFor 单/多线程正确性、空任务、确定性求和、批次复用（6）
+  - `ecs_disciple_test.cpp`：弟子实体装配/行序迭代/多组件过滤/单删/重建/全清（6）
+- **确定性守护**：View 迭代序 == 首组件插入序（== 实体行序，与 DiscipleStore 红线一致）；SystemScheduler 同输入稳定序。
+- 回归：桌面 GTest 全量 **757/757**（722 基线零回归）；engine JUnit 对拍 0 skip 不受影响（本批仅新增 ECS 头文件，未改生产库源列表/json_codec/rng/DiscipleStore）。
 
 ## 6. 风险评估与兜底
 - **风险 1：过度设计导致"为 ECS 而 ECS"**。兜底：明确"本作 ECS 边界"（弟子=实体；建筑/地形=渲染数据），不硬造世界实体。
@@ -136,9 +151,12 @@ gamecore/include/gamecore/ecs/
 ### 9.3 来源（ECS 相关，详见 render-strategy-decision.md 第 9 节清单 #9–#15）
 Unity DOTS《ECS concepts》、Overwatch GDC17、EnTT、Flecs、Bevy、Andrew Kelley《Practical Data-Oriented Design》、Habr archetypes 综述。
 
-### 附：避免"假 ECS"检查清单（起草）
-- Entity 是 ID 不是对象；Component 是数据不是行为；System 是批量迭代不是单对象方法。
-- 组件连续存储（SoA/SparseSet），非每实体一个复杂对象。
-- 无大量 new/delete 于热路径；迭代无虚函数调用。
-- System 顺序确定性、可为并行预留；实体生命周期有 generation 防悬垂。
-- 有 query/迭代 API；不是"纯函数操作大状态对象"换名。
+### 附：避免"假 ECS"检查清单（本批实现逐项核对 ✅）
+- Entity 是 ID 不是对象——`EntityId{index,generation}`，`EntityManager` 管理生命周期（✅）。
+- Component 是数据不是行为——`Pos`/`Tag`/`DiscipleRef` 等纯数据 struct（✅）。
+- System 是批量迭代不是单对象方法——`View<...>::forEach` 对实体集合批量处理（✅）。
+- 组件连续存储（SoA/SparseSet）——`ComponentStorage` 列向量 + SparseSet 索引（✅）。
+- 无大量 new/delete 于热路径——全 vector 存储，零热路径分配；迭代无虚调用（✅，virtual 仅用于 erase/contains/clearAll）。
+- System 顺序确定性、可为并行预留——`SystemScheduler` 按优先级+挂载序串行，`isParallelizable`+JobSystem 埋点（✅）。
+- 实体生命周期有 generation 防悬垂——`EntityManager` 代数递增，悬垂句柄 `isAlive=false`（✅）。
+- 有 query/迭代 API——`View<Cs...>::forEach/count`（✅）。

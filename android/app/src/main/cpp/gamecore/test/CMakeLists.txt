@@ -69,6 +69,11 @@ add_executable(game-core-tests
     execute_dispatch_test.cpp
     engine_loop_test.cpp
     watchdog_test.cpp
+    ecs_entity_test.cpp
+    ecs_storage_test.cpp
+    ecs_system_test.cpp
+    ecs_job_test.cpp
+    ecs_disciple_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

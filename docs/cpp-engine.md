@@ -47,8 +47,8 @@
 **⚠️ 缺口（审计确凿，后续工作对象）**
 | # | 缺口 | 证据 | 影响 |
 |---|---|---|---|
-| G1 | **无 ECS**：只有 DiscipleStore(单一实体 SoA，硬编码 ~124 列) + Kotlin EntityStore/ComponentTable；无 Entity/Component/System、无 SparseSet/Archetype/查询 | `disciple_store.h`（单一弟子型）、`month_settlement.h`（过程式 system 操作大状态） | 多实体迭代/并行/世界实体层无基础 |
-| G2 | **完全单线程、无 JobSystem**：gamecore 无 std::thread/async/ThreadPool；游戏逻辑在单线程 executor | `GameEngineCore.kt:396` 单线程 | 5000 弟子每旬 O(D) 单线程热点；无并行收益 |
+| G1 | **无 ECS**：只有 DiscipleStore(单一实体 SoA，硬编码 ~124 列) + Kotlin EntityStore/ComponentTable；无 Entity/Component/System、无 SparseSet/Archetype/查询 | `disciple_store.h`（单一弟子型）、`month_settlement.h`（过程式 system 操作大状态） | **✅ ECS 基础①-④ 已建（2026-09 续作，见 §0.3）**；但结算/内政 system 仍为过程式，尚未经 ECS System 调度——后续迁移项 |
+| G2 | **完全单线程、无 JobSystem**：gamecore 无 std::thread/async/ThreadPool；游戏逻辑在单线程 executor | `GameEngineCore.kt:396` 单线程 | **✅ JobSystem（§0.3 ③）已建**；但现有 system 未接入并行（5000 弟子每旬 O(D) 单线程热点仍存在，待 ECS 调度迁移后释放） |
 | G3 | **地图/建筑/地形数据不在引擎**：瓦片/建筑/道路数据由 Kotlin 生成并喂 RenderFrame；引擎仅道路合成器几何 | `SectMapTileGenerator`/`MainGameScreen` | 世界级 entity(建筑/NPC/空间)无 ECS 基础 |
 | G4 | **渲染路径结构性缺陷**：行业降级链均为 `Vulkan→GPU GLES→软件渲染(仅兜底)`，而本项目为 `Vulkan→CPU Canvas` 且**额外关闭系统硬件加速**(→真·CPU 逐像素)，**缺失行业标配的 GPU GLES 中间层**——这是性能/电量风险的最主要根因，也是与行业最大结构性差异。**→ 2026-09-09 已补 GPU GLES 中间层（见 §0.2/§0.4，降级链现为 `Vulkan→GPU GLES→CPU Canvas`）** | `VulkanPolicy.detectTier`/`shouldDisableHardwareAcceleration` | 性能卖点在主流目标设备不成立 |
 | G5 | **iOS/Metal 未开始**：无 Xcode 工程/无 .metal/无 Swift；只有 game-core 纯 C++ 可复用 | 全仓库 glob=0 | iOS 目标未达成 |
@@ -59,7 +59,7 @@
 
 | 优先级 | 工作 | 对应缺口 |
 |---|---|---|
-| **P0** | **ECS 基础 + 并行化（见 §0.3）**：对当前单线程/多实体迭代提升最大 | G1/G2 |
+| **P0** | **ECS 基础 + 并行化（见 §0.3）**：对当前单线程/多实体迭代提升最大。**✅ ECS 基础①-④ 已实施（2026-09 续作，GTest 757/757）**——通用 ECS 骨架/System 调度/JobSystem/弟子组件化；现有 system 未接 ECS 调度、world 实体层为后续依赖项 | G1/G2 |
 | P0 | **渲染路径结构性修正**：**补 GPU OpenGL ES 中间层**（`Vulkan→GPU GLES→CPU Canvas`；短期不做则**保持系统硬件加速 ON** 让 Canvas 走 GPU Skia，别关 HWUI 变真 CPU）+ `VulkanPolicy` 量化阈值（按 SoC+Vulkan API版本+驱动版本，默认 Vulkan + 窄 Deny）扩白名单 + 驱动版本黑名单 + 崩溃自愈 + 预渲染地面层优化 Canvas 兜底（见 `docs/adr/render-strategy-decision.md` / `docs/research-android-graphics-api-vulkan-gles-software.md`）| G4 |
 | P1 | **iOS 立项**：Xcode 工程 + MetalBackend(Metal-cpp) + Swift/ObjC++ 桥 + UI(Compose Multiplatform 1.8.0)/存档(SQLDelight)/图集/输入/音频 + 合规 | G5/G6 |
 | P1 | **世界实体层**：若有探索/大地图需求，把建筑/地形/NPC 纳入 ECS World + 空间索引 | G3 |
@@ -70,6 +70,8 @@
 ### 0.3 【优先完成】ECS 基础 —— 对当前项目提升最大的改动（排序）
 
 > 用户拍板"打好 ECS 基础"，且要求把**对当前项目提升最大的改动**列为最先完成。下列按"影响 × 依存"排序。首个改动独立、收益即到；随后的并行化依赖它。
+>
+> **✅ 进度（2026-09 续作）**：①②③④ 已实施——通用 ECS 骨架（entity/component/storage/registry/world）、System 调度框架（view/system + 优先级串行确定性）、JobSystem（线程池 parallelFor 索引确定性）、弟子组件化（DiscipleRef 层，不改 DiscipleStore/JSON）。落地为 `gamecore/include/gamecore/ecs/*` 纯头文件 + GTest 35 用例，桌面全量 **757/757**（722 基线零回归）。设计/落地边界见 `docs/adr/ecs-foundation-design.md`。**⑤（世界实体）默认不做**——建筑/地形/道路数据保持渲染链路（RenderFrame），仅在需要探索/大地图/世界交互时再升级并升级 Archetype。
 
 | 顺序 | 改动 | 影响（对当前项目） | 依赖 |
 |---|---|---|---|

@@ -30,6 +30,17 @@
 - **⚠️ 待真机验证**：GLES 坐标/UV 翻转方向、混合模式、ASTC/renderScale/REPEAT 地面暂不支持（降级为 RGBA/全分辨率/逐格地面）——详见 `docs/cpp-engine.md` §0.4。
 - **验证（本环境）**：静态代码审查 + 一致性核查通过；需 Android NDK 构建 + 真机验证。
 
+### C++ 引擎 ECS 数据导向基础（2026-09，C++ 迁移后续主线）
+
+> 补齐"自研跨平台游戏引擎"缺口 G1（无 ECS）/G2（单线程无 JobSystem）的**基础**：落地通用 ECS 骨架 + System 调度框架 + JobSystem + 弟子组件化接入。设计/边界见 `docs/adr/ecs-foundation-design.md`，进度见 `docs/cpp-engine.md` §0.3。**本批只建"基础"，现有结算/内政 system 尚未经 ECS 调度**（留作后续迁移项）；world 实体层（建筑/地形/NPC）按 ADR 决策不入本批。
+
+- **通用 ECS 骨架**（`ecs/entity.h` `component.h` `storage.h` `registry.h` `world.h`）：`EntityId{index,generation}` 句柄 + `EntityManager`（create/destroy/isAlive，freelist+代数防悬垂）；每组件一个 **SoA 列向量 + 保序 SparseSet**（`ComponentStorage<T>`——`entity.index→dense 行` O(1) 查找、保序删除保持相对顺序、无哈希迭代污染）；`ComponentRegistry` 类型存储复用；`World` 创建/销毁实体自动清组件。
+- **ECS System 调度框架**（`ecs/view.h` `system.h`）：`View<Cs...>` 组件子集查询/迭代（首组件插入序 + 其余存在性过滤，**迭代序==实体行序** 确定性红线）；`ISystem`（name/priority/isParallelizable）+ `SystemScheduler` 优先级+挂载序**串行**确定性调度。
+- **JobSystem**（`ecs/job_system.h`）：线程池（submit/wait/`parallelFor` 静态连续分块）——为独立无共享写 system 并行化埋点（**索引确定性**：每 index 恰处理一次、写独立切片则结果唯一）。
+- **弟子组件化**（`ecs/disciple_component.h`，方案 A 落地边界）：`DiscipleRef{row}` 组件把弟子作为实体接入 ECS（row↔entity 对齐），可与其他组件组合做多组件视图迭代——**不改 `DiscipleStore`/`json_codec`/`rng`，存档零变更、RNG 行序红线不破**。
+- **验证**：桌面 GTest 全量 **757/757**（722 基线零回归 + **新增 35 个 ECS 用例**：实体/存储/视图/系统/Job/弟子）。ECS 为纯头文件实现（C++20、零平台依赖），未改生产库源列表，Android/NDK 构建不受影响。
+
+
 ## [4.01.11] - 2026-08-29
 
 ### 优化（C++ 迁移续作批 Y：年变下沉 + 真相源切换）
