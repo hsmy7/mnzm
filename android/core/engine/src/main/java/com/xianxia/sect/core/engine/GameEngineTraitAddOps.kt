@@ -146,8 +146,9 @@ private fun GameEngine.rollTraitAddInner(
  * 并在同一事务内清除 pending。
  *
  * 体质（cultivationSpeedBonus）与词条（CULT_SPEED）影响修炼速率——新增瞬间必须
- * checkpointDisciple 重新记账，否则 realtimeCultivation 会用旧 checkpoint 混算新速率
- * 导致跳变（与洗炼确认替换同理）。天赋/词条的 lifespan 加成经
+ * checkpointDisciple 重新记账，否则 getEffectiveCultivation 投影（checkpoint +
+ * rate×Δmonth）会用旧 checkpoint 混算新速率导致跳变（与洗炼确认替换同理）。天赋/词条的
+ * lifespan 加成经
  * [syncLifespanForTraitChange] 同步（新增"延年"类特质寿命相应上调）。
  *
  * 本地信任模型：不校验产物是否由本会话刷新产生（任何合法 id 均可新增），

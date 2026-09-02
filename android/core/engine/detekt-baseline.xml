@@ -225,7 +225,6 @@
     <ID>InvalidPackageDeclaration:RelativeGiftHandler.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:SaveFacade.kt$package com.xianxia.sect.core.engine.domain.save</ID>
     <ID>InvalidPackageDeclaration:SaveFacadeImpl.kt$package com.xianxia.sect.core.engine.domain.save</ID>
-    <ID>InvalidPackageDeclaration:SaveLoadCoordinator.kt$package com.xianxia.sect.core.engine.domain.save</ID>
     <ID>InvalidPackageDeclaration:SaveService.kt$package com.xianxia.sect.core.engine.domain.save</ID>
     <ID>InvalidPackageDeclaration:SectCombatPowerCalculator.kt$package com.xianxia.sect.core.engine</ID>
     <ID>InvalidPackageDeclaration:SectWarehouseManager.kt$package com.xianxia.sect.core.engine</ID>
@@ -763,7 +762,6 @@
     <ID>NestedBlockDepth:MailService.kt$MailService$private suspend fun ensureCapacity(attachments: List&lt;MailAttachment&gt;, slotId: Int): String?</ID>
     <ID>NestedBlockDepth:ManualDatabase.kt$ManualDatabase$private fun validateWithProto(manuals: Map&lt;String, ManualTemplate&gt;): ValidationResult</ID>
     <ID>NestedBlockDepth:PartnerSystem.kt$PartnerSystem$internal fun processPartnerMatching(state: MutableGameState)</ID>
-    <ID>NestedBlockDepth:SaveLoadCoordinator.kt$SaveLoadCoordinator$fun validateSaveData(data: Any?, expectedVersion: Int? = null): ValidationResult</ID>
     <ID>NestedBlockDepth:SectMapTileGenerator.kt$SectMapTileGenerator$private fun placeBorderTrees( data: Array&lt;IntArray&gt;, w: Int, h: Int, ring: Int )</ID>
     <ID>NestedBlockDepth:SpiritStoneWallet.kt$SpiritStoneWallet$fun batch( state: MutableGameState, operations: List&lt;SpiritStoneOperation&gt;, autoConvert: Boolean = false ): BatchResult</ID>
     <ID>NestedBlockDepth:ThermalController.kt$ThermalController$private fun evaluateLevel(temp: Float, recentFps: Float): DegradationLevel</ID>
@@ -941,7 +939,6 @@
     <ID>TooGenericExceptionCaught:OverflowMailSender.kt$OverflowMailSender$e: Exception</ID>
     <ID>TooGenericExceptionCaught:RedeemCodeManager.kt$RedeemCodeManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:RedeemCodeService.kt$RedeemCodeService$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:SaveLoadCoordinator.kt$SaveLoadCoordinator$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ShardedSlotLock.kt$ShardedSlotLock$e: Throwable</ID>
     <ID>TooGenericExceptionCaught:SystemManager.kt$SystemManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ThermalMonitor.kt$ThermalMonitor$e: Exception</ID>
@@ -1123,8 +1120,6 @@
     <ID>UnusedPrivateProperty:ProductionProcessor.kt$ProductionProcessor$val mineIter = mineCandidates.iterator()</ID>
     <ID>UnusedPrivateProperty:ProductionProcessorTest.kt$ProductionProcessorTest$val herbsBefore = emptyList&lt;Herb&gt;()</ID>
     <ID>UnusedPrivateProperty:RedeemCodeService.kt$RedeemCodeService$val data = stateStore.gameData.value</ID>
-    <ID>UnusedPrivateProperty:SaveLoadCoordinator.kt$SaveLoadCoordinator.Companion$private const val LOAD_TIMEOUT_MS = 10000L</ID>
-    <ID>UnusedPrivateProperty:SaveLoadCoordinator.kt$SaveLoadCoordinator.Companion$private const val SAVE_TIMEOUT_MS = 5000L</ID>
     <ID>UnusedPrivateProperty:SystemManager.kt$SystemManager$private val mutex = Mutex()</ID>
     <ID>UnusedPrivateProperty:TextureCompressionConfig.kt$TextureCompressionConfig.Companion$private val THERMAL_YELLOW = TextureCompressionConfig( tier = TextureTier.MEDIUM, preferredFormat = TextureCompressionFormat.ETC2_RGBA, atlasSize = 2048, use565 = true, downscaleFactor = 0.8f, spriteMaxDimension = 220, reduceAtlasResolution = false )</ID>
     <ID>UnusedPrivateProperty:UnifiedPerformanceMonitor.kt$UnifiedPerformanceMonitor$val newMetrics = PerformanceMetrics( fps = fps, frameTimeMs = avgFrameTime, memoryUsedMB = usedMemory.toLong(), memoryMaxMB = maxMemory.toLong(), memoryFreeMB = freeMemory.toLong(), memoryUsagePercent = memoryPercent, tickCount = tickCounter.get(), averageTickTimeMs = avgTickTime, maxTickTimeMs = maxTickTime, saveQueueSize = currentSaveQueueSize, entityCount = currentEntityCount )</ID>

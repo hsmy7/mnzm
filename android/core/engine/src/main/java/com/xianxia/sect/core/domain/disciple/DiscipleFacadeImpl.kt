@@ -37,10 +37,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.materializeCaptiveGear
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.StorageBagUtils
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.model.BagStackedData
@@ -69,16 +66,6 @@ class DiscipleFacadeImpl @Inject constructor(
     override val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
     override val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()
-
-    override val realtimeCultivation: StateFlow<Map<String, Double>> by lazy {
-        cultivationService.getHighFrequencyData()
-            .map { it.realtimeCultivation ?: emptyMap() }
-            .stateIn(
-                gameEngineCore.scopeForStateIn(),
-                SharingStarted.WhileSubscribed(5000),
-                emptyMap()
-            )
-    }
 
     override val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
 

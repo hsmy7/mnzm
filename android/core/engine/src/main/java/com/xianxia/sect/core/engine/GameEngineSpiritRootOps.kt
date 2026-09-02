@@ -116,7 +116,8 @@ suspend fun GameEngine.washSpiritRoot(
  *
  * 灵根加成（修炼速度/突破率/父母灵根加成）读取时现场推导、无缓存字段；
  * 但速率投影基于"checkpoint 值 + 新速率推导"，替换瞬间必须 checkpointDisciple
- * 重新记账，否则 realtimeCultivation 会用旧 checkpoint 混算新速率导致跳变。
+ * 重新记账，否则 getEffectiveCultivation 投影（checkpoint + rate×Δmonth）
+ * 会用旧 checkpoint 混算新速率导致跳变。
  *
  * 本地信任模型：不校验产物是否由本会话洗炼产生（任何合法灵根串均可替换），
  * 单机游戏本地数据可被玩家自行修改；联网化需会话令牌绑定产物。

@@ -302,12 +302,6 @@ class GameEngine @Inject constructor(
     val highFrequencyData: StateFlow<HighFrequencyData> = cultivationService.getHighFrequencyData()
     val productionSlots: StateFlow<List<ProductionSlot>> = productionFacade.productionSlots
 
-    val realtimeCultivation: StateFlow<Map<String, Double>> by lazy {
-        cultivationService.getHighFrequencyData()
-            .map { it.realtimeCultivation ?: emptyMap() }
-            .stateIn(gameEngineCore.scopeForStateIn(), kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyMap())
-    }
-
     val worldMapRenderData: StateFlow<WorldMapRenderData> by lazy {
         stateStore.gameData.map { data ->
             WorldMapRenderData(

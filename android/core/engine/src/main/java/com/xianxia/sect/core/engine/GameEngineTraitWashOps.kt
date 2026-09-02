@@ -151,8 +151,8 @@ private fun GameEngine.washSlotInner(
  * 确认替换：把弟子目标槽位（[targetId]）替换为洗炼产物 [newId]，其余特质保留。
  *
  * 体质（cultivationSpeedBonus）与词条（CULT_SPEED）影响修炼速率——替换瞬间必须
- * checkpointDisciple 重新记账，否则 realtimeCultivation 会用旧 checkpoint 混算新速率
- * 导致跳变（与洗炼灵根确认替换同理）。
+ * checkpointDisciple 重新记账，否则 getEffectiveCultivation 投影（checkpoint +
+ * rate×Δmonth）会用旧 checkpoint 混算新速率导致跳变（与洗炼灵根确认替换同理）。
  *
  * 本地信任模型：不校验产物是否由本会话洗炼产生（任何合法 id 均可替换），
  * 单机游戏本地数据可被玩家自行修改；联网化需会话令牌绑定产物。

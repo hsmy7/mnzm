@@ -16,7 +16,6 @@ interface DiscipleFacade {
     val disciples: StateFlow<List<Disciple>>
     val discipleAggregates: StateFlow<List<DiscipleAggregate>>
     val highFrequencyData: StateFlow<HighFrequencyData>
-    val realtimeCultivation: StateFlow<Map<String, Double>>
 
     fun addDisciple(disciple: Disciple)
     fun removeDisciple(discipleId: String): DomainResult<Unit>

@@ -88,7 +88,6 @@ class Phase0SettlementBenchmarkTest {
         val manualMap = emptyMap<String, ManualInstance>()
         val residence = emptyMap<Int, ResidenceSlot>()
         val buildings = emptyMap<String, GridBuildingData>()
-        val pending = mutableMapOf<String, Double>()
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue
             // 1) HP/MP 恢复（列直读）
@@ -96,14 +95,13 @@ class Phase0SettlementBenchmarkTest {
                 state, id, phasesToSettle = 1,
                 equipmentMap = equipmentMap, manualMap = manualMap, manualProficiencies = null
             )
-            // 2) 修炼累积（列直读速率 + 批量投影）
+            // 2) 修炼累积（列直读速率；修为列写为循环副作用防死代码消除）
             if (tables.cultivations.getOrDefault(id, 0.0) < 1e8) {
                 service.accumulateCultivationPerPhase(
-                    id, state, pending, residence, buildings
+                    id, state, residence, buildings
                 )
             }
         }
-        benchSink += pending.size
     }
 
     /** C++ 批量通道：推进 1 旬（时间推进 + 结算引擎），含 JNI 往返 */

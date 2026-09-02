@@ -720,7 +720,6 @@ class GameViewModel @Inject constructor(
     }.stateIn(viewModelScope, sharingStarted, emptyList())
 
     val highFrequencyData: StateFlow<HighFrequencyData> get() = gameEngine.highFrequencyData
-    val realtimeCultivation: StateFlow<Map<String, Double>> get() = gameEngine.realtimeCultivation
 
     private val _selectedBuildingId = MutableStateFlow<String?>(null)
     val selectedBuildingId: StateFlow<String?> = _selectedBuildingId.asStateFlow()

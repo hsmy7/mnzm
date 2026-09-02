@@ -30,7 +30,6 @@ data class HighFrequencyData(
     val lastBreakthroughCheckTime: Long = 0L,
     val timestamp: Long = 0L,
     val cultivationUpdates: Map<String, Double> = emptyMap(),
-    val realtimeCultivation: Map<String, Double>? = null,
     /** 本月焦点域已处理的旬数，用于月结时扣除已应用的 HP/MP 恢复和衰减 */
     val focusedPhaseCount: Int = 0
 )
@@ -124,64 +123,24 @@ class CultivationService @Inject constructor(
     fun accumulateCultivationPerPhase(
         id: Int,
         state: com.xianxia.sect.core.state.MutableGameState,
-        pendingRealtime: MutableMap<String, Double>? = null,
         residenceByDiscipleId: Map<Int, ResidenceSlot> = emptyMap(),
         buildingByInstanceId: Map<String, GridBuildingData> = emptyMap()
     ) {
         val tables = state.discipleTables
+        // 死者守卫保持最前（热点循环最常见跳过）；满修为/零速率以嵌套分支
+        // 承接（ReturnCount ≤2 约束，语义与原三段守卫逐位等价）
         if (tables.isAlive[id] != 1) return
         val realm = tables.realms.getOrDefault(id, 9)
         val realmLayer = tables.realmLayers.getOrDefault(id, 1)
         val curCult = tables.cultivations.getOrDefault(id, 0.0)
         val maxCultivation = computeMaxCultivation(realm, realmLayer, curCult)
-        if (curCult >= maxCultivation) return
-
-        val rate = cultivationCore.calculateCultivationPerPhaseById(
-            id, state.gameData, tables, residenceByDiscipleId, buildingByInstanceId
-        )
-        if (rate <= 0.0) return
-
-        tables.cultivations[id] = (curCult + rate).coerceAtMost(maxCultivation)
-
-        // 2026-08-01 接回投影：realtimeCultivation 填充 getEffectiveCultivation
-        // （checkpoint + rate×Δmonth×3）——修复"checkpoint 生产只写不读"的死代码埋雷。
-        // 投影值在两次 checkpoint 之间为常数，值未变时跳过 Map 重建（每旬零额外开销）。
-        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
-        val projection = tables.getEffectiveCultivation(id, currentMonth, rate)
-        val key = id.toString()
-        if (pendingRealtime != null) {
-            // P-6 批量模式：只累积投影变化的弟子（与已发射值比较），
-            // 循环后由 flushRealtimeCultivation 单次发射（D 次发射 → 1 次）
-            val prevMap = _highFrequencyData.value.realtimeCultivation
-            if (prevMap == null || prevMap[key] != projection) {
-                pendingRealtime[key] = projection
+        if (curCult < maxCultivation) {
+            val rate = cultivationCore.calculateCultivationPerPhaseById(
+                id, state.gameData, tables, residenceByDiscipleId, buildingByInstanceId
+            )
+            if (rate > 0.0) {
+                tables.cultivations[id] = (curCult + rate).coerceAtMost(maxCultivation)
             }
-            return
-        }
-        val cur = _highFrequencyData.value
-        val prevMap = cur.realtimeCultivation
-        if (prevMap == null || prevMap[key] != projection) {
-            // Q-2：写入经共享状态更新入口（对外只读封装）
-            sharedState.updateHighFrequencyData { c ->
-                c.copy(realtimeCultivation = (c.realtimeCultivation ?: emptyMap()) + (key to projection))
-            }
-        }
-    }
-
-    /**
-     * P-6：批量发射 realtimeCultivation 投影（D 次 StateFlow 发射 → 1 次，
-     * O(D²) Map 重建 → O(D) 单次合并）。
-     *
-     * 最终 Map 与逐弟子发射逐 key 相同（prevMap + pending 单次合并）；
-     * 无订阅中间值依赖（UI 只消费最终值）。pending 为空时不做任何事。
-     *
-     * @param pending 由 [accumulateCultivationPerPhase] 批量模式累积的投影变更
-     */
-    fun flushRealtimeCultivation(pending: MutableMap<String, Double>) {
-        if (pending.isEmpty()) return
-        // Q-2：写入经共享状态更新入口（对外只读封装）
-        sharedState.updateHighFrequencyData { cur ->
-            cur.copy(realtimeCultivation = (cur.realtimeCultivation ?: emptyMap()) + pending)
         }
     }
 

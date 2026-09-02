@@ -863,14 +863,14 @@ class StorageSystemBenchmark {
         println("  备份机制: 自动备份(5份) + 手动备份(10份) + 关键备份(20份)")
     }
 
-    /** 设计规格阈值（报告拆分） */
+    /** 设计规格阈值（报告拆分）——阈值载体类 SaveLoadCoordinator 已随 S-23 清理（孤儿），数值保留为历史设计参考 */
     private fun printDesignThresholds() {
         println("\n【二、设计规格阈值】")
-        println("  存档操作慢阈值: >500ms (SaveLoadCoordinator.SLOW_SAVE_THRESHOLD_MS)")
-        println("  读档操作慢阈值: >2000ms (SaveLoadCoordinator.SLOW_LOAD_THRESHOLD_MS)")
-        println("  存档超时(AUTO): 15s (SaveLoadCoordinator)")
-        println("  存档超时(MANUAL): 30s (SaveLoadCoordinator)")
-        println("  读档超时: 10s (SaveLoadCoordinator.LOAD_TIMEOUT_MS)")
+        println("  存档操作慢阈值: >500ms")
+        println("  读档操作慢阈值: >2000ms")
+        println("  存档超时(AUTO): 15s")
+        println("  存档超时(MANUAL): 30s")
+        println("  读档超时: 10s")
         println("  紧急存档超时: 2s (GameActivity)")
         println("  最大存档大小: 200MB (DataLimits.DEFAULT.totalMaxBytes)")
         println("  最大弟子数: 5000 (DataLimits.DEFAULT.maxDiscipleCount)")

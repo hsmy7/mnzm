@@ -93,7 +93,6 @@ internal class PhaseSettlementExecutor(
         val views = buildSharedViews(state)
         val pendingProficiencies = mutableMapOf<String, List<ManualProficiencyData>?>()
         val pendingEquipmentUpdates = mutableMapOf<String, EquipmentInstance>()
-        val pendingRealtime = mutableMapOf<String, Double>()
 
         for (id in state.discipleTables.ids) {
             // 存活 + 非秘境成员才参与恢复/修炼（合并跳转条件，保持循环单跳转）
@@ -111,7 +110,7 @@ internal class PhaseSettlementExecutor(
                 CULTIVATION_SKIP_THRESHOLD
             ) {
                 cultivationService.accumulateCultivationPerPhase(
-                    id, state, pendingRealtime,
+                    id, state,
                     views.residenceByDiscipleId, views.buildingByInstanceId
                 )
             }
@@ -130,8 +129,6 @@ internal class PhaseSettlementExecutor(
         cultivationService.commitManualProficiencies(state, pendingProficiencies)
         // P-2：单次重建装备实例列表（O(D×E) → O(E)）
         cultivationService.applyEquipmentUpdates(state, pendingEquipmentUpdates)
-        // P-6：单次发射 realtimeCultivation 投影（D 次发射 → 1 次）
-        cultivationService.flushRealtimeCultivation(pendingRealtime)
     }
 
     /** 构建每旬共享映射（所有弟子复用，避免每弟子 O(N) 重建）。 */

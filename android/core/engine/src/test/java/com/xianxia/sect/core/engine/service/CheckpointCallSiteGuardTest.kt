@@ -8,7 +8,8 @@ import java.io.File
  * checkpoint 调用点守卫测试（2026-08-01，CLAUDE.md 9.5 守卫三要素）。
  *
  * 背景：修炼速率变化点必须调用 checkpointDisciple/checkpointAllDisciples 重新记账，
- * 否则 getEffectiveCultivation 投影（realtimeCultivation）会用旧速率推导错误值。
+ * 否则 getEffectiveCultivation 投影（checkpoint + rate×Δmonth）会用旧速率推导错误值
+ *（投影为 checkpoint 契约读侧，供跨语言对拍基准与派生使用）。
  * 历史遗漏：DiscipleFacadeImpl 服药路径曾缺失 checkpoint（2026-08-01 已补）。
  *
  * 锚点：速率变化入口常量表。新增影响修炼速率的代码路径时，若忘记 checkpoint，
