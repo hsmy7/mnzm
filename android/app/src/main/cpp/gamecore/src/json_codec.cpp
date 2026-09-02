@@ -653,6 +653,17 @@ void from_json(const nlohmann::json& j, SectBattleRecord& v) {
     GC_FROM(j, v, year); GC_FROM(j, v, type);
 }
 
+// ── G7-2：AttackWarning（AI 宗门进攻预警；stage 存 WarningStage.name） ──
+void to_json(nlohmann::json& j, const AttackWarning& v) {
+    j = nlohmann::json::object();
+    GC_TO(v, j, warningId); GC_TO(v, j, attackerSectId); GC_TO(v, j, attackerSectName);
+    GC_TO(v, j, stage); GC_TO(v, j, attackMonth); GC_TO(v, j, createdAtMonth);
+}
+void from_json(const nlohmann::json& j, AttackWarning& v) {
+    GC_FROM(j, v, warningId); GC_FROM(j, v, attackerSectId); GC_FROM(j, v, attackerSectName);
+    GC_FROM(j, v, stage); GC_FROM(j, v, attackMonth); GC_FROM(j, v, createdAtMonth);
+}
+
 // ── 批 4-5：槽位清理补充模型（定义于 WorldSect 前，WorldSect 引用） ──
 
 void to_json(nlohmann::json& j, const GarrisonSlot& v) {
@@ -1245,6 +1256,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, suzerainSectId); GC_TO(v, j, lastYearSpiritStoneIncome);
     GC_TO(v, j, mapSeed);
     GC_TO(v, j, sectAttackCooldowns); GC_TO(v, j, guideCounters);
+    GC_TO(v, j, aiSectPersonalities); GC_TO(v, j, activeAttackWarnings); GC_TO(v, j, isPlayerProtected);
     GC_TO(v, j, annualIncomeBySource); GC_TO(v, j, annualExpenditureByReason);
     GC_TO(v, j, annualTotalIncome); GC_TO(v, j, annualTotalExpenditure);
     GC_TO(v, j, annualAlchemyCount); GC_TO(v, j, annualForgeCount);
@@ -1324,6 +1336,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, suzerainSectId); GC_FROM(j, v, lastYearSpiritStoneIncome);
     GC_FROM(j, v, mapSeed);
     GC_FROM(j, v, sectAttackCooldowns); GC_FROM(j, v, guideCounters);
+    GC_FROM(j, v, aiSectPersonalities); GC_FROM(j, v, activeAttackWarnings); GC_FROM(j, v, isPlayerProtected);
     GC_FROM(j, v, annualIncomeBySource); GC_FROM(j, v, annualExpenditureByReason);
     GC_FROM(j, v, annualTotalIncome); GC_FROM(j, v, annualTotalExpenditure);
     GC_FROM(j, v, annualAlchemyCount); GC_FROM(j, v, annualForgeCount);

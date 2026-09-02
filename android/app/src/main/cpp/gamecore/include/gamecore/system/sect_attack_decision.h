@@ -1,0 +1,224 @@
+#pragma once
+
+#include <cstdint>
+#include <map>
+#include <string>
+#include <vector>
+
+#include "gamecore/rng/rng_manager.h"
+#include "gamecore/state/models.h"
+#include "gamecore/system/month_settlement.h"   // detail::sectPowerOfDisciple / favorLevelOrdinal / kAiMinDisciplesForAttack
+#include "gamecore/system/sect_decision.h"      // gamecore::system::sectDecisionChance / attackDecisionProfile
+
+// ============================================================
+// G7-2：AI 宗门攻击决策下沉（Kotlin AISectAttackManager 的
+//   checkAttackConditions / decidePlayerAttack 等价移植）
+//
+// 确定性红线（BATTLE 分区 RNG 行序）：
+//   1. checkAttackConditions 仅当**通过全部前置门**才消费 1 次 kBattle.nextDouble()
+//      （`rng.nextDouble() < chance`）——前置门早退（身份/人数/联盟/守军战力 0）
+//      一律**不消费**，与 Kotlin `return` 早退逐位一致。
+//   2. decidePlayerAttack 对每个攻击者恰消费 1 次 kBattle.nextDouble()
+//      （通过 gates + powerRatio 非 null 之后）；gates/powerRatio 早退不消费。
+//   3. 计算顺序（sort/短路 && 从左到右）与 Kotlin 完全一致；禁 unordered_map 参与迭代。
+//
+// 复用的既有 C++ 等价：
+//   - details::sectPowerOfDisciple（Kotlin calculateDisciplePower(aggregate, null)）
+//   - details::favorLevelOrdinal（Kotlin SectRelationLevel.fromFavor → ordinal）
+//   - gamecore::system::sectDecisionChance（Kotlin IntelligentSectDecisionEngine.calculateChance）
+// ============================================================
+namespace gamecore::system::detail {
+
+/// 好感度查询（Kotlin FavorDomain.findFavor：双向匹配首条，缺失默认 0——注意异于
+/// breakawayFavor 的 50，攻击决策必须用 0 默认）
+inline int32_t findFavor(const std::vector<state::SectRelation>& relations,
+                         const std::string& idA, const std::string& idB) {
+    for (const auto& r : relations) {
+        if ((r.sectId1 == idA && r.sectId2 == idB) ||
+            (r.sectId1 == idB && r.sectId2 == idA)) {
+            return r.favor;
+        }
+    }
+    return 0;
+}
+
+/// 弟子列表总战力（Kotlin calculateSectPower over List<Disciple>：filter isAlive + sumOf Long）
+inline int64_t sectPowerFromList(const std::vector<state::Disciple>& disciples) {
+    int64_t power = 0;
+    for (const auto& d : disciples) {
+        if (!d.isAlive) continue;
+        power += sectPowerOfDisciple(d);
+    }
+    return power;
+}
+
+/// 近 3 年战报四类计数（Kotlin recentRecords.count：year >= gameYear - 3）
+struct BattleRecordCounts {
+    int32_t conquest = 0;
+    int32_t lostSect = 0;
+    int32_t battleWin = 0;
+    int32_t battleLoss = 0;
+};
+
+inline BattleRecordCounts countRecentBattleRecords(
+    const std::vector<state::SectBattleRecord>& records, int32_t gameYear) {
+    BattleRecordCounts c;
+    for (const auto& r : records) {
+        if (r.year < gameYear - 3) continue;
+        if (r.type == "CONQUEST") { ++c.conquest; }
+        else if (r.type == "LOST_SECT") { ++c.lostSect; }
+        else if (r.type == "BATTLE_WIN") { ++c.battleWin; }
+        else if (r.type == "BATTLE_LOSS") { ++c.battleLoss; }
+    }
+    return c;
+}
+
+/// AI 名弟子列表+门（Kotlin filter isAlive；检查后条件未捕获空队返回空 vector）
+inline std::vector<state::Disciple> aliveDisciplesOf(
+    const std::map<std::string, std::vector<state::Disciple>>& aiDisciples,
+    const std::string& sectId) {
+    const auto it = aiDisciples.find(sectId);
+    if (it == aiDisciples.end()) return {};
+    std::vector<state::Disciple> alive;
+    alive.reserve(it->second.size());
+    for (const auto& d : it->second) {
+        if (d.isAlive) alive.push_back(d);
+    }
+    return alive;
+}
+
+/// AI 能否攻击目标（Kotlin AISectAttackManager.checkAttackConditions；返回 bool，消费 1 次 BATTLE nextDouble）
+/// defender 为玩家占领时守军来自 playerGarrison（Kotlin playerGarrisonMap）；否则来自 aiSectDisciples。
+inline bool checkAttackConditions(
+    GameState& state,
+    const state::WorldSect& attacker,
+    const state::WorldSect& defender,
+    const std::map<std::string, std::vector<state::Disciple>>& playerGarrison,
+    rng::RngManager& rng) {
+    if (attacker.id == defender.id) return false;
+
+    const auto& gameData = state.gameData;
+    const std::vector<state::Disciple> attackerDisciples =
+        aliveDisciplesOf(state.aiSectDisciples, attacker.id);
+    if (static_cast<int32_t>(attackerDisciples.size()) < kAiMinDisciplesForAttack) return false;
+
+    // 同联盟不攻击（硬约束；allianceId 空则放行）
+    if (!attacker.allianceId.empty() && attacker.allianceId == defender.allianceId) return false;
+
+    const int64_t attackerPower = sectPowerFromList(attackerDisciples);
+
+    const std::vector<state::Disciple> defenderDisciples = defender.isPlayerOccupied
+        ? [&]() {
+              const auto it = playerGarrison.find(defender.id);
+              return it == playerGarrison.end() ? std::vector<state::Disciple>{} : it->second;
+          }()
+        : aliveDisciplesOf(state.aiSectDisciples, defender.id);
+    const int64_t defenderPower = sectPowerFromList(defenderDisciples);
+    if (defenderPower <= 0) return false;
+
+    const double powerRatio = static_cast<double>(attackerPower) / static_cast<double>(defenderPower);
+
+    const int32_t favor = findFavor(gameData.sectRelations, attacker.id, defender.id);
+    const int32_t favorLevel = favorLevelOrdinal(favor);
+    const auto pIt = gameData.aiSectPersonalities.find(attacker.id);
+    const int32_t personality = pIt == gameData.aiSectPersonalities.end() ? 1 : pIt->second;  // 默认 BALANCED=1
+
+    const BattleRecordCounts rc = countRecentBattleRecords(gameData.sectBattleRecords, gameData.gameYear);
+    const double chance = sectDecisionChance(
+        attackDecisionProfile(), powerRatio, rc.conquest, rc.lostSect, rc.battleWin, rc.battleLoss,
+        favorLevel, personality);
+
+    return rng.getRng(rng::RngPartition::kBattle).nextDouble() < chance;
+}
+
+/// AI 攻玩家决策（Kotlin decidePlayerAttack：注意态/生成的预警——返回决策）
+enum class PlayerAttackDecisionType { kSkip, kGenerateWarning };
+struct PlayerAttackDecision {
+    PlayerAttackDecisionType type = PlayerAttackDecisionType::kSkip;
+    std::string attackerSectId;
+    std::string attackerSectName;
+};
+
+/// AI 攻玩家前置六道闸（Kotlin passesAttackerGates：附庸/预警/冷却/人数/联盟；未通过返回空）
+inline std::vector<state::Disciple> passesAttackerGates(
+    GameState& state, const state::WorldSect& attacker, int32_t nowMonth) {
+    const auto& gameData = state.gameData;
+    const std::vector<state::Disciple> aliveAttackers =
+        aliveDisciplesOf(state.aiSectDisciples, attacker.id);
+
+    const auto playerSectIt = std::find_if(
+        gameData.worldMapSects.begin(), gameData.worldMapSects.end(),
+        [](const state::WorldSect& s) { return s.isPlayerSect; });
+
+    const auto cooldownIt = gameData.sectAttackCooldowns.find(attacker.id);
+    const bool cooldownOk = (cooldownIt == gameData.sectAttackCooldowns.end()) ||
+                            (nowMonth >= cooldownIt->second);
+
+    bool hasWarning = false;
+    for (const auto& w : gameData.activeAttackWarnings) {
+        if (w.attackerSectId == attacker.id) { hasWarning = true; break; }
+    }
+
+    const bool passes = gameData.suzerainSectId != attacker.id &&
+        !hasWarning &&
+        cooldownOk &&
+        static_cast<int32_t>(aliveAttackers.size()) >= kAiMinDisciplesForAttack &&
+        (attacker.allianceId.empty() ||
+         (playerSectIt != gameData.worldMapSects.end() &&
+          playerSectIt->allianceId != attacker.allianceId));
+
+    if (!passes) return {};
+    return aliveAttackers;
+}
+
+/// AI 攻玩家战力比（Kotlin computePowerRatio；防守战力 <=0 返回空）
+inline std::vector<state::Disciple> playerDefenders(
+    GameState& state, const std::string& playerSectId) {
+    return aliveDisciplesOf(state.aiSectDisciples, playerSectId);
+}
+
+/// AI 攻玩家决策主入口（Kotlin AISectAttackManager.decidePlayerAttack；返回预警决策）
+inline PlayerAttackDecision decidePlayerAttack(GameState& state, rng::RngManager& rng) {
+    const auto& gameData = state.gameData;
+    if (gameData.isPlayerProtected) return PlayerAttackDecision{};
+
+    const auto playerSectIt = std::find_if(
+        gameData.worldMapSects.begin(), gameData.worldMapSects.end(),
+        [](const state::WorldSect& s) { return s.isPlayerSect; });
+    if (playerSectIt == gameData.worldMapSects.end()) return PlayerAttackDecision{};
+    const std::string playerSectId = playerSectIt->id;
+    const int32_t nowMonth = gameData.gameYear * 12 + gameData.gameMonth;
+
+    for (const auto& attacker : gameData.worldMapSects) {
+        if (attacker.isPlayerSect) continue;
+
+        const std::vector<state::Disciple> aliveAttackers =
+            passesAttackerGates(state, attacker, nowMonth);
+        if (aliveAttackers.empty()) continue;
+
+        const int64_t attackerPower = sectPowerFromList(aliveAttackers);
+        const std::vector<state::Disciple> defense = playerDefenders(state, playerSectId);
+        const int64_t defenderPower = sectPowerFromList(defense);
+        if (defenderPower <= 0) continue;
+        const double powerRatio = static_cast<double>(attackerPower) / static_cast<double>(defenderPower);
+
+        // computeAttackChance：好感/战绩/个性
+        const int32_t favor = findFavor(gameData.sectRelations, attacker.id, playerSectId);
+        const int32_t favorLevel = favorLevelOrdinal(favor);
+        const auto pIt = gameData.aiSectPersonalities.find(attacker.id);
+        const int32_t personality = pIt == gameData.aiSectPersonalities.end() ? 1 : pIt->second;
+        const BattleRecordCounts rc =
+            countRecentBattleRecords(gameData.sectBattleRecords, gameData.gameYear);
+        const double chance = sectDecisionChance(
+            attackDecisionProfile(), powerRatio, rc.conquest, rc.lostSect, rc.battleWin,
+            rc.battleLoss, favorLevel, personality);
+
+        if (rng.getRng(rng::RngPartition::kBattle).nextDouble() < chance) {
+            return PlayerAttackDecision{PlayerAttackDecisionType::kGenerateWarning,
+                                        attacker.id, attacker.name};
+        }
+    }
+    return PlayerAttackDecision{};
+}
+
+}  // namespace gamecore::system::detail

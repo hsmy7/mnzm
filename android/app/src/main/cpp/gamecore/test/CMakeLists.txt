@@ -74,6 +74,7 @@ add_executable(game-core-tests
     ecs_system_test.cpp
     ecs_job_test.cpp
     ecs_disciple_test.cpp
+    sect_attack_decision_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

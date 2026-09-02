@@ -794,6 +794,16 @@ struct SectBattleRecord {
     std::string type;          // SectBattleType.name（CONQUEST/LOST_SECT/BATTLE_WIN/BATTLE_LOSS）
 };
 
+/// AttackWarning（AI 宗门进攻预警；批 G7-2 AI 攻击决策下沉需要——stage/WarningStage.name）
+struct AttackWarning {
+    std::string warningId;
+    std::string attackerSectId;
+    std::string attackerSectName;
+    std::string stage;         // WarningStage.name（WAR_DECLARATION/DENUNCIATION）
+    int32_t attackMonth = 0;
+    int32_t createdAtMonth = 0;
+};
+
 // ── 宗门详情域（批 10-1：S8 侦察过期清理子事件协议扩容）──────────
 
 /// MineSlot（矿脉槽位）
@@ -1280,6 +1290,10 @@ struct GameData {
     // 冷却/统计（Map）
     std::map<std::string, int32_t> sectAttackCooldowns;
     std::map<std::string, int64_t> guideCounters;
+    // ── G7-2：AI 攻击决策域（Kotlin GameData 同名字段；宽松 from_json 旧档兼容） ──
+    std::map<std::string, int32_t> aiSectPersonalities;     // 宗门 → AISectPersonality ordinal(0..3)
+    std::vector<AttackWarning> activeAttackWarnings;        // AI 宗门进攻预警（决策消费 attackerSectId）
+    bool isPlayerProtected = false;                          // 玩家受保护期（保护期内 AI 不进攻玩家）
     // 年度报告
     std::map<std::string, int64_t> annualIncomeBySource;
     std::map<std::string, int64_t> annualExpenditureByReason;
