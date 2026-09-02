@@ -1,12 +1,12 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划。
+> 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划（迁移主线批次的；**引擎整体现状 + 后续工作计划见 §0**）。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
 >
 > **📌 快速恢复点（2026-09-02，上下文压缩/新会话从此继续）**：
 > - **基线**：GTest **722/722** · engine JUnit 全量（桌面 JNI 对拍 0 skip）· NDK externalNativeBuildRelease · engine detekt 全绿 · app compileReleaseKotlin 通过——版本 4.01.12 已发布（commit 11961daa，2026-09-02，CHANGELOG 与游戏内 changelog 均含批 Y 全量条目）
-> - **已完成批次**（目标核心全部达成）：批 M-1 月变真相源切换 → 批 Y-1/Y-2/Y-switch/Y-3（T1 11/11）→ 批 Y-4a/4b/4c（T2 11/11，年变残留执行器扇出清零）→ **收尾批（2026-09-02）**：S-07 清偿（DomainLog.setLogger 返回旧值 + 基准测试保存-恢复 + DomainLogTest）；S-21 清偿（孤儿入口 GameEngineCore.loadSnapshot/createSnapshot + GameEngine.loadFromSave→SaveFacade/SaveService 链删除；getEffectiveCultivation 勘误保留——源码调用点在活代码 CultivationService，批 9-2 后仅 Kotlin 运行时无执行驱动，为 C++ 修炼对拍基准）；年变对拍外交簇换装真实（DiplomacyService/DiplomacyEventProcessor/FavorEventProcessor/VassalService）+ 新增外交对拍场景（T2-④ 交易刷新首次整链对拍 + T2-⑥⑦⑨ 联盟/好感）——途中实锤并修复 C++ 两处与 Kotlin 不等价：① manual 交易商品 RNG 消费序缺口（ManualDatabase.generateRandom 的 generateRarity 阶梯无条件消耗 1×nextDouble（min==max 无短路），C++ pickTradeTemplate 无此消耗致 RNG 流错位选中不同功法）；② 交易/收购 pill 池序（Kotlin allPills.values 模板序（grade 外层×丹名内层）vs C++ pillRecipes 配方序（丹名外层×grade 内层）——新增 `pillRecipesInTemplateOrder()` 模板序视图，交易/收购池消费之）
-> - **剩余工作**：**无**（迁移主线 + S 系列登记项全部收口——S-07/S-21/S-23/S-24 均已清偿，见 §8）
+> - **已完成批次**（迁移主线批次全部达成——**注意：非"引擎整体目标"完成**，引擎级现况与后续计划见 **§0**）：批 M-1 月变真相源切换 → 批 Y-1/Y-2/Y-switch/Y-3（T1 11/11）→ 批 Y-4a/4b/4c（T2 11/11，年变残留执行器扇出清零）→ **收尾批（2026-09-02）**：S-07 清偿（DomainLog.setLogger 返回旧值 + 基准测试保存-恢复 + DomainLogTest）；S-21 清偿（孤儿入口 GameEngineCore.loadSnapshot/createSnapshot + GameEngine.loadFromSave→SaveFacade/SaveService 链删除；getEffectiveCultivation 勘误保留——源码调用点在活代码 CultivationService，批 9-2 后仅 Kotlin 运行时无执行驱动，为 C++ 修炼对拍基准）；年变对拍外交簇换装真实（DiplomacyService/DiplomacyEventProcessor/FavorEventProcessor/VassalService）+ 新增外交对拍场景（T2-④ 交易刷新首次整链对拍 + T2-⑥⑦⑨ 联盟/好感）——途中实锤并修复 C++ 两处与 Kotlin 不等价：① manual 交易商品 RNG 消费序缺口（ManualDatabase.generateRandom 的 generateRarity 阶梯无条件消耗 1×nextDouble（min==max 无短路），C++ pickTradeTemplate 无此消耗致 RNG 流错位选中不同功法）；② 交易/收购 pill 池序（Kotlin allPills.values 模板序（grade 外层×丹名内层）vs C++ pillRecipes 配方序（丹名外层×grade 内层）——新增 `pillRecipesInTemplateOrder()` 模板序视图，交易/收购池消费之）
+> - **剩余工作**：~~无~~ （**2026-09-09 审计修正**：迁移主线（确定性逻辑核心）+ S 系列登记项确已收口（S-07/S-21/S-23/S-24 已清偿，见 §8）；但"自研跨平台游戏引擎"仍有明确缺口与后续工作——**ECS 基础、渲染路径修正、iOS 立项**为后续主线，权威现况与计划见 **§0**。本条"无剩余工作"仅就迁移主线而言，不适用于引擎整体目标）
 > - **恢复指引**：无未下沉年变编排扇出（残留执行器仅剩 T1-③ 死亡链平台效应，设计边界）；S-23（SaveLoadCoordinator 孤儿类）/ S-24（realtimeCultivation 投影链，UI 修为显示已确认走 discipleAggregates 镜像）已随收尾批二清偿；每批 = Kotlin 源码审计 → C++ 移植（year_settlement.h detail）→ GTest 黄金序列 → 桌面对拍桥（scripts/build-desktop-jni.ps1）→ engine JUnit 强制重跑（--rerun-tasks）→ NDK/detekt；工作区另有 feature/game 4 项**预存非本任务改动**（建造栏石板路置灰）未提交，勿混入迁移提交
 
 > 当前基线：**桌面 GTest 659/659（本机桌面工具链实跑；批 10-0 起 GTest 纳入本地验证门，CMake gtest_discover 需 llvm-mingw bin 在 PATH；批 12-1/12-2 新增 6 用例、批 13-1 新增 3 用例、批 13-2a 新增 3 用例、批 13-2b 新增 3 用例、批 13-3 新增 3 用例、批 13-4b 新增 5 用例、批 13-4c 新增 4 用例、战斗批次 A 新增 7 用例、战斗批次 B 新增 15 用例、战斗批次 C 新增 7 用例） · engine JUnit 2979/2979（testReleaseUnitTest 全量 + 桌面 JNI 对拍全执行 0 skip——本机已具备桌面工具链，`-Dgamecore.jni.path` 注入后原 194 个 Assume 跳过用例全部实跑） · app compileReleaseKotlin 通过 · detekt 全模块全绿（含首次纳入验证门的 `:feature:game:detekt`） · NDK externalNativeBuildRelease 通过**。
@@ -31,8 +31,80 @@
 
 > **2026-09-01（批 M-1：月变真相源切换）**：生产月变路径从 Kotlin `MonthSettlementExecutor` 八步编排切换为 **C++ `runMonthSettlement` + Kotlin 残留执行器互插**（旬结算同构模式）——`GameCore::settleMonth()`（`nativeSettleMonth` JNI 信封：policyCosts.disabledPolicies + S-17 秘境关闭草稿 + S-20 购买日志草稿）+ Kotlin `settleMonthNative` 管线（nativeSettleMonth → 增量镜像 → `MonthSettlementResidualExecutor` 单事务（生产结算 4a/4b + 战斗三件子事件 5/6/9 + 邮件 4g + S-17/S-20 草稿应用）→ 反向回导）+ `GameEngineCore.processMonthYearChange` 月变分支切换（native 未就绪回退 Kotlin 完整编排）；**S-14/S-16/S-17/S-20 清偿**（S-14：执法域随月变编排整体入 C++，Kotlin committed 读消灭；S-16：`RecruitService.resetAutoRecruitIdle` 经 `nativeResetAutoRecruitIdle` 同步 C++ 惰性门——重置点收敛；S-17：秘境关闭草稿回传（背包快照 + memberIds）→ `SecretRealmService.applyExpiryCloseDraft` 重建关闭邮件 + gate release；S-20：购买日志草稿 → lifeEvents 瞬态列写入）；**行为基线登记**：残留执行器（生产结算 SYSTEM/任务完成 MISSION）在 C++ 全部消耗之后执行——SYSTEM/MISSION 序列与切换前 Kotlin 编排不同（月变编排整体入 C++ 的必然），C++ 侧 GTest 黄金序列锁定、残留侧委托式 NativeBackedRng 保证确定性；验证：engine JUnit 全量（桌面 JNI 0 skip）+ NDK externalNativeBuildRelease + detekt 全绿 + app compileReleaseKotlin 通过，详见 CHANGELOG.md 与 §7.6。
 
-## 1. 目标架构
+## 0. 当前项目现状与后续工作（2026-09 审计更新，权威）
 
+> 2026-09 独立技术审计结论。**覆盖 / 修正本文件头部"剩余工作：无（迁移主线全部收口）"的表述**——迁移主线（确定性逻辑核心）确已收口，但"自研跨平台游戏引擎"这一更大目标仍有明确缺口与后续工作。本节为现况与新计划，历史批次归档见 §4/§7 不变。
+
+### 0.1 真实状态（已完成 vs 缺口，基于实际调用链）
+
+**✅ 已完成（扎实、真实）**
+- **C++ 逻辑核心**：`gamecore` 纯 C++20、零 Android 依赖、桌面可编译；GTest 722/722；覆盖 RNG/时间推进/旬-月-年结算/弟子 SoA/战斗(计算+AI+回合+三引擎)/经济/库存/灵田/内政/探索/秘境/外交/兑换码/道路。
+- **事实真相源**：`NativeEngineFlag.mode = AUTHORITATIVE` 为生产默认；`EngineLoop`(PhaseClock) 帧判据 + `ProgressMonitor` 看门狗判据已入 C++;每旬经 `nativeSettlePhase` 标量通道 + Kotlin 残留执行器互插 + 反向增量。
+- **渲染双路径**：Vulkan 完整实现（Device/Swapchain/CommandBuffer/RenderPass/Pipeline/Draw/离屏 renderScale/ASTC 图集）+ Canvas 软件渲染兜底，经 `Rhi.h` 抽象 + `RenderFrame` 契约。
+- **平台解耦**：engine 层 `import android.*` 清零；`core/platform.h` 端口注入；gamecore 无任何 Android 泄漏。
+- **确定性/对拍体系**：跨语言 Diff 对拍 + GTest 黄金序列 + RNG 分区 + kotlinx-proto 存档链路零改动。
+
+**⚠️ 缺口（审计确凿，后续工作对象）**
+| # | 缺口 | 证据 | 影响 |
+|---|---|---|---|
+| G1 | **无 ECS**：只有 DiscipleStore(单一实体 SoA，硬编码 ~124 列) + Kotlin EntityStore/ComponentTable；无 Entity/Component/System、无 SparseSet/Archetype/查询 | `disciple_store.h`（单一弟子型）、`month_settlement.h`（过程式 system 操作大状态） | 多实体迭代/并行/世界实体层无基础 |
+| G2 | **完全单线程、无 JobSystem**：gamecore 无 std::thread/async/ThreadPool；游戏逻辑在单线程 executor | `GameEngineCore.kt:396` 单线程 | 5000 弟子每旬 O(D) 单线程热点；无并行收益 |
+| G3 | **地图/建筑/地形数据不在引擎**：瓦片/建筑/道路数据由 Kotlin 生成并喂 RenderFrame；引擎仅道路合成器几何 | `SectMapTileGenerator`/`MainGameScreen` | 世界级 entity(建筑/NPC/空间)无 ECS 基础 |
+| G4 | **渲染路径结构性缺陷**：行业降级链均为 `Vulkan→GPU GLES→软件渲染(仅兜底)`，而本项目为 `Vulkan→CPU Canvas` 且**额外关闭系统硬件加速**(→真·CPU 逐像素)，**缺失行业标配的 GPU GLES 中间层**——这是性能/电量风险的最主要根因，也是与行业最大结构性差异。**→ 2026-09-09 已补 GPU GLES 中间层（见 §0.2/§0.4，降级链现为 `Vulkan→GPU GLES→CPU Canvas`）** | `VulkanPolicy.detectTier`/`shouldDisableHardwareAcceleration` | 性能卖点在主流目标设备不成立 |
+| G5 | **iOS/Metal 未开始**：无 Xcode 工程/无 .metal/无 Swift；只有 game-core 纯 C++ 可复用 | 全仓库 glob=0 | iOS 目标未达成 |
+| G6 | **主循环线程/帧率策略/存档编码( kotlinx-proto)/UI 全 Kotlin** | `GameEngineCore`/`T-CPP-1` | 双端需各自实现 |
+| G7 | **战斗/宗门口战副引擎部分留 Kotlin**（部分系统、AI 兽战后处理、部分平台效应） | 批 12-3/13-8~10 边界 | 确定性/对拍有缺口面 |
+
+### 0.2 后续工作（主线，按优先级）
+
+| 优先级 | 工作 | 对应缺口 |
+|---|---|---|
+| **P0** | **ECS 基础 + 并行化（见 §0.3）**：对当前单线程/多实体迭代提升最大 | G1/G2 |
+| P0 | **渲染路径结构性修正**：**补 GPU OpenGL ES 中间层**（`Vulkan→GPU GLES→CPU Canvas`；短期不做则**保持系统硬件加速 ON** 让 Canvas 走 GPU Skia，别关 HWUI 变真 CPU）+ `VulkanPolicy` 量化阈值（按 SoC+Vulkan API版本+驱动版本，默认 Vulkan + 窄 Deny）扩白名单 + 驱动版本黑名单 + 崩溃自愈 + 预渲染地面层优化 Canvas 兜底（见 `docs/adr/render-strategy-decision.md` / `docs/research-android-graphics-api-vulkan-gles-software.md`）| G4 |
+| P1 | **iOS 立项**：Xcode 工程 + MetalBackend(Metal-cpp) + Swift/ObjC++ 桥 + UI(Compose Multiplatform 1.8.0)/存档(SQLDelight)/图集/输入/音频 + 合规 | G5/G6 |
+| P1 | **世界实体层**：若有探索/大地图需求，把建筑/地形/NPC 纳入 ECS World + 空间索引 | G3 |
+| P1 | **战斗残余下沉**：宗门口战副引擎/部分平台效应入 C++ | G7 |
+
+> 渲染路径修正见 `docs/adr/render-strategy-decision.md`；iOS 见 `docs/adr/ios-migration-plan.md`；ECS 见 `docs/adr/ecs-foundation-design.md`。
+
+### 0.3 【优先完成】ECS 基础 —— 对当前项目提升最大的改动（排序）
+
+> 用户拍板"打好 ECS 基础"，且要求把**对当前项目提升最大的改动**列为最先完成。下列按"影响 × 依存"排序。首个改动独立、收益即到；随后的并行化依赖它。
+
+| 顺序 | 改动 | 影响（对当前项目） | 依赖 |
+|---|---|---|---|
+| **①** | **通用 ECS 骨架**：`EntityId(index+generation)` 句柄 + 每组件一个 **SoA/SparseSet 列存储** + 实体注册表 | 把单一硬编码 DiscipleStore 泛化为可复用组件存储；entity 复用/防悬垂；为多组件/多实体打基础。**收益：数据导向复用、可扩展。** | 无 |
+| **②** | **ECS System 调度框架**：注册式 System + 优先级调度 + `View` 组件查询迭代（确定性/串行，预留 job 接口） | 把"过程式 system 操作大状态对象"改为显式依赖、可测、可组合的 System 图；确定性保住 RNG 行序红线。**收益：系统边界清晰、可并行、可测试。** | ① |
+| **③** | **JobSystem + 独立 system 并行化**（战斗/探索/内政/结算等无共享写的 system） | **对当前单线程短板提升最大**：5000 弟子每旬 O(D) 热点、战斗/探索等可并行 system 分摊到多核。**收益：性能直接提升（当前 G2 是主要热点）。** | ② |
+| **④** | **弟子组件化**：把 DiscipleStore 泛化为"弟子组件集"（每列一个独立组件 SoA），弟子经实体映射接入 | 弟子迭代 cache 更友好；为与其他实体组合做准备。**收益：弟子量大、迭代频繁，缓存局部性提升。**（注意：不触碰 RNG 行序红线/JSON 协议零变更）| ① |
+| ⑤(后置) | **世界实体 + 空间索引**（建筑/地形/NPC 位置 + 栅格/空间哈希） | 仅当需要探索/大地图/世界级交互；当前 128×128 小地图非必需。**设为可选，避免大范围重构。** | ①/② |
+
+**落地边界（首期）**：只实体化**弟子**（项目逻辑主体、数量大）；**建筑/地形/道路数据保持在渲染链路**（RenderFrame）与现有 GridSystem，**不急于迁入 ECS**——避免大范围重构与存档触碰。ECS/弟子组件化均**不改 `state/models.h`、`json_codec`、`rng/*` 的 JSON 协议**（存档零变更、RNG 行序红线不动）。
+
+**确定性红线（全局）**：System 迭代序 == 实体行序（RNG 对拍命门）；禁止 `unordered_map` 参与业务迭代；系统调度先串行，并行化仅限无共享写的独立 system。
+
+> 详细设计 + "避免假 ECS"检查清单见 `docs/adr/ecs-foundation-design.md`。
+
+
+
+### 0.4 【已实施】GPU GLES 中间层（2026-09-09）
+
+> 补齐行业标配的 GPU GLES 中间层，使 Android 降级链变为 **`Vulkan→GPU GLES→CPU Canvas`**。
+> 决策/对标见 `docs/adr/render-strategy-decision.md`；完整调研见 `docs/research-android-graphics-api-vulkan-gles-software.md`。
+
+**改动清单（本轮落实，未改逻辑核心）**：
+- **C++**：新增 `android/app/src/main/cpp/GlesBackend.h/.cpp`（EGL + GLES2 渲染，实现 Rhi `Renderer2D` 接口；单管线/单图集/按纹理批处理/动态 VBO；Y 投影翻转适配 GLES NDC）。`NativeBridge.cpp` 加 `g_backendType` + `nativeSetRenderBackend`，`initRenderer` 按类型创建 `GlesBackend`；5 个 Vulkan 专属方法（prewarm/initSurface/setRenderScale/uploadRepeatTexture/uploadCompressedAtlas）经 dynamic_cast 对 GLES 优雅回退。`CMakeLists.txt` 加入 `GlesBackend.cpp` 并链接 `EGL`/`GLESv2`。
+- **Kotlin**：`NativeBridge.setRenderBackend` + `BACKEND_VULKAN/BACKEND_GLES`；`RenderMode.GLES`；`GlesRenderBackend`（复用 `VulkanRenderBackend` 渲染逻辑）；`NativeSurfaceView` 降级链 `Vulkan→GLES→Canvas`（Vulkan 失败先试 GLES 再软件）+ ASTC 仅 Vulkan；`VulkanPolicy` 新增 `RenderStrategy.GLES_PREFERRED`，把"Vulkan 不可靠但 GPU 可用"（MediaTek/Mali/非高通国产/旧 API 非白名单/PROBLEMATIC/崩溃自愈）路由到 GPU GLES；`GameActivity`→`MainGameScreen`→`SectMapViewport` Thread `glesRendering` 标志。
+
+**⚠️ 需真机验证**（本实现静态代码通过，但无法在本环境跑 Android 构建/真机，以下为剩余验证点）：
+1. GLES 后端在 NDK/Android 构建编译通过、真机初始化成功。
+2. **坐标/UV 翻转方向**：GlesBackend 采用"投影 Y 翻转、UV 不翻转"（注释已说明），若真机发现地图上下/纹理颠倒，改 GlesBackend.cpp 顶点着色器 `vUV.y = 1.0 - aUV.y`（或去投影翻转）即反转——一行修正。
+3. **混合模式**：GlesBackend 用普通 alpha（SRC_ALPHA/ONE_MINUS_SRC_ALPHA），若高亮/阴影色差，改预乘（GL_ONE/ONE_MINUS_SRC_ALPHA）。
+4. `shouldDisableHardwareAcceleration` 未联动（本次只改游戏地图渲染走 GLES；Compose UI 系统级 HWUI 的 SkiaVK 处置仍保持原策略——见 render-strategy-decision.md 诚实声明，Android<15 回传 SkiaVK 无权威来源，需行业口径确认后再联动）。
+
+**范围外（后续待办）**：GPU GLES 暂不支持 ASTC 压缩图集、离屏 renderScale（直渲全分辨率）、REPEAT 地面无缝纹理（回退逐格地面）——均为可接受的降级（性能差异小，真机验证后可按需补）。
+
+## 1. 目标架构
 ```
 Compose UI (feature/game + app) —— 保留，零改动
   ↓

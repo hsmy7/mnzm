@@ -60,9 +60,11 @@ class NativeSurfaceView(
 
     /** 渲染后端模式 */
     enum class RenderMode {
-        /** GPU Vulkan 原生渲染（默认） */
+        /** GPU Vulkan 原生渲染（首选） */
         VULKAN,
-        /** CPU Canvas 软件渲染（回退） */
+        /** GPU OpenGL ES 中间层渲染（Vulkan 不可靠/失败时，2026-09 新增） */
+        GLES,
+        /** CPU Canvas 软件渲染（最终兜底） */
         SOFTWARE
     }
 
@@ -74,8 +76,17 @@ class NativeSurfaceView(
      * 强制指定渲染模式。在 surface 可用事件前设置生效。
      * - 模拟器/Vulkan 问题设备：设置为 SOFTWARE 跳过 Vulkan 初始化
      * - 正常设备：保持 VULKAN（默认）
+     * - Vulkan 不可靠但 GPU 可用设备：设置为 GLES（2026-09 GPU GLES 中间层）
      */
     var useRenderMode: RenderMode = RenderMode.VULKAN
+
+    /** 本次初始化是否使用 GPU GLES 后端（runVulkanInitThread 前设定，成功回调读取） */
+    @Volatile
+    private var initBackendGles: Boolean = false
+
+    /** Vulkan 初始化失败后是否已尝试 GPU GLES 中间层（防循环；优先 GLES 再软件兜底） */
+    @Volatile
+    private var glesTriedAfterVulkan: Boolean = false
 
     /** 软件渲染后端（仅 [RenderMode.SOFTWARE] 时非空） */
     private var softwareBackend: SoftwareCanvasBackend? = null
@@ -294,7 +305,7 @@ class NativeSurfaceView(
      * JVM 测试无法覆盖——由真机验证）。
      */
     internal fun shouldTryCompressedAtlas(): Boolean =
-        renderMode != RenderMode.SOFTWARE && config.renderFlags.textureCompression
+        renderMode == RenderMode.VULKAN && config.renderFlags.textureCompression
 
     /**
      * ASTC 压缩图集尝试入口：分支决策 + 加载上传（返回 0 = 回退 RGBA 信号）。
@@ -606,11 +617,12 @@ class NativeSurfaceView(
         // 捕获纪元：所有异步回调（post）通过此值检测跨 surface stale
         val currentGen = surfaceProvider.generation
 
-        // ★ 渲染模式预判：若策略要求 SOFTWARE 则直接走软件渲染
-        if (useRenderMode == RenderMode.SOFTWARE) {
-            initCoordinator.startSoftwareBackend(currentGen)
-        } else {
-            initCoordinator.startVulkanInit(currentGen)
+        // ★ 渲染模式预判：SOFTWARE 直接走软件渲染；GLES 走 GPU GLES 中间层；
+        //    VULKAN 走 Vulkan（失败再降级 GLES→软件）。降级链：Vulkan→GPU GLES→CPU Canvas。
+        when (useRenderMode) {
+            RenderMode.SOFTWARE -> initCoordinator.startSoftwareBackend(currentGen)
+            RenderMode.GLES -> { initBackendGles = true; initCoordinator.startVulkanInit(currentGen) }
+            RenderMode.VULKAN -> { initBackendGles = false; initCoordinator.startVulkanInit(currentGen) }
         }
     }
 
@@ -755,11 +767,18 @@ class NativeSurfaceView(
          * @param currentGen 发起时的 surface 纪元（post 回调 stale 守卫）
          */
         fun startVulkanInit(currentGen: Int) {
-            // 原 surfaceCreated 语义：VULKAN 模式加载 native 库与纹理图集
+            // 原 surfaceCreated 语义：GPU 模式加载 native 库与纹理图集
             //（SOFTWARE 模式完全使用 Canvas 渲染，不加载 native 库——
             // 策略预判路径在 handleSurfaceAvailable 已分流，不会到达此处）
             NativeBridge.ensureLoaded()
             NativeBridge.initAtlas()
+
+            // ★ 渲染后端选择（2026-09 GPU GLES 中间层）：initRenderer 前按
+            //   initBackendGles 设定，决定 NativeBridge.cpp 创建 VulkanBackend 还是
+            //   GlesBackend（降级链 Vulkan→GPU GLES→CPU Canvas）。
+            NativeBridge.setRenderBackend(
+                if (initBackendGles) NativeBridge.BACKEND_GLES else NativeBridge.BACKEND_VULKAN
+            )
 
             val surface = holder.surface ?: return
 
@@ -846,6 +865,10 @@ class NativeSurfaceView(
         vulkanInitThread = null
         if (isReady) return
 
+        // ★ 渲染模式状态（GLES 时置 GLES，供 onRendererReady 内的 buildAtlas 的
+        //   shouldTryCompressedAtlas（ASTC 仅 Vulkan）正确分流）
+        renderMode = if (initBackendGles) RenderMode.GLES else RenderMode.VULKAN
+
         // 先上传纹理（地面 + 图集），再启动渲染线程
         onRendererReady?.invoke()
 
@@ -853,7 +876,11 @@ class NativeSurfaceView(
         // ★ 热控状态补发：shutdownRenderer 重置了 C++ 全局量，
         //   此处把 Kotlin 侧当前值（可能已热控降级）重放到 C++
         initCoordinator.pushRenderQuality()
-        activeBackend = VulkanRenderBackend(this)
+        // ★ 渲染后端（2026-09 GPU GLES 中间层）：按 initBackendGles 选择适配器。
+        //   VulkanRenderBackend 与 GlesRenderBackend 共用同一渲染逻辑（经 NativeBridge
+        //   Rhi 虚函数），仅对应不同 C++ 后端实现。
+        activeBackend =
+            if (initBackendGles) GlesRenderBackend(this) else VulkanRenderBackend(this)
         renderThread = RenderThread().also { it.start() }
     }
 
@@ -864,7 +891,7 @@ class NativeSurfaceView(
 
         android.util.Log.e("NativeSurfaceView",
             "Vulkan init failed after ${System.currentTimeMillis() - initStart}ms — " +
-            "falling back to software renderer")
+            "falling back to GPU GLES then software renderer")
 
         post { handleVulkanInitFailurePost(currentGen) }
     }
@@ -879,9 +906,17 @@ class NativeSurfaceView(
         initInProgress = false
         vulkanInitThread = null
         if (!isReady) {
-            // 降级到软件渲染（失败线程已自行返回，无需 join——
-            // 状态破坏者#3 的并发窗口在超时降级路径，见 handleSurfaceInitTimeout）
-            fallbackToSoftwareRenderer()
+            // ★ 降级链 Vulkan→GPU GLES→CPU Canvas（2026-09 GPU GLES 中间层）：
+            //   Vulkan 首次失败 → 先尝试 GPU GLES；GLES 失败才最终软件兜底。
+            if (!initBackendGles && !glesTriedAfterVulkan) {
+                glesTriedAfterVulkan = true
+                initBackendGles = true
+                initCoordinator.startVulkanInit(currentGen)
+            } else {
+                // 降级到软件渲染（失败线程已自行返回，无需 join——
+                // 状态破坏者#3 的并发窗口在超时降级路径，见 handleSurfaceInitTimeout）
+                fallbackToSoftwareRenderer()
+            }
         }
     }
 
@@ -935,9 +970,17 @@ class NativeSurfaceView(
             // 短 join，否则该线程与新 surface 的 init 线程并发操作 C++ 无锁
             // 裸指针 g_renderer（SIGSEGV）
             initCoordinator.interruptAndJoinVulkanInitThread()
-            // 完整初始化（对齐降级路径语义）：后端 + 渲染线程 + isReady，
-            // 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截
-            fallbackToSoftwareRenderer()
+            // ★ 降级链 Vulkan→GPU GLES→CPU Canvas（2026-09 GPU GLES 中间层）：
+            //   Vulkan 超时 → 先尝试 GPU GLES；GLES 失败才最终软件兜底。
+            if (!initBackendGles && !glesTriedAfterVulkan) {
+                glesTriedAfterVulkan = true
+                initBackendGles = true
+                initCoordinator.startVulkanInit(0)
+            } else {
+                // 完整初始化（对齐降级路径语义）：后端 + 渲染线程 + isReady，
+                // 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截
+                fallbackToSoftwareRenderer()
+            }
         }
     }
 

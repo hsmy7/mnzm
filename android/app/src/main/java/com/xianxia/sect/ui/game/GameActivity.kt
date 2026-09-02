@@ -239,6 +239,7 @@ class GameActivity : ComponentActivity() {
         val sectName = launch.sectName
         val isCloudSaveLoad = launch.isCloudSaveLoad
         val isSoftwareRendering = launch.isSoftwareRendering
+        val isGlesRendering = launch.isGlesRendering
         launchIsNewGame = isNewGame
         launchSectName = sectName
         launchSlot = slot
@@ -252,7 +253,7 @@ class GameActivity : ComponentActivity() {
         Log.d(TAG, "ViewModel game loaded: ${saveLoadViewModel.isGameAlreadyLoaded()}")
 
         setContent {
-            GameContent(isSoftwareRendering)
+            GameContent(isSoftwareRendering, isGlesRendering)
         }
 
         // 免广告白名单须在游戏初始化前就绪：boot 后同协程即注入特权邮件，
@@ -273,7 +274,7 @@ class GameActivity : ComponentActivity() {
      */
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     @Composable
-    private fun GameContent(isSoftwareRendering: Boolean) {
+    private fun GameContent(isSoftwareRendering: Boolean, isGlesRendering: Boolean) {
             XianxiaTheme {
                 CompositionLocalProvider(LocalPlayClickSound provides { audioEngine.playSound("click") }) {
                 Surface(
@@ -449,6 +450,7 @@ class GameActivity : ComponentActivity() {
                                     saveLoadViewModel.restartGame()
                                 },
                                 forceSoftwareRendering = isSoftwareRendering,
+                                glesRendering = isGlesRendering,
                                 vulkanInitListener = object : NativeSurfaceView.VulkanInitListener {
                                     override fun onSurfaceInitStarted() {
                                         com.xianxia.sect.core.CrashRecoveryEngine.markSurfaceInitStarted()
@@ -572,6 +574,8 @@ class GameActivity : ComponentActivity() {
     /** 渲染策略（P-2：setupWindowAndDiagnostics 与启动解析共享） */
     @Volatile
     private var _isSoftwareRendering = false
+    /** 是否使用 GPU OpenGL ES 中间层（Vulkan 不可靠但 GPU 可用设备） */
+    private var _isGlesRendering = false
 
     /**
      * P-2：窗口背景/崩溃处理/ActionMode 拦截/渲染策略/系统 UI 初始化。
@@ -596,9 +600,11 @@ class GameActivity : ComponentActivity() {
         // 标记本次为干净启动，重置连续崩溃计数器
         CrashRecoveryEngine.onCleanLaunch()
 
-        // ★ 渲染策略决策：模拟器直接走软件渲染，正常设备 Vulkan（带降级回退）
+        // ★ 渲染策略决策：模拟器/云游戏/安全模式走软件渲染；正常设备 Vulkan（带降级回退）；
+        //   Vulkan 不可靠但 GPU 可用（MediaTek/Mali/非高通国产/旧 API 非白名单）→ GPU GLES 中间层
         val renderStrategy = VulkanPolicy.getRenderStrategy(this)
         _isSoftwareRendering = renderStrategy == VulkanPolicy.RenderStrategy.SOFTWARE_ONLY
+        _isGlesRendering = renderStrategy == VulkanPolicy.RenderStrategy.GLES_PREFERRED
         Log.i(TAG, "Render strategy: ${renderStrategy.description}")
 
         enableEdgeToEdge()
@@ -624,7 +630,8 @@ class GameActivity : ComponentActivity() {
             isNewGame = isNewGame,
             sectName = sectName,
             isCloudSaveLoad = isCloudSaveLoad,
-            isSoftwareRendering = _isSoftwareRendering
+            isSoftwareRendering = _isSoftwareRendering,
+            isGlesRendering = _isGlesRendering
         )
     }
 
@@ -634,7 +641,8 @@ class GameActivity : ComponentActivity() {
         val isNewGame: Boolean,
         val sectName: String,
         val isCloudSaveLoad: Boolean,
-        val isSoftwareRendering: Boolean
+        val isSoftwareRendering: Boolean,
+        val isGlesRendering: Boolean = false
     )
 
     /** P-2：游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */

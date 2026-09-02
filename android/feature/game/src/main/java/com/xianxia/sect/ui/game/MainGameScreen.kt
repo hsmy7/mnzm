@@ -151,8 +151,10 @@ fun MainGameScreen(
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
     onRestartGame: () -> Unit,
-    /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */
+    /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 崩溃自愈安全模式） */
     forceSoftwareRendering: Boolean = false,
+    /** 是否使用 GPU OpenGL ES 中间层（2026-09：Vulkan 不可靠但 GPU 可用设备） */
+    glesRendering: Boolean = false,
     /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */
     vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null
 ) {
@@ -160,7 +162,7 @@ fun MainGameScreen(
     val state = remember { MainGameScreenState() }
     val data = rememberMainGameScreenData(
         mapPreloadData = mapPreloadData, state = state, viewModel = viewModel,
-        forceSoftwareRendering = forceSoftwareRendering,
+        forceSoftwareRendering = forceSoftwareRendering, glesRendering = glesRendering,
         vulkanInitListener = vulkanInitListener
     )
 
@@ -581,6 +583,7 @@ private fun rememberMainGameScreenViewportData(
     state: MainGameScreenState,
     viewModel: GameViewModel,
     forceSoftwareRendering: Boolean,
+    glesRendering: Boolean,
     vulkanInitListener: NativeSurfaceView.VulkanInitListener?
 ): MainGameScreenViewportData {
     // 统一相机 — 相机在世界空间中移动，screenX = worldX - cameraX
@@ -610,7 +613,8 @@ private fun rememberMainGameScreenViewportData(
                 buildingCount = derived.effectivePlacedBuildings.size + FixedSectGateway.count,
                 tileSize = mapData.tileSize, worldWidthCells = mapData.worldWidthCells,
                 worldHeightCells = mapData.worldHeightCells,
-                forceSoftwareRendering = forceSoftwareRendering, vulkanInitListener = vulkanInitListener,
+                forceSoftwareRendering = forceSoftwareRendering, glesRendering = glesRendering,
+                vulkanInitListener = vulkanInitListener,
                 surfaceProviderFactory = viewModel.getSurfaceProviderFactory(), gpuTier = viewModel.getGpuTier(),
                 buildingSpriteSizes = mapData.buildingSpriteSizes, selectedGrid = state.selectedBuildingGrid,
                 spiritCropData = renderData.spiritCropData, demolishHighlightData = renderData.demolishHighlightData,
@@ -680,6 +684,7 @@ private fun rememberMainGameScreenData(
     state: MainGameScreenState,
     viewModel: GameViewModel,
     forceSoftwareRendering: Boolean,
+    glesRendering: Boolean,
     vulkanInitListener: NativeSurfaceView.VulkanInitListener?
 ): MainGameScreenData {
     val derived = rememberMainGameScreenDerived(state = state, viewModel = viewModel)
@@ -692,6 +697,7 @@ private fun rememberMainGameScreenData(
     val viewportData = rememberMainGameScreenViewportData(
         derived = derived, mapData = mapData, renderData = renderData, state = state,
         viewModel = viewModel, forceSoftwareRendering = forceSoftwareRendering,
+        glesRendering = glesRendering,
         vulkanInitListener = vulkanInitListener
     )
     // 手势配置 + 命中外扩策略（density 按设备注入，跨设备触控目标一致）
@@ -1331,6 +1337,9 @@ private fun BoxScope.MainGameScreenBuildingBar(
                 onSelectBuildingLevelRequirement = { name ->
                     viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
                 },
+                // 石板路为开发中建筑：置灰展示，点击弹"开发中"提示（不进入放置模式）
+                underDevelopmentNames = setOf(GameConfig.Road.DISPLAY_NAME),
+                onSelectBuildingUnderDevelopment = { viewModel.showUnderDevelopmentTip() },
                 onSelectBuilding = { name ->
                     onSelectBuildingFromBar(
                         state = state, mapData = data.mapData,

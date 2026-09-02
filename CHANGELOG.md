@@ -21,6 +21,15 @@
 - **新增登记（已清偿，收尾批二）**：S-23（孤儿类 SaveLoadCoordinator——删除全类 + baseline 5 条豁免 + benchmark 文案去引用）；S-24（realtimeCultivation 投影链——UI 数据源复核确认修为显示走 discipleAggregates 镜像、本链零 collect 死链成立：删写侧投影块/pendingRealtime/flushRealtimeCultivation/P-6 驱动 + 读侧 GameEngine/DiscipleFacade/DiscipleFacadeImpl/GameViewModel 转发 + RealtimeCultivationBatchTest；修为累积主体保留（对拍 Kotlin 臂））
 - **验证**：GTest 722/722 全绿 · engine JUnit 全量（桌面 JNI 对拍 0 skip，DiffYearSettlementTest 3 场景）· engine/domain detekt 全绿 · app compileReleaseKotlin 通过
 
+### GPU OpenGL ES 中间层（2026-09-09，C++ 引擎迁移后续）
+
+> 独立技术审计划补行业标配的 **GPU GLES 中间层**，使 Android 降级链由 `Vulkan→CPU Canvas` 变为 **`Vulkan→GPU GLES→CPU Canvas`**（行业标准均为 `Vulkan→GPU GLES→软件渲染(仅兜底)`，此前本项目缺失该中间层且关闭系统硬件加速致主流中国厂商设备走 CPU 逐像素，为性能/电量最主要根因）。详见 `docs/cpp-engine.md` §0.4 / `docs/adr/render-strategy-decision.md` / `docs/research-android-graphics-api-vulkan-gles-software.md`。
+
+- **C++**：新增 `GlesBackend.h/.cpp`（EGL+GLES2 渲染，实现 Rhi `Renderer2D` 接口；单管线/单图集/按纹理批处理/动态 VBO）；`NativeBridge.cpp` 加 `g_backendType` + `nativeSetRenderBackend`，`initRenderer` 按类型创建 `GlesBackend`，5 个 Vulkan 专属方法经 dynamic_cast 对 GLES 优雅回退；`CMakeLists.txt` 加 `GlesBackend.cpp` + 链接 `EGL`/`GLESv2`。
+- **Kotlin**：`NativeBridge.setRenderBackend` + `BACKEND_{VULKAN,GLES}`；`RenderMode.GLES` + `GlesRenderBackend`；`NativeSurfaceView` 降级链 `Vulkan→GLES→Canvas` + ASTC 仅 Vulkan；`VulkanPolicy` 新增 `RenderStrategy.GLES_PREFERRED` 并把"Vulkan 不可靠但 GPU 可用"（MediaTek/Mali/非高通国产/旧 API 非白名单/PROBLEMATIC/崩溃自愈）路由到 GPU GLES。
+- **⚠️ 待真机验证**：GLES 坐标/UV 翻转方向、混合模式、ASTC/renderScale/REPEAT 地面暂不支持（降级为 RGBA/全分辨率/逐格地面）——详见 `docs/cpp-engine.md` §0.4。
+- **验证（本环境）**：静态代码审查 + 一致性核查通过；需 Android NDK 构建 + 真机验证。
+
 ## [4.01.11] - 2026-08-29
 
 ### 优化（C++ 迁移续作批 Y：年变下沉 + 真相源切换）

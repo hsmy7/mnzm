@@ -86,9 +86,12 @@ private fun createSectMapSurfaceView(
     // 旧实例仍挂在 holder 上但不再派发事件——平台回调翻译归 provider 管理）
     view.surfaceProvider = params.surfaceProviderFactory.create(view.holder)
 
-    // 强制软件渲染（模拟器/Vulkan 不可用设备）
+    // 强制软件渲染（模拟器/Vulkan 崩溃自愈安全模式）
     if (params.forceSoftwareRendering) {
         view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
+    } else if (params.glesRendering) {
+        // GPU OpenGL ES 中间层（Vulkan 不可靠但 GPU 可用）：直接走 GPU GLES，跳过 Vulkan
+        view.useRenderMode = NativeSurfaceView.RenderMode.GLES
     }
 
     // GPU 能力档位（2026-08-14 平板省电：渲染缩放决策输入——
@@ -320,6 +323,8 @@ internal data class SectMapViewportParams(
     val worldWidthCells: Int,
     val worldHeightCells: Int,
     val forceSoftwareRendering: Boolean,
+    /** GPU OpenGL ES 中间层（2026-09：Vulkan 不可靠但 GPU 可用设备 —— 直接走 GLES 而非 CPU 软件） */
+    val glesRendering: Boolean = false,
     val vulkanInitListener: NativeSurfaceView.VulkanInitListener?,
     /** 平台 surface 提供者工厂（Hilt 注入；替换默认 provider，iOS 化替换点） */
     val surfaceProviderFactory: SurfaceProviderFactory,

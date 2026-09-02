@@ -26,7 +26,7 @@ import com.xianxia.sect.core.render.SpriteAtlasDef
  * 渲染线程调用（与宿主 [NativeSurfaceView.RenderThread] 同线程），
  * 异常由渲染循环统一捕获（见 RenderThread.run）。
  */
-class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBackend {
+open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBackend {
 
     /** 最新相机缓存（setCamera 转发时自留，供网格线范围计算——渲染线程每帧先于 renderFrame 更新） */
     @Volatile

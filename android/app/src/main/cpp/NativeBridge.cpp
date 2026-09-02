@@ -10,6 +10,7 @@
 #include <android/log.h>
 #include "Rhi.h"
 #include "VulkanBackend.h"
+#include "GlesBackend.h"
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
 #include "KtxLoader.h"
@@ -43,6 +44,11 @@ static constexpr float UV_EPSILON = 0.5f / static_cast<float>(ATLAS_W);
 static Renderer2D* g_renderer = nullptr;
 static TextureAtlas* g_atlas = nullptr;
 static float g_projMatrix[16]{};
+
+// 渲染后端类型（VULKAN=0 默认 / GLES=1）——NativeSurfaceView 在 initRenderer 前
+// 经 nativeSetRenderBackend 设置，决定 initRenderer 创建哪种 Rhi 实现。
+// 降级链：Vulkan → GPU GLES → CPU Canvas（2026-09 GPU GLES 中间层）。
+static int g_backendType = 0;
 
 // 宗门地图单一无缝地面纹理（REPEAT 采样，整图铺）。0 = 未上传（回退逐格地面）
 static uint32_t g_groundTexId = 0;
@@ -157,6 +163,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_prewarmDevice(
         g_renderer = nullptr;
     }
 
+    if (g_backendType != 0) {
+        // GPU GLES 后端：无两阶段 prewarm（在 initRenderer 内一次性创建 EGL 链 +
+        // 管线），此处直接成功返回，交由 surface 就绪后的完整 init。
+        return JNI_TRUE;
+    }
+
     const char* dir = cacheDir ? env->GetStringUTFChars(cacheDir, nullptr) : nullptr;
 
     auto* vb = new VulkanBackend();
@@ -182,6 +194,14 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanDriverVersion(
     return static_cast<jint>(VulkanBackend::s_driverVersion);
 }
 
+/** 设置渲染后端类型（在 initRenderer/prewarmDevice 前调用；0=Vulkan 默认，1=GLES）。 */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderBackend(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jint backend) {
+    g_backendType = backend;
+}
+
 /** Phase 2: 初始化 Surface（在 SurfaceView 就绪后调用）。renderScale 为渲染缩放
  *  （0.5–1.0，1.0 = 直渲全分辨率），NaN/越界由 VulkanBackend 消毒。 */
 extern "C" JNIEXPORT jboolean JNICALL
@@ -197,6 +217,23 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(
 
     g_worldPixelsW = worldW;
     g_worldPixelsH = worldH;
+
+    // GPU GLES 中间层：创建 GlesBackend 并完整初始化（无两阶段 prewarm）。
+    // 选择链在 Kotlin 侧 NativeSurfaceView/VulkanPolicy——本函数按 backendType 落地。
+    if (g_backendType != 0) {
+        if (g_renderer) { delete g_renderer; g_renderer = nullptr; }
+        auto* gles = new GlesBackend();
+        g_renderer = gles;
+        RenderConfig cfg{};
+        cfg.viewportW = viewportW;
+        cfg.viewportH = viewportH;
+        cfg.worldWidth = worldW;
+        cfg.worldHeight = worldH;
+        cfg.tileSize = tileSize;
+        cfg.renderScale = renderScale;
+        bool ok = gles->init(cfg, window);
+        return ok ? JNI_TRUE : JNI_FALSE;
+    }
 
     if (g_renderer) {
         auto* vb = static_cast<VulkanBackend*>(g_renderer);
@@ -235,8 +272,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderScale(
     jfloat renderScale) {
 
     if (!g_renderer) return 1.0f;
-    auto* vb = static_cast<VulkanBackend*>(g_renderer);
-    return vb->setRenderScale(renderScale);
+    // 渲染缩放（离屏降采样）为 Vulkan 专属；GLES 后端不支持，恒 1.0（直渲全分辨率）
+    if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
+        return vk->setRenderScale(renderScale);
+    }
+    return 1.0f;
 }
 
 extern "C" JNIEXPORT void JNICALL

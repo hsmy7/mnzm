@@ -20,6 +20,20 @@ object NativeBridge {
     }
 
     // ============================================================
+    // 渲染后端选择（2026-09 GPU GLES 中间层：Vulkan→GPU GLES→CPU Canvas）
+    // ============================================================
+
+    /** 渲染后端类型常量（对应 NativeBridge.cpp g_backendType） */
+    const val BACKEND_VULKAN = 0
+    const val BACKEND_GLES = 1
+
+    /**
+     * 设置渲染后端类型（在 [initRenderer]/[prewarmDevice] 前调用）。
+     * 0=Vulkan（默认）、1=GPU GLES；Kotlin 侧 NativeSurfaceView 依渲染策略选择。
+     */
+    external fun setRenderBackend(backend: Int)
+
+    // ============================================================
     // 两阶段初始化预加载（Phase 1）
     // ============================================================
 

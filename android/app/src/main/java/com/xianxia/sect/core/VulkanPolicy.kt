@@ -395,9 +395,11 @@ object VulkanPolicy {
      * @see NativeSurfaceView.RenderMode
      */
     enum class RenderStrategy(val description: String) {
-        /** 先尝试 Vulkan，失败后自动降级到 Canvas 软件渲染 */
-        VULKAN_PREFERRED("首选 Vulkan，失败后软降级"),
-        /** 直接使用 Canvas 软件渲染（模拟器/崩溃自愈模式） */
+        /** 先尝试 Vulkan，失败后自动降级到 GPU OpenGL ES（再软件） */
+        VULKAN_PREFERRED("首选 Vulkan，失败降级 GPU GLES→软件"),
+        /** Vulkan 不可靠但 GPU 可用（MediaTek/Mali/非高通国产/旧 API 非白名单）：直接走 GPU GLES（2026-09 中间层） */
+        GLES_PREFERRED("首选 GPU OpenGL ES，失败降级软件"),
+        /** 直接使用 Canvas 软件渲染（模拟器/崩溃自愈安全模式/云游戏） */
         SOFTWARE_ONLY("直接使用软件渲染"),
     }
 
@@ -496,8 +498,8 @@ object VulkanPolicy {
     /** Vulkan 崩溃专用标记检查（getRenderStrategy 拆分） */
     private fun vulkanCrashStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.isVulkanCrashDetected()) {
-            Log.w(TAG, "Vulkan crash detected → SOFTWARE_ONLY render strategy")
-            return RenderStrategy.SOFTWARE_ONLY
+            Log.w(TAG, "Vulkan crash detected → GLES_PREFERRED render strategy")
+            return RenderStrategy.GLES_PREFERRED
         }
         return null
     }
@@ -533,8 +535,8 @@ object VulkanPolicy {
     /** 持久化 Vulkan 初始化失败标记检查（getRenderStrategy 拆分）：前次运行软失败 */
     private fun persistentVulkanFailureStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.hasVulkanInitFailure()) {
-            Log.w(TAG, "Persistent Vulkan failure → SOFTWARE_ONLY render strategy")
-            return RenderStrategy.SOFTWARE_ONLY
+            Log.w(TAG, "Persistent Vulkan failure → GLES_PREFERRED render strategy")
+            return RenderStrategy.GLES_PREFERRED
         }
         return null
     }
@@ -542,9 +544,9 @@ object VulkanPolicy {
     /** Phase 1 写前标记残留检查（getRenderStrategy 拆分）：前次 prewarm 被 SIGSEGV 杀死 */
     private fun prewarmKilledStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.wasPrewarmKilled()) {
-            Log.w(TAG, "Previous prewarm was killed (SIGSEGV) → SOFTWARE_ONLY")
+            Log.w(TAG, "Previous prewarm was killed (SIGSEGV) → GLES_PREFERRED")
             CrashRecoveryEngine.recordVulkanInitFailure()
-            return RenderStrategy.SOFTWARE_ONLY
+            return RenderStrategy.GLES_PREFERRED
         }
         return null
     }
@@ -552,9 +554,9 @@ object VulkanPolicy {
     /** Phase 2 写前标记残留检查（getRenderStrategy 拆分）：前次 initSurface/createSwapchain 被 SIGSEGV 杀死 */
     private fun surfaceInitKilledStrategy(): RenderStrategy? {
         if (CrashRecoveryEngine.wasSurfaceInitKilled()) {
-            Log.w(TAG, "Previous surface init was killed (SIGSEGV) → SOFTWARE_ONLY")
+            Log.w(TAG, "Previous surface init was killed (SIGSEGV) → GLES_PREFERRED")
             CrashRecoveryEngine.recordVulkanInitFailure()
-            return RenderStrategy.SOFTWARE_ONLY
+            return RenderStrategy.GLES_PREFERRED
         }
         return null
     }
@@ -573,8 +575,9 @@ object VulkanPolicy {
             if (isKnownGoodOldDevice()) {
                 Log.d(TAG, "API ${Build.VERSION.SDK_INT} known-good device → VULKAN_PREFERRED")
             } else {
-                Log.w(TAG, "API ${Build.VERSION.SDK_INT} non-whitelist device → SOFTWARE_ONLY")
-                return RenderStrategy.SOFTWARE_ONLY
+                // 旧 API 非白名单：Vulkan 驱动普遍不可靠，但设备有 GPU → GPU GLES 中间层
+                Log.w(TAG, "API ${Build.VERSION.SDK_INT} non-whitelist device → GLES_PREFERRED")
+                return RenderStrategy.GLES_PREFERRED
             }
         }
         return null
@@ -583,8 +586,9 @@ object VulkanPolicy {
     /** 设备分级 → 渲染策略（getRenderStrategy 拆分） */
     private fun tierStrategy(context: Context): RenderStrategy = when (detectTier(context)) {
         DeviceTier.PROBLEMATIC -> {
-            Log.w(TAG, "PROBLEMATIC device → SOFTWARE_ONLY render strategy")
-            RenderStrategy.SOFTWARE_ONLY
+            // 问题设备 = Vulkan 驱动不可靠，但设备有 GPU → GPU GLES 中间层（非 CPU 软件）
+            Log.w(TAG, "PROBLEMATIC device → GLES_PREFERRED render strategy")
+            RenderStrategy.GLES_PREFERRED
         }
         DeviceTier.WARNING -> {
             Log.w(TAG, "WARNING device → VULKAN_PREFERRED (with fallback)")

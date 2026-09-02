@@ -29,6 +29,7 @@ add_subdirectory(gamecore)
 # 主库
 add_library(native-renderer SHARED
     VulkanBackend.cpp
+    GlesBackend.cpp
     SpriteBatcher.cpp
     TextureAtlas.cpp
     KtxLoader.cpp
@@ -48,6 +49,8 @@ target_link_libraries(native-renderer
     android
     log
     z
+    EGL
+    GLESv2
 )
 
 # ════════════════════════════════════════════════════════════════

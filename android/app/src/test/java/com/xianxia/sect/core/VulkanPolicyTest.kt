@@ -33,27 +33,28 @@ class VulkanPolicyTest {
 
     @Test
     @Config(sdk = [Build.VERSION_CODES.O]) // API 26
-    fun `getRenderStrategy API26 非白名单返回SOFTWARE_ONLY`() {
-        // Robolectric 默认 Build.MANUFACTURER = "unknown" → 非白名单
+    fun `getRenderStrategy API26 非白名单返回GLES_PREFERRED`() {
+        // Robolectric 默认 Build.MANUFACTURER = "unknown" → 非白名单；旧 API 非白名单
+        // 设备有 GPU 但 Vulkan 驱动不可靠 → GPU GLES 中间层（2026-09 改变：原为 SOFTWARE_ONLY）
         val strategy = VulkanPolicy.getRenderStrategy(context)
-        assertEquals("API 26 非白名单设备应强制软件渲染",
-            RenderStrategy.SOFTWARE_ONLY, strategy)
+        assertEquals("API 26 非白名单设备应走 GPU GLES",
+            RenderStrategy.GLES_PREFERRED, strategy)
     }
 
     @Test
     @Config(sdk = [Build.VERSION_CODES.Q]) // API 29
-    fun `getRenderStrategy API29 非白名单返回SOFTWARE_ONLY`() {
+    fun `getRenderStrategy API29 非白名单返回GLES_PREFERRED`() {
         val strategy = VulkanPolicy.getRenderStrategy(context)
-        assertEquals("API 29 非白名单设备应强制软件渲染",
-            RenderStrategy.SOFTWARE_ONLY, strategy)
+        assertEquals("API 29 非白名单设备应走 GPU GLES",
+            RenderStrategy.GLES_PREFERRED, strategy)
     }
 
     @Test
     @Config(sdk = [Build.VERSION_CODES.R]) // API 30
-    fun `getRenderStrategy API30 非白名单返回SOFTWARE_ONLY`() {
+    fun `getRenderStrategy API30 非白名单返回GLES_PREFERRED`() {
         val strategy = VulkanPolicy.getRenderStrategy(context)
-        assertEquals("API 30 非白名单设备应强制软件渲染",
-            RenderStrategy.SOFTWARE_ONLY, strategy)
+        assertEquals("API 30 非白名单设备应走 GPU GLES",
+            RenderStrategy.GLES_PREFERRED, strategy)
     }
 
     @Test

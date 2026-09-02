@@ -43,7 +43,11 @@ constexpr uint32_t MAGIC0 = 0x58544BAB;  // "«KTX" 小端读
 constexpr uint32_t MAGIC1 = 0xBB313120;  // " 11»" 小端读
 constexpr uint32_t ENDIANNESS = 0x04030201;
 constexpr uint32_t GL_COMPRESSED_RGBA_ASTC_4x4_KHR = 0x93B0;
+// GL_RGBA 在无 GL 头环境下作为自包含常量；若 GLES2/gl2.h 已包含（宏定义同名），
+// 跳过本定义避免宏/常量冲突（GlesBackend.h 引入 gl2.h 后 NativeBridge.cpp 同 TU 触发）。
+#ifndef GL_RGBA
 constexpr uint32_t GL_RGBA = 0x1908;
+#endif
 constexpr uint32_t ASTC_BLOCK = 4;
 constexpr size_t ASTC_BLOCK_BYTES = 16;
 
