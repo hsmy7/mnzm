@@ -29,8 +29,11 @@ class DomainLogTest {
         }
     }
 
-    /** 初始 logger（替换前捕获）——测试结束恢复，避免污染同 JVM 其他测试 */
-    private val initialLogger: DomainLog.Logger = DomainLog.setLogger(RecordingLogger("initial"))
+    /** 基准记录器：字段初始化后即替换前 current，setLogger 应返回它（用例内比较基准）。 */
+    private val initialRecorder = RecordingLogger("initial")
+
+    /** 最初原始实现（setLogger 的返回值）；@After 用它还原全局单例，避免污染同 JVM 其他测试。 */
+    private val initialLogger: DomainLog.Logger = DomainLog.setLogger(initialRecorder)
 
     @After
     fun restoreInitialLogger() {
@@ -41,13 +44,13 @@ class DomainLogTest {
     fun `setLogger returns previous implementation for save-restore`() {
         val first = RecordingLogger("first")
         val previous = DomainLog.setLogger(first)
-        assertSame("首次替换应返回初始实现（可在 finally 恢复）", initialLogger, previous)
+        assertSame("首次替换应返回替换前 current（基准记录器）", initialRecorder, previous)
 
         val second = RecordingLogger("second")
         val previousOfSecond = DomainLog.setLogger(second)
         assertSame("连续替换应返回上一实现", first, previousOfSecond)
 
-        val restored = DomainLog.setLogger(initialLogger)
+        val restored = DomainLog.setLogger(initialRecorder)  // 恢复到基准记录器
         assertSame("恢复应返回被替换的当前实现", second, restored)
     }
 
