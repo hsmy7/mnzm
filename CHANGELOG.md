@@ -1,3 +1,15 @@
+## [4.01.12] - 2026-09-02
+
+### 版本发布说明（C++ 引擎迁移：月变/年变真相源全量下沉完成）
+
+> 本版发布自 4.01.11 以来积累的 C++ 引擎迁移续作批 M-1/Y-1~Y-4（详见本文件下方各批条目与 `docs/cpp-engine.md`）——**月变/年变残留执行器扇出全量下沉 C++ 真相源**，Kotlin 侧降级为平台效应执行器。
+
+- **月变真相源切换（批 M-1）**：生产月变路径 C++ `runMonthSettlement` + Kotlin 残留执行器互插（nativeSettleMonth 信封 + S-14/S-16/S-17/S-20 清偿）
+- **年变真相源切换（批 Y-switch/Y-3）**：生产年变路径 C++ `runYearSettlement` + 残留执行器互插——T1 11/11 全部下沉（附庸年贡/招募刷新/死亡链/商人机会/老化清理/思过释放/驻军轮换等）+ T2 11/11 全部下沉（AI 老化/联盟/好感/哀悼/秘境刷新/交易刷新/商人收购/**AI 宗门招募**）——**年变残留执行器扇出清零**（仅剩 T1-③ 死亡链平台效应）
+- **途中问题清偿**：S-19 同族（任务/名字/商人价格非托管 RNG 收敛分区）、S-22 完全清偿（商人价格波动全量收敛 SYSTEM 分区——存档可重放）、S-18（回退分支确定性散列）、redeem_code/disciple_factory 重名去重
+- **对拍守护升级**：年变对拍 Kotlin 臂换装真实服务（DiscipleLifecycleProcessor/MerchantAndRecruitService/CaveExplorationProcessor + ManualDatabase 快照表注入 + AI 独立 RNG initForSlot 同源播种）——收购/AI 招募/死亡链逐位一致
+- **验证**：GTest 722/722 · engine JUnit 3058/3058 全量（桌面 JNI 对拍 0 skip）· NDK externalNativeBuildRelease · detekt 全绿 · app compileReleaseKotlin 通过
+
 ## [4.01.11] - 2026-08-29
 
 ### 优化（C++ 迁移续作批 Y：年变下沉 + 真相源切换）
