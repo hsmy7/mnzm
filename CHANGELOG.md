@@ -61,6 +61,16 @@
 - **验证**：`SoftwareCanvasBackendTest` 通过 · `AISectAttackManagerTest` 通过 · `:feature:game/:core:engine detekt` 全绿 · `compileReleaseKotlin` 通过。
 - **剩余（G7 优先级 2，已审计鉴定独立子工程）**：AI 进攻决策编排（`decideAttacks`/`checkAttackConditions`/`decidePlayerAttack` 等纯 Kotlin BATTLE 分区 RNG）——须先 `DiffSectAttackDecisionTest` 锁定抽取序再下沉，避免 BATTLE 分区流错位。
 
+### G7-2 AI 攻击决策下沉（2026-09，战斗残余·优先级 2）
+
+> 延续 G7 副引擎闭合——AI 攻击决策编排下沉 C++。设计见 `docs/cpp-engine.md` §0.1 G7。
+
+- **模型**：`models.h` GameData 加 `aiSectPersonalities`/`activeAttackWarnings`/`isPlayerProtected` + `AttackWarning` 结构（宽松 from_json 旧档兼容）；json_codec 三字段 + AttackWarning to/from。
+- **决策下沉**（`gamecore/system/sect_attack_decision.h`，`gamecore::system::detail`）：`checkAttackConditions`（AI vs AI 逐目标判定，1 次 BATTLE 抽取）+ `decidePlayerAttack`（AI 攻玩家预警决策，逐攻击者抽取）+ `findFavor`/`sectPowerFromList`/`countRecentBattleRecords` 辅助——复用既定 `detail::sectPowerOfDisciple`/`favorLevelOrdinal`/`kAiMinDisciplesForAttack` + `gamecore::system::sectDecisionChance`。**确定性红线**：前置门早退不消费 BATTLE 抽取（与 Kotlin `return` 早退逐位一致），短路 `&&` 从左到右、std::map 键序。
+- **生产路由**：`GameCoreBridge.cpp` `nativeDecidePlayerAttack`（自包含）+ `nativeCheckAttackConditions`（id + playerGarrison JSON）+ Kotlin externs；`AISectAttackManager` 的 `decidePlayerAttack`/`checkAttackConditions` 加 native 优先路由（`tryNative*`——AUTHORITATIVE 且桥加载才走 native，降级回退 Kotlin，CancellationException 重抛）。
+- **验证**：桌面 GTest 763/763（+6 `SectAttackDecisionTest`：SameSect/人数门/联盟门/守军战力 0/玩家保护/无玩家宗门——均断言 BATTLE snapshot 未消费）· `:core:engine` detekt 全绿 · `compileReleaseKotlin` 通过 · NDK `externalNativeBuildRelease` 通过 · `AISectAttackManagerTest` 通过（测试环境 native 未加载→回退 Kotlin 零回归）。
+- **剩余**：`DiffSectAttackDecisionTest`（BATTLE 序列跨语言锁序——完整状态对拍需搭全量场景，独立子工程）。
+
 
 ## [4.01.11] - 2026-08-29
 
