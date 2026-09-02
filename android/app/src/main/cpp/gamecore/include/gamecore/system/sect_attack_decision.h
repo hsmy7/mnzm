@@ -180,7 +180,12 @@ inline std::vector<state::Disciple> playerDefenders(
 /// AI 攻玩家决策主入口（Kotlin AISectAttackManager.decidePlayerAttack；返回预警决策）
 inline PlayerAttackDecision decidePlayerAttack(GameState& state, rng::RngManager& rng) {
     const auto& gameData = state.gameData;
-    if (gameData.isPlayerProtected) return PlayerAttackDecision{};
+    // Kotlin GameData.isPlayerProtected 计算属性（非存储字段）：派生自底层保护状态
+    constexpr int32_t kPlayerProtectionYears = 100;   // GameConfig.PlayerProtection.PROTECTION_YEARS
+    const bool isProtected = gameData.playerProtectionEnabled &&
+        !gameData.playerHasAttackedAI &&
+        (gameData.gameYear - gameData.playerProtectionStartYear) < kPlayerProtectionYears;
+    if (isProtected) return PlayerAttackDecision{};
 
     const auto playerSectIt = std::find_if(
         gameData.worldMapSects.begin(), gameData.worldMapSects.end(),

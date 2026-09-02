@@ -69,7 +69,8 @@
 - **决策下沉**（`gamecore/system/sect_attack_decision.h`，`gamecore::system::detail`）：`checkAttackConditions`（AI vs AI 逐目标判定，1 次 BATTLE 抽取）+ `decidePlayerAttack`（AI 攻玩家预警决策，逐攻击者抽取）+ `findFavor`/`sectPowerFromList`/`countRecentBattleRecords` 辅助——复用既定 `detail::sectPowerOfDisciple`/`favorLevelOrdinal`/`kAiMinDisciplesForAttack` + `gamecore::system::sectDecisionChance`。**确定性红线**：前置门早退不消费 BATTLE 抽取（与 Kotlin `return` 早退逐位一致），短路 `&&` 从左到右、std::map 键序。
 - **生产路由**：`GameCoreBridge.cpp` `nativeDecidePlayerAttack`（自包含）+ `nativeCheckAttackConditions`（id + playerGarrison JSON）+ Kotlin externs；`AISectAttackManager` 的 `decidePlayerAttack`/`checkAttackConditions` 加 native 优先路由（`tryNative*`——AUTHORITATIVE 且桥加载才走 native，降级回退 Kotlin，CancellationException 重抛）。
 - **验证**：桌面 GTest 763/763（+6 `SectAttackDecisionTest`：SameSect/人数门/联盟门/守军战力 0/玩家保护/无玩家宗门——均断言 BATTLE snapshot 未消费）· `:core:engine` detekt 全绿 · `compileReleaseKotlin` 通过 · NDK `externalNativeBuildRelease` 通过 · `AISectAttackManagerTest` 通过（测试环境 native 未加载→回退 Kotlin 零回归）。
-- **剩余**：`DiffSectAttackDecisionTest`（BATTLE 序列跨语言锁序——完整状态对拍需搭全量场景，独立子工程）。
+- **DiffSectAttackDecisionTest（BATTLE 序列跨语言锁序，续作完成）**：桌面对拍桥 `GameCoreJni.cpp` 加 `nativeCoreCheckAttackConditions`/`nativeCoreDecidePlayerAttack` + `DiffRngBridge` externs；新建 `DiffSectAttackDecisionTest` 2 场景（checkAttackConditions + decidePlayerAttack）——Kotlin（authoritative=OFF 参照臂）vs C++ 直调逐位断言：决策一致 + BATTLE 分区终态逐位一致 + 门通过恰抽 1 次。**途中根因修复**：`isPlayerProtected` 为 Kotlin 计算属性（playerProtectionEnabled/startYear/hasAttackedAI 派生），非协议字段——C++ 原加 bool 字段不匹配，改在 `decidePlayerAttack` 按同式派生（移除字段 + codec）。
+- **G7-2 收尾（2026-09）**：AI 攻击决策下沉 + 生产路由 + Diff 锁序 + GTest 全部完成——战斗残余·宗门战副引擎（G7）闭合。
 
 
 ## [4.01.11] - 2026-08-29

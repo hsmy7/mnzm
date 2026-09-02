@@ -107,6 +107,16 @@ object DiffRngBridge {
     // moveBeasts 的 EXPLORATION 干扰；生产路径经 runMonthSettlement 步骤 3）
     external fun nativeCorePrecomputeTargets()
 
+    // ── G7-2：AI 攻击决策直调（对拍用，作用于 g_core 当前状态） ─────
+    /** AI vs AI 逐目标攻击判定（Kotlin AISectAttackManager.checkAttackConditions
+     *  vs C++ sect_attack_decision.h——输入 id + playerGarrison JSON，消费 BATTLE 分区） */
+    external fun nativeCoreCheckAttackConditions(
+        attackerId: String, defenderId: String, playerGarrisonJson: String
+    ): Boolean
+    /** AI 攻玩家预警决策（Kotlin AISectAttackManager.decidePlayerAttack
+     *  vs C++ sect_attack_decision.h——返回 JSON 决策，消费 BATTLE 分区） */
+    external fun nativeCoreDecidePlayerAttack(): String
+
     // ── execute 分发表通道（批次 9，对拍用） ────────────────
     external fun nativeCoreExecute(actionId: Int, paramsJson: ByteArray): ByteArray
 

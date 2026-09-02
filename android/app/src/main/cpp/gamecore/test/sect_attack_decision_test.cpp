@@ -77,7 +77,8 @@ TEST(SectAttackDecisionTest, EmptyPlayerGarrisonReturnsFalseNoRoll) {
 
 TEST(SectAttackDecisionTest, DecidePlayerAttackProtectedSkipsNoRoll) {
     state::GameState s = makeState();
-    s.gameData.isPlayerProtected = true;
+    // isPlayerProtected 为派生计算属性：默认 playerProtectionEnabled=true、startYear=1、
+    // !hasAttackedAI、gameYear=10 → elapsed 9 < 100 → 受保护
     rng::RngManager rng; rng.initSystemSeed(7);
     const int64_t before = rng.getRng(rng::RngPartition::kBattle).snapshot();
     const PlayerAttackDecision decision = decidePlayerAttack(s, rng);

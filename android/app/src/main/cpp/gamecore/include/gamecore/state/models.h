@@ -1293,7 +1293,8 @@ struct GameData {
     // ── G7-2：AI 攻击决策域（Kotlin GameData 同名字段；宽松 from_json 旧档兼容） ──
     std::map<std::string, int32_t> aiSectPersonalities;     // 宗门 → AISectPersonality ordinal(0..3)
     std::vector<AttackWarning> activeAttackWarnings;        // AI 宗门进攻预警（决策消费 attackerSectId）
-    bool isPlayerProtected = false;                          // 玩家受保护期（保护期内 AI 不进攻玩家）
+    // isPlayerProtected 为 Kotlin 计算属性（playerProtectionEnabled/startYear/hasAttackedAI 派生），
+    // 遵循游戏层计算而非存储——C++ 侧由 detail::decidePlayerAttack 按同式派生，不落协议字段。
     // 年度报告
     std::map<std::string, int64_t> annualIncomeBySource;
     std::map<std::string, int64_t> annualExpenditureByReason;

@@ -20,6 +20,7 @@
 #include <nlohmann/json.hpp>
 
 #include "gamecore/game_core.h"
+#include "gamecore/state/json_codec.h"
 #include "gamecore/map/road_system.h"
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/rng/fdlibm.h"
@@ -43,6 +44,7 @@
 #include "gamecore/system/inventory.h"
 #include "gamecore/system/lifecycle.h"
 #include "gamecore/system/month_settlement.h"
+#include "gamecore/system/sect_attack_decision.h"
 #include "gamecore/system/name_service.h"
 #include "gamecore/system/spirit_field.h"
 #include "gamecore/system/watchdog.h"
@@ -93,6 +95,16 @@ jbyteArray stringToJbytes(JNIEnv* env, const std::string& s) {
     if (!out) return nullptr;
     env->SetByteArrayRegion(out, 0, static_cast<jsize>(s.size()),
                             reinterpret_cast<const jbyte*>(s.data()));
+    return out;
+}
+
+/// JNI jstring → std::string（copy；G7-2 AI 攻击决策 id 参数用）
+std::string jstringToStd(JNIEnv* env, jstring s) {
+    if (!s) return {};
+    const char* chars = env->GetStringUTFChars(s, nullptr);
+    if (!chars) return {};
+    std::string out(chars);
+    env->ReleaseStringUTFChars(s, chars);
     return out;
 }
 
@@ -1036,6 +1048,62 @@ Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCorePrecomputeTarget
     JNIEnv* /*env*/, jobject /*thiz*/) {
     if (!g_core) return;
     gamecore::system::detail::precomputeTargets(g_core->state(), g_core->rng());
+}
+
+// G7-2：AI 攻击决策直调（对拍用，作用于 g_core 当前状态——导入经
+// nativeCoreImportState，与 Kotlin AISectAttackManager 决策逐位对拍 BATTLE 分区）
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreCheckAttackConditions(
+    JNIEnv* env, jobject /*thiz*/, jstring attackerId, jstring defenderId,
+    jstring playerGarrisonJson) {
+    if (!g_core) return JNI_FALSE;
+    const std::string ai = jstringToStd(env, attackerId);
+    const std::string di = jstringToStd(env, defenderId);
+    auto& state = g_core->state();
+    const auto& worldSects = state.gameData.worldMapSects;
+    const gamecore::state::WorldSect* attacker = nullptr;
+    const gamecore::state::WorldSect* defender = nullptr;
+    for (const auto& s : worldSects) {
+        if (s.id == ai) attacker = &s;
+        else if (s.id == di) defender = &s;
+    }
+    if (attacker == nullptr || defender == nullptr) return JNI_FALSE;
+    std::map<std::string, std::vector<gamecore::state::Disciple>> playerGarrison;
+    if (playerGarrisonJson != nullptr) {
+        const auto j = nlohmann::json::parse(jstringToStd(env, playerGarrisonJson));
+        if (j.is_object()) {
+            for (auto it = j.begin(); it != j.end(); ++it) {
+                if (it.value().is_array()) {
+                    std::vector<gamecore::state::Disciple> vec;
+                    for (const auto& d : it.value()) {
+                        gamecore::state::Disciple disc;
+                        gamecore::state::from_json(d, disc);
+                        vec.push_back(std::move(disc));
+                    }
+                    playerGarrison[it.key()] = std::move(vec);
+                }
+            }
+        }
+    }
+    return gamecore::system::detail::checkAttackConditions(
+        state, *attacker, *defender, playerGarrison, g_core->rng())
+        ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_xianxia_sect_core_nativebridge_DiffRngBridge_nativeCoreDecidePlayerAttack(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_core) return env->NewStringUTF(R"({"type":"SKIP"})");
+    const auto decision = gamecore::system::detail::decidePlayerAttack(
+        g_core->state(), g_core->rng());
+    nlohmann::json j;
+    j["type"] = decision.type == gamecore::system::detail::PlayerAttackDecisionType::kGenerateWarning
+        ? "GENERATE_WARNING" : "SKIP";
+    if (decision.type == gamecore::system::detail::PlayerAttackDecisionType::kGenerateWarning) {
+        j["attackerSectId"] = decision.attackerSectId;
+        j["attackerSectName"] = decision.attackerSectName;
+    }
+    return env->NewStringUTF(j.dump().c_str());
 }
 
 // ============================================================

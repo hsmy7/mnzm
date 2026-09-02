@@ -1256,7 +1256,7 @@ void to_json(nlohmann::json& j, const GameData& v) {
     GC_TO(v, j, suzerainSectId); GC_TO(v, j, lastYearSpiritStoneIncome);
     GC_TO(v, j, mapSeed);
     GC_TO(v, j, sectAttackCooldowns); GC_TO(v, j, guideCounters);
-    GC_TO(v, j, aiSectPersonalities); GC_TO(v, j, activeAttackWarnings); GC_TO(v, j, isPlayerProtected);
+    GC_TO(v, j, aiSectPersonalities); GC_TO(v, j, activeAttackWarnings);
     GC_TO(v, j, annualIncomeBySource); GC_TO(v, j, annualExpenditureByReason);
     GC_TO(v, j, annualTotalIncome); GC_TO(v, j, annualTotalExpenditure);
     GC_TO(v, j, annualAlchemyCount); GC_TO(v, j, annualForgeCount);
@@ -1336,7 +1336,7 @@ void from_json(const nlohmann::json& j, GameData& v) {
     GC_FROM(j, v, suzerainSectId); GC_FROM(j, v, lastYearSpiritStoneIncome);
     GC_FROM(j, v, mapSeed);
     GC_FROM(j, v, sectAttackCooldowns); GC_FROM(j, v, guideCounters);
-    GC_FROM(j, v, aiSectPersonalities); GC_FROM(j, v, activeAttackWarnings); GC_FROM(j, v, isPlayerProtected);
+    GC_FROM(j, v, aiSectPersonalities); GC_FROM(j, v, activeAttackWarnings);
     GC_FROM(j, v, annualIncomeBySource); GC_FROM(j, v, annualExpenditureByReason);
     GC_FROM(j, v, annualTotalIncome); GC_FROM(j, v, annualTotalExpenditure);
     GC_FROM(j, v, annualAlchemyCount); GC_FROM(j, v, annualForgeCount);
