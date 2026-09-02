@@ -13,6 +13,10 @@
 
 /** Vulkan 驱动版本缓存（由 initDevice 设置，供 JNI getVulkanDriverVersion 读取） */
 volatile int VulkanBackend::s_driverVersion = 0;
+/** Vulkan API 版本（VK_MAKE_VERSION 编码）与 GPU vendorID/设备名缓存（selectPhysicalDevice 设置，供 JNI 上报量化阈值） */
+volatile int VulkanBackend::s_apiVersion = 0;
+volatile int VulkanBackend::s_vendorId = 0;
+char VulkanBackend::s_deviceName[256] = {0};
 #include <android/log.h>
 #include <cstdio>
 #include <signal.h>
@@ -427,6 +431,9 @@ bool VulkanBackend::selectPhysicalDevice() {
         uint32_t apiMajor = VK_API_VERSION_MAJOR(props.apiVersion);
         uint32_t apiMinor = VK_API_VERSION_MINOR(props.apiVersion);
         s_driverVersion = static_cast<int>(props.driverVersion);
+        s_apiVersion = static_cast<int>(props.apiVersion);
+        s_vendorId = static_cast<int>(props.vendorID);
+        std::snprintf(s_deviceName, sizeof(s_deviceName), "%s", props.deviceName);
         LOGI("GPU: %s | Vulkan %u.%u.%u (driver 0x%x)",
              props.deviceName,
              apiMajor, apiMinor, VK_API_VERSION_PATCH(props.apiVersion),

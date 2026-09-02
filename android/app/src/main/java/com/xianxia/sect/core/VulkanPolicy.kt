@@ -38,6 +38,78 @@ import java.io.FileReader
  *
  * @see CrashRecoveryEngine 崩溃自愈机制
  */
+// ── Vulkan 版本编解码（VK_MAKE_VERSION 语义；单调可比较） ─────────────────────
+private fun vkMakeVersion(major: Int, minor: Int, patch: Int): Int =
+    (major shl 22) or (minor shl 12) or patch
+
+private fun vkMajor(v: Int): Int = (v shr 22) and 0x3FF
+private fun vkMinor(v: Int): Int = (v shr 12) and 0x3FF
+private fun vkPatch(v: Int): Int = v and 0xFFF
+
+/** GPU 厂商（按 Vulkan vendorID 主要常量；UNKNOWN 表示未探测）。 */
+internal enum class GpuVendor(val vendorId: Int) {
+    QUALCOMM(0x5143),
+    ARM_MALI(0x13B5),
+    IMAGINATION(0x1010),
+    NVIDIA(0x10DE),
+    OTHER(-1),
+    UNKNOWN(-2);
+
+    companion object {
+        /** 由 VkPhysicalDeviceProperties.vendorID 映射；>0 但未识别 → OTHER */
+        fun fromVendorId(id: Int): GpuVendor = when (id) {
+            0x5143 -> QUALCOMM
+            0x13B5 -> ARM_MALI
+            0x1010 -> IMAGINATION
+            0x10DE -> NVIDIA
+            else -> if (id > 0) OTHER else UNKNOWN
+        }
+    }
+}
+
+/** 探测到的 Vulkan 物理设备信息（由 C++ selectPhysicalDevice 经 JNI 上报）。 */
+internal data class VulkanDeviceInfo(
+    val vendor: GpuVendor,
+    val apiVersion: Int,     // VkPhysicalDeviceProperties.apiVersion（VK_MAKE_VERSION 编码）
+    val driverVersion: Int,  // VkPhysicalDeviceProperties.driverVersion 原始值
+    val deviceName: String,
+) {
+    val apiMajor: Int get() = vkMajor(apiVersion)
+    val apiMinor: Int get() = vkMinor(apiVersion)
+    val apiPatch: Int get() = vkPatch(apiVersion)
+}
+
+/**
+ * 厂商 Vulkan 最低允许版本（Unity 官方《Allow/Deny Vulkan API usage》Device Filtering 规格；
+ * 低于该 API 版本则 Deny Vulkan，走 GLES/软件）。默认 Allow（窄 Deny）——行业基准，后续由
+ * Bugly 崩溃数据校准偏移，无需改代码。
+ */
+internal data class VendorVkMin(
+    val vendor: GpuVendor,
+    val apiMajor: Int,
+    val apiMinor: Int,
+    val apiPatch: Int,
+)
+
+internal val VULKAN_DENY_THRESHOLDS: List<VendorVkMin> = listOf(
+    VendorVkMin(GpuVendor.NVIDIA, 1, 0, 13),       // Unity：NVIDIA VK API ≥ 1.0.13
+    VendorVkMin(GpuVendor.ARM_MALI, 1, 0, 61),     // Unity：ARM(Mali) VK API ≥ 1.0.61
+    VendorVkMin(GpuVendor.IMAGINATION, 1, 1, 170), // Unity：PowerVR VK API ≥ 1.1.170（另需 driver ≥ 1.473.1397 留待 Bugly 校准）
+    VendorVkMin(GpuVendor.QUALCOMM, 1, 0, 49),     // Unity：Qualcomm 驱动 MSB 置位或 VK API ≥ 1.0.49
+)
+
+/**
+ * 量化阈值判定（按 厂商 + Vulkan API 版本；低于厂商阈值 → PROBLEMATIC（Deny Vulkan），
+ * 否则 SAFE（Allow）。未探测/其他/未知厂商 → 默认 Allow（窄 Deny）。
+ */
+internal fun evaluateVulkanTier(info: VulkanDeviceInfo?): VulkanPolicy.DeviceTier {
+    if (info == null) return VulkanPolicy.DeviceTier.SAFE
+    val below = VULKAN_DENY_THRESHOLDS.firstOrNull { it.vendor == info.vendor }?.let { t ->
+        info.apiVersion < vkMakeVersion(t.apiMajor, t.apiMinor, t.apiPatch)
+    } ?: false
+    return if (below) VulkanPolicy.DeviceTier.PROBLEMATIC else VulkanPolicy.DeviceTier.SAFE
+}
+
 @Suppress("TooManyFunctions") // GPU 黑名单核心类：12 个判定函数均为独立决策维度，拆分破坏内聚
 object VulkanPolicy {
 
@@ -273,6 +345,37 @@ object VulkanPolicy {
                 true
             }
             else -> false
+        }
+    }
+
+    // ── Vulkan 物理设备信息（厂商 + API 版本 + 驱动版本 + 设备名；量化阈值判定输入） ──
+    // 由 C++ VulkanBackend 在 selectPhysicalDevice 拿到 VkPhysicalDeviceProperties 后经 JNI 上报。
+    // 量化阈值（evaluateVulkanTier）据此在"低于厂商阈值"时记录 Vulkan 初始化失败 → 下次启动走 GLES。
+    @Volatile
+    private var _deviceInfo: VulkanDeviceInfo? = null
+
+    /** 测试用：读取已上报的物理设备信息 */
+    internal fun getDeviceInfo(): VulkanDeviceInfo? = _deviceInfo
+
+    /**
+     * 由 C++ 层上报物理设备信息（厂商/API/驱动/设备名）。
+     * 低于厂商 Vulkan 最低阈值 → 记录初始化失败（下次启动跳过 Vulkan 走 GPU GLES）。
+     * @param vendorId VkPhysicalDeviceProperties.vendorID
+     * @param apiVersion VkPhysicalDeviceProperties.apiVersion（VK_MAKE_VERSION 编码）
+     * @param driverVersion VkPhysicalDeviceProperties.driverVersion
+     * @param deviceName VkPhysicalDeviceProperties.deviceName
+     */
+    fun setVulkanDeviceInfo(vendorId: Int, apiVersion: Int, driverVersion: Int, deviceName: String) {
+        val info = VulkanDeviceInfo(GpuVendor.fromVendorId(vendorId), apiVersion, driverVersion, deviceName)
+        _deviceInfo = info
+        _driverVersion = driverVersion
+        val apiStr = "${info.apiMajor}.${info.apiMinor}.${info.apiPatch}"
+        if (evaluateVulkanTier(info) == DeviceTier.PROBLEMATIC) {
+            Log.e(TAG, "Vulkan device below vendor threshold: ${info.vendor} API $apiStr " +
+                "(device=$deviceName) — recording init failure")
+            CrashRecoveryEngine.recordVulkanInitFailure()
+        } else {
+            Log.i(TAG, "Vulkan device OK: $deviceName (${info.vendor}) API $apiStr")
         }
     }
 
@@ -519,12 +622,12 @@ object VulkanPolicy {
                 Log.w(TAG, "Emulator + prior Vulkan failure → SOFTWARE_ONLY")
                 return RenderStrategy.SOFTWARE_ONLY
             }
-            // API < 31 非白名单模拟器：即使无崩溃记录也应走软件渲染
-            // Robolectric/test 环境（API 26/29/30）在非 Google 模拟器配置下
-            // 使用 Vulkan passthrough 不可靠，应与非模拟器路径一致回退到软件渲染。
+            // API < 31 非白名单模拟器：Vulkan passthrough 不可靠，但设备有 GPU →
+            // 走 GPU GLES 中间层（非 CPU 软件；2026-09 GLES 落地后对齐）。
+            // 参考：非模拟器 API<31 非白名单路径同样 GLES_PREFERRED。
             if (Build.VERSION.SDK_INT < 31 && !isKnownGoodOldDevice()) {
-                Log.w(TAG, "Emulator on API<31 non-whitelist → SOFTWARE_ONLY")
-                return RenderStrategy.SOFTWARE_ONLY
+                Log.w(TAG, "Emulator on API<31 non-whitelist → GLES_PREFERRED")
+                return RenderStrategy.GLES_PREFERRED
             }
             Log.d(TAG, "Emulator → VULKAN_PREFERRED (GPU passthrough available)")
             return RenderStrategy.VULKAN_PREFERRED
@@ -637,46 +740,30 @@ object VulkanPolicy {
             return DeviceTier.PROBLEMATIC
         }
 
-        // 2. 检测联发科 SoC → PROBLEMATIC
+        // 2. 基于 SoC/厂商信号的"数据导向"风险感知（默认 Allow Vulkan，仅日志 + 量化后置判定）。
+        //    ★ 2026-09 策略修正：移除过去"整厂商/整机型一刀切拉黑"（MediaTek / 国产非高通 → PROBLEMATIC
+        //    直接走 GPU GLES），改为**默认 Vulkan + 窄 Deny**（行业标准，见 docs/adr/render-strategy-decision.md）。
+        //    依据：GPU GLES 中间层已落地（降级链 Vulkan→GPU GLES→CPU Canvas），即便 Vulkan 驱动有缺陷，
+        //    崩溃自愈 + GLES 兜底仍保 GPU 可用；量化阈值（低于厂商 VK API 版本 → 记录失败下次走 GLES）经
+        //    C++ 上报设备信息（setVulkanDeviceInfo）+ Bugly 校准后置生效，不再靠整厂商名单。
         val isMediatek = MEDIATEK_PREFIXES.any { prefix ->
             board.startsWith(prefix) ||
             hardware.startsWith(prefix) ||
             socManufacturer.startsWith(prefix)
         }
-        if (isMediatek) {
-            Log.w(TAG, "MediaTek SoC: board=$board hw=$hardware")
-            return DeviceTier.PROBLEMATIC
+        val isQualcomm = COMPATIBLE_SOC_PREFIXES.any { prefix ->
+            board.startsWith(prefix) ||
+            hardware.startsWith(prefix) ||
+            socManufacturer.startsWith(prefix)
         }
-
-        // 3. 检测国产厂商 → Vulkan 兼容性判定
-        // 对大多数国产厂商，即使 Android < 15，其定制 GPU 驱动的 Vulkan 实现
-        // 也存在广泛兼容性问题（华为 Kirin、荣耀、vivo、OPPO、小米澎湃OS 等均有报告）。
-        // 只有高通 Adreno 的驱动相对成熟，非高通芯片一律降级。
         val isChineseManufacturer = KNOWN_PROBLEM_MANUFACTURERS.any {
             manufacturer.contains(it)
         }
-
-        if (isChineseManufacturer) {
-            val isQualcomm = COMPATIBLE_SOC_PREFIXES.any { prefix ->
-                board.startsWith(prefix) ||
-                hardware.startsWith(prefix) ||
-                socManufacturer.startsWith(prefix)
-            }
-            if (isQualcomm) {
-                // 高通 Adreno — 相对稳定，但 Android 15+ 仍需监控
-                val isAndroid15Plus = Build.VERSION.SDK_INT >= 35
-                if (isAndroid15Plus) {
-                    Log.w(TAG, "Qualcomm + Chinese OEM $manufacturer on Android 15+ — monitoring")
-                    return DeviceTier.WARNING
-                }
-                // Android < 15 的高通还好，返回 SAFE
-            } else {
-                // 非高通国产芯片（Kirin/Exynos/Unisoc/展讯等）Vulkan 驱动普遍不可靠
-                Log.w(TAG, "Non-Qualcomm Chinese OEM $manufacturer — Vulkan unreliable")
-                return DeviceTier.PROBLEMATIC
-            }
+        val riskyVendorSignal = isMediatek || (isChineseManufacturer && !isQualcomm)
+        if (riskyVendorSignal) {
+            Log.w(TAG, "Vulkan risky-vendor signal (Mediatek=$isMediatek Chinese=$isChineseManufacturer " +
+                "Qualcomm=$isQualcomm) — default VULKAN_PREFERRED, rely on quantified probe + crash-recovery")
         }
-
         // 4. 检查 SoC/GPU 型号匹配已知问题列表
         // 使用 Build.SOC_MODEL（API 31+）尝试匹配已知问题 GPU 型号，
         // 作为额外防线：即使厂商未被标记为问题设备也能捕获。
@@ -702,7 +789,16 @@ object VulkanPolicy {
             }
         }
 
-        // 5. 检查 Vulkan 功能级别
+        // 5. 量化阈值后置判定（若已由 C++ 上报物理设备信息——通常为 prewarm 后；
+        //    低于厂商 VK API 阈值 → PROBLEMATIC）。启动时 _deviceInfo 为 null 则跳过（窄 Deny 由上述静态信号承担）。
+        val probed = _deviceInfo
+        if (probed != null && evaluateVulkanTier(probed) == DeviceTier.PROBLEMATIC) {
+            Log.w(TAG, "Vulkan device below vendor threshold (${probed.vendor} API " +
+                "${probed.apiMajor}.${probed.apiMinor}.${probed.apiPatch}) — PROBLEMATIC")
+            return DeviceTier.PROBLEMATIC
+        }
+
+        // 6. 检查 Vulkan 功能级别
         try {
             val pm = context.packageManager
             if (pm.hasSystemFeature(
@@ -721,13 +817,34 @@ object VulkanPolicy {
     }
 
     /**
+     * 计算"GPU 厂商风险信号"（MediaTek 或 国产非高通）——用于系统级 HWUI 的保守兜底。
+     * 与地图渲染后端（getRenderStrategy）**独立**：地图可默认 Vulkan（有 GLES 兜底），
+     * 但 Android 15+ 的 Compose UI 走 SkiaVK，风险厂商驱动缺陷下应保持 HW 加速关闭以防崩溃。
+     */
+    private fun hasRiskyGpuVendorSignal(
+        board: String,
+        hardware: String,
+        socManufacturer: String,
+        manufacturer: String,
+    ): Boolean {
+        val isMediatek = MEDIATEK_PREFIXES.any {
+            board.startsWith(it) || hardware.startsWith(it) || socManufacturer.startsWith(it)
+        }
+        val isQualcomm = COMPATIBLE_SOC_PREFIXES.any {
+            board.startsWith(it) || hardware.startsWith(it) || socManufacturer.startsWith(it)
+        }
+        val isChinese = KNOWN_PROBLEM_MANUFACTURERS.any { manufacturer.contains(it) }
+        return isMediatek || (isChinese && !isQualcomm)
+    }
+
+    /**
      * 是否应在该设备上禁用硬件加速。
      *
      * 与 [getRenderStrategy] 不同，此方法控制系统级的 HW 加速（Activity 主题）。
      * Android 15+ 的系统渲染默认使用 SkiaVK（Vulkan 后端），问题设备上需关闭。
      * Android < 15 的系统渲染使用 OpenGL ES，与 Vulkan 驱动问题无关，可保持开启。
      */
-    @Suppress("ReturnCount")
+    @Suppress("ReturnCount", "CyclomaticComplexMethod")
     fun shouldDisableHardwareAcceleration(context: Context): Boolean {
         // 1. 崩溃自愈安全模式 → 强制降级
         if (CrashRecoveryEngine.isSafeMode()) {
@@ -767,21 +884,32 @@ object VulkanPolicy {
 
         // 4. API 31-34（Android 12-14）：使用 android.graphics.renderer="skiagl"
         //    metadata 提示系统使用 OpenGL ES，硬件加速保持开启
-        //    仅 API 35+（Android 15+）需要检查设备分级
+        //    仅 API 35+（Android 15+）需要检查设备分级 + 风险厂商信号（HWUI SkiaVK 兜底）
         if (Build.VERSION.SDK_INT < 35) {
             return false
         }
 
-        return when (detectTier(context)) {
-            DeviceTier.PROBLEMATIC -> {
-                Log.w(TAG, "Problematic device on Android 15+ — disabling HW acceleration")
+        val tier = detectTier(context)
+        val board = (Build.BOARD ?: "").lowercase()
+        val hardware = (Build.HARDWARE ?: "").lowercase()
+        val socManufacturer = if (Build.VERSION.SDK_INT >= 31) {
+            Build.SOC_MANUFACTURER?.lowercase() ?: ""
+        } else {
+            ""
+        }
+        val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+        val riskySignal = hasRiskyGpuVendorSignal(board, hardware, socManufacturer, manufacturer)
+
+        return when {
+            tier == DeviceTier.PROBLEMATIC || riskySignal -> {
+                Log.w(TAG, "Problematic/risky-vendor device on Android 15+ — disabling HW acceleration")
                 true
             }
-            DeviceTier.WARNING -> {
+            tier == DeviceTier.WARNING -> {
                 Log.w(TAG, "Warning tier — keeping HW acceleration, monitoring")
                 false
             }
-            DeviceTier.SAFE -> false
+            else -> false
         }
     }
 

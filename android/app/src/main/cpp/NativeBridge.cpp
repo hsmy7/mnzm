@@ -194,6 +194,24 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanDriverVersion(
     return static_cast<jint>(VulkanBackend::s_driverVersion);
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanApiVersion(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    return static_cast<jint>(VulkanBackend::s_apiVersion);
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanVendorId(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    return static_cast<jint>(VulkanBackend::s_vendorId);
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanDeviceName(
+    JNIEnv* env, jobject /*thiz*/) {
+    return env->NewStringUTF(VulkanBackend::s_deviceName);
+}
+
 /** 设置渲染后端类型（在 initRenderer/prewarmDevice 前调用；0=Vulkan 默认，1=GLES）。 */
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderBackend(

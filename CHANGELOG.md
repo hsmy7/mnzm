@@ -40,6 +40,16 @@
 - **弟子组件化**（`ecs/disciple_component.h`，方案 A 落地边界）：`DiscipleRef{row}` 组件把弟子作为实体接入 ECS（row↔entity 对齐），可与其他组件组合做多组件视图迭代——**不改 `DiscipleStore`/`json_codec`/`rng`，存档零变更、RNG 行序红线不破**。
 - **验证**：桌面 GTest 全量 **757/757**（722 基线零回归 + **新增 35 个 ECS 用例**：实体/存储/视图/系统/Job/弟子）。ECS 为纯头文件实现（C++20、零平台依赖），未改生产库源列表，Android/NDK 构建不受影响。
 
+### 渲染路径量化阈值（default Vulkan + 窄 Deny，2026-09，C++ 迁移后续主线）
+
+> 承接 2026-09-09 GPU GLES 中间层（降级链 `Vulkan→GPU GLES→CPU Canvas`），补齐缺口 G4 的**次主线**：把 `VulkanPolicy` 从"整厂商/整机型一刀切拉黑（MediaTek/国产非高通直接走 GLES）"改为**默认 Vulkan + 窄 Deny**（行业标准，Unity Device Filtering 量化阈值）。设计见 `docs/adr/render-strategy-decision.md`。
+
+- **量化决策引擎**（`VulkanPolicy`）：新增 `GpuVendor`/`VulkanDeviceInfo`/`evaluateVulkanTier`——按 **GPU 厂商 + Vulkan API 版本** 判定（Unity 阈值：Mali≥1.0.61、PowerVR≥1.1.170、Qualcomm≥1.0.49、NVIDIA≥1.0.13），低于阈值 → PROBLEMATIC（Deny Vulkan），默认 SAFE（Allow）。阈值数据驱动，真机 Bugly 校准无需改代码。
+- **C++ 探测上报**：`VulkanBackend` 在 `selectPhysicalDevice` 记录 apiVersion/vendorId/deviceName → JNI `getVulkanApiVersion/getVulkanVendorId/getVulkanDeviceName` → `VulkanPolicy.setVulkanDeviceInfo`（低于阈值 → `CrashRecoveryEngine.recordVulkanInitFailure`，下次启动走 GLES）；`GameActivity` prewarm 后上报全量设备信息。
+- **detectTier 改造**：移除整厂商/整机型拉黑，默认 Vulkan + 窄 Deny（保留已知问题机型/GPU 模式 + 量化后置判定）；`shouldDisableHardwareAcceleration` 在 Android 15+ 保留"风险厂商"系统级 HWUI 兜底（Compose SkiaVK 防崩，与地图渲染后端解耦）。**同步修正预存不一致**：模拟器 API<31 无崩溃标记从 `SOFTWARE_ONLY` 改 `GLES_PREFERRED`（GLES 中间层落地后应走 GPU）。
+- **验证**：`VulkanPolicyQuantizedThresholdTest` 新增 14 用例（各厂商阈值边界 + 上报接线 + detectTier 后置判定）· `compileReleaseKotlin` 通过 · `:app/:core:engine detekt` 全绿 · `:app:testReleaseUnitTest`（VulkanPolicyTest + 新测试）通过 · NDK `externalNativeBuildRelease` 通过（C++ 探测编译）。
+- **剩余**：CPU Canvas 优化（预渲染地面层/LOD/瓦片缓存）、真机 Bugly 阈值校准、GLES 真机验证（坐标/UV 翻转、混合、ASTC/renderScale/REPEAT）——见 `docs/cpp-engine.md` §0.4。
+
 
 ## [4.01.11] - 2026-08-29
 

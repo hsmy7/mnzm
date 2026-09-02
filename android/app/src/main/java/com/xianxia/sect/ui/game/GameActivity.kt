@@ -359,9 +359,15 @@ class GameActivity : ComponentActivity() {
                                                 if (prewarmOk) {
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
-                                                    com.xianxia.sect.core.VulkanPolicy.setDriverVersion(
+                                                    com.xianxia.sect.core.VulkanPolicy.setVulkanDeviceInfo(
                                                         com.xianxia.sect.core.nativebridge
-                                                            .NativeBridge.getVulkanDriverVersion()
+                                                            .NativeBridge.getVulkanVendorId(),
+                                                        com.xianxia.sect.core.nativebridge
+                                                            .NativeBridge.getVulkanApiVersion(),
+                                                        com.xianxia.sect.core.nativebridge
+                                                            .NativeBridge.getVulkanDriverVersion(),
+                                                        com.xianxia.sect.core.nativebridge
+                                                            .NativeBridge.getVulkanDeviceName()
                                                     )
                                                 } else {
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()

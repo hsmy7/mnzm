@@ -30,6 +30,15 @@ public:
     /** 最后一次成功读取的 Vulkan 驱动版本号（0 = 未知/未初始化） */
     static volatile int s_driverVersion;
 
+    /** 最后一次成功读取的 Vulkan API 版本（VK_MAKE_VERSION 编码；0 = 未知） */
+    static volatile int s_apiVersion;
+
+    /** 最后一次成功读取的 GPU vendorID（0 = 未知/未初始化） */
+    static volatile int s_vendorId;
+
+    /** 最后一次成功读取的 GPU 设备名（"" = 未知；非 volatile——JNI 跨 init 边界读取已同步） */
+    static char s_deviceName[256];
+
     // Renderer2D 接口实现
     bool init(const RenderConfig& config, void* nativeWindow) override;
     void shutdown() override;

@@ -1,8 +1,8 @@
 # ADR: 渲染路径 / GPU 分级策略决策（render-strategy-decision）
 
-> 状态：**主修复已实施**（2026-09-09：GPU OpenGL ES 中间层已落地，降级链现为 `Vulkan→GPU GLES→CPU Canvas`；见 docs/cpp-engine.md §0.4）+ 含行业对标研究结论。日期：2026-09。
+> 状态：**主修复已实施**（2026-09-09：GPU OpenGL ES 中间层已落地，降级链现为 `Vulkan→GPU GLES→CPU Canvas`）+ **量化阈值已实施**（2026-09 续作，见下）+ 含行业对标研究结论。日期：2026-09。
 > 背景：用户已拍板调研第三点（GPU 白名单 vs Canvas 软件渲染）。本文档给出代码级问题定性 + 行业对标 + 明确推荐。
-> ⚠️ 注：**"GPU GLES 中间层"本体已实施**；"GPU 白名单量化阈值（default Vulkan + 窄 Deny）"作为下一阶段待真机校准后推进。
+> ✅ **GPU GLES 中间层**本体已实施（commit ca4bf15a）；✅ **量化阈值（default Vulkan + 窄 Deny）机制已实施**——`VulkanPolicy` 增量化决策引擎（`evaluateVulkanTier`：按 GPU 厂商 + Vulkan API 版本判定，Unity Device Filtering 规格为阈值）+ C++ 探测上报（apiVersion/vendorId/deviceName → `setVulkanDeviceInfo`）+ `detectTier` 移除整厂商/整机型一刀切拉黑改默认 Vulkan + 窄 Deny；`VulkanPolicyQuantizedThresholdTest` 14 用例。**阈值数值为行业基准默认，真机 Bugly 校准（作阈值数据调整，无需改代码）与 CPU Canvas 优化仍为后续项。**
 
 ## 1. 背景与目标
 
