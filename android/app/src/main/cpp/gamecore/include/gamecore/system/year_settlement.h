@@ -17,6 +17,7 @@
 #include "gamecore/data/herb_db.h"
 #include "gamecore/data/manual_db.h"
 #include "gamecore/data/recipe_db.h"
+#include "gamecore/system/ai_sect_recruit.h"
 #include "gamecore/system/disciple_factory.h"
 #include "gamecore/system/disciple_stats.h"
 #include "gamecore/system/economy.h"
@@ -1713,12 +1714,15 @@ using detail::YearSettlementDraft;
 
 /// 年变编排主入口（注册进 SettlementEngine::onYearChange）。
 /// @param state 完整游戏状态（就地修改）
-/// @param rng   RNG 分区管理器（本钩子全程零消耗；参数供后续批次接线）
+/// @param rng   RNG 分区管理器（T2-③ 收购 SYSTEM / T2-⑪ 秘境 SECRET_REALM）
+/// @param aiRng AI 宗门独立分区 RNG（批 Y-4c T2-② AI 招募；种子
+///   systemSeed + AI_SECT.id(6)×31337——GameCore::aiRng()）
 /// @param draft 年变平台效应草稿（批 Y-3 T1-③ 死亡链：可为 null——承载
 ///   死亡弟子（袋物品物化/DAO 清理/DeathEvent/死亡记录）与丧亲事件
 ///   （lifeEvents）供 Kotlin 残留执行器消费；null 时仅状态面）
 inline void runYearSettlement(state::GameState& state,
                               rng::RngManager& rng,
+                              rng::DeterministicRng& aiRng,
                               YearSettlementDraft* draft = nullptr) {
     (void)rng;   // 年变 T1/T2 批 Y-1 子集零 RNG 抽取（其余项场景规避，见文件头）
 
@@ -1757,9 +1761,11 @@ inline void runYearSettlement(state::GameState& state,
     //    大件（AI 招募/交易刷新/秘境刷新）随批 Y-2/Y-3 下沉）──
     // #4 AI 弟子老化（T2-① 批 Y-1）
     detail::processSectDisciplesAging(state);
+    // #10 AI 宗门周期性招募（T2-② 批 Y-4c：AI 独立分区 RNG——差值判据
+    // 每 3 年；占领路由 + 尾部自动招募）
+    detail::runSectRecruitmentIfDue(state, aiRng, state.gameData.gameYear);
     // #12 商人收购刷新（T2-③ 批 Y-4b：SYSTEM 分区——数量 1×nextInt(9) +
-    // 每 item 品阶 1×nextDouble + 选池 1×nextInt + 库存/grade/价格波动；
-    // Kotlin T2 序 #10 AI 招募 在本项之前，随批 Y-4c 于本调用点之前插入）
+    // 每 item 品阶 1×nextDouble + 选池 1×nextInt + 库存/grade/价格波动）
     detail::refreshMerchantAcquisition(state, rng.getRng(rng::RngPartition::kSystem),
                                        state.gameData.gameYear, 1);
     // #13 AI 宗门交易列表刷新（T2-④ 批 Y-4a：局部种子——零分区 RNG）

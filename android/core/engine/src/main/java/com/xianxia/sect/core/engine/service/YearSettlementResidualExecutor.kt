@@ -17,19 +17,18 @@ import com.xianxia.sect.core.state.MutableGameState
  *   装备清/死亡记录/事件/计数；本处补 Kotlin 侧：袋物品物化回仓库（含溢出
  *   邮件）/lifeEvents 丧亲事件/死亡记录档案——事务内 + DAO 清理/DeathEvent——
  *   事务外）
- * - **T1-④ 招募列表刷新**（[RecruitService.refreshRecruitList]——SYSTEM 生成链，
- *   差值判据内部）
- * - **T2-② AI 宗门周期性招募**（差值判据 + [CaveExplorationProcessor.
- *   processSectDisciplesYearlyRecruitment]——AI 独立分区 RNG）
+ * - **T1-④ 招募列表刷新**（✅ 批 Y-3 下沉 C++——本执行器不再调用）
+ * - ~~T2-② AI 宗门周期性招募~~（✅ 批 Y-4c 下沉 C++——AI 独立分区 RNG +
+ *   占领路由，本执行器不再调用）
  * - ~~T2-③ 商人收购刷新~~（✅ 批 Y-4b 下沉 C++——SYSTEM 稀有度曲线，
  *   本执行器不再调用）
  * - ~~T2-④ 宗门交易列表刷新~~（✅ 批 Y-4a 下沉 C++——局部种子 RNG
  *   sectId.hashCode()+year，本执行器不再调用）
  *
- * RNG 契约（切换行为基线登记）：C++ 已下沉年变面零 SYSTEM 消耗——残留执行器
- * （T1-④ SYSTEM / T2-③ SYSTEM）消耗序与 Kotlin 原编排基本一致；唯一差异：
- * T1-⑨（C++ 条件性 SYSTEM 偷盗钩子）先于 T1-④ 执行（C++ 主真相源先行），
- * 属年变编排整体入 C++ 的必然行为基线。
+ * RNG 契约（批 Y-4 收口后更新）：年变已下沉面全部入 C++——残留执行器
+ * 不再消费任何分区 RNG（T1-④ 招募生成 SYSTEM / T2-③ 收购 SYSTEM 均已
+ * 下沉 C++ 侧执行）；本执行器仅剩 T1-③ 死亡链平台效应（纯 Kotlin 平台
+ * 侧：物化/丧亲/死亡档案——零 RNG）。
  *
  * 事务契约：[execute] 必须在 [com.xianxia.sect.core.state.GameStateStore.update]
  * 事务内调用（物化/丧亲/死亡档案）；[applyPlatformEffects] 在事务外调用
@@ -47,25 +46,13 @@ internal class YearSettlementResidualExecutor(
      * @param env nativeSettleYear 信封（T1-③ 死亡链平台效应草稿）
      */
     fun execute(state: MutableGameState, env: YearSettlementEnvelope) {
-        val year = state.gameData.gameYear
-
         // ── T1-③ 死亡链平台效应（事务内：物化/丧亲/死亡档案） ──
         env.agedDeaths.forEach { death -> applyAgedDeathInTransaction(state, death) }
         env.bereavements.forEach { bereavement -> appendBereavementEvent(state, bereavement) }
 
-        // T1-④ 招募刷新已下沉 C++（processRefreshRecruitList——本残留执行器
-        // 不再调用 Kotlin refreshRecruitList，防双份生成）
-        // T2-② AI 宗门周期性招募（AI 独立分区 RNG；差值判据每 3 年）
-        state.runSectRecruitmentIfDue(year) {
-            eventProcessor.caveExplorationProcessor.get()
-                .processSectDisciplesYearlyRecruitment(year, state)
-        }
-        // T2-③ 商人收购刷新已下沉 C++（refreshMerchantAcquisition——批 Y-4b：
-        // SYSTEM 稀有度曲线，本残留执行器不再调用 Kotlin refreshMerchantAcquisition，
-        // 防双份生成）
-        // T2-④ 宗门交易列表刷新已下沉 C++（refreshAllSectTrades——批 Y-4a：
-        // 局部种子 RNG sectId.hashCode()+year，本残留执行器不再调用 Kotlin
-        // refreshAllSectTrades，防双份生成）
+        // 年变编排扇出已全部下沉 C++（T1-④ 招募刷新批 Y-3 / T2-④ 交易刷新
+        // 批 Y-4a / T2-③ 商人收购批 Y-4b / T2-② AI 宗门招募批 Y-4c）——
+        // 本执行器不再调用 Kotlin 对应服务，防双份生成
     }
 
     /**

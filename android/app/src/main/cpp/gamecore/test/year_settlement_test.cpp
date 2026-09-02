@@ -1411,4 +1411,207 @@ TEST(YearSettlementTest, Y4bT2CreatePillItemAppliesGradePrice) {
     EXPECT_EQ(1, item.obtainedMonth);
 }
 
+// ════════════════════════════════════════════════════════════════
+// 批 Y-4c（T2-②）：AI 宗门周期性招募黄金序列
+// AI 独立分区 RNG（种子 systemSeed + AI_SECT.id(6)×31337——不入 rngStates
+// 分区；断言 AI RNG 快照变化/不变 + SYSTEM 等分区零扰动）。
+// Disciple.id 为镜像生成字段（静态计数器自增），断言排除具体 id 值。
+// ════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// 构造 AI 宗门 + 现有弟子池（aiSectDisciples 顶层条目）
+void addAiSectWithDisciples(state::GameState& st, const std::string& id,
+                            const std::string& name, int32_t level,
+                            bool isPlayerSect, bool isPlayerOccupied,
+                            const std::string& occupierSectId,
+                            std::vector<state::Disciple> disciples) {
+    state::WorldSect sect;
+    sect.id = id;
+    sect.name = name;
+    sect.level = level;
+    sect.isPlayerSect = isPlayerSect;
+    sect.isPlayerOccupied = isPlayerOccupied;
+    sect.occupierSectId = occupierSectId;
+    st.gameData.worldMapSects.push_back(sect);
+    st.aiSectDisciples[id] = std::move(disciples);
+}
+
+/// AI 测试弟子（炼气一层，最小字段）
+state::Disciple makeAiDisciple(const std::string& id, const std::string& name) {
+    state::Disciple d;
+    d.id = id;
+    d.name = name;
+    d.surname = "测试";
+    d.gender = "male";
+    d.realm = 9;
+    d.realmLayer = 1;
+    d.isAlive = true;
+    d.age = 30;
+    return d;
+}
+
+/// 断言 AI 弟子全字段合法 + 等级装备/功法数量（炼气→凡品 rarity1 池非空）
+void expectAiRecruitValid(const state::Disciple& d, int32_t sectLevel) {
+    EXPECT_FALSE(d.name.empty());
+    EXPECT_TRUE(d.gender == "male" || d.gender == "female");
+    EXPECT_EQ(9, d.realm);                  // 新弟子固定炼气
+    EXPECT_EQ(1, d.realmLayer);
+    EXPECT_EQ(0.0, d.cultivation);
+    EXPECT_TRUE(d.isAlive);
+    EXPECT_EQ("outer", d.discipleType);
+    EXPECT_GE(d.age, 16);
+    EXPECT_LE(d.age, 29);
+    EXPECT_GE(d.lifespan, 1);
+    EXPECT_LE(d.lifespan, 80);
+    // 灵根（英文 key 逗号串 1..5）
+    EXPECT_FALSE(d.spiritRootType.empty());
+    // 技能/方差在界内（GameConfig.Disciple.SKILL_MAX=200 / MAX_LOYALTY=100）
+    EXPECT_GE(d.intelligence, 1);
+    EXPECT_LE(d.intelligence, 200);
+    EXPECT_GE(d.loyalty, 1);
+    EXPECT_LE(d.loyalty, 100);
+    // 装备/功法数量按宗门等级（炼气凡品池非空——应有满配）
+    const int32_t equipCount =
+        static_cast<int32_t>(!d.weaponId.empty()) + (!d.armorId.empty()) +
+        (!d.bootsId.empty()) + (!d.accessoryId.empty());
+    EXPECT_LE(equipCount, 4);
+    EXPECT_GT(equipCount, 0) << "弟子 " << d.name << " 无装备";
+    EXPECT_FALSE(d.manualIds.empty()) << "弟子 " << d.name << " 无功法";
+}
+
+}  // namespace
+
+TEST(YearSettlementTest, Y4cT2AiSectRecruitRunsWhenIntervalMet) {
+    // 差值判据满足（5-0>=3）→ 生成 1..5 名新弟子入自身池（无占领）；
+    // lastAiSectRecruitYear 更新；AI RNG 消耗；SYSTEM 等分区零扰动
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 5;
+    addAiSectWithDisciples(st, "ai-1", "青云宗", /*level=*/1,
+                           /*isPlayerSect=*/false, /*isPlayerOccupied=*/false,
+                           /*occupierSectId=*/"", {makeAiDisciple("a1", "青云长老")});
+    const auto aiBefore = core->aiRng().snapshot();
+    const auto sysBefore =
+        core->rng().getRng(rng::RngPartition::kSystem).snapshot();
+
+    system::detail::runSectRecruitmentIfDue(st, core->aiRng(), 5);
+
+    EXPECT_EQ(5, st.gameData.lastAiSectRecruitYear);
+    ASSERT_EQ(1u, st.aiSectDisciples.count("ai-1"));
+    const auto& disciples = st.aiSectDisciples.at("ai-1");
+    ASSERT_GT(disciples.size(), 1u);        // 原 1 + 新增 1..5
+    EXPECT_LE(disciples.size(), 6u);        // 原 1 + 最多 5
+    for (std::size_t i = 1; i < disciples.size(); ++i) {
+        expectAiRecruitValid(disciples[i], /*sectLevel=*/1);
+    }
+    // AI RNG 被消耗
+    EXPECT_NE(aiBefore, core->aiRng().snapshot());
+    // SYSTEM 等分区零扰动（差值判据路径不消费分区 RNG）
+    EXPECT_EQ(sysBefore,
+              core->rng().getRng(rng::RngPartition::kSystem).snapshot());
+}
+
+TEST(YearSettlementTest, Y4cT2AiSectRecruitSkipsWhenIntervalNotMet) {
+    // 差值判据不满足（5-4<3）→ 零效果零消费（AI RNG 快照不变）
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 5;
+    st.gameData.lastAiSectRecruitYear = 4;
+    addAiSectWithDisciples(st, "ai-1", "青云宗", 1, false, false, "",
+                           {makeAiDisciple("a1", "青云长老")});
+    const auto aiBefore = core->aiRng().snapshot();
+
+    system::detail::runSectRecruitmentIfDue(st, core->aiRng(), 5);
+
+    EXPECT_EQ(4, st.gameData.lastAiSectRecruitYear);   // 未推进
+    ASSERT_EQ(1u, st.aiSectDisciples.at("ai-1").size());  // 未新增
+    EXPECT_EQ(aiBefore, core->aiRng().snapshot());        // AI RNG 零消费
+}
+
+TEST(YearSettlementTest, Y4cT2AiSectRecruitPlayerOccupiedRoutesToRecruitList) {
+    // 玩家占领（isPlayerOccupied）→ 新弟子入 recruitList（不截断）
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 5;
+    st.gameData.recruitList = {makeAiDisciple("r1", "原招募")};
+    addAiSectWithDisciples(st, "ai-1", "青云宗", 0, false,
+                           /*isPlayerOccupied=*/true, "",
+                           {makeAiDisciple("a1", "青云长老")});
+
+    system::detail::runSectRecruitmentIfDue(st, core->aiRng(), 5);
+
+    EXPECT_EQ(5, st.gameData.lastAiSectRecruitYear);
+    // 原招募池不动 + 新增 1..5 名（玩家占领路由）
+    ASSERT_GT(st.gameData.recruitList.size(), 1u);
+    EXPECT_LE(st.gameData.recruitList.size(), 6u);
+    EXPECT_EQ("原招募", st.gameData.recruitList[0].name);
+    // 被占领宗门自身池不再追加
+    EXPECT_EQ(1u, st.aiSectDisciples.at("ai-1").size());
+}
+
+TEST(YearSettlementTest, Y4cT2AiSectRecruitOccupierRoutesToOccupierPool) {
+    // 被其他 AI 宗门占领（occupierSectId）→ 新弟子入占领者池（truncate）
+    const int64_t seed = 42;
+    auto core = makeCore(seed);
+    auto& st = core->state();
+    st.gameData.gameYear = 5;
+    addAiSectWithDisciples(st, "ai-1", "青云宗", 1, false, false,
+                           /*occupierSectId=*/"ai-2",
+                           {makeAiDisciple("a1", "青云长老")});
+    addAiSectWithDisciples(st, "ai-2", "紫霄宗", 1, false, false, "",
+                           {makeAiDisciple("a2", "紫霄长老")});
+
+    system::detail::runSectRecruitmentIfDue(st, core->aiRng(), 5);
+
+    EXPECT_EQ(5, st.gameData.lastAiSectRecruitYear);
+    // ai-1 自身池不增长（新弟子去 ai-2）
+    EXPECT_EQ(1u, st.aiSectDisciples.at("ai-1").size());
+    // ai-2 池 = 原 1 + 新增 1..5
+    const auto& occ = st.aiSectDisciples.at("ai-2");
+    ASSERT_GT(occ.size(), 1u);
+    EXPECT_LE(occ.size(), 6u);
+}
+
+TEST(YearSettlementTest, Y4cT2AiDiscipleGenerationDeterministic) {
+    // 同种子重放 generateYearlyAiRecruits → 非 id 字段逐字段一致（确定性）
+    auto rngA = rng::DeterministicRng::fromSeed(42 + 6 * 31337);
+    auto rngB = rng::DeterministicRng::fromSeed(42 + 6 * 31337);
+    const std::vector<state::Disciple> existing = {makeAiDisciple("a1", "青云长老")};
+
+    const auto recruitsA =
+        system::detail::generateYearlyAiRecruits(rngA, "青云宗", existing, 1);
+    const auto recruitsB =
+        system::detail::generateYearlyAiRecruits(rngB, "青云宗", existing, 1);
+
+    ASSERT_EQ(recruitsA.size(), recruitsB.size());
+    for (std::size_t i = 0; i < recruitsA.size(); ++i) {
+        const auto& a = recruitsA[i];
+        const auto& b = recruitsB[i];
+        EXPECT_EQ(a.name, b.name) << "idx " << i;
+        EXPECT_EQ(a.surname, b.surname) << "idx " << i;
+        EXPECT_EQ(a.gender, b.gender) << "idx " << i;
+        EXPECT_EQ(a.spiritRootType, b.spiritRootType) << "idx " << i;
+        EXPECT_EQ(a.age, b.age) << "idx " << i;
+        EXPECT_EQ(a.lifespan, b.lifespan) << "idx " << i;
+        EXPECT_EQ(a.hpVariance, b.hpVariance) << "idx " << i;
+        EXPECT_EQ(a.intelligence, b.intelligence) << "idx " << i;
+        EXPECT_EQ(a.loyalty, b.loyalty) << "idx " << i;
+        EXPECT_EQ(a.aptitude, b.aptitude) << "idx " << i;
+        EXPECT_EQ(a.talentIds, b.talentIds) << "idx " << i;
+        EXPECT_EQ(a.physiqueIds, b.physiqueIds) << "idx " << i;
+        EXPECT_EQ(a.affixIds, b.affixIds) << "idx " << i;
+        EXPECT_EQ(a.portraitRes, b.portraitRes) << "idx " << i;
+        EXPECT_EQ(a.weaponId, b.weaponId) << "idx " << i;
+        EXPECT_EQ(a.manualIds, b.manualIds) << "idx " << i;
+        // 名字去重（含现有弟子）
+        for (std::size_t j = 0; j < i; ++j) {
+            EXPECT_NE(a.name, recruitsA[j].name);
+        }
+    }
+}
+
 }  // namespace

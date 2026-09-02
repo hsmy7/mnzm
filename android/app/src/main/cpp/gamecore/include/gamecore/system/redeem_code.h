@@ -9,6 +9,7 @@
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
 #include "gamecore/system/disciple.h"
+#include "gamecore/system/disciple_factory.h"  // avoidSentinel50（批 Y-4c：去重——disciple_factory.h 定义权威）
 
 // ============================================================
 // 兑换码与灵根生成（Kotlin→C++ 迁移计划 v2 阶段 4 / 批 4-6）
@@ -186,8 +187,8 @@ inline int32_t rollBySpiritRootCount(rng::DeterministicRng& rng, int32_t spiritR
 /// 属性方差（Kotlin generateVariance）：-50..50
 inline int32_t generateVariance(rng::DeterministicRng& rng) { return -50 + rng.nextInt(101); }
 
-/// 资质避开哨兵值 50（Kotlin avoidSentinel50；DEFAULT_APTITUDE=50）
-inline int32_t avoidSentinel50(int32_t roll) { return roll == 50 ? 51 : roll; }
+// 资质避开哨兵值 50 复用 disciple_factory.h::avoidSentinel50（批 Y-4c 去重——
+// 原本文件独立定义与 disciple_factory.h 同签重名，同 TU 引入时重定义冲突）
 
 // ── 年龄与基础寿命解析（Kotlin resolveAgeAndLifespan）──
 // RNG 消费：年龄 1×nextInt + 寿命 1×nextDouble。

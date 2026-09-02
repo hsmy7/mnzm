@@ -143,7 +143,13 @@ object AISectDiscipleManager {
     @Suppress("LongMethod") // 全字段生成（弟子构造参数 20+，逐字段赋值不可再拆分）
     fun generateRandomDisciple(sectName: String, existingNames: Set<String> = emptySet()): Disciple {
         val gender = if (rng.nextInt(2) == 0) "male" else "female"
-        val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
+        // 批 Y-4c（S-19 同族清偿）：名字随机源收敛 AI 独立分区 RNG——
+        // 原 NameService.generateName 未传 rng 用 JVM 全局 Random（非确定性、
+        // 不入 rngStates，跨语言不可对拍，同存档 AI 演化名字不可复现）；
+        // 传 rng.asKotlinRandom() 后名字序列存档可重放、C++ 对拍逐字符一致
+        val nameResult = NameService.generateName(
+            gender, NameService.NameStyle.XIANXIA, existingNames, rng.asKotlinRandom()
+        )
         val spiritRoot = generateSpiritRoot()
         val spiritRootCount = spiritRoot.split(",").size
         val comprehension = when (spiritRootCount) {

@@ -177,6 +177,11 @@ public:
     rng::RngManager& rng() { return rng_; }
     const rng::RngManager& rng() const { return rng_; }
 
+    /// AI 宗门独立分区 RNG（批 Y-4c：Kotlin AISectDiscipleManager._rng 等价——
+    /// 种子 systemSeed + AI_SECT.id(6) × 31337，initForSlot 语义；读档从
+    /// GameData.mapSeed 重播）。AI 弟子生成/招募专用，不入 rngStates 分区。
+    rng::DeterministicRng& aiRng() { return aiRng_; }
+
     Clock* clock() const { return clock_; }
     Logger* logger() const { return logger_; }
 
@@ -185,6 +190,7 @@ private:
     Logger* logger_ = nullptr;  // 注入（不持有）
     bool initialized_ = false;
     rng::RngManager rng_;
+    rng::DeterministicRng aiRng_;      // AI 宗门独立 RNG（批 Y-4c）
     state::GameState state_;    // 游戏状态真相源
     system::SettlementEngine settlement_;  // 惰性结算引擎（批次 3）
     system::EngineLoop loop_;              // 引擎循环（阶段 5：AUTHORITATIVE 真相源）

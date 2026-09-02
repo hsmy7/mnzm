@@ -9,7 +9,12 @@
 - **批 Y-switch（年变真相源切换）**：生产年变路径从 Kotlin `YearSettlementExecutor` 编排切换为 **C++ `runYearSettlement` + Kotlin 残留执行器互插**（nativeSettleYear 通道 + `YearSettlementResidualExecutor`——死亡链 ③ + 招募生成 ④ + AI 招募 ② + 商人收购 ③ + 交易刷新 ④ 残留；native 未就绪回退 Kotlin 编排）
 - **行为基线登记**：年变 C++ 已下沉面零 SYSTEM 消耗——残留执行器 SYSTEM 消耗序与 Kotlin 原编排基本一致；唯一差异 T1-⑨（C++ 条件 SYSTEM 钩子）先于 T1-④（残留）执行（SYSTEM 序 ⑨→④→③ vs 原序 ④→⑨→③），属年变编排整体入 C++ 的必然
 - **验证**：GTest 700/700（+25 黄金序列）· engine JUnit 3057/3057 全量（桌面 JNI 0 skip，生产切换在测试环境恒回退 Kotlin 零回归）· NDK externalNativeBuildRelease 通过 · detekt 全绿 · app compileReleaseKotlin 通过
-- **遗留**：T2-③（商人收购 SYSTEM 稀有度曲线——需补静态数据：丹药价格/普通材料表）、T2-④（宗门交易局部种子——交易模板池）与批 Y-3（T1-③ 死亡链 / T1-④ 招募生成 / T2-② AI 招募的增量下沉，消除残留）为后续可选续作；年变 Kotlin 臂完整换装对拍随续作合并
+- **批 Y-3（T1-③/④/⑪ 下沉，2026-09-01）**：autoBuy 年变接线 + 招募列表刷新下沉（SYSTEM 生成链 + 名字生成分区化 S-19 同族清偿）+ **弟子老化死亡链下沉**（`processDiscipleAgingStep`——老化判定/11 槽清理/哀悼传播+丧亲草稿/道侣师徒解绑/血炼清理/袋物品草稿/装备功法清除/死亡记录/事件/年死亡计数 + `YearSettlementDraft` 平台效应草稿回传 Kotlin 残留执行器物化/DAO/DeathEvent/死亡档案/丧亲 lifeEvents）；**T1 11/11 全部下沉**；GTest 708/708（+4）
+- **批 Y-4a（T2-④ 交易刷新下沉）**：AI 宗门交易列表年度刷新 C++ 等价移植（`generateSectTradeItems`/`refreshAllSectTrades`——7 类型模板池生成 + **局部种子 RNG**（sectId.hashCode()+year，零分区消耗）+ 差值判据 ≥3 年/列表空兜底）；**丹药 price 静态数据补全**（recipe_db.h——pillBasePrice × gradeMultiplier × 双属性 1.2，逐值对齐 Kotlin ItemDatabase.PillTemplate.price）；GTest +5
+- **批 Y-4b（T2-③ 商人收购下沉）**：收购刷新 C++ 等价移植（`buildMerchantItemPools` 六大类池 + 灵石 / `createMerchantItem` / `mergeMerchantItems` 加权平均价保首次出现序 / `refreshMerchantAcquisition`——SYSTEM 分区消费序逐位对齐）；**S-22 部分清偿**（收购价格收敛 SYSTEM 分区——原 JVM 全局 Random 非托管）；GTest +4；DiffYearSettlementTest 换装真实 MerchantAndRecruitService + 快照功法表注入（收购全字段 + SYSTEM RNG 终态逐位对拍）
+- **批 Y-4c（T2-② AI 宗门招募下沉）**：AI 宗门周期性招募 C++ 等价移植（新建 `ai_sect_recruit.h`——**AI 独立分区 RNG**（systemSeed+6×31337，GameCore aiRng 播种）+ `generateRandomAiDisciple`（AI 版 nextDouble 正态流消费序逐位对齐）+ `applyGearToAiDisciple`（java.util.Random 48 位 LCG 洗牌复刻）+ 占领路由 truncate 1000 + 尾部自动招募）；**S-19 同族清偿**（AI 名字收敛 AI 分区 RNG）；**S-22 完全清偿**（旅行商人价格收敛 SYSTEM 分区）；**年变残留执行器扇出清零**（仅剩 T1-③ 死亡链平台效应）；GTest +5；DiffYearSettlementTest 新增 AI 招募对拍场景（换装真实 CaveExplorationProcessor，AI 弟子全字段逐位一致）
+- **批 Y 收尾验证**：GTest 722/722 · engine JUnit 3057/3057 全量（桌面 JNI 0 skip，年变对拍双场景）· NDK externalNativeBuildRelease 通过 · engine detekt 全绿 · app compileReleaseKotlin 通过
+- **行为基线登记更新（批 Y-4b）**：年变 SYSTEM 从零消耗变为 T2-③ 收购每年消耗（C++ `YearChangeConsumesOnlySystemPartition` 守护 + 对拍 RNG 断言同步）；年变 Kotlin 臂完整换装（MerchantAndRecruitService/CaveExplorationProcessor 真实；DiplomacyService 真实为可选增强——场景 sectDetails 空规避已零回归）
 
 ### 优化（C++ 迁移续作批 M-1：月变真相源切换）
 

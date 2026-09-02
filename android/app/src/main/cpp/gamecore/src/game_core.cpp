@@ -141,6 +141,10 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     }
     if (config.seedInitialized) {
         rng_.initSystemSeed(config.systemSeed);
+        // 批 Y-4c：AI 宗门独立 RNG 播种（Kotlin AISectDiscipleManager.
+        // initForSlot(systemSeed)——aiSeed = systemSeed + AI_SECT.id(6)×31337）
+        aiRng_ = rng::DeterministicRng::fromSeed(
+            config.systemSeed + static_cast<int64_t>(6) * 31337LL);
     }
     // T2.1（计划 v2 阶段 2）：每旬弟子结算钩子——六步结算（恢复/修炼/熟练度/
     // 孕养/丹药/突破），RNG 仅消耗 BREAKTHROUGH 分区，抽取顺序与 Kotlin
@@ -159,7 +163,7 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     // gameMonth==1 年俸；年变全程零 RNG 抽取（场景规避后）。钩子调用序
     // （年变先于月变）在 settlement.h advanceOnePhase 中对齐 Kotlin。
     settlement_.onYearChange = [this](state::GameState& s, state::GameData&) {
-        system::runYearSettlement(s, rng_);
+        system::runYearSettlement(s, rng_, aiRng_);
     };
     if (config.authoritativeTickMode) {
         // T2.4（计划 v2 阶段 2d）：AUTHORITATIVE 过渡模式——core 模式下每旬
@@ -240,7 +244,7 @@ void GameCore::resetAutoRecruitIdle() {
 std::string GameCore::settleYear() {
     if (!initialized_) return "{}";
     system::YearSettlementDraft draft;
-    system::runYearSettlement(state_, rng_, &draft);
+    system::runYearSettlement(state_, rng_, aiRng_, &draft);
 
     // 信封 JSON（nativeSettleYear 回传 Kotlin 残留执行器的平台效应输入：
     // agedDeaths → 袋物品物化/DAO 清理/DeathEvent/死亡记录档案；
@@ -367,6 +371,11 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
     try {
         const auto j = nlohmann::json::parse(json);
         state_ = j.get<state::GameState>();
+        // 批 Y-4c：AI 宗门独立 RNG 读档重播——Kotlin loadData 调
+        // AISectDiscipleManager.initForSlot(mapSeed)（mapSeed = 存档
+        // GameData.mapSeed），C++ 同源播种保证 AI 招募/演化可复现
+        aiRng_ = rng::DeterministicRng::fromSeed(
+            state_.gameData.mapSeed + static_cast<int64_t>(6) * 31337LL);
         // 对抗性审查 A1（2026-08-22）：读档后必须复位结算引擎累积——
         // 否则旧会话残留的墙钟累积会在下一 tick 多推进旬数
         settlement_.reset();

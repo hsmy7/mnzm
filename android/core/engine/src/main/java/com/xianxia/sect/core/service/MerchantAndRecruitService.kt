@@ -82,7 +82,11 @@ class MerchantAndRecruitService @Inject constructor(
                     ?: selectFirstAvailableItem(pools.poolByRarity)
 
                 if (selectedItem != null) {
-                    newItems.add(createMerchantItem(selectedItem, pools, year, month))
+                    // S-22 清偿（批 Y-4c 收尾）：旅行商人价格波动收敛 SYSTEM
+                    // 分区（原默认 Random.Default JVM 全局随机——非托管不入
+                    // rngStates，价格每次进程不同；分区化后存档可重放确定性）
+                    newItems.add(createMerchantItem(
+                        selectedItem, pools, year, month, random = rng.asKotlinRandom()))
                 }
             }
 
@@ -291,7 +295,10 @@ class MerchantAndRecruitService @Inject constructor(
 
         val pityPool = pools.poolByRarity[rarity] ?: return
         val pityItem = pityPool[rng.nextInt(pityPool.size)]
-        val guaranteedItem = createMerchantItem(pityItem, pools, year, month, forcedRarity = rarity)
+        // S-22 清偿（批 Y-4c 收尾）：保底物品价格同步收敛 SYSTEM 分区
+        val guaranteedItem = createMerchantItem(
+            pityItem, pools, year, month, forcedRarity = rarity, random = rng.asKotlinRandom()
+        )
 
         newItems.add(guaranteedItem)
 
