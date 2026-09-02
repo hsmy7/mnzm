@@ -7,11 +7,13 @@
 
 #include "gamecore/game_core.h"
 #include "gamecore/core/game_config.h"
+#include "gamecore/state/json_codec.h"
 #include "gamecore/system/engine_loop.h"
 #include "gamecore/map/road_compositor.h"
 #include "gamecore/system/battle_execution.h"
 #include "gamecore/system/battle_json.h"
 #include "gamecore/system/sect_battle.h"
+#include "gamecore/system/sect_attack_decision.h"
 
 // ============================================================
 // GameCoreBridge — JNI 实现（Android 专用）
@@ -122,6 +124,16 @@ jbyteArray stringToJbytes(JNIEnv* env, const std::string& s) {
     if (!out) return nullptr;
     env->SetByteArrayRegion(out, 0, static_cast<jsize>(s.size()),
                             reinterpret_cast<const jbyte*>(s.data()));
+    return out;
+}
+
+/// JNI jstring → std::string（copy；G7-2 攻击决策 id 参数用）
+std::string jstringToStd(JNIEnv* env, jstring s) {
+    if (!s) return {};
+    const char* chars = env->GetStringUTFChars(s, nullptr);
+    if (!chars) return {};
+    std::string out(chars);
+    env->ReleaseStringUTFChars(s, chars);
     return out;
 }
 
@@ -465,8 +477,75 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAiBattleExecute(
 }
 
 // ============================================================
-// 引擎循环 + 看门狗（计划 v2 阶段 5：游戏循环入 C++）
+// G7-2：AI 攻击决策通道（生产路由；对拍桥见 GameCoreJni.cpp）
+//   nativeDecidePlayerAttack：AI 攻玩家预警决策（自包含，无参）
+//   nativeCheckAttackConditions：AI vs AI 逐目标判定（id + playerGarrison JSON）
 // ============================================================
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeDecidePlayerAttack(
+    JNIEnv* env, jobject /*thiz*/) {
+    if (!g_gameCore) return stringToJbytes(env, R"({"error":"GameCore not initialized"})");
+    try {
+        const auto decision = gamecore::system::detail::decidePlayerAttack(
+            g_gameCore->state(), g_gameCore->rng());
+        nlohmann::json j;
+        j["type"] = decision.type == gamecore::system::detail::PlayerAttackDecisionType::kGenerateWarning
+            ? "GENERATE_WARNING" : "SKIP";
+        if (decision.type == gamecore::system::detail::PlayerAttackDecisionType::kGenerateWarning) {
+            j["attackerSectId"] = decision.attackerSectId;
+            j["attackerSectName"] = decision.attackerSectName;
+        }
+        return stringToJbytes(env, j.dump());
+    } catch (const std::exception& e) {
+        nlohmann::json err = {{"error", e.what()}};
+        return stringToJbytes(env, err.dump());
+    }
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeCheckAttackConditions(
+    JNIEnv* env, jobject /*thiz*/, jstring attackerId, jstring defenderId,
+    jbyteArray playerGarrisonJson) {
+    if (!g_gameCore) return JNI_FALSE;
+    try {
+        const std::string aiStr = jstringToStd(env, attackerId);
+        const std::string diStr = jstringToStd(env, defenderId);
+        auto& state = g_gameCore->state();
+        const auto& worldSects = state.gameData.worldMapSects;
+        const gamecore::state::WorldSect* attacker = nullptr;
+        const gamecore::state::WorldSect* defender = nullptr;
+        for (const auto& s : worldSects) {
+            if (s.id == aiStr) attacker = &s;
+            else if (s.id == diStr) defender = &s;
+        }
+        if (attacker == nullptr || defender == nullptr) return JNI_FALSE;  // 未找到 → 不消费
+
+        std::map<std::string, std::vector<gamecore::state::Disciple>> playerGarrison;
+        if (playerGarrisonJson != nullptr) {
+            const auto j = nlohmann::json::parse(jbytesToString(env, playerGarrisonJson));
+            if (j.is_object()) {
+                for (auto it = j.begin(); it != j.end(); ++it) {
+                    if (it.value().is_array()) {
+                        std::vector<gamecore::state::Disciple> vec;
+                        for (const auto& d : it.value()) {
+                            gamecore::state::Disciple disc;
+                            gamecore::state::from_json(d, disc);
+                            vec.push_back(std::move(disc));
+                        }
+                        playerGarrison[it.key()] = std::move(vec);
+                    }
+                }
+            }
+        }
+        const bool result = gamecore::system::detail::checkAttackConditions(
+            state, *attacker, *defender, playerGarrison, g_gameCore->rng());
+        return result ? JNI_TRUE : JNI_FALSE;
+    } catch (const std::exception&) {
+        return JNI_FALSE;
+    }
+}
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopStart(

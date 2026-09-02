@@ -164,6 +164,29 @@ object GameCoreBridge {
      */
     external fun nativeAiBattleExecute(opJson: ByteArray): ByteArray
 
+    /**
+     * AI 攻玩家预警决策通道（G7-2 AI 攻击决策下沉）。
+     *
+     * 自包含（消费 GameCore 当前状态 + BATTLE 分区）；输出 JSON：
+     * `{"type":"GENERATE_WARNING","attackerSectId":"..","attackerSectName":".."}`
+     * 或 `{"type":"SKIP"}`；失败返回 `{"error":".."}`（调用方回退 Kotlin）。
+     */
+    external fun nativeDecidePlayerAttack(): ByteArray
+
+    /**
+     * AI vs AI 逐目标攻击判定通道（G7-2）。
+     *
+     * @param attackerId / defenderId 宗门 id（在 GameCore 状态 worldMapSects 中查找）
+     * @param playerGarrisonJson 玩家占领守军 JSON（Map<String, List<Disciple>>，
+     *        defender.isPlayerOccupied 时消费；空则守军战力 0）
+     * @return 是否攻击（判定后消费 1 次 BATTLE 抽取）；id 未找到/异常返回 false（不消费）
+     */
+    external fun nativeCheckAttackConditions(
+        attackerId: String,
+        defenderId: String,
+        playerGarrisonJson: ByteArray
+    ): Boolean
+
     // ============================================================
     // 状态快照
     // ============================================================

@@ -38,6 +38,7 @@ import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.BattleCalculator.SupportResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.DomainLog
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
 
 /** AI 宗门攻击系统的 RNG 管理器（由 GameEngine 初始化时注入） */
@@ -410,6 +411,10 @@ object AISectAttackManager {
         aiDisciplesMap: Map<String, List<Disciple>> = emptyMap(),
         playerGarrisonMap: Map<String, List<Disciple>> = emptyMap()
     ): Boolean {
+        // G7-2：AUTHORITATIVE 下经 C++ 判定（sect_attack_decision.h checkAttackConditions——
+        // 消费 BATTLE 分区；原生失败/未加载回退 Kotlin）
+        tryNativeCheckAttackConditions(attacker, defender, playerGarrisonMap)?.let { return it }
+
         if (attacker.id == defender.id) return false
 
         val attackerDisciples = (aiDisciplesMap[attacker.id] ?: emptyList())
@@ -512,6 +517,10 @@ object AISectAttackManager {
      * - AI 个性 — 作为最终概率的修正因子
      */
     fun decidePlayerAttack(gameData: GameData): PlayerAttackDecision {
+        // G7-2：AUTHORITATIVE 下经 C++ 决策（sect_attack_decision.h decidePlayerAttack——
+        // 消费 BATTLE 分区；原生失败/未加载回退 Kotlin）
+        tryNativeDecidePlayerAttack()?.let { return it }
+
         if (gameData.isPlayerProtected) return PlayerAttackDecision.Skip
 
         val playerSect = gameData.worldMapSects.find { it.isPlayerSect }
@@ -944,6 +953,66 @@ object AISectAttackManager {
             turns = turns,
             rounds = rebuildAiRounds(out)
         )
+    }
+
+    /**
+     * G7-2：AUTHORITATIVE 下经 C++ 决策 AI 攻玩家（sect_attack_decision.h
+     * decidePlayerAttack——消费 BATTLE 分区）。降级：flag 关/native 未加载/失败信封 → null。
+     */
+    @Suppress("ReturnCount", "TooGenericExceptionCaught")
+    private fun tryNativeDecidePlayerAttack(): PlayerAttackDecision? {
+        if (!NativeEngineFlag.authoritative) return null
+        if (!GameCoreBridge.isLoaded) return null
+        return try {
+            val out = Json.parseToJsonElement(
+                GameCoreBridge.nativeDecidePlayerAttack().decodeToString()
+            ).jsonObject
+            if (out.containsKey("error")) return null
+            if (out["type"]?.jsonPrimitive?.content == "GENERATE_WARNING") {
+                PlayerAttackDecision.GenerateWarning(
+                    attackerSectId = out["attackerSectId"]?.jsonPrimitive?.content ?: "",
+                    attackerSectName = out["attackerSectName"]?.jsonPrimitive?.content ?: ""
+                )
+            } else {
+                PlayerAttackDecision.Skip
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "nativeDecidePlayerAttack degraded to Kotlin: $e")
+            null
+        }
+    }
+
+    /**
+     * G7-2：AUTHORITATIVE 下经 C++ 判定 AI vs AI 逐目标攻击（sect_attack_decision.h
+     * checkAttackConditions）。降级：flag 关/native 未加载/异常 → null（调用方回退 Kotlin）。
+     */
+    @Suppress("ReturnCount", "TooGenericExceptionCaught")
+    private fun tryNativeCheckAttackConditions(
+        attacker: WorldSect,
+        defender: WorldSect,
+        playerGarrisonMap: Map<String, List<Disciple>>
+    ): Boolean? {
+        if (!NativeEngineFlag.authoritative) return null
+        if (!GameCoreBridge.isLoaded) return null
+        val garrisonJson = buildJsonObject {
+            for ((sectId, disciples) in playerGarrisonMap) {
+                putJsonArray(sectId) {
+                    disciples.forEach { add(Json.encodeToJsonElement(Disciple.serializer(), it)) }
+                }
+            }
+        }
+        return try {
+            GameCoreBridge.nativeCheckAttackConditions(
+                attacker.id, defender.id, garrisonJson.toString().encodeToByteArray()
+            )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "nativeCheckAttackConditions degraded to Kotlin: $e")
+            null
+        }
     }
 
     /** C++ rounds JSON → Kotlin BattleLogRound 列表（确定性动作重建）。 */
