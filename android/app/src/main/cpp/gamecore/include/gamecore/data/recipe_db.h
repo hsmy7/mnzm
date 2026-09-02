@@ -1196,4 +1196,30 @@ inline int32_t recipeDurationByTier(int tier) {
     return 2;
 }
 
+/// 按 Kotlin ItemDatabase.allPills 模板序组织的丹药配方视图（值拷贝）：
+/// 遍历 pillTemplates()（spec 生成序 = Kotlin allPills 序——grade 外层 ×
+/// 丹名内层，如 引灵丹,悟法丹,养器丹 ×3 grade）按同 id 取 pillRecipes()
+/// 配方条目（含 rarity/price/grade）。
+///
+/// 背景（2026 批收尾整链对拍实锤）：Kotlin 商人交易（getPillsByRarity）与
+/// 收购（buildMerchantItemPools）池均遍历 **allPills.values（模板序）**；
+/// C++ 原直接遍历 pillRecipes() 得到**配方生成序**（丹名外层 × grade 内层，
+/// 如 引灵丹×3 grade 连续——buildCultivationStandardRecipes 的 idx×g 循环
+/// 与 Kotlin 模板 g×丹 循环相反）→ 同 rarity 池内条目序与 Kotlin 相反 →
+/// nextInt 选中错位。交易/收购池必须消费本视图而非 pillRecipes()。
+inline const std::vector<PillRecipeTemplate>& pillRecipesInTemplateOrder() {
+    static const std::vector<PillRecipeTemplate> kOrdered = [] {
+        std::map<std::string, const PillRecipeTemplate*> byId;
+        for (const auto& r : pillRecipes()) byId.emplace(r.id, &r);
+        std::vector<PillRecipeTemplate> out;
+        out.reserve(detail::pillTemplates().size());
+        for (const auto& spec : detail::pillTemplates()) {
+            const auto it = byId.find(spec.id);
+            if (it != byId.end()) out.push_back(*it->second);
+        }
+        return out;
+    }();
+    return kOrdered;
+}
+
 }  // namespace gamecore::data

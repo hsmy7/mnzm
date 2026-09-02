@@ -10,6 +10,17 @@
 - **对拍守护升级**：年变对拍 Kotlin 臂换装真实服务（DiscipleLifecycleProcessor/MerchantAndRecruitService/CaveExplorationProcessor + ManualDatabase 快照表注入 + AI 独立 RNG initForSlot 同源播种）——收购/AI 招募/死亡链逐位一致
 - **验证**：GTest 722/722 · engine JUnit 3058/3058 全量（桌面 JNI 对拍 0 skip）· NDK externalNativeBuildRelease · detekt 全绿 · app compileReleaseKotlin 通过
 
+### 收尾批（S-07/S-21 清偿 + 年变对拍外交簇换装）
+
+> 2026-09-02 收尾：C++ 迁移登记项清偿 + 可选增强落地 + 文档同步（4.01.12 发布后批次）。详见 `docs/cpp-engine.md` §8。
+
+- **S-07 清偿**：`DomainLog.setLogger` 改为返回旧实现（保存-恢复能力）——基准测试（NativeBenchmarkTest/Phase0SettlementBenchmarkTest）改 finally 恢复原 logger（删除孤儿 PrintLogger 定义）；新建 `DomainLogTest` 3 用例守护
+- **S-21 清偿**：删除孤儿读档/恢复入口——`GameEngineCore.loadSnapshot` + 兄弟孤儿 `createSnapshot`（全仓库零调用方）+ `GameEngine.loadFromSave`→`SaveFacade`/`SaveService` 全链（生产读档收敛于 loadData 三入口）+ 对应守卫测试；`getEffectiveCultivation` **勘误保留**（S-21 原"无生产调用方"描述错误——源码调用点在活代码 CultivationService，批 9-2 后仅 Kotlin 运行时无执行驱动，作为 checkpoint 投影契约 + C++ 修炼对拍基准保留）
+- **年变对拍外交簇换装（可选增强落地）**：DiffYearSettlementTest Kotlin 臂换装真实 DiplomacyService/DiplomacyEventProcessor/FavorEventProcessor/VassalService + **新增外交对拍场景**（T2-④ 交易刷新首次整链对拍 + T2-⑥ 联盟到期 / ⑦ 低好感解散 / ⑨ 好感衰减）
+- **途中实锤并修复 C++ 两处与 Kotlin 不等价**（整链对拍暴露）：① manual 交易商品 RNG 消费序缺口——Kotlin `ManualDatabase.generateRandom` 的 generateRarity 阶梯无条件消耗 1×nextDouble（min==max 无短路），C++ pickTradeTemplate 无此消耗致流错位选中不同功法；② 交易/收购 pill 池序——Kotlin allPills.values 模板序（grade 外层×丹名内层）vs C++ pillRecipes 配方序（丹名外层×grade 内层）相反，新增 `pillRecipesInTemplateOrder()` 模板序视图，交易/收购池消费之
+- **新增登记**：S-23（孤儿类 SaveLoadCoordinator）/ S-24（realtimeCultivation 投影链疑似停摆，需 UI 数据源复核）——可选处置，不阻塞
+- **验证**：GTest 722/722 全绿 · engine JUnit 全量（桌面 JNI 对拍 0 skip，DiffYearSettlementTest 3 场景）· engine/domain detekt 全绿 · app compileReleaseKotlin 通过
+
 ## [4.01.11] - 2026-08-29
 
 ### 优化（C++ 迁移续作批 Y：年变下沉 + 真相源切换）

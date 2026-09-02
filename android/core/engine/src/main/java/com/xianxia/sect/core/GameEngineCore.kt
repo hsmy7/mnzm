@@ -1956,43 +1956,6 @@ class GameEngineCore @Inject constructor(
             }
         }
     }
-
-    fun createSnapshot(): GameStateSnapshot {
-        val currentData = stateStore.gameData.value
-        return GameStateSnapshot(
-            gameData = currentData,
-            disciples = stateStore.disciples.value,
-            equipmentStacks = stateStore.equipmentStacks.value,
-            equipmentInstances = stateStore.equipmentInstances.value,
-            manualStacks = stateStore.manualStacks.value,
-            manualInstances = stateStore.manualInstances.value,
-            pills = stateStore.pills.value,
-            materials = stateStore.materials.value,
-            herbs = stateStore.herbs.value,
-            seeds = stateStore.seeds.value,
-            battleLogs = stateStore.battleLogs.value,
-            alliances = currentData.alliances
-        )
-    }
-
-    suspend fun loadSnapshot(snapshot: GameStateSnapshot) {
-        stateStore.loadFromSnapshot(
-            gameData = snapshot.gameData,
-            disciples = snapshot.disciples,
-            equipmentStacks = snapshot.equipmentStacks,
-            equipmentInstances = snapshot.equipmentInstances,
-            manualStacks = snapshot.manualStacks,
-            manualInstances = snapshot.manualInstances,
-            pills = snapshot.pills,
-            materials = snapshot.materials,
-            herbs = snapshot.herbs,
-            seeds = snapshot.seeds,
-            storageBags = snapshot.storageBags,
-            battleLogs = snapshot.battleLogs
-        )
-        // 批次 9 shadow 基线对齐：Kotlin 读档状态导入 C++ 影子引擎（同起点对拍）
-        loadNativeBaseline(stateSyncServiceRef)
-    }
     
 }
 

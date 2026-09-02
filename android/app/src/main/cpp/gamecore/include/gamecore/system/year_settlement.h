@@ -602,9 +602,11 @@ inline MerchantItemPools buildMerchantItemPools() {
         pools.rarityMap[t.name] = t.rarity;
         pools.priceMap[t.name] = static_cast<int64_t>(t.price);
     }
-    // 丹药：MEDIUM 品阶 + 名字去重（Kotlin addedPillNames 首次出现序）
+    // 丹药：MEDIUM 品阶 + 名字去重（Kotlin addedPillNames 首次出现序）。
+    // 序 = Kotlin ItemDatabase.allPills 模板序（pillRecipesInTemplateOrder，
+    // 2026 批收尾修复：原 pillRecipes() 配方序与 Kotlin 模板序相反）
     std::set<std::string> addedPills;
-    for (const auto& r : data::pillRecipes()) {
+    for (const auto& r : data::pillRecipesInTemplateOrder()) {
         if (r.grade != "medium") continue;
         if (addedPills.count(r.name) != 0) continue;
         addedPills.insert(r.name);
@@ -825,6 +827,13 @@ inline state::MerchantItem generateTradeEquipmentItem(
 /// ——manualTemplates() 静态表，生产恒加载）
 inline state::MerchantItem generateTradeManualItem(
     rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
+    // Kotlin ManualDatabase.generateRandom(min=rarity, max=rarity, type=null)
+    // 先经 generateRarity(min,max) 阶梯——该阶梯**无条件消耗 1×nextDouble**
+    //（ManualDatabase.generateRarity 无 min==max 短路；min==max 时各分档经
+    // coerceAtMost(max) 恒回 rarity，值不影响选择，但 draw 必须消耗以对齐
+    // RNG 流）。EquipmentDatabase.generateRandom 有 min==max 短路故无此
+    // 消耗——manual 与 equipment 的 RNG 消费序差异源（2026 批收尾对拍实锤）。
+    rngLocal.nextDouble();
     const auto& tpl = pickTradeTemplate(rngLocal, data::manualTemplates(), rarity);
     state::MerchantItem item;
     item.id = nextTradeItemId();
@@ -841,10 +850,12 @@ inline state::MerchantItem generateTradeManualItem(
 
 /// 丹药类商品（Kotlin generatePillItem）：getPillsByRarity 空 → null
 ///（零 RNG）；非空 → 1×nextInt 选模板 + 价格波动 + 库存；grade =
-/// PillGrade.displayName（批 Y-4 price 已补全）
+/// PillGrade.displayName（批 Y-4 price 已补全）。池序 = Kotlin
+/// ItemDatabase.allPills 模板序（pillRecipesInTemplateOrder——原
+/// pillRecipes() 配方序与 Kotlin 模板序相反，2026 批收尾整链对拍实锤）
 inline std::optional<state::MerchantItem> generateTradePillItem(
     rng::DeterministicRng& rngLocal, int32_t rarity, int32_t year) {
-    const auto& recipes = data::pillRecipes();
+    const auto& recipes = data::pillRecipesInTemplateOrder();
     std::vector<const data::PillRecipeTemplate*> pool;
     for (const auto& r : recipes) {
         if (r.rarity == rarity) pool.push_back(&r);

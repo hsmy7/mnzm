@@ -6,7 +6,10 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.mockSmart
+import com.xianxia.sect.core.domain.favor.FavorEventProcessor
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
+import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import com.xianxia.sect.core.engine.service.AutoPillService
 import com.xianxia.sect.core.engine.service.CaveExplorationProcessor
 import com.xianxia.sect.core.engine.service.CultivationCore
@@ -14,6 +17,7 @@ import com.xianxia.sect.core.engine.service.CultivationRateCalculator
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.CultivationSettlement
 import com.xianxia.sect.core.engine.service.CultivationSharedState
+import com.xianxia.sect.core.engine.service.DiplomacyEventProcessor
 import com.xianxia.sect.core.engine.service.DiscipleBreakthroughHandler
 import com.xianxia.sect.core.engine.service.DiscipleLifecycleProcessor
 import com.xianxia.sect.core.engine.di.IoDispatcher
@@ -30,12 +34,16 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
+import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.service.CultivationEventProcessor
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.registry.ManualDatabase
@@ -397,12 +405,28 @@ class DiffYearSettlementTest {
             // 走 state 参数，其余依赖惰性）
             caveExplorationProcessor = javax.inject.Provider { caveExplorationProvider() },
             discipleLifecycleProcessor = lifecycle,
-            diplomacyEventProcessor = mockSmart(),
-            diplomacyService = mockSmart(),
+            // 批收尾（外交簇换装真实）：年变 T2 #13 交易刷新（refreshAllSectTrades
+            // ——局部种子 sectId.hashCode()+year，零分区 RNG）+ #15/#16/#19 联盟到期/
+            // 低好感解散/好感衰减 + T1-①/② 附庸纳贡与月变附庸脱离真实执行——
+            // C++ runYearSettlement 已下沉同路径（Y-4a），Kotlin 臂必须真实执行
+            // 才能对拍；场景 sectDetails/alliances/sectRelations/vassalContracts
+            // 全空 → 真实服务全部纯早退零写入零 RNG（场景不变 = 零回归）
+            diplomacyEventProcessor = DiplomacyEventProcessor(
+                store,
+                FavorEventProcessor(store, scopeProvider, CultivationSharedState())
+            ),
+            diplomacyService = DiplomacyService(
+                stateStore = store,
+                inventorySystem = mockSmart(),
+                eventBus = mockSmart(),
+                favorService = mockSmart(),
+                spiritStoneWallet = wallet,
+                rngManager = gameRng
+            ),
             equipmentManager = mockSmart(),
             manualManager = mockSmart(),
             autoBuyService = mockSmart(),
-            vassalService = mockSmart(),
+            vassalService = VassalService(store, wallet, gameRng),
             disciplePurchaseService = mockSmart(),
             aiSectBeastAttackProcessor = mockSmart<AISectBeastAttackProcessor>(),
             lawEnforcementProcessor = mockSmart<LawEnforcementProcessor>(),
@@ -468,13 +492,136 @@ class DiffYearSettlementTest {
     }
 
     /** 玩家宗门（aiSect 场景的 worldMapSects 构造辅助）。 */
-    private fun buildAiSectWorld(): List<com.xianxia.sect.core.model.WorldSect> {
+    private fun buildAiSectWorld(): List<WorldSect> {
         return listOf(
-            com.xianxia.sect.core.model.WorldSect(
+            WorldSect(
                 id = "ai-1", name = "青云宗", level = 1,
                 x = 100f, y = 100f, isPlayerSect = false
             )
         )
+    }
+
+    /**
+     * 批收尾（外交簇换装对拍）场景快照：玩家宗门 p1 + AI 宗门 ai-1/ai-2，
+     * 触发年变 T2 外交三路径真实执行：
+     * - #13 交易刷新（refreshAllSectTrades）：sectDetails{ai-1} 空交易 →
+     *   差值/空列表判据满足 → 局部种子（sectId.hashCode()+year）生成 20 条
+     * - #15 联盟到期（checkAllianceExpiry）：A1{player,ai-1} startYear=1 →
+     *   year7 差值 6 >= 5 解散
+     * - #16 联盟好感过低（checkAllianceFavorDrop）：A2{player,ai-2}
+     *   startYear=6 未到期 + 关系 favor 75 < 80 → 解散
+     * - #19 好感衰减（processFavorDecay）：rel(ai-1) favor 85 且距上次
+     *   交互 2 年 → 84 + noGiftYears+1；rel(ai-2) favor 75 不衰减
+     * 规避清单：lastRecruitYear/merchantLastRefreshChanceGrantYear/
+     * lastAiSectRecruitYear 置 6（差值判据不满足）；弟子/招募/附庸/秘境空。
+     * 玩家宗门 id 用 "player" 哨兵（联盟 sectIds 同哨兵，C++/Kotlin 双侧一致）。
+     */
+    private fun buildDiplomacySnapshot(): NativeGameState {
+        val gameData = GameData(
+            gameYear = 6, gameMonth = 12, gamePhase = 2,
+            spiritStones = 10000L
+        ).apply {
+            rngStates = initialRngStates(SEED)
+            lastRecruitYear = 6
+            merchantLastRefreshChanceGrantYear = 6
+            lastAiSectRecruitYear = 6
+            // 月变步骤 4e（关卡刷新生成）规避：玩家宗门在场会触发 C++ 侧
+            // 关卡生成（Kotlin 臂 SystemManager 未装 WorldLevelSystem 零生成
+            // 失配）——lastRefreshMonth 置远未来哨兵使 shouldRefresh 恒 false
+            worldLevelLastRefreshMonth = 1000
+            worldMapSects = listOf(
+                WorldSect(
+                    id = "player", name = "青云宗", level = 1,
+                    x = 0f, y = 0f, isPlayerSect = true, allianceId = "a1"
+                ),
+                WorldSect(
+                    id = "ai-1", name = "太一宗", level = 1,
+                    x = 100f, y = 100f, isPlayerSect = false, allianceId = "a1"
+                ),
+                WorldSect(
+                    id = "ai-2", name = "玄冥宗", level = 1,
+                    x = 200f, y = 200f, isPlayerSect = false, allianceId = "a2"
+                )
+            )
+            // ai-1 空交易详情 → T2-④ 差值/空列表判据满足触发刷新
+            sectDetails = mapOf("ai-1" to SectDetail(sectId = "ai-1"))
+            alliances = listOf(
+                Alliance(id = "a1", sectIds = listOf("player", "ai-1"), startYear = 1),
+                Alliance(id = "a2", sectIds = listOf("player", "ai-2"), startYear = 6)
+            )
+            // sectId1/sectId2 按字典序（"ai-*" < "player"）
+            sectRelations = listOf(
+                SectRelation(
+                    sectId1 = "ai-1", sectId2 = "player",
+                    favor = 85, lastInteractionYear = 5, noGiftYears = 0, acquainted = true
+                ),
+                SectRelation(
+                    sectId1 = "ai-2", sectId2 = "player",
+                    favor = 75, lastInteractionYear = 6, noGiftYears = 0, acquainted = true
+                )
+            )
+        }
+        return NativeGameState(gameData = gameData, disciples = emptyList())
+    }
+
+    /**
+     * 批收尾（外交簇换装对拍）：年变 T2 #13 交易刷新 / #15 联盟到期 /
+     * #16 联盟好感过低解散 / #19 好感衰减——真实 DiplomacyService/
+     * DiplomacyEventProcessor/FavorEventProcessor vs C++ runYearSettlement
+     * 同路径逐位对拍（T2-④ 首次跨语言整链：局部种子商品生成全字段）。
+     */
+    @Test
+    fun `diplomacy yearly ops match Kotlin bit-for-bit`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+
+        val snapshot = buildDiplomacySnapshot()
+        val encoded = json.encodeToString(NativeGameState.serializer(), snapshot)
+
+        val expected = advanceKotlinSide(snapshot)
+
+        // ── C++ 被测侧 ──
+        assertTrue("C++ 导入失败", DiffRngBridge.nativeCoreImportState(
+            encoded.encodeToByteArray()))
+        DiffRngBridge.nativeCoreAdvancePhases(PHASES)
+        val actual = json.decodeFromString(
+            NativeGameState.serializer(),
+            DiffRngBridge.nativeCoreExportState().decodeToString()
+        )
+
+        // 显式断言：外交三路径产生写效果
+        val actualGd = actual.gameData
+        assertEquals(7, actualGd.gameYear)
+        // T2-④：ai-1 空交易 → 刷新生成
+        val trade = actualGd.sectDetails["ai-1"]
+        assertTrue(
+            "sectDetails[ai-1] 应被刷新（原空列表 → 生成交易商品），实际 ${trade?.tradeItems?.size}",
+            trade != null && trade.tradeItems.isNotEmpty()
+        )
+        assertEquals("ai-1 交易刷新年应写回 7", 7, trade!!.tradeLastRefreshYear)
+        // T2-⑥（a1 到期）+ T2-⑦（a2 低好感）→ 联盟全清
+        assertTrue("过期联盟 a1 与低好感联盟 a2 均应被解散", actualGd.alliances.isEmpty())
+        for (sect in actualGd.worldMapSects) {
+            assertEquals("宗门 ${sect.id} 联盟字段应清零", "", sect.allianceId)
+        }
+        // T2-⑨：rel(ai-1) favor 85→84 + noGiftYears+1；rel(ai-2) favor 75 不衰减
+        val relAi1 = actualGd.sectRelations.find {
+            (it.sectId1 == "ai-1" && it.sectId2 == "player") ||
+                (it.sectId1 == "player" && it.sectId2 == "ai-1")
+        }
+        assertTrue("rel(ai-1) 应存在", relAi1 != null)
+        assertEquals("rel(ai-1) favor 应衰减 85→84", 84, relAi1!!.favor)
+        assertEquals("rel(ai-1) noGiftYears 应 +1", 1, relAi1.noGiftYears)
+        val relAi2 = actualGd.sectRelations.find {
+            (it.sectId1 == "ai-2" && it.sectId2 == "player") ||
+                (it.sectId1 == "player" && it.sectId2 == "ai-2")
+        }
+        assertTrue("rel(ai-2) 应存在", relAi2 != null)
+        assertEquals("rel(ai-2) favor 75 不应衰减", 75, relAi2!!.favor)
+
+        // 全量结构对拍（sectDetails.tradeItems 的 id/itemId 镜像生成字段排除）
+        assertCppSurfaceMatches(json.encodeToJsonElement(expected),
+                                json.encodeToJsonElement(actual))
     }
 
     @Test
@@ -707,11 +854,17 @@ class DiffYearSettlementTest {
      * - aiSectDisciples[*].id（批 Y-4c）：AI 弟子 id Kotlin UUID vs C++
      *   确定性自增（gc-ai-d-N），语义等价仅保证唯一——弟子全字段（名字/
      *   性别/灵根/属性/技能/装备/功法）双端逐位对拍
+     * - sectDetails[*].tradeItems[].id/itemId（批收尾）：宗门交易商品 id
+     *   Kotlin UUID vs C++ 确定性自增，语义等价仅保证唯一——商品其余字段
+     *   （name/type/rarity/price/quantity/grade/obtainedYear/obtainedMonth）
+     *   与 RNG 终态逐位对拍
      */
     private fun isMirrorGeneratedField(path: String, k: String): Boolean = when {
         k == "timestamp" -> true
         (k == "id" || k == "itemId") && path.contains("merchantAcquisitionItems") -> true
         k == "id" && path.contains("aiSectDisciples") -> true   // 批 Y-4c
+        (k == "id" || k == "itemId") && path.contains("sectDetails") &&
+            path.contains("tradeItems") -> true                  // 批收尾
         else -> false
     }
 

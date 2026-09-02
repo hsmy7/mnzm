@@ -58,19 +58,6 @@ class Phase0SettlementBenchmarkTest {
         override fun e(tag: String, msg: String, throwable: Throwable?) { /* 静默 */ }
     }
 
-    private object PrintLogger : DomainLog.Logger {
-        override fun d(tag: String, msg: String) { println("DEBUG: [$tag] $msg") }
-        override fun i(tag: String, msg: String) { println("INFO: [$tag] $msg") }
-        override fun w(tag: String, msg: String, throwable: Throwable?) {
-            println("WARN: [$tag] $msg")
-            throwable?.printStackTrace()
-        }
-        override fun e(tag: String, msg: String, throwable: Throwable?) {
-            println("ERROR: [$tag] $msg")
-            throwable?.printStackTrace()
-        }
-    }
-
     /** 采样 rounds 轮取最小值（先 warmupRounds 预热触发 JIT） */
     private fun bestOf(warmupRounds: Int, sampleRounds: Int, block: () -> Unit): Long {
         repeat(warmupRounds) { block() }
@@ -171,7 +158,7 @@ class Phase0SettlementBenchmarkTest {
     @Test
     fun `phase0 settlement hotspot and batch downsink prototype`() {
         assumeTrue(DiffRngBridge.isAvailable())
-        DomainLog.setLogger(SilentLogger)
+        val originalLogger = DomainLog.setLogger(SilentLogger)
         try {
             freshCore()
             // C++ 批量通道单次往返（含 import 后推进 1 旬）
@@ -203,7 +190,7 @@ class Phase0SettlementBenchmarkTest {
                 )
             }
         } finally {
-            DomainLog.setLogger(PrintLogger)
+            DomainLog.setLogger(originalLogger)
         }
     }
 }

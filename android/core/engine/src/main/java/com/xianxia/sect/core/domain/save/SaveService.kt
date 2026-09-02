@@ -1,24 +1,12 @@
 package com.xianxia.sect.core.engine.domain.save
 
-import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.CaveExplorationStatus
 import com.xianxia.sect.core.model.CaveStatus
-import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GamePhase
-import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -63,10 +51,6 @@ class SaveService @Inject constructor(
 ) {
     private val scope get() = scopeProvider.scope
 
-    companion object {
-        private const val TAG = "SaveService"
-    }
-
     fun getStateSnapshotSync(): GameStateSnapshot {
         val data = stateStore.gameData.value
 
@@ -104,47 +88,6 @@ class SaveService @Inject constructor(
 
     suspend fun getStateSnapshot(): GameStateSnapshot {
         return getStateSnapshotSync()
-    }
-
-    /**
-     * 原子化恢复存档：将 reset + restoreFromLoad + restoreCollections 合并为
-     * 一个 loadFromSnapshot 调用，避免阻塞死锁和多次 update 竞态。
-     *
-     * 之前的问题：
-     * 1. 同步阻塞等待 stateStore.reset() 如果游戏循环正持有 transactionMutex，
-     *    会阻塞调用线程等待锁，超过 5 秒触发 ANR → 系统杀进程。
-     * 2. restoreFromLoad 和 restoreCollections 分两次同步阻塞 update，
-     *    两次 update 之间可能被其他操作插入，导致状态不一致。
-     *
-     * 修复方案：使用 suspend 函数 + stateStore.loadFromSnapshot 一次性原子写入所有状态。
-     */
-    suspend fun loadFromSave(
-        loadedGameData: GameData,
-        disciples: List<Disciple>,
-        equipmentStacks: List<EquipmentStack>,
-        equipmentInstances: List<EquipmentInstance>,
-        manualStacks: List<ManualStack>,
-        manualInstances: List<ManualInstance>,
-        pills: List<Pill>,
-        materials: List<Material>,
-        herbs: List<Herb>,
-        seeds: List<Seed>,
-        battleLogs: List<BattleLog>
-    ) {
-        stateStore.loadFromSnapshot(
-            gameData = loadedGameData,
-            disciples = disciples,
-            equipmentStacks = equipmentStacks,
-            equipmentInstances = equipmentInstances,
-            manualStacks = manualStacks,
-            manualInstances = manualInstances,
-            pills = pills,
-            materials = materials,
-            herbs = herbs,
-            seeds = seeds,
-            battleLogs = battleLogs
-        )
-        DomainLog.d(TAG, "Atomically restored from save: year=${loadedGameData.gameYear}, ${disciples.size} disciples, ${equipmentInstances.size} equipment instances, recruitList=${loadedGameData.recruitList.size} unrecruited disciples")
     }
 
     fun validateState(): List<String> {

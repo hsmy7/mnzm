@@ -231,7 +231,7 @@ Disciple entities are stored in `DiscipleTables` — ~95 narrow `ComponentTable`
 
 **v4.0.82+ 变更：** Checkpoint **不再每旬同步**——每旬累积只改变修为、从不改变速率，每旬同步会让检查点恒等于修为、投影退化为恒等函数。现在只在**速率变化点**更新：政策切换（`SectPolicyToggleUseCase` 三个修炼政策已补 `checkpointAllDisciples`）、长老变更（`ElderManagementUseCase`）、丹药（`AutoPillService`）、突破（`DiscipleBreakthroughHandler`）。
 
-**运行时投影：** `getEffectiveCultivation()` 实时投影（当前无生产调用方，仅测试引用）。修炼速率计算走列直读 `CultivationRateCalculator.calculateCultivationPerPhaseById`（无 Disciple 组装，与对象式入口数学等价——`CultivationRateEquivalenceTest` 30+ fixtures 守卫，含 teachingFlat 天赋/哀悼哨兵/父母/师徒/政策组合）。
+**运行时投影：** `getEffectiveCultivation()` 实时投影——**源码级生产调用点存在**（`CultivationService.accumulateCultivationPerPhase` 投影块，活代码），但批 9-2（Kotlin 旬结算路径退役）后 **Kotlin 运行时无执行驱动**（唯一驱动 `PhaseSettlementExecutor.execute` 完整版仅对拍/回归基准），生产修炼累积/投影由 C++ `cultivation.h` 承担；Kotlin 链作为 checkpoint 投影契约 + 跨语言对拍基准保留（S-21 勘误，2026-09-02）。修炼速率计算走列直读 `CultivationRateCalculator.calculateCultivationPerPhaseById`（无 Disciple 组装，与对象式入口数学等价——`CultivationRateEquivalenceTest` 30+ fixtures 守卫，含 teachingFlat 天赋/哀悼哨兵/父母/师徒/政策组合）。
 
 ---
 

@@ -145,20 +145,6 @@ class NativeBenchmarkTest {
         override fun e(tag: String, msg: String, throwable: Throwable?) { /* 静默 */ }
     }
 
-    /** 恢复默认 println 日志行为（DomainLog 无 getter，行为等价替代） */
-    private object PrintLogger : DomainLog.Logger {
-        override fun d(tag: String, msg: String) { println("DEBUG: [$tag] $msg") }
-        override fun i(tag: String, msg: String) { println("INFO: [$tag] $msg") }
-        override fun w(tag: String, msg: String, throwable: Throwable?) {
-            println("WARN: [$tag] $msg")
-            throwable?.printStackTrace()
-        }
-        override fun e(tag: String, msg: String, throwable: Throwable?) {
-            println("ERROR: [$tag] $msg")
-            throwable?.printStackTrace()
-        }
-    }
-
     /** EventBus 构造即访问 scopeProvider.scope（init startProcessing 启动消费协程），需真实 scope */
     private object UnconfinedScopeProvider : CoroutineScopeProvider {
         override val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
@@ -230,7 +216,7 @@ class NativeBenchmarkTest {
     @Test
     fun `wallet add corrected benchmark - real kotlin impl vs native roundtrip`() {
         assumeTrue(DiffRngBridge.isAvailable())
-        DomainLog.setLogger(SilentLogger)
+        val originalLogger = DomainLog.setLogger(SilentLogger)
         try {
             // ── 批量通道正确性前置验证（fresh 状态 10000 + 1000 次 +1 = 11000）──
             freshCore()
@@ -277,7 +263,7 @@ class NativeBenchmarkTest {
                     "ratio=${"%.1f".format(nativeBatchNs.toDouble() / kotlinBatchNs)}"
             )
         } finally {
-            DomainLog.setLogger(PrintLogger)
+            DomainLog.setLogger(originalLogger)
         }
     }
 }

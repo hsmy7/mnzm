@@ -290,36 +290,6 @@ class GameEngineCoordinationTest {
     }
 
     @Test
-    fun `loadFromSave - 完成后重导 native 基线（状态替换入口同模式守卫）`() = runBlocking {
-        val env = EngineTestEnv()
-        val syncMock = mock<com.xianxia.sect.core.nativebridge.StateSyncService>()
-        whenever(env.engine.gameEngineCore.stateSyncServiceRef).thenReturn(syncMock)
-        // loadFromSave 链：saveFacade.loadFromSave → stateStore.loadFromSnapshot 替换状态——
-        // 与 loadData 同为状态替换入口，必须同样重导 native 基线
-        whenever(env.engine.saveFacade).thenReturn(mock())
-        setGameCoreLoaded(true)
-        try {
-            env.engine.loadFromSave(
-                loadedGameData = GameData().apply { sectName = "云档" },
-                disciples = emptyList(),
-                equipmentStacks = emptyList(),
-                equipmentInstances = emptyList(),
-                manualStacks = emptyList(),
-                manualInstances = emptyList(),
-                pills = emptyList(),
-                materials = emptyList(),
-                herbs = emptyList(),
-                seeds = emptyList(),
-                battleLogs = emptyList()
-            )
-            verify(syncMock).importToNative()
-            Unit
-        } finally {
-            setGameCoreLoaded(false)
-        }
-    }
-
-    @Test
     fun `restartGameSuspend - 完成后重导 native 基线（重启防旧世界覆盖）`() = runBlocking {
         val env = EngineTestEnv()
         val syncMock = mock<com.xianxia.sect.core.nativebridge.StateSyncService>()
