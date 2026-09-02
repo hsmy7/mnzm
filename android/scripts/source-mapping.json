@@ -2621,17 +2621,6 @@
           }
         },
         {
-          "drawable": "ui_sysmsg",
-          "source": null,
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "preserve": true
-          }
-        },
-        {
           "drawable": "combat_power_bg",
           "source": "ui/战力背景图片.png",
           "modules": [
@@ -3067,17 +3056,6 @@
         {
           "drawable": "heavenly_trial_phase2",
           "source": "ui/天道试炼活动挑战界面第二关图标.png",
-          "modules": [
-            "feature/game",
-            "app"
-          ],
-          "bake": {
-            "preserve": true
-          }
-        },
-        {
-          "drawable": "heavenly_trial_map",
-          "source": null,
           "modules": [
             "feature/game",
             "app"

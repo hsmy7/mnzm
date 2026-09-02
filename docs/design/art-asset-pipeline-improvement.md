@@ -202,7 +202,7 @@
 | (c) 大背景转 native 渲染（B.2-c） | 规模化 UI 渲染需求未到；代价大 | 出现大规模 UI / 性能瓶颈时评估 |
 | (d) B.1 图集 mipmap | **已清偿**（2026-09：`build-atlas.mjs` 多 mip KTX + KtxLoader/VulkanBackend 落地；`--no-mip` 兜底） | — |
 | (e) B.1 各向异性 | **已清偿**（2026-09：`samplerAnisotropy` 特性守卫 + `setTextureQuality` 运行时开关落地；正交投影下增益有限已如实评估） | — |
-| (f) 待补 110 条映射（UI 拉丁名↔中文源 / 立绘动态 / 妖兽等） | **已清偿**（2026-09：scaffold `deriveSource` 分类规则 + `MANUAL_OVERRIDES` 全量补齐；含肖像/妖兽/立绘/秘境等） | — |
+| (f) 待补 110 条映射（UI 拉丁名↔中文源 / 立绘动态 / 妖兽等） | **已清偿**（2026-09：scaffold `deriveSource` 分类规则 + `MANUAL_OVERRIDES` 补齐 107 条；2 条（`heavenly_trial_map`/`ui_sysmsg`）经核查无 UI 引用而移除；1 条（`disciple_portrait`）为在用弟子通用头像但无独立源图，保留待补） | — |
 
 > 规则：以上为显式登记债项，均有可判断触发条件；本方案**无"现在不做、无触发"的隐藏债**。债项同步登记到 `docs/architecture.md` 待办登记表。
 
@@ -260,4 +260,4 @@
 | C1（地图图集槽位提升） | ✅ 已落地 | 图集 2048→**4096**；瓦片 64→**128**、建筑 256→**512**、天枢殿 512→**1024**；KTX 重建；守卫同步；**Canvas 软渲染图集封顶 2048**（防 4096 建 64MB 位图 OOM）；天枢殿 drawable 已重烘焙到源分辨率 1405×1091 |
 | D1（自选清晰度） | ✅ 已落地 | `ClarityMode` + 设置 UI（性能下方，默认中）+ 引擎/FPS/持久化 + `RenderScalePolicy` 叠加；测试通过 |
 | B.1（图集 mipmap + 各向异性） | ✅ 已落地 | `build-atlas.mjs` **多 mip KTX**（4096→4，11 级；astcenc 5.7 无 `-m`，改为 sharp 逐级下采样 + 逐级 astcenc 压缩再封装）+ `KtxLoader` 多 mip 解析 + `VulkanBackend` mip 图像/视图 + 三线性 mip sampler + 各向异性（`samplerAnisotropy` 特性守卫，不支持时回退关闭）+ `setTextureQuality(anisotropy, mipmap)` 运行时采样器开关（自选清晰度联动）；`NativeSurfaceView`/`MainGameScreen` 接入 `ClarityMode.anisotropy/mipmap`。Canvas 软渲染主 Paint 已 `isFilterBitmap=true`（双线性）。`AtlasManifestSyncTest` 多 mip 结构校验同步。`--no-mip` 兜底保留 |
-| B1（全部素材重烘焙到高分辨率） | ✅ 已落地（小物件全覆盖；大图本就保留源尺寸） | `import-art-assets.mjs` 非 dry-run 执行：**小物件分类（丹药/材料/装备/种子/储物袋/功法/草药）全部 480→1024**；大图（立绘/背景/UI/妖兽/建筑/云层）本就保留源尺寸。天枢殿 1405×1091。**包体：drawable WebP ~123MB→~166MB（+43MB，来自小物件 1024）**。**110 条待补映射已全部补齐**（BEAST/SECT_ICON/SPIRIT_STONE/growing_*/UI/CAVE/HEAVENLY_TRIAL/BACKGROUND/PORTRAIT/EQUIPMENT 特例，经 scaffold `deriveSource` 分类规则 + `MANUAL_OVERRIDES`；详见第八节 (f)） |
+| B1（全部素材重烘焙到高分辨率） | ✅ 已落地（小物件全覆盖；大图本就保留源尺寸） | `import-art-assets.mjs` 非 dry-run 执行：**小物件分类（丹药/材料/装备/种子/储物袋/功法/草药）全部 480→1024**；大图（立绘/背景/UI/妖兽/建筑/云层）本就保留源尺寸。天枢殿 1405×1091。**包体：drawable WebP ~123MB→~166MB（+43MB，来自小物件 1024）**。**110 条待补中 107 条补齐 source**（BEAST/SECT_ICON/SPIRIT_STONE/growing_*/UI/CAVE/HEAVENLY_TRIAL/BACKGROUND/PORTRAIT/EQUIPMENT 特例，经 scaffold `deriveSource` 分类规则 + `MANUAL_OVERRIDES`；详见第八节 (f)）；2 条（`heavenly_trial_map`/`ui_sysmsg`）无 UI 引用而移除；剩 1 条（`disciple_portrait`）在用但无独立源图、保留待补 |

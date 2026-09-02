@@ -180,7 +180,6 @@ function deriveSource(category, res, name) {
         heavenly_trial_atk_normal: 'ui/普通攻击图标.png',
         heavenly_trial_phase1: 'ui/天道试炼活动挑战界面第一关图标.png',
         heavenly_trial_phase2: 'ui/天道试炼活动挑战界面第二关图标.png',
-        // heavenly_trial_map：drawable 为多岛屿合成地图场景，无唯一匹配源 → 保持待补
       };
       const s = map[res];
       if (s && fileExists(s)) return s;
@@ -238,7 +237,6 @@ function deriveSource(category, res, name) {
         ui_flip_left: 'ui/翻页按钮（左）.png',
         ui_flip_right: 'ui/翻页按钮(右）.png',
         area_select_button: 'ui/区域选择按钮.png',
-        // ui_sysmsg：drawable 为带「系统消息」标题+关闭按钮的合成图，无独立源文件 → 保持待补
       };
       const s = map[res];
       if (s && fileExists(s)) return s;

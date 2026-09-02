@@ -278,7 +278,6 @@
         { "name": "ui_settings_button", "res": "ui_settings_button" },
         { "name": "ui_start_button", "res": "ui_start_button" },
         { "name": "loading_background", "res": "loading_background" },
-        { "name": "ui_sysmsg", "res": "ui_sysmsg" },
         { "name": "combat_power_bg", "res": "combat_power_bg" },
         { "name": "spirit_stone_low", "res": "spirit_stone_low" },
         { "name": "spirit_stone_mid", "res": "spirit_stone_mid" },
@@ -335,8 +334,7 @@
         { "name": "heavenly_trial_defend", "res": "heavenly_trial_defend" },
         { "name": "heavenly_trial_atk_normal", "res": "heavenly_trial_atk_normal" },
         { "name": "heavenly_trial_phase1", "res": "heavenly_trial_phase1" },
-        { "name": "heavenly_trial_phase2", "res": "heavenly_trial_phase2" },
-        { "name": "heavenly_trial_map", "res": "heavenly_trial_map" }
+        { "name": "heavenly_trial_phase2", "res": "heavenly_trial_phase2" }
       ]
     },
     {
