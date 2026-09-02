@@ -118,15 +118,6 @@
 - **验证**：engine JUnit 3028/3028 全量（桌面 JNI 0 skip，DiffMonthSettlementTest 全场景对拍零回归）· `GameEngineCoreMonthOpsTest` 新建 9 用例（信封解析全分支）· NDK externalNativeBuildRelease 通过（新 JNI 符号）· detekt 全绿 · app compileReleaseKotlin 通过
 - **遗留**：年变编排（`YearSettlementExecutor`）仍为 Kotlin——年变 22 项下沉审计完成（批次切分：零 RNG 小件 10 / 中件 5 / 大件 3 / no-op 2），随批 Y 推进；`executeResidual` 自动丹药/突破接线与 S-21 孤儿入口评估随批 Y 收尾
 
-### 调整（建造栏石板路置灰 + 点击提示"开发中"）
-
-> 用户要求：建造栏中的道路（石板路）暂未开放，置灰展示，点击弹提示"开发中"。根因链：石板路不在 `BuildingFeatureRegistry`（无 requiredSectLevel/造价配置），此前点击会直接进入放置模式并可正常铺设；现产品侧决定暂时关闭道路建造入口。
-
-- **建造栏通用化**：`BuildingConstructionBar` 新增 `underDevelopmentNames: Set<String>`（开发中建筑名集合）与 `onSelectBuildingUnderDevelopment: ((String) -> Unit)?`（点击回调）两个参数——开发中建筑卡片整体置灰（名称/造价文字 `Modifier.alpha`、图标 alpha 复用既有 `DISABLED_ALPHA=0.4f` 置灰模式，置灰判定提取为纯函数 `isBuildingIconDisabled` 可单测），点击优先分发到开发中回调，不再进入放置模式
-- **调用方接线**：`MainGameScreenBuildingBar` 传入 `underDevelopmentNames = setOf(GameConfig.Road.DISPLAY_NAME)`、回调 `viewModel.showUnderDevelopmentTip()`；`GameViewModel` 新增 `showUnderDevelopmentTip()` 统一走 `showSuccess("开发中")` → 游戏内"提示"弹窗（标题"提示"、文本"开发中"、确定按钮）
-- **兼容性**：纯 UI 层改动，无存档/序列化/DB/协议变更；`BuildingConstructionBar` 新参数带默认值，既有调用方零改动
-- **验证**：新增 `BuildingConstructionBarTest` 5 用例（纯函数置灰判定 3 例 + 点击分发 2 例：开发中建筑触发开发中回调且不进入放置、普通建筑正常触发选中且不触发开发中回调）· `compileReleaseKotlin` 通过 · detekt 通过
-
 ### 调整（金手指图标尺寸 36 → 40 世界像素）
 
 > 用户要求调整金手指一键建造图标大小。新增命名常量 `GOLDEN_FINGER_ICON_SIZE_PX = 40`（`GoldFingerOverlay.kt`），预览角入口图标（`GoldFingerIcon`）与激活后拖拽末端图标（`drawGoldFingerSelection`）两处渲染统一改用该常量：入口图标固定 40 屏幕像素、拖拽末端图标 = 40 × 相机缩放（与各自既有缩放行为一致，仅基准 36 → 40）。选区位置/钳制逻辑不变。

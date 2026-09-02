@@ -1341,9 +1341,6 @@ private fun BoxScope.MainGameScreenBuildingBar(
                 onSelectBuildingLevelRequirement = { name ->
                     viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
                 },
-                // 石板路为开发中建筑：置灰展示，点击弹"开发中"提示（不进入放置模式）
-                underDevelopmentNames = setOf(GameConfig.Road.DISPLAY_NAME),
-                onSelectBuildingUnderDevelopment = { viewModel.showUnderDevelopmentTip() },
                 onSelectBuilding = { name ->
                     onSelectBuildingFromBar(
                         state = state, mapData = data.mapData,
