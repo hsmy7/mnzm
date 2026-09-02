@@ -93,10 +93,10 @@ effRenderScale  = min(computeRenderScale(gpuTier, softwarePath, area, effQuality
 
 **正交性**：性能模式管帧率（30/60 动态），清晰度管分辨率+纹理+装饰；二者独立可组合（如"极高清晰度+节能帧率"）。
 
-### 2.4 纹理采样运行时开关（B.1 联动，D1 已接线 metadata、运行推开待 B.1）
+### 2.4 纹理采样运行时开关（B.1 联动，已落地 2026-09）
 
 - 各向异性 + mipmap 影响 Vulkan sampler，需**运行时开关**：`VulkanBackend` 增 `setTextureQuality(anisotropy, mipmap)`，按 ClarityMode 重建/更新 sampler（mipmap 依赖 KTX 已带 mip——见资产管线 B.1；各向异性需设备特性 + `features.samplerAnisotropy=VK_TRUE`）。
-- **当前状态**：`ClarityMode.anisotropy/mipmap` 字段已落地；`setTextureQuality` 到 `VulkanBackend` 的**运行推开**登记为 B.1 前置项（图集带 mip 后才真正生效；在此之前 mipmap/anisotropy 为 metadata，不改变当前采样）。渲染缩放主杠杆（`clarityRenderScale` → `RenderScalePolicy`）已生效。
+- **已落地**：`ClarityMode.anisotropy/mipmap` 字段经 `MainGameScreen` → `NativeSurfaceView.clarityAnisotropy/clarityMipmap`（@Volatile）→ 渲染线程 `consumePendingTextureQuality` → `NativeBridge.setTextureQuality` → `VulkanBackend` 重建图集/地面采样器；设备不支持 `samplerAnisotropy` 时自动回退关闭各向异性；`ClarityMode.mipmap=true` 但 KTX 无 mip（`--no-mip` 兜底产物）时采样器依 `maxLod` 钳制到可用层级，不崩溃。
 
 ### 2.5 设置 UI
 
@@ -198,7 +198,7 @@ effRenderScale  = min(computeRenderScale(gpuTier, softwarePath, area, effQuality
 |------|---------|-------------|
 | 清晰度"装饰密度"未接入 | 装饰密度在 `SectMapTileGenerator` 地图生成期烘焙，运行时改密度需地图重生成，代价大 | 出现"低清晰度想更省装饰"的明确诉求，或地图生成期 LOD 重构时接入 |
 | 各向异性/mipmap 仅作用于地图 Vulkan 渲染，Compose 通用精灵不受影响 | Compose ImageBitmap 无 GIS 压缩/anisotropy 路径；UI 精灵由资产管线 bake 分辨率控制 | 资产管线 B.2-c 或未来 UI 迁移 native 渲染时评估 |
-| `setTextureQuality` 运行时重建 sampler | 需要 Vulkan 侧运行时开关，改动采样器重建路径 | B.1 mip 落地后；若渲染线程已有 sampler 更新通道则一并实现 |
+| `setTextureQuality` 运行时重建 sampler | 需要 Vulkan 侧运行时开关，改动采样器重建路径 | **已清偿**（2026-09：B.1 多 mip KTX + `setTextureQuality` 落地，渲染线程通道接入） |
 
 > 规则：以上为显式登记债项，均有可判断触发条件；本方案**无"现在不做、无触发"的隐藏债**。债项同步登记到 `docs/architecture.md` 待办登记表。
 

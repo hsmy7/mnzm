@@ -264,6 +264,26 @@ class NativeSurfaceView(
             initCoordinator.recomputeRenderScale()
         }
 
+    /**
+     * 自选清晰度纹理采样各向异性倍率（[ClarityMode.anisotropy].level；0 = 关闭）。
+     * Compose 线程写、渲染线程消费——渲染线程每节拍读 [clarityMipmap] 后比对
+     * [appliedTextureAniso]，变化即调 NativeBridge.setTextureQuality 重建图集采样器。
+     */
+    @Volatile
+    var clarityAnisotropy: Float = 2.0f
+
+    /** 自选清晰度纹理采样 mipmap 开关（[ClarityMode.mipmap]），同上通道。 */
+    @Volatile
+    var clarityMipmap: Boolean = true
+
+    /** 渲染线程已应用的各向异性倍率（consumePendingTextureQuality 消费比对基准） */
+    @Volatile
+    private var appliedTextureAniso: Float = 2.0f
+
+    /** 渲染线程已应用的 mipmap 开关（同上） */
+    @Volatile
+    private var appliedTextureMipmap: Boolean = true
+
     /** 统一创建软件渲染后端（应用当前质量/装饰值，防 surface 重建后丢失降级状态） */
     private fun createSoftwareBackend(): SoftwareCanvasBackend =
         SoftwareCanvasBackend(config).apply {
@@ -1125,6 +1145,9 @@ class NativeSurfaceView(
                 // Vulkan 渲染缩放消费（渲染线程独占；重建离屏目标语义同 resize）
                 consumePendingRenderScale()
 
+                // Vulkan 清晰度纹理采样质量消费（B.1 mipmap + 各向异性）
+                consumePendingTextureQuality()
+
                 // ★ 脏帧跳过（2026-08-14 平板省电）：静止画面跳过渲染与指标——
                 //   相机不动、帧引用未变、总线不脏、淡入完成、缩放未变 五守卫全通过
                 //   才跳过（FrameSkipPolicy 纯函数）。跳帧不 recordFrameTime/不上报
@@ -1212,6 +1235,24 @@ class NativeSurfaceView(
             val pending = pendingRenderScale
             if (pending != appliedRenderScale && renderMode == RenderMode.VULKAN && isReady) {
                 appliedRenderScale = NativeBridge.setRenderScale(pending)
+            }
+        }
+
+        /**
+         * 渲染线程消费清晰度纹理采样质量（B.1：mipmap + 各向异性，Vulkan 图集采样器）。
+         * Compose 线程只写 [clarityAnisotropy]/[clarityMipmap]（@Volatile），渲染线程
+         * 每节拍比对 [appliedTextureAniso]/[appliedTextureMipmap] 后调 setTextureQuality。
+         * 仅 Vulkan 生效（GLES/Canvas 无采样质量通道，setTextureQuality 内部 no-op）。
+         */
+        private fun consumePendingTextureQuality() {
+            val aniso = clarityAnisotropy
+            val mip = clarityMipmap
+            if (renderMode == RenderMode.VULKAN && isReady &&
+                (aniso != appliedTextureAniso || mip != appliedTextureMipmap)
+            ) {
+                appliedTextureAniso = aniso
+                appliedTextureMipmap = mip
+                NativeBridge.setTextureQuality(aniso, mip)
             }
         }
 

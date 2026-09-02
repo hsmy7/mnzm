@@ -829,10 +829,14 @@ private fun MainGameScreenRenderEffects(
             }
     }
 
-    // 接通自选清晰度流（玩家清晰度档位 → 渲染缩放上限）
+    // 接通自选清晰度流（玩家清晰度档位 → 渲染缩放上限 + 纹理采样质量 mipmap/各向异性）
     LaunchedEffect(state.nativeSurfaceView) {
         val view = state.nativeSurfaceView ?: return@LaunchedEffect
-        viewModel.clarityMode.collect { mode -> view.clarityRenderScale = mode.renderScaleCap }
+        viewModel.clarityMode.collect { mode ->
+            view.clarityRenderScale = mode.renderScaleCap
+            view.clarityAnisotropy = mode.anisotropy.level
+            view.clarityMipmap = mode.mipmap
+        }
     }
 
     // 渲染线程实际达成帧率 → 引擎热控（激活帧率驱动降级）

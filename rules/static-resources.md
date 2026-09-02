@@ -101,7 +101,9 @@ androidResources {
   ├─ 3. 运行 node scripts/scaffold-source-mapping.mjs
   │      自动扫描 registry + 源目录 → 生成/更新 source-mapping.json
   │      （常见分类自动盖上：EQUIPMENT/MATERIAL 按中文名、PILL/储物袋按品级、
-  │      功法按 res、草药/种子按后缀；覆盖类目的 drawable 归入带 source 的条目）
+  │      功法按 res、草药/种子按后缀、SPIRIT_STONE/SECT_ICON 按品级、BEAST 按
+  │      动物名、ITEM growing_ 由 herb_ 中文名推导、CAVE/HEAVENLY_TRIAL/BACKGROUND/
+  │      UI 按固定表、特殊条目走 MANUAL_OVERRIDES；覆盖类目的 drawable 归入带 source 的条目）
   │
   ├─ 4. 若生成为待补(source=null)或命名不规则 → 手补 source-mapping.json 该条目
   │      { "drawable": "xuan_tie_zhong_jian", "source": "装备/玄铁重剑.png",

@@ -405,7 +405,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadCompressedAtlas(
         if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
             id = vk->uploadCompressedTexture(
                 info.data, info.dataSize,
-                static_cast<int>(info.width), static_cast<int>(info.height));
+                static_cast<int>(info.width), static_cast<int>(info.height),
+                static_cast<int>(info.mipCount));
         } else {
             LOGE("uploadCompressedAtlas: 后端不支持压缩上传（非 VulkanBackend），回退 RGBA");
         }
@@ -415,6 +416,23 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadCompressedAtlas(
 
     env->ReleaseByteArrayElements(ktxData, bytes, JNI_ABORT);
     return static_cast<jint>(id);
+}
+
+/**
+ * 运行时纹理采样质量开关（B.1 + 自选清晰度联动；渲染线程调用）。
+ * 通道模式仿 [setRenderScale]：Compose 线程仅写 @Volatile，渲染线程消费后调用本方法。
+ * 仅 VulkanBackend 支持；GLES/Canvas 后端无操作（清度纹理过滤仅对地图 Vulkan 渲染生效）。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setTextureQuality(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat anisotropyMax, jboolean mipmap) {
+
+    if (!g_renderer) return;
+    if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
+        vk->setTextureQuality(anisotropyMax, mipmap == JNI_TRUE);
+    }
+    // 非 VulkanBackend 后端无采样质量通道，静默忽略（与 setRenderScale 非 Vulkan 恒 1.0 同理）
 }
 
 // ============================================================

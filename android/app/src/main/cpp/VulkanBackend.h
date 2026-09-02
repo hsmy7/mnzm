@@ -52,17 +52,35 @@ public:
     // === WP7 ASTC 压缩纹理（非虚——仅 Vulkan 路径使用，NativeBridge 经 dynamic_cast 调用） ===
 
     /**
-     * 上传 ASTC 4x4 LDR 压缩纹理（KTX 数据段，已由 KtxLoader 校验）。
+     * 上传 ASTC 4x4 LDR 压缩纹理（KTX 数据区，已由 KtxLoader 校验；B.1 支持多 mip）。
      * 设备不支持 textureCompressionASTC_LDR、数据尺寸与块数不符、宽高非 4 倍数
      * 均返回 0（调用方回退 RGBA 路径）。staging 上传模式与 uploadTexture 相同。
+     *
+     * @param data KTX1 数据区（header 后，含逐级 [size4] 前缀）
+     * @param dataSize 数据区总字节（含各级 size4 前缀）
+     * @param width mip0 宽
+     * @param height mip0 高
+     * @param mipCount mip 层级数（>=1；1 = 单 mip，与 B.1 前行为一致）
      */
     uint32_t uploadCompressedTexture(const uint8_t* data, size_t dataSize,
-                                     int width, int height);
+                                     int width, int height, int mipCount);
     /**
      * 上传 REPEAT 采样地面纹理（宗门地图单一无缝地面整图铺）。
      * 与 uploadTexture 同 staging 上传，仅采样器地址模式为 REPEAT（UV 可超 [0,1] 循环平铺）。
      */
     uint32_t uploadRepeatTexture(const void* pixels, int width, int height);
+
+    /**
+     * 运行时纹理采样质量开关（B.1 + 自选清晰度联动；渲染线程调用）。
+     * 按 ClarityMode 更新图集采样器：
+     *  - mipmap：minFilter=LINEAR + mipmapMode=LINEAR（三线性 mip；图集多 mip 已带）；
+     *  - anisotropy：仅当设备支持 samplerAnisotropy 特性时启用（否则强制关闭各向异性）。
+     * 重建图集纹理采样器后重绑定描述符集（下帧生效）。白纹理采样器保持 NEAREST 单 mip 不变。
+     *
+     * @param anisotropyMax 最大各向异性（0 = 关闭；命名 X2/X4/X8 对应 2.0/4.0/8.0）
+     * @param mipmap 是否启用 mipmap 三线性过滤
+     */
+    void setTextureQuality(float anisotropyMax, bool mipmap);
     void setProjection(const float mat[16]) override;
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
     void submitFrame() override;
@@ -202,6 +220,17 @@ private:
 
     /** 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 记录，WP7） */
     bool m_astcSupported = false;
+
+    // === B.1 纹理采样质量（mipmap + 各向异性；setTextureQuality 运行时更新） ===
+    bool m_anisoSupported = false;   // 设备是否支持采样器各向异性（createLogicalDevice 记录）
+    float m_anisotropyMax = 2.0f;    // 最大各向异性倍率（0 = 关闭；ClarityMode 默认中 X2）
+    bool m_mipmapEnabled = true;     // 是否启用 mipmap 三线性过滤（ClarityMode 默认中=开）
+
+    /**
+     * 按当前采样质量（m_anisotropyMax/m_mipmapEnabled）+ 地址模式创建采样器。
+     * 供 uploadCompressedTexture / uploadTextureImpl / setTextureQuality 复用，双端一致。
+     */
+    bool createSampler(VkSampler& out, VkSamplerAddressMode addressMode);
 
     // 帧绘制状态
     struct DrawCommand {

@@ -679,7 +679,7 @@
         },
         {
           "drawable": "long_ling_zhu",
-          "source": null,
+          "source": "材料/龙灵珠.png",
           "modules": [
             "feature/game",
             "app"
@@ -690,7 +690,7 @@
         },
         {
           "drawable": "luan_yu_lv",
-          "source": null,
+          "source": "装备/鸾羽靴.png",
           "modules": [
             "feature/game",
             "app"
@@ -958,7 +958,7 @@
       "entries": [
         {
           "drawable": "spirit_stone_low",
-          "source": null,
+          "source": "材料/下品灵石.png",
           "modules": [
             "feature/game",
             "app"
@@ -969,7 +969,7 @@
         },
         {
           "drawable": "spirit_stone_mid",
-          "source": null,
+          "source": "材料/中品灵石.png",
           "modules": [
             "feature/game",
             "app"
@@ -980,7 +980,7 @@
         },
         {
           "drawable": "spirit_stone_high",
-          "source": null,
+          "source": "材料/上品灵石.png",
           "modules": [
             "feature/game",
             "app"
@@ -1424,7 +1424,7 @@
       "entries": [
         {
           "drawable": "sect_icon_small",
-          "source": null,
+          "source": "ui/小型宗门图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -1435,7 +1435,7 @@
         },
         {
           "drawable": "sect_icon_medium",
-          "source": null,
+          "source": "ui/中型宗门图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -1446,7 +1446,7 @@
         },
         {
           "drawable": "sect_icon_large",
-          "source": null,
+          "source": "ui/大型宗门图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -1457,7 +1457,7 @@
         },
         {
           "drawable": "sect_icon_top",
-          "source": null,
+          "source": "ui/顶级宗门图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -2045,7 +2045,7 @@
         },
         {
           "drawable": "seed_spiritfruit8",
-          "source": null,
+          "source": "种子/玄灵莓种.png",
           "modules": [
             "feature/game",
             "app"
@@ -2067,7 +2067,7 @@
         },
         {
           "drawable": "growing_spiritgrass1",
-          "source": null,
+          "source": "草药生长期/聚灵草成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2078,7 +2078,7 @@
         },
         {
           "drawable": "growing_spiritgrass2",
-          "source": null,
+          "source": "草药生长期/清心草成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2089,7 +2089,7 @@
         },
         {
           "drawable": "growing_spiritgrass3",
-          "source": null,
+          "source": "草药生长期/凝气草成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2100,7 +2100,7 @@
         },
         {
           "drawable": "growing_spiritflower1",
-          "source": null,
+          "source": "草药生长期/云雾花成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2111,7 +2111,7 @@
         },
         {
           "drawable": "growing_spiritflower2",
-          "source": null,
+          "source": "草药生长期/白莲成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2122,7 +2122,7 @@
         },
         {
           "drawable": "growing_spiritflower3",
-          "source": null,
+          "source": "草药生长期/晨露花成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2133,7 +2133,7 @@
         },
         {
           "drawable": "growing_spiritfruit1",
-          "source": null,
+          "source": "草药生长期/精气果成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2144,7 +2144,7 @@
         },
         {
           "drawable": "growing_spiritfruit2",
-          "source": null,
+          "source": "草药生长期/赤心果成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2155,7 +2155,7 @@
         },
         {
           "drawable": "growing_spiritfruit3",
-          "source": null,
+          "source": "草药生长期/灵韵果成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2166,7 +2166,7 @@
         },
         {
           "drawable": "growing_spiritgrass4",
-          "source": null,
+          "source": "草药生长期/寒霜草成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2177,7 +2177,7 @@
         },
         {
           "drawable": "growing_spiritgrass5",
-          "source": null,
+          "source": "草药生长期/烈焰草成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2188,7 +2188,7 @@
         },
         {
           "drawable": "growing_spiritgrass6",
-          "source": null,
+          "source": "草药生长期/金灵草成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2199,7 +2199,7 @@
         },
         {
           "drawable": "growing_spiritflower4",
-          "source": null,
+          "source": "草药生长期/冰魄莲成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2210,7 +2210,7 @@
         },
         {
           "drawable": "growing_spiritflower5",
-          "source": null,
+          "source": "草药生长期/双生花成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2221,7 +2221,7 @@
         },
         {
           "drawable": "growing_spiritflower6",
-          "source": null,
+          "source": "草药生长期/紫霄花成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2232,7 +2232,7 @@
         },
         {
           "drawable": "growing_spiritfruit4",
-          "source": null,
+          "source": "草药生长期/通灵果成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2243,7 +2243,7 @@
         },
         {
           "drawable": "growing_spiritfruit5",
-          "source": null,
+          "source": "草药生长期/玄灵果成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2254,7 +2254,7 @@
         },
         {
           "drawable": "growing_spiritfruit6",
-          "source": null,
+          "source": "草药生长期/五行果成长期图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2265,7 +2265,7 @@
         },
         {
           "drawable": "growing_spiritgrass7",
-          "source": null,
+          "source": "草药生长期/龙血草成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2276,7 +2276,7 @@
         },
         {
           "drawable": "growing_spiritgrass8",
-          "source": null,
+          "source": "草药生长期/风铃草成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2287,7 +2287,7 @@
         },
         {
           "drawable": "growing_spiritgrass9",
-          "source": null,
+          "source": "草药生长期/九转灵草成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2298,7 +2298,7 @@
         },
         {
           "drawable": "growing_spiritflower7",
-          "source": null,
+          "source": "草药生长期/九转仙兰成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2309,7 +2309,7 @@
         },
         {
           "drawable": "growing_spiritflower8",
-          "source": null,
+          "source": "草药生长期/凤凰花成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2320,7 +2320,7 @@
         },
         {
           "drawable": "growing_spiritflower9",
-          "source": null,
+          "source": "草药生长期/青龙花成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2331,7 +2331,7 @@
         },
         {
           "drawable": "growing_spiritfruit7",
-          "source": null,
+          "source": "草药生长期/赤阳果成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2342,7 +2342,7 @@
         },
         {
           "drawable": "growing_spiritfruit8",
-          "source": null,
+          "source": "草药生长期/玄灵莓成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2353,7 +2353,7 @@
         },
         {
           "drawable": "growing_spiritfruit9",
-          "source": null,
+          "source": "草药生长期/天元果成长期.png",
           "modules": [
             "feature/game",
             "app"
@@ -2369,7 +2369,7 @@
       "entries": [
         {
           "drawable": "ui_button",
-          "source": null,
+          "source": "ui/按钮（长方形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2380,7 +2380,7 @@
         },
         {
           "drawable": "ui_close_button",
-          "source": null,
+          "source": "ui/关闭按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2391,7 +2391,7 @@
         },
         {
           "drawable": "ui_detail_button",
-          "source": null,
+          "source": "ui/详情按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2402,7 +2402,7 @@
         },
         {
           "drawable": "ui_add_button",
-          "source": null,
+          "source": "ui/+号按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2413,7 +2413,7 @@
         },
         {
           "drawable": "ui_diplomacy_button",
-          "source": null,
+          "source": "ui/外交按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2424,7 +2424,7 @@
         },
         {
           "drawable": "ui_guide_button",
-          "source": null,
+          "source": "ui/引导按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2435,7 +2435,7 @@
         },
         {
           "drawable": "ui_merchant_button",
-          "source": null,
+          "source": "ui/商人按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2446,7 +2446,7 @@
         },
         {
           "drawable": "ui_build_button",
-          "source": null,
+          "source": "ui/建造按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2457,7 +2457,7 @@
         },
         {
           "drawable": "ui_warehouse_button",
-          "source": null,
+          "source": "ui/仓库按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2468,7 +2468,7 @@
         },
         {
           "drawable": "ui_team_button",
-          "source": null,
+          "source": "ui/弟子按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2479,7 +2479,7 @@
         },
         {
           "drawable": "ui_map_button",
-          "source": null,
+          "source": "ui/地图按钮(圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2490,7 +2490,7 @@
         },
         {
           "drawable": "ui_planting_button",
-          "source": null,
+          "source": "ui/种植按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2501,7 +2501,7 @@
         },
         {
           "drawable": "ui_recruit_button",
-          "source": null,
+          "source": "ui/招募按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2512,7 +2512,7 @@
         },
         {
           "drawable": "ui_mail_button",
-          "source": null,
+          "source": "ui/邮件按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2523,7 +2523,7 @@
         },
         {
           "drawable": "ui_log_button",
-          "source": null,
+          "source": "ui/日志按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2534,7 +2534,7 @@
         },
         {
           "drawable": "dialog_box",
-          "source": null,
+          "source": "ui/提示框背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -2545,7 +2545,7 @@
         },
         {
           "drawable": "ui_hide_button",
-          "source": null,
+          "source": "ui/隐藏ui按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2556,7 +2556,7 @@
         },
         {
           "drawable": "ui_show_button",
-          "source": null,
+          "source": "ui/ui显示按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2567,7 +2567,7 @@
         },
         {
           "drawable": "ui_play_button",
-          "source": null,
+          "source": "ui/播放按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2578,7 +2578,7 @@
         },
         {
           "drawable": "ui_pause_button",
-          "source": null,
+          "source": "ui/暂停按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2589,7 +2589,7 @@
         },
         {
           "drawable": "ui_settings_button",
-          "source": null,
+          "source": "ui/设置按钮（圆形）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2600,7 +2600,7 @@
         },
         {
           "drawable": "ui_start_button",
-          "source": null,
+          "source": "ui/进入游戏.png",
           "modules": [
             "feature/game",
             "app"
@@ -2611,7 +2611,7 @@
         },
         {
           "drawable": "loading_background",
-          "source": null,
+          "source": "ui/加载界面（横屏）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2633,7 +2633,7 @@
         },
         {
           "drawable": "combat_power_bg",
-          "source": null,
+          "source": "ui/战力背景图片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2644,7 +2644,7 @@
         },
         {
           "drawable": "jade_symbol",
-          "source": null,
+          "source": "ui/玉符.png",
           "modules": [
             "feature/game",
             "app"
@@ -2655,7 +2655,7 @@
         },
         {
           "drawable": "jade_add_button",
-          "source": null,
+          "source": "ui/+号按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2666,7 +2666,7 @@
         },
         {
           "drawable": "golden_finger",
-          "source": null,
+          "source": "ui/金手指.png",
           "modules": [
             "feature/game",
             "app"
@@ -2677,7 +2677,7 @@
         },
         {
           "drawable": "secret_realm_option_card",
-          "source": null,
+          "source": "ui/远古秘境选项卡片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2688,7 +2688,7 @@
         },
         {
           "drawable": "ui_lizhan_button",
-          "source": null,
+          "source": "ui/历战图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -2699,7 +2699,7 @@
         },
         {
           "drawable": "li_zhan_card",
-          "source": null,
+          "source": "ui/历战卡片.png",
           "modules": [
             "feature/game",
             "app"
@@ -2710,7 +2710,7 @@
         },
         {
           "drawable": "heavenly_trial_icon",
-          "source": null,
+          "source": "ui/天道试炼图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -2721,7 +2721,7 @@
         },
         {
           "drawable": "ui_leaderboard_button",
-          "source": null,
+          "source": "ui/排行榜图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -2732,7 +2732,7 @@
         },
         {
           "drawable": "ui_flip_left",
-          "source": null,
+          "source": "ui/翻页按钮（左）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2743,7 +2743,7 @@
         },
         {
           "drawable": "ui_flip_right",
-          "source": null,
+          "source": "ui/翻页按钮(右）.png",
           "modules": [
             "feature/game",
             "app"
@@ -2754,7 +2754,7 @@
         },
         {
           "drawable": "area_select_button",
-          "source": null,
+          "source": "ui/区域选择按钮.png",
           "modules": [
             "feature/game",
             "app"
@@ -2770,7 +2770,7 @@
       "entries": [
         {
           "drawable": "tiger_beast",
-          "source": null,
+          "source": "妖兽/虎妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2781,7 +2781,7 @@
         },
         {
           "drawable": "wolf_beast",
-          "source": null,
+          "source": "妖兽/狼妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2792,7 +2792,7 @@
         },
         {
           "drawable": "snake_beast",
-          "source": null,
+          "source": "妖兽/蛇妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2803,7 +2803,7 @@
         },
         {
           "drawable": "bear_beast",
-          "source": null,
+          "source": "妖兽/熊妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2814,7 +2814,7 @@
         },
         {
           "drawable": "eagle_beast",
-          "source": null,
+          "source": "妖兽/鹰妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2825,7 +2825,7 @@
         },
         {
           "drawable": "fox_beast",
-          "source": null,
+          "source": "妖兽/狐妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2836,7 +2836,7 @@
         },
         {
           "drawable": "dragon_beast",
-          "source": null,
+          "source": "妖兽/龙妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2847,7 +2847,7 @@
         },
         {
           "drawable": "turtle_beast",
-          "source": null,
+          "source": "妖兽/龟妖.png",
           "modules": [
             "feature/game",
             "app"
@@ -2863,7 +2863,7 @@
       "entries": [
         {
           "drawable": "cave_1",
-          "source": null,
+          "source": "建筑/洞府素材1.png",
           "modules": [
             "feature/game",
             "app"
@@ -2874,7 +2874,7 @@
         },
         {
           "drawable": "cave_2",
-          "source": null,
+          "source": "建筑/洞府素材2.png",
           "modules": [
             "feature/game",
             "app"
@@ -2885,7 +2885,7 @@
         },
         {
           "drawable": "cave_3",
-          "source": null,
+          "source": "建筑/洞府素材3.png",
           "modules": [
             "feature/game",
             "app"
@@ -2896,7 +2896,7 @@
         },
         {
           "drawable": "secret_realm",
-          "source": null,
+          "source": "地图关卡场景/远古秘境.png",
           "modules": [
             "feature/game",
             "app"
@@ -2912,7 +2912,7 @@
       "entries": [
         {
           "drawable": "heavenly_trial_island_1",
-          "source": null,
+          "source": "地图关卡场景/天道试炼活动第一关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2923,7 +2923,7 @@
         },
         {
           "drawable": "heavenly_trial_island_2",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第二关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2934,7 +2934,7 @@
         },
         {
           "drawable": "heavenly_trial_island_3",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第三关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2945,7 +2945,7 @@
         },
         {
           "drawable": "heavenly_trial_island_4",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第四关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2956,7 +2956,7 @@
         },
         {
           "drawable": "heavenly_trial_island_5",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第五关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2967,7 +2967,7 @@
         },
         {
           "drawable": "heavenly_trial_island_6",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第六关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2978,7 +2978,7 @@
         },
         {
           "drawable": "heavenly_trial_island_7",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第七关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -2989,7 +2989,7 @@
         },
         {
           "drawable": "heavenly_trial_island_8",
-          "source": null,
+          "source": "地图关卡场景/天道试炼第八关岛屿.png",
           "modules": [
             "feature/game",
             "app"
@@ -3000,7 +3000,7 @@
         },
         {
           "drawable": "heavenly_trial_challenge_bg",
-          "source": null,
+          "source": "背景图/天道试炼活动背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -3011,7 +3011,7 @@
         },
         {
           "drawable": "heavenly_trial_battle_scene",
-          "source": null,
+          "source": "背景图/战斗场景.png",
           "modules": [
             "feature/game",
             "app"
@@ -3022,7 +3022,7 @@
         },
         {
           "drawable": "heavenly_trial_battle_bar",
-          "source": null,
+          "source": "ui/战斗栏背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -3033,7 +3033,7 @@
         },
         {
           "drawable": "heavenly_trial_defend",
-          "source": null,
+          "source": "ui/防御图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -3044,7 +3044,7 @@
         },
         {
           "drawable": "heavenly_trial_atk_normal",
-          "source": null,
+          "source": "ui/普通攻击图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -3055,7 +3055,7 @@
         },
         {
           "drawable": "heavenly_trial_phase1",
-          "source": null,
+          "source": "ui/天道试炼活动挑战界面第一关图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -3066,7 +3066,7 @@
         },
         {
           "drawable": "heavenly_trial_phase2",
-          "source": null,
+          "source": "ui/天道试炼活动挑战界面第二关图标.png",
           "modules": [
             "feature/game",
             "app"
@@ -3093,7 +3093,7 @@
       "entries": [
         {
           "drawable": "bg_horizontal",
-          "source": null,
+          "source": "背景图/横向背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -3104,7 +3104,7 @@
         },
         {
           "drawable": "bg_dialog_mail",
-          "source": null,
+          "source": "ui/提示框背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -3115,7 +3115,7 @@
         },
         {
           "drawable": "bg_screen",
-          "source": null,
+          "source": "ui/界面背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -3126,7 +3126,7 @@
         },
         {
           "drawable": "map_zhongzhou",
-          "source": null,
+          "source": "地图关卡场景/中州.png",
           "modules": [
             "feature/game",
             "app"
@@ -3137,7 +3137,7 @@
         },
         {
           "drawable": "dialogue_bg",
-          "source": null,
+          "source": "ui/聊天背景图.png",
           "modules": [
             "feature/game",
             "app"
@@ -3148,7 +3148,7 @@
         },
         {
           "drawable": "dialogue_bubble_left",
-          "source": null,
+          "source": "ui/聊天框（左）.png",
           "modules": [
             "feature/game",
             "app"
@@ -3159,7 +3159,7 @@
         },
         {
           "drawable": "dialogue_bubble_right",
-          "source": null,
+          "source": "ui/聊天框（右）.png",
           "modules": [
             "feature/game",
             "app"
@@ -3170,7 +3170,7 @@
         },
         {
           "drawable": "secret_realm_bg",
-          "source": null,
+          "source": "背景图/远古秘境背景图.png",
           "modules": [
             "feature/game",
             "app"

@@ -921,30 +921,80 @@ function findAstcenc() {
   return null;
 }
 
-/** 运行 astcenc（-cl <in> <out> 4x4 -medium，LDR——5.x 位置式参数） */
-function compressAstc(astcenc) {
-  console.log('  astcenc -cl 4x4 -medium ...');
-  execFileSync(astcenc, ['-cl', TMP_PNG, TMP_ASTC, '4x4', '-medium'], { stdio: 'inherit' });
+/**
+ * 运行 astcenc（-cl <in> <out> 4x4 -medium，LDR——5.x 位置式参数）。
+ * @param {string} inPng 输入 PNG 路径
+ * @param {string} outAstc 输出 .astc 路径
+ */
+function compressAstc(astcenc, inPng, outAstc) {
+  execFileSync(astcenc, ['-cl', inPng, outAstc, '4x4', '-medium'], { stdio: 'inherit' });
+}
+
+/**
+ * 生成图集 mip 链（B.1：图集补 mip 消除缩放/远景采样混叠）。
+ *
+ * 注意：astcenc 5.7.0 **无 mipmap 生成开关**（设计稿"astcenc -m"假设不成立），
+ * 故 mip 链由 sharp 对拼装后的 4096 图集逐级等比下采样（每级从 mip0 重新采样，
+ * 避免级联累积失真），再逐级 astcenc 压缩到最小 4×4（ASTC 4×4 块下限）。
+ *
+ * @returns {Promise<Array<{w:number,h:number,data:Buffer}>>} 每级 mip 的 ASTC 数据
+ */
+async function generateMips(astcenc) {
+  const mips = [];
+  let w = LAYOUT.atlasW;
+  let h = LAYOUT.atlasH;
+  let level = 0;
+  // 4096 → 4（ASTC 4×4 块下限）：每级最长边 / 2，到 4×4 为止
+  while (w >= ASTC_BLOCK && h >= ASTC_BLOCK) {
+    const mipPng = TMP_PNG.replace('atlas_tmp.png', `atlas_mip_${level}.png`);
+    const mipAstc = TMP_ASTC.replace('atlas_tmp.astc', `atlas_mip_${level}.astc`);
+    if (level === 0) {
+      // mip0 即拼装好的整图（已是 4096）
+    } else {
+      console.log(`  mip ${level}: ${w}×${h} ...`);
+      await sharp(TMP_PNG).resize(w, h, { fit: 'fill', kernel: sharp.kernel.lanczos3 }).png().toFile(mipPng);
+    }
+    compressAstc(astcenc, level === 0 ? TMP_PNG : mipPng, mipAstc);
+    mips.push({ w, h, data: fs.readFileSync(mipAstc) });
+    fs.unlinkSync(mipAstc);
+    if (level !== 0) fs.unlinkSync(mipPng);
+    level++;
+    const nextW = w >> 1;
+    const nextH = h >> 1;
+    if (nextW < ASTC_BLOCK || nextH < ASTC_BLOCK) break;  // 到 4×4 块下限即止
+    w = nextW;
+    h = nextH;
+  }
+  console.log(`  mip 链: ${mips.length} 级（mip0 ${LAYOUT.atlasW}→ 最小 ${mips[mips.length - 1].w}）`);
+  return mips;
 }
 
 // ── KTX1 封装 ──
 
 /**
- * KTX1 单 mip 压缩纹理封装（ASTC 4×4；输入为 .astc 文件）。
+ * KTX1 多 mip 压缩纹理封装（ASTC 4×4；输入为各级 mip 的 .astc 数据）。
+ * B.1：numberOfMipmapLevels = mips.length；数据区 = 逐级 [imageSize 4 字节][数据]。
  * .astc 文件头布局因 astcenc 版本有差异（16/20 字节），但数据区恒为
  * 文件尾部的几何计算尺寸（w/4 × h/4 × 16）——按尾部截取数据，头大小
  * 校验在合理范围（≤32 字节）即可，避免解析头字段的版本兼容问题。
+ *
+ * @param {Array<{w:number,h:number,data:Buffer}>} mips 每级 mip 数据（mip0 最大在前）
  */
-function wrapKtx1(astcBuffer, width, height) {
-  const expected = Math.floor(width / ASTC_BLOCK) * Math.floor(height / ASTC_BLOCK) * ASTC_BLOCK_BYTES;
-  if (astcBuffer.length < expected + 16) throw new Error('ASTC 文件过短');
-  const headerSize = astcBuffer.length - expected;
-  if (headerSize > 32) throw new Error(`ASTC 头尺寸异常: ${headerSize}`);
-  const data = astcBuffer.subarray(headerSize);
-  const dataSize = data.length;
-  if (dataSize !== expected) {
-    throw new Error(`ASTC 数据尺寸不符: ${dataSize} != ${expected}`);
-  }
+function wrapKtx1(mips) {
+  if (!Array.isArray(mips) || mips.length === 0) throw new Error('wrapKtx1: mips 为空');
+  const widths = [];  // 各级宽度（KtxLoader 复现几何校验用——头仅存 mip0 宽高）
+
+  const perLevel = mips.map((m, i) => {
+    const expected = Math.floor(m.w / ASTC_BLOCK) * Math.floor(m.h / ASTC_BLOCK) * ASTC_BLOCK_BYTES;
+    if (m.data.length < expected + 16) throw new Error(`ASTC 文件过短 (mip ${i})`);
+    const headerSize = m.data.length - expected;
+    if (headerSize > 32) throw new Error(`ASTC 头尺寸异常: ${headerSize} (mip ${i})`);
+    const data = m.data.subarray(headerSize);
+    if (data.length !== expected) throw new Error(`ASTC 数据尺寸不符: ${data.length} != ${expected} (mip ${i})`);
+    widths.push(m.w);
+    return { size: expected, data };
+  });
+
   const header = Buffer.alloc(64);
   header[0] = 0xAB; header[1] = 0x4B; header[2] = 0x54; header[3] = 0x58; // "«KTX"
   header[4] = 0x20; header[5] = 0x31; header[6] = 0x31; header[7] = 0xBB; // " 11»"
@@ -954,17 +1004,20 @@ function wrapKtx1(astcBuffer, width, height) {
   header.writeUInt32LE(0, 20); // glFormat（压缩纹理 = 0）
   header.writeUInt32LE(GL_COMPRESSED_RGBA_ASTC_4x4_KHR, 24); // glInternalFormat
   header.writeUInt32LE(GL_RGBA, 28); // glBaseInternalFormat
-  header.writeUInt32LE(width, 32); // pixelWidth
-  header.writeUInt32LE(height, 36); // pixelHeight
+  header.writeUInt32LE(mips[0].w, 32); // pixelWidth（mip0）
+  header.writeUInt32LE(mips[0].h, 36); // pixelHeight（mip0）
   header.writeUInt32LE(0, 40); // pixelDepth
   header.writeUInt32LE(0, 44); // numberOfArrayElements
   header.writeUInt32LE(1, 48); // numberOfFaces
-  header.writeUInt32LE(1, 52); // numberOfMipmapLevels
+  header.writeUInt32LE(mips.length, 52); // numberOfMipmapLevels（B.1）
   header.writeUInt32LE(0, 56); // bytesOfKeyValueData
 
-  const sizeField = Buffer.alloc(4);
-  sizeField.writeUInt32LE(dataSize, 0);
-  return Buffer.concat([header, sizeField, data]);
+  const bodies = perLevel.map((pl) => {
+    const sizeField = Buffer.alloc(4);
+    sizeField.writeUInt32LE(pl.size, 0);
+    return Buffer.concat([sizeField, pl.data]);
+  });
+  return Buffer.concat([header, ...bodies]);
 }
 
 // ── 图集布局 manifest ──
@@ -1045,10 +1098,22 @@ async function main() {
 
   console.log(`拼装 ${LAYOUT.atlasW}×${LAYOUT.atlasH} 图集（${sprites.length} 精灵）...`);
   await buildAtlasPng(sprites, manifest);
-  compressAstc(astcenc);
 
-  console.log('封装 KTX1 ...');
-  const ktx = wrapKtx1(fs.readFileSync(TMP_ASTC), LAYOUT.atlasW, LAYOUT.atlasH);
+  // B.1 多 mip；--no-mip 兜底（单 mip，保持旧结构，供回退/调试）
+  const noMip = args.includes('--no-mip');
+  let mips;
+  if (noMip) {
+    console.log('  --no-mip：单 mip（回退）...');
+    compressAstc(astcenc, TMP_PNG, TMP_ASTC);
+    mips = [{ w: LAYOUT.atlasW, h: LAYOUT.atlasH, data: fs.readFileSync(TMP_ASTC) }];
+    fs.unlinkSync(TMP_ASTC);
+  } else {
+    console.log('压缩 ASTC + 生成 mip 链 ...');
+    mips = await generateMips(astcenc);
+  }
+
+  console.log('封装 KTX1（多 mip）...');
+  const ktx = wrapKtx1(mips);
   fs.mkdirSync(OUT_DIR, { recursive: true });
   fs.writeFileSync(path.join(OUT_DIR, 'atlas_astc.ktx'), ktx);
 
@@ -1057,6 +1122,7 @@ async function main() {
     format: 'ASTC_4x4_LDR',
     width: LAYOUT.atlasW,
     height: LAYOUT.atlasH,
+    mipLevels: mips.length,
     layoutHash: layoutHashOf(sprites),
     generatedAt: new Date().toISOString(),
     spriteCount: sprites.length,

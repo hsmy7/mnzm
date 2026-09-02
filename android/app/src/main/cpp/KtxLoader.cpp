@@ -43,12 +43,13 @@ bool loadKtx1(const uint8_t* fileData, size_t fileSize, KtxInfo& info) {
              readU32(fileData + GL_INTERNAL_FORMAT_OFFSET));
         return false;
     }
-    // 单层单面单 mip 容器约束
+    // 单层单 面 Container 约束（mip 层级 >= 1，B.1 支持多 mip）
+    const uint32_t mipLevels = readU32(fileData + MIP_LEVELS_OFFSET);
     if (readU32(fileData + PIXEL_DEPTH_OFFSET) != 0 ||
         readU32(fileData + ARRAY_ELEMENTS_OFFSET) != 0 ||
         readU32(fileData + FACES_OFFSET) != 1 ||
-        readU32(fileData + MIP_LEVELS_OFFSET) != 1) {
-        LOGE("loadKtx1: 容器维度非法 (depth/array/faces/mips)");
+        mipLevels < 1) {
+        LOGE("loadKtx1: 容器维度非法 (depth/array/faces/mips=%u)", mipLevels);
         return false;
     }
     // 无 key-value 扩展（本管线不写）
@@ -72,38 +73,48 @@ bool loadKtx1(const uint8_t* fileData, size_t fileSize, KtxInfo& info) {
         return false;
     }
 
-    // dataSize 几何推导（块数 × 16 字节），与 build-atlas.mjs 同式。
-    // 64 位算术：32 位 size_t 下 (1G/4)*(4/4)*16 回绕为 0 会绕过 dataSize 校验（M2）
-    const uint64_t expectedDataSize =
-        (uint64_t)(width / ASTC_BLOCK) * (uint64_t)(height / ASTC_BLOCK) * ASTC_BLOCK_BYTES;
+    // 逐级 dataSize 几何推导（每级 mip 的块数 × 16 字节），与 build-atlas.mjs 同式。
+    // 64 位算术：32 位 size_t 下 (1G/4)*(4/4)*16 回绕为 0 会绕过 dataSize 校验（M2）。
+    // 每级尺寸 = max(ASTC_BLOCK, base >> level)；到 4×4 块下限为止（与 build-atlas.mjs
+    // generateMips 停止条件一致）。
 
-    // mip0 数据段：[dataSize 4 字节][数据]——dataSize 字段必须完整在文件内且等于推导值
-    const size_t dataSizeFieldOffset = HEADER_SIZE;
-    const size_t dataOffset = dataSizeFieldOffset + DATA_SIZE_FIELD;
-    if (fileSize < dataOffset) {
-        // 对抗性审查 M1：fileSize ∈ {65,66,67} 时原条件不拦截，
-        // readU32(fileData+64) 越界读 1-3 字节
-        LOGE("loadKtx1: 文件缺少 dataSize 字段 (file=%zu)", fileSize);
-        return false;
+    // mip0 数据区：header 后为逐级 [dataSize 4 字节][数据]。
+    // 先累计所有 mip 数据区总长（含各层 size4 前缀），再精确校验 = 文件末尾。
+    const size_t dataRegionStart = HEADER_SIZE;
+    size_t cursor = dataRegionStart;
+    for (uint32_t i = 0; i < mipLevels; i++) {
+        uint32_t lw = width >> i;
+        uint32_t lh = height >> i;
+        if (lw < ASTC_BLOCK) lw = ASTC_BLOCK;
+        if (lh < ASTC_BLOCK) lh = ASTC_BLOCK;
+        const uint64_t levelData =
+            (uint64_t)(lw / ASTC_BLOCK) * (uint64_t)(lh / ASTC_BLOCK) * ASTC_BLOCK_BYTES;
+
+        // 每个 mip 的 [dataSize 4 字节] 字段必须完整在文件内
+        if (fileSize < cursor + DATA_SIZE_FIELD) {
+            LOGE("loadKtx1: 文件缺少 mip %u 的 dataSize 字段 (file=%zu)", i, fileSize);
+            return false;
+        }
+        const uint32_t storedSize = readU32(fileData + cursor);
+        if (storedSize != levelData) {
+            LOGE("loadKtx1: mip %u dataSize 不一致 stored=%u expected=%llu",
+                 i, storedSize, (unsigned long long)levelData);
+            return false;
+        }
+        cursor += DATA_SIZE_FIELD + storedSize;
     }
-    const uint32_t storedDataSize = readU32(fileData + dataSizeFieldOffset);
-    if (storedDataSize != expectedDataSize) {
-        LOGE("loadKtx1: dataSize 不一致 stored=%u expected=%llu",
-             storedDataSize, (unsigned long long)expectedDataSize);
-        return false;
-    }
-    // 精确尺寸校验：数据段必须恰好结束于文件尾（防尾随字节注入——
+    // 精确尺寸校验：数据区必须恰好结束于文件尾（防尾随字节注入——
     // 与 AtlasManifestSyncTest 的精确总尺寸断言同式）
-    if ((uint64_t)dataOffset + storedDataSize != (uint64_t)fileSize) {
-        LOGE("loadKtx1: 数据段尺寸不精确 (offset=%zu size=%u file=%zu)",
-             dataOffset, storedDataSize, fileSize);
+    if ((uint64_t)cursor != (uint64_t)fileSize) {
+        LOGE("loadKtx1: 数据区尺寸不精确 (cursor=%zu file=%zu)", cursor, fileSize);
         return false;
     }
 
-    info.data = fileData + dataOffset;
-    info.dataSize = storedDataSize;
+    info.data = fileData + dataRegionStart;
+    info.dataSize = cursor - dataRegionStart;
     info.width = width;
     info.height = height;
+    info.mipCount = mipLevels;
     info.internalFormat = GL_COMPRESSED_RGBA_ASTC_4x4_KHR;
     return true;
 }

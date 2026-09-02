@@ -512,7 +512,8 @@ bool VulkanBackend::createLogicalDevice() {
     vkGetPhysicalDeviceFeatures(m_physDevice, &supportedFeatures);
 
     VkPhysicalDeviceFeatures features{};
-    features.samplerAnisotropy = VK_FALSE;
+    // B.1 各向异性：仅当设备实际支持 samplerAnisotropy 时才启用（不支持自动回退关闭）
+    features.samplerAnisotropy = supportedFeatures.samplerAnisotropy ? VK_TRUE : VK_FALSE;
     features.textureCompressionASTC_LDR = supportedFeatures.textureCompressionASTC_LDR
         ? VK_TRUE : VK_FALSE;
     features.textureCompressionETC2 = supportedFeatures.textureCompressionETC2
@@ -520,6 +521,8 @@ bool VulkanBackend::createLogicalDevice() {
 
     // 记录 ASTC LDR 支持状态（WP7：压缩图集上传前置条件，不支持时 Kotlin 回退 RGBA）
     m_astcSupported = supportedFeatures.textureCompressionASTC_LDR == VK_TRUE;
+    // 记录各向异性支持状态（B.1：setTextureQuality / 采样器创建前置条件）
+    m_anisoSupported = supportedFeatures.samplerAnisotropy == VK_TRUE;
 
     VkDeviceCreateInfo devInfo{};
     devInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1777,21 +1780,9 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
 
     // ---- Step 5: Sampler（图集与地面均 LINEAR 双线性平滑——2026-08 图集建筑槽位
     // 128→256 后放大倍数仍可达 1.5x，NEAREST 会产生像素颗粒感，改 LINEAR 平滑；
-    // 地面整图铺 LINEAR 亦消除 REPEAT 环绕点纹理边界跳变的暗接缝） ----
-    {
-        VkSamplerCreateInfo sampInfo{};
-        sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        sampInfo.magFilter = VK_FILTER_LINEAR;
-        sampInfo.minFilter = VK_FILTER_LINEAR;
-        sampInfo.addressModeU = addressMode;
-        sampInfo.addressModeV = addressMode;
-        sampInfo.anisotropyEnable = VK_FALSE;
-        sampInfo.maxLod = 1.0f;
-
-        if (vkCreateSampler(m_device, &sampInfo, nullptr, &tex.sampler) != VK_SUCCESS) {
-            LOGE("Failed to create sampler"); goto fail;
-        }
-    }
+    // 地面整图铺 LINEAR 亦消除 REPEAT 环绕点纹理边界跳变的暗接缝。
+    // B.1：经 createSampler 按当前 mipmap/各向异性质量创建，双端一致） ----
+    if (!createSampler(tex.sampler, addressMode)) { LOGE("Failed to create sampler"); goto fail; }
 
     {
         uint32_t id = s_nextTextureId++;
@@ -1819,6 +1810,77 @@ uint32_t VulkanBackend::uploadRepeatTexture(const void* pixels, int width, int h
     return uploadTextureImpl(pixels, width, height, VK_SAMPLER_ADDRESS_MODE_REPEAT);
 }
 
+/**
+ * 按当前采样质量（m_anisotropyMax / m_mipmapEnabled）+ 地址模式创建采样器（B.1）。
+ * 供上传与 setTextureQuality 复用，保证三线性 mip / 各向异性在双端一致生效。
+ * 单 mip 纹理（RGBA/地面）即使开启 mipmap 也安全（无更深层即钳制到 level 0）。
+ */
+bool VulkanBackend::createSampler(VkSampler& out, VkSamplerAddressMode addressMode) {
+    VkSamplerCreateInfo sampInfo{};
+    sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampInfo.magFilter = VK_FILTER_LINEAR;
+    if (m_mipmapEnabled) {
+        // 三线性 mip 过滤（Vulkan 无 VK_FILTER_LINEAR_MIPMAP_LINEAR——mip 过滤由
+        // mipmapMode + minFilter 组合表达，minFilter 取 LINEAR 即可）
+        sampInfo.minFilter = VK_FILTER_LINEAR;
+        sampInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampInfo.minLod = 0.0f;
+        sampInfo.maxLod = VK_LOD_CLAMP_NONE;  // 允许全 mip 链（实际层级受图像 mipCount 钳制）
+    } else {
+        sampInfo.minFilter = VK_FILTER_LINEAR;
+        sampInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        sampInfo.minLod = 0.0f;
+        sampInfo.maxLod = 1.0f;
+    }
+    sampInfo.addressModeU = addressMode;
+    sampInfo.addressModeV = addressMode;
+    if (m_anisoSupported && m_anisotropyMax > 0.0f) {
+        sampInfo.anisotropyEnable = VK_TRUE;
+        sampInfo.maxAnisotropy = m_anisotropyMax;
+    } else {
+        sampInfo.anisotropyEnable = VK_FALSE;
+    }
+    if (vkCreateSampler(m_device, &sampInfo, nullptr, &out) != VK_SUCCESS) {
+        LOGE("Failed to create sampler (quality=%s aniso=%.1f)",
+             m_mipmapEnabled ? "mip" : "linear", m_anisotropyMax);
+        return false;
+    }
+    return true;
+}
+
+void VulkanBackend::setTextureQuality(float anisotropyMax, bool mipmap) {
+    // 消毒（对抗性审查：NaN/负数/越界 → 安全值）
+    if (!(anisotropyMax >= 0.0f) || !(anisotropyMax <= 16.0f)) anisotropyMax = 2.0f;
+    if (mipmap == m_mipmapEnabled && anisotropyMax == m_anisotropyMax) {
+        LOGI("setTextureQuality: 无变化 (aniso=%.1f mip=%d), 跳过", m_anisotropyMax, m_mipmapEnabled);
+        return;
+    }
+    m_anisotropyMax = anisotropyMax;
+    m_mipmapEnabled = mipmap;
+    // 重建所有已上传纹理的采样器（图集/地面/图集 RGBA 回退同通道），白纹理保持 NEAREST 单 mip 不变。
+    // 描述符集在每次 draw 时经 bindTextureToDescriptor 重绑定（tex.sampler 于绑定时刻读取），
+    // 故重建采样器后下一帧自动生效，无需此处手动重绑。
+    for (auto& tex : m_textures) {
+        if (!tex.sampler) continue;
+        vkDestroySampler(m_device, tex.sampler, nullptr);
+        tex.sampler = VK_NULL_HANDLE;
+        if (!createSampler(tex.sampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) {
+            LOGE("setTextureQuality: 重建采样器失败 tex=%u, 回退单 mip 线性", tex.id);
+            // 兜底：单 mip 线性（旧行为），不中断
+            VkSamplerCreateInfo fallback{};
+            fallback.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            fallback.magFilter = VK_FILTER_LINEAR;
+            fallback.minFilter = VK_FILTER_LINEAR;
+            fallback.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            fallback.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            fallback.maxLod = 1.0f;
+            vkCreateSampler(m_device, &fallback, nullptr, &tex.sampler);
+        }
+    }
+    LOGI("setTextureQuality: aniso=%.1f mip=%d 已应用（%zu 个纹理采样器重建）",
+         m_anisotropyMax, m_mipmapEnabled, m_textures.size());
+}
+
 // ============================================================
 // WP7：ASTC 压缩纹理上传（KTX 数据段，已由 KtxLoader 校验头）
 // 与 uploadTexture 同 staging 上传模式，仅图像格式/数据布局不同：
@@ -1827,7 +1889,7 @@ uint32_t VulkanBackend::uploadRepeatTexture(const void* pixels, int width, int h
 //   - 设备无 textureCompressionASTC_LDR 特性时返回 0（Kotlin 回退 RGBA 图集）
 // ============================================================
 uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t dataSize,
-                                                int width, int height) {
+                                                int width, int height, int mipCount) {
     if (!m_device || !data || !m_astcSupported) return 0;
     if (width <= 0 || height <= 0 ||
         width % ktx1::ASTC_BLOCK != 0 || height % ktx1::ASTC_BLOCK != 0) {
@@ -1840,14 +1902,25 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         LOGE("uploadCompressedTexture: 尺寸超上限 %dx%d", width, height);
         return 0;
     }
-    // 数据尺寸几何校验（与 KtxLoader/build-atlas.mjs 同式）——防越界/截断。
+    if (mipCount < 1) mipCount = 1;  // 消毒（B.1 单 mip 兼容）
+
+    // 逐级数据几何校验（与 KtxLoader/build-atlas.mjs 同式）——防越界/截断。
+    // 每级尺寸 = max(ASTC_BLOCK, base >> level)；到 4×4 块下限为止。
     // 64 位算术防 32 位 size_t 回绕（对抗性审查 M2）
-    const uint64_t expected =
-        (uint64_t)(width / ktx1::ASTC_BLOCK) * (uint64_t)(height / ktx1::ASTC_BLOCK) *
-        ktx1::ASTC_BLOCK_BYTES;
-    if ((uint64_t)dataSize != expected) {
-        LOGE("uploadCompressedTexture: 数据尺寸不符 %zu != %llu",
-             dataSize, (unsigned long long)expected);
+    uint64_t expectedTotal = 0;
+    for (int i = 0; i < mipCount; i++) {
+        uint32_t lw = (uint32_t)width >> i;
+        uint32_t lh = (uint32_t)height >> i;
+        if (lw < ktx1::ASTC_BLOCK) lw = ktx1::ASTC_BLOCK;
+        if (lh < ktx1::ASTC_BLOCK) lh = ktx1::ASTC_BLOCK;
+        expectedTotal += (uint64_t)(lw / ktx1::ASTC_BLOCK) * (uint64_t)(lh / ktx1::ASTC_BLOCK) *
+                         ktx1::ASTC_BLOCK_BYTES;
+    }
+    // data 为 KTX1 数据区（含逐级 [size4] 前缀）——总字节 = 各级 [size4] + 数据
+    uint64_t expectedRegion = expectedTotal + (uint64_t)mipCount * ktx1::DATA_SIZE_FIELD;
+    if ((uint64_t)dataSize != expectedRegion) {
+        LOGE("uploadCompressedTexture: 数据区尺寸不符 %zu != %llu (mips=%d)",
+             dataSize, (unsigned long long)expectedRegion, mipCount);
         return 0;
     }
 
@@ -1858,13 +1931,13 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
 
-    // ---- Step 1: 创建 OPTIMAL tiling 压缩图像 ----
+    // ---- Step 1: 创建 OPTIMAL tiling 压缩图像（多 mip，B.1） ----
     VkImageCreateInfo imgInfo{};
     imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imgInfo.imageType = VK_IMAGE_TYPE_2D;
     imgInfo.format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
     imgInfo.extent = { (uint32_t)width, (uint32_t)height, 1 };
-    imgInfo.mipLevels = 1;
+    imgInfo.mipLevels = (uint32_t)mipCount;
     imgInfo.arrayLayers = 1;
     imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -1914,7 +1987,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         vkBindImageMemory(m_device, tex.image, tex.memory, 0);
     }
 
-    // ---- Step 2: 通过 staging buffer 上传压缩块 ----
+    // ---- Step 2: 通过 staging buffer 上传全部 mip 数据区 ----
     {
         if (!ensureStagingBuffer(dataSize)) goto fail;
 
@@ -1929,7 +2002,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         vkUnmapMemory(m_device, m_stagingMemory);
     }
 
-    // ---- Step 3: 提交 vkCmdCopyBufferToImage + Layout Transition ----
+    // ---- Step 3: 提交 vkCmdCopyBufferToImage（逐级 mip）+ Layout Transition ----
     {
         VkCommandBufferAllocateInfo cmdAlloc{};
         cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1947,7 +2020,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         vkBeginCommandBuffer(cmd, &beginInfo);
 
-        // UNDEFINED → TRANSFER_DST_OPTIMAL
+        // UNDEFINED → TRANSFER_DST_OPTIMAL（全 mip 层）
         VkImageMemoryBarrier preBarrier{};
         preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         preBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1956,7 +2029,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         preBarrier.image = tex.image;
         preBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        preBarrier.subresourceRange.levelCount = 1;
+        preBarrier.subresourceRange.levelCount = (uint32_t)mipCount;
         preBarrier.subresourceRange.layerCount = 1;
         preBarrier.srcAccessMask = 0;
         preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
@@ -1964,16 +2037,32 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0, 0, nullptr, 0, nullptr, 1, &preBarrier);
 
-        // Copy: staging buffer → image（压缩纹理按块拷贝，extent 为像素尺寸）
-        VkBufferImageCopy copyRegion{};
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
+        // 逐级 Copy: staging buffer → image（每级 [size4][数据]，按块拷贝）
+        // 每级独立 region（bufferOffset 指向该级数据起始，跳过其 [size4] 前缀）
+        std::vector<VkBufferImageCopy> regions;
+        size_t cursor = 0;  // 数据区游标（staging 内偏移）
+        for (int i = 0; i < mipCount; i++) {
+            uint32_t lw = (uint32_t)width >> i;
+            uint32_t lh = (uint32_t)height >> i;
+            if (lw < ktx1::ASTC_BLOCK) lw = ktx1::ASTC_BLOCK;
+            if (lh < ktx1::ASTC_BLOCK) lh = ktx1::ASTC_BLOCK;
+            const uint32_t levelSize =
+                (lw / ktx1::ASTC_BLOCK) * (lh / ktx1::ASTC_BLOCK) * ktx1::ASTC_BLOCK_BYTES;
+            VkBufferImageCopy r{};
+            r.bufferOffset = cursor + ktx1::DATA_SIZE_FIELD;  // 跳过该级 [size4] 前缀
+            r.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            r.imageSubresource.mipLevel = (uint32_t)i;
+            r.imageSubresource.baseArrayLayer = 0;
+            r.imageSubresource.layerCount = 1;
+            r.imageExtent = { lw, lh, 1 };
+            regions.push_back(r);
+            cursor += ktx1::DATA_SIZE_FIELD + levelSize;
+        }
         vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                               1, &copyRegion);
+                               (uint32_t)regions.size(), regions.data());
 
-        // TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL
+        // TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL（全 mip 层）
         VkImageMemoryBarrier postBarrier{};
         postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -1982,7 +2071,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         postBarrier.image = tex.image;
         postBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        postBarrier.subresourceRange.levelCount = 1;
+        postBarrier.subresourceRange.levelCount = (uint32_t)mipCount;
         postBarrier.subresourceRange.layerCount = 1;
         postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
@@ -1995,7 +2084,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         }
     }
 
-    // ---- Step 4: ImageView（压缩格式） ----
+    // ---- Step 4: ImageView（压缩格式，多 mip，B.1） ----
     {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -2003,7 +2092,7 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
         viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.levelCount = (uint32_t)mipCount;
         viewInfo.subresourceRange.layerCount = 1;
 
         if (vkCreateImageView(m_device, &viewInfo, nullptr, &tex.view) != VK_SUCCESS) {
@@ -2011,29 +2100,17 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         }
     }
 
-    // ---- Step 5: Sampler（与 RGBA 路径同参数——图集 LINEAR 双线性平滑，
-    // 2026-08 与 RGBA 路径对齐：NEAREST 在建筑放大显示时有颗粒感） ----
-    {
-        VkSamplerCreateInfo sampInfo{};
-        sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        sampInfo.magFilter = VK_FILTER_LINEAR;
-        sampInfo.minFilter = VK_FILTER_LINEAR;
-        sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampInfo.anisotropyEnable = VK_FALSE;
-        sampInfo.maxLod = 1.0f;
-
-        if (vkCreateSampler(m_device, &sampInfo, nullptr, &tex.sampler) != VK_SUCCESS) {
-            LOGE("Failed to create sampler"); goto fail;
-        }
+    // ---- Step 5: Sampler（按当前 mipmap/各向异性质量，B.1） ----
+    if (!createSampler(tex.sampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) {
+        LOGE("Failed to create ASTC sampler"); goto fail;
     }
 
     {
         uint32_t id = s_nextTextureId++;
         tex.id = id;
         m_textures.push_back(tex);
-        LOGI("ASTC texture %dx%d uploaded (id=%u, %zu bytes)",
-             width, height, id, dataSize);
+        LOGI("ASTC texture %dx%d uploaded (id=%u, %zu bytes, mips=%d)",
+             width, height, id, dataSize, mipCount);
         return id;
     }
 

@@ -79,10 +79,12 @@ class AtlasManifestSyncTest {
         assertEquals(SpriteAtlasDef.ATLAS_H, manifest.height)
         assertEquals("ASTC_4x4_LDR", manifest.format)
         assertEquals(manifest.sprites.size, manifest.spriteCount)
+        // B.1：manifest 记录 mip 层级（多 mip 图集），须与 KTX 头一致
+        assertTrue("manifest.mipLevels 应为正数（B.1 多 mip）", manifest.mipLevels > 0)
     }
 
     // ============================================================
-    // KTX 容器校验（几何推导：64 头 + 4 dataSize + 块数×16）
+    // KTX 容器校验（几何推导：64 头 + 逐级 [size4 + 数据段]）
     // ============================================================
 
     @Test
@@ -102,16 +104,35 @@ class AtlasManifestSyncTest {
             bytes.copyOfRange(KTX_MAGIC_OFFSET, KTX_MAGIC_OFFSET + magic.size).contentEquals(magic)
         )
 
-        // 宽高字段（与 ATLAS_W/H 一致）与 dataSize（块数 × 16 字节）几何推导一致
-        val blocksPerRow = SpriteAtlasDef.ATLAS_W / ASTC_BLOCK
-        val blocksPerCol = SpriteAtlasDef.ATLAS_H / ASTC_BLOCK
-        val expectedDataSize = (blocksPerRow * blocksPerCol).toLong() * ASTC_BLOCK_BYTES
+        // 宽高字段（与 ATLAS_W/H 一致）
         assertEquals(SpriteAtlasDef.ATLAS_W.toLong(), readU32LE(bytes, KTX_WIDTH_OFFSET))
         assertEquals(SpriteAtlasDef.ATLAS_H.toLong(), readU32LE(bytes, KTX_HEIGHT_OFFSET))
-        assertEquals(expectedDataSize, readU32LE(bytes, KTX_DATA_SIZE_OFFSET))
 
-        // 总尺寸 = 64 头 + 4 dataSize 字段 + 数据段（防多余/缺失字节）
-        assertEquals(KTX_HEADER_SIZE + 4 + expectedDataSize, bytes.size.toLong())
+        // B.1 多 mip：读 numberOfMipmapLevels（偏移 52），逐级校验 dataSize 字段 + 总尺寸
+        val mipCount = readU32LE(bytes, KTX_MIP_COUNT_OFFSET).toInt()
+        assertTrue("KTX mip 层级应为正数（B.1 多 mip）；随 generateAstcAtlas 生成", mipCount >= 1)
+
+        // 逐级几何推导：每级尺寸 = max(ASTC_BLOCK, base >> level)，到 4×4 块下限为止。
+        var cursor = KTX_HEADER_SIZE.toLong()
+        var totalData = 0L
+        for (i in 0 until mipCount) {
+            var lw = SpriteAtlasDef.ATLAS_W shr i
+            var lh = SpriteAtlasDef.ATLAS_H shr i
+            if (lw < ASTC_BLOCK) lw = ASTC_BLOCK
+            if (lh < ASTC_BLOCK) lh = ASTC_BLOCK
+            val levelSize = (lw.toLong() / ASTC_BLOCK) * (lh.toLong() / ASTC_BLOCK) * ASTC_BLOCK_BYTES
+
+            // 每个 mip 的 [imageSize 4 字节] 字段（偏移 64 起为 mip0 的 size 前缀）
+            val storedSize = readU32LE(bytes, cursor.toInt())
+            assertEquals("mip[$i] dataSize 与几何推导不一致", levelSize, storedSize)
+
+            totalData += levelSize
+            cursor += KTX_DATA_SIZE_FIELD + storedSize
+        }
+
+        // 总尺寸 = 64 头 + 逐级 dataSize 字段 + 数据段（防多余/缺失字节）
+        assertEquals(KTX_HEADER_SIZE + mipCount * KTX_DATA_SIZE_FIELD + totalData, bytes.size.toLong())
+        assertEquals(cursor, bytes.size.toLong())
     }
 
     // ============================================================
@@ -173,6 +194,7 @@ class AtlasManifestSyncTest {
         val format: String,
         val layoutHash: String,
         val spriteCount: Int,
+        val mipLevels: Int,
         val sprites: List<SpriteEntry>
     )
 
@@ -188,6 +210,7 @@ class AtlasManifestSyncTest {
             format = json.getValue("format").jsonPrimitive.content,
             layoutHash = json.getValue("layoutHash").jsonPrimitive.content,
             spriteCount = json.getValue("spriteCount").jsonPrimitive.int,
+            mipLevels = json["mipLevels"]?.jsonPrimitive?.int ?: 1,
             sprites = json.getValue("sprites").jsonArray.map { s ->
                 val o = s.jsonObject
                 SpriteEntry(
@@ -206,7 +229,8 @@ class AtlasManifestSyncTest {
         const val KTX_MAGIC_OFFSET = 0
         const val KTX_WIDTH_OFFSET = 32
         const val KTX_HEIGHT_OFFSET = 36
-        const val KTX_DATA_SIZE_OFFSET = 64
+        const val KTX_MIP_COUNT_OFFSET = 52
+        const val KTX_DATA_SIZE_FIELD = 4
         const val ASTC_BLOCK = 4
         const val ASTC_BLOCK_BYTES = 16
         const val LAYOUT_HASH_LENGTH = 16

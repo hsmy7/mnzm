@@ -152,6 +152,17 @@ object NativeBridge {
     external fun setRenderFlags(buildingShadows: Boolean, selectionHighlight: Boolean, decorLod: Boolean)
 
     /**
+     * 推送纹理采样质量开关（B.1 + 自选清晰度联动；渲染线程调用）。
+     * 通道模式仿 [setRenderScale]：Compose 线程仅写 @Volatile，渲染线程消费后调用本方法。
+     * 影响地图图集/地面采样器：mipmap 三线性过滤 + 各向异性（设备支持时）。
+     * 仅 VulkanBackend 支持；GLES/Canvas 后端无操作。
+     *
+     * @param anisotropyMax 最大各向异性倍率（0 = 关闭；ClarityMode X2/X4/X8 → 2.0/4.0/8.0）
+     * @param mipmap 是否启用 mipmap 三线性过滤（ClarityMode mipmap 字段）
+     */
+    external fun setTextureQuality(anisotropyMax: Float, mipmap: Boolean)
+
+    /**
      * 推送地图淡入 alpha（0-1，渲染线程每帧调用）。
      * 只影响 drawAllTiles 的地图层 quad alpha（C++ 侧乘算）；
      * drawRect/drawSprite（预览/高亮）不受影响——与 Canvas 侧独立 Paint 行为一致。

@@ -3,8 +3,9 @@
   "format": "ASTC_4x4_LDR",
   "width": 4096,
   "height": 4096,
+  "mipLevels": 11,
   "layoutHash": "8133e005ffde426b",
-  "generatedAt": "2026-09-02T21:40:22.937Z",
+  "generatedAt": "2026-09-02T22:19:56.902Z",
   "spriteCount": 38,
   "sprites": [
     {

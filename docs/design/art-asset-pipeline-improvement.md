@@ -200,9 +200,9 @@
 | (a) 通用精灵未 GPU 压缩（Compose 限制） | Compose ImageBitmap 无 ASTC 路径；走 native 渲染与 UI 架构矛盾 | 出现 UI 内存/带宽瓶颈（Bugly 内存告警、大 UI 卡顿反馈）或 UI 迁移 native 渲染时 |
 | (b) Canvas 软渲染无真 mip | 软渲染位图不走 GPU mip；本期仅双线性缓解 | Vulkan 已带 mip 后，软渲染设备仍反馈缩放闪烁时（提升 atlas 精度或手动 mip） |
 | (c) 大背景转 native 渲染（B.2-c） | 规模化 UI 渲染需求未到；代价大 | 出现大规模 UI / 性能瓶颈时评估 |
-| (d) B.1 图集 mipmap | 本地图为正交俯视投影，mipmap 仅部分改善远距缩减（远景主要糊源是 64×64 地面 repeat 贴图，属 `convert-grass-tiles` 独立管线）；多 mip KTX + KtxLoader/VulkanBackend 改动需真机视觉验证 | ① 玩家反馈地图远景/缩小时采样混叠、闪烁明显（Bugly 反馈或实机走查）；② 地面 repeat 贴图高分辨率化（128/256 无缝）后，图集 mipmap 才有完整增益 |
-| (e) B.1 各向异性 | 正交俯视投影下图集贴图非斜视，各向异性增益近零；C++ 设备特性 + sampler 改动风险大于收益 | 地图改非正交投影（等距斜视 2.5D）或引入斜视角相机时 |
-| (f) 待补 110 条映射（UI 拉丁名↔中文源 / 立绘动态 / 妖兽等） | 需分类规则（中英映射字典）或人工，自动化收益低；且这些多为**已保留源尺寸的大图**，无实际清晰度缺口 | 对应素材需重烘焙 / 更新源图时，按分类规则补齐映射（一次性增量） |
+| (d) B.1 图集 mipmap | **已清偿**（2026-09：`build-atlas.mjs` 多 mip KTX + KtxLoader/VulkanBackend 落地；`--no-mip` 兜底） | — |
+| (e) B.1 各向异性 | **已清偿**（2026-09：`samplerAnisotropy` 特性守卫 + `setTextureQuality` 运行时开关落地；正交投影下增益有限已如实评估） | — |
+| (f) 待补 110 条映射（UI 拉丁名↔中文源 / 立绘动态 / 妖兽等） | **已清偿**（2026-09：scaffold `deriveSource` 分类规则 + `MANUAL_OVERRIDES` 全量补齐；含肖像/妖兽/立绘/秘境等） | — |
 
 > 规则：以上为显式登记债项，均有可判断触发条件；本方案**无"现在不做、无触发"的隐藏债**。债项同步登记到 `docs/architecture.md` 待办登记表。
 
@@ -259,5 +259,5 @@
 | A 段（映射自动化 + 3 守卫） | ✅ 已落地 | `source-mapping.json`（176 映射/110 待补）+ `import-art-assets.mjs`（bake/hash/dry-run/fail-fast）+ `SpriteSourceMappingGuardTest` 通过 |
 | C1（地图图集槽位提升） | ✅ 已落地 | 图集 2048→**4096**；瓦片 64→**128**、建筑 256→**512**、天枢殿 512→**1024**；KTX 重建；守卫同步；**Canvas 软渲染图集封顶 2048**（防 4096 建 64MB 位图 OOM）；天枢殿 drawable 已重烘焙到源分辨率 1405×1091 |
 | D1（自选清晰度） | ✅ 已落地 | `ClarityMode` + 设置 UI（性能下方，默认中）+ 引擎/FPS/持久化 + `RenderScalePolicy` 叠加；测试通过 |
-| B.1（图集 mipmap + 各向异性） | ⏳ 登记为技术债（非本期落地） | 判定：本地图为**正交俯视投影**——各向异性对正交贴图几乎无增益；mipmap 有远距缩减价值，但远景主要糊源是 64×64 地面 repeat 贴图（独立 `convert-grass-tiles` 管线，非图集），图集 mipmap 仅部分改善；且多 mip KTX + `KtxLoader`/`VulkanBackend` 改动需真机视觉验证。→ 按 YAGNI 计入技术债（见第八节），不落地低价值未验证 C++ |
-| B1（全部素材重烘焙到高分辨率） | ✅ 已落地（小物件全覆盖；大图本就保留源尺寸） | `import-art-assets.mjs` 非 dry-run 执行：**小物件分类（丹药/材料/装备/种子/储物袋/功法/草药）全部 480→1024**；大图（立绘/背景/UI/妖兽/建筑/云层）本就保留源尺寸。天枢殿 1405×1091。**包体：drawable WebP ~123MB→~166MB（+43MB，来自小物件 1024）**。剩余 110 条映射（UI 拉丁名↔中文源 / 立绘动态 / 妖兽等）多为**已保留源尺寸的大图**，非低分辨率，无实际清晰度缺口；登记为技术债 |
+| B.1（图集 mipmap + 各向异性） | ✅ 已落地 | `build-atlas.mjs` **多 mip KTX**（4096→4，11 级；astcenc 5.7 无 `-m`，改为 sharp 逐级下采样 + 逐级 astcenc 压缩再封装）+ `KtxLoader` 多 mip 解析 + `VulkanBackend` mip 图像/视图 + 三线性 mip sampler + 各向异性（`samplerAnisotropy` 特性守卫，不支持时回退关闭）+ `setTextureQuality(anisotropy, mipmap)` 运行时采样器开关（自选清晰度联动）；`NativeSurfaceView`/`MainGameScreen` 接入 `ClarityMode.anisotropy/mipmap`。Canvas 软渲染主 Paint 已 `isFilterBitmap=true`（双线性）。`AtlasManifestSyncTest` 多 mip 结构校验同步。`--no-mip` 兜底保留 |
+| B1（全部素材重烘焙到高分辨率） | ✅ 已落地（小物件全覆盖；大图本就保留源尺寸） | `import-art-assets.mjs` 非 dry-run 执行：**小物件分类（丹药/材料/装备/种子/储物袋/功法/草药）全部 480→1024**；大图（立绘/背景/UI/妖兽/建筑/云层）本就保留源尺寸。天枢殿 1405×1091。**包体：drawable WebP ~123MB→~166MB（+43MB，来自小物件 1024）**。**110 条待补映射已全部补齐**（BEAST/SECT_ICON/SPIRIT_STONE/growing_*/UI/CAVE/HEAVENLY_TRIAL/BACKGROUND/PORTRAIT/EQUIPMENT 特例，经 scaffold `deriveSource` 分类规则 + `MANUAL_OVERRIDES`；详见第八节 (f)） |

@@ -4,20 +4,22 @@
 #include <cstdint>
 
 // ============================================================
-// KtxLoader — KTX1 单 mip 压缩纹理容器解析（WP7 ASTC 图集）
+// KtxLoader — KTX1 压缩纹理容器解析（WP7 ASTC 图集，B.1 支持多 mip）
 //
 // 输入：assets/atlas/atlas_astc.ktx（由 scripts/build-atlas.mjs 生成，
-//       astcenc -cl 4x4 -medium 压缩 + 64 字节 KTX1 头封装）
-// 输出：数据段指针 + 尺寸 + 宽高 + 内部格式，全部字段校验通过才成功。
+//       astcenc -cl 4x4 -medium 压缩 + 64 字节 KTX1 头封装；B.1 起
+//       numberOfMipmapLevels >= 1，数据区 = 逐级 [imageSize 4 字节][数据]）
+// 输出：数据区指针 + 尺寸 + mip 层级数 + 内部格式，全字段校验通过才成功。
 //
 // 失败语义：返回 false（Kotlin 侧回退 RGBA 图集路径，视觉零差异）。
 // 校验清单（对抗性审查：损坏 KTX 必须被检测，不允许半解析成功）：
 //   - magic "«KTX 11»" / endianness 0x04030201
 //   - glType == 0 && glFormat == 0（压缩纹理容器）
 //   - glInternalFormat == 0x93B0（ASTC 4x4 LDR——只接受本管线产物）
-//   - faces == 1 && mipLevels == 1 && depth == 0 && array == 0
+//   - faces == 1 && mipCount >= 1 && depth == 0 && array == 0
 //   - 宽高 > 0 且为 4 的倍数（ASTC 块对齐）
-//   - dataSize == 块数 × 16（几何推导，防头数据不一致）
+//   - 逐级 dataSize == 块数 × 16（几何推导，防头数据不一致）
+//   - 数据区总长精确结束于文件尾（防尾随字节注入）
 // ============================================================
 
 // KTX1 头字段布局（64 字节，小端）
@@ -61,10 +63,11 @@ constexpr uint32_t MAX_TEXTURE_DIMENSION = 16384;
 
 /** 解析结果（仅在 loadKtx1 返回 true 时有意义） */
 struct KtxInfo {
-    const uint8_t* data = nullptr;  // 数据段起始（指向输入缓冲内部，调用方生命周期内有效）
-    size_t dataSize = 0;
-    uint32_t width = 0;
-    uint32_t height = 0;
+    const uint8_t* data = nullptr;    // 所有 mip 数据区起始（= 文件头后，含各层 [size4] 前缀）
+    size_t dataSize = 0;              // data 区总字节（含各层 size4 前缀）
+    uint32_t width = 0;               // mip0 宽
+    uint32_t height = 0;              // mip0 高
+    uint32_t mipCount = 1;            // mip 层级数（>=1；B.1 支持多 mip）
     uint32_t internalFormat = 0;
 };
 

@@ -458,6 +458,22 @@
       "height": 1024
     },
     {
+      "drawable": "long_ling_zhu",
+      "source": "材料/龙灵珠.png",
+      "hash": "3799e4ad51c213796fe58186d9cbb4eb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":915,\"height\":1024}}",
+      "width": 915,
+      "height": 1024
+    },
+    {
+      "drawable": "luan_yu_lv",
+      "source": "装备/鸾羽靴.png",
+      "hash": "48762261ba0595dab4b7b362d7e0cc72",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":813}}",
+      "width": 1024,
+      "height": 813
+    },
+    {
       "drawable": "qing_yu_xue",
       "source": "装备/轻羽靴.png",
       "hash": "1fdf4eaa85f823130a80c601c08c198e",
@@ -632,6 +648,30 @@
       "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":930}}",
       "width": 1024,
       "height": 930
+    },
+    {
+      "drawable": "spirit_stone_low",
+      "source": "材料/下品灵石.png",
+      "hash": "d43e0c2815922e4fdbb42d9b6391b944",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":737,\"height\":1024}}",
+      "width": 737,
+      "height": 1024
+    },
+    {
+      "drawable": "spirit_stone_mid",
+      "source": "材料/中品灵石.png",
+      "hash": "9936093a5cdf02c71a9d23ea18ab7387",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":687,\"height\":1024}}",
+      "width": 687,
+      "height": 1024
+    },
+    {
+      "drawable": "spirit_stone_high",
+      "source": "材料/上品灵石.png",
+      "hash": "e0328b68314fcfbebb7661676a4fe321",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":666,\"height\":1024}}",
+      "width": 666,
+      "height": 1024
     },
     {
       "drawable": "tiger_hide",
@@ -936,6 +976,38 @@
       "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":670,\"height\":768}}",
       "width": 670,
       "height": 768
+    },
+    {
+      "drawable": "sect_icon_small",
+      "source": "ui/小型宗门图标.png",
+      "hash": "0b64817c5ab4d6b5f1f1496d86331277",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1072,\"height\":1024}}",
+      "width": 1072,
+      "height": 1024
+    },
+    {
+      "drawable": "sect_icon_medium",
+      "source": "ui/中型宗门图标.png",
+      "hash": "53e2b4914564e0f7624de8a1193b9fc0",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1070,\"height\":1024}}",
+      "width": 1070,
+      "height": 1024
+    },
+    {
+      "drawable": "sect_icon_large",
+      "source": "ui/大型宗门图标.png",
+      "hash": "35d253e6b717c5e75fa0e49af960a4ba",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1079,\"height\":1023}}",
+      "width": 1079,
+      "height": 1023
+    },
+    {
+      "drawable": "sect_icon_top",
+      "source": "ui/顶级宗门图标.png",
+      "hash": "9757d6243ef6cf34bd449ce492e54a24",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1072,\"height\":1023}}",
+      "width": 1072,
+      "height": 1023
     },
     {
       "drawable": "herb_spiritgrass1",
@@ -1354,12 +1426,796 @@
       "height": 728
     },
     {
+      "drawable": "seed_spiritfruit8",
+      "source": "种子/玄灵莓种.png",
+      "hash": "a472d81d6828cc666a5a0465eac8a5d1",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":382,\"height\":383}}",
+      "width": 382,
+      "height": 383
+    },
+    {
       "drawable": "seed_spiritfruit9",
       "source": "种子/天元果核.png",
       "hash": "c891399dedc224652cc996cade8ec3e4",
       "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":454,\"height\":354}}",
       "width": 454,
       "height": 354
+    },
+    {
+      "drawable": "growing_spiritgrass1",
+      "source": "草药生长期/聚灵草成长期图片.png",
+      "hash": "59fff3a6236cdc3b8c330b8f7ca0827c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":830,\"height\":986}}",
+      "width": 830,
+      "height": 986
+    },
+    {
+      "drawable": "growing_spiritgrass2",
+      "source": "草药生长期/清心草成长期图片.png",
+      "hash": "4d1d92ec2ee2729177144bc2cd393026",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":761,\"height\":767}}",
+      "width": 761,
+      "height": 767
+    },
+    {
+      "drawable": "growing_spiritgrass3",
+      "source": "草药生长期/凝气草成长期图片.png",
+      "hash": "6c90c6daf332d9c5c1c145402ab75e0e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":503,\"height\":768}}",
+      "width": 503,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritflower1",
+      "source": "草药生长期/云雾花成长期图片.png",
+      "hash": "4f3a8dd51551ad9d417461cd24a0dcd1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":532,\"height\":768}}",
+      "width": 532,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritflower2",
+      "source": "草药生长期/白莲成长期图片.png",
+      "hash": "0bf9e12ad5b6534893fe0aadeb52d45d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":627,\"height\":768}}",
+      "width": 627,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritflower3",
+      "source": "草药生长期/晨露花成长期图片.png",
+      "hash": "22538df8e30796723e1045af5f9f3180",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":582,\"height\":768}}",
+      "width": 582,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit1",
+      "source": "草药生长期/精气果成长期图片.png",
+      "hash": "a65bb5e9647a831fd68f5d4cc4158769",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":446,\"height\":768}}",
+      "width": 446,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit2",
+      "source": "草药生长期/赤心果成长期图片.png",
+      "hash": "41b200b1efc9d75046e1cc53d7b6e4e3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":590,\"height\":768}}",
+      "width": 590,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit3",
+      "source": "草药生长期/灵韵果成长期图片.png",
+      "hash": "60c6829a1834b68b52decf09e353aa08",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":474,\"height\":768}}",
+      "width": 474,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritgrass4",
+      "source": "草药生长期/寒霜草成长期图片.png",
+      "hash": "0dc38365a0a9274cfc4409d13399809a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":671,\"height\":982}}",
+      "width": 671,
+      "height": 982
+    },
+    {
+      "drawable": "growing_spiritgrass5",
+      "source": "草药生长期/烈焰草成长期图片.png",
+      "hash": "de9355ccdfc9047983d036e385ed99b8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":726,\"height\":828}}",
+      "width": 726,
+      "height": 828
+    },
+    {
+      "drawable": "growing_spiritgrass6",
+      "source": "草药生长期/金灵草成长期图片.png",
+      "hash": "3ea649a505b437d71976f9a0f4215c87",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":618,\"height\":934}}",
+      "width": 618,
+      "height": 934
+    },
+    {
+      "drawable": "growing_spiritflower4",
+      "source": "草药生长期/冰魄莲成长期图片.png",
+      "hash": "0d2672b62fc4a3c34e1d25b22d794c41",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":746,\"height\":866}}",
+      "width": 746,
+      "height": 866
+    },
+    {
+      "drawable": "growing_spiritflower5",
+      "source": "草药生长期/双生花成长期图片.png",
+      "hash": "4c0f6687b1bb75f9a869dadf741a1f67",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":614,\"height\":714}}",
+      "width": 614,
+      "height": 714
+    },
+    {
+      "drawable": "growing_spiritflower6",
+      "source": "草药生长期/紫霄花成长期图片.png",
+      "hash": "4ee0adab7ba7ec681b1808bae01e4fa1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":751,\"height\":988}}",
+      "width": 751,
+      "height": 988
+    },
+    {
+      "drawable": "growing_spiritfruit4",
+      "source": "草药生长期/通灵果成长期图片.png",
+      "hash": "ceea45cf7e21e206c336003fe0953bd8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":604,\"height\":1024}}",
+      "width": 604,
+      "height": 1024
+    },
+    {
+      "drawable": "growing_spiritfruit5",
+      "source": "草药生长期/玄灵果成长期图片.png",
+      "hash": "139a7730725649afa85fdb8fe0519c00",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":580,\"height\":768}}",
+      "width": 580,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit6",
+      "source": "草药生长期/五行果成长期图片.png",
+      "hash": "001e66032988acdb89cc4d037a9e1e85",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":663,\"height\":900}}",
+      "width": 663,
+      "height": 900
+    },
+    {
+      "drawable": "growing_spiritgrass7",
+      "source": "草药生长期/龙血草成长期.png",
+      "hash": "62c3716caa9394ecb5779d2aacbd3e22",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":436,\"height\":524}}",
+      "width": 436,
+      "height": 524
+    },
+    {
+      "drawable": "growing_spiritgrass8",
+      "source": "草药生长期/风铃草成长期.png",
+      "hash": "1b8e378056c4cad27df19eaea8d53a30",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":442,\"height\":745}}",
+      "width": 442,
+      "height": 745
+    },
+    {
+      "drawable": "growing_spiritgrass9",
+      "source": "草药生长期/九转灵草成长期.png",
+      "hash": "6d36dc56aae8f7a420b1cef26883e75c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":334,\"height\":410}}",
+      "width": 334,
+      "height": 410
+    },
+    {
+      "drawable": "growing_spiritflower7",
+      "source": "草药生长期/九转仙兰成长期.png",
+      "hash": "5d22217fa7fd85093d125f3c5fd556a1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":643,\"height\":508}}",
+      "width": 643,
+      "height": 508
+    },
+    {
+      "drawable": "growing_spiritflower8",
+      "source": "草药生长期/凤凰花成长期.png",
+      "hash": "6c1b09af52c7fc859c3b4d03b9e1f842",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":439,\"height\":551}}",
+      "width": 439,
+      "height": 551
+    },
+    {
+      "drawable": "growing_spiritflower9",
+      "source": "草药生长期/青龙花成长期.png",
+      "hash": "9fe2dbb698b7bdbe3fe95f8086b4a650",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":481,\"height\":652}}",
+      "width": 481,
+      "height": 652
+    },
+    {
+      "drawable": "growing_spiritfruit7",
+      "source": "草药生长期/赤阳果成长期.png",
+      "hash": "3ed9691fe32469311ba492322324a885",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":420,\"height\":533}}",
+      "width": 420,
+      "height": 533
+    },
+    {
+      "drawable": "growing_spiritfruit8",
+      "source": "草药生长期/玄灵莓成长期.png",
+      "hash": "b45784ac25a4a5ddce277be5f92e6a74",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":472,\"height\":590}}",
+      "width": 472,
+      "height": 590
+    },
+    {
+      "drawable": "growing_spiritfruit9",
+      "source": "草药生长期/天元果成长期.png",
+      "hash": "e2530f2c77e5dbb387ecee88c4f05146",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":361,\"height\":666}}",
+      "width": 361,
+      "height": 666
+    },
+    {
+      "drawable": "ui_button",
+      "source": "ui/按钮（长方形）.png",
+      "hash": "2a5d7c462b082a7700bf719867cee657",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3828,\"height\":1384}}",
+      "width": 3828,
+      "height": 1384
+    },
+    {
+      "drawable": "ui_close_button",
+      "source": "ui/关闭按钮（圆形）.png",
+      "hash": "f3e94eb16711dac6b627e772c93d114b",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":854,\"height\":788}}",
+      "width": 854,
+      "height": 788
+    },
+    {
+      "drawable": "ui_detail_button",
+      "source": "ui/详情按钮（圆形）.png",
+      "hash": "be3c575fd878d520ec5a11d03a0bf1e9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":882,\"height\":805}}",
+      "width": 882,
+      "height": 805
+    },
+    {
+      "drawable": "ui_add_button",
+      "source": "ui/+号按钮.png",
+      "hash": "539bda2ec9a00c938f6a7d5380500c6c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":2048}}",
+      "width": 2048,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_diplomacy_button",
+      "source": "ui/外交按钮（圆形）.png",
+      "hash": "bb4ddf258bce9b3c39b4a8fe6138357a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":942}}",
+      "width": 1024,
+      "height": 942
+    },
+    {
+      "drawable": "ui_guide_button",
+      "source": "ui/引导按钮.png",
+      "hash": "cdfa1ca5dfb790a9edc41f8e31d5d0c0",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1239}}",
+      "width": 1254,
+      "height": 1239
+    },
+    {
+      "drawable": "ui_merchant_button",
+      "source": "ui/商人按钮（圆形）.png",
+      "hash": "a0c7bc141bd8daefa10f7071bb3538c9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":922,\"height\":882}}",
+      "width": 922,
+      "height": 882
+    },
+    {
+      "drawable": "ui_build_button",
+      "source": "ui/建造按钮.png",
+      "hash": "c0838409ce7d29424d4cf1f2f6787fc8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1512,\"height\":1462}}",
+      "width": 1512,
+      "height": 1462
+    },
+    {
+      "drawable": "ui_warehouse_button",
+      "source": "ui/仓库按钮.png",
+      "hash": "8d7e53605aa2075aed9b49d32efb4a3b",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1448,\"height\":1394}}",
+      "width": 1448,
+      "height": 1394
+    },
+    {
+      "drawable": "ui_team_button",
+      "source": "ui/弟子按钮（圆形）.png",
+      "hash": "fa5a0c720f8e12977e9defdb4e2b00e8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":866,\"height\":792}}",
+      "width": 866,
+      "height": 792
+    },
+    {
+      "drawable": "ui_map_button",
+      "source": "ui/地图按钮(圆形）.png",
+      "hash": "2d90374e24b97348bae574c92939eb37",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3585,\"height\":3003}}",
+      "width": 3585,
+      "height": 3003
+    },
+    {
+      "drawable": "ui_planting_button",
+      "source": "ui/种植按钮.png",
+      "hash": "919d7d3f980a621a4d915c1ae3b4d519",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1221}}",
+      "width": 1254,
+      "height": 1221
+    },
+    {
+      "drawable": "ui_recruit_button",
+      "source": "ui/招募按钮（圆形）.png",
+      "hash": "8f01a845f9849175144b49d6eee40716",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1022,\"height\":991}}",
+      "width": 1022,
+      "height": 991
+    },
+    {
+      "drawable": "ui_mail_button",
+      "source": "ui/邮件按钮.png",
+      "hash": "87d6e4a1e0a8f94c702f7b885e79de2d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1224}}",
+      "width": 1254,
+      "height": 1224
+    },
+    {
+      "drawable": "ui_log_button",
+      "source": "ui/日志按钮（圆形）.png",
+      "hash": "9b8efa001fc4f914feedab501d4ad336",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":995}}",
+      "width": 1024,
+      "height": 995
+    },
+    {
+      "drawable": "dialog_box",
+      "source": "ui/提示框背景图.png",
+      "hash": "21549c82e97ee843d11a5fd607701497",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3176,\"height\":1040}}",
+      "width": 3176,
+      "height": 1040
+    },
+    {
+      "drawable": "ui_hide_button",
+      "source": "ui/隐藏ui按钮.png",
+      "hash": "785d29f869095f9ecb4d085698186cb3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1245}}",
+      "width": 1254,
+      "height": 1245
+    },
+    {
+      "drawable": "ui_show_button",
+      "source": "ui/ui显示按钮.png",
+      "hash": "2001d6ac913b411ee728c02daf7a7d36",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1272,\"height\":1238}}",
+      "width": 1272,
+      "height": 1238
+    },
+    {
+      "drawable": "ui_play_button",
+      "source": "ui/播放按钮（圆形）.png",
+      "hash": "388a845a2e0b1b72991ab98872f48f46",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1007,\"height\":948}}",
+      "width": 1007,
+      "height": 948
+    },
+    {
+      "drawable": "ui_pause_button",
+      "source": "ui/暂停按钮（圆形）.png",
+      "hash": "b4a5e41c6a4e414c10dd9abc4d567c28",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":943,\"height\":882}}",
+      "width": 943,
+      "height": 882
+    },
+    {
+      "drawable": "ui_settings_button",
+      "source": "ui/设置按钮（圆形）.png",
+      "hash": "26920b673fbd6e2e35f58f27aa119029",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":958}}",
+      "width": 1024,
+      "height": 958
+    },
+    {
+      "drawable": "ui_start_button",
+      "source": "ui/进入游戏.png",
+      "hash": "7c564568ed1cbfee19b7c0f67cbc9449",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1825,\"height\":523}}",
+      "width": 1825,
+      "height": 523
+    },
+    {
+      "drawable": "loading_background",
+      "source": "ui/加载界面（横屏）.png",
+      "hash": "31285dc33dae49fb5981565ce8522ec2",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1672,\"height\":941}}",
+      "width": 1672,
+      "height": 941
+    },
+    {
+      "drawable": "combat_power_bg",
+      "source": "ui/战力背景图片.png",
+      "hash": "3d9e2f7e020bcfcd1d339a4c16fc7499",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1909,\"height\":534}}",
+      "width": 1909,
+      "height": 534
+    },
+    {
+      "drawable": "jade_symbol",
+      "source": "ui/玉符.png",
+      "hash": "4f2d4c310f267586ded8a87c72c8d181",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":518,\"height\":767}}",
+      "width": 518,
+      "height": 767
+    },
+    {
+      "drawable": "jade_add_button",
+      "source": "ui/+号按钮.png",
+      "hash": "539bda2ec9a00c938f6a7d5380500c6c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":2048}}",
+      "width": 2048,
+      "height": 2048
+    },
+    {
+      "drawable": "golden_finger",
+      "source": "ui/金手指.png",
+      "hash": "212d305e0f5f8d0cfd824a8bfad8c480",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":347,\"height\":438}}",
+      "width": 347,
+      "height": 438
+    },
+    {
+      "drawable": "secret_realm_option_card",
+      "source": "ui/远古秘境选项卡片.png",
+      "hash": "f030cf3f0702ee7d8201e0c8a0a51b5c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":834,\"height\":1536}}",
+      "width": 834,
+      "height": 1536
+    },
+    {
+      "drawable": "ui_lizhan_button",
+      "source": "ui/历战图标.png",
+      "hash": "65956d9c18d5b805d78bf720791c3352",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1269,\"height\":1238}}",
+      "width": 1269,
+      "height": 1238
+    },
+    {
+      "drawable": "li_zhan_card",
+      "source": "ui/历战卡片.png",
+      "hash": "d418e64a2be1041e1a623f6f9669ef1f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":930,\"height\":1536}}",
+      "width": 930,
+      "height": 1536
+    },
+    {
+      "drawable": "heavenly_trial_icon",
+      "source": "ui/天道试炼图标.png",
+      "hash": "ccb239a3b426373f01996f23ceeaa8d6",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":765,\"height\":768}}",
+      "width": 765,
+      "height": 768
+    },
+    {
+      "drawable": "ui_leaderboard_button",
+      "source": "ui/排行榜图标.png",
+      "hash": "9dd9b773d3b5071e81c5b562bef1affe",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1250,\"height\":1254}}",
+      "width": 1250,
+      "height": 1254
+    },
+    {
+      "drawable": "ui_flip_left",
+      "source": "ui/翻页按钮（左）.png",
+      "hash": "2bbf2ff7640f56ca62a25dcd4b64e8d9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":943,\"height\":968}}",
+      "width": 943,
+      "height": 968
+    },
+    {
+      "drawable": "ui_flip_right",
+      "source": "ui/翻页按钮(右）.png",
+      "hash": "3c183e8a9624f841b4f2701b4e33b045",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":947,\"height\":968}}",
+      "width": 947,
+      "height": 968
+    },
+    {
+      "drawable": "area_select_button",
+      "source": "ui/区域选择按钮.png",
+      "hash": "8be20f3bd87b259b8fb4d668150c607c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1254}}",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "drawable": "tiger_beast",
+      "source": "妖兽/虎妖.png",
+      "hash": "8d8c6cfe655b15b58e09b35d97579c10",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":990,\"height\":596}}",
+      "width": 990,
+      "height": 596
+    },
+    {
+      "drawable": "wolf_beast",
+      "source": "妖兽/狼妖.png",
+      "hash": "73fdd95f67609a5a1bda16ab9318a610",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":896,\"height\":654}}",
+      "width": 896,
+      "height": 654
+    },
+    {
+      "drawable": "snake_beast",
+      "source": "妖兽/蛇妖.png",
+      "hash": "2abcf608dff4366fe45e5b581c8389a3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":956,\"height\":748}}",
+      "width": 956,
+      "height": 748
+    },
+    {
+      "drawable": "bear_beast",
+      "source": "妖兽/熊妖.png",
+      "hash": "23de191d81bfd308dc5de36c4c158dc3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":990,\"height\":703}}",
+      "width": 990,
+      "height": 703
+    },
+    {
+      "drawable": "eagle_beast",
+      "source": "妖兽/鹰妖.png",
+      "hash": "576f3723490abc395aedb324c334fb6d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":617}}",
+      "width": 1024,
+      "height": 617
+    },
+    {
+      "drawable": "fox_beast",
+      "source": "妖兽/狐妖.png",
+      "hash": "fefc9a9d94951f4245ad007461ffc722",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":990,\"height\":668}}",
+      "width": 990,
+      "height": 668
+    },
+    {
+      "drawable": "dragon_beast",
+      "source": "妖兽/龙妖.png",
+      "hash": "71fd5f58cf7381795e44781d9448d891",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":658}}",
+      "width": 1024,
+      "height": 658
+    },
+    {
+      "drawable": "turtle_beast",
+      "source": "妖兽/龟妖.png",
+      "hash": "392af8e0550a7170ea025fe2c33a582f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":686}}",
+      "width": 1024,
+      "height": 686
+    },
+    {
+      "drawable": "cave_1",
+      "source": "建筑/洞府素材1.png",
+      "hash": "69ed119342f4817b06eda0416fee5a74",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":998,\"height\":929}}",
+      "width": 998,
+      "height": 929
+    },
+    {
+      "drawable": "cave_2",
+      "source": "建筑/洞府素材2.png",
+      "hash": "f3ec7fa6e9a71a914d333fc2eaeeec5d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":891}}",
+      "width": 1024,
+      "height": 891
+    },
+    {
+      "drawable": "cave_3",
+      "source": "建筑/洞府素材3.png",
+      "hash": "945dd4a15d1a5e00c68ad745dbac7c0e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1015,\"height\":950}}",
+      "width": 1015,
+      "height": 950
+    },
+    {
+      "drawable": "secret_realm",
+      "source": "地图关卡场景/远古秘境.png",
+      "hash": "c14ea49d572da28b67bf5ac4c04bd951",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1236}}",
+      "width": 1254,
+      "height": 1236
+    },
+    {
+      "drawable": "heavenly_trial_island_1",
+      "source": "地图关卡场景/天道试炼活动第一关岛屿.png",
+      "hash": "9502bfd9d5e0268bd2ccfd9228c8caf3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":655,\"height\":1024}}",
+      "width": 655,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_2",
+      "source": "地图关卡场景/天道试炼第二关岛屿.png",
+      "hash": "d1b7cac322a76c7701b50485c8817bb7",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":676,\"height\":1024}}",
+      "width": 676,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_3",
+      "source": "地图关卡场景/天道试炼第三关岛屿.png",
+      "hash": "9ec42e7c391e04f653717758ef8e20f1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":666,\"height\":1024}}",
+      "width": 666,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_4",
+      "source": "地图关卡场景/天道试炼第四关岛屿.png",
+      "hash": "f36626b19ec844e83baa4694e3a3a824",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":870,\"height\":1024}}",
+      "width": 870,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_5",
+      "source": "地图关卡场景/天道试炼第五关岛屿.png",
+      "hash": "e304f9ae2f580aabe853e77b951a2aae",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":622,\"height\":1024}}",
+      "width": 622,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_6",
+      "source": "地图关卡场景/天道试炼第六关岛屿.png",
+      "hash": "75b0b82efc32df0b38a5fa30c104d09f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":677,\"height\":1024}}",
+      "width": 677,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_7",
+      "source": "地图关卡场景/天道试炼第七关岛屿.png",
+      "hash": "1f68c6cfb4ed9ed4e44e6dd7a0985b87",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":674,\"height\":1022}}",
+      "width": 674,
+      "height": 1022
+    },
+    {
+      "drawable": "heavenly_trial_island_8",
+      "source": "地图关卡场景/天道试炼第八关岛屿.png",
+      "hash": "09701f2c47bd76740767e7b16e514ae3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":724,\"height\":1024}}",
+      "width": 724,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_challenge_bg",
+      "source": "背景图/天道试炼活动背景图.png",
+      "hash": "4cf9a786a00d15764e0da6d4e905e403",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1376,\"height\":768}}",
+      "width": 1376,
+      "height": 768
+    },
+    {
+      "drawable": "heavenly_trial_battle_scene",
+      "source": "背景图/战斗场景.png",
+      "hash": "fb52c16607aba861eeb30e7ab5422200",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1247,\"height\":702}}",
+      "width": 1247,
+      "height": 702
+    },
+    {
+      "drawable": "heavenly_trial_battle_bar",
+      "source": "ui/战斗栏背景图.png",
+      "hash": "9c5421649307fca681f077faf741557e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1407,\"height\":414}}",
+      "width": 1407,
+      "height": 414
+    },
+    {
+      "drawable": "heavenly_trial_defend",
+      "source": "ui/防御图标.png",
+      "hash": "45329cb949d80bce2882fa116dc9b03e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":743,\"height\":767}}",
+      "width": 743,
+      "height": 767
+    },
+    {
+      "drawable": "heavenly_trial_atk_normal",
+      "source": "ui/普通攻击图标.png",
+      "hash": "1adba26d28ff780dd9ae56887bc3647f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":742,\"height\":768}}",
+      "width": 742,
+      "height": 768
+    },
+    {
+      "drawable": "heavenly_trial_phase1",
+      "source": "ui/天道试炼活动挑战界面第一关图标.png",
+      "hash": "6560bebfd2642eedf3848ca8ef1a1cf9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":746,\"height\":768}}",
+      "width": 746,
+      "height": 768
+    },
+    {
+      "drawable": "heavenly_trial_phase2",
+      "source": "ui/天道试炼活动挑战界面第二关图标.png",
+      "hash": "2961f49fa7d6e04df9e84c376f4c9c0f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":746,\"height\":768}}",
+      "width": 746,
+      "height": 768
+    },
+    {
+      "drawable": "bg_horizontal",
+      "source": "背景图/横向背景图.png",
+      "hash": "092ee346169567f4251314cf5e4e8b8a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":4096,\"height\":2300}}",
+      "width": 4096,
+      "height": 2300
+    },
+    {
+      "drawable": "bg_dialog_mail",
+      "source": "ui/提示框背景图.png",
+      "hash": "21549c82e97ee843d11a5fd607701497",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3176,\"height\":1040}}",
+      "width": 3176,
+      "height": 1040
+    },
+    {
+      "drawable": "bg_screen",
+      "source": "ui/界面背景图.png",
+      "hash": "7c4440afa1cdc9f7de522de43391fbf2",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":1536}}",
+      "width": 1024,
+      "height": 1536
+    },
+    {
+      "drawable": "map_zhongzhou",
+      "source": "地图关卡场景/中州.png",
+      "hash": "a2508b089aacce36d0e73b0e36989607",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1698,\"height\":926}}",
+      "width": 1698,
+      "height": 926
+    },
+    {
+      "drawable": "dialogue_bg",
+      "source": "ui/聊天背景图.png",
+      "hash": "e0121dba52ec6e29e8254b86b364cdc1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":1024}}",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "drawable": "dialogue_bubble_left",
+      "source": "ui/聊天框（左）.png",
+      "hash": "dc0027e8d4f234dc58e6309bef26203c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1232,\"height\":200}}",
+      "width": 1232,
+      "height": 200
+    },
+    {
+      "drawable": "dialogue_bubble_right",
+      "source": "ui/聊天框（右）.png",
+      "hash": "66d796e1f897d092720e7bc6c49600d0",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1233,\"height\":202}}",
+      "width": 1233,
+      "height": 202
+    },
+    {
+      "drawable": "secret_realm_bg",
+      "source": "背景图/远古秘境背景图.png",
+      "hash": "de36299e46b2bc5292d8adc87588a23f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":1024}}",
+      "width": 1536,
+      "height": 1024
     },
     {
       "drawable": "cloud_1",

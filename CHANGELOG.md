@@ -12,6 +12,17 @@
 - **脚本清理**：删除被取代的 `convert-herb-sprites`/`convert-remaining-pngs-to-webp`/`convert-floor-tiles` + 旧根 `import-art-assets`；修复 import hash 增量 bug（hash 仅存 srcMd5，dry-run 如实报增量）。
 - **验证**：app/core:engine/feature 图集·清单·守卫测试全绿 · NDK externalNativeBuildRelease · app compileReleaseKotlin · lintRelease。
 
+### 美术资产管线补全（B.1 图集 mipmap + 各向异性 + 110 条待补映射）
+
+> 承接 4.01.12 美术资产管线批次的收尾：兑现资产管线方案第八节已登记的三项技术债（B.1 图集 mipmap、B.1 各向异性、待补 110 条映射）。详见 `docs/design/art-asset-pipeline-improvement.md` / `docs/design/graphics-clarity-settings.md`。
+
+- **B.1 图集 mipmap**（KTX 多 mip）：`build-atlas.mjs` 生成 4096→4 十一级 mip 链（**astcenc 5.7 无 `-m` 开关，设计稿假设不成立**——改为 sharp 逐级下采样拼装图集 + 逐级 astcenc 压缩再封装 KTX1，`numberOfMipmapLevels=11`）；`KtxLoader` 解析逐级 `[size4][数据]` 数据区（全字段校验含逐级 dataSize 几何推导 + 数据区精确结束于文件尾）；`VulkanBackend` 创建 mip 图像/视图 + `mipmapMode=VK_SAMPLER_MIPMAP_MODE_LINEAR` 三线性 sampler；`--no-mip` 兜底保留。
+- **B.1 各向异性**：`createLogicalDevice` 经 `supportedFeatures.samplerAnisotropy` 守卫启停（不支持自动回退关闭）；`createSampler` 统一按当前质量创建 sampler（上传 + 运行时开关复用）；`VulkanBackend::setTextureQuality(anisotropy, mipmap)` 运行时重建图集/地面采样器。
+- **自选清晰度联动**：`ClarityMode.anisotropy/mipmap` 字段经 `MainGameScreen` → `NativeSurfaceView.clarityAnisotropy/clarityMipmap`（@Volatile）→ 渲染线程 `consumePendingTextureQuality` → `NativeBridge.setTextureQuality`，玩家切换清晰度即时重建纹理采样；JNI 函数 `setTextureQuality` 非 Vulkan 后端 no-op。
+- **110 条待补映射闭环**：`scaffold-source-mapping.mjs` 扩展 `deriveSource` 分类规则（SPIRIT_STONE 品级/灵石、SECT_ICON 宗门图标、ITEM `growing_*`（由 registry herb 中文名推导 `草药生长期`）、BEAST 妖兽、CAVE 洞府/秘境、HEAVENLY_TRIAL 岛屿/战斗元素、BACKGROUND 背景、UI 拉丁名↔中文源字典）+ `MANUAL_OVERRIDES`（EQUIPMENT 龙灵珠/鸾羽履、seed `玄灵莓核` 等非规则条目）；`source-mapping.json` 286 条全映射（待补 110→0）；`sources-imported.json` 同步。
+- **Canvas 软渲染**：主 `Paint` 已 `isFilterBitmap=true`（双线性）缓解软渲染缩放闪烁（B.1 债项 (b) 维持登记，待软渲染设备反馈仍明显时提升图集精度）。
+- **验证**：AtlasManifestSyncTest 多 mip 结构校验同步 · SpriteSourceMappingGuardTest · generateAstcAtlas 重建 · NDK externalNativeBuildRelease · compileReleaseKotlin · lintRelease。
+
 ### 版本发布说明（C++ 引擎迁移：月变/年变真相源全量下沉完成）
 
 > 本版发布自 4.01.11 以来积累的 C++ 引擎迁移续作批 M-1/Y-1~Y-4（详见本文件下方各批条目与 `docs/cpp-engine.md`）——**月变/年变残留执行器扇出全量下沉 C++ 真相源**，Kotlin 侧降级为平台效应执行器。
