@@ -7,7 +7,8 @@ import com.xianxia.sect.core.nativebridge.GameCoreBridge
  * 渲染合成器物理下沉，批次 R 剩余）。
  *
  * 逐格道路合成的**单一权威**在 C++ `gamecore/map/road_compositor.h`
- * （主体→描边条→转角件→十字中心的操作序列 + 格内局部整型几何）。
+ * （主体→边缘条的操作序列 + 格内局部整型几何；单一主体、横/竖免旋转、
+ * 直路按方向出侧边缘、T 中心单侧、转角两开放侧且在格内、十字中心无边缘）。
  * 本对象仅做数据装配：JNI 取操作 + RoadSprite 枚举序 → 图集精灵名映射；
  * Kotlin 渲染路径（SoftwareCanvasBackend chunk 烘焙）不再持有合成逻辑。
  *
@@ -51,21 +52,14 @@ object RoadCompositorBridge {
     /** 每格操作扁平步长：[sprite, x, y, w, h] */
     const val OP_STRIDE = 5
 
-    /** 单格最大操作数（主体 1 + 描边条 4 + 转角件 4 + 十字中心 1） */
-    const val MAX_OPS_PER_TILE = 10
+    /** 单格最大操作数（主体 1 + 最多 2 侧 × 2 条 + 内凹角交汇块 = 6，转角格取最大） */
+    const val MAX_OPS_PER_TILE = 6
 
     /** 道路精灵名（下标 = C++ RoadSprite 枚举序 = ROAD_RECTS 声明序） */
     val SPRITE_KEYS = arrayOf(
-        "road_base",        // BASE：横向直路主体
-        "road_base_v",      // BASE_V：纵向直路主体
-        "road_junction",    // JUNCTION：转角/T/十字拼接主体
-        "road_edge_h",      // EDGE_H：水平描边条
-        "road_edge_v",      // EDGE_V：垂直描边条
-        "road_corner_tr",   // CORNER_TR：右上外缘转角件
-        "road_corner_tl",   // CORNER_TL：左上外缘转角件
-        "road_corner_br",   // CORNER_BR：右下外缘转角件
-        "road_corner_bl",   // CORNER_BL：左下外缘转角件
-        "road_cross_center" // CROSS_CENTER：十字中心装饰
+        "road_body",        // BODY：道路主体（方石板，恒用、不随方向旋转）
+        "road_edge_v",      // EDGE_V：竖直边缘条（1/6 格厚 × 1/2 格长）
+        "road_edge_h"       // EDGE_H：水平边缘条（edge_v 预烘焙旋转 90°）
     )
 
     /**

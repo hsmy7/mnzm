@@ -367,8 +367,10 @@ class SpriteAtlasDefGeneratedTest {
         // = ROAD_RECTS 声明序（roadUVMap 索引同序）——顺序漂移即三端错位。
         val atlasKeys = SpriteAtlasDef.ROAD_RECTS.map { it.first }
         assertEquals(atlasKeys, RoadCompositorBridge.SPRITE_KEYS.toList())
-        // 每格操作数上限与枚举数一致（C++ kRoadSpriteCount/kMaxRoadDrawOpsPerTile 同值）
-        assertEquals(RoadCompositorBridge.MAX_OPS_PER_TILE, RoadCompositorBridge.SPRITE_KEYS.size)
+        // 枚举数与单格最大操作数（分别等于 C++ kRoadSpriteCount=3 / kMaxRoadDrawOpsPerTile=6，
+        // 由 GTest road_compositor_test.SpriteEnumOrderIsContractAnchor 守护）
+        assertEquals(3, RoadCompositorBridge.SPRITE_KEYS.size)
+        assertEquals(6, RoadCompositorBridge.MAX_OPS_PER_TILE)
     }
 
     private data class Array5(

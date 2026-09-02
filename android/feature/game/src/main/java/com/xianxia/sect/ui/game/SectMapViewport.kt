@@ -197,7 +197,7 @@ private fun computeMapPreview(
         mb != null -> mb.displayName
         else -> ""
     }
-    // 石板道路：非建筑精灵，预览用 road_base 石板纹理（1×1 格）
+    // 石板道路：非建筑精灵，预览用 ROAD_UV_MAP[0]（road_body 石板纹理，1×1 格）
     val isRoadPreview = previewBuildingName == com.xianxia.sect.core.GameConfig.Road.DISPLAY_NAME
     val previewNameIdx = if (isRoadPreview) {
         -1

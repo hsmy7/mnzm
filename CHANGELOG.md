@@ -88,6 +88,16 @@
 - **玉符广告重启（Kotlin 路径无崩溃）**：发放路径线程安全（`launchOnEngine` 派发引擎线程，主线程守卫不触发，无 check/require，不触发存档/读档/重载）；疑似 `com.tapsdk.tapad.*` 广告 SDK 崩溃或 OS 杀进程——`TapTapCrashGuard.isSuppressible`（L50-65）只匹配 `contains("taptap")`，未覆盖 `tapsdk`/`tapad`。**待真机崩溃栈确认后对症**（扩展 Guard 匹配 + 内存缓解 + Activity 生命周期审计），本批未改。
 - **验证**：`compileReleaseKotlin` 全绿 · `:core:engine`/`:feature:game`/`:app` detekt 全绿 · `BuildingLoadSelfHealTest`（新增 7 用例：孤儿归属/严重失配保留/玩家持有缺失保留/矿场槽位派生平/推导与回填/净化保留）/`MailServiceTest`（新增未知类型用例）/`SaveLoadViewModelLoadTest`（新增 setTimeSpeed 用例）/`BootSequenceControllerTest`/`GameEngineCoordinationTest`/`AISectBattleProcessorTest`/`GameEngineSectConvergenceTest` 全部通过 · 游戏内 `changelog_entries.json` 同步 4.01.12 条目
 
+### 石板道路渲染重构（2026-09-09，美术素材替换配套）
+
+> 用户替换道路美术（仅保留 4 张主体石板的其中一张 + 1 张边缘条）后，将道路渲染从事先按位掩码合成多精灵（base/base_v/junction/edge/corner/cross_center）改为**单一主体 + 按方向边缘**的简化合成。逻辑/数据层（`RoadTiling`/`RoadFacadeImpl`/`RoadData`/O(1) 局部重算）零变更，仅改「渲染合成 + 图集/资产」。
+
+- **合成器**（`gamecore/map/road_compositor.h`）：`RoadSprite` 收敛为 `{BODY, EDGE_V, EDGE_H}`（`kRoadSpriteCount=3`/`kMaxRoadDrawOpsPerTile=6`）；`emitRoadDrawOps(mask, tileSize, out)` 每格恒出 1 个 `BODY`（方石板、不随方向旋转）+ 边缘条（`edgeW=tileSize/6`、`edgeL=tileSize/2`）。边缘规则：直行格（横/竖含死路端点）在无邻居横向侧出 2 条/侧；T 中心缺邻居侧 1 面（分支基座两内凹角加交汇块）；转角两开放侧各 2 条（外缘重叠）+ 内凹角交汇块；孤格固定左右轴；十字中心主体 + 四内凹角交汇块——所有内凹角（横/竖两边缘延伸后应交汇处）用 `edgeW×edgeW` 路沿块补齐，使两边缘相交、消除缺口（全部在格内）。
+- **图集**（`build-atlas.mjs` `LAYOUT.roads`→`road_body/road_edge_v/road_edge_h`，`road_edge_h` 为 `road_edge_v` 预烘焙旋转 90°）；`TextureAtlas.h MAP_SPRITES`（42 条）与 `SpriteAtlasDef.ROAD_RECTS/ROAD_UV_MAP` 经 codegen 同步。
+- **Kotlin**：`RoadCompositorBridge.SPRITE_KEYS`(3)/`MAX_OPS_PER_TILE`(6)；`SectAtlasAssembler.ROAD_DRAWABLE_MAP`(3) / 建造图标 / 道路预览键名更新；`SoftwareCanvasBackend` 仅注释。
+- **测试**：`road_compositor_test.cpp`（重写 10 用例，含转角外缘+内凹角、T 内凹角、十字内凹角）+ `DiffRoadComposeTest.kt`（重写）/`SpriteAtlasDefGeneratedTest`/`SpriteCodegenSyncTest`/`AtlasLayoutSyncTest` 同步；gamecore GTest 761/761 · app/engine JUnit 全量（`DomainLogTest` 为既有失败，与本批无关）。
+- **资产**：`道路主体1/2/3.png` 删除、`道路主体4.png` 更名 `道路主体.png`；生成 `road_body/road_edge_v/road_edge_h.webp`（无损，双模块 drawable-nodpi）。
+
 
 ## [4.01.11] - 2026-08-29
 

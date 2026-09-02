@@ -15,8 +15,9 @@ import org.junit.Test
  * DiffRoadComposeTest — 道路渲染合成器跨语言差分对拍（计划 v2 阶段 6）。
  *
  * 守护目标：C++ gamecore::map::road_compositor（单一权威）经桌面对拍桥
- * `compose` op 产出的操作序列与**手算规格**一致——主体→描边条→转角件→
- * 十字中心的顺序契约 + 格内局部整型几何（tileSize=36 运行时不变量）。
+ * `compose` op 产出的操作序列与**手算规格**一致——主体恒为 road_body、
+ * 直路按方向出侧边缘（每条 2 条拼接，1/6×1/2 格）、T 中心仅缺邻居侧 1 面、
+ * 转角两开放侧且完全在格内、孤格左右轴、十字中心无边缘。
  * 逐格合成逻辑已从 Kotlin 侧移除（SoftwareCanvasBackend 仅消费本通道），
  * 本测试是对拍桥通道 + 合成器语义的规格级守护（全掩码系统覆盖在
  * GTest road_compositor_test）。
@@ -29,10 +30,7 @@ class DiffRoadComposeTest {
 
     /** C++ RoadSprite 枚举序（= ROAD_RECTS 声明序 = SPRITE_KEYS 下标） */
     private val spriteKeys = arrayOf(
-        "road_base", "road_base_v", "road_junction",
-        "road_edge_h", "road_edge_v",
-        "road_corner_tr", "road_corner_tl", "road_corner_br", "road_corner_bl",
-        "road_cross_center"
+        "road_body", "road_edge_v", "road_edge_h"
     )
 
     private fun cppCompose(mask: Int, tileSize: Int = 36): List<List<Int>> {
@@ -60,55 +58,69 @@ class DiffRoadComposeTest {
     }
 
     @Test
-    fun `孤格 - 主体加四边描边加四角共9操作`() {
+    fun `孤格 - 主体加左右轴共5操作`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0)
-        assertEquals(9, ops.size)
-        ops.assertOp(0, sprite("road_junction"), 0, 0, 36, 36, "主体")
-        ops.assertOp(1, sprite("road_edge_h"), 0, 0, 36, 9, "上描边")
-        ops.assertOp(2, sprite("road_edge_h"), 0, 27, 36, 9, "下描边")
-        ops.assertOp(3, sprite("road_edge_v"), 0, 0, 9, 36, "左描边")
-        ops.assertOp(4, sprite("road_edge_v"), 27, 0, 9, 36, "右描边")
-        ops.assertOp(5, sprite("road_corner_tl"), 0, 0, 9, 9, "左上角")
-        ops.assertOp(6, sprite("road_corner_tr"), 27, 0, 9, 9, "右上角")
-        ops.assertOp(7, sprite("road_corner_bl"), 0, 27, 9, 9, "左下角")
-        ops.assertOp(8, sprite("road_corner_br"), 27, 27, 9, 9, "右下角")
+        assertEquals(5, ops.size)
+        ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 18, "左缘上")
+        ops.assertOp(2, sprite("road_edge_v"), 0, 18, 6, 18, "左缘下")
+        ops.assertOp(3, sprite("road_edge_v"), 30, 0, 6, 18, "右缘上")
+        ops.assertOp(4, sprite("road_edge_v"), 30, 18, 6, 18, "右缘下")
     }
 
     @Test
-    fun `垂直直路 - 主体加左右描边共3操作`() {
+    fun `垂直直路 - 主体加左右边缘共5操作`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0b0101)  // 上+下
-        assertEquals(3, ops.size)
-        ops.assertOp(0, sprite("road_base_v"), 0, 0, 36, 36, "主体")
-        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 9, 36, "左描边")
-        ops.assertOp(2, sprite("road_edge_v"), 27, 0, 9, 36, "右描边")
+        assertEquals(5, ops.size)
+        ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 18, "左缘上")
+        ops.assertOp(2, sprite("road_edge_v"), 0, 18, 6, 18, "左缘下")
+        ops.assertOp(3, sprite("road_edge_v"), 30, 0, 6, 18, "右缘上")
+        ops.assertOp(4, sprite("road_edge_v"), 30, 18, 6, 18, "右缘下")
     }
 
     @Test
-    fun `死路端点 - 按方向归直路主体`() {
+    fun `T 中心 - 缺邻居侧单面边缘加分支基座两内凹角交汇块`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
-        val ops = cppCompose(0b0001)  // 仅上邻居
-        assertEquals(6, ops.size)
-        ops.assertOp(0, sprite("road_base_v"), 0, 0, 36, 36, "主体(纵向)")
-        ops.assertOp(1, sprite("road_edge_h"), 0, 27, 36, 9, "下描边")
-        ops.assertOp(2, sprite("road_edge_v"), 0, 0, 9, 36, "左描边")
-        ops.assertOp(3, sprite("road_edge_v"), 27, 0, 9, 36, "右描边")
-        ops.assertOp(4, sprite("road_corner_bl"), 0, 27, 9, 9, "左下角")
-        ops.assertOp(5, sprite("road_corner_br"), 27, 27, 9, 9, "右下角")
+        val ops = cppCompose(0b1011)  // 上+左+右（缺下）
+        assertEquals(5, ops.size)
+        ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_h"), 0, 30, 18, 6, "下缘左条")
+        ops.assertOp(2, sprite("road_edge_h"), 18, 30, 18, 6, "下缘右条")
+        ops.assertOp(3, sprite("road_edge_v"), 0, 0, 6, 6, "左上内凹角")
+        ops.assertOp(4, sprite("road_edge_v"), 30, 0, 6, 6, "右上内凹角")
     }
 
     @Test
-    fun `十字 - 主体加十字中心装饰外溢半格`() {
+    fun `十字中心 - 主体加四内凹角交汇块`() {
         assumeTrue(DiffRngBridge.isAvailable())
         DiffRngBridge.nativeCoreInit()
         val ops = cppCompose(0b1111)
-        assertEquals(2, ops.size)
-        ops.assertOp(0, sprite("road_junction"), 0, 0, 36, 36, "主体")
-        ops.assertOp(1, sprite("road_cross_center"), -18, -18, 72, 72, "十字中心")
+        assertEquals(5, ops.size)
+        ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_v"), 0, 0, 6, 6, "左上内凹角")
+        ops.assertOp(2, sprite("road_edge_v"), 30, 0, 6, 6, "右上内凹角")
+        ops.assertOp(3, sprite("road_edge_v"), 0, 30, 6, 6, "左下内凹角")
+        ops.assertOp(4, sprite("road_edge_v"), 30, 30, 6, 6, "右下内凹角")
+    }
+
+    @Test
+    fun `转角 - 外缘两开放侧各2条加内凹角交汇块且完全在格内`() {
+        assumeTrue(DiffRngBridge.isAvailable())
+        DiffRngBridge.nativeCoreInit()
+        val ops = cppCompose(0b1001)  // 上+左（外缘=下+右，内凹角=左上）
+        assertEquals(6, ops.size)
+        ops.assertOp(0, sprite("road_body"), 0, 0, 36, 36, "主体")
+        ops.assertOp(1, sprite("road_edge_h"), 0, 30, 18, 6, "下缘左条")
+        ops.assertOp(2, sprite("road_edge_h"), 18, 30, 18, 6, "下缘右条")
+        ops.assertOp(3, sprite("road_edge_v"), 30, 0, 6, 18, "右缘上")
+        ops.assertOp(4, sprite("road_edge_v"), 30, 18, 6, 18, "右缘下(在格内)")
+        ops.assertOp(5, sprite("road_edge_v"), 0, 0, 6, 6, "左上内凹角")
     }
 
     @Test
@@ -118,17 +130,17 @@ class DiffRoadComposeTest {
         for (mask in 0..15) {
             val ops = cppCompose(mask)
             assertTrue("mask=$mask 至少主体 1 op", ops.size >= 1)
-            assertTrue("mask=$mask 上限 10 op", ops.size <= 10)
+            assertTrue("mask=$mask 上限 6 op", ops.size <= 6)
             // 首操作恒为主体（铺满整格）
             assertEquals("mask=$mask 主体铺满", listOf(ops[0][0], 0, 0, 36, 36), ops[0])
-            assertTrue("mask=$mask 主体是 base/base_v/junction 之一", ops[0][0] in 0..2)
+            assertTrue("mask=$mask 主体是 BODY", ops[0][0] == 0)
             for (op in ops) {
                 assertEquals("mask=$mask 每条记录 5 元素", 5, op.size)
                 assertEquals("mask=$mask sprite 枚举界内", true, op[0] in spriteKeys.indices)
                 assertTrue("mask=$mask w>0", op[3] > 0)
                 assertTrue("mask=$mask h>0", op[4] > 0)
-                assertTrue("mask=$mask x 有界", op[1] in -18..27)
-                assertTrue("mask=$mask y 有界", op[2] in -18..27)
+                assertTrue("mask=$mask x 有界", op[1] in -18..54)
+                assertTrue("mask=$mask y 有界", op[2] in -18..54)
             }
         }
     }

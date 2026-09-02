@@ -111,21 +111,17 @@ const LAYOUT = {
   structures: [
     { name: '宗门门楼', key: 'sect_gate', rect: [1536, 256, 384, 256], footprint: [6, 2], spriteSize: [6, 4] },
   ],
-  // 石板道路系统（RoadSprite：主体/路口/边缘条/转角/十字装饰）
-  // 渲染叠加层按位掩码合成：直路用 base，转角/T/十字用 junction，
-  // 外缘描边条用 edge_*，外角用 corner_*，十字中心装饰用 cross_center。
-  // 槽位取自 y=0..128 空闲行（x≥1024）与 y=1024..1280 右列"×256"空闲区，均不与其他条目重叠。
+  // 石板道路系统（RoadSprite：单一主体 + 横/竖边缘条）
+  // 渲染叠加层按位掩码合成：每格 1 个固定主体（road_body）+ 按方向/形态的边缘条。
+  // 直路（横/竖）在无邻居侧出 1/6×1/2 格边缘条（每条 2 条拼接）；T 中心缺侧 1 面+
+  // 分支基座两内凹角交汇块；转角外缘重叠+内凹角；孤格左右轴；十字中心四内凹角。
+  // 槽位取高清：主体 384×384（极限放大近 1:1）、边缘 96×288 / 288×96（1:3 精度、3x 下缩小采样）。
+  // 位置：主体在 (1024,1024) 空闲区（云层 y≥1408 之上）；边缘在右侧 (1536,1024) 空闲区
+  //（天枢殿下、云层上，512×384）。
   roads: [
-    { name: 'road_base',       rect: [1024, 0, 64, 64] },
-    { name: 'road_base_v',     rect: [1088, 0, 64, 64] },
-    { name: 'road_junction',   rect: [1152, 0, 64, 64] },
-    { name: 'road_edge_h',     rect: [1216, 0, 64, 16] },
-    { name: 'road_edge_v',     rect: [1216, 16, 16, 64] },
-    { name: 'road_corner_tr',  rect: [1232, 64, 48, 48] },
-    { name: 'road_corner_tl',  rect: [1280, 64, 48, 48] },
-    { name: 'road_corner_br',  rect: [1328, 64, 48, 48] },
-    { name: 'road_corner_bl',  rect: [1376, 64, 48, 48] },
-    { name: 'road_cross_center', rect: [1024, 1024, 256, 256] },
+    { name: 'road_body',   rect: [1024, 1024, 384, 384] },
+    { name: 'road_edge_v', rect: [1536, 1024, 96, 288] },
+    { name: 'road_edge_h', rect: [1632, 1024, 288, 96] },
   ],
   // 云层精灵（世界顶部动态云朵的图集槽位——仅提供精灵，位置/运动由
   // CloudLayerAnimator 逐帧驱动。放在图集 y≥1408 空闲区，保持源素材纵横比）
@@ -185,16 +181,9 @@ const LAYOUT = {
     { name: 'cloud_4', rect: [0, 1620, 524, 108] },
     { name: 'cloud_5', rect: [524, 1620, 472, 200] },
     // 石板道路系统（与 LAYOUT.roads 同源；C++ 经 getRegion("road_*") 取 UV）
-    { name: 'road_base', rect: [1024, 0, 64, 64] },
-    { name: 'road_base_v', rect: [1088, 0, 64, 64] },
-    { name: 'road_junction', rect: [1152, 0, 64, 64] },
-    { name: 'road_edge_h', rect: [1216, 0, 64, 16] },
-    { name: 'road_edge_v', rect: [1216, 16, 16, 64] },
-    { name: 'road_corner_tr', rect: [1232, 64, 48, 48] },
-    { name: 'road_corner_tl', rect: [1280, 64, 48, 48] },
-    { name: 'road_corner_br', rect: [1328, 64, 48, 48] },
-    { name: 'road_corner_bl', rect: [1376, 64, 48, 48] },
-    { name: 'road_cross_center', rect: [1024, 1024, 256, 256] },
+    { name: 'road_body', rect: [1024, 1024, 384, 384] },
+    { name: 'road_edge_v', rect: [1536, 1024, 96, 288] },
+    { name: 'road_edge_h', rect: [1632, 1024, 288, 96] },
   ],
 };
 
@@ -218,18 +207,11 @@ const FLOOR_DRAWABLE = {
   SPIRIT_MINE_GROUND: 'spirit_mine_ground',
 };
 
-/** 石板道路资源名映射（LAYOUT.roads → drawable-nodpi 资源名；由 prepare-road-textures.mjs 生成） */
+/** 石板道路资源名映射（LAYOUT.roads → drawable-nodpi 资源名） */
 const ROAD_DRAWABLE = {
-  road_base: 'road_base',
-  road_base_v: 'road_base_v',
-  road_junction: 'road_junction',
-  road_edge_h: 'road_edge_h',
+  road_body: 'road_body',
   road_edge_v: 'road_edge_v',
-  road_corner_tr: 'road_corner_tr',
-  road_corner_tl: 'road_corner_tl',
-  road_corner_br: 'road_corner_br',
-  road_corner_bl: 'road_corner_bl',
-  road_cross_center: 'road_cross_center',
+  road_edge_h: 'road_edge_h',
 };
 
 /** 作物资源名（与 buildAtlasBitmap cropDrawableMap 一致，按 ordinal） */

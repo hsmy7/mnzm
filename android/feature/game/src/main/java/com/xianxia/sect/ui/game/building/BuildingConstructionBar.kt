@@ -168,7 +168,7 @@ private fun BuildingConstructionIcon(
     Image(
         painter = painterResource(
             id = if (name == GameConfig.Road.DISPLAY_NAME) {
-                R.drawable.road_base  // 石板道路精灵图
+                R.drawable.road_body  // 石板道路主体精灵图
             } else {
                 com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
                     .findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal

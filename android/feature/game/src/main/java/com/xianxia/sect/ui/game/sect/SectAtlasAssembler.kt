@@ -67,16 +67,9 @@ object SectAtlasAssembler {
 
     /** 石板道路精灵 drawable（按 SpriteAtlasDef.ROAD_RECTS 键；names 与 ROAD_DRAWABLE 产物一致）。 */
     private val ROAD_DRAWABLE_MAP = mapOf(
-        "road_base" to R.drawable.road_base,
-        "road_base_v" to R.drawable.road_base_v,
-        "road_junction" to R.drawable.road_junction,
-        "road_edge_h" to R.drawable.road_edge_h,
+        "road_body" to R.drawable.road_body,
         "road_edge_v" to R.drawable.road_edge_v,
-        "road_corner_tr" to R.drawable.road_corner_tr,
-        "road_corner_tl" to R.drawable.road_corner_tl,
-        "road_corner_br" to R.drawable.road_corner_br,
-        "road_corner_bl" to R.drawable.road_corner_bl,
-        "road_cross_center" to R.drawable.road_cross_center,
+        "road_edge_h" to R.drawable.road_edge_h,
     )
 
     /**

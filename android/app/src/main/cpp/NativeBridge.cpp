@@ -650,7 +650,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         jfloat* ruvs = env->GetFloatArrayElements(roadUVMap, nullptr);
         jsize roadArrCount = env->GetArrayLength(roadData);
         const jsize roadUVCount = env->GetArrayLength(roadUVMap);
-        // 防御：roadUVMap 须容纳 kRoadSpriteCount 组 [u0,v0,u1,v1]（上游 SpriteAtlasDef.ROAD_UV_MAP 恒为 40）
+        // 防御：roadUVMap 须容纳 kRoadSpriteCount 组 [u0,v0,u1,v1]（上游 SpriteAtlasDef.ROAD_UV_MAP 恒为 12）
         if ((jsize)rows * cols <= roadArrCount && roadUVCount >= gamecore::map::kRoadSpriteCount * 4) {
             for (int row = minRow; row <= maxRow; row++) {
                 float wy = (float)(row * tileSize);

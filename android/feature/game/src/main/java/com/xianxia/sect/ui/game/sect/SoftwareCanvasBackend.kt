@@ -383,10 +383,11 @@ class SoftwareCanvasBackend(
          * 石板道路层（装饰之上、建筑之下，烘焙进 chunk）。
          *
          * 逐格合成操作序列由 C++ 单一权威 `gamecore/map/road_compositor.h`
-         * 产出（[RoadCompositorBridge.compose]：主体→描边条→转角件→十字中心，
-         * 格内局部整型几何）——本方法仅做数据装配：RoadSprite 枚举序 →
-         * 图集精灵名 → 源矩形，按序绘制（计划 v2 阶段 6 合成器物理下沉）。
-         * 并行道路内部不重复描边由合成器（roadBorderMask 掩码补集）保证。
+         * 产出（[RoadCompositorBridge.compose]：主体→边缘条，直路按方向出侧边缘、
+         * T 中心单侧、转角两开放侧且在格内、十字中心无边缘、格内局部整型几何）——
+         * 本方法仅做数据装配：RoadSprite 枚举序 → 图集精灵名 → 源矩形，按序绘制
+         * （计划 v2 阶段 6 合成器物理下沉）。并行道路内部不重复描边由合成器
+         * （roadBorderMask 掩码补集）保证。
          *
          * 降级契约：native 通道不可用（库加载失败，生产不触达）时跳过
          * 整个道路层，chunk 烘焙其余层不受影响。

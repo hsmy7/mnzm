@@ -19,12 +19,14 @@ using gamecore::map::kMaskAll;
 using gamecore::map::kMaxRoadDrawOpsPerTile;
 using gamecore::map::kRoadSpriteCount;
 using gamecore::map::roadBorderMask;
+using gamecore::map::roadEdgeLength;
+using gamecore::map::roadEdgeWidth;
 using gamecore::map::tileTypeForBitmask;
 
 // ============================================================
-// 道路渲染合成器测试（计划 v2 阶段 6：单一权威守护）
-// 覆盖：全掩码产出量守恒、主体映射、描边条/转角件几何、
-//      十字中心装饰、操作顺序契约、枚举序与图集声明序一致。
+// 道路渲染合成器测试（2026-08-32 重构：单一主体 + 直路免旋转 + 按方向边缘）
+// 覆盖：全掩码产出量守恒、主体恒定、直路双边缘、T 中心缺侧边缘+内凹角、
+//      转角外缘重叠+内凹角、孤格左右轴、十字内凹角、顺序契约、枚举序。
 // ============================================================
 
 namespace {
@@ -37,23 +39,18 @@ std::vector<RoadDrawOp> opsFor(int mask, int tileSize = 36) {
     return out;
 }
 
-bool hasEdge(const std::vector<RoadDrawOp>& ops, int border, int dir) {
-    return (border & dir) != 0;
+bool isEdge(const RoadDrawOp& op) {
+    return op.sprite == RoadSprite::EDGE_V || op.sprite == RoadSprite::EDGE_H;
 }
 
 }  // namespace
 
-// ── 主体映射：全 16 掩码首个操作 = 形态对应主体 ─────────────────
-TEST(RoadCompositorTest, BaseSpriteMatchesTileTypeForAllMasks) {
+// ── 主体恒定：全 16 掩码首个操作 = BODY 铺满整格 ─────────────────
+TEST(RoadCompositorTest, BodySpriteForAllMasks) {
     for (int mask = 0; mask <= kMaskAll; ++mask) {
         const auto ops = opsFor(mask);
         ASSERT_FALSE(ops.empty()) << "mask=" << mask;
-        const RoadTileType type = tileTypeForBitmask(mask);
-        const RoadSprite expected = type == RoadTileType::HORIZONTAL ? RoadSprite::BASE
-                                  : type == RoadTileType::VERTICAL   ? RoadSprite::BASE_V
-                                                                     : RoadSprite::JUNCTION;
-        EXPECT_EQ(expected, ops[0].sprite) << "mask=" << mask;
-        // 主体铺满整格
+        EXPECT_EQ(RoadSprite::BODY, ops[0].sprite) << "mask=" << mask;
         EXPECT_EQ(0, ops[0].x);
         EXPECT_EQ(0, ops[0].y);
         EXPECT_EQ(36, ops[0].w);
@@ -61,141 +58,158 @@ TEST(RoadCompositorTest, BaseSpriteMatchesTileTypeForAllMasks) {
     }
 }
 
-// ── 操作数守恒：1 主体 + 描边条(popcount(border)) + 转角件 + 十字中心 ──
+// ── 操作数守恒：孤格/直路/转角 5、T 3、十字 1 ────────────────────
 TEST(RoadCompositorTest, OpCountConservationForAllMasks) {
     for (int mask = 0; mask <= kMaskAll; ++mask) {
         const auto ops = opsFor(mask);
-        const int border = roadBorderMask(mask);
-        int edges = 0;
-        for (int dir = kDirUp; dir <= kDirLeft; dir <<= 1) {
-            if (hasEdge(ops, border, dir)) ++edges;
+        switch (tileTypeForBitmask(mask)) {
+            case RoadTileType::SINGLE:
+            case RoadTileType::VERTICAL:
+            case RoadTileType::HORIZONTAL:
+                EXPECT_EQ(5, static_cast<int>(ops.size())) << "mask=" << mask;
+                break;
+            case RoadTileType::CORNER_TOP_LEFT:
+            case RoadTileType::CORNER_TOP_RIGHT:
+            case RoadTileType::CORNER_BOTTOM_LEFT:
+            case RoadTileType::CORNER_BOTTOM_RIGHT:
+                EXPECT_EQ(6, static_cast<int>(ops.size())) << "mask=" << mask;
+                break;
+            case RoadTileType::T_UP:
+            case RoadTileType::T_DOWN:
+            case RoadTileType::T_RIGHT:
+            case RoadTileType::T_LEFT:
+                EXPECT_EQ(5, static_cast<int>(ops.size())) << "mask=" << mask;
+                break;
+            case RoadTileType::CROSS:
+                EXPECT_EQ(5, static_cast<int>(ops.size())) << "mask=" << mask;
+                break;
         }
-        int corners = 0;
-        if ((border & kDirUp) && (border & kDirLeft)) ++corners;
-        if ((border & kDirUp) && (border & kDirRight)) ++corners;
-        if ((border & kDirDown) && (border & kDirLeft)) ++corners;
-        if ((border & kDirDown) && (border & kDirRight)) ++corners;
-        const int cross = tileTypeForBitmask(mask) == RoadTileType::CROSS ? 1 : 0;
-        EXPECT_EQ(1 + edges + corners + cross, static_cast<int>(ops.size()))
-            << "mask=" << mask;
-        // 上限兜底
         EXPECT_LE(ops.size(), static_cast<size_t>(kMaxRoadDrawOpsPerTile));
     }
 }
 
-// ── 描边条几何：1/4 格厚，位置贴边 ─────────────────────────────
+// ── 直路边缘几何：1/6 厚 × 1/2 长，2 条/侧，只出横向（直行格）侧 ──
 TEST(RoadCompositorTest, EdgeGeometry) {
     const int tileSize = 36;
-    const int quarter = tileSize / 4;
-    // mask=0（孤格）：四边全描边
-    auto ops = opsFor(0, tileSize);
-    ASSERT_EQ(9, static_cast<int>(ops.size()));
-    // 上（EDGE_H 贴上缘）、下（贴下缘）、左（EDGE_V 贴左缘）、右（贴右缘）
-    EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);
+    const int edgeW = roadEdgeWidth(tileSize);   // 6
+    const int edgeL = roadEdgeLength(tileSize);  // 18
+    EXPECT_EQ(6, edgeW);
+    EXPECT_EQ(18, edgeL);
+
+    // 竖直直路（上+下）：左右 EDGE_V，各 2 条（y=0 与 y=18）
+    auto ops = opsFor(kDirUp | kDirDown, tileSize);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[1].sprite);
+    EXPECT_EQ(0, ops[1].x);
     EXPECT_EQ(0, ops[1].y);
-    EXPECT_EQ(tileSize, ops[1].w);
-    EXPECT_EQ(quarter, ops[1].h);
-    EXPECT_EQ(RoadSprite::EDGE_H, ops[2].sprite);
-    EXPECT_EQ(tileSize - quarter, ops[2].y);
+    EXPECT_EQ(edgeW, ops[1].w);
+    EXPECT_EQ(edgeL, ops[1].h);
+    EXPECT_EQ(edgeL, ops[2].y);
     EXPECT_EQ(RoadSprite::EDGE_V, ops[3].sprite);
-    EXPECT_EQ(0, ops[3].x);
-    EXPECT_EQ(quarter, ops[3].w);
-    EXPECT_EQ(tileSize, ops[3].h);
-    EXPECT_EQ(RoadSprite::EDGE_V, ops[4].sprite);
-    EXPECT_EQ(tileSize - quarter, ops[4].x);
+    EXPECT_EQ(tileSize - edgeW, ops[3].x);
+    // 水平直路（左+右）：上下 EDGE_H，各 2 条（x=0 与 x=18）
+    ops = opsFor(kDirLeft | kDirRight, tileSize);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);
+    EXPECT_EQ(0, ops[1].x);
+    EXPECT_EQ(0, ops[1].y);
+    EXPECT_EQ(edgeL, ops[1].w);
+    EXPECT_EQ(edgeW, ops[1].h);
+    EXPECT_EQ(edgeL, ops[2].x);
+    EXPECT_EQ(RoadSprite::EDGE_H, ops[3].sprite);
+    EXPECT_EQ(tileSize - edgeW, ops[3].y);
 }
 
-// ── 转角件几何：quarter×quarter，贴外角 ────────────────────────
-TEST(RoadCompositorTest, CornerGeometry) {
+// ── 孤格：主体 + 左右轴 2 侧（每侧 2 条）共 5 ──────────────────
+TEST(RoadCompositorTest, SingleCellFixedLR) {
+    const auto ops = opsFor(0);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::BODY, ops[0].sprite);
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[1].sprite);  // 左
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[2].sprite);
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[3].sprite);  // 右
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[4].sprite);
+}
+
+// ── T 中心：缺邻居侧 1 面（2 条）+ 分支基座两内凹角交汇块共 5 ──
+TEST(RoadCompositorTest, TJunctionComposite) {
+    // T_UP（上+左+右，缺下）：下侧 EDGE_H + 顶部左/右内凹角交汇块
+    auto ops = opsFor(kDirUp | kDirLeft | kDirRight);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::BODY, ops[0].sprite);
+    EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);
+    EXPECT_EQ(36 - 6, ops[1].y);  // 贴下缘（edgeW=6）
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[3].sprite);   // 左上交汇块
+    EXPECT_EQ(0, ops[3].x);
+    EXPECT_EQ(0, ops[3].y);
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[4].sprite);   // 右上交汇块
+    EXPECT_EQ(30, ops[4].x);
+    EXPECT_EQ(0, ops[4].y);
+    // T_RIGHT（上+下+右，缺左）：左侧 EDGE_V + 右部上/下内凹角交汇块
+    ops = opsFor(kDirUp | kDirDown | kDirRight);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[1].sprite);
+    EXPECT_EQ(0, ops[1].x);  // 贴左缘
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[3].sprite);   // 右上交汇块
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[4].sprite);   // 右下交汇块
+}
+
+// ── 转角：外缘两开放侧 2 条（重叠）+ 内凹角交汇块，全部在格内 ──
+TEST(RoadCompositorTest, CornerEdgesStayInCell) {
+    // CORNER_TOP_LEFT（上+左，外缘=下+右）：底部 EDGE_H + 右侧 EDGE_V + 左上内凹角交汇块
     const int tileSize = 36;
-    const int quarter = tileSize / 4;
-    const auto ops = opsFor(0, tileSize);  // 孤格：四角全有
-    ASSERT_EQ(9, static_cast<int>(ops.size()));
-    // 顺序契约：左上、右上、左下、右下（跟在 4 条描边条之后）
-    EXPECT_EQ(RoadSprite::CORNER_TL, ops[5].sprite);
+    const auto ops = opsFor(kDirUp | kDirLeft, tileSize);
+    ASSERT_EQ(6, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::BODY, ops[0].sprite);
+    EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);   // 底
+    EXPECT_EQ(RoadSprite::EDGE_H, ops[2].sprite);
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[3].sprite);   // 右
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[4].sprite);
+    EXPECT_EQ(RoadSprite::EDGE_V, ops[5].sprite);   // 左上内凹角交汇块
     EXPECT_EQ(0, ops[5].x);
     EXPECT_EQ(0, ops[5].y);
-    EXPECT_EQ(RoadSprite::CORNER_TR, ops[6].sprite);
-    EXPECT_EQ(tileSize - quarter, ops[6].x);
-    EXPECT_EQ(0, ops[6].y);
-    EXPECT_EQ(RoadSprite::CORNER_BL, ops[7].sprite);
-    EXPECT_EQ(0, ops[7].x);
-    EXPECT_EQ(tileSize - quarter, ops[7].y);
-    EXPECT_EQ(RoadSprite::CORNER_BR, ops[8].sprite);
-    EXPECT_EQ(tileSize - quarter, ops[8].x);
-    EXPECT_EQ(tileSize - quarter, ops[8].y);
-    for (int i = 5; i <= 8; ++i) {
-        EXPECT_EQ(quarter, ops[i].w);
-        EXPECT_EQ(quarter, ops[i].h);
+    EXPECT_EQ(6, ops[5].w);
+    EXPECT_EQ(6, ops[5].h);
+    EXPECT_EQ(tileSize - roadEdgeWidth(tileSize), ops[3].x);  // 贴右缘
+    EXPECT_EQ(0, ops[3].y);
+    EXPECT_EQ(6, ops[3].w);
+    EXPECT_EQ(18, ops[3].h);
+    // 完全在格内：竖边末段底端 == tileSize（不再外溢补角）
+    EXPECT_EQ(tileSize, ops[4].y + ops[4].h);
+    // 全部边缘/交汇块均在格内（不溢出格界）
+    for (const auto& op : ops) {
+        EXPECT_GE(op.x, 0);
+        EXPECT_GE(op.y, 0);
+        EXPECT_LE(op.x + op.w, tileSize);
+        EXPECT_LE(op.y + op.h, tileSize);
     }
 }
 
-// ── 直路（对边连通）：仅两端描边，无转角 ───────────────────────
-TEST(RoadCompositorTest, StraightRoadEdgesOnly) {
-    // 垂直直路（上+下）：左右描边（EDGE_V），上下内部不描边
-    auto ops = opsFor(kDirUp | kDirDown);
-    ASSERT_EQ(3, static_cast<int>(ops.size()));
-    EXPECT_EQ(RoadSprite::BASE_V, ops[0].sprite);
-    EXPECT_EQ(RoadSprite::EDGE_V, ops[1].sprite);
-    EXPECT_EQ(RoadSprite::EDGE_V, ops[2].sprite);
-    // 水平直路（左+右）：上下描边（EDGE_H）
-    ops = opsFor(kDirLeft | kDirRight);
-    ASSERT_EQ(3, static_cast<int>(ops.size()));
-    EXPECT_EQ(RoadSprite::BASE, ops[0].sprite);
-    EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);
-    EXPECT_EQ(RoadSprite::EDGE_H, ops[2].sprite);
-}
-
-// ── 死路端点按方向归直路（1 连接）─────────────────────────────
-TEST(RoadCompositorTest, DeadEndTreatedAsStraight) {
-    auto ops = opsFor(kDirUp);
-    ASSERT_EQ(6, static_cast<int>(ops.size()));  // base_v + 3 边 + 2 角
-    EXPECT_EQ(RoadSprite::BASE_V, ops[0].sprite);
-    // 上方向有邻居（内部）→ 无上描边；其余三边描边 + 下两角
-    for (int i = 1; i <= 3; ++i) {
-        EXPECT_TRUE(ops[i].sprite == RoadSprite::EDGE_H || ops[i].sprite == RoadSprite::EDGE_V)
-            << "i=" << i;
-    }
-    EXPECT_EQ(RoadSprite::CORNER_BL, ops[4].sprite);
-    EXPECT_EQ(RoadSprite::CORNER_BR, ops[5].sprite);
-}
-
-// ── 十字中心装饰：2×2 格居中外溢，跟在主体后 ───────────────────
-TEST(RoadCompositorTest, CrossCenterDecoration) {
+// ── 十字中心：纯主体石板 + 四内凹角交汇块共 5 ─────────────────
+TEST(RoadCompositorTest, CrossCenterJoins) {
     const auto ops = opsFor(kMaskAll);
-    ASSERT_EQ(2, static_cast<int>(ops.size()));  // junction 主体 + 十字中心（无边无角）
-    EXPECT_EQ(RoadSprite::JUNCTION, ops[0].sprite);
-    EXPECT_EQ(RoadSprite::CROSS_CENTER, ops[1].sprite);
-    EXPECT_EQ(-18, ops[1].x);  // -tileSize/2（外溢半格）
-    EXPECT_EQ(-18, ops[1].y);
-    EXPECT_EQ(72, ops[1].w);   // 2×tileSize
-    EXPECT_EQ(72, ops[1].h);
+    ASSERT_EQ(5, static_cast<int>(ops.size()));
+    EXPECT_EQ(RoadSprite::BODY, ops[0].sprite);
+    // 四个内凹角各一块 6×6 交汇块（使四条臂边缘在角部相交）
+    for (int i = 1; i <= 4; ++i) {
+        EXPECT_EQ(RoadSprite::EDGE_V, ops[i].sprite) << "i=" << i;
+        EXPECT_EQ(6, ops[i].w) << "i=" << i;
+        EXPECT_EQ(6, ops[i].h) << "i=" << i;
+        EXPECT_GE(ops[i].x, 0);
+        EXPECT_GE(ops[i].y, 0);
+        EXPECT_LE(ops[i].x + ops[i].w, 36);
+        EXPECT_LE(ops[i].y + ops[i].h, 36);
+    }
 }
 
-// ── T 型路口：junction 主体 + 单侧描边（T 只有一侧无邻居，无转角）──
-TEST(RoadCompositorTest, TJunctionComposite) {
-    // T_UP（上+左+右，缺下）：仅下侧描边；转角需相邻两外缘，此处无
-    const auto ops = opsFor(kDirUp | kDirLeft | kDirRight);
-    ASSERT_EQ(2, static_cast<int>(ops.size()));
-    EXPECT_EQ(RoadSprite::JUNCTION, ops[0].sprite);
-    EXPECT_EQ(RoadSprite::EDGE_H, ops[1].sprite);
-    EXPECT_EQ(36 - 9, ops[1].y);  // 贴下缘
-}
-
-// ── 顺序契约：主体恒为首，描边条先于转角件先于十字中心 ─────────
+// ── 顺序契约：主体恒为首，边缘条在后 ─────────────────────────
 TEST(RoadCompositorTest, OpOrderContractForAllMasks) {
-    auto rank = [](RoadSprite s) {
-        if (s == RoadSprite::BASE || s == RoadSprite::BASE_V || s == RoadSprite::JUNCTION) return 0;
-        if (s == RoadSprite::EDGE_H || s == RoadSprite::EDGE_V) return 1;
-        if (s == RoadSprite::CROSS_CENTER) return 3;
-        return 2;  // corners
-    };
     for (int mask = 0; mask <= kMaskAll; ++mask) {
         const auto ops = opsFor(mask);
         ASSERT_FALSE(ops.empty());
+        EXPECT_EQ(RoadSprite::BODY, ops[0].sprite) << "mask=" << mask;
         for (size_t i = 1; i < ops.size(); ++i) {
-            EXPECT_LE(rank(ops[i - 1].sprite), rank(ops[i].sprite))
-                << "mask=" << mask << " i=" << i;
+            EXPECT_TRUE(isEdge(ops[i])) << "mask=" << mask << " i=" << i;
         }
     }
 }
@@ -215,39 +229,15 @@ TEST(RoadCompositorTest, GeometryBoundedForAllMasks) {
     }
 }
 
-// ── 整型几何在 4 的倍数 tileSize 下与浮点一致（运行时 tileSize=36）──
-TEST(RoadCompositorTest, IntegralGeometryMatchesFloatAtRuntimeTileSize) {
-    // 运行时不变量：GameConfig.TILE_SIZE = 36（4 的倍数）——整型除法
-    // 与 Vulkan 浮点表达式几何完全一致，无半像素漂移。
-    constexpr int kRuntimeTileSize = 36;
-    const float tileSizeF = static_cast<float>(kRuntimeTileSize);
-    const float quarterF = tileSizeF * 0.25f;
-    // 贴边位置：整型 tileSize - tileSize/4 == 浮点 tileSizeF - quarterF
-    EXPECT_FLOAT_EQ(tileSizeF - quarterF,
-                    static_cast<float>(kRuntimeTileSize - kRuntimeTileSize / 4));
-    EXPECT_FLOAT_EQ(quarterF, static_cast<float>(kRuntimeTileSize / 4));
-    // 十字中心偏移：整型 -tileSize/2 == 浮点 -tileSizeF*0.5f
-    const auto cross = opsFor(kMaskAll, kRuntimeTileSize);
-    EXPECT_FLOAT_EQ(-tileSizeF * 0.5f, static_cast<float>(cross[1].x));
-    EXPECT_FLOAT_EQ(-tileSizeF * 0.5f, static_cast<float>(cross[1].y));
-}
-
 // ── 枚举序守护：RoadSprite 序号 = ROAD_RECTS 声明序（三端映射锚点）──
 TEST(RoadCompositorTest, SpriteEnumOrderIsContractAnchor) {
     // 序号即 Kotlin SpriteAtlasDef.ROAD_RECTS 声明序 / roadUVMap 索引 /
     // RoadCompositorBridge.SPRITE_KEYS 下标（Kotlin 侧有同源守护测试）。
-    EXPECT_EQ(0, static_cast<int>(RoadSprite::BASE));
-    EXPECT_EQ(1, static_cast<int>(RoadSprite::BASE_V));
-    EXPECT_EQ(2, static_cast<int>(RoadSprite::JUNCTION));
-    EXPECT_EQ(3, static_cast<int>(RoadSprite::EDGE_H));
-    EXPECT_EQ(4, static_cast<int>(RoadSprite::EDGE_V));
-    EXPECT_EQ(5, static_cast<int>(RoadSprite::CORNER_TR));
-    EXPECT_EQ(6, static_cast<int>(RoadSprite::CORNER_TL));
-    EXPECT_EQ(7, static_cast<int>(RoadSprite::CORNER_BR));
-    EXPECT_EQ(8, static_cast<int>(RoadSprite::CORNER_BL));
-    EXPECT_EQ(9, static_cast<int>(RoadSprite::CROSS_CENTER));
-    EXPECT_EQ(kRoadSpriteCount, 10);
-    EXPECT_EQ(kMaxRoadDrawOpsPerTile, 10);
+    EXPECT_EQ(0, static_cast<int>(RoadSprite::BODY));
+    EXPECT_EQ(1, static_cast<int>(RoadSprite::EDGE_V));
+    EXPECT_EQ(2, static_cast<int>(RoadSprite::EDGE_H));
+    EXPECT_EQ(kRoadSpriteCount, 3);
+    EXPECT_EQ(kMaxRoadDrawOpsPerTile, 6);
 }
 
 }  // namespace
