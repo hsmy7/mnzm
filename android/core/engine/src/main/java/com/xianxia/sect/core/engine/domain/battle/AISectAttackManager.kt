@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.core.engine.domain.battle
+package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
@@ -816,7 +816,11 @@ object AISectAttackManager {
             .filter { it.side == CombatantSide.DEFENDER }
             .take(TEAM_SIZE)
 
-        val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
+        // 战斗批次 D-3 收尾（G7）：AUTHORITATIVE 下经 C++ 第三战斗引擎执行
+        // （executePlayerSectBattle 原直调 executeUnifiedAIBattle 绕过 native——
+        // 补上与 executeSectBattleCore 同款守卫，闭合最后一个纯 Kotlin 战斗引擎路径）
+        val result = tryExecuteUnifiedNative(combatAttackers, combatDefenders)
+            ?: executeUnifiedAIBattle(combatAttackers, combatDefenders)
 
         val deadAttackerIds = attackers
             .filter { disciple ->

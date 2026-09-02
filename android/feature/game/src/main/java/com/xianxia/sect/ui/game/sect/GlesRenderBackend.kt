@@ -1,7 +1,5 @@
 package com.xianxia.sect.ui.game.sect
 
-import com.xianxia.sect.core.render.RenderBackend
-
 /**
  * GPU OpenGL ES 渲染后端适配器（2026-09 GPU GLES 中间层）。
  *

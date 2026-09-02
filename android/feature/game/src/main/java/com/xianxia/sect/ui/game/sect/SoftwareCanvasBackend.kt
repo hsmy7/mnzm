@@ -239,6 +239,7 @@ class SoftwareCanvasBackend(
         fun rebuild(
             frame: RenderFrame,
             atlas: Bitmap,
+            groundSrc: Bitmap,
             decorSkip: Boolean,
             buildingShadows: Boolean
         ) {
@@ -246,7 +247,7 @@ class SoftwareCanvasBackend(
             val canvas = Canvas(bmp)
             canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
 
-            drawGroundAndDecor(canvas, atlas, frame.tileData, frame.cols, decorSkip)
+            drawGroundAndDecor(canvas, atlas, groundSrc, frame.tileData, frame.cols, decorSkip)
 
             // 局部值：RenderFrame 属性跨模块公开 API，smart cast 不可用
             val roadData = frame.roadData
@@ -290,6 +291,7 @@ class SoftwareCanvasBackend(
         private fun drawGroundAndDecor(
             canvas: Canvas,
             atlas: Bitmap,
+            groundSrc: Bitmap,
             tileData: IntArray,
             cols: Int,
             decorSkip: Boolean
@@ -300,7 +302,7 @@ class SoftwareCanvasBackend(
             val endCol = (startCol + CHUNK_SIZE_TILES).coerceAtMost(cols)
             val endRow = (startRow + CHUNK_SIZE_TILES).coerceAtMost(rows)
             if (endCol > startCol && endRow > startRow) {
-                drawGroundFill(canvas, atlas, startCol, startRow, endCol, endRow)
+                drawGroundFill(canvas, groundSrc, startCol, startRow, endCol, endRow)
             }
             for (r in startRow until endRow) {
                 drawGroundRow(
@@ -317,17 +319,16 @@ class SoftwareCanvasBackend(
          */
         private fun drawGroundFill(
             canvas: Canvas,
-            atlas: Bitmap,
+            groundSrc: Bitmap,
             startCol: Int,
             startRow: Int,
             endCol: Int,
             endRow: Int
         ) {
             val tileSize = kit.tileSize
-            val gRect = SpriteAtlasDef.TileType.GROUND.rect
-            val groundBmp = Bitmap.createBitmap(atlas, gRect.x, gRect.y, gRect.w, gRect.h)
-            val shader = BitmapShader(groundBmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
-            val scale = gRect.w.toFloat() / tileSize
+            val shader = BitmapShader(groundSrc, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+            // 地面源 = 图集 GROUND rect 的共享副本；width 即精灵原宽（64），scale = 原宽/格宽
+            val scale = groundSrc.width.toFloat() / tileSize
             val worldX = (startCol * tileSize).toFloat()
             val worldY = (startRow * tileSize).toFloat()
             shader.setLocalMatrix(Matrix().apply {
@@ -629,6 +630,17 @@ class SoftwareCanvasBackend(
      */
     private val cropActiveKeys = HashSet<Long>()
 
+    /**
+     * 预渲染地面源位图缓存：`Bitmap.createBitmap(atlas, GROUND.rect)` 的**单一共享副本**——
+     * 避免每次 chunk 重建都从图集复制一份（16 chunk 全重建曾各复制一次）。atlas 引用变化才重建。
+     * （与 C++ 单 ground quad / Vulkan REPEAT 地面层对位，CPU 侧共享一份地面源。）
+     */
+    private var groundSourceBitmap: Bitmap? = null
+    private var groundSourceAtlas: Bitmap? = null
+
+    /** 每帧作物屏幕矩形复用（迭代中先算后用——渲染线程独占，成员复用消除逐实例 Rect 分配）。 */
+    private val screenRectScratch = Rect()
+
     // ── 精灵图源矩形（延迟初始化） ──
 
     private val tileSrcRects: Array<Rect> by lazy {
@@ -887,6 +899,14 @@ class SoftwareCanvasBackend(
 
     /** 重建全部失效 chunk（失效检查完成后统一执行，防半失效窗口） */
     private fun rebuildInvalidChunks(atlas: Bitmap, frame: RenderFrame, decorSkip: Boolean) {
+        // 单一地面源位图（跨 chunk 共享；atlas 引用变化才重复制——避免每 chunk 各复制一次）
+        val gRect = SpriteAtlasDef.TileType.GROUND.rect
+        var groundSrc = groundSourceBitmap
+        if (groundSrc == null || groundSourceAtlas !== atlas) {
+            groundSrc = Bitmap.createBitmap(atlas, gRect.x, gRect.y, gRect.w, gRect.h)
+            groundSourceBitmap = groundSrc
+            groundSourceAtlas = atlas
+        }
         for (col in 0 until NUM_CHUNKS_COL) {
             for (row in 0 until NUM_CHUNKS_ROW) {
                 val chunk = chunkCaches[col][row]
@@ -895,6 +915,7 @@ class SoftwareCanvasBackend(
                     chunk.rebuild(
                         frame = frame,
                         atlas = atlas,
+                        groundSrc = groundSrc,
                         decorSkip = decorSkip,
                         buildingShadows = config.renderFlags.buildingShadows
                     )
@@ -1195,7 +1216,9 @@ class SoftwareCanvasBackend(
         val offScreenY = bottom <= 0 || top >= fbH
         val degenerate = right - left <= 0 || bottom - top <= 0
         val visible = !offScreenX && !offScreenY && !degenerate
-        return if (visible) Rect(left, top, right, bottom) else null
+        // 复用成员矩形（渲染线程独占、先算后用）——消除逐作物 Rect 分配
+        screenRectScratch.set(left, top, right, bottom)
+        return if (visible) screenRectScratch else null
     }
 
     // ============================================================
@@ -1394,9 +1417,6 @@ private fun cloudScreenRect(
     val offRightOrLeft = right <= 0 || left >= canvas.width
     val offBottomOrTop = bottom <= 0 || top >= canvas.height
     val degenerate = right - left <= 0 || bottom - top <= 0
-    return if (offRightOrLeft || offBottomOrTop || degenerate) {
-        null
-    } else {
-        Rect(left, top, right, bottom)
-    }
+    val visible = !offRightOrLeft && !offBottomOrTop && !degenerate
+    return if (visible) Rect(left, top, right, bottom) else null
 }

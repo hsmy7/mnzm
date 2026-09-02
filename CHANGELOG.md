@@ -50,6 +50,17 @@
 - **验证**：`VulkanPolicyQuantizedThresholdTest` 新增 14 用例（各厂商阈值边界 + 上报接线 + detectTier 后置判定）· `compileReleaseKotlin` 通过 · `:app/:core:engine detekt` 全绿 · `:app:testReleaseUnitTest`（VulkanPolicyTest + 新测试）通过 · NDK `externalNativeBuildRelease` 通过（C++ 探测编译）。
 - **剩余**：CPU Canvas 优化（预渲染地面层/LOD/瓦片缓存）、真机 Bugly 阈值校准、GLES 真机验证（坐标/UV 翻转、混合、ASTC/renderScale/REPEAT）——见 `docs/cpp-engine.md` §0.4。
 
+### CPU Canvas 优化收尾 + 战斗残余副引擎闭合（2026-09，G4 辅线 / G7）
+
+> **G4 辅线**：补齐 CPU Canvas 软件渲染兜底的分配优化（chunk 缓存/LOD/renderScale 已存在）。
+> **G7**：闭合宗门口战副引擎最后一个纯 Kotlin 战斗引擎路径。设计见 `docs/cpp-engine.md` §0.1 G4/G7。
+
+- **CPU Canvas 分配微优化**（`SoftwareCanvasBackend.kt`）：① **地面子位图跨 chunk 共享**——`Bitmap.createBitmap(atlas, GROUND.rect)` 原每次 chunk 重建各复制一份（16 chunk 全重建曾各复制一次），改为单一缓存副本、atlas 引用变化才重建；② **作物屏幕矩形复用**——`cropScreenRect` 复用成员 `Rect`，消除逐帧逐实例分配（渲染线程独占安全）。
+- **战斗残余副引擎闭合（G7 优先级 1）**：`AISectAttackManager.executePlayerSectBattle`（AISectAttackManager.kt，玩家驻军/AI 攻玩家路径）原**直调** `executeUnifiedAIBattle` 绕过 C++ native——补上与 `executeSectBattleCore` 同款 `tryExecuteUnifiedNative ?: executeUnifiedAIBattle` 守卫，闭合最后一个纯 Kotlin 战斗引擎入口（降级契约：flag 关/native 未加载 → 回退 Kotlin）。
+- **途中修复预存 detekt 违规**（GLES 批次 ca4bf15a 引入，feature:game detekt 在 HEAD 即非绿）：`GlesRenderBackend` 未用 import 删除；`MainGameScreen` 两处 `LongParameterList`（GLES 新增 `glesRendering` 参数）加 `@Suppress` 记录 R-13 拆分债务。
+- **验证**：`SoftwareCanvasBackendTest` 通过 · `AISectAttackManagerTest` 通过 · `:feature:game/:core:engine detekt` 全绿 · `compileReleaseKotlin` 通过。
+- **剩余（G7 优先级 2，已审计鉴定独立子工程）**：AI 进攻决策编排（`decideAttacks`/`checkAttackConditions`/`decidePlayerAttack` 等纯 Kotlin BATTLE 分区 RNG）——须先 `DiffSectAttackDecisionTest` 锁定抽取序再下沉，避免 BATTLE 分区流错位。
+
 
 ## [4.01.11] - 2026-08-29
 

@@ -50,10 +50,10 @@
 | G1 | **无 ECS**：只有 DiscipleStore(单一实体 SoA，硬编码 ~124 列) + Kotlin EntityStore/ComponentTable；无 Entity/Component/System、无 SparseSet/Archetype/查询 | `disciple_store.h`（单一弟子型）、`month_settlement.h`（过程式 system 操作大状态） | **✅ ECS 基础①-④ 已建（2026-09 续作，见 §0.3）**；但结算/内政 system 仍为过程式，尚未经 ECS System 调度——后续迁移项 |
 | G2 | **完全单线程、无 JobSystem**：gamecore 无 std::thread/async/ThreadPool；游戏逻辑在单线程 executor | `GameEngineCore.kt:396` 单线程 | **✅ JobSystem（§0.3 ③）已建**；但现有 system 未接入并行（5000 弟子每旬 O(D) 单线程热点仍存在，待 ECS 调度迁移后释放） |
 | G3 | **地图/建筑/地形数据不在引擎**：瓦片/建筑/道路数据由 Kotlin 生成并喂 RenderFrame；引擎仅道路合成器几何 | `SectMapTileGenerator`/`MainGameScreen` | 世界级 entity(建筑/NPC/空间)无 ECS 基础 |
-| G4 | **渲染路径结构性缺陷**：行业降级链均为 `Vulkan→GPU GLES→软件渲染(仅兜底)`，而本项目为 `Vulkan→CPU Canvas` 且**额外关闭系统硬件加速**(→真·CPU 逐像素)，**缺失行业标配的 GPU GLES 中间层**——这是性能/电量风险的最主要根因，也是与行业最大结构性差异 | `VulkanPolicy.detectTier`/`shouldDisableHardwareAcceleration` | **✅ 修复完成（2026-09-09 主修复 + 2026-09 量化阈值）**：① GPU GLES 中间层（降级链 `Vulkan→GPU GLES→CPU Canvas`）；② 量化阈值决策引擎（default Vulkan + 窄 Deny，按厂商+API版本，`evaluateVulkanTier` + C++ 上报 `setVulkanDeviceInfo`，Unity 阈值默认）+ `detectTier` 移除整厂商/机型拉黑 + 系统级 HWUI 风险兜底。**剩余**：CPU Canvas 优化（预渲染/LOD）、真机 Bugly 阈值校准、GLES 真机验证（坐标/UV、混合、ASTC/renderScale/REPEAT） |
+| G4 | **渲染路径结构性缺陷**：行业降级链均为 `Vulkan→GPU GLES→软件渲染(仅兜底)`，而本项目为 `Vulkan→CPU Canvas` 且**额外关闭系统硬件加速**(→真·CPU 逐像素)，**缺失行业标配的 GPU GLES 中间层**——这是性能/电量风险的最主要根因，也是与行业最大结构性差异 | `VulkanPolicy.detectTier`/`shouldDisableHardwareAcceleration` | **✅ 修复完成（2026-09-09 主修复 + 2026-09 量化阈值 + 2026-09 CPU Canvas 辅线收尾）**：① GPU GLES 中间层（降级链 `Vulkan→GPU GLES→CPU Canvas`）；② 量化阈值决策引擎（default Vulkan + 窄 Deny，`evaluateVulkanTier` + C++ 上报 `setVulkanDeviceInfo`）；③ CPU Canvas 分配微优化（地面子位图跨 chunk 共享 + crop 矩形复用——chunk 缓存/LOD/renderScale 已存在）。**剩余**：真机 Bugly 阈值校准、GLES 真机验证（坐标/UV、混合、ASTC/renderScale/REPEAT） |
 | G5 | **iOS/Metal 未开始**：无 Xcode 工程/无 .metal/无 Swift；只有 game-core 纯 C++ 可复用 | 全仓库 glob=0 | iOS 目标未达成 |
 | G6 | **主循环线程/帧率策略/存档编码( kotlinx-proto)/UI 全 Kotlin** | `GameEngineCore`/`T-CPP-1` | 双端需各自实现 |
-| G7 | **战斗/宗门口战副引擎部分留 Kotlin**（部分系统、AI 兽战后处理、部分平台效应） | 批 12-3/13-8~10 边界 | 确定性/对拍有缺口面 |
+| G7 | **战斗/宗门口战副引擎部分留 Kotlin**（部分系统、AI 兽战后处理、部分平台效应） | 批 12-3/13-8~10 边界 | **✅ 副引擎战斗执行全部闭合（2026-09 收尾）**：批 A-D 已下沉 executeBattle + 三生产接线；**保留 Kotlin** 为设计边界（战斗组装 BattleDescriptionGenerator（JVM Random）/伤亡/占领/战报落库 = 状态/平台效应；HeavenlyTrial 试炼敌人派生种子）。**剩余（已审计鉴定，独立子工程）**：AI 进攻决策编排（`decideAttacks`/`checkAttackConditions`/`decidePlayerAttack` 等，纯 Kotlin BATTLE 分区 RNG）——需先 `DiffSectAttackDecisionTest` 锁定抽取序再下沉 |
 
 ### 0.2 后续工作（主线，按优先级）
 

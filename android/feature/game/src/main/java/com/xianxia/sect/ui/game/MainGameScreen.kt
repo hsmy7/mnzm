@@ -135,6 +135,8 @@ private const val TILE_BUILDING = 6
 // 一键拆除-区域选择模式常量见 AreaSelectControls.kt（internal，含进度条组件与按钮组件）
 
 @Composable
+// R-13 拆分专项债务：MainGameScreen 依赖多 ViewModel 注入超长参数，拆除屏级/悬于拆分后自然消除——暂抑制
+@Suppress("LongParameterList")
 fun MainGameScreen(
     mapPreloadData: MapPreloadData,
     viewModel: GameViewModel,
@@ -576,6 +578,8 @@ private fun rememberMainGameScreenRenderData(
 
 /** MainGameScreen 视口数据计算（MainGameScreen 拆分）：相机/预览/渲染参数 */
 @Composable
+// R-13 拆分专项债务：视口数据参数簇，拆分后收敛——暂抑制
+@Suppress("LongParameterList")
 private fun rememberMainGameScreenViewportData(
     derived: MainGameScreenDerived,
     mapData: MainGameScreenMapData,
