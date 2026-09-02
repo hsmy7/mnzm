@@ -96,7 +96,6 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
                 atlasTexId = host.atlasTextureId,
                 uvMap = SpriteAtlasDef.TILE_UV_MAP,
                 buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
-                floorTileUVMap = SpriteAtlasDef.FLOOR_TILE_UV_MAP,
                 // ★ 灵田作物数据（WP6）：低频变化走帧率门控 RenderFrame，
                 // C++ 侧按进度计算阶段索引 + 淡化 alpha（与 Kotlin SpiritCropRender 同数学）
                 cropData = frame.spiritCropData,

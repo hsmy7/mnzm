@@ -1,5 +1,17 @@
 ## [4.01.12] - 2026-09-02
 
+### 美术资产管线 · 自选清晰度 · 宗门地图图集升级 · 地砖移除（2026-09-02）
+
+> 一批美术/渲染基建与游玩项：source-mapping 资产管线（可追溯重烘焙）、自选清晰度五档设置、宗门地图图集 2048→4096 分辨率升级、素材重烘焙到 1024、移除宗门地面方形地砖。详见 `docs/design/art-asset-pipeline-improvement.md` / `docs/design/graphics-clarity-settings.md`。
+
+- **资产管线 A 段**：`scripts/source-mapping.json`（source↔drawable 权威映射）+ `scaffold-source-mapping.mjs`（生成/发现）+ `import-art-assets.mjs`（bake/hash 增量/dry-run/fail-fast）+ `SpriteSourceMappingGuardTest`（结构/覆盖/烘焙策略三守卫）；`rules/static-resources.md`/`CLAUDE.md` 同步。
+- **自选清晰度五档**（D1）：`ClarityMode`（极低/低/中/高/极高）+ 设置界面"自选清晰度"（性能模式下方，默认中）+ `RenderScalePolicy` 叠加（COMPACT+Vulkan 早退也被压低）+ 引擎/VM/持久化；`RenderScalePolicyTest`/`ClarityModeTest` 新增。
+- **宗门地图图集升级**（C1）：2048→**4096**，槽位 ×2（瓦片 64→128、建筑 256→512、天枢殿 512→1024）；Canvas 软渲染图集封顶 2048（防 4096 建 64MB 位图 OOM）；KTX 重建；`AtlasManifestSyncTest`/`SpriteCodegenSyncTest`/`AtlasLayoutSyncTest` 期望同步。
+- **素材重烘焙**（B1）：小物件（丹药/材料/装备/种子/储物袋/功法/草药）480→**1024**，大图保留源尺寸；天枢殿/门楼/道路主体重烘焙到源分辨率（图集下采样）；**包体 drawable WebP ~123MB→~166MB（+43MB，来自小物件 1024）**。
+- **地砖设计移除**：宗门地面不再铺设方形地砖——`FloorTileType`/`floorTileIndex`/地砖槽位/地砖 drawable/组装器与双后端绘制/JNI/测试全链清除（MAP_SPRITES 42→37、KTX 43→38）。
+- **脚本清理**：删除被取代的 `convert-herb-sprites`/`convert-remaining-pngs-to-webp`/`convert-floor-tiles` + 旧根 `import-art-assets`；修复 import hash 增量 bug（hash 仅存 srcMd5，dry-run 如实报增量）。
+- **验证**：app/core:engine/feature 图集·清单·守卫测试全绿 · NDK externalNativeBuildRelease · app compileReleaseKotlin · lintRelease。
+
 ### 版本发布说明（C++ 引擎迁移：月变/年变真相源全量下沉完成）
 
 > 本版发布自 4.01.11 以来积累的 C++ 引擎迁移续作批 M-1/Y-1~Y-4（详见本文件下方各批条目与 `docs/cpp-engine.md`）——**月变/年变残留执行器扇出全量下沉 C++ 真相源**，Kotlin 侧降级为平台效应执行器。

@@ -174,7 +174,6 @@ object NativeBridge {
         atlasTexId: Int,
         uvMap: FloatArray,           // UV 映射 [u0,v0,u1,v1] 按 tile 类型索引
         buildingUVMap: FloatArray?,  // 建筑 UV 映射
-        floorTileUVMap: FloatArray?, // 地砖 UV 映射 [u0,v0,u1,v1] × 4
         cropData: FloatArray? = null, // 灵田作物数据 [gx, gy, progress01] × N（WP6，可为 null）
         cropUVMap: FloatArray? = null, // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6）
         frameAlpha: Float = 0f, // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑权重）

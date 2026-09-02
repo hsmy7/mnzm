@@ -829,6 +829,12 @@ private fun MainGameScreenRenderEffects(
             }
     }
 
+    // 接通自选清晰度流（玩家清晰度档位 → 渲染缩放上限）
+    LaunchedEffect(state.nativeSurfaceView) {
+        val view = state.nativeSurfaceView ?: return@LaunchedEffect
+        viewModel.clarityMode.collect { mode -> view.clarityRenderScale = mode.renderScaleCap }
+    }
+
     // 渲染线程实际达成帧率 → 引擎热控（激活帧率驱动降级）
     LaunchedEffect(state.nativeSurfaceView) {
         state.nativeSurfaceView?.onObservedFps = { fps ->

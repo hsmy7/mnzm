@@ -112,6 +112,9 @@ object RenderScalePolicy {
      * @param screenWidth 视口物理宽度（像素）
      * @param screenHeight 视口物理高度（像素）
      * @param qualityFactor 引擎聚合画质因子（热控×性能模式，0.4–1.0；NaN/Inf 消毒为 1.0）
+     * @param clarityRenderScale 玩家自选清晰度目标缩放上限（[ClarityMode.renderScaleCap]，
+     *   0.5–1.0；默认 1.0 = 不改变行为）。最终值 = min(自动档, 本上限)——含 COMPACT+Vulkan
+     *   早退路径也要被钳（否则玩家选低档无法压低手机默认 1.0）
      * @return 渲染缩放值，离散 0.05 档，范围 [0.5, 1.0]
      */
     fun computeRenderScale(
@@ -119,22 +122,28 @@ object RenderScalePolicy {
         softwarePath: Boolean,
         screenWidth: Int,
         screenHeight: Int,
-        qualityFactor: Float
+        qualityFactor: Float,
+        clarityRenderScale: Float = 1.0f
     ): Float {
         val screenFactor = screenFactor(classifyScreenArea(screenWidth, screenHeight))
         // COMPACT（手机）+ Vulkan 恒 1.0（回归基线）；COMPACT + SOFTWARE 仍降载——
         // CPU 逐像素全屏合成成本高，手机 SOFTWARE 此前被短路而无任何降载手段
         //（低端真机拖动视角卡顿根因，2026 修复）
-        if (screenFactor >= 1.0f && !softwarePath) return 1.0f
-        val baseCap = GpuRenderConfig.forTier(gpuTier).baseRenderScale
-        val pathFactor = if (softwarePath) SOFTWARE_PATH_FACTOR else 1.0f
-        val thermalFactor = if (qualityFactor.isFinite()) {
-            qualityFactor.coerceIn(MIN_QUALITY_FACTOR, 1.0f)
-        } else {
+        val computed = if (screenFactor >= 1.0f && !softwarePath) {
             1.0f
+        } else {
+            val baseCap = GpuRenderConfig.forTier(gpuTier).baseRenderScale
+            val pathFactor = if (softwarePath) SOFTWARE_PATH_FACTOR else 1.0f
+            val thermalFactor = if (qualityFactor.isFinite()) {
+                qualityFactor.coerceIn(MIN_QUALITY_FACTOR, 1.0f)
+            } else {
+                1.0f
+            }
+            val raw = min(baseCap, screenFactor) * pathFactor * thermalFactor
+            floorTo05(raw).coerceIn(MIN_RENDER_SCALE, MAX_RENDER_SCALE)
         }
-        val raw = min(baseCap, screenFactor) * pathFactor * thermalFactor
-        return floorTo05(raw).coerceIn(MIN_RENDER_SCALE, MAX_RENDER_SCALE)
+        // 玩家清晰度上限（最终生效；含早退 1.0 也须被钳）
+        return min(computed, clarityRenderScale.coerceIn(MIN_RENDER_SCALE, MAX_RENDER_SCALE))
     }
 
     /** 向下取到 0.05 离散档（防热控/省电变化引起的连续抖动） */

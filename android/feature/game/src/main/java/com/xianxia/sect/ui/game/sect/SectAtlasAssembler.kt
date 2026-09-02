@@ -11,6 +11,8 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.render.RenderMetrics
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.feature.game.R
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 宗门地图图集运行时组装器（2026-08-13 自 NativeSurfaceView companion 外移——
@@ -25,6 +27,9 @@ object SectAtlasAssembler {
     /** 图集拼装日志标签 */
     private const val TAG = "SectAtlasAssembler"
 
+    /** Canvas 软渲染图集封顶边长（4096 图集软渲染建 64MB 位图会 OOM，封顶 2048，靠缩放采样） */
+    private const val CANVAS_ATLAS_MAX = 2048
+
     /** 瓦片/装饰精灵 R.drawable 预建映射（替代 getIdentifier 运行时查找）。 */
     private val TILE_DRAWABLE_MAP = mapOf(
         "map_grass_1" to R.drawable.map_grass_1,
@@ -38,15 +43,6 @@ object SectAtlasAssembler {
     /** 固定结构（宗门入口门楼）drawable 映射。 */
     private val STRUCTURE_DRAWABLE_MAP = mapOf(
         "sect_gate" to R.drawable.sect_gate,
-    )
-
-    /** 地砖 drawable 映射。 */
-    private val FLOOR_TILE_DRAWABLE_MAP = mapOf(
-        "floor_tile_2x2" to R.drawable.floor_tile_2x2,
-        "floor_tile_2x3" to R.drawable.floor_tile_2x3,
-        "floor_tile_3x2" to R.drawable.floor_tile_3x2,
-        "floor_tile_3x3" to R.drawable.floor_tile_3x3,
-        "spirit_mine_ground" to R.drawable.spirit_mine_ground,
     )
 
     /** 灵田作物三阶段 drawable（按 CropStage ordinal）。 */
@@ -73,9 +69,18 @@ object SectAtlasAssembler {
     )
 
     /**
-     * 构建地图图集位图（2048×2048 ARGB_8888）。
+     * Canvas 软渲染图集尺寸缩放（2026-09-02 C1 图集升至 4096 后，软渲染路径若按
+     * SpriteAtlasDef.ATLAS_W×ATLAS_H 建位图会分配 64MB——低端机 OOM 风险）。
+     * 软渲染位图封顶 2048，对图集缩放采样（UV 归一化不变，仅构建分辨率降档）。
+     * Vulkan 路径用 ASTC KTX（4096 ≈16MB 压缩），不受此限制。
+     */
+    private val canvasAtlasScale: Float =
+        min(1.0f, CANVAS_ATLAS_MAX / max(SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H).toFloat())
+
+    /**
+     * 构建地图图集位图（封顶 CANVAS_ATLAS_MAX 正方形，默认 2048 ARGB_8888）。
      *
-     * 瓦片/建筑/地砖/作物四类精灵按 SpriteAtlasDef 像素位置绘制。
+     * 瓦片/建筑/地砖/作物四类精灵按 SpriteAtlasDef 像素位置绘制（按 [canvasAtlasScale] 缩放）。
      * 子精灵 Bitmap **不调 recycle()**——避免国产 ROM NativeAllocationRegistry
      * CleanerThunk double-free SIGABRT（#11008）；子精灵很小（<1KB～4KB），
      * 自然 GC 消耗可忽略。
@@ -84,17 +89,16 @@ object SectAtlasAssembler {
      * @return 图集位图
      */
     fun buildAtlasBitmap(context: Context): Bitmap {
-        val atlas = createBitmap(
-            SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H,
-            Bitmap.Config.ARGB_8888
-        )
+        val w = (SpriteAtlasDef.ATLAS_W * canvasAtlasScale).toInt().coerceAtLeast(1)
+        val h = (SpriteAtlasDef.ATLAS_H * canvasAtlasScale).toInt().coerceAtLeast(1)
+        val atlas = createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(atlas)
         val paint = Paint().apply { isFilterBitmap = false }
 
         val slots = buildSpriteSlots()
         val loadedCount = drawSlotsToAtlas(context, canvas, paint, slots)
 
-        android.util.Log.i(TAG, "buildAtlas: $loadedCount/${slots.size} sprites loaded")
+        android.util.Log.i(TAG, "buildAtlas: $loadedCount/${slots.size} sprites loaded @ ${w}x$h (scale=$canvasAtlasScale)")
         return atlas
     }
 
@@ -105,7 +109,7 @@ object SectAtlasAssembler {
     private fun buildSpriteSlots(): List<SpriteSlot> {
         val buildingMap = buildingAtlasDrawableMap()
         return buildTileSlots() + buildBuildingSlots(buildingMap) +
-            buildFloorSlots + buildCropSlots + buildStructureSlots + buildCloudSlots +
+            buildCropSlots + buildStructureSlots + buildCloudSlots +
             buildRoadSlots
     }
 
@@ -145,13 +149,6 @@ object SectAtlasAssembler {
             val name = SpriteAtlasDef.BUILDING_NAMES[idx]
             val sr = SpriteAtlasDef.buildingRect(idx)
             SpriteSlot(name, sr.x, sr.y, sr.w, sr.h, buildingMap[name] ?: 0)
-        }
-
-    /** 地砖精灵槽位。 */
-    private val buildFloorSlots: List<SpriteSlot> =
-        SpriteAtlasDef.FloorTileType.values().map { ft ->
-            val r = ft.pixelRect
-            SpriteSlot(ft.key, r.x, r.y, r.w, r.h, FLOOR_TILE_DRAWABLE_MAP[ft.key] ?: 0)
         }
 
     /** 灵田作物精灵槽位（WP6 生长动画三阶段）。 */
@@ -211,8 +208,15 @@ object SectAtlasAssembler {
             try {
                 val bmp = BitmapFactory.decodeResource(context.resources, slot.resId)
                 if (bmp != null) {
+                    // 按 canvasAtlasScale 缩放绘制矩形（软渲染图集封顶 2048，防止 4096 建 64MB 位图）
+                    val sx = slot.x * canvasAtlasScale
+                    val sy = slot.y * canvasAtlasScale
                     canvas.drawBitmap(bmp, null,
-                        Rect(slot.x, slot.y, slot.x + slot.w, slot.y + slot.h),
+                        Rect(
+                            sx.toInt(), sy.toInt(),
+                            (sx + slot.w * canvasAtlasScale).toInt(),
+                            (sy + slot.h * canvasAtlasScale).toInt()
+                        ),
                         paint)
                     // ★ 不调 recycle()：避免国产 ROM double-free（#11008）
                     loadedCount++

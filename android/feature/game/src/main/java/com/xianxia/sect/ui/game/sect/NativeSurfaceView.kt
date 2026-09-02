@@ -256,6 +256,14 @@ class NativeSurfaceView(
             renderQualitySink(renderQualityFactor, value)
         }
 
+    /** 自选清晰度目标渲染缩放（[ClarityMode.renderScaleCap]）；变化时重算渲染缩放 */
+    @Volatile
+    var clarityRenderScale: Float = 1.0f
+        set(value) {
+            field = value
+            initCoordinator.recomputeRenderScale()
+        }
+
     /** 统一创建软件渲染后端（应用当前质量/装饰值，防 surface 重建后丢失降级状态） */
     private fun createSoftwareBackend(): SoftwareCanvasBackend =
         SoftwareCanvasBackend(config).apply {
@@ -718,7 +726,8 @@ class NativeSurfaceView(
                     softwarePath = renderMode == RenderMode.SOFTWARE,
                     screenWidth = width,
                     screenHeight = height,
-                    qualityFactor = renderQualityFactor
+                    qualityFactor = renderQualityFactor,
+                    clarityRenderScale = clarityRenderScale
                 )
             } else {
                 1.0f

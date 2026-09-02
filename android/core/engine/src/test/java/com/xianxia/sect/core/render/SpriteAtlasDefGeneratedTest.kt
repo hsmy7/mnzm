@@ -31,22 +31,22 @@ class SpriteAtlasDefGeneratedTest {
     @Test
     fun `const 常量与期望数值全等`() {
         val src = source()
-        assertEquals("ATLAS_W", "2048", extractConst(src, "ATLAS_W"))
-        assertEquals("ATLAS_H", "2048", extractConst(src, "ATLAS_H"))
-        assertEquals("TILE_SIZE", "64", extractConst(src, "TILE_SIZE"))
-        assertEquals("BUILDING_SIZE", "256", extractConst(src, "BUILDING_SIZE"))
+        assertEquals("ATLAS_W", "4096", extractConst(src, "ATLAS_W"))
+        assertEquals("ATLAS_H", "4096", extractConst(src, "ATLAS_H"))
+        assertEquals("TILE_SIZE", "128", extractConst(src, "TILE_SIZE"))
+        assertEquals("BUILDING_SIZE", "512", extractConst(src, "BUILDING_SIZE"))
     }
 
     @Test
     fun `TileType 7 个枚举值及 rect 与期望全等`() {
         val expected = listOf(
-            Triple("GROUND", 0, intArrayOf(0, 0, 64, 64)),
-            Triple("GRASS_SMALL", 1, intArrayOf(64, 0, 64, 64)),
-            Triple("GRASS_MEDIUM", 2, intArrayOf(128, 0, 64, 64)),
-            Triple("GRASS_LARGE", 3, intArrayOf(192, 0, 64, 64)),
-            Triple("TREE1", 4, intArrayOf(256, 0, 128, 128)),
-            Triple("TREE2", 5, intArrayOf(384, 0, 128, 128)),
-            Triple("TILE_BUILDING", 6, intArrayOf(0, 0, 64, 64)),
+            Triple("GROUND", 0, intArrayOf(0, 0, 128, 128)),
+            Triple("GRASS_SMALL", 1, intArrayOf(128, 0, 128, 128)),
+            Triple("GRASS_MEDIUM", 2, intArrayOf(256, 0, 128, 128)),
+            Triple("GRASS_LARGE", 3, intArrayOf(384, 0, 128, 128)),
+            Triple("TREE1", 4, intArrayOf(512, 0, 256, 256)),
+            Triple("TREE2", 5, intArrayOf(768, 0, 256, 256)),
+            Triple("TILE_BUILDING", 6, intArrayOf(0, 0, 128, 128)),
         )
         val actual = parseTileTypes(source())
         assertEquals(
@@ -67,7 +67,7 @@ class SpriteAtlasDefGeneratedTest {
     fun `STRUCTURES 固定结构与期望全等`() {
         val expected = listOf(
             StructureDef(
-                "宗门门楼", "sect_gate", intArrayOf(1536, 256, 384, 256), 6, 2, 6, 4
+                "宗门门楼", "sect_gate", intArrayOf(3072, 512, 768, 512), 6, 2, 6, 4
             ),
         )
         val actual = parseStructures(source())
@@ -143,9 +143,9 @@ class SpriteAtlasDefGeneratedTest {
     @Test
     fun `CropStage 3 个枚举值及 rect 与期望全等`() {
         val expected = listOf(
-            Pair("SEEDLING", intArrayOf(832, 0, 64, 64)),
-            Pair("GROWING", intArrayOf(896, 0, 64, 64)),
-            Pair("MATURE", intArrayOf(960, 0, 64, 64)),
+            Pair("SEEDLING", intArrayOf(1664, 0, 128, 128)),
+            Pair("GROWING", intArrayOf(1792, 0, 128, 128)),
+            Pair("MATURE", intArrayOf(1920, 0, 128, 128)),
         )
         val actual = parseCropStages(source())
         assertEquals(
@@ -159,36 +159,13 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
-    fun `FloorTileType 5 个枚举值及 rect 与期望全等`() {
-        val expected = listOf(
-            Array5("TILE_2x2", "floor_tile_2x2", 2, 2, intArrayOf(1280, 256, 128, 128)),
-            Array5("TILE_2x3", "floor_tile_2x3", 2, 3, intArrayOf(1280, 384, 128, 192)),
-            Array5("TILE_3x2", "floor_tile_3x2", 3, 2, intArrayOf(1280, 576, 192, 128)),
-            Array5("TILE_3x3", "floor_tile_3x3", 3, 3, intArrayOf(1280, 704, 192, 192)),
-            Array5("SPIRIT_MINE_GROUND", "spirit_mine_ground", 4, 4, intArrayOf(1280, 896, 256, 256)),
-        )
-        val actual = parseFloorTiles(source())
-        assertEquals(
-            "FloorTileType 枚举值数量与期望不一致——修改 LAYOUT.floors 后需同步本测试期望",
-            expected.size, actual.size
-        )
-        for (i in expected.indices) {
-            assertEquals("FloorTileType[$i] 名称", expected[i].name, actual[i].name)
-            assertEquals("FloorTileType[${expected[i].name}] key", expected[i].key, actual[i].key)
-            assertEquals("FloorTileType[${expected[i].name}] gridW", expected[i].gridW, actual[i].gridW)
-            assertEquals("FloorTileType[${expected[i].name}] gridH", expected[i].gridH, actual[i].gridH)
-            assertEquals("FloorTileType[${expected[i].name}] rect", expected[i].rect.toList(), actual[i].rect.toList())
-        }
-    }
-
-    @Test
     fun `CLOUD_RECTS 5 个云层及 rect 与期望全等`() {
         val expected = listOf(
-            Pair("cloud_1", intArrayOf(0, 1408, 484, 120)),
-            Pair("cloud_2", intArrayOf(484, 1408, 452, 188)),
-            Pair("cloud_3", intArrayOf(936, 1408, 488, 96)),
-            Pair("cloud_4", intArrayOf(0, 1620, 524, 108)),
-            Pair("cloud_5", intArrayOf(524, 1620, 472, 200)),
+            Pair("cloud_1", intArrayOf(0, 2816, 968, 240)),
+            Pair("cloud_2", intArrayOf(968, 2816, 904, 376)),
+            Pair("cloud_3", intArrayOf(1872, 2816, 976, 192)),
+            Pair("cloud_4", intArrayOf(0, 3240, 1048, 216)),
+            Pair("cloud_5", intArrayOf(1048, 3240, 944, 400)),
         )
         val actual = parseCloudRects(source())
         assertEquals(
@@ -211,30 +188,26 @@ class SpriteAtlasDefGeneratedTest {
     }
 
     @Test
-    fun `天枢殿使用专属 512x512 高清槽位`() {
-        // 2026-08-23 清晰度根治：天枢殿显示 18×15 格（≈576×480 世界像素），默认 256 槽位
-        // 放大 2.25 倍仍糊——buildingRectOverrides 分配 512×512 专属槽位（图集 (1536,512)）
+    fun `天枢殿使用专属 1024x1024 高清槽位`() {
+        // 2026-09-02 清晰度提升：天枢殿显示 18×15 格（≈576×480 世界像素），3x 放大时
+        // 512 槽位仍 ~3.8x 上采样——buildingRectOverrides 分配 1024×1024 专属槽位（图集 (3072,1024)）
         val idx = SpriteAtlasDef.BUILDING_NAME_INDEX["天枢殿"]
             ?: throw AssertionError("天枢殿未在图集 BUILDING_NAMES 中注册")
         assertEquals(
             "天枢殿槽位 rect 与期望不一致——修改 buildingRectOverrides 后需同步本测试期望",
-            SpriteRect(1536, 512, 512, 512),
+            SpriteRect(3072, 1024, 1024, 1024),
             SpriteAtlasDef.buildingRect(idx)
         )
-        // 其他建筑仍走行公式 256×256 槽位
-        assertEquals(SpriteRect(0, 256, 256, 256), SpriteAtlasDef.buildingRect(0))
+        // 其他建筑仍走行公式 512×512 槽位
+        assertEquals(SpriteRect(0, 512, 512, 512), SpriteAtlasDef.buildingRect(0))
     }
 
     @Test
-    fun `生成物不含死代码命令类且保留复杂度抑制注解`() {
+    fun `生成物不含死代码命令类`() {
         val src = source()
         assertFalse("死代码类 FrameDrawCommand 不应出现在生成物中", src.contains("FrameDrawCommand"))
         assertFalse("死代码类 BuildingDrawCmd 不应出现在生成物中", src.contains("BuildingDrawCmd"))
         assertFalse("死代码类 PreviewDrawCmd 不应出现在生成物中", src.contains("PreviewDrawCmd"))
-        assertTrue(
-            "floorTileIndex 必须带 @Suppress(CyclomaticComplexMethod)——detekt baseline 路径失配会新增违规",
-            src.contains("@Suppress(\"CyclomaticComplexMethod\")")
-        )
     }
 
     private fun extractConst(src: String, name: String): String {
@@ -311,26 +284,6 @@ class SpriteAtlasDefGeneratedTest {
         }.toList()
     }
 
-    private fun parseFloorTiles(src: String): List<Array5> {
-        val regex = Regex(
-            """^\s{8}(\w+)\("([^"]+)", (\d+), (\d+), SpriteRect\(""" +
-                """(\d+), (\d+), (\d+), (\d+)\)\)[,;]?$""",
-            RegexOption.MULTILINE
-        )
-        return regex.findAll(src).map { m ->
-            Array5(
-                m.groupValues[1],
-                m.groupValues[2],
-                m.groupValues[3].toInt(),
-                m.groupValues[4].toInt(),
-                intArrayOf(
-                    m.groupValues[5].toInt(), m.groupValues[6].toInt(),
-                    m.groupValues[7].toInt(), m.groupValues[8].toInt()
-                )
-            )
-        }.toList()
-    }
-
     private fun parseStructures(src: String): List<StructureDef> {
         val regex = Regex(
             """^\s{8}StructureDef\("([^"]+)", "([^"]+)", SpriteRect\(""" +
@@ -372,14 +325,6 @@ class SpriteAtlasDefGeneratedTest {
         assertEquals(3, RoadCompositorBridge.SPRITE_KEYS.size)
         assertEquals(6, RoadCompositorBridge.MAX_OPS_PER_TILE)
     }
-
-    private data class Array5(
-        val name: String,
-        val key: String,
-        val gridW: Int,
-        val gridH: Int,
-        val rect: IntArray,
-    )
 
     private data class StructureDef(
         val name: String,

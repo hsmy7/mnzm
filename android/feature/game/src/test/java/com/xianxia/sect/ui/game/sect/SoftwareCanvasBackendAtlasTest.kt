@@ -17,10 +17,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend SpriteAtlasDef 一致性与地砖绘制测试。
+ * SoftwareCanvasBackend SpriteAtlasDef 一致性与建筑/固定结构绘制测试。
  *
- * - SpriteAtlasDef：BUILDING_NAMES/UV 映射/地砖 rect 等静态数据自洽
- * - 地砖：floorTileIndex 尺寸映射 + 灵田跳过/灵矿专属地皮等绘制路径
+ * - SpriteAtlasDef：BUILDING_NAMES/UV 映射等静态数据自洽
+ * - 建筑/固定结构：占比尺寸、固定结构精灵实际可见等绘制路径
  *
  * @GraphicsMode(NATIVE)：像素断言需要真实 skia 渲染（LEGACY 模式 getPixel 恒 0）
  */
@@ -163,34 +163,7 @@ class SoftwareCanvasBackendAtlasTest {
             buildingVisible = true
         )
         val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("2x3 建筑 + 地砖不应 crash", result)
-    }
-
-    @Test
-    fun `floorTileIndex - returns correct index for each size`() {
-        assertEquals(0, SpriteAtlasDef.floorTileIndex(2, 2))
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 3))
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(3, 2))
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(3, 3))
-    }
-
-    @Test
-    fun `floorTileIndex - spirit field 1x1 returns -1`() {
-        assertEquals(-1, SpriteAtlasDef.floorTileIndex(1, 1))
-    }
-
-    @Test
-    fun `floorTileIndex - new footprint sizes map to closest tile`() {
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(4, 4))  // 方形 → 3x3
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 4))  // 宽扁 → 3x2
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(4, 6))  // 窄高 → 2x3
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(6, 6))  // 大方 → 3x3
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(4, 8))  // 瘦高 → 2x3
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 4))  // 窄高 → 2x3
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(4, 3))  // 宽扁 → 3x2
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 5))  // 宽扁 → 3x2
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 2))  // 门楼占地 6x2 → 3x2
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(18, 13))  // 天枢殿占地 18x13（近方形）→ 3x3（拉伸）
+        assertNotNull("2x3 建筑不应 crash", result)
     }
 
     @Test
@@ -222,9 +195,9 @@ class SoftwareCanvasBackendAtlasTest {
     @Test
     fun `renderFrame - 固定结构精灵实际可见（像素级）`() {
         // 全尺寸图集：全灰地面 + 门楼源矩形涂白（STRUCTURES[0].rect）
-        val fullAtlas = createBitmap(2048, 2048, Bitmap.Config.ARGB_8888)
+        val fullAtlas = createBitmap(SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H, Bitmap.Config.ARGB_8888)
         val c = Canvas(fullAtlas)
-        c.drawRect(0f, 0f, 2048f, 2048f, Paint().apply { color = Color.rgb(100, 100, 100) })
+        c.drawRect(0f, 0f, SpriteAtlasDef.ATLAS_W.toFloat(), SpriteAtlasDef.ATLAS_H.toFloat(), Paint().apply { color = Color.rgb(100, 100, 100) })
         val gateRect = SpriteAtlasDef.STRUCTURES[0].rect
         c.drawRect(
             gateRect.x.toFloat(), gateRect.y.toFloat(),
@@ -254,19 +227,5 @@ class SoftwareCanvasBackendAtlasTest {
             "门楼精灵应真实上屏（gate=${Color.red(gatePx)}, ground=${Color.red(groundPx)}）",
             Color.red(gatePx) > Color.red(groundPx) + 100
         )
-    }
-
-    @Test
-    fun `spriteAtlasDef - FLOOR_TILE_UV_MAP has correct size`() {
-        assertEquals(5 * 4, SpriteAtlasDef.FLOOR_TILE_UV_MAP.size)
-    }
-
-    @Test
-    fun `spriteAtlasDef - floorTileRect returns valid rect for all indices`() {
-        for (i in 0 until 5) {
-            val rect = SpriteAtlasDef.floorTileRect(i)
-            assertTrue("floorTileRect $i: w=${rect.w}", rect.w > 0)
-            assertTrue("floorTileRect $i: h=${rect.h}", rect.h > 0)
-        }
     }
 }

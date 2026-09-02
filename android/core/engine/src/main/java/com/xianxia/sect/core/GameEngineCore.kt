@@ -192,6 +192,11 @@ class GameEngineCore @Inject constructor(
     var performanceMode: PerformanceMode = PerformanceMode.BALANCED
         private set
 
+    /** 当前自选清晰度（设置界面五档；分辨率/纹理/装饰 LOD 的输入之一，默认中） */
+    @Volatile
+    var clarityMode: com.xianxia.sect.core.render.ClarityMode = com.xianxia.sect.core.render.ClarityMode.MEDIUM
+        private set
+
     /**
      * 设置性能模式（UI 层/启动路径调用），立即重算帧率与质量。
      */
@@ -199,6 +204,17 @@ class GameEngineCore @Inject constructor(
         if (performanceMode != mode) {
             DomainLog.i(TAG, "Performance mode: ${performanceMode.displayName} → ${mode.displayName}")
             performanceMode = mode
+            updateRenderFrameRate()
+        }
+    }
+
+    /**
+     * 设置自选清晰度（UI 层调用），立即重算质量（渲染缩放/装饰 LOD 联动）。
+     */
+    fun setClarityMode(mode: com.xianxia.sect.core.render.ClarityMode) {
+        if (clarityMode != mode) {
+            DomainLog.i(TAG, "Clarity mode: ${clarityMode.displayName} → ${mode.displayName}")
+            clarityMode = mode
             updateRenderFrameRate()
         }
     }
@@ -276,7 +292,11 @@ class GameEngineCore @Inject constructor(
         val batteryCap = batteryStatusProvider.fpsCap
         val effectiveFps = minOf(thermalFps, sceneFps, batteryCap)
         _renderFrameRate.value = effectiveFps
-        _renderingQualityFactor.value = minOf(thermalController.renderingQualityFactor, mode.qualityFactor)
+        _renderingQualityFactor.value = minOf(
+            thermalController.renderingQualityFactor,
+            mode.qualityFactor,
+            clarityMode.qualityFactor
+        )
         _decorationsDisabled.value = thermalController.particlesDisabled || mode == PerformanceMode.ENERGY_SAVING
     }
 

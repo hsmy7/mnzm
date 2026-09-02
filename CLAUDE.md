@@ -328,7 +328,7 @@ stateStore.update {
 
 **6.6 🔴 精灵图必须统一注册并使用统一入口** — 详见 `rules/static-resources.md`。所有静态图片资源必须：
 
-1. **无损 WebP 格式** — 使用 `scripts/convert-remaining-pngs-to-webp.mjs`（lossless: true, effort: 6）
+1. **无损 WebP 格式** — 走 `scripts/source-mapping.json` + `android/scripts/import-art-assets.mjs`（source-mapping 驱动重烘焙，`lossless: true, effort: 6`）；新增精灵全流程见 `rules/static-resources.md` 2.2 节
 2. **两模块文件放置** — WebP 放入 `feature/game/src/main/res/drawable-nodpi/` 和 `app/src/main/res/drawable-nodpi/`
 3. **注册** — 在 `XianxiaApplication.kt` 调用 `SpriteResRegistry.register(SpriteCategory.XXX, mapOf("名称" to R.drawable.xxx))`
 4. **显示** — 使用 `SpriteImage("名称")`、Canvas 中 `drawSprite(name, cache, ...)` 或 `painterResource(id = SpriteResRegistry.resolve("名称") ?: 0)`

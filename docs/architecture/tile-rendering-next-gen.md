@@ -502,6 +502,8 @@ NativeBridge.submitFrame()
 | 0 | ground_tile_base | 基础地砖 |
 | 1-7 | ground_tile_var1-7 | 变体/过渡保留 |
 
+> ⚠️ 注（2026-09-02）：本节的"地面变体/基础地砖"构想在开发中被**移除**——宗门地面不再铺设方形地砖（`FloorTileType`/地砖槽位/双后端绘制全链清除），建筑直接落于地面 repeat 贴图之上；此段作为已过时的备用设计保留。图集现为 4096，槽位 ×2（瓦片 128、建筑 512、天枢殿 1024）。
+
 #### 6.2 UV 映射表重构
 
 当前 UV 映射表是 Kotlin 中硬编码的 `decorUvMap` + `BUILDING_UV_MAP` 两个独立数组。

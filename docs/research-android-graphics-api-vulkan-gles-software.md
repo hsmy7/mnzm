@@ -202,7 +202,7 @@
 
 理由：
 1. **行业全部不是"非高通一律降级"**。Genshin 对天玑 9000~9400 默认开 Vulkan；星铁官方把天玑 1300/720 列入推荐/支持档；Unity 给 Mali 设的是"Vulkan≥1.0.61"版本阈值；Flutter 对 MediaTek 也只是"关 Vulkan→回退 GPU GLES"。**本项目的"MediaTek 一律 PROBLEMATIC → CPU 软渲染"是目前最保守的，与行业相反，也是性能/电量风险的最大来源。**
-2. **本项目的游戏是 2D 场景（地砖/装饰/建筑/作物/云层 + UI）**，不是重 3D。Vulkan 是理想路径；GPU GLES 也能流畅；**CPU 逐像素在主流分辨率下才是真正的性能/电量灾难**。所以"保住 GPU（Vulkan 或 GLES）"是核心，CPU Canvas 只该在"真坏 + 应急"时用。
+2. **本项目的游戏是 2D 场景（装饰/建筑/作物/云层/道路 + UI）**，不是重 3D。Vulkan 是理想路径；GPU GLES 也能流畅；**CPU 逐像素在主流分辨率下才是真正的性能/电量灾难**。所以"保住 GPU（Vulkan 或 GLES）"是核心，CPU Canvas 只该在"真坏 + 应急"时用。
 3. **"关闭系统硬件加速"把本可 GPU 加速的 Canvas 变成真 CPU**，放大了风险——即使是兜底，也应尽量保持在 GPU（GLES，或 HW 加速开启的 Skia）上，而非关掉 HWUI。
 4. **结论性建议落地顺序（供后续排期）**：
    - P0：把 `detectTier()` 的"MediaTek 一律 PROBLEMATIC""非高通国产一律 PROBLEMATIC"改成"**默认 SAFE/VULKAN_PREFERRED，仅对确凿坏驱动+版本入 Deny**"（对齐 Genshin/Unity 阈值）。

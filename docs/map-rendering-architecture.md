@@ -9,7 +9,7 @@
 
 ```
 渲染顺序（由 C++ VulkanBackend::submitFrame 提交）：
-  Layer 1: 统一瓦片层 — 地面+装饰+建筑+地砖+作物+云层全部从图集取 UV，SpriteBatcher 合并为 1 次 draw call
+  Layer 1: 统一瓦片层 — 地面+装饰+建筑+作物+云层全部从图集取 UV，SpriteBatcher 合并为 1 次 draw call
   Layer 2: Preview    — 纯色矩形（放置/移动预览）→ 白色纹理乘以顶点颜色
 ```
 
@@ -32,7 +32,7 @@
 美术资源 (WebP in drawable-nodpi)
   ├─ decoration_grass_*.webp       — 3 种草装饰变体 → 图集
   ├─ decoration_tree*.webp         — 2 种树装饰变体 → 图集
-  └─ 建筑精灵 → 图集（所有建筑统一为 256×256，2026-08 由 128×128 提升，消除放大颗粒）
+  └─ 建筑精灵 → 图集（所有建筑统一为 512×512，2026-09 由 256×256 提升，消除放大颗粒）
         ↓
 GameActivity.kt (启动时 LaunchedEffect)
   └─ SectMapTileGenerator.generateTileData() → rawTileData + bitmaskData
@@ -84,26 +84,23 @@ const val TILE_BUILDING     = 6   // 建筑占位（由 placedBuildings 计算�
 
 ## 纹理图集布局
 
-所有地面/装饰/建筑精灵合并到单张 **2048×2048 RGBA8** 纹理：
+所有地面/装饰/建筑精灵合并到单张 **4096×4096** 纹理（Vulkan 走 **ASTC 4×4 压缩 KTX**；Canvas 软渲染按 `SectAtlasAssembler` 组装）：
 
 ```
-行0 (y=0):     地面(64×64) + 草装饰(64×64×3) + 树(128×128×2) + 作物(64×64×3)
-行1-4 (y=256起): 建筑 19 座（256×256，行分布 [5,5,5,4]，行公式 y=256/512/768/1024，x=0~1280）
-右侧列 (x=1280): 地砖 5 种（TILE_2x2/2x3/3x2/3x3/SPIRIT_MINE_GROUND，y=256~1152）
-右侧列 (x=1536): 宗门门楼固定结构（384×256，y=256~512）
-云层 (y≥1408):  cloud_1~5（动态云朵槽位）
+行0 (y=0):     瓦片地面(128×128) + 草装饰(128×128×3) + 树(256×256×2) + 作物(128×128×3)
+建筑 (y=512起): 19 座（512×512，行分布 [5,5,5,4]，行公式 y=512/1024/1536/2048，x=0~2560）
+专属高清槽位:  天枢殿 1024×1024 @ (3072,1024)；宗门门楼 768×512 @ (3072,512)
+云层 (y≥2816):  cloud_1~5（动态云朵槽位，保持源素材纵横比）
 ```
 
-> 2026-08 图集重排说明：建筑槽位 128→256 后建筑区占 4 行 × 256px（行公式
-> y=256/512/768/1024，即 BUILDING_SIZE × (rowIndex+1)），地砖与固定结构移入建筑区
-> 右侧空闲列（x≥1280），云层区不变。
+> 2026-09 图集升级：2048→**4096**、槽位 ×2（瓦片 64→128、建筑 256→512、天枢殿 512→1024、门楼 384→768）。宗门地面**不再铺设方形地砖**（`FloorTileType` 移除），建筑直接落于地面 repeat 贴图之上；地砖槽位/绘制全链清除。
 
 UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtlas.h）双重定义，必须保持同步。
 
 ## 精灵图集构建
 
 `NativeSurfaceView.buildAtlas()` 在渲染器就绪后调用：
-1. 创建 2048×2048 `Bitmap`
+1. 创建 Bitmap（Canvas 软渲染路径**封顶 2048**——4096 图集建 64MB 位图会在低端机 OOM，靠 `canvasAtlasScale` 缩放采样；Vulkan 走 ASTC KTX 不受限）
 2. 逐精灵调用 `BitmapFactory.decodeResource` 解码 → `Canvas.drawBitmap` 绘制到图集
 3. `uploadBitmap` 将 ARGB 像素转为 RGBA ByteArray 上传到 GPU 纹理
 4. 返回纹理 ID 存入 `atlasTextureId`
@@ -219,7 +216,7 @@ VulkanPolicy.getRenderStrategy()
 | 渲染方式 | Android Canvas API → `lockCanvas`/`unlockCanvasAndPost` |
 | 线程模型 | 与 Vulkan 共用同一 RenderThread（NativeSurfaceView.RenderThread） |
 | 帧率 | 默认 10 FPS，与 Vulkan 路径一致 |
-| 图集 | 复用 `NativeSurfaceView.buildAtlasBitmap()` 生成的 2048×2048 Bitmap |
+| 图集 | 复用 `NativeSurfaceView.buildAtlasBitmap()` 生成的（Canvas 软渲染封顶 **2048**）Bitmap |
 | 数据流 | 复用 `FrameRenderState`，完全透明调用方 |
 
 **性能指标（48×48 地图，10 FPS）：**

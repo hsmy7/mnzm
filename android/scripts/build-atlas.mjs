@@ -55,19 +55,19 @@ const GL_RGBA = 0x1908;
  * 修改布局只改这里，运行 codegen 后 Kotlin/C++ 双端自动同步。
  */
 const LAYOUT = {
-  atlasW: 2048,
-  atlasH: 2048,
-  tileSize: 64,
-  buildingSize: 256,
+  atlasW: 4096,
+  atlasH: 4096,
+  tileSize: 128,
+  buildingSize: 512,
   // 瓦片（TileType：名称/index/rect）
   tiles: [
-    { name: 'GROUND', index: 0, rect: [0, 0, 64, 64] },
-    { name: 'GRASS_SMALL', index: 1, rect: [64, 0, 64, 64] },
-    { name: 'GRASS_MEDIUM', index: 2, rect: [128, 0, 64, 64] },
-    { name: 'GRASS_LARGE', index: 3, rect: [192, 0, 64, 64] },
-    { name: 'TREE1', index: 4, rect: [256, 0, 128, 128] },
-    { name: 'TREE2', index: 5, rect: [384, 0, 128, 128] },
-    { name: 'TILE_BUILDING', index: 6, rect: [0, 0, 64, 64] }, // 占位（与 GROUND 重叠）
+    { name: 'GROUND', index: 0, rect: [0, 0, 128, 128] },
+    { name: 'GRASS_SMALL', index: 1, rect: [128, 0, 128, 128] },
+    { name: 'GRASS_MEDIUM', index: 2, rect: [256, 0, 128, 128] },
+    { name: 'GRASS_LARGE', index: 3, rect: [384, 0, 128, 128] },
+    { name: 'TREE1', index: 4, rect: [512, 0, 256, 256] },
+    { name: 'TREE2', index: 5, rect: [768, 0, 256, 256] },
+    { name: 'TILE_BUILDING', index: 6, rect: [0, 0, 128, 128] }, // 占位（与 GROUND 重叠）
   ],
   // 建筑（BUILDING_NAMES，按图集排列顺序）
   buildingNames: [
@@ -78,13 +78,13 @@ const LAYOUT = {
     '中级多人住所',
   ],
   buildingColsPerRow: [5, 5, 5, 4],
-  // 建筑专属槽位覆盖（图集名 → 自定义 rect）：默认所有建筑走行公式 256×256 槽位；
-  // 大显示尺寸建筑（天枢殿 18×15 格 ≈ 576×480 世界像素）分配 512×512 高清槽位，
-  // 显示放大比从 2.25x 降至 ~1.1x（2026-08-23 清晰度根治）。位置须避开建筑行区
-  // （y=256~1280, x=0~1280）、地砖列（x=1280~1536, y=256~1152）、门楼（1536,256,384,256）
-  // 与云层区（y≥1408）——置于右侧 (1536,512) 起 512×512。
+  // 建筑专属槽位覆盖（图集名 → 自定义 rect）：天枢殿 18×15 格 ≈ 576×480 世界像素，
+  // 2026-08-23 清晰度根治后 512 槽位仍不足（3x 放大 ~3.8x 上采样），2026-09 升 1024×1024
+  // 高清槽位（图集 4096 右侧 (3072,1024) 空闲区），放大比降至 ~1.9x。须避开建筑行区
+  // （y=512~2560, x=0~2560）、地砖列（x=2560~3072, y=512~2304）、门楼（3072,512,768,512）
+  // 与云层区（y≥2816）——置于右侧 (3072,1024) 起 1024×1024。
   buildingRectOverrides: {
-    '天枢殿': [1536, 512, 512, 512],
+    '天枢殿': [3072, 1024, 1024, 1024],
   },
   // 占地尺寸（FOOTPRINT_BY_NAME_INDEX，按建筑索引）
   footprints: [
@@ -93,44 +93,30 @@ const LAYOUT = {
   ],
   // 灵田作物三阶段（CropStage）
   crops: [
-    { name: 'SEEDLING', rect: [832, 0, 64, 64] },
-    { name: 'GROWING', rect: [896, 0, 64, 64] },
-    { name: 'MATURE', rect: [960, 0, 64, 64] },
-  ],
-  // 地砖（FloorTileType：名称/key/占地/rect）。
-  // 2026-08 建筑槽位 128→256 后图集重排：建筑区 4 行 × 256px（行公式 y=256/512/768/1024，
-  // x=0~1280），地砖与固定结构移入建筑区右侧列（x≥1280）。
-  floors: [
-    { name: 'TILE_2x2', key: 'floor_tile_2x2', gridW: 2, gridH: 2, rect: [1280, 256, 128, 128] },
-    { name: 'TILE_2x3', key: 'floor_tile_2x3', gridW: 2, gridH: 3, rect: [1280, 384, 128, 192] },
-    { name: 'TILE_3x2', key: 'floor_tile_3x2', gridW: 3, gridH: 2, rect: [1280, 576, 192, 128] },
-    { name: 'TILE_3x3', key: 'floor_tile_3x3', gridW: 3, gridH: 3, rect: [1280, 704, 192, 192] },
-    { name: 'SPIRIT_MINE_GROUND', key: 'spirit_mine_ground', gridW: 4, gridH: 4, rect: [1280, 896, 256, 256] },
+    { name: 'SEEDLING', rect: [1664, 0, 128, 128] },
+    { name: 'GROWING', rect: [1792, 0, 128, 128] },
+    { name: 'MATURE', rect: [1920, 0, 128, 128] },
   ],
   // 固定结构（宗门入口门楼——渲染走建筑层，nameIdx = BUILDING_NAMES.size + index）
   structures: [
-    { name: '宗门门楼', key: 'sect_gate', rect: [1536, 256, 384, 256], footprint: [6, 2], spriteSize: [6, 4] },
+    { name: '宗门门楼', key: 'sect_gate', rect: [3072, 512, 768, 512], footprint: [6, 2], spriteSize: [6, 4] },
   ],
   // 石板道路系统（RoadSprite：单一主体 + 横/竖边缘条）
-  // 渲染叠加层按位掩码合成：每格 1 个固定主体（road_body）+ 按方向/形态的边缘条。
-  // 直路（横/竖）在无邻居侧出 1/6×1/2 格边缘条（每条 2 条拼接）；T 中心缺侧 1 面+
-  // 分支基座两内凹角交汇块；转角外缘重叠+内凹角；孤格左右轴；十字中心四内凹角。
-  // 槽位取高清：主体 384×384（极限放大近 1:1）、边缘 96×288 / 288×96（1:3 精度、3x 下缩小采样）。
-  // 位置：主体在 (1024,1024) 空闲区（云层 y≥1408 之上）；边缘在右侧 (1536,1024) 空闲区
-  //（天枢殿下、云层上，512×384）。
+  // 位置：主体在 (2048,2048) 空闲区（云层 y≥2816 之上）；边缘在右侧 (3072,2048) 空闲区
+  //（天枢殿下、云层上，3072,2048,576,192）。
   roads: [
-    { name: 'road_body',   rect: [1024, 1024, 384, 384] },
-    { name: 'road_edge_v', rect: [1536, 1024, 96, 288] },
-    { name: 'road_edge_h', rect: [1632, 1024, 288, 96] },
+    { name: 'road_body',   rect: [2048, 2048, 768, 768] },
+    { name: 'road_edge_v', rect: [3072, 2048, 192, 576] },
+    { name: 'road_edge_h', rect: [3264, 2048, 576, 192] },
   ],
   // 云层精灵（世界顶部动态云朵的图集槽位——仅提供精灵，位置/运动由
-  // CloudLayerAnimator 逐帧驱动。放在图集 y≥1408 空闲区，保持源素材纵横比）
+  // CloudLayerAnimator 逐帧驱动。放在图集 y≥2816 空闲区，保持源素材纵横比）
   clouds: [
-    { name: 'cloud_1', rect: [0, 1408, 484, 120] },
-    { name: 'cloud_2', rect: [484, 1408, 452, 188] },
-    { name: 'cloud_3', rect: [936, 1408, 488, 96] },
-    { name: 'cloud_4', rect: [0, 1620, 524, 108] },
-    { name: 'cloud_5', rect: [524, 1620, 472, 200] },
+    { name: 'cloud_1', rect: [0, 2816, 968, 240] },
+    { name: 'cloud_2', rect: [968, 2816, 904, 376] },
+    { name: 'cloud_3', rect: [1872, 2816, 976, 192] },
+    { name: 'cloud_4', rect: [0, 3240, 1048, 216] },
+    { name: 'cloud_5', rect: [1048, 3240, 944, 400] },
   ],
   // 双端共享渲染常量（原 NativeBridge.cpp / RenderLodPolicy.kt / BuildingRenderGeometry.kt
   // 三处同值手工同步——2026-08-13 收敛为单一数据源，Kotlin/C++ 双产物自动一致）
@@ -138,52 +124,45 @@ const LAYOUT = {
   shadowOffsetTiles: 0.25,
   shadowAlpha: 0.2,
   // C++ MAP_SPRITES（由原 TextureAtlas.h 提取——C++ 命名与 Kotlin 枚举名不同，单独维护）
-  // 2026-08 建筑槽位 128→256：建筑 rect 按行公式 [5,5,5,4] × 256px 同步；
-  // 地砖/结构随 LAYOUT.floors/structures 重排到建筑区右侧列（x≥1280）。
   mapSprites: [
-    { name: 'ground_tile', rect: [0, 0, 64, 64] },
-    { name: 'grass_small', rect: [64, 0, 64, 64] },
-    { name: 'grass_medium', rect: [128, 0, 64, 64] },
-    { name: 'grass_large', rect: [192, 0, 64, 64] },
-    { name: 'tree1', rect: [256, 0, 128, 128] },
-    { name: 'tree2', rect: [384, 0, 128, 128] },
-    { name: 'crop_seedling', rect: [832, 0, 64, 64] },
-    { name: 'crop_growing', rect: [896, 0, 64, 64] },
-    { name: 'crop_mature', rect: [960, 0, 64, 64] },
-    { name: '灵矿场', rect: [0, 256, 256, 256] },
-    { name: '灵植阁', rect: [256, 256, 256, 256] },
-    { name: '灵田', rect: [512, 256, 256, 256] },
-    { name: '炼丹炉', rect: [768, 256, 256, 256] },
-    { name: '锻造坊', rect: [1024, 256, 256, 256] },
-    { name: '仓库', rect: [0, 512, 256, 256] },
-    { name: '藏经阁', rect: [256, 512, 256, 256] },
-    { name: '问道塔', rect: [512, 512, 256, 256] },
-    { name: '青云塔', rect: [768, 512, 256, 256] },
-    { name: '天枢殿', rect: [1536, 512, 512, 512] },  // 专属 512×512 高清槽位（buildingRectOverrides）
-    { name: '执法堂', rect: [0, 768, 256, 256] },
-    { name: '任务阁', rect: [256, 768, 256, 256] },
-    { name: '巡视楼', rect: [512, 768, 256, 256] },
-    { name: '监牢', rect: [768, 768, 256, 256] },
-    { name: '单人住所', rect: [1024, 768, 256, 256] },
-    { name: '中级单人住所', rect: [0, 1024, 256, 256] },
-    { name: '多人住所', rect: [256, 1024, 256, 256] },
-    { name: '血炼池', rect: [512, 1024, 256, 256] },
-    { name: '中级多人住所', rect: [768, 1024, 256, 256] },
-    { name: 'floor_tile_2x2', rect: [1280, 256, 128, 128] },
-    { name: 'floor_tile_2x3', rect: [1280, 384, 128, 192] },
-    { name: 'floor_tile_3x2', rect: [1280, 576, 192, 128] },
-    { name: 'floor_tile_3x3', rect: [1280, 704, 192, 192] },
-    { name: 'spirit_mine_ground', rect: [1280, 896, 256, 256] },
-    { name: 'sect_gate', rect: [1536, 256, 384, 256] },
-    { name: 'cloud_1', rect: [0, 1408, 484, 120] },
-    { name: 'cloud_2', rect: [484, 1408, 452, 188] },
-    { name: 'cloud_3', rect: [936, 1408, 488, 96] },
-    { name: 'cloud_4', rect: [0, 1620, 524, 108] },
-    { name: 'cloud_5', rect: [524, 1620, 472, 200] },
+    { name: 'ground_tile', rect: [0, 0, 128, 128] },
+    { name: 'grass_small', rect: [128, 0, 128, 128] },
+    { name: 'grass_medium', rect: [256, 0, 128, 128] },
+    { name: 'grass_large', rect: [384, 0, 128, 128] },
+    { name: 'tree1', rect: [512, 0, 256, 256] },
+    { name: 'tree2', rect: [768, 0, 256, 256] },
+    { name: 'crop_seedling', rect: [1664, 0, 128, 128] },
+    { name: 'crop_growing', rect: [1792, 0, 128, 128] },
+    { name: 'crop_mature', rect: [1920, 0, 128, 128] },
+    { name: '灵矿场', rect: [0, 512, 512, 512] },
+    { name: '灵植阁', rect: [512, 512, 512, 512] },
+    { name: '灵田', rect: [1024, 512, 512, 512] },
+    { name: '炼丹炉', rect: [1536, 512, 512, 512] },
+    { name: '锻造坊', rect: [2048, 512, 512, 512] },
+    { name: '仓库', rect: [0, 1024, 512, 512] },
+    { name: '藏经阁', rect: [512, 1024, 512, 512] },
+    { name: '问道塔', rect: [1024, 1024, 512, 512] },
+    { name: '青云塔', rect: [1536, 1024, 512, 512] },
+    { name: '天枢殿', rect: [3072, 1024, 1024, 1024] },  // 专属 1024×1024 高清槽位（buildingRectOverrides）
+    { name: '执法堂', rect: [0, 1536, 512, 512] },
+    { name: '任务阁', rect: [512, 1536, 512, 512] },
+    { name: '巡视楼', rect: [1024, 1536, 512, 512] },
+    { name: '监牢', rect: [1536, 1536, 512, 512] },
+    { name: '单人住所', rect: [2048, 1536, 512, 512] },
+    { name: '中级单人住所', rect: [0, 2048, 512, 512] },
+    { name: '多人住所', rect: [512, 2048, 512, 512] },
+    { name: '血炼池', rect: [1024, 2048, 512, 512] },
+    { name: '中级多人住所', rect: [1536, 2048, 512, 512] },
+    { name: 'sect_gate', rect: [3072, 512, 768, 512] },
+    { name: 'cloud_1', rect: [0, 2816, 968, 240] },
+    { name: 'cloud_2', rect: [968, 2816, 904, 376] },
+    { name: 'cloud_3', rect: [1872, 2816, 976, 192] },
+    { name: 'cloud_4', rect: [0, 3240, 1048, 216] },
+    { name: 'cloud_5', rect: [1048, 3240, 944, 400] },
     // 石板道路系统（与 LAYOUT.roads 同源；C++ 经 getRegion("road_*") 取 UV）
-    { name: 'road_body', rect: [1024, 1024, 384, 384] },
-    { name: 'road_edge_v', rect: [1536, 1024, 96, 288] },
-    { name: 'road_edge_h', rect: [1632, 1024, 288, 96] },
+    { name: 'road_body', rect: [2048, 2048, 768, 768] },
+    { name: 'road_edge_v', rect: [3072, 2048, 192, 576] },
+    { name: 'road_edge_h', rect: [3264, 2048, 576, 192] },
   ],
 };
 
@@ -196,15 +175,6 @@ const TILE_DRAWABLE = {
   TREE1: 'decoration_tree1',
   TREE2: 'decoration_tree2',
   TILE_BUILDING: null, // 占位（与 GROUND 重叠，buildAtlasBitmap 同样跳过）
-};
-
-/** 地砖资源名映射（与 buildAtlasBitmap floorTileDrawableMap 一致） */
-const FLOOR_DRAWABLE = {
-  TILE_2x2: 'floor_tile_2x2',
-  TILE_2x3: 'floor_tile_2x3',
-  TILE_3x2: 'floor_tile_3x2',
-  TILE_3x3: 'floor_tile_3x3',
-  SPIRIT_MINE_GROUND: 'spirit_mine_ground',
 };
 
 /** 石板道路资源名映射（LAYOUT.roads → drawable-nodpi 资源名） */
@@ -252,7 +222,6 @@ function semanticIndices(layout) {
     return i;
   };
   const tileNames = layout.tiles.map((t) => t.name);
-  const floorNames = layout.floors.map((f) => f.name);
   // 地面草皮变体：TileType 名以 GROUND 开头的瓦片（渲染器按此把变体格映射到自身地面纹理）
   const groundVariants = layout.tiles
     .filter((t) => t.name.startsWith('GROUND'))
@@ -261,7 +230,6 @@ function semanticIndices(layout) {
   return {
     spiritMine: idx(layout.buildingNames, '灵矿场'),
     spiritField: idx(layout.buildingNames, '灵田'),
-    spiritMineGround: idx(floorNames, 'SPIRIT_MINE_GROUND'),
     tileGround: idx(tileNames, 'GROUND'),
     tileBuilding: idx(tileNames, 'TILE_BUILDING'),
     structureNameBase: layout.buildingNames.length,
@@ -355,9 +323,6 @@ function generateSpriteAtlasDef(layout) {
   const cropLines = layout.crops
     .map((c) => `        ${c.name}(SpriteRect(${c.rect.join(', ')}))`)
     .join(',\n');
-  const floorLines = layout.floors
-    .map((f) => `        ${f.name}(${JSON.stringify(f.key)}, ${f.gridW}, ${f.gridH}, SpriteRect(${f.rect.join(', ')}))`)
-    .join(',\n');
   const structureDefLines = layout.structures
     .map((s) => `        StructureDef(${JSON.stringify(s.name)}, ${JSON.stringify(s.key)}, SpriteRect(${s.rect.join(', ')}), ${s.footprint[0]}, ${s.footprint[1]}, ${s.spriteSize[0]}, ${s.spriteSize[1]})`)
     .join(',\n');
@@ -405,7 +370,6 @@ function generateSpriteAtlasDef(layout) {
     `    const val SHADOW_ALPHA = ${layout.shadowAlpha}f`,
     `    const val SPIRIT_MINE_NAME_INDEX = ${si.spiritMine}`,
     `    const val SPIRIT_FIELD_NAME_INDEX = ${si.spiritField}`,
-    `    const val SPIRIT_MINE_GROUND_UV_INDEX = ${si.spiritMineGround}`,
     `    const val TILE_GROUND_INDEX = ${si.tileGround}`,
     `    const val TILE_BUILDING_INDEX = ${si.tileBuilding}`,
     '',
@@ -655,65 +619,6 @@ function generateSpriteAtlasDef(layout) {
     '        uv',
     '    }',
     '',
-    '    // ============================================================',
-    '    // 地砖类型定义',
-    '    // ============================================================',
-    '',
-    '    /** 地砖精灵尺寸（原始像素，与建筑占地一致） */',
-    '    enum class FloorTileType(',
-    '        val key: String,',
-    '        val gridW: Int, val gridH: Int,',
-    '        val pixelRect: SpriteRect',
-    '    ) {',
-    floorLines,
-    '    }',
-    '',
-    '    /** 地砖 UV 映射（归一化 0-1，用于 Vulkan 纹理采样） */',
-    '    val FLOOR_TILE_UV_MAP: FloatArray by lazy {',
-    '        val uv = FloatArray(FloorTileType.values().size * 4)',
-    '        for (tile in FloorTileType.values()) {',
-    '            val r = tile.pixelRect',
-    '            val i = tile.ordinal * 4',
-    '            uv[i] = r.x.toFloat() / ATLAS_W',
-    '            uv[i + 1] = r.y.toFloat() / ATLAS_H',
-    '            uv[i + 2] = (r.x + r.w).toFloat() / ATLAS_W',
-    '            uv[i + 3] = (r.y + r.h).toFloat() / ATLAS_H',
-    '        }',
-    '        uv',
-    '    }',
-    '',
-    '    /**',
-    '     * 根据建筑占地尺寸获取地砖类型索引。',
-    '     * 新占地尺寸会映射到最接近的现有地砖类型（纹理拉伸后视觉效果接近）。',
-    '     * @param gw 建筑占地宽度（格数）',
-    '     * @param gh 建筑占地高度（格数）',
-    '     * @return 地砖索引（0-3），或 -1（无匹配地砖）',
-    '     */',
-    '    @Suppress("CyclomaticComplexMethod") // 生成代码——映射表为游戏数学常量，detekt 阈值不适用',
-    '    fun floorTileIndex(gw: Int, gh: Int): Int = when {',
-    '        gw == 2 && gh == 2 -> 0  // 地砖2x2',
-    '        gw == 2 && gh == 3 -> 1  // 地砖2x3',
-    '        gw == 3 && gh == 2 -> 2  // 地砖3x2',
-    '        gw == 3 && gh == 3 -> 3  // 地砖3x3',
-    '        // 新占地尺寸映射到最接近的现有地砖',
-    '        gw == 4 && gh == 4 -> 3  // 方形 → 3x3 地砖（拉伸）',
-    '        gw == 6 && gh == 4 -> 2  // 宽扁 → 3x2 地砖',
-    '        gw == 5 && gh == 3 -> 2  // 宽扁 → 3x2 地砖',
-    '        gw == 6 && gh == 3 -> 2  // 宽扁 → 3x2 地砖',
-    '        gw == 4 && gh == 6 -> 1  // 窄高 → 2x3 地砖',
-    '        gw == 6 && gh == 6 -> 3  // 大方 → 3x3 地砖',
-    '        gw == 4 && gh == 8 -> 1  // 瘦高 → 2x3 地砖',
-    '        gw == 2 && gh == 4 -> 1  // 窄高 → 2x3 地砖',
-    '        gw == 4 && gh == 3 -> 2  // 宽扁 → 3x2 地砖',
-    '        gw == 6 && gh == 5 -> 2  // 宽扁 → 3x2 地砖',
-    '        gw == 6 && gh == 2 -> 2  // 门楼占地 6x2 → 3x2 地砖（拉伸）',
-    '        gw == 18 && gh == 13 -> 3  // 天枢殿占地 18x13（近方形）→ 3x3 地砖（拉伸）',
-    '        else -> -1',
-    '    }',
-    '',
-    '    /** 地砖在图集中的像素矩形（供 Canvas 渲染器使用） */',
-    '    fun floorTileRect(index: Int): SpriteRect =',
-    '        FloorTileType.values().getOrNull(index)?.pixelRect ?: SpriteRect(0, 640, 128, 128)',
     '}',
     '',
   ].join('\n');
@@ -872,7 +777,6 @@ function generateTextureAtlasH(layout) {
     '// 语义索引（由 LAYOUT 名称推导生成，防建筑/地砖列表调整后索引漂移）',
     `#define SPIRIT_MINE_NAME_INDEX ${si.spiritMine}`,
     `#define SPIRIT_FIELD_NAME_INDEX ${si.spiritField}`,
-    `#define SPIRIT_MINE_GROUND_UV_INDEX ${si.spiritMineGround}`,
     '',
     '// 瓦片类型索引（与 SpriteAtlasDef.TileType.index 同源）',
     `#define TILE_GROUND ${si.tileGround}`,
@@ -928,14 +832,6 @@ function buildSpriteList() {
     sprites.push({
       name: LAYOUT.buildingNames[i], x: rect.x, y: rect.y, w: rect.w, h: rect.h,
       drawable: BUILDING_DRAWABLE[LAYOUT.buildingNames[i]] ?? null,
-    });
-  }
-
-  // 地砖（FloorTileType 声明顺序；drawable = 资源名）
-  for (const ft of LAYOUT.floors) {
-    sprites.push({
-      name: ft.name, x: ft.rect[0], y: ft.rect[1], w: ft.rect[2], h: ft.rect[3],
-      drawable: FLOOR_DRAWABLE[ft.name] ?? null,
     });
   }
 

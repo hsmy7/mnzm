@@ -509,7 +509,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jint atlasTexId,             // 图集纹理 ID
     jfloatArray uvMap,           // UV 映射 [u0,v0,u1,v1] × tileTypeCount
     jfloatArray buildingUVMap,
-    jfloatArray floorTileUVMap,  // 建筑 UV 映射 + 地砖 UV 映射
     jfloatArray cropData,        // 灵田作物数据 [gx, gy, progress01] × N（WP6，可 null）
     jfloatArray cropUVMap,       // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6，可 null）
     jfloat frameAlpha,           // 逻辑帧插值因子（批次 3 插值消费链——作物进度帧间平滑）
@@ -688,17 +687,11 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloat* buildings = nullptr;
     jfloat* buvs = nullptr;
     jsize buvCount = 0;
-    jfloat* ftuvs = nullptr;  // 地砖 UV（循环外一次性 pin，防每建筑 2 次 JNI——对抗性审查 L3）
-    jsize ftuvCount = 0;
 
     if (buildingVisible && buildingData && buildingUVMap && buildingCount > 0) {
         buildings = env->GetFloatArrayElements(buildingData, nullptr);
         buvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
         buvCount = env->GetArrayLength(buildingUVMap) / 4;
-        if (floorTileUVMap != nullptr) {
-            ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
-            ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
-        }
 
         // 对抗性审查 M1：buildingCount 与数组长度取小（防御上游不一致的越界读）
         const jsize buildingArrCount = env->GetArrayLength(buildingData) / 5;
@@ -751,45 +744,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 对抗性审查 M3/M4：负 nameIdx 直接负索引越界读（原条件只防上界）
             if (buvIdx < 0 || buvIdx >= (int)buvCount) buvIdx = 0;
 
-            // (A) 地砖底座（灵田除外），按占地尺寸绘制。
-            //    灵矿场使用专属地皮覆盖纹理，其他建筑（含门楼固定结构）用通用地砖。
-            if (ftuvs != nullptr) {
-                int ftIdx = -1;
-                if (nameIdx == SPIRIT_MINE_NAME_INDEX) {
-                    ftIdx = SPIRIT_MINE_GROUND_UV_INDEX;
-                } else if (nameIdx != SPIRIT_FIELD_NAME_INDEX) {
-                    // 地砖索引由占地尺寸决定
-                    int ftW = fpW, ftH = fpH;
-                    if      (ftW == 2 && ftH == 2) ftIdx = 0;
-                    else if (ftW == 2 && ftH == 3) ftIdx = 1;
-                    else if (ftW == 3 && ftH == 2) ftIdx = 2;
-                    else if (ftW == 3 && ftH == 3) ftIdx = 3;
-                    // 新占地尺寸映射到最接近的现有地砖
-                    else if (ftW == 4 && ftH == 4) ftIdx = 3;  // 方形 → 3x3
-                    else if (ftW == 6 && ftH == 4) ftIdx = 2;  // 宽扁 → 3x2
-                    else if (ftW == 4 && ftH == 6) ftIdx = 1;  // 窄高 → 2x3
-                    else if (ftW == 6 && ftH == 6) ftIdx = 3;  // 大方 → 3x3
-                    else if (ftW == 4 && ftH == 8) ftIdx = 1;  // 瘦高 → 2x3
-                    else if (ftW == 2 && ftH == 4) ftIdx = 1;  // 窄高 → 2x3
-                    else if (ftW == 4 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
-                    else if (ftW == 6 && ftH == 5) ftIdx = 2;  // 宽扁 → 3x2
-                    else if (ftW == 6 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
-                    else if (ftW == 5 && ftH == 3) ftIdx = 2;  // 宽扁 → 3x2
-                    else if (ftW == 6 && ftH == 2) ftIdx = 2;  // 门楼 6x2 → 3x2（拉伸）
-                    else if (ftW == 18 && ftH == 13) ftIdx = 3;  // 天枢殿 18x13（近方形）→ 3x3（拉伸）
-                }
-
-                if (ftIdx >= 0 && ftIdx < (int)ftuvCount) {
-                    batcher.add(atlasTexId, ftPx, ftPy, ftPw, ftPh,
-                        ftuvs[ftIdx * 4] + UV_EPSILON,
-                        ftuvs[ftIdx * 4 + 1] + UV_EPSILON,
-                        ftuvs[ftIdx * 4 + 2] - UV_EPSILON,
-                        ftuvs[ftIdx * 4 + 3] - UV_EPSILON,
-                        1.0f, 1.0f, 1.0f, fadeAlpha);
-                }
-            }
-
-            // (A2) 建筑投影阴影（地砖之上、精灵之下，绘制顺序保证阴影被精灵覆盖）
+            // (A2) 建筑投影阴影（精灵之下，绘制顺序保证阴影被精灵覆盖）
             // 半透明黑 quad + 右下偏移 0.25 格（textureId=0 = 白色纹理 × 顶点色）
             // 坐标/常量与 BuildingRenderGeometry.shadowRect 同数学（双端一致）
             // 固定结构（门楼/阶梯）不投影——避免阴影压到阶梯/地图底边外
@@ -978,7 +933,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     env->ReleaseFloatArrayElements(uvMap, uvs, JNI_ABORT);
     if (buildings) env->ReleaseFloatArrayElements(buildingData, buildings, JNI_ABORT);
     if (buvs) env->ReleaseFloatArrayElements(buildingUVMap, buvs, JNI_ABORT);
-    if (ftuvs) env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
 }
 
 extern "C" JNIEXPORT void JNICALL

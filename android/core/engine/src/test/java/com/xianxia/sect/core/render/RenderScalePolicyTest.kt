@@ -197,4 +197,37 @@ class RenderScalePolicyTest {
         assertEquals(0.8f, RenderScalePolicy.screenFactor(ScreenPixelAreaTier.LARGE), 0.001f)
         assertEquals(0.7f, RenderScalePolicy.screenFactor(ScreenPixelAreaTier.XLARGE), 0.001f)
     }
+
+    // ── 自选清晰度（clarityRenderScale）夹紧 ──
+
+    @Test
+    fun `clarityRenderScale default 1_0 preserves existing behavior`() {
+        // 默认 1.0：COMPACT+Vulkan 恒 1.0（回归基线不变）
+        assertEquals(1.0f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f), 0.001f)
+        // 平板 LARGE HIGH：面积因子 × GPU cap = 0.8（不受 default 1.0 影响）
+        assertEquals(0.8f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2560, 1600, 1.0f), 0.001f)
+    }
+
+    @Test
+    fun `clarityRenderScale clamps COMPACT+Vulkan early-return 1_0`() {
+        // 关键修复：过去 COMPACT+Vulkan 恒 1.0，现在玩家选低清晰度能被压低
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.5f), 0.001f)
+        assertEquals(0.6f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.6f), 0.001f)
+        assertEquals(0.8f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.8f), 0.001f)
+        assertEquals(1.0f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 1.0f), 0.001f)
+    }
+
+    @Test
+    fun `clarityRenderScale lowers auto scale on large tablet`() {
+        // LARGE 自动 0.8；极低(0.5)再压 → 0.5
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2560, 1600, 1.0f, 0.5f), 0.001f)
+        // LARGE 自动 0.8；中(0.8)恰好 → 0.8
+        assertEquals(0.8f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2560, 1600, 1.0f, 0.8f), 0.001f)
+    }
+
+    @Test
+    fun `clarityRenderScale clamps to MIN render scale floor`() {
+        // clarity 低于 MIN(0.5) 强制 0.5（coerceIn 下限）
+        assertEquals(0.5f, RenderScalePolicy.computeRenderScale(GpuTier.HIGH, false, 2400, 1080, 1.0f, 0.1f), 0.001f)
+    }
 }

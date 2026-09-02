@@ -126,6 +126,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.perf.GpuTier
+import com.xianxia.sect.core.render.ClarityMode
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
@@ -378,6 +379,20 @@ class GameViewModel @Inject constructor(
         systemModeOverride = mode
         coreServices.gameEngineCore.setPerformanceMode(mode)
         _performanceMode.value = mode
+    }
+
+    // ── 自选清晰度（五档：极低/低/中/高/极高，设备级持久化，默认中） ──
+
+    private val _clarityMode = MutableStateFlow(
+        ClarityMode.fromStorage(delegateServices.sessionManager.clarityMode)
+    )
+    val clarityMode: StateFlow<ClarityMode> = _clarityMode.asStateFlow()
+
+    /** 用户设置自选清晰度：写入引擎（重算渲染质量）+ 设备级持久化 + UI 状态。 */
+    fun setClarityMode(mode: ClarityMode) {
+        coreServices.gameEngineCore.setClarityMode(mode)
+        delegateServices.sessionManager.clarityMode = mode.name
+        _clarityMode.value = mode
     }
 
     /** 移动中建筑实例 ID 通道（D-12，2026-08-06）：总线渲染排除与 Compose 交互索引同源。 */

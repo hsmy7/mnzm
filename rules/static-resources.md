@@ -18,24 +18,28 @@
 **素材源目录（唯一权威源）：`D:\模拟宗门美术素材`**
 
 所有游戏美术的 PNG 源文件一律放在该目录，仓库内只存 WebP 产物（PNG 不提交）。
-今后任何素材改动流程：**新素材/改素材放入源目录 → 运行导入脚本 → 构建验证**。
-素材源目录与 drawable 的映射关系登记在 `scripts/import-art-assets.mjs` 的 `IMPORT` 表中，
-新增素材只需在该表加一行（源文件名 → drawable 名 + 目标模块）后运行脚本。
+今后任何素材改动流程：**新素材/改素材放入源目录 → 在 `scripts/source-mapping.json` 登记映射 → 运行导入脚本 → 构建验证**。
 
-有现成的 Node.js 转换脚本：
+source↔drawable 的**权威映射**在 `scripts/source-mapping.json`（由 `scripts/scaffold-source-mapping.mjs` 扫描 `scripts/resource-registry.json` + 源目录生成/维护）。每条含：`drawable`（产物名）、`source`（相对源目录路径）、`modules`、`bake`（`preserve` 保留源分辨率 / `maxDim:N` 等比缩放到最长边 / `canvas:{w,h}` contain 画布）。
+
+新增素材只需在该文件登记一行（或运行时脚手架自动盖上），随后运行导入脚本重烘焙。**禁止手改生成物**（`source-mapping.json` 由脚手架生成，改动应改脚手架规则或直接编辑后由守卫校验）。
+
+有现成的 Node.js 脚本：
 
 ```bash
-# 素材源目录导入：PNG → 无损 WebP（按 scripts/import-art-assets.mjs 的 IMPORT 映射表
-# 输出到对应模块 drawable-nodpi；天枢殿等比缩放+透明延展 600×400，云层保持原生尺寸）
-node scripts/import-art-assets.mjs
+# 均在 android/ 目录下运行（脚本位于 android/scripts/）
+cd android
 
-# 批量转换 PNG → 无损 WebP（扫描所有资源目录，转换后自动删除原 PNG）
-node scripts/convert-remaining-pngs-to-webp.mjs
+# 重新生成权威映射（扫描 resource-registry.json + 源目录，输出 source-mapping.json + 待补清单）
+node scripts/scaffold-source-mapping.mjs
+
+# 按映射重烘焙：PNG → 无损 WebP（bake 规则：小物件 maxDim 1024 / 大图 preserve），
+# 内容 hash 增量（未变跳过）+ fail-fast（源缺失即失败）+ dry-run 预览
+node scripts/import-art-assets.mjs              # 实际写入
+node scripts/import-art-assets.mjs --dry-run    # 只报「将变更/将跳过/将失败」，不写盘
 ```
 
-转换参数（`convert-remaining-pngs-to-webp.mjs` 与 `import-art-assets.mjs` 统一）：
-- `lossless: true` — 无损压缩
-- `effort: 6` — 最高压缩率
+转换参数统一：`lossless: true`（无损压缩）、`effort: 6`（最高压缩率）。
 
 ### 1.3 构建配置
 
@@ -79,27 +83,53 @@ androidResources {
 | **天劫试炼精灵图** | `SpriteCategory.HEAVENLY_TRIAL` | L2 (priority=2) | 岛屿、挑战背景、战斗场景等 |
 | **地图资源** | `GameActivity.kt` — `MapPreloadData` 构建逻辑 | 地图预加载 | `sect_ground_map`、`decoration_grass`、`decoration_trees` |
 
-### 2.2 注册流程（codegen 自动注册）
+### 2.2 新增精灵图全流程（source-mapping + import 权威管线，2026-09-02）
+
+> 权威源：美术源图（`D:\模拟宗门美术素材`）→ `scripts/source-mapping.json`（source↔drawable 映射）→ `scripts/import-art-assets.mjs`（烘焙 WebP 到双模块）。仓库内 WebP 是**映射产物**，PNG 源不提交。
+
+**通用 UI/物品精灵图：**
 
 ```
 新增静态图片资源
   │
-  ├─ 1. 将图片转为无损 WebP → 放入 drawable-nodpi/
-  │      (如源文件是 PNG，运行 node scripts/convert-remaining-pngs-to-webp.mjs)
-  │      注意：资源需同时在 feature/game 和 app 两个模块的 drawable-nodpi/ 中各放一份
+  ├─ 1. 源图放入 D:\模拟宗门美术素材\<分类>\<中文名>.png
+  │      比如 装备/玄铁重剑.png（新增分类需先在 SpriteCategory 枚举定义）
   │
-  ├─ 2. 在 scripts/resource-registry.json 对应分类下登记名称与资源名
-  │      { "category": "XXX", "entries": [ { "name": "精灵图名称", "res": "文件名" } ] }
-  │      新增分类需在 SpriteCategory 枚举（core/ui EquipmentSprite.kt）中补充定义
+  ├─ 2. scripts/resource-registry.json 对应分类登记
+  │      { "category": "EQUIPMENT", "entries": [ { "name": "玄铁重剑", "res": "xuan_tie_zhong_jian" } ] }
   │
-  ├─ 3. 界面中使用统一入口显示精灵图
-  │      SpriteImage(name = "精灵图名称", contentDescription = "描述")
-  │      或 Canvas 中用 drawSprite(name, cache, ...)
+  ├─ 3. 运行 node scripts/scaffold-source-mapping.mjs
+  │      自动扫描 registry + 源目录 → 生成/更新 source-mapping.json
+  │      （常见分类自动盖上：EQUIPMENT/MATERIAL 按中文名、PILL/储物袋按品级、
+  │      功法按 res、草药/种子按后缀；覆盖类目的 drawable 归入带 source 的条目）
   │
-  └─ 4. 完成！构建时 codegen 自动生成注册代码并纳入预加载
-         不需要修改 XianxiaApplication.kt / ResourcePreloader / SpriteRegistryData.kt
-         不需要在界面中写 R.drawable.xxx
+  ├─ 4. 若生成为待补(source=null)或命名不规则 → 手补 source-mapping.json 该条目
+  │      { "drawable": "xuan_tie_zhong_jian", "source": "装备/玄铁重剑.png",
+  │        "modules": ["feature/game","app"], "bake": {"maxDim":1024} }
+  │      大图用 { "bake": {"preserve": true} }
+  │
+  ├─ 5. 运行 node scripts/import-art-assets.mjs  （可先 --dry-run 预览）
+  │      按 bake 规则：无损 WebP → 写入 feature/game 与 app 双模块
+  │      内容 hash 增量（未变跳过）+ fail-fast（源缺失即报错）
+  │
+  ├─ 6. 界面用统一入口显示
+  │      SpriteImage(name = "玄铁重剑")  或  SpriteResRegistry.resolve("玄铁重剑")
+  │
+  └─ 7. 守卫自动兜底（缺失步骤会被拦）：
+        - SpriteSourceMappingGuardTest：每个注册 res 必须在 source-mapping 有映射条目；
+          结构/烘焙规则合法
+        - ResourceManifestCompletenessTest：WebP 双模块都进清单
+        - SpriteCodegenSyncTest：注册代码与 registry 一致
+      编译：./gradlew compileReleaseKotlin
 ```
+
+**地图图集精灵（瓦片/建筑/装饰/云层/道路）：** 走另一管线 —— 改 `scripts/build-atlas.mjs` 的 `LAYOUT` 布局 + 相应 drawable，运行两个 codegen 命令或构建（详见解 5 节）。
+
+**关键注意：**
+- **必须跑 scaffold**（步骤 3）：新增 res 若不进 `source-mapping.json`，`SpriteSourceMappingGuardTest` 的"registry 全覆盖"会失败。
+- **必须跑 import**（步骤 5）：否则 WebP 未生成/未双模块放置，清单完整性与运行时显示均出问题。
+- `source-mapping.json` 是**权威映射数据**（可为"待补条目"手填 source），但 drawable 全局唯一 + 结构合法由守卫锁定。
+- **首屏可见**的资源必须在 `priority=0/1` 的分类注册（见 2.4）。
 
 ### 2.3 统一精灵图 API
 
@@ -158,12 +188,14 @@ backgroundRes("bg_horizontal")  // → Int?
 
 新增静态资源时，确认以下全部完成：
 
-- [ ] 图片已转为**无损 WebP** 格式（`lossless: true, effort: 6`）
-- [ ] 图片已放入 `feature/game/src/main/res/drawable-nodpi/` **和** `app/src/main/res/drawable-nodpi/` 两个模块（同名同内容，防止清单冲突）
+- [ ] 源 PNG 已放入 `D:\模拟宗门美术素材\<分类>\<中文名>.png`
 - [ ] 已在 `scripts/resource-registry.json` 对应分类登记（新增分类时补充 `SpriteCategory` 枚举定义）
+- [ ] 已运行 `node scripts/scaffold-source-mapping.mjs` 生成/更新 `source-mapping.json`（未自动命中的待补条目已手填 source + bake）
+- [ ] 已运行 `node scripts/import-art-assets.mjs` 烘焙无损 WebP 到 feature/game 与 app 双模块（含 hash 增量 + fail-fast）
+- [ ] 图片为**无损 WebP**（`lossless: true, effort: 6`），源 PNG 已删除（不提交到仓库）
 - [ ] 使用了正确的 `SpriteCategory`（首屏可见 → priority 0/1，其余 → priority 2）
 - [ ] 界面中使用 `SpriteImage("名称")` 或 `SpriteResRegistry.resolve("名称")` 显示，不使用直接 `R.drawable.xxx`
-- [ ] 源 PNG 文件已删除（不提交到仓库）
+- [ ] 守卫测试通过（`SpriteSourceMappingGuardTest` / `ResourceManifestCompletenessTest` / `SpriteCodegenSyncTest`）
 - [ ] 编译通过：`cd android && ./gradlew.bat compileReleaseKotlin`
 
 **活动/排行/社交扩展资源（2026-08-04 起）：** 活动卡片、排行榜、社交界面新增的静态资源同样强制走上述全部流程（WebP + 双模块 + 注册 + SpriteImage）。动态生成内容（排行榜头像占位、玩家生成分享图）**优先代码绘制**（Compose Canvas/形状），确需图片时走 `PORTRAIT` 分类或新增 `SpriteCategory`（需评估预加载优先级：首屏可见 → priority ≤ 1）。

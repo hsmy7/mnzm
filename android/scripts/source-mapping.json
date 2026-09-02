@@ -1,0 +1,3272 @@
+{
+  "version": 1,
+  "description": "美术素材 source↔drawable 权威映射（由 scaffold-source-mapping.mjs 生成）。source 相对 D:\\模拟宗门美术素材；bake.preserve=true 保留源分辨率，bake.maxDim 等比缩放最长边。",
+  "sourceDir": "D:/模拟宗门美术素材",
+  "bakeDefaults": {
+    "PILL": {
+      "maxDim": 1024
+    },
+    "MATERIAL": {
+      "maxDim": 1024
+    },
+    "EQUIPMENT": {
+      "maxDim": 1024
+    },
+    "STORAGE_BAG": {
+      "maxDim": 1024
+    },
+    "MANUAL": {
+      "maxDim": 1024
+    },
+    "SEED": {
+      "maxDim": 1024
+    },
+    "PORTRAIT": {
+      "preserve": true
+    },
+    "BUILDING": {
+      "preserve": true
+    },
+    "UI": {
+      "preserve": true
+    },
+    "BACKGROUND": {
+      "preserve": true
+    },
+    "BEAST": {
+      "preserve": true
+    },
+    "CAVE": {
+      "preserve": true
+    },
+    "HEAVENLY_TRIAL": {
+      "preserve": true
+    },
+    "MAP": {
+      "preserve": true
+    }
+  },
+  "categories": [
+    {
+      "category": "EQUIPMENT",
+      "entries": [
+        {
+          "drawable": "jing_tie_jian",
+          "source": "装备/精铁剑.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "jing_tie_dao",
+          "source": "装备/精铁刀.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "lie_yan_jian",
+          "source": "装备/烈焰剑.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_feng_jian",
+          "source": "装备/灵锋剑.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_hua_dao",
+          "source": "装备/凌华刀.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "lei_ting_jian",
+          "source": "装备/雷霆剑.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "qing_lian_jian",
+          "source": "装备/青莲剑.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "zhu_xian_jian",
+          "source": "装备/诛仙剑.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "feng_yan_ren",
+          "source": "装备/凤炎刃.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "qing_bi_ren",
+          "source": "装备/青碧刃.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "an_ying_ren",
+          "source": "装备/暗影刃.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xuan_yu_ren",
+          "source": "装备/玄玉刃.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tao_mu_zhang",
+          "source": "装备/桃木杖.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bi_yu_zhang",
+          "source": "装备/碧玉杖.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xuan_lei_zhang",
+          "source": "装备/玄雷杖.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xu_hua_zhang",
+          "source": "装备/虚华杖.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tian_xuan_zhang",
+          "source": "装备/天玄杖.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tian_xing_zhang",
+          "source": "装备/天星杖.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bi_mu_shan",
+          "source": "装备/碧木扇.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_feng_shan",
+          "source": "装备/灵风扇.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xuan_bing_shan",
+          "source": "装备/玄冰扇.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "huang_yan_shan",
+          "source": "装备/凰焰扇.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yin_yang_shan",
+          "source": "装备/阴阳扇.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tian_xuan_shan",
+          "source": "装备/天玄扇.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "suo_zi_jia",
+          "source": "装备/锁子甲.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "pi_jia",
+          "source": "装备/皮甲.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_zhu_yi",
+          "source": "装备/灵竹衣.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "jing_tie_jia",
+          "source": "装备/精铁甲.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bi_ye_jia",
+          "source": "装备/碧叶甲.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "dan_yu_yi",
+          "source": "装备/丹羽衣.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "qing_lin_kai",
+          "source": "装备/青鳞铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yin_ban_kai",
+          "source": "装备/银板铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xi_liu_yi",
+          "source": "装备/汐流衣.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_si_pao",
+          "source": "装备/灵丝袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yun_wen_pao",
+          "source": "装备/云纹袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "long_lin_kai",
+          "source": "装备/龙鳞铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yuan_yan_kai",
+          "source": "装备/渊岩铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yao_guang_pao",
+          "source": "装备/瑶光袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yue_hua_pao",
+          "source": "装备/月华袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xing_chen_pao",
+          "source": "装备/星辰袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xuan_you_pao",
+          "source": "装备/玄幽袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "mo_you_kai",
+          "source": "装备/墨幽铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_xing_pao",
+          "source": "装备/凌星袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ding_hai_kai",
+          "source": "装备/定海铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bu_xiu_kai",
+          "source": "装备/不朽铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "cang_gang_kai",
+          "source": "装备/苍罡铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xi_guang_kai",
+          "source": "装备/曦光铠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yun_ying_pao",
+          "source": "装备/云影袍.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ben_lei_xue",
+          "source": "装备/奔雷靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "chang_ming_zhui",
+          "source": "装备/长明坠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "chi_sha_xue",
+          "source": "装备/赤煞靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "du_e_pei",
+          "source": "装备/渡厄佩.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "feng_yu_zhui",
+          "source": "装备/凤羽坠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "he_lan_xue",
+          "source": "装备/鹤岚靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ji_feng_xue",
+          "source": "装备/疾风靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_quan_jie",
+          "source": "装备/灵泉戒.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ling_yu_pei",
+          "source": "装备/灵玉佩.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "long_ling_zhu",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "luan_yu_lv",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "qing_yu_xue",
+          "source": "装备/轻羽靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "qing_lan_xue",
+          "source": "装备/青澜靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "shou_pi_xue",
+          "source": "装备/兽皮靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "su_guang_xue",
+          "source": "装备/溯光靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "ta_yun_lv",
+          "source": "装备/踏云履.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tong_xiang_lian",
+          "source": "装备/铜项链.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "xun_jie_zhu",
+          "source": "装备/迅捷珠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yin_yun_pei",
+          "source": "装备/隐云佩.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "you_shuo_zhu",
+          "source": "装备/幽朔珠.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yu_jie_zhi",
+          "source": "装备/玉戒指.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yun_qi_xue",
+          "source": "装备/云栖靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "yun_ling_jie",
+          "source": "装备/蕴灵戒.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "zhui_feng_xue",
+          "source": "装备/追风靴.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        }
+      ]
+    },
+    {
+      "category": "MANUAL",
+      "entries": [
+        {
+          "drawable": "manual_fan_ling",
+          "source": "功法/凡品与灵品功法精灵图.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "manual_bao_xuan",
+          "source": "功法/宝品和玄品功法精灵图.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "manual_di_tian",
+          "source": "功法/地品和天品功法精灵图.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        }
+      ]
+    },
+    {
+      "category": "PILL",
+      "entries": [
+        {
+          "drawable": "pill_fan",
+          "source": "丹药/凡品丹药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "pill_ling",
+          "source": "丹药/灵品丹药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "pill_bao",
+          "source": "丹药/宝品丹药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "pill_xuan",
+          "source": "丹药/玄品丹药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "pill_di",
+          "source": "丹药/地品丹药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "pill_tian",
+          "source": "丹药/天品丹药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        }
+      ]
+    },
+    {
+      "category": "SPIRIT_STONE",
+      "entries": [
+        {
+          "drawable": "spirit_stone_low",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "spirit_stone_mid",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "spirit_stone_high",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "MATERIAL",
+      "entries": [
+        {
+          "drawable": "tiger_hide",
+          "source": "材料/虎皮.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tiger_blood",
+          "source": "材料/虎血.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tiger_tooth",
+          "source": "材料/虎牙.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "tiger_core",
+          "source": "材料/虎内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "wolf_hide",
+          "source": "材料/狼皮.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "wolf_bone",
+          "source": "材料/狼骨.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "wolf_tooth",
+          "source": "材料/狼牙.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "wolf_core",
+          "source": "材料/狼内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "snake_scale",
+          "source": "材料/蛇鳞.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "snake_blood",
+          "source": "材料/蛇血.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "snake_tooth",
+          "source": "材料/蛇牙.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "snake_core",
+          "source": "材料/蛇内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bear_hide",
+          "source": "材料/熊皮.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bear_bone",
+          "source": "材料/熊骨.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bear_claw",
+          "source": "材料/熊掌.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bear_core",
+          "source": "材料/熊内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "eagle_feather",
+          "source": "材料/鹰羽.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "eagle_bone",
+          "source": "材料/鹰骨.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "eagle_claw",
+          "source": "材料/鹰爪.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "eagle_core",
+          "source": "材料/鹰内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "fox_hide",
+          "source": "材料/狐皮.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "fox_bone",
+          "source": "材料/狐骨.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "fox_tail",
+          "source": "材料/狐尾.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "fox_core",
+          "source": "材料/狐内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "dragon_scale",
+          "source": "材料/龙鳞.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "dragon_claw",
+          "source": "材料/龙爪.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "dragon_horn",
+          "source": "材料/龙角.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "dragon_core",
+          "source": "材料/龙内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "turtle_shell",
+          "source": "材料/龟壳.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "turtle_bone",
+          "source": "材料/龟骨.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "turtle_blood",
+          "source": "材料/龟血.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "turtle_core",
+          "source": "材料/龟内丹.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        }
+      ]
+    },
+    {
+      "category": "STORAGE_BAG",
+      "entries": [
+        {
+          "drawable": "bag_fan",
+          "source": "储物袋/凡品储物袋.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bag_ling",
+          "source": "储物袋/灵品储物袋.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bag_bao",
+          "source": "储物袋/宝品储物袋.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bag_xuan",
+          "source": "储物袋/玄品储物袋.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bag_di",
+          "source": "储物袋/地品储物袋.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "bag_tian",
+          "source": "储物袋/天品储物袋.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        }
+      ]
+    },
+    {
+      "category": "SECT_ICON",
+      "entries": [
+        {
+          "drawable": "sect_icon_small",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "sect_icon_medium",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "sect_icon_large",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "sect_icon_top",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "ITEM",
+      "entries": [
+        {
+          "drawable": "herb_spiritgrass1",
+          "source": "草药/聚灵草草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass2",
+          "source": "草药/清心草草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass3",
+          "source": "草药/凝气草草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower1",
+          "source": "草药/云雾花草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower2",
+          "source": "草药/白莲草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower3",
+          "source": "草药/晨露花草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit1",
+          "source": "草药/精气果草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit2",
+          "source": "草药/赤心果草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit3",
+          "source": "草药/灵韵果草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass4",
+          "source": "草药/寒霜草草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass5",
+          "source": "草药/烈焰草草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass6",
+          "source": "草药/金灵草草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower4",
+          "source": "草药/冰魄莲草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower5",
+          "source": "草药/双生花草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower6",
+          "source": "草药/紫霄花草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit4",
+          "source": "草药/通灵果草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit5",
+          "source": "草药/玄灵果草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit6",
+          "source": "草药/五行果草药图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass7",
+          "source": "草药/龙血草草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass8",
+          "source": "草药/风铃草草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritgrass9",
+          "source": "草药/九转灵草草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower7",
+          "source": "草药/九转仙兰草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower8",
+          "source": "草药/凤凰花草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritflower9",
+          "source": "草药/青龙花草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit7",
+          "source": "草药/赤阳果草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit8",
+          "source": "草药/玄灵莓草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "herb_spiritfruit9",
+          "source": "草药/天元果草药.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass1",
+          "source": "种子/聚灵草种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass2",
+          "source": "种子/清心草种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass3",
+          "source": "种子/凝气草种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower1",
+          "source": "种子/云雾花种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower2",
+          "source": "种子/白莲种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower3",
+          "source": "种子/晨露花种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit1",
+          "source": "种子/精气果核图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit2",
+          "source": "种子/赤心果核图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit3",
+          "source": "种子/灵韵果核图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass4",
+          "source": "种子/寒霜草种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass5",
+          "source": "种子/烈焰草种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass6",
+          "source": "种子/金灵草种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower4",
+          "source": "种子/冰魄莲种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower5",
+          "source": "种子/双生花种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower6",
+          "source": "种子/紫霄花种图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit4",
+          "source": "种子/通灵果核图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit5",
+          "source": "种子/玄灵果核图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit6",
+          "source": "种子/五行果核图片.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass7",
+          "source": "种子/龙血草种.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass8",
+          "source": "种子/风铃草种.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritgrass9",
+          "source": "种子/九转灵草种.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower7",
+          "source": "种子/九转仙兰种.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower8",
+          "source": "种子/凤凰花种.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritflower9",
+          "source": "种子/青龙花种.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit7",
+          "source": "种子/赤阳果核.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit8",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "seed_spiritfruit9",
+          "source": "种子/天元果核.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "maxDim": 1024
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass1",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass2",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass3",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower1",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower2",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower3",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit1",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit2",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit3",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass4",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass5",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass6",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower4",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower5",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower6",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit4",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit5",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit6",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass7",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass8",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritgrass9",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower7",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower8",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritflower9",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit7",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit8",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "growing_spiritfruit9",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "UI",
+      "entries": [
+        {
+          "drawable": "ui_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_close_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_detail_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_add_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_diplomacy_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_guide_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_merchant_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_build_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_warehouse_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_team_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_map_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_planting_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_recruit_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_mail_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_log_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "dialog_box",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_hide_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_show_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_play_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_pause_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_settings_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_start_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "loading_background",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_sysmsg",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "combat_power_bg",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "jade_symbol",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "jade_add_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "golden_finger",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "secret_realm_option_card",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_lizhan_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "li_zhan_card",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_icon",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_leaderboard_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_flip_left",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_flip_right",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "area_select_button",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "BEAST",
+      "entries": [
+        {
+          "drawable": "tiger_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "wolf_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "snake_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "bear_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "eagle_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "fox_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "dragon_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "turtle_beast",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "CAVE",
+      "entries": [
+        {
+          "drawable": "cave_1",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cave_2",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cave_3",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "secret_realm",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "HEAVENLY_TRIAL",
+      "entries": [
+        {
+          "drawable": "heavenly_trial_island_1",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_2",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_3",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_4",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_5",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_6",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_7",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_island_8",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_challenge_bg",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_battle_scene",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_battle_bar",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_defend",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_atk_normal",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_phase1",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_phase2",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "heavenly_trial_map",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "BACKGROUND",
+      "entries": [
+        {
+          "drawable": "bg_horizontal",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "bg_dialog_mail",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "bg_screen",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "map_zhongzhou",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "dialogue_bg",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "dialogue_bubble_left",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "dialogue_bubble_right",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "secret_realm_bg",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cloud_1",
+          "source": "装饰物/云层1.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cloud_2",
+          "source": "装饰物/云层2.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cloud_3",
+          "source": "装饰物/云层3.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cloud_4",
+          "source": "装饰物/云层4.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "cloud_5",
+          "source": "装饰物/云层5.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "PORTRAIT",
+      "entries": [
+        {
+          "drawable": "disciple_portrait",
+          "source": null,
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    },
+    {
+      "category": "BUILDING",
+      "entries": [
+        {
+          "drawable": "building_tianshu_hall",
+          "source": "建筑/天枢殿.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        }
+      ]
+    }
+  ]
+}

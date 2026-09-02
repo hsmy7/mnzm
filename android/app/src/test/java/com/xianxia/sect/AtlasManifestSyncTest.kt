@@ -102,12 +102,12 @@ class AtlasManifestSyncTest {
             bytes.copyOfRange(KTX_MAGIC_OFFSET, KTX_MAGIC_OFFSET + magic.size).contentEquals(magic)
         )
 
-        // 宽高字段（2048/2048）与 dataSize（512×512 块 × 16 字节）几何推导一致
+        // 宽高字段（与 ATLAS_W/H 一致）与 dataSize（块数 × 16 字节）几何推导一致
         val blocksPerRow = SpriteAtlasDef.ATLAS_W / ASTC_BLOCK
         val blocksPerCol = SpriteAtlasDef.ATLAS_H / ASTC_BLOCK
         val expectedDataSize = (blocksPerRow * blocksPerCol).toLong() * ASTC_BLOCK_BYTES
-        assertEquals(2048L, readU32LE(bytes, KTX_WIDTH_OFFSET))
-        assertEquals(2048L, readU32LE(bytes, KTX_HEIGHT_OFFSET))
+        assertEquals(SpriteAtlasDef.ATLAS_W.toLong(), readU32LE(bytes, KTX_WIDTH_OFFSET))
+        assertEquals(SpriteAtlasDef.ATLAS_H.toLong(), readU32LE(bytes, KTX_HEIGHT_OFFSET))
         assertEquals(expectedDataSize, readU32LE(bytes, KTX_DATA_SIZE_OFFSET))
 
         // 总尺寸 = 64 头 + 4 dataSize 字段 + 数据段（防多余/缺失字节）
@@ -131,10 +131,6 @@ class AtlasManifestSyncTest {
         for (i in SpriteAtlasDef.BUILDING_NAMES.indices) {
             val r = SpriteAtlasDef.buildingRect(i)
             list += SpriteEntry(SpriteAtlasDef.BUILDING_NAMES[i], r.x, r.y, r.w, r.h)
-        }
-        for (ft in SpriteAtlasDef.FloorTileType.values()) {
-            val r = ft.pixelRect
-            list += SpriteEntry(ft.name, r.x, r.y, r.w, r.h)
         }
         for (crop in SpriteAtlasDef.CropStage.values()) {
             val r = crop.rect

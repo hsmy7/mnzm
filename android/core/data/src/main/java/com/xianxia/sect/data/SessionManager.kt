@@ -70,6 +70,14 @@ class SessionManager @Inject constructor(
         get() = prefs.getString(KEY_PERFORMANCE_MODE, "BALANCED") ?: "BALANCED"
         set(value) = edit { putString(KEY_PERFORMANCE_MODE, value) }
 
+    /**
+     * 自选清晰度（五档：VERY_LOW/LOW/MEDIUM/HIGH/VERY_HIGH，默认 MEDIUM）。
+     * 设备级设置，不随存档迁移；非法值由读取方回退默认（中等）。
+     */
+    var clarityMode: String
+        get() = prefs.getString(KEY_CLARITY_MODE, "MEDIUM") ?: "MEDIUM"
+        set(value) = edit { putString(KEY_CLARITY_MODE, value) }
+
     fun saveLoginSession(
         userId: String,
         userName: String,
@@ -132,6 +140,7 @@ class SessionManager @Inject constructor(
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_MUSIC_ENABLED = "music_enabled"
         private const val KEY_PERFORMANCE_MODE = "performance_mode"
+        private const val KEY_CLARITY_MODE = "clarity_mode"
 
         // Bugly #3107：明文降级标记（写入明文 fallback prefs，防止每次启动
         // 重复失败的 Keystore 流程）；MASTER_KEY_ALIAS 必须与 MasterKey.Builder

@@ -11,7 +11,7 @@ import java.io.File
  * C++/Kotlin 图集布局同步守卫测试（2026-08-10 新增）。
  *
  * Kotlin 侧 `SpriteAtlasDef.kt` 是图集布局的唯一权威（SpriteAtlasDef.TileType/BUILDING_NAMES/
- * SpriteAtlasDef.FloorTileType 定义像素位置），C++ 侧 `TextureAtlas.h` 的 MAP_SPRITES 必须逐项一致——
+ * SpriteAtlasDef.CropStage 定义像素位置），C++ 侧 `TextureAtlas.h` 的 MAP_SPRITES 必须逐项一致——
  * 若有人只改一侧，本测试失败并提示同步位置。
  *
  * 守卫三要素：
@@ -37,15 +37,6 @@ class AtlasLayoutSyncTest {
     // 固定结构名称映射（C++ 名称 → Kotlin STRUCTURES，与 LAYOUT.structures 顺序一致）
     private val structureNameMap: Map<String, SpriteAtlasDef.StructureDef> = mapOf(
         "sect_gate" to SpriteAtlasDef.STRUCTURES[0],
-    )
-
-    // 地砖名称映射（C++ 名称 → Kotlin FloorTileType）
-    private val floorNameMap: Map<String, SpriteAtlasDef.FloorTileType> = mapOf(
-        "floor_tile_2x2" to SpriteAtlasDef.FloorTileType.TILE_2x2,
-        "floor_tile_2x3" to SpriteAtlasDef.FloorTileType.TILE_2x3,
-        "floor_tile_3x2" to SpriteAtlasDef.FloorTileType.TILE_3x2,
-        "floor_tile_3x3" to SpriteAtlasDef.FloorTileType.TILE_3x3,
-        "spirit_mine_ground" to SpriteAtlasDef.FloorTileType.SPIRIT_MINE_GROUND
     )
 
     // 作物阶段名称映射（C++ 名称 → Kotlin CropStage，WP6）
@@ -88,7 +79,7 @@ class AtlasLayoutSyncTest {
 
         // 反向：C++ 建筑条目（非瓦片/非地砖/非作物/非固定结构/非云层/非道路）必须是 BUILDING_NAMES 中的成员（无孤儿）
         val kotlinBuildingNames = SpriteAtlasDef.BUILDING_NAMES.toSet()
-        val knownNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
+        val knownNames = tileNameMap.keys + cropNameMap.keys +
             structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys
         val orphanBuildings = cpp
             .filter { it.name !in knownNames }
@@ -111,22 +102,6 @@ class AtlasLayoutSyncTest {
                 "瓦片 '$cppName' (${tile.name}) 图集位置 C++=(${entry.x},${entry.y},${entry.w},${entry.h}) " +
                     "≠ Kotlin=(${tile.rect.x},${tile.rect.y},${tile.rect.w},${tile.rect.h})",
                 tile.rect,
-                cppEntryToRect(entry)
-            )
-        }
-    }
-
-    @Test
-    fun `MAP_SPRITES 地砖与 FloorTileType rect 一致`() {
-        val cppByName = parseMapSprites().associateBy { it.name }
-
-        for ((cppName, floor) in floorNameMap) {
-            val entry = cppByName[cppName]
-                ?: throw AssertionError("地砖 '$cppName' 未在 TextureAtlas.h MAP_SPRITES 中注册")
-            assertEquals(
-                "地砖 '$cppName' 图集位置 C++=(${entry.x},${entry.y},${entry.w},${entry.h}) " +
-                    "≠ Kotlin=(${floor.pixelRect.x},${floor.pixelRect.y},${floor.pixelRect.w},${floor.pixelRect.h})",
-                floor.pixelRect,
                 cppEntryToRect(entry)
             )
         }
@@ -216,13 +191,13 @@ class AtlasLayoutSyncTest {
     @Test
     fun `MAP_SPRITES 无孤儿条目且 TileType 全部覆盖`() {
         val cpp = parseMapSprites()
-        val coveredNames = tileNameMap.keys + floorNameMap.keys + cropNameMap.keys +
+        val coveredNames = tileNameMap.keys + cropNameMap.keys +
             structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys +
             SpriteAtlasDef.BUILDING_NAMES
         val orphans = cpp.filter { it.name !in coveredNames }
         assertTrue(
             "TextureAtlas.h MAP_SPRITES 存在无法映射的孤儿条目: ${orphans.map { it.name }}——" +
-                "每条 C++ 图集条目都必须能在 SpriteAtlasDef 中找到对应（瓦片/建筑/地砖/作物/结构）",
+                "每条 C++ 图集条目都必须能在 SpriteAtlasDef 中找到对应（瓦片/建筑/作物/结构）",
             orphans.isEmpty()
         )
 

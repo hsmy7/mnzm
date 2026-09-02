@@ -37,6 +37,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.engine.PerformanceMode
+import com.xianxia.sect.core.render.ClarityMode
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
@@ -255,6 +256,12 @@ private fun SettingsTabContent(
                     val performanceMode by viewModel.performanceMode.collectAsStateWithLifecycle()
                     PerformanceModeItem(performanceMode = performanceMode,
                         onModeSelected = viewModel::setPerformanceMode)
+                }
+
+                item {
+                    val clarityMode by viewModel.clarityMode.collectAsStateWithLifecycle()
+                    ClarityModeItem(clarityMode = clarityMode,
+                        onModeSelected = viewModel::setClarityMode)
                 }
 
                 item {
@@ -733,6 +740,56 @@ private fun PerformanceModeItem(
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = performanceMode.description,
+        fontSize = 10.sp,
+        color = Color.Black
+    )
+}
+
+/** 自选清晰度五档（极低/低/中/高/极高），样式对齐 PerformanceModeItem；5 档用 weight 等分防窄屏溢出 */
+@Composable
+private fun ClarityModeItem(
+    clarityMode: ClarityMode,
+    onModeSelected: (ClarityMode) -> Unit
+) {
+    Text(
+        text = "自选清晰度",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        ClarityMode.entries.forEach { mode ->
+            val modeAlpha = if (clarityMode == mode) 1f else 0.5f
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(ButtonSizes.StandardHeight)
+                    .alpha(modeAlpha)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onModeSelected(mode) },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ui_button),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+                Text(
+                    text = mode.displayName,
+                    fontSize = 11.sp,
+                    color = Color.Black
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = clarityMode.description,
         fontSize = 10.sp,
         color = Color.Black
     )

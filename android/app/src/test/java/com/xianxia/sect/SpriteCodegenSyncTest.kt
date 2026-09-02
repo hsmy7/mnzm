@@ -107,12 +107,12 @@ class SpriteCodegenSyncTest {
     fun `TextureAtlas 头 - 常量与期望数值全等`() {
         val src = headerSource()
         for (line in listOf(
-            "#define TILE_SIZE 64",
-            "#define TREE_SIZE 128",
-            "#define ATLAS_W 2048",
-            "#define ATLAS_H 2048",
-            "#define BUILDING_W 256",
-            "#define BUILDING_H 256",
+            "#define TILE_SIZE 128",
+            "#define TREE_SIZE 256",
+            "#define ATLAS_W 4096",
+            "#define ATLAS_H 4096",
+            "#define BUILDING_W 512",
+            "#define BUILDING_H 512",
         )) {
             assertTrue("TextureAtlas.h 缺少常量行: $line", src.contains(line))
         }
@@ -129,7 +129,6 @@ class SpriteCodegenSyncTest {
             "SHADOW_ALPHA" to SpriteAtlasDef.SHADOW_ALPHA.toString(),
             "SPIRIT_MINE_NAME_INDEX" to SpriteAtlasDef.SPIRIT_MINE_NAME_INDEX.toString(),
             "SPIRIT_FIELD_NAME_INDEX" to SpriteAtlasDef.SPIRIT_FIELD_NAME_INDEX.toString(),
-            "SPIRIT_MINE_GROUND_UV_INDEX" to SpriteAtlasDef.SPIRIT_MINE_GROUND_UV_INDEX.toString(),
             "TILE_GROUND" to SpriteAtlasDef.TILE_GROUND_INDEX.toString(),
             "TILE_BUILDING" to SpriteAtlasDef.TILE_BUILDING_INDEX.toString(),
         )) {
@@ -143,7 +142,7 @@ class SpriteCodegenSyncTest {
     }
 
     @Test
-    fun `TextureAtlas 头 - MAP_SPRITES 49 条与期望全等`() {
+    fun `TextureAtlas 头 - MAP_SPRITES 37 条与期望全等`() {
         val src = headerSource()
         val spriteRegex = Regex("""\{ "([^"]+)",\s+(\d+),\s+(\d+),\s+(\d+),\s+(\d+)\s*\},\s*""")
         val sprites = spriteRegex.findAll(src).map { m ->
@@ -154,21 +153,19 @@ class SpriteCodegenSyncTest {
             )
         }.toList()
         assertEquals(
-            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 5 地砖 + 1 结构 + 5 云层 + 3 道路 = 42）",
-            42, sprites.size
+            "MAP_SPRITES 条目数与期望不一致（6 瓦片 + 3 作物 + 19 建筑 + 1 结构 + 5 云层 + 3 道路 = 37）",
+            37, sprites.size
         )
         // 抽查关键条目（数据与 Kotlin LAYOUT 同源，见 build-atlas.mjs）
-        assertContains(sprites, SpriteEntry("ground_tile", 0, 0, 64, 64))
-        assertContains(sprites, SpriteEntry("tree1", 256, 0, 128, 128))
-        assertContains(sprites, SpriteEntry("crop_mature", 960, 0, 64, 64))
-        assertContains(sprites, SpriteEntry("灵矿场", 0, 256, 256, 256))
-        assertContains(sprites, SpriteEntry("中级多人住所", 768, 1024, 256, 256))
-        assertContains(sprites, SpriteEntry("天枢殿", 1536, 512, 512, 512))  // 专属 512×512 高清槽位
-        assertContains(sprites, SpriteEntry("floor_tile_3x3", 1280, 704, 192, 192))
-        assertContains(sprites, SpriteEntry("spirit_mine_ground", 1280, 896, 256, 256))
-        assertContains(sprites, SpriteEntry("sect_gate", 1536, 256, 384, 256))
-        assertContains(sprites, SpriteEntry("cloud_1", 0, 1408, 484, 120))
-        assertContains(sprites, SpriteEntry("cloud_5", 524, 1620, 472, 200))
+        assertContains(sprites, SpriteEntry("ground_tile", 0, 0, 128, 128))
+        assertContains(sprites, SpriteEntry("tree1", 512, 0, 256, 256))
+        assertContains(sprites, SpriteEntry("crop_mature", 1920, 0, 128, 128))
+        assertContains(sprites, SpriteEntry("灵矿场", 0, 512, 512, 512))
+        assertContains(sprites, SpriteEntry("中级多人住所", 1536, 2048, 512, 512))
+        assertContains(sprites, SpriteEntry("天枢殿", 3072, 1024, 1024, 1024))  // 专属 1024×1024 高清槽位
+        assertContains(sprites, SpriteEntry("sect_gate", 3072, 512, 768, 512))
+        assertContains(sprites, SpriteEntry("cloud_1", 0, 2816, 968, 240))
+        assertContains(sprites, SpriteEntry("cloud_5", 1048, 3240, 944, 400))
         assertTrue(
             "MAP_SPRITE_COUNT 计算式必须存在（C++ 侧依赖）",
             src.contains("MAP_SPRITE_COUNT") && src.contains("sizeof(MAP_SPRITES)")

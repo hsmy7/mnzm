@@ -99,11 +99,6 @@ class SoftwareCanvasBackend(
         /** 放置/移动模式网格线色（与旧 Compose GridOverlay 同色 #E4DDD0） */
         private val GRID_OVERLAY_COLOR = android.graphics.Color.argb(0xFF, 0xE4, 0xDD, 0xD0)
 
-        // ── 图集索引常量 ──
-        private const val SPIRIT_FIELD_ATLAS_INDEX = 2
-        private const val SPIRIT_MINE_ATLAS_INDEX = 0
-        private const val SPIRIT_MINE_GROUND_FT_INDEX = 4
-
     }
 
     // ── 渲染质量控制（由 ThermalController 驱动） ──
@@ -167,7 +162,6 @@ class SoftwareCanvasBackend(
         val tileSize: Int,
         val tileSrcRects: Array<Rect>,
         val buildingSrcRects: Array<Rect>,
-        val floorTileSrcRects: Array<Rect>,
         val roadSrcRects: Map<String, Rect>
     )
 
@@ -507,31 +501,10 @@ class SoftwareCanvasBackend(
                 val bDstRight = ((bCamOffX + bWorldW) * view.scale).roundToInt()
                 val bDstBottom = ((bCamOffY + bWorldH) * view.scale).roundToInt()
 
-                val ftCamOffX = gx * tileSize - view.camX
-                val ftCamOffY = gy * tileSize - view.camY
-                val ftDstLeft = (ftCamOffX * view.scale).roundToInt()
-                val ftDstTop = (ftCamOffY * view.scale).roundToInt()
-                val ftDstRight = ((ftCamOffX + fpW * tileSize) * view.scale).roundToInt()
-                val ftDstBottom = ((ftCamOffY + fpH * tileSize) * view.scale).roundToInt()
-
                 // 视锥剔除（提取纯函数，主循环复杂度收敛）
                 if (isOffScreen(bDstLeft, bDstTop, bDstRight, bDstBottom, view)) continue
 
-                // 地砖（灵田专属地皮 / 通用占地地砖；门楼 6×2 画 3×2 地砖拉伸作基座）
-                val ftIdx = if (nameIdx == SPIRIT_MINE_ATLAS_INDEX) {
-                    SPIRIT_MINE_GROUND_FT_INDEX
-                } else if (nameIdx != SPIRIT_FIELD_ATLAS_INDEX) {
-                    SpriteAtlasDef.floorTileIndex(fpW, fpH)
-                } else {
-                    -1
-                }
-                val ftSrc = if (ftIdx >= 0) kit.floorTileSrcRects.getOrNull(ftIdx) else null
-                if (ftSrc != null) {
-                    reuseRect.set(ftDstLeft, ftDstTop, ftDstRight, ftDstBottom)
-                    canvas.drawBitmap(atlas, ftSrc, reuseRect, rebuildPaint)
-                }
-
-                // ★ 建筑投影阴影（地砖之上、精灵之下；与 C++ drawAllTiles (A2) 段同数学）
+                // ★ 建筑投影阴影（精灵之下；与 C++ drawAllTiles (A2) 段同数学）
                 // 固定结构（门楼/阶梯）不投影——避免阴影压到阶梯/地图底边外
                 if (buildingShadows && !isStructure) {
                     val offset = tileSize * BuildingRenderGeometry.SHADOW_OFFSET_TILES
@@ -554,7 +527,7 @@ class SoftwareCanvasBackend(
      * 精灵源矩形随 SpriteAtlasDef 静态数据生成，无 Android 依赖）
      */
     private val chunkKit: ChunkDrawKit by lazy {
-        ChunkDrawKit(config.tileSize, tileSrcRects, buildingSrcRects, floorTileSrcRects, roadSrcRects)
+        ChunkDrawKit(config.tileSize, tileSrcRects, buildingSrcRects, roadSrcRects)
     }
 
     /**
@@ -687,16 +660,6 @@ class SoftwareCanvasBackend(
             val idx = SpriteAtlasDef.BUILDING_NAMES.size + i
             val sr = s.rect
             rects[idx] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
-        }
-        @Suppress("UNCHECKED_CAST")
-        rects as Array<Rect>
-    }
-
-    private val floorTileSrcRects: Array<Rect> by lazy {
-        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.FloorTileType.values().size)
-        for (ft in SpriteAtlasDef.FloorTileType.values()) {
-            val r = ft.pixelRect
-            rects[ft.ordinal] = Rect(r.x, r.y, r.x + r.w, r.y + r.h)
         }
         @Suppress("UNCHECKED_CAST")
         rects as Array<Rect>
