@@ -14,7 +14,8 @@ import kotlin.math.sqrt
  */
 class SectCameraStateTest {
 
-    // 宗门地图实际尺寸：128 × 36px = 4608 × 4608
+    // 测试用世界尺寸（相机数学与具体尺寸无关；实际宗门地图由
+    // GameConfig.SectMap.WORLD_PIXEL_WIDTH/HEIGHT = 128 格 × TILE_SIZE 决定）
     private val worldWidth = 4608f
     private val worldHeight = 4608f
 

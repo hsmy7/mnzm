@@ -14,7 +14,7 @@ import kotlin.random.Random
  *
  * 覆盖维度：
  * - 只在世界外生成（左外生成右移 / 右外生成左移，两种方向都会出现）
- * - 移动速度恰为 3 格/秒（=108 世界像素/秒，与 GameConfig.SectMap.TILE_SIZE 同源）
+ * - 移动速度恰为 3 格/秒（与 GameConfig.SectMap.TILE_SIZE 同源）
  * - 完全移出世界后消失（活跃计数必须出现过下降——计数只会因出界销毁而减少）
  * - 帧间隔钳制（卡顿/后台恢复后云朵不瞬移）
  * - 快照条目值域合法（无 NaN、y 在顶部条带、alpha/类型索引在配置区间、宽高为正）
@@ -24,7 +24,7 @@ import kotlin.random.Random
  */
 class CloudLayerAnimatorTest {
 
-    /** 世界像素宽度（与真实宗门地图一致：128 格 × 36px） */
+    /** 世界像素宽度（与真实宗门地图一致：128 格 × tileSize） */
     private val worldW = GameConfig.SectMap.WORLD_PIXEL_WIDTH.toFloat()
 
     private fun animator(seed: Int = 42): CloudLayerAnimator =
@@ -77,8 +77,8 @@ class CloudLayerAnimatorTest {
         assertEquals(3, CloudLayerAnimator.SPEED_TILES_PER_SECOND)
         val expectedPxPerMs = 3f * GameConfig.SectMap.TILE_SIZE / 1000f
         assertEquals(expectedPxPerMs, CloudLayerAnimator.SPEED_PX_PER_MS, 0.0001f)
-        // 1 秒位移 = 3 格 × 36px = 108px
-        assertEquals(108f, CloudLayerAnimator.SPEED_PX_PER_MS * 1000f, 0.001f)
+        // 1 秒位移 = 3 格 × tileSize（与 GameConfig.SectMap.TILE_SIZE 同源）
+        assertEquals(3f * GameConfig.SectMap.TILE_SIZE, CloudLayerAnimator.SPEED_PX_PER_MS * 1000f, 0.001f)
     }
 
     @Test

@@ -25,8 +25,8 @@
 //      由各端按枚举序号映射，图集改版不动合成器。
 //
 // 几何约定：格内局部**整型像素**（与 Kotlin Canvas 烘焙的整型算术逐位一致）；
-// 运行时 tileSize 恒为 GameConfig.TILE_SIZE=36。edgeW = tileSize/6（36/6=6），
-// edgeL = tileSize/2 = 18。Vulkan 侧转 float 几何完全一致。
+// 运行时 tileSize 恒为 GameConfig.TILE_SIZE=48（须为 4 与 6 的公倍数）。
+// edgeW = tileSize/6（48/6=8），edgeL = tileSize/2 = 24。Vulkan 侧转 float 几何完全一致。
 //
 // 零依赖（仅 road_system.h）、纯函数，桌面 GTest 直接覆盖。
 // ============================================================

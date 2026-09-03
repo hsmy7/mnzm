@@ -130,6 +130,14 @@
 - **测试**：`road_compositor_test.cpp`（重写 10 用例，含转角外缘+内凹角、T 内凹角、十字内凹角）+ `DiffRoadComposeTest.kt`（重写）/`SpriteAtlasDefGeneratedTest`/`SpriteCodegenSyncTest`/`AtlasLayoutSyncTest` 同步；gamecore GTest 761/761 · app/engine JUnit 全量（`DomainLogTest` 为既有失败，与本批无关）。
 - **资产**：`道路主体1/2/3.png` 删除、`道路主体4.png` 更名 `道路主体.png`；生成 `road_body/road_edge_v/road_edge_h.webp`（无损，双模块 drawable-nodpi）。
 
+### 宗门地图格尺寸 36→48 · 移除建筑投影阴影（2026-09-09）
+
+> 宗门地图格（单格世界像素）从 36 放大到 48，地图/建筑/道路随之按比例放大，初始视角下格与建筑略变大；同时移除建筑投影阴影（`RenderFlags.buildingShadows` 默认关闭，Vulkan 与 Canvas 软渲染双后端同步消失）。
+
+- **格尺寸**：`GameConfig.SectMap.TILE_SIZE` 36→48（含镜像 `GameConfigData.SectMapSection.tileSize`）；`WORLD_PIXEL_WIDTH/HEIGHT` 随世界 128×128 格按 48 放大到 6144×6144。48 为 4 与 6 的公倍数，满足 C++ 道路合成器整型几何（`tileSize/4`、`/2`、`/6`）无半像素漂移约束；Canvas chunk 位图 `CHUNK_PIXEL` 由 1152 增至 1536。
+- **移除建筑阴影**：`RenderFlags.buildingShadows` 默认 `true→false`，经 `NativeBridge.setRenderFlags`（C++ `drawAllTiles` (A2) 阴影 quad）与 `SoftwareCanvasBackend.drawBuildingsToCanvas`（`drawShadowRect`）双后端同时失效；固定结构（门楼/阶梯）本就无投影。
+- **验证**：`:core:domain` 图尺寸一致性测试 · `compileReleaseKotlin`。
+
 
 ## [4.01.11] - 2026-08-29
 

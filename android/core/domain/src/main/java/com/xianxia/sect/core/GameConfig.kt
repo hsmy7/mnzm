@@ -989,9 +989,10 @@ object GameConfig {
     }
     
     object SectMap {
-        /** 单格地图大小（世界像素）。4 的倍数：C++ 道路合成器整型几何
-         *  (tileSize/4、tileSize/2) 与浮点一致，无半像素漂移。 */
-        const val TILE_SIZE = 36
+        /** 单格地图大小（世界像素）。须为 4 与 6 的公倍数（即 12 的倍数）：
+         *  C++ 道路合成器整型几何 (tileSize/4、tileSize/2、tileSize/6) 与浮点一致，
+         *  无半像素漂移。48=12×4 满足该条件。 */
+        const val TILE_SIZE = 48
         const val WORLD_WIDTH_CELLS = 128
         const val WORLD_HEIGHT_CELLS = 128
         val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE

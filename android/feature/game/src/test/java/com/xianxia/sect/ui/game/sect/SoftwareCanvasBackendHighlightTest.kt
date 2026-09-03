@@ -47,7 +47,11 @@ class SoftwareCanvasBackendHighlightTest {
         val sampleY = 40
 
         // 阴影开启：像素明显暗于底色（米色 × 0.8 ≈ (194,190,182)）
-        val onBackend = SoftwareCanvasBackend(testRenderConfig())
+        // 注：RenderFlags.buildingShadows 默认已关闭（产品决策移除建筑阴影），
+        // 此处显式开启以继续覆盖阴影实现路径（仍存在、受开关控制）。
+        val onBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
         val onPx = onBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200)!!
             .getPixel(sampleX, sampleY)
 
@@ -72,9 +76,13 @@ class SoftwareCanvasBackendHighlightTest {
     @Test
     fun `renderFrame - shadow rebuilds when building moves (chunk invalidation)`() {
         val td = createFlatTileData(10, 10)
+        // 显式开启阴影（默认已关闭）——本用例验证阴影随建筑移动失效重建
+        val shadowedBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
         // 帧1：建筑 (0,0) → 阴影条带在 (64,16)-(80,80)
         val frame1 = spiritFieldFrame(td)
-        val r1 = backend.renderFrame(frame1, atlas, 200, 200)!!
+        val r1 = shadowedBackend.renderFrame(frame1, atlas, 200, 200)!!
         val px1 = r1.getPixel(72, 40)
 
         // 帧2：建筑移动到 (1,0) → 原 (0,0) 阴影区恢复底色（阴影随建筑失效重建）
@@ -88,7 +96,7 @@ class SoftwareCanvasBackendHighlightTest {
             buildingCount = 1,
             buildingVisible = true
         )
-        val r2 = backend.renderFrame(frame2, atlas, 200, 200)!!
+        val r2 = shadowedBackend.renderFrame(frame2, atlas, 200, 200)!!
         val px2 = r2.getPixel(72, 40)
 
         assertTrue(
@@ -111,7 +119,11 @@ class SoftwareCanvasBackendHighlightTest {
         val spriteAtlas = createSpriteAtlas()
 
         // 阴影开启（真实绘制路径）：精灵应为纯白 255（RGB_565 → 248）
-        val onPx = backend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+        // 注：默认已关闭，显式开启以继续验证阴影不污染精灵的回归
+        val shadowedBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        val onPx = shadowedBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
             .getPixel(8, 8)
 
         // 阴影关闭：精灵应一致（阴影在 (16,16) 起，不覆盖 (8,8)）
@@ -141,7 +153,11 @@ class SoftwareCanvasBackendHighlightTest {
         val spriteAtlas = createSpriteAtlas()
 
         // 帧1：含阴影建筑 → chunk rebuild 时 rebuildPaint 被阴影 alpha 污染
-        backend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)
+        // 注：默认已关闭，显式开启以构造"阴影污染"场景验证修复
+        val shadowedBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        shadowedBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)
 
         // 帧2：建筑移除（buildingData=null → invalidateAllChunks）→ 地面层重建
         val frame2 = RenderFrame(
@@ -152,7 +168,7 @@ class SoftwareCanvasBackendHighlightTest {
             buildingCount = 0,
             buildingVisible = false
         )
-        val px = backend.renderFrame(frame2, spriteAtlas, 200, 200)!!
+        val px = shadowedBackend.renderFrame(frame2, spriteAtlas, 200, 200)!!
             .getPixel(32, 32)
 
         // 修复前红：地面灰 100 ×0.2 叠米色底 ≈ 205（R 通道）

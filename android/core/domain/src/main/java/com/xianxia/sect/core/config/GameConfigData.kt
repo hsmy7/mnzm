@@ -245,7 +245,7 @@ data class GameConfigData(
 
     @Serializable
     data class SectMapSection(
-        val tileSize: Int = 36,
+        val tileSize: Int = 48,
         val worldWidthCells: Int = 128,
         val worldHeightCells: Int = 128
     )

@@ -43,11 +43,16 @@ class SoftwareCanvasBackendLodFadeTest {
         val td = createFlatTileData(10, 10)
         // (72,40)：阴影条带区（米色底 × 阴影 0.8≈(194,190,182)）——
         // 淡入合成 alpha<1 时向背景米色 (0xF2EDE4) 靠拢 → 变亮
-        val full = backend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 1f)!!
+        // 注：RenderFlags.buildingShadows 默认已关闭，此处显式开启以构造
+        // "内容（阴影暗化）≠ 背景"的对比，验证淡入向背景靠拢。
+        val fadeBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        val full = fadeBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 1f)!!
             .getPixel(72, 40)
-        val half = backend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 0.5f)!!
+        val half = fadeBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 0.5f)!!
             .getPixel(72, 40)
-        val zero = backend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 0f)!!
+        val zero = fadeBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 0f)!!
             .getPixel(72, 40)
 
         assertTrue(

@@ -38,7 +38,7 @@ class SoftwareCanvasBackend(
 
         // ── Chunk 化常量 ──
         private const val CHUNK_SIZE_TILES = 32
-        private val CHUNK_PIXEL = CHUNK_SIZE_TILES * GameConfig.SectMap.TILE_SIZE  // 32格 × 36px = 1152px
+        private val CHUNK_PIXEL = CHUNK_SIZE_TILES * GameConfig.SectMap.TILE_SIZE  // 32格 × 48px = 1536px
         private val NUM_CHUNKS_COL = 128 / CHUNK_SIZE_TILES  // 4
         private val NUM_CHUNKS_ROW = 128 / CHUNK_SIZE_TILES  // 4
 
@@ -197,7 +197,7 @@ class SoftwareCanvasBackend(
         val row: Int,
         private val kit: ChunkDrawKit
     ) {
-        /** 1152×1152（32 格 × 36px）, RGB_565, 惰性创建。仅宗门地图可见时占用内存，切 Tab 时释放 */
+        /** 1536×1536（32 格 × 48px）, RGB_565, 惰性创建。仅宗门地图可见时占用内存，切 Tab 时释放 */
         var bitmap: Bitmap? = null
         var isValid: Boolean = false
 
