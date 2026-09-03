@@ -21,6 +21,15 @@
 - **GPU init 前清屏修正**：`handleSurfaceAvailable` 仅软件路径用 `lockCanvas` 清屏（GPU 路径提前 lockCanvas 会把 ANativeWindow 连到 Canvas，导致后续 `eglCreateWindowSurface`/`vkCreateAndroidSurfaceKHR` 报 "already connected to another API"）。
 - **验证**：`compileReleaseKotlin` · `lintRelease` · 全模块 `detekt` · 相关单测（VulkanPolicyTest/FrameSkipPolicyTest/NativeSurfaceViewTest/SoftwareCanvasBackendTest/GameViewModelMovingBuildingBusTest 等）全绿。
 
+### 修复：骁龙 8 Gen 2 真机 Vulkan/GLES 初始化双双失败、被迫 CPU 软件渲染（surfaceCreated 清屏污染 ANativeWindow API 连接）
+
+> 2026-09 真机实测：骁龙 8 Gen 2 设备进入宗门地图时 Vulkan 与 GLES 后端初始化均失败，最终落入 CPU 软件渲染（拖动建筑延迟约 1 秒）。根因链：`AndroidSurfaceProvider.surfaceCreated` 无条件 `clearSurface()` → `lockCanvas` 把 ANativeWindow 连到 CPU API；此时 surface buffer 尚未就绪（该机型时序必现），`lockCanvas` 失败返回 null，而 AOSP `Surface::lock` 在 `dequeueBuffer` 失败路径**不 disconnect**（Android 13/14 源码确认）→ CPU API 连接永久残留 → 随后 `vkCreateAndroidSurfaceKHR`/`eglCreateWindowSurface` 对同一窗口 `native_window_api_connect` 被 `BufferQueueProducer::connect` 以 "already connected to another API" 拒绝 → 降级链 Vulkan→GLES 均被拒 → CPU 软件渲染。上一批修复（`handleSurfaceAvailable` 仅软件路径清屏）漏掉了 surfaceCreated 这处同类调用。
+
+- **根因修复**：`AndroidSurfaceProvider.surfaceCreated` 移除清屏——GPU 初始化前零 lockCanvas；黑屏兜底职责移交宿主软件路径（`handleSurfaceAvailable`/`startSoftwareBackend`/渲染线程启动时清屏，此时 buffer 已就绪），GPU 路径窗口期由窗口纯黑背景 + 首帧渲染 + 地图淡入遮蔽。
+- **死代码清理**：`NativeSurfaceView.RenderThread.run` 中无条件 `clearSurface(BLACK)`（GPU 模式下后端已 connect，lockCanvas 必然被拒、无效且误导）并入 SOFTWARE 分支。
+- **守卫测试**：`AndroidSurfaceProviderTest` 新增 2 项——`surfaceCreated`/`创建到可用完整序列` 全程零 lockCanvas，锁定根因不回归。
+- **验证**：`:feature:game:testReleaseUnitTest`（AndroidSurfaceProviderTest + NativeSurfaceViewTest 串行）全绿 · `compileReleaseKotlin` 通过。
+
 ### 新增：建筑点击选中 + 底部"进入" UI（CoC 式选中重设计）
 
 > 2026-09 玩家指引：把「点击建筑直接弹详情」改为「点击建筑先选中」——选中态建筑上方显示固定 32dp 的 ✓/x 按钮（仅图标，无绿/红圆底），屏幕正下方显示"进入"按钮，点击弹出对应建筑详情；拖动选中的建筑可直接移动。灵田/炼丹炉/锻造坊使用专属进入图标（种植/炼丹/锻造）。

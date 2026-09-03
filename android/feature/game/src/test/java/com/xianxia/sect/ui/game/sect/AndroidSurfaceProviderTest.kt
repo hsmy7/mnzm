@@ -4,6 +4,7 @@ import android.os.Looper
 import android.view.SurfaceHolder
 import com.xianxia.sect.core.platform.SurfaceEventListener
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -176,6 +177,40 @@ class AndroidSurfaceProviderTest {
 
         provider.surfaceDestroyed(holder)
         assertEquals("销毁递增纪元（旧纪元异步回调全部失效）", gen0 + 2, provider.generation)
+    }
+
+    // ══════════════════════════════
+    // GPU 初始化前零 lockCanvas 守卫（骁龙 8 Gen 2 "already connected to another API" 根因）
+    // ══════════════════════════════
+
+    @Test
+    fun `surfaceCreated - 不触发 lockCanvas（GPU 初始化前零 Canvas 连接）`() {
+        // 根因守卫（2026-09 骁龙 8 Gen 2 实测）：surfaceCreated 时 buffer 未就绪，
+        // lockCanvas 失败经 AOSP Surface::lock 失败路径泄漏 CPU API 连接（不 disconnect），
+        // 后续 vkCreateAndroidSurfaceKHR/eglCreateWindowSurface 被 "already connected
+        // to another API" 拒绝 → Vulkan/GLES 初始化失败 → CPU 软件渲染。
+        // 此用例锁定：surface 生命周期事件不得在 GPU 初始化前触碰 lockCanvas。
+        val holder = mockHolder()
+        val provider = AndroidSurfaceProvider(holder)
+
+        provider.surfaceCreated(holder)
+
+        verify(exactly = 0) { holder.lockCanvas() }
+    }
+
+    @Test
+    fun `创建到可用完整序列 - 全程不触发 lockCanvas`() {
+        // 锁定"创建→首次尺寸合并派发"全序列零 lockCanvas——
+        // 黑屏兜底由宿主在软件路径（surface 可用事件/渲染线程启动）执行，不经过 provider 事件翻译层。
+        val holder = mockHolder()
+        val listener = RecordingListener()
+        val provider = AndroidSurfaceProvider(holder)
+        provider.setEventListener(listener)
+
+        activate(provider, holder)
+
+        verify(exactly = 0) { holder.lockCanvas() }
+        assertEquals(listOf("available(800,480)"), listener.events)
     }
 
     @Test

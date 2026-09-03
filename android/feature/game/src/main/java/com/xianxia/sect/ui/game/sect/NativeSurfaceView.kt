@@ -1092,14 +1092,14 @@ class NativeSurfaceView(
             // 首帧快速清除 Surface 缓冲区，防止华为模拟器等设备上
             // SurfaceFlinger 未正确清除新分配缓冲区导致残留内容显示
             //（clearSurface 内部吞异常——非关键操作，失败不影响后续渲染）
+            // ★ 仅软件路径执行：软件渲染本身即 Canvas，lockCanvas 无 API 冲突。
+            //   GPU（Vulkan/GLES）模式下后端已 connect(NATIVE_WINDOW_API_GPU/EGL)，
+            //   此时 lockCanvas 必然被 "already connected to another API" 拒绝
+            //   （返回 null，是无效死代码）——GPU 路径窗口期黑屏由窗口纯黑背景 +
+            //   首帧渲染器绘制 + 地图淡入遮蔽覆盖（2026-09 GPU 初始化失败根因修复）。
             if (renderMode == RenderMode.SOFTWARE) {
                 surfaceProvider.clearSurface(android.graphics.Color.BLACK)
             }
-
-            // ★ Vulkan 路径兜底：渲染线程启动时同步清除 Surface 为纯黑——
-            // surfaceCreated 的清屏可能早于 surface 物理就绪（lockCanvas 失败被吞），
-            // 未清除的 RGBA_8888 半透明 surface 会透出白色窗口背景（"进入游戏白屏"）
-            surfaceProvider.clearSurface(android.graphics.Color.BLACK)
 
             android.util.Log.i(
                 "NativeSurfaceView",

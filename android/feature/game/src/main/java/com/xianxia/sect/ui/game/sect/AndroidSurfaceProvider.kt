@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.sect
 
-import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -20,8 +19,10 @@ import com.xianxia.sect.core.platform.SurfaceProvider
  * 2. **生命周期防御**（全部迁自 NativeSurfaceView，2026-08-13 平台抽象重构，语义逐条保留）：
  *    - **纪元防 stale**：创建/销毁递增 [generation]，宿主异步回调据此丢弃
  *      跨 surface 纪元的残留回调；销毁后到达的旧 surfaceChanged 事件直接拒绝
- *    - **首帧黑屏清除**：surfaceCreated 立即画一帧纯黑（防 GPU surface 分配延迟
- *      期间 SurfaceFlinger 合成未初始化的透明/脏缓冲区）
+ *    - **GPU 初始化前零 lockCanvas**：surfaceCreated 不执行清屏（buffer 未就绪时
+ *      lockCanvas 失败会经 AOSP Surface::lock 失败路径泄漏 CPU API 连接，导致后续
+ *      Vulkan/GLES 初始化被 "already connected to another API" 拒绝）；
+ *      黑屏兜底由宿主在软件路径（surface 可用事件/渲染线程启动）执行
  *    - **10s 初始化超时安全网**：[startInitTimeout] 计时，超时且纪元未变 →
  *      [SurfaceEventListener.onSurfaceInitTimeout]（宿主降级软件渲染）；
  *      销毁/重创建自动取消（stale 超时不触发）
@@ -138,9 +139,16 @@ class AndroidSurfaceProvider(
     override fun surfaceCreated(holder: SurfaceHolder) {
         // 新 surface 纪元开始（尺寸未知，待首次 surfaceChanged 合并派发）
         state = SurfaceState.CREATED
-        // 首帧黑屏清除：在 surface 刚创建时立即画一帧纯黑，防止 GPU surface
-        // 分配延迟期间（100-500ms）SurfaceFlinger 合成未初始化的透明/脏缓冲区
-        clearSurface(Color.BLACK)
+        // ★ 根因修复（2026-09）：此处不得 lockCanvas 清屏。surfaceCreated 时
+        //   SurfaceView buffer 尚未就绪（骁龙 8 Gen 2 真机必现），lockCanvas 内部
+        //   AOSP Surface::lock 先 connect(NATIVE_WINDOW_API_CPU) 后 dequeueBuffer，
+        //   dequeueBuffer 失败路径不 disconnect → CPU API 连接永久残留。随后 GPU
+        //   初始化（vkCreateAndroidSurfaceKHR / eglCreateWindowSurface）对同一窗口
+        //   native_window_api_connect 被 BufferQueueProducer 以 "already connected
+        //   to another API" 拒绝 → Vulkan/GLES 双双失败 → 被迫 CPU 软件渲染。
+        //   黑屏兜底职责移交宿主：软件路径在 handleSurfaceAvailable/startSoftwareBackend/
+        //   RenderThread 启动时清屏（此时 buffer 已就绪）；GPU 路径由窗口纯黑背景 +
+        //   首帧渲染器绘制 + 地图淡入遮蔽覆盖。
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
