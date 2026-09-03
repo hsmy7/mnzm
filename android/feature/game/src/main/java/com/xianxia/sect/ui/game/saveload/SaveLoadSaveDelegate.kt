@@ -8,7 +8,7 @@ import com.xianxia.sect.ui.game.SaveLoadViewModelConstants
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * 存档保存委托 — 管理存档持久化、自动存档、保存状态。
+ * 存档保存委托 — 管理存档持久化、保存状态（纯手动存档，无自动存档）。
  *
  * 设计为纯数据操作类，不持有 Compose 状态，通过回调通知 ViewModel 更新 UI。
  */

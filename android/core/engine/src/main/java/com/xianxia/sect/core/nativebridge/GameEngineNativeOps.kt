@@ -12,10 +12,9 @@ import kotlinx.serialization.json.longOrNull
 /**
  * GameEngineNativeOps — C++ 引擎转发辅助（Kotlin→C++ 迁移批次 9 剩余）。
  *
- * 对已 C++ 化的动作（46 个 ActionId）提供 Kotlin 侧统一转发入口：
- * flag 开启时经 [GameCoreBridge.nativeExecute] 调用 C++ 计算，结果经
- * [StateSyncService] 镜像回 GameStateStore；flag 关闭或 native 不可用时
- * 静默降级（返回 null，调用方走 Kotlin 原实现——双实现并行契约）。
+ * 对已 C++ 化的动作经 [GameCoreBridge.nativeExecute] 提供 Kotlin 侧统一转发入口：
+ * flag 开启时调用 C++ 计算，结果经 [StateSyncService] 镜像回 GameStateStore；
+ * flag 关闭或 native 不可用时静默降级（返回 null，调用方走 Kotlin 原实现——双实现并行契约）。
  *
  * 使用方式（GameEngine 扩展方法内）：
  *   val data = tryExecuteNative(

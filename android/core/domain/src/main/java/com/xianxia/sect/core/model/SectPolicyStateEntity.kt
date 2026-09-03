@@ -3,6 +3,7 @@ package com.xianxia.sect.core.model
 import androidx.annotation.Keep
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.Index
 import kotlinx.serialization.Serializable
 
@@ -34,5 +35,8 @@ data class SectPolicyState(
         9 to true, 8 to true, 7 to true, 6 to true, 5 to true,
         4 to true, 3 to true, 2 to true, 1 to true, 0 to true
     ),
+    // 自动存档间隔（已废弃，@Ignore+@Transient 后不再持久化 Room 列——纯手动存档为产品决策）
+    @Ignore
+    @kotlinx.serialization.Transient
     var autoSaveIntervalMonths: Int = 3
 )

@@ -416,11 +416,6 @@ std::string GameCore::exportDirtyJson() {
     }
 }
 
-std::string GameCore::pollEventsJson() {
-    // 批次 1 实现：事件队列
-    return "[]";
-}
-
 bool GameCore::applyReverseDirty(const std::string& dirtyJson) {
     if (!initialized_) return false;
     try {

@@ -120,23 +120,9 @@ class GameStateStoreImpl @Inject constructor(
     @Volatile
     override var activeSubDialogs: Set<String> = emptySet()
 
-    // ── Dirty 标志 —— 供 SaveLoadViewModel 检查是否有未保存变更 ──
-    @Volatile private var _stateDirty = false
-    @Volatile private var _discipleDirty = false
-
-    /** 强制标记状态脏（供外部手动触发保存） */
-    fun markDirty() { _stateDirty = true }
-
-    /**
-     * 检查并消费 dirty 标志。
-     * @return true 表示自上次调用以来有状态变更
-     */
-    fun consumeDirty(): Boolean {
-        val dirty = _stateDirty || _discipleDirty
-        _stateDirty = false
-        _discipleDirty = false
-        return dirty
-    }
+    // ── Dirty 标志（已按 WS-0.a 移除） ──
+    // 注：原 _stateDirty/_discipleDirty + markDirty()/consumeDirty() 为 write-only 死代码
+    //（markDirty/consumeDirty 全库零调用者），故整链删除；状态变更由外层 stateStore.update{} 事务统一管理。
 
     companion object {
         private const val TAG = "GameStateStore"
@@ -777,19 +763,16 @@ class GameStateStoreImpl @Inject constructor(
     override fun setPausedDirect(paused: Boolean) {
         _isPaused.value = paused
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun setLoadingDirect(loading: Boolean) {
         _isLoading.value = loading
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun setSavingDirect(saving: Boolean) {
         _isSaving.value = saving
         _updateVersion.value++
-        _stateDirty = true
     }
 
     // === 快照读取（绕过 stateIn 调度延迟） ===
@@ -801,7 +784,6 @@ class GameStateStoreImpl @Inject constructor(
     override fun clearPendingNotification() {
         _pendingNotificationFlow.value = null
         _updateVersion.value++
-        _stateDirty = true
     }
 
     /** 通知队列（v3+） */
@@ -823,24 +805,21 @@ class GameStateStoreImpl @Inject constructor(
     override fun setPendingBattleResult(result: BattleResultUIData) {
         _pendingBattleResultFlow.value = result
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun clearPendingBattleResult() {
         _pendingBattleResultFlow.value = null
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) {
         _pendingBeastAttacksFlow.value = attacks
-        // 注意：此方法仅在 stateStore.update{} 事务内部调用，_stateDirty/_updateVersion 由外层事务统一管理
+        // 注意：此方法仅在 stateStore.update{} 事务内部调用，_updateVersion 由外层事务统一管理
     }
 
     override fun clearPendingBeastAttacks() {
         _pendingBeastAttacksFlow.value = emptyList()
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun removePendingBeastAttack(beastLevelId: String) {
@@ -848,13 +827,11 @@ class GameStateStoreImpl @Inject constructor(
             it.beastLevel.id != beastLevelId
         }
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun clearPendingMarriageProposals() {
         _pendingMarriageProposalsFlow.value = emptyList()
         _updateVersion.value++
-        _stateDirty = true
     }
 
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {
@@ -1080,16 +1057,13 @@ class GameStateStoreImpl @Inject constructor(
         // 所有生产写路径（列级写入/insert/update/remove/replaceAll/
         // markDead/clear）均伴随列级 onWrite → dirtyTracker 标记。
         val disciplesNeedReassemble = reusableMutableState.discipleTables.dirtyTracker.isDirty
-        if (disciplesNeedReassemble) {
-            // 锁内仅标记，实际 assembleAll() 在锁外执行
-            // 减少 transactionMutex 持有时间，降低游戏循环锁争用
-            _discipleDirty = true
-        }
+        // 锁内仅标记，实际 assembleAll() 在锁外执行
+        // 减少 transactionMutex 持有时间，降低游戏循环锁争用
+        // 注：原 _discipleDirty 标记为死代码（无读者），已按 WS-0.a 移除
         markDirtyFor(baseline, disciplesNeedReassemble)
         // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
         if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
             _updateVersion.value++
-            _stateDirty = true
         }
         // P-5：血炼百分比变化（不触发弟子组装）时同步重算战力——
         // 指纹缓存使仅血炼弟子重算、其余命中（O(D) 引用比较 + 缓存查找，微秒级）；
@@ -1638,8 +1612,6 @@ class GameStateStoreImpl @Inject constructor(
         repository.setActiveSlot(gameData.slotId)
         repository.markAllDirty()
         _updateVersion.value++
-        _stateDirty = false
-        _discipleDirty = false
         if (gameData.rngStates.isNotEmpty()) {
             rngSnapshotPort.restore(gameData.rngStates)
         }
@@ -1794,8 +1766,6 @@ class GameStateStoreImpl @Inject constructor(
             _isLoading.value = false
             _isSaving.value = false
             _updateVersion.value++
-            _stateDirty = false
-            _discipleDirty = false
             repository.clearDirty()
         }
         // 2026-08-01 对抗性审查修复：reset 后投递同调度器全量组装（镜像 load 做法）——

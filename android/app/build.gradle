@@ -57,9 +57,9 @@ android {
         buildConfigField "String", "BUGLY_APP_ID", '"' + apiProperties.getProperty('BUGLY_APP_ID', '') + '"'
         buildConfigField "String", "BUGLY_APP_KEY", '"' + apiProperties.getProperty('BUGLY_APP_KEY', '') + '"'
 
-        // 仅保留 ARM 架构，模拟器通过 libhoudini 翻译运行（与主流国产手游一致）
+        // 仅保留 64 位 ARM 架构（arm64-v8a，决策7：移除 armeabi-v7a，APK native 包体约 -40%）
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            abiFilters 'arm64-v8a'
         }
     }
 
@@ -109,6 +109,11 @@ android {
                 signingConfig = signingConfigs.release
             }
             buildConfigField "boolean", "DEBUG_MODE", "false"
+            // P1-7：release native 符号打包为 SYMBOL_TABLE（Bugly 原生崩溃符号最小可行，
+            // 比默认仅 .so 全字节可读，且不显著增大包体）
+            ndk {
+                debugSymbolLevel "SYMBOL_TABLE"
+            }
         }
         debug {
             // 2026-08-02 恢复同签名：TapTap 后台不支持一个包名配置两个签名，
@@ -159,13 +164,7 @@ android {
         }
     }
 
-    // 纹理压缩格式分发 — AAB 自动为设备分配合适的纹理格式
-    bundle {
-        texture {
-            enableSplit = true
-        }
-    }
-
+    // 决策7：移除纹理分包开关（仅一种 KTX 格式，split 从未生效）
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -587,9 +586,10 @@ tasks.withType(Test).configureEach { dependsOn('generateResourceManifest', 'gene
 // 2026-08-10（WP7）：图集 ASTC 压缩产物生成任务
 // 权威源：SpriteAtlasDef.kt + BuildingFeatureBoot.kt + drawable-nodpi/*.webp
 // 产物：assets/atlas/atlas_astc.ktx（KTX1 封装 ASTC 4×4）+ atlas-manifest.json
-// 产物已提交入库兜底；astcenc 缺失时跳过告警不阻塞构建（运行时回退 RGBA 图集）。
 // 守卫测试 AtlasManifestSyncTest 锁住 manifest↔SpriteAtlasDef↔KTX 三向一致性，
 // 权威源变更后该测试变红，提示运行此任务重新生成。
+// 2026-09-04（WS-0.d CI 加固②）：astcenc 缺失改为 **fail**（此前静默跳过）——
+// 权威源变更必须重新生成且需真实 astcenc，静默跳过会产出过期 KTX 让守卫测试误通过。
 // ============================================================
 tasks.register('generateAstcAtlas') {
     group = 'build'
@@ -606,8 +606,10 @@ tasks.register('generateAstcAtlas') {
     doLast {
         def hasAstcenc = astcencDir.exists() && astcencCandidates.any { it.exists() }
         if (!hasAstcenc) {
-            logger.warn('generateAstcAtlas: astcenc 未找到（scripts/tools/astcenc/bin/），跳过生成——产物已入库兜底，运行时回退 RGBA 图集。')
-            return
+            throw new GradleException(
+                "generateAstcAtlas: astcenc 未找到（${astcencDir}）——权威源已变更需重生成图集，" +
+                "请从 https://github.com/ARM-software/astc-encoder/releases 下载 windows-x64 版本放至 scripts/tools/astcenc/bin/。"
+            )
         }
         def proc = ['node', 'scripts/build-atlas.mjs'].execute(null, scriptDir)
         proc.consumeProcessOutput(System.out, System.err)

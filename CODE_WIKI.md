@@ -147,6 +147,10 @@ feature:game  ──→  core:ui  ──→  core:domain
 | `GameHeavyDataPort` | domain | `:core:data` | 重型数据 BLOB 读写 |
 | `HeavyDataDecoder` | domain | `:core:data` | 重型数据 Protobuf 解码 |
 
+> 📌 **存档为纯手动（产品决策，2026-09-04 确认）**：仅设置页手动触发存档，无自动存档。
+> 禁止重新实现自动保存、禁止引用 `autoSave*` 命名（残留字段已 v50 清理）。
+> 历史依据：docs/report-移除自动存档-接入云存档.md。
+
 ### Hilt DI 桥接层
 
 所有域接口→实现绑定集中在 `app/.../di/BridgeBindingsModule.kt`：

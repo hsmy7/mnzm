@@ -99,9 +99,8 @@ TEST_F(GameCoreTest, SnapshotImportExportRoundTrip) {
     EXPECT_FALSE(core.importStateJson("{not valid json"));
     EXPECT_NE(std::string::npos, core.exportStateJson().find("\"gameYear\":5"));
 
-    // 变更集/事件仍为骨架形状
+    // 变更集仍为骨架形状
     EXPECT_NE(std::string::npos, core.exportDirtyJson().find("\"version\""));
-    EXPECT_EQ("[]", core.pollEventsJson());
 }
 
 }  // namespace

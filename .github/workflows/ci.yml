@@ -108,6 +108,28 @@ jobs:
       - name: Run Detekt
         run: ./gradlew detekt --max-workers=1 --build-cache
 
+      # 决策8 CI 守卫（WS-0.d CI 加固③）：detekt-baseline 只许缩小不许增大。
+      # 统计各模块 <ID> 条目数并与 detekt-baseline-count.guard 对比，超限即失败——
+      # 防止新违规被塞进 baseline 静默压制。
+      - name: Detekt baseline must not grow (只转不增守卫)
+        run: |
+          set -e
+          cd android
+          fail=0
+          while IFS='=' read -r mod expected; do
+            case "$mod" in \#*|'') continue;; esac
+            f="$mod/detekt-baseline.xml"
+            [ -f "$f" ] || { echo "::error::$f 缺失"; fail=1; continue; }
+            count=$(grep -c '<ID>' "$f" || true)
+            if [ "$count" -gt "$expected" ]; then
+              echo "::error::$mod detekt-baseline 条目数 $count > 基线 $expected（只许缩小，禁止新增违规）"
+              fail=1
+            else
+              echo "✓ $mod baseline=$count（基线 $expected）"
+            fi
+          done < detekt-baseline-count.guard
+          exit $fail
+
       # 2026-08 债务根治：lintRelease 纳入 CI（此前本地清单有 lint 但 CI 漏跑——
       # 文档债务 baseline-20260814「CI 全绿」项包含 lint 验证面）
       - name: Run lint

@@ -62,7 +62,8 @@ object GameCoreBridge {
      * @param nowMs 现实时间戳（System.currentTimeMillis；显式传入保证对拍可控）
      * @return 是否成功推进
      */
-    external fun nativeAdvance(deltaNs: Long, nowMs: Long): Boolean
+    // 注：nativeAdvance 为生产死导出（仅基准测试依赖，而其改走 DiffRngBridge.nativeCoreAdvancePhases）；
+    // 已按 WS-0.b 移除。
 
     // ============================================================
     // AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d）
@@ -232,9 +233,6 @@ object GameCoreBridge {
 
     /** 导出自上次导出以来的变更集（JSON；UI 镜像增量同步） */
     external fun nativeExportDirty(): ByteArray
-
-    /** 导出事件队列（JSON；Kotlin 侧 poll 消费后转 DomainEvent） */
-    external fun nativePollEvents(): ByteArray
 
     // ============================================================
     // 引擎循环 + 看门狗（计划 v2 阶段 5：游戏循环入 C++）

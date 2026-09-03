@@ -1,0 +1,11 @@
+# detekt-baseline 计数守卫（决策8：baseline 只许缩小不许增大，WS-0.d CI 加固③）
+# 文件内容格式：<module_dir>=<ID 条目数>
+# 更新规则：仅当对应模块 detekt-baseline.xml 的 <ID> 条目数**减少**时才更新此行（只缩不增）。
+# CI (ci.yml: detekt-baseline-guard) 会统计每个 baseline 的 <ID> 条目数，
+# 若 > 此处记录值则 CI 失败。禁止将新违规加入 baseline。
+app=254
+core/data=464
+core/ui=23
+feature/game=639
+core/domain=509
+core/engine=1150

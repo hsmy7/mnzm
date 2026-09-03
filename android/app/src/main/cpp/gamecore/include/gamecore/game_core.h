@@ -23,10 +23,9 @@
 // 架构定位：C++ 引擎的**真相源**。Kotlin 侧经 JNI 桥调用本类
 // （GameCoreBridge.cpp），方法语义对应 Kotlin GameEngineCore/GameEngine：
 //   - advance      ↔ Kotlin 帧循环 tickInternal（100ms 逻辑步）
-//   - execute      ↔ Kotlin GameEngine 业务操作（ActionId 协议，批次 1+ 填充）
-//   - export/import↔ 全量状态快照（JSON，批次 1 填充）
-//   - exportDirty  ↔ 变更集增量同步（批次 1 填充）
-//   - pollEvents   ↔ 事件队列回传（批次 1 填充）
+//   - execute      ↔ Kotlin GameEngine 业务操作（ActionId 协议；经 execute_dispatch 分发表）
+//   - export/import↔ 全量状态快照（JSON）
+//   - exportDirty  ↔ 变更集增量同步（见 DirtyTracker）
 //
 // 线程契约：单线程使用（所有调用来自 Kotlin 引擎线程，Kotlin 侧已串行化），
 // 内部无锁。与现有"双线程模型 + ReentrantLock 串行化"契约对齐。
@@ -148,7 +147,7 @@ public:
 
     // ── 业务操作 ──────────────────────────────────────────
     /// 执行业务操作（ActionId 协议；paramsJson 为参数 JSON）
-    /// 返回结果 JSON 字节（含 sealed 结果语义；批次 1+ 实现，当前返回未实现错误）
+    /// 返回结果 JSON 字节（sealed 结果语义）。
     std::string execute(int32_t actionId, const std::string& paramsJson, int64_t nowMs);
 
     // ── 状态快照（批次 1 实现：JSON 全量导出/导入）────────────────
@@ -169,8 +168,6 @@ public:
     bool applyReverseDirty(const std::string& dirtyJson);
     /// 导出自上次导出以来的变更集（增量同步协议，见 DirtyTracker——阶段 1 实现）
     std::string exportDirtyJson();
-    /// 导出事件队列（JSON；Kotlin 侧 poll 消费——批次 3+ 实现）
-    std::string pollEventsJson();
 
     // ── 状态访问（供系统实现使用；单线程契约） ────────────────────
     state::GameState& state() { return state_; }

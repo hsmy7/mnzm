@@ -156,8 +156,10 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var sectCultivation: Double = 0.0,
 
-    // 自动存档间隔（已废弃，为兼容旧存档保留此字段）
-    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    // 自动存档间隔（已废弃，为兼容旧存档保留此字段；@Ignore+@Transient 后不再持久化 Room 列、
+    // 不再写入新档——旧档经 lenient 解码（ignoreUnknownKeys=true）跳过字段 9 仍可读）
+    @Ignore
+    @kotlinx.serialization.Transient
     @ProtoNumber(9)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoSaveIntervalMonths: Int = 3,

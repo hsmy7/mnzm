@@ -204,21 +204,6 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeIsInitialized(
 }
 
 // ============================================================
-// 逻辑 tick
-// ============================================================
-
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeAdvance(
-    JNIEnv* /*env*/, jobject /*thiz*/,
-    jlong deltaNs, jlong nowMs) {
-    if (!g_gameCore) return JNI_FALSE;
-    return g_gameCore->advance(static_cast<int64_t>(deltaNs),
-                               static_cast<int64_t>(nowMs))
-               ? JNI_TRUE
-               : JNI_FALSE;
-}
-
-// ============================================================
 // AUTHORITATIVE tick 标量通道（计划 v2 阶段 2d）
 // ============================================================
 
@@ -343,13 +328,6 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeExportDirty(
         return stringToJbytes(env, R"({"version":0,"changed":{},"removed":{}})");
     }
     return stringToJbytes(env, g_gameCore->exportDirtyJson());
-}
-
-extern "C" JNIEXPORT jbyteArray JNICALL
-Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativePollEvents(
-    JNIEnv* env, jobject /*thiz*/) {
-    if (!g_gameCore) return stringToJbytes(env, "[]");
-    return stringToJbytes(env, g_gameCore->pollEventsJson());
 }
 
 // ============================================================

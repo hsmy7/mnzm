@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - SOFTWARE: 通过 [SoftwareCanvasBackend] 在 RenderThread 中 CPU 软件渲染（回退）
  *
  * 渲染模式选择链：
- * 1. [RenderStrategy] 预判（模拟器直接走 SOFTWARE）
+ * 1. [RenderStrategy] 预判（API≥31 模拟器走 Vulkan；云游戏/安全模式走 SOFTWARE）
  * 2. Vulkan init 失败时自动降级到 SOFTWARE
  *
  * 在 Compose UI 中以 AndroidView 方式嵌入，作为宗门地图的渲染目标。

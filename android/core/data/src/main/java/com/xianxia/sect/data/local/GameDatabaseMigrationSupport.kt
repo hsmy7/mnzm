@@ -27,11 +27,13 @@ private const val TAG = "GameDatabase"
             }
         }
         /**
-         * Room v29 全量 game_data 表 CREATE TABLE SQL。
+         * game_data 表全量 CREATE TABLE SQL（v29 基线 schema）。
          * 用于 MIGRATION_22_23 和 MIGRATION_24_25 重建 game_data 表。
          *
-         * 必须与 GameData 实体完全一致（NOT NULL、DEFAULT、PRIMARY KEY）。
-         * 包含 v26（引导）、v27/v28（年报）、v29（广纳门徒冷却）等全部字段。
+         * ⚠️ 必须与当时（v29）GameData 实体一致（NOT NULL、DEFAULT、PRIMARY KEY）；
+         * 此为历史基线，不含 v29 之后新增列（v40-v49 等由各自 ALTER TABLE ADD COLUMN
+         * 补齐）。**不要**用它做 v49→v50 的删列重建——那会丢失其后新增列，须由
+         * MIGRATION_49_50 用 PRAGMA 动态重建（见 GameDatabaseMigrationsV50.kt）。
          */
         internal val GAME_DATA_CREATE_SQL = """
             CREATE TABLE IF NOT EXISTS `game_data` (

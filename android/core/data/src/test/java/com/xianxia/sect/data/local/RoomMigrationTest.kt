@@ -82,6 +82,7 @@ class RoomMigrationTest {
         private val M46_47 = MIGRATION_46_47
         private val M47_48 = MIGRATION_47_48
         private val M48_49 = MIGRATION_48_49
+        private val M49_50 = MIGRATION_49_50
 
         private val SEED_DISCIPLES_V38 = """
             INSERT INTO disciples (
@@ -270,7 +271,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 38).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 47：仅注册 M38_39 时 Room 要求 38→47 迁移路径
-                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -303,7 +304,7 @@ class RoomMigrationTest {
                     M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
                     M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36,
                     M36_37, M37_38, M38_39, M39_40, M40_41, M41_42, M42_43, M43_44,
-                    M44_45, M45_46, M46_47, M47_48, M48_49
+                    M44_45, M45_46, M46_47, M47_48, M48_49, M49_50
                 )
                 .build()
             roomDb.openHelper.writableDatabase
@@ -327,7 +328,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 39).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 47：完整迁移路径 39→47
-                .addMigrations(M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M39_40, M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -380,7 +381,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 40).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M40_41, M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -402,7 +403,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 41).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M41_42, M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -419,7 +420,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 42).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49)
+                .addMigrations(M42_43, M43_44, M44_45, M45_46, M46_47, M47_48, M48_49, M49_50)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -1172,6 +1173,86 @@ class RoomMigrationTest {
                 indexExists(db, "disciples", "index_disciples_loyalty"))
             assertTrue("index_disciples_age should exist",
                 indexExists(db, "disciples", "index_disciples_age"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_49_50 drops autoSaveIntervalMonths from game_data and sect_policy_state`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_49_50_drop_autosave"
+        context.deleteDatabase(dbName)
+        try {
+            // 从 v49 schema 创建（含 autoSaveIntervalMonths），模拟真实设备升级路径
+            val db = createDatabaseFromSchema(context, dbName, 49)
+            assertTrue("autoSaveIntervalMonths should exist in game_data at v49",
+                columnExists(db, "game_data", "autoSaveIntervalMonths"))
+            assertTrue("autoSaveIntervalMonths should exist in sect_policy_state at v49",
+                columnExists(db, "sect_policy_state", "autoSaveIntervalMonths"))
+
+            // 插入最小 game_data 行（按 v49 PRAGMA 实际列生成默认值）+ sect_policy_state 行，
+            // 验证迁移后数据不丢。
+            val gCols = mutableListOf<String>()
+            val gVals = mutableListOf<String>()
+            val gInfo = db.query("PRAGMA table_info(game_data)", emptyArray())
+            gInfo.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(it.getColumnIndexOrThrow("name"))
+                    val type = it.getString(it.getColumnIndexOrThrow("type"))
+                    gCols.add(name)
+                    gVals.add(when {
+                        type?.uppercase()?.contains("INT") == true -> "0"
+                        type?.uppercase()?.contains("REAL") == true -> "0.0"
+                        else -> "''"
+                    })
+                }
+            }
+            val gIdIdx = gCols.indexOf("id"); if (gIdIdx >= 0) gVals[gIdIdx] = "'game_data_1'"
+            val gSidIdx = gCols.indexOf("slot_id"); if (gSidIdx >= 0) gVals[gSidIdx] = "1"
+            val gSnIdx = gCols.indexOf("sectName"); if (gSnIdx >= 0) gVals[gSnIdx] = "'测试宗门'"
+            db.execSQL(
+                "INSERT INTO game_data (${gCols.joinToString(",")}) VALUES (${gVals.joinToString(",")})"
+            )
+            db.execSQL(
+                "INSERT INTO sect_policy_state (slot_id, sectPolicies, autoRecruitSpiritRootFilter, " +
+                    "daoCompanionBannedRootCounts, daoCompanionConsentRequired, breakthroughAutoPillFocused, " +
+                    "breakthroughAutoPillRootCounts, autoEquipFromWarehouseFocused, autoEquipFromWarehouseRootCounts, " +
+                    "autoLearnFromWarehouseFocused, autoLearnFromWarehouseRootCounts, yearlySalary, yearlySalaryEnabled, " +
+                    "autoSaveIntervalMonths) VALUES (1, '{}', '[]', '[]', 0, 0, '[]', 0, '[]', 0, '[]', '{}', '{}', 3)"
+            )
+
+            // 应用 MIGRATION_49_50
+            applyMigrationsSequentially(db, listOf(MIGRATION_49_50))
+
+            // 验证两表 autoSaveIntervalMonths 均被删除
+            assertFalse("autoSaveIntervalMonths should be removed from game_data after v50",
+                columnExists(db, "game_data", "autoSaveIntervalMonths"))
+            assertFalse("autoSaveIntervalMonths should be removed from sect_policy_state after v50",
+                columnExists(db, "sect_policy_state", "autoSaveIntervalMonths"))
+
+            // 验证关键列未受影响
+            assertTrue("id should survive in game_data",
+                columnExists(db, "game_data", "id"))
+            assertTrue("roads should survive in game_data",
+                columnExists(db, "game_data", "roads"))
+            assertTrue("slot_id should survive in sect_policy_state",
+                columnExists(db, "sect_policy_state", "slot_id"))
+
+            // 验证索引已重建
+            assertTrue("index_game_data_slot_id should exist",
+                indexExists(db, "game_data", "index_game_data_slot_id"))
+            assertTrue("index_sect_policy_state_slot_id should exist",
+                indexExists(db, "sect_policy_state", "index_sect_policy_state_slot_id"))
+
+            // 验证数据存活
+            val cursor = db.query("SELECT sectName FROM game_data WHERE id = 'game_data_1'", emptyArray())
+            cursor.use {
+                assertTrue("game_data row should survive v50 migration", it.moveToFirst())
+                assertEquals("测试宗门", it.getString(0))
+            }
 
             db.close()
         } finally {

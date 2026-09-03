@@ -94,7 +94,7 @@ class GameTimeClock @Inject constructor(
     }
 
     /**
-     * 切换速度。自动保存已累积的游戏时间，防止切换时丢失进度。
+     * 切换速度。保留已累积的游戏时间，防止切换时丢失进度。
      * @param newSpeed 0=暂停, 1=1x, 2=2x
      */
     fun setSpeed(newSpeed: Int) {

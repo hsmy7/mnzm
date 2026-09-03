@@ -38,8 +38,9 @@ target_include_directories(game-core PUBLIC
 
 target_compile_features(game-core PUBLIC cxx_std_20)
 
-# 与 NDK 默认对齐：禁异常/RTTI（Android 上 libc++ 无 exception 支持开销）；
-# 桌面构建同样启用，保证跨平台行为一致
+# 与 NDK 默认对齐的编译选项：-Wall/-Wextra 告警；异常/RTTI 未显式禁用（依赖 NDK/libc++
+# 行为）。注：历史注释原称"禁异常/RTTI"，实际未加 -fno-exceptions/-fno-rtti 旗标，
+# 与实现一致（代码仅用注入式平台接口，不依赖平台异常）。
 target_compile_options(game-core PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/W4>
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wno-unused-parameter>

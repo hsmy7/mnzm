@@ -3,8 +3,6 @@
   "game": {
     "name": "模拟宗门",
     "version": "4.0.09",
-    "autoSaveIntervalSeconds": 60,
-    "autoSaveDebounceMs": 30000,
     "maxSaveSlots": 5
   },
   "disciple": {

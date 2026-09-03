@@ -16,7 +16,7 @@ private val adminMailJson = Json {
 }
 
 /**
- * 向指定存档槽位注入运营补偿邮件，并触发自动存档。
+ * 向指定存档槽位注入运营补偿邮件。
  *
  * 幂等保证：通过 [mailId] 检查 [com.xianxia.sect.core.model.GameData.mailRecords]
  * 是否已有领取记录，已领取则跳过注入。

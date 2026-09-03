@@ -353,7 +353,7 @@ private fun ExitConfirmDialog(
         StandardPromptDialog(
             onDismissRequest = onDismiss,
             title = "确认退出",
-            text = "确定要退出游戏吗？游戏进度会自动保存。",
+            text = "确定要退出游戏吗？未保存的进度将会丢失。",
             confirmLabel = "确认退出",
             onConfirm = onConfirm,
             dismissLabel = "取消",

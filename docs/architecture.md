@@ -430,6 +430,15 @@ SaveValidator.validate(SaveData)
 
 - `SaveValidationRuleRegistry.registerDefaults()` 注册全部内置规则（惰性初始化，首次 `validate()` 时调用）
 - 测试中 `SaveValidationRuleRegistry.clear()` 后只注册目标规则，实现细粒度单规则测试
+
+### 存档为纯手动（产品决策，2026-09-04 确认）
+
+**存档为纯手动**（仅在设置页手动触发，无自动存档）。此为产品决策（历史依据
+`docs/report-移除自动存档-接入云存档.md`，changelog_entries.json:813"移除自动存档机制"）。
+**禁止重新实现自动保存、禁止引用 `autoSave*` 命名。** `autoSaveIntervalMonths` 等
+自动存档残留字段已全部清理（v50 Room 迁移删列；GameData/SectPolicyState 字段改
+`@Ignore`+`@Transient`）。如需改造（接入云存档、新增存档入口），走
+rules/database-migration.md 规则并同步更新此处。
 - 新规则只需：新建 Rule 文件 + 在 `registerDefaults()` 加一行
 
 ### 调用方兼容
