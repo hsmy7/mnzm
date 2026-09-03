@@ -34,19 +34,22 @@ class SoftwareCanvasBackendCloudTest {
     private lateinit var backend: SoftwareCanvasBackend
     private lateinit var atlas: Bitmap
 
-    /** 云层测试图集：2048×2048，云层槽位（与 SpriteAtlasDef.CLOUD_RECTS 同坐标）填充亮青色 */
+    /** 云层测试图集：2048×2048，槽位按 SpriteAtlasDef 源矩形缩放绘制（与后端采样对齐） */
     private fun createCloudAtlas(): Bitmap {
         val bmp = createBitmap(2048, 2048, Bitmap.Config.ARGB_8888)
         val c = Canvas(bmp)
         // 地面源（chunk 底）
-        c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
-        // 灵田建筑精灵源（nameIdx=2 → buildingRect(2) = (512,256,256,256)）= 白色
-        c.drawRect(512f, 256f, 768f, 512f, Paint().apply { color = Color.WHITE })
-        // 云层 1 槽位（CLOUD_RECTS.first() = (0,1408,484,120)）= 亮青色
+        val groundRect = scaledFixtureRect(2048, SpriteAtlasDef.TileType.GROUND.rect)
+        c.drawRect(groundRect, Paint().apply { color = Color.rgb(100, 100, 100) })
+        // 灵田建筑精灵源（nameIdx=2 → buildingRect(2)）= 白色
+        val buildingRect = scaledFixtureRect(2048, SpriteAtlasDef.buildingRect(2))
+        c.drawRect(buildingRect, Paint().apply { color = Color.WHITE })
+        // 云层 1 槽位（CLOUD_RECTS.first()）= 亮青色
         val cloudRect = SpriteAtlasDef.CLOUD_RECTS.first().second
+        val cloudArea = scaledFixtureRect(2048, cloudRect)
         c.drawRect(
-            cloudRect.x.toFloat(), cloudRect.y.toFloat(),
-            (cloudRect.x + cloudRect.w).toFloat(), (cloudRect.y + cloudRect.h).toFloat(),
+            cloudArea.left.toFloat(), cloudArea.top.toFloat(),
+            cloudArea.right.toFloat(), cloudArea.bottom.toFloat(),
             Paint().apply { color = Color.rgb(CLOUD_RED, CLOUD_GREEN, CLOUD_BLUE) }
         )
         return bmp
@@ -99,9 +102,9 @@ class SoftwareCanvasBackendCloudTest {
 
     @Test
     fun `视口外云朵被剔除`() {
-        // 云朵完全位于世界左侧外（x+w ≤ 0）→ 视口内不可见，建筑保持白色
+        // 云朵完全位于世界左侧外（x + w ≤ 0，云宽 968 → x ≤ -968）→ 视口内不可见，建筑保持白色
         val offScreen = backend.renderFrame(
-            cloudFrame(), atlas, vpW = 200, vpH = 200, cloudData = cloudDataAt(-700f)
+            cloudFrame(), atlas, vpW = 200, vpH = 200, cloudData = cloudDataAt(-1200f)
         )!!
         val px = offScreen.getPixel(32, 32)
         assertNear(255, Color.red(px), 8)

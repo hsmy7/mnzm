@@ -5,10 +5,13 @@ import androidx.core.graphics.createBitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFlags
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.SpriteAtlasDef
+import com.xianxia.sect.core.render.SpriteRect
+import kotlin.math.roundToInt
 
 /**
  * SoftwareCanvasBackend 测试共享 fixtures。
@@ -61,6 +64,25 @@ internal fun createWhiteTileAtlas(): Bitmap {
     return bmp
 }
 
+/**
+ * 软件后端图集坐标缩放比（与后端 sourceScale 推导一致）：
+ * SpriteAtlasDef 源矩形是 4096 坐标系，但测试/软件图集按 0.5× 缩放到实际尺寸，
+ * 采样/绘制槽位必须同步缩放，否则源矩形越界或取样到相邻槽位。
+ */
+internal fun fixtureSourceScale(atlasWidth: Int): Float =
+    if (atlasWidth > 0) atlasWidth.toFloat() / SpriteAtlasDef.ATLAS_W else 1f
+
+/** 把一个 SpriteAtlasDef 源矩形缩放到给定图集宽度下的像素矩形（供 fixture 绘制）。 */
+internal fun scaledFixtureRect(atlasWidth: Int, sr: SpriteRect): Rect {
+    val s = fixtureSourceScale(atlasWidth)
+    return Rect(
+        (sr.x * s).roundToInt(),
+        (sr.y * s).roundToInt(),
+        ((sr.x + sr.w) * s).roundToInt(),
+        ((sr.y + sr.h) * s).roundToInt()
+    )
+}
+
 internal fun assertNear(expected: Int, actual: Int, tolerance: Int = 2) {
     org.junit.Assert.assertTrue(
         "expected $expected ±$tolerance, got $actual",
@@ -101,25 +123,33 @@ internal fun createDecorTileData(cols: Int, rows: Int): IntArray {
  * 解决迷你图集（128×128）源矩形越界导致建筑精灵不绘制的盲区——阴影污染回归测试必须让精灵真实上屏。
  */
 internal fun createSpriteAtlas(): Bitmap {
-    val bmp = createBitmap(1024, 1024, Bitmap.Config.ARGB_8888)
+    val w = 1024
+    val bmp = createBitmap(w, w, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
-    c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
-    c.drawRect(512f, 256f, 768f, 512f, Paint().apply { color = Color.WHITE })
+    // 按缩放后的坐标填充源矩形（源矩形来自 SpriteAtlasDef，缩放后与后端采样对齐）
+    val groundRect = scaledFixtureRect(w, SpriteAtlasDef.TileType.GROUND.rect)
+    c.drawRect(groundRect, Paint().apply { color = Color.rgb(100, 100, 100) })
+    val buildingRect = scaledFixtureRect(w, SpriteAtlasDef.buildingRect(2))
+    c.drawRect(buildingRect, Paint().apply { color = Color.WHITE })
     return bmp
 }
 
 /**
- * 作物测试图集：tile 源 (0,0,64,64)=灰 100（chunk 底），作物三阶段源
- * (832/896/960, 0, 64, 64)=白 255（与 SpriteAtlasDef.CropStage rect 同坐标）。
- * 灵田建筑精灵源 (512,256) 在 64 高图集范围外 → 建筑不可见，不影响断言。
+ * 作物测试图集：tile 源 GROUND=灰 100（chunk 底），作物三阶段源=白 255
+ * （按 SpriteAtlasDef.CropStage rect 缩放绘制，与后端采样对齐）。
+ * 灵田建筑精灵源在图集高度外 → 建筑不可见，不影响断言。
  */
 internal fun createCropAtlas(): Bitmap {
-    val bmp = createBitmap(1024, 64, Bitmap.Config.ARGB_8888)
+    val w = 1024
+    val h = 64
+    val bmp = createBitmap(w, h, Bitmap.Config.ARGB_8888)
     val c = Canvas(bmp)
-    c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
-    c.drawRect(832f, 0f, 896f, 64f, Paint().apply { color = Color.WHITE })
-    c.drawRect(896f, 0f, 960f, 64f, Paint().apply { color = Color.WHITE })
-    c.drawRect(960f, 0f, 1024f, 64f, Paint().apply { color = Color.WHITE })
+    val groundRect = scaledFixtureRect(w, SpriteAtlasDef.TileType.GROUND.rect)
+    c.drawRect(groundRect, Paint().apply { color = Color.rgb(100, 100, 100) })
+    for (stage in SpriteAtlasDef.CropStage.values()) {
+        val r = scaledFixtureRect(w, stage.rect)
+        c.drawRect(r, Paint().apply { color = Color.WHITE })
+    }
     return bmp
 }
 

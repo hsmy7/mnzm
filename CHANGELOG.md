@@ -1,5 +1,14 @@
 ## [4.01.12] - 2026-09-02
 
+### 修复：软件渲染路径宗门地图地面出现米色空隙（图集源矩形缩放回归）
+
+> 2026-09-03 玩家反馈「宗门地图变成一块块米色空隙」问题根治。为同年 4.01.12「图集 2048→4096」批次遗留的坐标采样错误闭环——该批次提升了图集分辨率并给软件路径图集加了 0.5× 封顶缩放，但 `SoftwareCanvasBackend` 采样 `SpriteAtlasDef` 源矩形时未同步缩放。
+
+- **根因**：`SectAtlasAssembler` 为防低端机 OOM 把软件路径图集位图缩放到 2048（`canvasAtlasScale = CANVAS_ATLAS_MAX / ATLAS_W = 2048/4096 = 0.5`），但 `SoftwareCanvasBackend` 直接使用 `SpriteAtlasDef` 的 4096 坐标系源矩形。地面 REPEAT 源裁切到「绿块+透明」区域，整图平铺后地面呈现米色空隙；装饰/建筑/作物/云层的源矩形同样错位。
+- **修复**：`SoftwareCanvasBackend` 引入 `sourceScale = atlas.width / ATLAS_W`，所有图集采样源矩形（瓦片/作物/云/建筑/道路/地面源）按该比例缩放，与 `SectAtlasAssembler` 画布缩放对齐；`drawPreview` 已按 atlas 实际宽度取值保持一致。
+- **举一反三**：同步修正 3 个软件后端测试的图集构建/断言（`SoftwareCanvasBackendTestFixtures` 用 `scaledFixtureRect` 按 `SpriteAtlasDef` 尺寸缩放绘制；`SoftwareCanvasBackendCloudTest` 修正越界云剔除断言），并新增回归守卫 `ReproGroundScaleTest`（生产尺寸+0.5×缩放图集，断言地面无米色空隙——修复前失败/修复后通过）。
+- **验证**：`:feature:game:testReleaseUnitTest` 全绿（此前软件后端 23 项失败清零）· `:feature:game:compileReleaseKotlin` · `:feature:game:lintRelease`。
+
 ### 美术资产管线 · 自选清晰度 · 宗门地图图集升级 · 地砖移除（2026-09-02）
 
 > 一批美术/渲染基建与游玩项：source-mapping 资产管线（可追溯重烘焙）、自选清晰度五档设置、宗门地图图集 2048→4096 分辨率升级、素材重烘焙到 1024、移除宗门地面方形地砖。详见 `docs/design/art-asset-pipeline-improvement.md` / `docs/design/graphics-clarity-settings.md`。

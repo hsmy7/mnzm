@@ -13,6 +13,7 @@ import com.xianxia.sect.core.render.RenderScalePolicy
 import com.xianxia.sect.core.render.RoadCompositorBridge
 import com.xianxia.sect.core.render.SpiritCropRender
 import com.xianxia.sect.core.render.SpriteAtlasDef
+import com.xianxia.sect.core.render.SpriteRect
 import kotlin.math.roundToInt
 
 /**
@@ -617,36 +618,46 @@ class SoftwareCanvasBackend(
 
     // ── 精灵图源矩形（延迟初始化） ──
 
+    /**
+     * 软件路径图集坐标缩放比。
+     *
+     * SectAtlasAssembler.buildAtlasBitmap 为防低端机 OOM 把 4096 图集封顶缩放到
+     * 2048（canvasAtlasScale = CANVAS_ATLAS_MAX / ATLAS_W = 2048/4096 = 0.5），但
+     * SpriteAtlasDef 的图集源矩形仍是 4096 坐标系。若直接用 4096 坐标在 2048 位图上
+     * 采样，会越界/取样到相邻槽位——地面 REPEAT 源裁出「绿块+透明」导致整图铺出米色
+     * 空隙，装饰/建筑错位。故所有源矩形与地面源裁切必须按实际图集宽度缩放。
+     *
+     * 值由渲染帧传入的 atlas 实际宽度推导（atlas.width / SpriteAtlasDef.ATLAS_W），
+     * 生产图集恒正方形（2048/4096=0.5），测试用任意宽位图亦自动适配。
+     */
+    private var sourceScale: Float = 1f
+
+    private fun <T> buildScaledRects(source: List<T>, rectOf: (T) -> SpriteRect): Array<Rect> =
+        source.mapIndexed { _, item ->
+            val sr = rectOf(item)
+            Rect(
+                (sr.x * sourceScale).roundToInt(),
+                (sr.y * sourceScale).roundToInt(),
+                ((sr.x + sr.w) * sourceScale).roundToInt(),
+                ((sr.y + sr.h) * sourceScale).roundToInt()
+            )
+        }.toTypedArray()
+
     private val tileSrcRects: Array<Rect> by lazy {
-        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.TileType.values().size)
-        for (tile in SpriteAtlasDef.TileType.values()) {
-            val sr = tile.rect
-            rects[tile.index] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
-        }
         @Suppress("UNCHECKED_CAST")
-        rects as Array<Rect>
+        buildScaledRects(SpriteAtlasDef.TileType.values().toList()) { it.rect } as Array<Rect>
     }
 
     /** 灵田作物三阶段图源矩形（WP6，与 C++ TextureAtlas.h crop_* 同步） */
     private val cropSrcRects: Array<Rect> by lazy {
-        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.CropStage.values().size)
-        for (stage in SpriteAtlasDef.CropStage.values()) {
-            val sr = stage.rect
-            rects[stage.ordinal] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
-        }
         @Suppress("UNCHECKED_CAST")
-        rects as Array<Rect>
+        buildScaledRects(SpriteAtlasDef.CropStage.values().toList()) { it.rect } as Array<Rect>
     }
 
     /** 云层精灵图源矩形（按 SpriteAtlasDef.CLOUD_RECTS 声明顺序，与 C++ CLOUD_UV_MAP 同源） */
     private val cloudSrcRects: Array<Rect> by lazy {
-        val rects = arrayOfNulls<Rect>(SpriteAtlasDef.CLOUD_RECTS.size)
-        for ((index, entry) in SpriteAtlasDef.CLOUD_RECTS.withIndex()) {
-            val sr = entry.second
-            rects[index] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
-        }
         @Suppress("UNCHECKED_CAST")
-        rects as Array<Rect>
+        buildScaledRects(SpriteAtlasDef.CLOUD_RECTS) { it.second } as Array<Rect>
     }
 
     private val buildingSrcRects: Array<Rect> by lazy {
@@ -654,12 +665,22 @@ class SoftwareCanvasBackend(
         val rects = arrayOfNulls<Rect>(SpriteAtlasDef.BUILDING_NAMES.size + SpriteAtlasDef.STRUCTURES.size)
         for (i in SpriteAtlasDef.BUILDING_NAMES.indices) {
             val sr = SpriteAtlasDef.buildingRect(i)
-            rects[i] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
+            rects[i] = Rect(
+                (sr.x * sourceScale).roundToInt(),
+                (sr.y * sourceScale).roundToInt(),
+                ((sr.x + sr.w) * sourceScale).roundToInt(),
+                ((sr.y + sr.h) * sourceScale).roundToInt()
+            )
         }
         SpriteAtlasDef.STRUCTURES.forEachIndexed { i, s ->
             val idx = SpriteAtlasDef.BUILDING_NAMES.size + i
             val sr = s.rect
-            rects[idx] = Rect(sr.x, sr.y, sr.x + sr.w, sr.y + sr.h)
+            rects[idx] = Rect(
+                (sr.x * sourceScale).roundToInt(),
+                (sr.y * sourceScale).roundToInt(),
+                ((sr.x + sr.w) * sourceScale).roundToInt(),
+                ((sr.y + sr.h) * sourceScale).roundToInt()
+            )
         }
         @Suppress("UNCHECKED_CAST")
         rects as Array<Rect>
@@ -668,7 +689,12 @@ class SoftwareCanvasBackend(
     /** 石板道路精灵图源矩形（key → source rect，按 SpriteAtlasDef.ROAD_RECTS 生成） */
     private val roadSrcRects: Map<String, Rect> by lazy {
         SpriteAtlasDef.ROAD_RECTS.associate { (key, r) ->
-            key to Rect(r.x, r.y, r.x + r.w, r.y + r.h)
+            key to Rect(
+                (r.x * sourceScale).roundToInt(),
+                (r.y * sourceScale).roundToInt(),
+                ((r.x + r.w) * sourceScale).roundToInt(),
+                ((r.y + r.h) * sourceScale).roundToInt()
+            )
         }
     }
 
@@ -696,6 +722,13 @@ class SoftwareCanvasBackend(
         fadeAlpha: Float = 1f,
         cloudData: FloatArray? = null
     ): Bitmap? {
+        // ★ 源矩形坐标缩放比：软件路径图集由 SectAtlasAssembler 按 0.5× 缩到 2048，
+        // 而 SpriteAtlasDef 源矩形是 4096 坐标系——直接采样会越界/取到相邻槽位，
+        // 导致地面 REPEAT 源裁出「绿块+透明」铺出米色空隙、装饰/建筑错位。
+        // 渲染帧实际 atlas 宽度推导（图集恒正方形，生产 2048/4096=0.5；测试任意宽亦适配）。
+        val aw = atlas.width
+        sourceScale = if (aw > 0) aw.toFloat() / SpriteAtlasDef.ATLAS_W else 1f
+
         // ★ 装饰层 LOD 最终判定（WP5）：scale/热控/显式关闭三条件收敛于
         // RenderLodPolicy 纯函数（与 C++ skipDecor 同阈值双端对齐）。
         // 在 ensureFrameBuffer 前计算——帧缓冲重建时按合并值重置 chunk 失效基准，
@@ -864,10 +897,18 @@ class SoftwareCanvasBackend(
     /** 重建全部失效 chunk（失效检查完成后统一执行，防半失效窗口） */
     private fun rebuildInvalidChunks(atlas: Bitmap, frame: RenderFrame, decorSkip: Boolean) {
         // 单一地面源位图（跨 chunk 共享；atlas 引用变化才重复制——避免每 chunk 各复制一次）
+        // ★ 按 sourceScale 缩放 GROUND 源矩形：软件路径图集是 4096 槽位的 0.5× 位图，
+        //   直接用 4096 坐标裁切会裁到相邻槽位（含透明），REPEAT 平铺后出现米色空隙。
         val gRect = SpriteAtlasDef.TileType.GROUND.rect
         var groundSrc = groundSourceBitmap
         if (groundSrc == null || groundSourceAtlas !== atlas) {
-            groundSrc = Bitmap.createBitmap(atlas, gRect.x, gRect.y, gRect.w, gRect.h)
+            groundSrc = Bitmap.createBitmap(
+                atlas,
+                (gRect.x * sourceScale).roundToInt(),
+                (gRect.y * sourceScale).roundToInt(),
+                (gRect.w * sourceScale).roundToInt().coerceAtLeast(1),
+                (gRect.h * sourceScale).roundToInt().coerceAtLeast(1)
+            )
             groundSourceBitmap = groundSrc
             groundSourceAtlas = atlas
         }
