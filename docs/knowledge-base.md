@@ -66,11 +66,14 @@
 
 ## Tech Stack
 
-- **Language**: Kotlin 2.2.20, JVM target 17
+- **Language**: Kotlin 2.2.20, JVM target 17（UI / 平台能力层）+ **C++20**（引擎核心 `game-core`，经 JNI 对接；零 Android 依赖、桌面可编译、iOS 可复用）
+- **Engine (C++)**: `game-core` 纯 C++20 引擎——确定性计算**唯一真相源**（时间/结算/战斗/生产/探索/内政/经济/外交/秘境等迁移主线已收口，AUTHORITATIVE 生产默认）；Kotlin `GameStateStore` 降级为镜像，`GameEngine` 签名保留、低频操作转发
+- **ECS / 并行**: game-core 内置 ECS 骨架（Entity/Component/SoA 列存储/View 查询/System 调度）+ `JobSystem` 线程池并行化无共享写 system（每旬核心批次 `runPhaseCoreBatchParallel` 分块并行，零 RNG、与串行逐字节一致）
+- **跨语言桥**: `GameCoreBridge`（Android JNI 薄层，逻辑收敛于 C++）+ C++ 侧 `nlohmann::json`；Kotlin 侧 kotlinx.serialization（全量快照镜像 + 增量变更集 `DirtyTracker`/`applyDirty`）
 - **UI**: Jetpack Compose with Material3 (BOM 2026.05.01), no XML layouts
 - **DI**: Hilt 2.56 (`@HiltAndroidApp`, `@HiltViewModel`, `@AndroidEntryPoint`)
 - **Database**: Room 2.7.0 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
-- **Serialization**: Kotlinx Serialization (JSON + Protobuf + CBOR)
+- **Serialization**: Kotlinx Serialization (JSON + Protobuf + CBOR)；存档编码保持 Kotlin kotlinx-proto（镜像方案保证格式零变更）
 - **Storage**: MMKV 2.4.1 统一偏好（`KeyValueStore`/`GamePreferences`，D-29 根治；DataStore 已移除），LZ4/Zstd (compression)
 - **Network**: OkHttp + kotlinx.serialization（D-28 根治：Retrofit/Gson 死依赖已移除）
 - **Auth**: TapTap SDK (login, compliance, analytics)
@@ -742,7 +745,8 @@ fun watchAdForNewFeature() {
 | 技术栈 | 现状 | iOS 可移植性 |
 |--------|------|-------------|
 | `:core:domain` | 零 Android 依赖（javax.inject + coroutines + kotlinx.serialization + room-common 注解） | ✅ 可移植（KMP 友好） |
-| `:core:engine` | 纯 Kotlin + C++ 渲染（JNI）；音频已接口化（`AudioPlayerFacade`，G1 根治） | ⚠️ C++ 部分可移植（Android 用 Vulkan，iOS 用软件渲染或 Metal）；JNI 需替换 |
+| `:core:engine` | Kotlin 降级平台层/镜像 + C++ 引擎核心（game-core，JNI）；迁移主线收口（AUTHORITATIVE 真相源），Kotlin 侧仅 UI/平台/存档编码；音频已接口化（`AudioPlayerFacade`，G1 根治） | ⚠️ C++ 部分直接复用；JNI 需替换（iOS 用新桥/ObjC++） |
+| C++ 引擎（game-core） | 纯 C++20 零 Android 依赖 + ECS/JobSystem 并行化（批 2026-09-10：每旬核心批次并行 + 战斗占领判定下沉） | ✅ 直接复用（桌面 GTest 已验证跨平台编译） |
 | Compose UI（feature:game/app） | Jetpack Compose（Android 独占） | ⚠️ 需 Compose Multiplatform 或重写（评估见 docs/adr/compose-multiplatform-evaluation.md） |
 | Room（core:data） | Room 2.7.0 | ⚠️ iOS 需 SQLDelight/原生 SQLite（评估见 docs/adr/sqlite-sqldelight-evaluation.md） |
 | Hilt DI | Hilt 2.56 | ⚠️ iOS 需 Koin/手写 DI（评估见 docs/adr/di-abstraction-evaluation.md） |

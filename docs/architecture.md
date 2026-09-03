@@ -331,7 +331,7 @@ RunState（运行时状态 — 可循环回退）
 | 技术栈 | Android 现状 | iOS 迁移方案 | 风险 |
 |--------|-------------|-------------|------|
 | core:domain / core:engine | 零 Android 依赖（基线 ✅；R-02 阶段 7 接口化收尾后 `import android.*` 仅剩 11 处——ThermalMonitor 4 + FrameMetricsMonitor 7，随 C-06 退役批次移出） | KMP 直接复用 | 低 |
-| **C++ 引擎（game-core）** | 纯 C++20 零 Android 依赖（迁移批次 0-9 已交付） | **直接复用**（桌面 GTest 已验证跨平台编译） | 低 |
+| **C++ 引擎（game-core）** | 纯 C++20 零 Android 依赖（迁移主线已收口：确定性逻辑核心全部 C++ 化，AUTHORITATIVE 生产真相源；含 ECS 骨架 + System 调度 + JobSystem 并行化 + 战斗残余下沉） | **直接复用**（桌面 GTest 已验证跨平台编译） | 低 |
 | C++ 渲染引擎 | Vulkan（Android 独占）+ JNI | Metal 或软件渲染（`SoftwareCanvasBackend` 纯软渲染可跨平台）；JNI → 平台桥 | 中 |
 | Compose UI | Jetpack Compose（Android 独占） | Compose Multiplatform 或重写 | 高（评估点） |
 | Room | Room 2.6.1 | SQLDelight / 原生 SQLite | 中（迁移风险点，新数据层组件优先跨平台选型） |

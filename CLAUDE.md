@@ -80,7 +80,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 - **乘区法公式架构** — 8 个系统统一乘区法（修炼/战斗/突破/生产等）
 - **BootPhase/RunState 双层生命周期** — 启动单向推进、运行时可循环回退
 - **扩展性架构预留** — RemoteConfig 未绑定状态与激活前置、商业化接入点、离线收益引擎接入点、社交隔离层、iOS 迁移预留（KMP/Compose Multiplatform/Room→SQLDelight/Vulkan→Metal 评估）
-- **C++ 引擎迁移（进行中）** — 游戏逻辑核心 Kotlin→C++：game-core 纯 C++20 引擎（零 Android 依赖、桌面可编译、iOS 可复用）+ JNI 桥 + JSON 快照镜像，Kotlin GameStateStore 降级为镜像；总方案见 docs/adr/cpp-engine-migration.md，进度见 docs/cpp-engine.md
+- **C++ 引擎迁移（完成）** — 游戏逻辑核心 Kotlin→C++：game-core 纯 C++20 引擎（零 Android 依赖、桌面可编译、iOS 可复用）+ JNI 桥 + JSON 快照镜像；**迁移主线（确定性逻辑核心）已收口**——时间/结算/战斗/生产/探索/内政/经济/外交/秘境全部 C++ 化，AUTHORITATIVE 生产真相源，含 ECS 骨架 + System 调度 + JobSystem 并行化；Kotlin GameStateStore 降级为镜像；总方案见 docs/adr/cpp-engine-migration.md，进度见 docs/cpp-engine.md
 - **关键源码目录** — Core/Data/UI/UseCase 模块路径
 - **待完成项登记与偿还触发档案** — 待办 D 系列已清空（2026-08 债务根治批次）；条件式未来工作（TapDB 服务端/RemoteConfig/OAID/音频 release/16KB 对齐等）见"偿还触发条件档案"章节，触发条件满足时按要点实施
 
@@ -88,7 +88,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-worke
 
 项目知识库详见 [docs/knowledge-base.md](docs/knowledge-base.md)，涵盖以下内容：
 
-- **技术栈** — Kotlin 2.0.21, Compose, Hilt, Room, MMKV 等；引擎核心逐步迁移 C++（game-core，C++20 + JNI，规则见 rules/cpp-priority.md）
+- **技术栈** — Kotlin 2.2.20（UI/平台层）+ **C++20** 引擎核心 `game-core`（迁移主线已收口：确定性逻辑核心全部 C++ 化、AUTHORITATIVE 真相源，含 ECS 骨架 + System 调度 + JobSystem 并行化）；Compose, Hilt, Room, MMKV, JNI + nlohmann::json 等；引擎方向规则见 rules/cpp-priority.md
 - **关键类说明** — GameEngineCore, GameStateStore, BootSequenceController, GameViewModel 等
 - **弟子分配门卫系统** — DiscipleAssignmentGate + 11 槽位统一注册表
 - **存档槽位隔离** — `slot_id` 复合主键、`resetForSlot`、强制 slotId 赋值
