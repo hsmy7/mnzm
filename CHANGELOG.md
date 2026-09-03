@@ -1,5 +1,14 @@
 ## [4.01.12] - 2026-09-02
 
+### 修复：拖动建筑时网格与建筑预览延迟约 1 秒（预览组件原子化 + 渲染线程自唤醒）
+
+> 2026-09 玩家反馈「选中建筑并拖动后，网格与建筑预览约 1 秒后才出现」。根因：渲染线程的脏帧跳过策略（`FrameSkipPolicy`）只在相机/帧引用/总线/缩放/云等信号变化时才渲染，而拖动时更新预览的"快通道"（`FastPreviewChannel`）**不设置任何脏信号**——网格与精灵只能等待 Compose 那条被拉长的链路才被画出来；再叠加 `computeFramePacing` 在 step>1 下用 effectiveFps 作间隔又套 step 跳帧的平方减速（30fps→15fps、10fps→约1.67fps）。
+
+- **预览组件原子化（精灵+预览框合并为单组件）**：`FastPreviewSnapshot` 增加占地框（`boxX/Y/W/H` + `boxValid`），`mergeFastPreviewInto` 一次覆盖 `showPreview`/`gridOverlayVisible`/`previewBoxVisible`/精灵字段；双后端（Canvas/Vulkan）在同一渲染帧先画占地框（绿=可放置/红=不可放置）再叠精灵图——预览框与精灵图同帧同源、永不同步脱节，等价于"合并为单个组件"。`RenderFrame` 新增 `previewBoxVisible/Valid/X/Y/W/H`；`SectMapViewport` 的 `MapPreviewSnapshot`/`buildSectRenderFrame` 同步填充。
+- **渲染线程自唤醒（根治 1 秒延迟）**：`FrameSkipInputs` 新增 `previewDirty`（= 快通道版本未消费），`shouldSkipFrame` 纳入；`pushFastPreview` 每次拖动更新版本即唤醒渲染线程，与 Compose 重组节奏完全解耦。
+- **帧节奏平方减速修复**：`computeFramePacing` 在 vsyncPacing 下恒以 displayFps 为节拍（1/displayFps），经 `step` 跳帧 → 实际渲染率 = effectiveFps（消除 step×interval 双重计数）。
+- **验证**：`compileReleaseKotlin` · 相关单测（FrameSkipPolicyTest/NativeSurfaceViewTest/SectMapViewportParamsTest/SoftwareCanvasBackendTest/SoftwareCanvasBackendHighlightTest/GameViewModelMovingBuildingBusTest）全绿 · 全模块 `detekt` 全绿。
+
 ### 新增：建筑点击选中 + 底部"进入" UI（CoC 式选中重设计）
 
 > 2026-09 玩家指引：把「点击建筑直接弹详情」改为「点击建筑先选中」——选中态建筑上方显示固定 32dp 的 ✓/x 按钮（仅图标，无绿/红圆底），屏幕正下方显示"进入"按钮，点击弹出对应建筑详情；拖动选中的建筑可直接移动。灵田/炼丹炉/锻造坊使用专属进入图标（种植/炼丹/锻造）。

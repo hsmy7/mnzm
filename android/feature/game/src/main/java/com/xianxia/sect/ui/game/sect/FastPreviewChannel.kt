@@ -4,10 +4,25 @@ import com.xianxia.sect.core.render.RenderFrame
 
 /**
  * 预览快通道快照（渲染线程合成输入；internal 供单测）。
- * 字段语义与 [RenderFrame] 预览字段一致（精灵水平居中 + 底部对齐的最终世界坐标）。
+ * 字段语义与 [RenderFrame] 预览字段一致。
+ *
+ * ## 原子预览组件（2026-09 合并设计）
+ * 把"预览框（占地框）+ 建筑精灵图 + 网格开关"打包成一个原子快照——
+ * 一份状态源、同一次 [mergeFastPreviewInto]、同一次渲染帧，三者永不同步脱节。
+ *
+ * - [boxX]/[boxY]/[boxW]/[boxH]：占地框（网格对齐的预览框），[boxValid] 决定绿/红色；
+ * - [x]/[y]/[w]/[h] 与 UV：建筑精灵（居中 + 底部对齐，绘于占地框内）；
+ * - [active]：预览是否激活（激活即绘制精灵 + 占地框 + 网格线）。
  */
 internal data class FastPreviewSnapshot(
     val active: Boolean,
+    // 占地框（网格对齐预览框）
+    val boxX: Float,
+    val boxY: Float,
+    val boxW: Float,
+    val boxH: Float,
+    val boxValid: Boolean,
+    // 建筑精灵（居中 + 底部对齐，绘于占地框内）
     val x: Float,
     val y: Float,
     val w: Float,
@@ -54,11 +69,22 @@ internal class FastPreviewChannel {
 
 /**
  * 预览快通道合成纯函数（renderTick 调用；internal 供单测）：
- * 用快照覆盖帧的预览字段，其余字段（tileData/buildingData/roadData 等）引用不变。
+ * 用快照覆盖帧的预览字段（精灵 + 占地框 + 网格线），其余字段（tileData/buildingData/
+ * roadData 等）引用不变。
  */
 internal fun mergeFastPreviewInto(frame: RenderFrame, snapshot: FastPreviewSnapshot): RenderFrame =
     frame.copy(
         showPreview = snapshot.active,
+        // ★ 网格线路由快通道供给：与精灵/占地框同帧同源，杜绝"预览框与精灵图脱节/网格延迟"
+        gridOverlayVisible = snapshot.active,
+        // 占地框（预览框）：绿/红提示可放置/不可放置
+        previewBoxVisible = snapshot.active,
+        previewBoxValid = snapshot.boxValid,
+        previewBoxX = snapshot.boxX,
+        previewBoxY = snapshot.boxY,
+        previewBoxW = snapshot.boxW,
+        previewBoxH = snapshot.boxH,
+        // 建筑精灵（居中 + 底部对齐，绘于占地框内）
         previewX = snapshot.x,
         previewY = snapshot.y,
         previewW = snapshot.w,

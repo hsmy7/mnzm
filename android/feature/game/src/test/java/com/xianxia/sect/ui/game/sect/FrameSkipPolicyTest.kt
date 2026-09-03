@@ -14,14 +14,15 @@ import org.junit.Test
  */
 class FrameSkipPolicyTest {
 
-    /** 全静止输入（六守卫全 false） */
+    /** 全静止输入（七守卫全 false） */
     private fun idleInputs() = FrameSkipInputs(
         cameraDirty = false,
         frameChanged = false,
         buildingBusDirty = false,
         fadeActive = false,
         scaleChanged = false,
-        cloudDirty = false
+        cloudDirty = false,
+        previewDirty = false
     )
 
     @Test
@@ -58,6 +59,12 @@ class FrameSkipPolicyTest {
     fun `cloud dirty - must render`() {
         // 云朵运动/生成/销毁 → 画面持续变化，必须渲染（防云层动画被脏帧跳过定格）
         assertFalse(FrameSkipPolicy.shouldSkipFrame(idleInputs().copy(cloudDirty = true)))
+    }
+
+    @Test
+    fun `preview dirty - must render`() {
+        // 预览快通道版本未消费（拖动/放置预览更新）：必须立即渲染，防预览帧被脏帧跳过漏画
+        assertFalse(FrameSkipPolicy.shouldSkipFrame(idleInputs().copy(previewDirty = true)))
     }
 
     @Test

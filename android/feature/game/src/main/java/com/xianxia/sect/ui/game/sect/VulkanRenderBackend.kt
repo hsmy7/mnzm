@@ -121,6 +121,10 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         drawDemolishHighlight(frame, effectiveBuildingData, effectiveBuildingCount, busWasDirty)
 
         if (frame.showPreview && host.atlasTextureId != 0) {
+            // 占地框（预览框）+ 建筑精灵：同帧同源绘制（绿/红提示可放置/不可放置），永不脱节
+            if (frame.previewBoxVisible) {
+                drawPreviewHighlight(frame)
+            }
             NativeBridge.drawSprite(
                 frame.previewX, frame.previewY,
                 frame.previewW, frame.previewH,
@@ -283,6 +287,35 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
     }
 
     /**
+     * 绘制放置/移动模式占地框（预览框）：与建筑精灵同帧同源（绿=可放置 / 红=不可放置提示）。
+     * 世界坐标直传 drawRect（投影矩阵 g_projMatrix 做相机变换，与精灵同相机零错位）；
+     * 精灵居中+底部对齐绘于其内——两者共享同一份预览快照，物理上永不同步脱节。
+     *
+     * @param frame 当前帧（previewBoxVisible 开关 + 几何/合法性）
+     */
+    private fun drawPreviewHighlight(frame: RenderFrame) {
+        if (!frame.previewBoxVisible) return
+        val x = frame.previewBoxX
+        val y = frame.previewBoxY
+        val w = frame.previewBoxW
+        val h = frame.previewBoxH
+        val tileSize = host.renderConfig.tileSize
+        val scale = cachedScale.coerceAtLeast(MIN_SCALE)
+        // 目标屏幕线宽 max(2px, tileSize×0.06×scale)，换算回世界坐标除以 scale
+        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale) / scale
+        val valid = frame.previewBoxValid
+        val fillR = if (valid) PREVIEW_GREEN_R else PREVIEW_RED_R
+        val fillG = if (valid) PREVIEW_GREEN_G else PREVIEW_RED_G
+        val fillB = if (valid) PREVIEW_GREEN_B else PREVIEW_RED_B
+        // 填充 → 上边 → 下边 → 左边 → 右边（描边盖住填充边缘，避免颜色叠加发亮）
+        NativeBridge.drawRect(x, y, w, h, fillR, fillG, fillB, PREVIEW_BOX_FILL_ALPHA)
+        NativeBridge.drawRect(x, y, w, lineWidth, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
+        NativeBridge.drawRect(x, y + h - lineWidth, w, lineWidth, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
+        NativeBridge.drawRect(x, y, lineWidth, h, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
+        NativeBridge.drawRect(x + w - lineWidth, y, lineWidth, h, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
+    }
+
+    /**
      * 绘制放置/移动模式全视口网格线（世界坐标薄矩形，drawRect×视口线数）。
      *
      * 范围数学与旧 Compose GridOverlay.drawFullGrid 同式：按缓存最新相机
@@ -374,5 +407,24 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         private const val GRID_B = 0.816f
         /** 网格线不透明度 */
         private const val GRID_ALPHA = 1.0f
+
+        // ── 放置/移动模式占地框（预览框）：绿/红提示可放置/不可放置（与拆除色系一致） ──
+
+        /** 可放置 #4CAF50（R=76/255） */
+        private const val PREVIEW_GREEN_R = 0.298f
+        /** 可放置 #4CAF50（G=175/255） */
+        private const val PREVIEW_GREEN_G = 0.686f
+        /** 可放置 #4CAF50（B=80/255） */
+        private const val PREVIEW_GREEN_B = 0.314f
+        /** 不可放置 #F44336（R=244/255） */
+        private const val PREVIEW_RED_R = 0.957f
+        /** 不可放置 #F44336（G=68/255） */
+        private const val PREVIEW_RED_G = 0.267f
+        /** 不可放置 #F44336（B=54/255） */
+        private const val PREVIEW_RED_B = 0.212f
+        /** 占地框填充不透明度（0x59 ≈ 35% 半透明） */
+        private const val PREVIEW_BOX_FILL_ALPHA = 0.35f
+        /** 占地框描边不透明度（0xE6 ≈ 90%） */
+        private const val PREVIEW_BOX_EDGE_ALPHA = 0.9f
     }
 }

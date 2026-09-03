@@ -234,6 +234,41 @@ class SoftwareCanvasBackendTest {
         assertNotNull(result)
     }
 
+    @Test
+    fun `renderFrame - preview box draws valid green invalid red footprint`() {
+        val whiteAtlas = createWhiteTileAtlas()
+        // 占地框 (0,0,64,64)，精灵仅 (0,0,16,16)——(50,50) 位于框内、精灵外，只受占地框影响
+        fun baseFrame(boxValid: Boolean, boxVisible: Boolean) = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            showPreview = true,
+            previewX = 0f, previewY = 0f, previewW = 16f, previewH = 16f,
+            previewU0 = 0f, previewV0 = 0f, previewU1 = 0.5f, previewV1 = 0.5f,
+            previewTintRed = 1f, previewTintGreen = 1f, previewTintBlue = 1f,
+            previewAlpha = 1f,
+            previewBoxVisible = boxVisible, previewBoxValid = boxValid,
+            previewBoxX = 0f, previewBoxY = 0f, previewBoxW = 64f, previewBoxH = 64f
+        )
+
+        // 无占地框：纯白色瓦片（无红/绿偏色）
+        val noBox = backend.renderFrame(baseFrame(boxValid = true, boxVisible = false), whiteAtlas, 200, 200)
+        val noBoxPixel = noBox!!.getPixel(50, 50)
+        assertTrue("无占地框应为白底", Color.red(noBoxPixel) > 230 && Color.green(noBoxPixel) > 230)
+
+        // 红框（不可放置）：偏红
+        val redBox = backend.renderFrame(baseFrame(boxValid = false, boxVisible = true), whiteAtlas, 200, 200)
+        val redPixel = redBox!!.getPixel(50, 50)
+        assertTrue("不可放置占地框应偏红", Color.red(redPixel) > Color.green(redPixel) + 10)
+        assertTrue("不可放置占地框应偏红", Color.red(redPixel) > Color.blue(redPixel) + 10)
+
+        // 绿框（可放置）：偏绿
+        val greenBox = backend.renderFrame(baseFrame(boxValid = true, boxVisible = true), whiteAtlas, 200, 200)
+        val greenPixel = greenBox!!.getPixel(50, 50)
+        assertTrue("可放置占地框应偏绿", Color.green(greenPixel) > Color.red(greenPixel) + 10)
+        assertTrue("可放置占地框应偏绿", Color.green(greenPixel) > Color.blue(greenPixel) + 10)
+    }
+
     // ============================================================
     // resize
     // ============================================================

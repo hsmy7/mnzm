@@ -132,7 +132,23 @@ data class RenderFrame(
     val previewTintRed: Float = 0.25f,
     val previewTintGreen: Float = 1.0f,
     val previewTintBlue: Float = 0.25f,
-    val previewAlpha: Float = 0.5f
+    val previewAlpha: Float = 0.5f,
+
+    /**
+     * 预览框（占地网格框）——与预览精灵同帧同源（建造/移动模式）。
+     * 与 [showPreview] 一并开启：双后端在画预览精灵前先画该框（描边+填充，
+     * [previewBoxValid] 控制绿/红色），框内再叠精灵图，两者永不同帧脱节。
+     * 由 Compose/快通道按放置/移动合法性与位置实时供给（见 FastPreviewChannel）。
+     *
+     * @property previewBoxVisible 是否绘制预览框（false = 只画精灵，旧行为）
+     * @property previewBoxValid true=可放置（绿）/ false=不可放置（红）
+     */
+    val previewBoxVisible: Boolean = false,
+    val previewBoxValid: Boolean = true,
+    val previewBoxX: Float = 0f,
+    val previewBoxY: Float = 0f,
+    val previewBoxW: Float = 0f,
+    val previewBoxH: Float = 0f
 )
 
 /**

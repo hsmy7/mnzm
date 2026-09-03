@@ -244,7 +244,13 @@ private fun computeMapPreview(
         previewX = px + previewOffsetX,
         previewY = py + previewOffsetY,
         previewWidth = (previewSW * params.tileSize).toFloat(),
-        previewHeight = (previewSH * params.tileSize).toFloat()
+        previewHeight = (previewSH * params.tileSize).toFloat(),
+        // 占地框（预览框）：网格对齐覆盖建筑占地格；颜色由放置/移动合法性驱动
+        boxX = px,
+        boxY = py,
+        boxW = (pSize.width * params.tileSize).toFloat(),
+        boxH = (pSize.height * params.tileSize).toFloat(),
+        boxValid = pValid == GridSnapHelper.PlacementValidity.Valid
     )
 }
 
@@ -285,6 +291,13 @@ private fun buildSectRenderFrame(
     previewTintGreen = 1.0f,
     previewTintBlue = 1.0f,
     previewAlpha = 0.5f,
+    // 占地框（预览框）：与预览精灵同帧同源（绿/红提示可放置/不可放置）
+    previewBoxVisible = preview.hasPreview,
+    previewBoxValid = preview.boxValid,
+    previewBoxX = preview.boxX,
+    previewBoxY = preview.boxY,
+    previewBoxW = preview.boxW,
+    previewBoxH = preview.boxH,
     // ★ 灵田作物数据（WP6）：低频变化走帧率门控 RenderFrame（不新增命令总线）
     spiritCropData = params.spiritCropData,
     // ★ 拆除模式高亮 + 网格线：低频变化（模式进出/选中切换）走帧率
@@ -304,7 +317,13 @@ private data class MapPreviewSnapshot(
     val previewX: Float,
     val previewY: Float,
     val previewWidth: Float,
-    val previewHeight: Float
+    val previewHeight: Float,
+    // 占地框（预览框）：与预览精灵同帧同源（绿/红提示可放置/不可放置）
+    val boxX: Float,
+    val boxY: Float,
+    val boxW: Float,
+    val boxH: Float,
+    val boxValid: Boolean
 )
 
 /**

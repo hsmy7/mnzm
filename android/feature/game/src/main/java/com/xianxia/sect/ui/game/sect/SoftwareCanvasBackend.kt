@@ -570,6 +570,11 @@ class SoftwareCanvasBackend(
         strokeWidth = 1f
     }
 
+    /** 放置/移动模式占地框（预览框）Paint（独立实例——逐帧改颜色不得污染共享 paint，仿 demolishPaint 惯例） */
+    private val previewBoxPaint = Paint().apply {
+        isAntiAlias = true
+    }
+
     /** 灵田作物 Paint（WP6 独立实例——逐帧改 alpha 不得污染共享 paint） */
     private val cropPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
         isFilterBitmap = false
@@ -749,6 +754,10 @@ class SoftwareCanvasBackend(
         }
         drawDemolishHighlight(canvas, frame, drawScale)
         if (frame.showPreview) {
+            // 占地框（预览框）+ 建筑精灵：同帧同源绘制（绿/红提示可放置/不可放置），永不脱节
+            if (frame.previewBoxVisible) {
+                drawPreviewHighlight(canvas, frame, drawScale, config.tileSize, previewBoxPaint)
+            }
             drawPreview(canvas, atlas, frame, drawScale)
         }
         drawGridOverlay(canvas, frame, drawScale, fbW, fbH)
@@ -1291,6 +1300,8 @@ class SoftwareCanvasBackend(
     // ============================================================
     // 预览精灵绘制
     // ============================================================
+    // 占地框（预览框）绘制已拆为顶层函数 drawPreviewHighlight
+    // （SoftwareCanvasBackend 类内函数数收敛——TooManyFunctions 守卫）。
 
     private fun drawPreview(canvas: Canvas, atlas: Bitmap, frame: RenderFrame, drawScale: Float) {
         val pOffX = frame.previewX - frame.camX
@@ -1365,6 +1376,56 @@ class SoftwareCanvasBackend(
         frameCanvas = null
     }
 
+}
+
+// ── 放置/移动模式占地框（预览框）颜色 & 线宽（顶层常量/函数——TooManyFunctions 收敛） ──
+
+/** 可放置占地填充：半透明绿 #4CAF50 */
+private val PREVIEW_GREEN_FILL_COLOR = android.graphics.Color.argb(0x59, 0x4C, 0xAF, 0x50)
+/** 可放置占地描边：较高不透明绿 #4CAF50 */
+private val PREVIEW_GREEN_EDGE_COLOR = android.graphics.Color.argb(0xE6, 0x4C, 0xAF, 0x50)
+/** 不可放置占地填充：半透明红 #F44336 */
+private val PREVIEW_RED_FILL_COLOR = android.graphics.Color.argb(0x59, 0xF4, 0x43, 0x36)
+/** 不可放置占地描边：较高不透明红 #F44336 */
+private val PREVIEW_RED_EDGE_COLOR = android.graphics.Color.argb(0xE6, 0xF4, 0x43, 0x36)
+/** 占地框线宽（格数）：max(2px, tileSize×0.06) 的格数分量 */
+private const val PREVIEW_BOX_HIGHLIGHT_LINE_WIDTH_TILES = 0.06f
+
+/**
+ * 绘制占地框（预览框）：与建筑精灵同帧同源（绿=可放置 / 红=不可放置提示）。
+ * 框几何为网格对齐的占地矩形（[RenderFrame.previewBoxX/Y/W/H]），
+ * 精灵居中+底部对齐绘于其内——两者共享同一份预览快照，物理上永不同步脱节。
+ *
+ * 顶层函数（不增加 SoftwareCanvasBackend 类函数数——TooManyFunctions 守卫）；
+ * [previewBoxPaint] 由调用方传入（渲染线程独占，逐帧改颜色不污染共享 paint）。
+ */
+private fun drawPreviewHighlight(
+    canvas: Canvas,
+    frame: RenderFrame,
+    drawScale: Float,
+    tileSize: Int,
+    previewBoxPaint: Paint
+) {
+    val offX = frame.previewBoxX - frame.camX
+    val offY = frame.previewBoxY - frame.camY
+    val left = (offX * drawScale).roundToInt()
+    val top = (offY * drawScale).roundToInt()
+    val right = ((offX + frame.previewBoxW) * drawScale).roundToInt()
+    val bottom = ((offY + frame.previewBoxH) * drawScale).roundToInt()
+    val offScreenX = right <= 0 || left >= canvas.width
+    val offScreenY = bottom <= 0 || top >= canvas.height
+    val degenerate = right - left <= 0 || bottom - top <= 0
+    if (offScreenX || offScreenY || degenerate) return
+
+    val lineWidth = maxOf(2f, tileSize * PREVIEW_BOX_HIGHLIGHT_LINE_WIDTH_TILES * drawScale)
+    previewBoxPaint.color = if (frame.previewBoxValid) PREVIEW_GREEN_FILL_COLOR else PREVIEW_RED_FILL_COLOR
+    canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), previewBoxPaint)
+    // 描边盖住填充边缘：上 → 下 → 左 → 右
+    previewBoxPaint.color = if (frame.previewBoxValid) PREVIEW_GREEN_EDGE_COLOR else PREVIEW_RED_EDGE_COLOR
+    canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), top + lineWidth, previewBoxPaint)
+    canvas.drawRect(left.toFloat(), bottom - lineWidth, right.toFloat(), bottom.toFloat(), previewBoxPaint)
+    canvas.drawRect(left.toFloat(), top.toFloat(), left + lineWidth, bottom.toFloat(), previewBoxPaint)
+    canvas.drawRect(right - lineWidth, top.toFloat(), right.toFloat(), bottom.toFloat(), previewBoxPaint)
 }
 
 /**

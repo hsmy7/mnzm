@@ -222,6 +222,7 @@ class NativeSurfaceViewTest {
         channel.set(
             FastPreviewSnapshot(
                 active = true,
+                boxX = 10f, boxY = 20f, boxW = 30f, boxH = 40f, boxValid = true,
                 x = 10f, y = 20f, w = 30f, h = 40f,
                 u0 = 0.1f, v0 = 0.2f, u1 = 0.3f, v1 = 0.4f,
                 alpha = 0.5f
@@ -244,7 +245,10 @@ class NativeSurfaceViewTest {
         val view = createView()
         val channel = view.fastPreviewChannel
         channel.set(
-            FastPreviewSnapshot(true, 1f, 2f, 3f, 4f, 0f, 0f, 0f, 0f, 0.5f)
+            FastPreviewSnapshot(
+                active = true, boxX = 1f, boxY = 2f, boxW = 3f, boxH = 4f, boxValid = true,
+                x = 1f, y = 2f, w = 3f, h = 4f, u0 = 0f, v0 = 0f, u1 = 0f, v1 = 0f, alpha = 0.5f
+            )
         )
         val v1 = channel.version
 
@@ -264,13 +268,19 @@ class NativeSurfaceViewTest {
             showPreview = false, previewX = 0f, previewY = 0f
         )
         val snapshot = FastPreviewSnapshot(
-            active = true, x = 55f, y = 66f, w = 32f, h = 32f,
+            active = true, boxX = 50f, boxY = 60f, boxW = 32f, boxH = 32f, boxValid = true,
+            x = 55f, y = 66f, w = 32f, h = 32f,
             u0 = 0.1f, v0 = 0.2f, u1 = 0.3f, v1 = 0.4f, alpha = 0.5f
         )
 
         val merged = mergeFastPreviewInto(frame, snapshot)
 
         assertTrue(merged.showPreview)
+        assertTrue("网格随预览激活显示", merged.gridOverlayVisible)
+        assertTrue("占地框随预览激活显示", merged.previewBoxVisible)
+        assertTrue("占地框合法性随快照传递", merged.previewBoxValid)
+        assertEquals(50f, merged.previewBoxX, 0.001f)
+        assertEquals(32f, merged.previewBoxW, 0.001f)
         assertEquals(55f, merged.previewX, 0.001f)
         assertEquals(66f, merged.previewY, 0.001f)
         assertEquals(0.5f, merged.previewAlpha, 0.001f)

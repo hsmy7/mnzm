@@ -1206,7 +1206,9 @@ class NativeSurfaceView(
                     buildingBusDirty = commandBus?.buildingDirty?.get() ?: false,
                     fadeActive = fadeAlpha < 1f,
                     scaleChanged = softwareRenderScaleVersion != lastRenderedScaleVersion,
-                    cloudDirty = cloudDirty
+                    cloudDirty = cloudDirty,
+                    // ★ 预览快通道自唤醒：版本未消费即强制渲染（跳过会漏画预览帧——拖拽延迟根因）
+                    previewDirty = fastPreviewChannel.version != lastConsumedFastPreviewVersion
                 )
             )
         }
@@ -1276,11 +1278,15 @@ class NativeSurfaceView(
             } else {
                 1
             }
-            // 全速档（step≤1）按显示节拍；降帧档按有效帧率间隔（省唤醒）
-            val intervalNs = if (!vsyncPacing || step > 1) {
-                NANOS_PER_SECOND / effectiveFps.coerceAtLeast(MIN_FPS_VALUE)
+            // ★ 帧间隔（2026-09 修复 step×interval 双重计数）：
+            //   vsyncPacing：节拍 = 显示刷新率（1/displayFps），再经 step 跳帧 → 实际渲染率=effectiveFps；
+            //   非 vsyncPacing（旧 sleep 路径）：节拍 = 有效帧率（1/effectiveFps），step 恒 1，每节拍渲染。
+            //   原实现 step>1 时用 1/effectiveFps 又叠加 step 跳帧 → 实际渲染率=effectiveFps²/displayFps
+            //   （30fps→15fps、10fps→约1.67fps），导致低帧档位首个预览/网格帧拖到数百毫秒。
+            val intervalNs = if (vsyncPacing) {
+                NANOS_PER_SECOND / displayFps.coerceAtLeast(MIN_FPS_VALUE)
             } else {
-                NANOS_PER_SECOND / displayFps
+                NANOS_PER_SECOND / effectiveFps.coerceAtLeast(MIN_FPS_VALUE)
             }
             return FramePacing(displayFps = displayFps, step = step, intervalNs = intervalNs)
         }

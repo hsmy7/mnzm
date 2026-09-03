@@ -40,7 +40,8 @@ object FrameSkipPolicy {
             !inputs.buildingBusDirty &&
             !inputs.fadeActive &&
             !inputs.scaleChanged &&
-            !inputs.cloudDirty
+            !inputs.cloudDirty &&
+            !inputs.previewDirty
 }
 
 /**
@@ -58,7 +59,9 @@ data class FrameSkipInputs(
     /** 渲染缩放/画质因子变化（需强制重渲染应用） */
     val scaleChanged: Boolean,
     /** 云层动画变化（云朵移动/生成/销毁——云活跃时画面持续变化必须渲染） */
-    val cloudDirty: Boolean
+    val cloudDirty: Boolean,
+    /** 预览快通道版本变化（拖动/放置预览更新——快通道自唤醒，与 Compose 重组解耦） */
+    val previewDirty: Boolean
 )
 
 /**

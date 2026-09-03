@@ -56,12 +56,20 @@ private fun computeFastPreview(
     val spriteSize = resolvePreviewSpriteSize(mapData, name, isRoad, pSize)
     val offX = (pSize.width - spriteSize.width) * mapData.tileSize * 0.5f
     val offY = (pSize.height - spriteSize.height) * mapData.tileSize.toFloat()
+    val tileSizeF = mapData.tileSize.toFloat()
+    val boxW = pSize.width * tileSizeF
+    val boxH = pSize.height * tileSizeF
     return FastPreviewSnapshot(
         active = true,
+        boxX = wx,
+        boxY = wy,
+        boxW = boxW,
+        boxH = boxH,
+        boxValid = resolvePreviewBoxValid(isPlacing, state),
         x = wx + offX,
         y = wy + offY,
-        w = spriteSize.width * mapData.tileSize.toFloat(),
-        h = spriteSize.height * mapData.tileSize.toFloat(),
+        w = spriteSize.width * tileSizeF,
+        h = spriteSize.height * tileSizeF,
         u0 = uvs[0],
         v0 = uvs[1],
         u1 = uvs[2],
@@ -69,6 +77,17 @@ private fun computeFastPreview(
         alpha = 0.5f
     )
 }
+
+/**
+ * 占地框（预览框）合法性：由放置/移动模式合法性驱动（绿=可放置 / 红=不可放置）。
+ * 拆分（computeFastPreview 圈复杂度收敛）。
+ */
+private fun resolvePreviewBoxValid(isPlacing: Boolean, state: MainGameScreenState): Boolean =
+    if (isPlacing) {
+        state.placementValidity == GridSnapHelper.PlacementValidity.Valid
+    } else {
+        state.movingValid == GridSnapHelper.PlacementValidity.Valid
+    }
 
 /**
  * 预览精灵尺寸解析：道路为 1×1 石板，建筑取注册精灵尺寸（缺省回退占地尺寸，
