@@ -397,6 +397,8 @@ class NativeSurfaceView(
         private const val ASTC_ATLAS_ASSET_PATH = "atlas/atlas_astc.ktx"
         /** 渲染线程停止等待截止（纳秒）：2s 绝对截止轮询（防 vk 调用阻塞时资源释放竞态） */
         private const val JOIN_DEADLINE_NS = 2_000_000_000L
+        /** 软件渲染分辨率上限（CPU 逐像素路径兜底：即使策略异常也不超过此值，避免全分辨率卡顿） */
+        private const val SOFTWARE_RENDER_SCALE_CAP = 0.6f
     }
 
     /**
@@ -626,8 +628,17 @@ class NativeSurfaceView(
         // ★ 初始化窗口期 Surface 黑色兜底（2026-08-18）：surfaceCreated 的清屏可能
         // 早于 surface 物理就绪（lockCanvas 失败被吞），此处（尺寸就绪、初始化开始）
         // 再清一次——Vulkan 异步初始化（0.5~3s）期间 surface 必须为纯黑，
-        // 否则 RGBA_8888 半透明 surface 透出白色窗口背景（"进入游戏白屏"来源之一）
-        surfaceProvider.clearSurface(android.graphics.Color.BLACK)
+        // 否则 RGBA_8888 半透明 surface 透出白色窗口背景（"进入游戏白屏"来源之一）。
+        //
+        // ★ 2026-09 修复 GPU 初始化失败：`clearSurface` 走 holder.lockCanvas()（Canvas API），
+        //   lockCanvas 会把 ANativeWindow 连到 Canvas API；随后 GPU 后端 eglCreateWindowSurface /
+        //   vkCreateAndroidSurface 对同一窗口再次 api_connect 会报
+        //   "native_window_api_connect failed (already connected to another API?)" → GPU 初始化失败
+        //   → 退回 CPU 软件渲染（骁龙 8 Gen 2 真机实测）。故 GPU 路径不提前 lockCanvas 清屏
+        //   （首帧由渲染器绘制 + 地图淡入遮蔽）；仅软件路径保留（软件本身即 Canvas，lockCanvas 无冲突）。
+        if (useRenderMode == RenderMode.SOFTWARE) {
+            surfaceProvider.clearSurface(android.graphics.Color.BLACK)
+        }
 
         // 对抗性审查修复：新 surface 重置帧率声明与 EWMA 状态——
         // 旋转/重建后 lastDeclaredFrameRate 残留会阻止新 surface 降频声明，
@@ -752,7 +763,15 @@ class NativeSurfaceView(
             } else {
                 1.0f
             }
-            renderResolutionScale = newScale
+            // ★ 软件路径兜底：若策略/开关异常导致软件仍按全分辨率（1.0）渲染，CPU 逐像素
+            //   会极慢（骁龙 8 Gen 2 真机 2800×1260 实测 77~990ms/帧）。降分辨率（≤0.6）可
+            //   提升 2~4 倍。软件本身就是兜底低画质模式，适度降分辨率换取流畅。
+            val applied = if (renderMode == RenderMode.SOFTWARE) {
+                minOf(newScale, SOFTWARE_RENDER_SCALE_CAP)
+            } else {
+                newScale
+            }
+            renderResolutionScale = applied
         }
 
         /**

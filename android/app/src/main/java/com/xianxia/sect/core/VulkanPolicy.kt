@@ -201,17 +201,12 @@ object VulkanPolicy {
             }
         }
 
-        // 信号 5: RADIO / BOOTLOADER 未知（模拟器无基带/引导加载器）
-        // 仅当两者都未知时才确认（避免误伤 WiFi 平板）
-        val radio = Build.RADIO?.lowercase()
-        val bootloader = Build.BOOTLOADER?.lowercase()
-        if ((radio == "unknown" || radio.isNullOrBlank()) &&
-            (bootloader == "unknown" || bootloader.isNullOrBlank())) {
-            // 加上 SERIAL 确认（真机一般有有效序列号，模拟器为 unknown）
-            if (Build.SERIAL?.lowercase() == "unknown") {
-                return true
-            }
-        }
+        // ★ 信号 5 已移除（2026-09）：原用 RADIO/BOOTLOADER/SERIAL 全为 "unknown" 判模拟器，
+        //   但 Android 10+ 已废弃 Build.SERIAL，真机普遍返回 "unknown"；部分 OEM ROM 的
+        //   Build.RADIO/Build.BOOTLOADER 也常为 "unknown" —— v2338a（vivo，hardware=qcom，
+        //   QUALCOMM/Adreno 8 Gen 2）因此被误判为模拟器 → SOFTWARE_ONLY → CPU 渲染。
+        //   真实模拟器（Android Emulator/Genymotion）仍由信号 1~4（ranchu/goldfish/vbox/
+        //   sdk_/generic/fingerprint emulator）等可靠 Build 属性捕获，信号 5 属冗余且误伤真机。
 
         return false
     }
@@ -238,9 +233,9 @@ object VulkanPolicy {
      */
     // PrivateApi：云游戏检测无公开替代 API（Build.HOST 已被 CI 假阳性排除），反射仅读不写
     @Suppress("ReturnCount")
-    private fun isTapTapCloudGaming(context: Context): Boolean {
+    private fun isTapTapCloudGaming(): Boolean {
         cloudGamingResult?.let { return it }
-        val result = computeCloudGaming(context)
+        val result = computeCloudGaming()
         cloudGamingResult = result
         return result
     }
@@ -253,20 +248,17 @@ object VulkanPolicy {
     // ReturnCount/NestedBlockDepth：多信号 OR 检测的自然结构，与 isEmulator 一致
     // PrivateApi：SystemProperties 反射检测在 192 行附近，仅读不写
     @Suppress("ReturnCount", "NestedBlockDepth", "PrivateApi")
-    private fun computeCloudGaming(context: Context): Boolean {
+    private fun computeCloudGaming(): Boolean {
         // 信号 1: Build.HOST 包含 taptap/sandbox 标记
         // 注意：不使用 "cloud" 关键词，CI/CD 构建环境（如 cloudbuild）
         // 和云服务主机名可能包含 "cloud" 导致假阳性。
         val host = Build.HOST?.lowercase() ?: ""
         if (host.contains("taptap") || host.contains("tapsandbox")) return true
 
-        // 信号 2: 包安装器来源（TapTap 分发的游戏）
-        try {
-            val installerPkg = context.packageManager
-                .getInstallerPackageName(context.packageName)
-                ?.lowercase() ?: ""
-            if (installerPkg.contains("taptap")) return true
-        } catch (e: Exception) { /* 忽略 */ }
+        // ★ 信号 2 已移除（2026-09）：原用 getInstallerPackageName()?.contains("taptap")
+        //   判断云游戏——但 TapTap **商店**分发安装的正常游戏，其 installer 也是 taptap 包名，
+        //   被误判为云游戏并强制 SOFTWARE_ONLY（CPU 渲染），高通/Adreno 旗舰机因此被错杀。
+        //   真实云游戏沙箱仍由信号 1/3/4（宿主名/系统属性/进程 maps 沙箱库）捕获。
 
         // 信号 3: SystemProperties 反射检测
         if (Build.VERSION.SDK_INT >= 29) {
@@ -552,7 +544,7 @@ object VulkanPolicy {
         safeModeStrategy()?.let { return it }
 
         // 1b. TapTap 云游戏环境检测
-        cloudGamingStrategy(context)?.let { return it }
+        cloudGamingStrategy()?.let { return it }
 
         // 2. Vulkan 崩溃专用标记（一次 SIGSEGV 即降级，无需累计到阈值）
         vulkanCrashStrategy()?.let { return it }
@@ -586,12 +578,12 @@ object VulkanPolicy {
     }
 
     /** TapTap 云游戏环境检查（getRenderStrategy 拆分） */
-    private fun cloudGamingStrategy(context: Context): RenderStrategy? {
+    private fun cloudGamingStrategy(): RenderStrategy? {
         // TapTap TapSandbox 在 Vulkan 调用链上增加 Hook 层，
         // vkCreateShaderModule 已知有 SIGSEGV 缺陷。
         // 参考 Flutter Impeller 模拟器禁用策略（PR #162454），
         // 云游戏等虚拟环境直接走软件渲染。
-        if (isTapTapCloudGaming(context)) {
+        if (isTapTapCloudGaming()) {
             Log.w(TAG, "TapTap cloud gaming → SOFTWARE_ONLY")
             return RenderStrategy.SOFTWARE_ONLY
         }
@@ -853,7 +845,7 @@ object VulkanPolicy {
         }
 
         // 1b. TapTap 云游戏环境 → 禁用硬件加速
-        if (isTapTapCloudGaming(context)) {
+        if (isTapTapCloudGaming()) {
             Log.w(TAG, "TapTap cloud gaming — disabling HW acceleration")
             return true
         }

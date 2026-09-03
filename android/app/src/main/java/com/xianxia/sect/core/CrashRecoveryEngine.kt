@@ -110,8 +110,19 @@ object CrashRecoveryEngine {
      */
     fun onCleanLaunch() {
         val p = requirePrefs()
-        p.edit { remove(KEY_CONSECUTIVE_CRASHES) }
-        Log.d(TAG, "Consecutive crash counter reset on clean launch")
+        p.edit {
+            remove(KEY_CONSECUTIVE_CRASHES)
+            // ★ 2026-09：干净启动重试 Vulkan——先前 Vulkan 失败标记多为旧版本/误判/因
+            //   SOFTWARE_ONLY 误判而遗留。骁龙 8 Gen 2（Adreno 750）原生支持 Vulkan，
+            //   重试失败会经降级链（Vulkan→GLES→软件）回退并在本次运行重新记录，不会死循环。
+            //   修复：GLES 路径 eglCreateWindowSurface 在某些 OEM 上 "already connected
+            //   to another API"，而 Vulkan 走不同 API 可能可用。
+            remove(KEY_VULKAN_INIT_FAILED)
+            remove(KEY_VULKAN_CRASH_DETECTED)
+            remove(KEY_PREWARM_STARTED)
+            remove(KEY_SURFACE_INIT_STARTED)
+        }
+        Log.d(TAG, "Consecutive crash counter reset on clean launch; Vulkan retry flags cleared")
     }
 
     /**

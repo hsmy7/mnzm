@@ -339,7 +339,10 @@ class GameActivity : ComponentActivity() {
                                 }
 
                                 // Vulkan 预热：后台发射，不阻塞地图显示
-                                if (!isSoftwareRendering) {
+                                // ★ 仅 VULKAN 策略预预热；GLES 无两阶段 prewarm（C++ 侧 g_backendType!=0
+                                //   直接返回），且此处提前创建 VulkanBackend 会与后续 GLES init 冲突
+                                //   （surface 可能被占用，骁龙 8 Gen 2 实测 "already connected to another API"）。
+                                if (!isSoftwareRendering && !isGlesRendering) {
                                     val tileSize = GameConfig.SectMap.TILE_SIZE
                                     val worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
                                     val worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS

@@ -9,6 +9,18 @@
 - **帧节奏平方减速修复**：`computeFramePacing` 在 vsyncPacing 下恒以 displayFps 为节拍（1/displayFps），经 `step` 跳帧 → 实际渲染率 = effectiveFps（消除 step×interval 双重计数）。
 - **验证**：`compileReleaseKotlin` · 相关单测（FrameSkipPolicyTest/NativeSurfaceViewTest/SectMapViewportParamsTest/SoftwareCanvasBackendTest/SoftwareCanvasBackendHighlightTest/GameViewModelMovingBuildingBusTest）全绿 · 全模块 `detekt` 全绿。
 
+### 修复：部分真机被误判为模拟器/云游戏而强制 CPU 软件渲染（渲染策略误判）
+
+> 2026-09 排查发现部分真机被 `VulkanPolicy` 误判为"模拟器"或"TapTap 云游戏"，导致强制 `SOFTWARE_ONLY` 走 CPU 软件渲染（骁龙 8 Gen 2 真机实测被强制软件渲染）。修复两处误判信号。
+
+- **模拟器误判**：`isEmulator()` 信号 5 原用 `RADIO/BOOTLOADER/SERIAL` 全为 "unknown" 判模拟器，但 Android 10+ 已废弃 `Build.SERIAL`（真机普遍返回 "unknown"），部分 OEM ROM 的 radio/bootloader 也常为 "unknown"——vivo v2338a（hardware=qcom，Adreno 8 Gen 2）因此被误判为模拟器 → SOFTWARE_ONLY → CPU 渲染。已移除信号 5（真实模拟器仍由信号 1~4 的 ranchu/goldfish/vbox/sdk_/generic/fingerprint 等可靠 Build 属性捕获）。
+- **云游戏误判**：`computeCloudGaming()` 信号 2 原用 `getInstallerPackageName()?.contains("taptap")` 判云游戏，但 TapTap **商店**分发安装的正常游戏 installer 也是 taptap 包名，被误判为云游戏 → SOFTWARE_ONLY。已移除该信号（真实云游戏沙箱仍由 Host/SystemProperties/进程 maps 沙箱库捕获）。
+- **Vulkan 失败标记重试**：`CrashRecoveryEngine.onCleanLaunch` 清除残留 Vulkan 失败/崩溃/写前标记，让干净启动重试 Vulkan（旧版本/误判遗留的标记不再"一次失败永禁用"；失败会经 Vulkan→GLES→软件降级链回退）。
+- **GLES 预热修正**：`GameActivity` Vulkan 预热仅在 VULKAN 策略执行（GLES 无两阶段 prewarm，且提前创建 VulkanBackend 会与 GLES init 冲突）。
+- **软件渲染降载兜底**：`recomputeRenderScale` 对软件路径强制降分辨率（≤0.6），即使策略/开关异常导致软件仍按全分辨率（1.0）渲染，CPU 逐像素也会极慢（骁龙真机 2800×1260 实测 77~990ms/帧）。
+- **GPU init 前清屏修正**：`handleSurfaceAvailable` 仅软件路径用 `lockCanvas` 清屏（GPU 路径提前 lockCanvas 会把 ANativeWindow 连到 Canvas，导致后续 `eglCreateWindowSurface`/`vkCreateAndroidSurfaceKHR` 报 "already connected to another API"）。
+- **验证**：`compileReleaseKotlin` · `lintRelease` · 全模块 `detekt` · 相关单测（VulkanPolicyTest/FrameSkipPolicyTest/NativeSurfaceViewTest/SoftwareCanvasBackendTest/GameViewModelMovingBuildingBusTest 等）全绿。
+
 ### 新增：建筑点击选中 + 底部"进入" UI（CoC 式选中重设计）
 
 > 2026-09 玩家指引：把「点击建筑直接弹详情」改为「点击建筑先选中」——选中态建筑上方显示固定 32dp 的 ✓/x 按钮（仅图标，无绿/红圆底），屏幕正下方显示"进入"按钮，点击弹出对应建筑详情；拖动选中的建筑可直接移动。灵田/炼丹炉/锻造坊使用专属进入图标（种植/炼丹/锻造）。
