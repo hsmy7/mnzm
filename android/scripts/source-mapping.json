@@ -2751,6 +2751,72 @@
           "bake": {
             "preserve": true
           }
+        },
+        {
+          "drawable": "ui_check_button",
+          "source": "ui/勾图标.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_x_button",
+          "source": "ui/x图标.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_enter",
+          "source": "ui/进入ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_planting",
+          "source": "ui/种植ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_alchemy",
+          "source": "ui/炼丹ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
+        },
+        {
+          "drawable": "ui_forge",
+          "source": "ui/锻造ui.png",
+          "modules": [
+            "feature/game",
+            "app"
+          ],
+          "bake": {
+            "preserve": true
+          }
         }
       ]
     },

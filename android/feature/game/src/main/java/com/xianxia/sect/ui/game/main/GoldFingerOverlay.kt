@@ -21,8 +21,8 @@ import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import com.xianxia.sect.ui.theme.GameColors
 
-/** 金手指图标基准尺寸（世界像素）— 固定 40px，屏幕显示随相机缩放（激活图标 = 40 × scale）。 */
-private const val GOLDEN_FINGER_ICON_SIZE_PX = 40
+/** 金手指图标基准尺寸（世界像素）— 固定 48px，屏幕显示随相机缩放（激活图标 = 48 × scale）。 */
+private const val GOLDEN_FINGER_ICON_SIZE_PX = 48
 
 /**
  * 金手指图标 — 建筑预览框右下角显示，

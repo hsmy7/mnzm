@@ -1764,10 +1764,10 @@
     {
       "drawable": "ui_mail_button",
       "source": "ui/邮件按钮.png",
-      "hash": "87d6e4a1e0a8f94c702f7b885e79de2d",
-      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1224}}",
-      "width": 1254,
-      "height": 1224
+      "hash": "ea5980dd4a2b1be66bb4dcee314d71d3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1944}}",
+      "width": 2048,
+      "height": 1944
     },
     {
       "drawable": "ui_log_button",
@@ -1936,6 +1936,54 @@
       "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1254}}",
       "width": 1254,
       "height": 1254
+    },
+    {
+      "drawable": "ui_check_button",
+      "source": "ui/勾图标.png",
+      "hash": "3833f68c1185692d2c2820946a15c910",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1708}}",
+      "width": 2048,
+      "height": 1708
+    },
+    {
+      "drawable": "ui_x_button",
+      "source": "ui/x图标.png",
+      "hash": "6702e659694c5a2cee2b2d4d8e551db7",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2034,\"height\":2048}}",
+      "width": 2034,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_enter",
+      "source": "ui/进入ui.png",
+      "hash": "9ed1b1427a66bd9966ff01dab629ce75",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1089}}",
+      "width": 1254,
+      "height": 1089
+    },
+    {
+      "drawable": "ui_planting",
+      "source": "ui/种植ui.png",
+      "hash": "97c7d68c683627b68fb9c0f441540f54",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1848}}",
+      "width": 2048,
+      "height": 1848
+    },
+    {
+      "drawable": "ui_alchemy",
+      "source": "ui/炼丹ui.png",
+      "hash": "5f49c35ca8b347d520ca51c867385b24",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":812,\"height\":886}}",
+      "width": 812,
+      "height": 886
+    },
+    {
+      "drawable": "ui_forge",
+      "source": "ui/锻造ui.png",
+      "hash": "fa9e5a7634bcf10336e1e6dac817c6f5",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":909,\"height\":886}}",
+      "width": 909,
+      "height": 886
     },
     {
       "drawable": "tiger_beast",

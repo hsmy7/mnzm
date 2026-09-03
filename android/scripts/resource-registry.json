@@ -292,7 +292,13 @@
         { "name": "ui_leaderboard_button", "res": "ui_leaderboard_button" },
         { "name": "ui_flip_left", "res": "ui_flip_left" },
         { "name": "ui_flip_right", "res": "ui_flip_right" },
-        { "name": "area_select_button", "res": "area_select_button" }
+        { "name": "area_select_button", "res": "area_select_button" },
+        { "name": "ui_check_button", "res": "ui_check_button" },
+        { "name": "ui_x_button", "res": "ui_x_button" },
+        { "name": "ui_enter", "res": "ui_enter" },
+        { "name": "ui_planting", "res": "ui_planting" },
+        { "name": "ui_alchemy", "res": "ui_alchemy" },
+        { "name": "ui_forge", "res": "ui_forge" }
       ]
     },
     {

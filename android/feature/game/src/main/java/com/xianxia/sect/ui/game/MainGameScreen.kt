@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalDensity
 import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
@@ -67,6 +68,8 @@ import com.xianxia.sect.ui.game.main.AREA_MAX_DIAMETER
 import com.xianxia.sect.ui.game.main.AREA_MIN_DIAMETER
 import com.xianxia.sect.ui.game.main.AreaDiameterSlider
 import com.xianxia.sect.ui.game.main.AreaSelectButton
+import com.xianxia.sect.ui.game.main.BuildingConfirmCancelRow
+import com.xianxia.sect.ui.game.main.BuildingEntryButton
 import com.xianxia.sect.ui.game.main.DemolishButton
 import com.xianxia.sect.ui.game.main.GoldFingerIcon
 import com.xianxia.sect.ui.game.main.GoldFingerSelectionOverlay
@@ -248,6 +251,10 @@ internal class MainGameScreenState {
     // 渲染端经 findBuildingIndex 转换为建筑索引（双后端共用同一命中几何）
     var selectedBuildingGrid by mutableStateOf<Pair<Int, Int>?>(null)
 
+    // 点击选中的建筑引用（进入按钮/选中态 ✓x 高亮共用）：点击建筑时设置，
+    // 点击空地 / x 取消 / 退出编辑模式时清除
+    var selectedBuilding by mutableStateOf<GridBuildingData?>(null)
+
     /** 退出全部编辑模式（切 Tab/开对话框/取消放置共用） */
     fun exitAllEditModes() {
         isPlacingBuilding = false
@@ -256,6 +263,9 @@ internal class MainGameScreenState {
         isDemolishMode = false
         isAreaSelectMode = false
         demolishSelectedIds = emptySet()
+        // 打开对话框/切模式时取消普通点击选中，避免残留高亮与"进入"按钮
+        selectedBuilding = null
+        selectedBuildingGrid = null
     }
 
     /** 进入一键拆除模式（一键拆除按钮复用） */
@@ -267,6 +277,8 @@ internal class MainGameScreenState {
         placingBuildingName = ""
         movingBuilding = null
         goldFingerState = GoldFingerState()
+        selectedBuilding = null
+        selectedBuildingGrid = null
     }
 }
 
@@ -912,6 +924,13 @@ private fun MainGameScreenContent(
             viewModel = viewModel
         )
 
+        // 选中建筑正下方"进入"按钮（CoC 式底部 UI）— 点击弹出该建筑详情
+        MainGameScreenSelectedBuildingEntryOverlay(
+            state = state,
+            data = data,
+            viewModel = viewModel
+        )
+
         // Dialog overlay — extracted to GameOverlayHost
         GameOverlayHost(
             vms = vms,
@@ -991,6 +1010,15 @@ private fun MainGameScreenMapOverlays(
             state = state,
             data = data,
             viewModel = viewModel
+        )
+    }
+
+    // 普通点击选中的建筑：上方显示 ✓/x（52dp，用于移动确认/取消）；正下方"进入"按钮在 UI 覆盖层。
+    // 拖动选中建筑进入移动模式后（movingBuilding!=null）由上方移动控制接管，避免两套 ✓/x 重叠。
+    if (state.selectedBuilding != null && state.movingBuilding == null && !state.isPlacingBuilding) {
+        MainGameScreenSelectedBuildingControls(
+            state = state,
+            data = data
         )
     }
 
@@ -1117,6 +1145,13 @@ private fun MainGameScreenMovingControls(
                         data.mapData.buildingSpriteSizes
                     )
                     state.movingBuilding = null
+                    // 移动提交后同步选中建筑的格坐标与高亮（保持"进入"按钮/✓x 定位正确）
+                    if (state.selectedBuilding?.instanceId == b.instanceId) {
+                        state.selectedBuilding = b.copy(
+                            gridX = state.movingSnappedGridX, gridY = state.movingSnappedGridY
+                        )
+                        state.selectedBuildingGrid = state.movingSnappedGridX to state.movingSnappedGridY
+                    }
                 }
             } else {
                 state.movingBuilding = null
@@ -1136,6 +1171,38 @@ private fun MainGameScreenMovingControls(
         onDemolish = {
             viewModel.demolishBuilding(building.instanceId)
             state.movingBuilding = null
+            if (state.selectedBuilding?.instanceId == building.instanceId) {
+                state.selectedBuilding = null
+                state.selectedBuildingGrid = null
+            }
+        }
+    )
+}
+
+/** 普通点击选中建筑的 ✓/x（52dp）：点击建筑即选中，上方显示 ✓/x 用于移动确认/取消。
+ * 未移动时 ✓=保持选中、x=取消选中；拖动后由移动控制接管（避免两套 ✓/x 重叠）。 */
+@Composable
+private fun MainGameScreenSelectedBuildingControls(
+    state: MainGameScreenState,
+    data: MainGameScreenData
+) {
+    val building = state.selectedBuilding ?: return
+    val density = LocalDensity.current.density
+    val tileSize = data.mapData.tileSize
+    val worldX = GridSnapHelper.gridToWorld(building.gridX, tileSize).toFloat()
+    val worldY = GridSnapHelper.gridToWorld(building.gridY, tileSize).toFloat()
+    val buildingCenterXDp = data.viewportData.cameraState.worldToScreenX(
+        worldX + building.width * tileSize / 2f
+    ) / density
+    val buildingTopYDp = data.viewportData.cameraState.worldToScreenY(worldY) / density
+    BuildingConfirmCancelRow(
+        buildingCenterXDp = buildingCenterXDp,
+        buildingTopYDp = buildingTopYDp,
+        confirmEnabled = true,
+        onConfirm = { /* 未移动：确认=保持选中（no-op） */ },
+        onCancel = {
+            state.selectedBuilding = null
+            state.selectedBuildingGrid = null
         }
     )
 }
@@ -1210,7 +1277,7 @@ private fun BoxScope.MainGameScreenTopBar(
                     // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框，
                     // "+"按钮弹玉符广告确认对话框）
                     JadeSymbolBadge(
-                        jadeSymbols = data.derived.gameData?.jadeSymbols ?: 0,
+                        jadeSymbols = data.derived.gameData.jadeSymbols,
                         onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) },
                         onAddClick = { viewModel.navigateToDialog(DialogType.JadeSymbolAd) }
                     )
@@ -1235,16 +1302,16 @@ private fun MainGameScreenSectInfoSection(
         val sectCombatPower by viewModel.sectCombatPower.collectAsStateWithLifecycle()
         // 2026-08-16 修复：卡片标题按当前活跃宗门显示（activeSectId 指向被占宗门时
         // 显示该宗门名与等级，而不是恒显示主宗门名——避免「进入被占宗门地图却显示主宗门」误导）
-        val activeSect = data.derived.gameData?.worldMapSects
-            ?.find { it.id == data.derived.gameData.activeSectId }
+        val activeSect = data.derived.gameData.worldMapSects
+            .find { it.id == data.derived.gameData.activeSectId }
         SectInfoCard(
-            sectName = activeSect?.name ?: data.derived.gameData?.sectName ?: "青云宗",
-            gameYear = data.derived.gameData?.gameYear ?: 1,
-            gameMonth = data.derived.gameData?.gameMonth ?: 1,
-            gamePhase = data.derived.gameData?.gamePhase ?: 0,
-            lowStones = data.derived.gameData?.spiritStones ?: 0L,
-            midStones = data.derived.gameData?.midGradeSpiritStones ?: 0L,
-            highStones = data.derived.gameData?.highGradeSpiritStones ?: 0L,
+            sectName = activeSect?.name ?: data.derived.gameData.sectName,
+            gameYear = data.derived.gameData.gameYear,
+            gameMonth = data.derived.gameData.gameMonth,
+            gamePhase = data.derived.gameData.gamePhase,
+            lowStones = data.derived.gameData.spiritStones,
+            midStones = data.derived.gameData.midGradeSpiritStones,
+            highStones = data.derived.gameData.highGradeSpiritStones,
             discipleCount = data.derived.aliveDisciples.size,
             combatPower = sectCombatPower,
             sectLevel = activeSect?.level ?: currentSectLevel,
@@ -1369,6 +1436,32 @@ private fun BoxScope.MainGameScreenBuildingBar(
                 }
             )
         }
+    }
+}
+
+/** 选中建筑正下方的"进入"按钮（MainGameScreen）：点击弹出该建筑详情（CoC 式底部 UI）。 */
+@Composable
+private fun BoxScope.MainGameScreenSelectedBuildingEntryOverlay(
+    state: MainGameScreenState,
+    data: MainGameScreenData,
+    viewModel: GameViewModel
+) {
+    if (!state.isUiVisible || state.isDemolishMode || state.buildingBarExpanded) return
+    val building = state.selectedBuilding ?: return
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .padding(bottom = 24.dp)
+    ) {
+        BuildingEntryButton(
+            displayName = building.displayName,
+            modifier = Modifier,
+            onClick = {
+                val clicked = building
+                val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
+                openBuildingDetailFor(clicked, def, data.derived, data.mapData, viewModel)
+            }
+        )
     }
 }
 

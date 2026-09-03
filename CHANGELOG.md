@@ -1,5 +1,17 @@
 ## [4.01.12] - 2026-09-02
 
+### 新增：建筑点击选中 + 底部"进入" UI（CoC 式选中重设计）
+
+> 2026-09 玩家指引：把「点击建筑直接弹详情」改为「点击建筑先选中」——选中态建筑上方显示固定 32dp 的 ✓/x 按钮（仅图标，无绿/红圆底），屏幕正下方显示"进入"按钮，点击弹出对应建筑详情；拖动选中的建筑可直接移动。灵田/炼丹炉/锻造坊使用专属进入图标（种植/炼丹/锻造）。
+
+- **交互变更**：`handleMainGameScreenTap` 改为点击建筑 = 选中（设置 `selectedBuilding` + `selectedBuildingGrid` 金色高亮），不再直接 `navigateToDialog`。详情入口统一收敛到选中态正下方"进入"按钮（`MainGameScreenSelectedBuildingEntryOverlay` → `openBuildingDetailFor`）。
+- **详情分发重构**：抽出纯函数 `buildingDialogType(displayName, instanceId): DialogType?`（各建筑 key → DialogType 映射，可单测）+ `openBuildingDetailFor`（优先专用 DialogType，未命中回退通用 `handleGenericBuildingTap`）。
+- **✓/x 按钮 32dp（无绿/红圆底）**：`BuildingConfirmCancelRow` 固定 `CONFIRM_BUTTON_SIZE = 32.dp`，改用新精灵 `ui_check_button` / `ui_x_button`（仅图标，去掉绿色/红色圆形背景；`PlacementConfirmButtons` 共用，放置/移动/选中三态一致；选中态 `showOverlay=false` 不画绿色占地覆盖框）。
+- **"进入"按钮**：新增 `BuildingEntryButton`（正方形框 `BuildingEntryFrameColor` CoC 风暖棕 + 白字 + 描边）；`buildingEntrySpec(displayName)` 映射 灵田→种植ui/种植、炼丹炉→炼丹ui/炼丹、锻造坊→锻造ui/锻造、其余→进入ui/进入。
+- **状态清理**：`exitAllEditModes()` / `enterDemolishMode()` 追加清除 `selectedBuilding`/`selectedBuildingGrid`；移动提交/拆除后同步选中建筑格坐标（防止"进入"按钮/✓x 定位错位）。
+- **素材管线**：`resource-registry.json` + `source-mapping.json` UI 分类新增 6 条（`ui_check_button`/`ui_x_button`/`ui_enter`/`ui_planting`/`ui_alchemy`/`ui_forge`），`import-art-assets.mjs` 烘焙无损 WebP 至 feature/game + app 双模块（`SpriteSourceMappingGuardTest`/`ResourceManifestCompletenessTest`/`SpriteCodegenSyncTest` 守卫）。
+- **测试**：新增 `MainGameScreenSelectionTest`（12 项：buildingDialogType/buildingEntrySpec 映射）；`compileReleaseKotlin` · `testReleaseUnitTest`（串行）全绿。
+
 ### 修复：点击宗门地图空白处不再误选附近建筑（移除命中外扩与最近建筑兜底）
 
 > 2026-09 玩家反馈「点宗门地图的空白处却会自动选中旁边的建筑」问题根治：tap 命中改为**精确格判定**——点击格上有建筑才选中，点空白一律清除选中。
@@ -8,6 +20,10 @@
 - **修复**：移除两层位置宽容——删除 `HitSlopPolicy`、`findNearestBuilding`/`findBuildingAtRect`/`queryRect`（及 `nearestFallbackMaxDp`/`minHitTargetDp` 配置），tap/长按/拆除/触控回调查找全部改为 `BuildingSpatialIndex.findBuildingAt` 精确格命中；点空白一律清除选中。高层建筑（塔楼/藏经阁等）上半身悬空区域仍可点中（精灵包围盒在索引内，`findBuildingAt` 覆盖占地∪精灵包围盒）。
 - **副作用（已接受）**：1×1 小建筑（灵田等）命中区收敛为单格，缩小状态下点偏一格不易命中；命中不再做自动扩展（此为本次移除目标之一）。
 - **验证**：`compileReleaseKotlin` · `testReleaseUnitTest`（串行）全绿 · `lintRelease` · 全模块 `detekt`。
+
+### 调整：金手指一键建造图标尺寸 40 → 48 世界像素
+
+> 用户要求调整金手指一键建造图标大小。`GOLDEN_FINGER_ICON_SIZE_PX` 40 → 48（`GoldFingerOverlay.kt`），入口图标固定 48 屏幕像素、激活后拖拽末端图标 = 48 × 相机缩放（与各自既有缩放行为一致，仅基准 40 → 48）。选区位置/钳制逻辑不变。
 
 ### 代码质量：清理 detekt 存量未冻结违规（8 文件 13 条）
 

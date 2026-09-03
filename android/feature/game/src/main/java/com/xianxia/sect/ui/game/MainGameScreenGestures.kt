@@ -11,13 +11,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.touch.LongPressResult
 import com.xianxia.sect.core.touch.TouchEngineCallbacks
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.main.GoldFingerSelection
 import com.xianxia.sect.ui.game.main.clampGoldFingerSelection
@@ -107,7 +105,10 @@ internal fun buildMainGameScreenTouchCallbacks(
     }
 }
 
-/** 点击处理（MainGameScreen 拆分）：拆除选中 / 建筑详情打开（双点宽容命中） */
+/**
+ * 点击处理（MainGameScreen 拆分）：选中建筑（点击选中，不再直接弹详情）。
+ * 详情入口统一收敛到选中态正下方"进入"按钮（CoC 式选中设计）。
+ */
 // 拆分聚合:平铺参数搬移自原公共函数
 @Suppress("LongParameterList")
 private fun handleMainGameScreenTap(
@@ -141,60 +142,16 @@ private fun handleMainGameScreenTap(
     }
     // 精确格命中：点击格上有建筑才选中（点空白一律清除选中，不做附近兜底）
     val clicked = renderData.buildingIndex.findBuildingAt(gx, gy)
-    // 点击空地 → 清除选中高亮（任意模式）
+    // 点击空地 → 清除选中高亮 + 选中建筑（任意模式）
     if (clicked == null) {
         state.selectedBuildingGrid = null
+        state.selectedBuilding = null
     }
-    if (clicked != null && !state.isPlacingBuilding && state.movingBuilding == null) {
-        // 点击建筑 → 记录选中格（渲染端金色高亮描边），并打开详情
+    if (clicked != null && canSelectBuilding(state)) {
+        // 点击建筑 → 记录选中格（渲染端金色高亮描边）与选中建筑引用，
+        // 正下方"进入"按钮 / 选中态 ✓x 由 MapOverlay/UI 覆盖层据此渲染
+        state.selectedBuilding = clicked
         state.selectedBuildingGrid = clicked.gridX to clicked.gridY
-        val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
-        when (def?.key) {
-            "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
-            "alchemy" -> viewModel.navigateToDialog(DialogType.Alchemy(clicked.instanceId))
-            "forge" -> viewModel.navigateToDialog(DialogType.Forge(clicked.instanceId))
-            "single_residence", "single_residence_upgraded", "multi_residence", "multi_residence_upgraded" -> {
-                viewModel.navigateToDialog(DialogType.Residence(clicked.instanceId))
-            }
-            else -> handleGenericBuildingTap(clicked, def, derived, mapData)
-        }
-    }
-}
-
-/**
- * 无专用 DialogType 的建筑点击兜底（MainGameScreen 拆分提取）：
- * 显示名回调分发 + 未注册诊断（R1/B1）。
- */
-private fun handleGenericBuildingTap(
-    clicked: GridBuildingData,
-    def: com.xianxia.sect.core.engine.domain.building.BuildingFeature?,
-    derived: MainGameScreenDerived,
-    mapData: MainGameScreenMapData
-) {
-    // R1 诊断（B1）：displayName 未注册 / 无回调 → 点击被静默吞掉。
-    // 渲染端会用索引 0 兜底画出该建筑，点击却无任何分支处理——唯一"可见但点不中"确定性路径。
-    if (def == null) {
-        DomainLog.w(
-            BUILDING_TAP_TAG,
-            "点击建筑 displayName 未注册: name=${clicked.displayName} " +
-                "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
-                "grid=(${clicked.gridX},${clicked.gridY}) " +
-                "activeSectId=${derived.gameData.activeSectId} " +
-                "sectBuildings=${derived.activeSectBuildings.size}"
-        )
-    }
-    val b = mapData.buildingList.find { it.first == clicked.displayName }
-    if (b != null) {
-        b.second?.invoke(clicked)
-    } else {
-        DomainLog.w(
-            BUILDING_TAP_TAG,
-            "点击建筑无回调处理: name=${clicked.displayName} " +
-                "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
-                "grid=(${clicked.gridX},${clicked.gridY}) " +
-                "activeSectId=${derived.gameData.activeSectId} " +
-                "sectBuildings=${derived.activeSectBuildings.size}"
-        )
     }
 }
 
@@ -293,7 +250,7 @@ private fun handleGoldFingerLongPress(
                 worldWidthCells = mapData.worldWidthCells,
                 worldHeightCells = mapData.worldHeightCells,
                 buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-                spiritStones = derived.gameData?.spiritStones ?: 0L
+                spiritStones = derived.gameData.spiritStones
             )
         }
         // 已激活：不改动选区（等待 MOVE 重新框定，可扩大可缩小），直接重入框选
@@ -335,7 +292,7 @@ private fun handleMainGameScreenDragUpdate(
                 worldWidthCells = mapData.worldWidthCells,
                 worldHeightCells = mapData.worldHeightCells,
                 buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-                spiritStones = derived.gameData?.spiritStones ?: 0L
+                spiritStones = derived.gameData.spiritStones
             )
         }
         state.placementValidity = renderData.gridSystem.validatePlacement(
@@ -386,7 +343,7 @@ private fun handleMainGameScreenGoldFingerUpdate(
         worldWidthCells = mapData.worldWidthCells,
         worldHeightCells = mapData.worldHeightCells,
         buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
-        spiritStones = derived.gameData?.spiritStones ?: 0L
+        spiritStones = derived.gameData.spiritStones
     )
 }
 
@@ -487,7 +444,7 @@ private fun handleDemolishSingleTap(
         return
     }
     // 石板道路：拆除模式下点道路格立即删除（自动重算邻居拼接）
-    val hasRoad = derived.gameData?.roads?.any { it.gridX == gx && it.gridY == gy } == true
+    val hasRoad = derived.gameData.roads.any { it.gridX == gx && it.gridY == gy }
     if (hasRoad) {
         viewModel.removeRoad(gx, gy)
         return
