@@ -44,6 +44,16 @@
 - **预览双重绿色色块**：删除 Compose `PlacementConfirmButtons` 冗余覆盖层（40% 半透明绿矩形）；预览框（渲染层）恢复"填充+描边"且改为精灵先画、填充罩上（绿纱标准放置 UI，精灵透明区不再透出填充色）；预览精灵 alpha 0.5→1.0 不透明（放置/移动两路径一致）。
 - **验证**：真机实测全链路正常（普通地图/放置模式/移动建筑/网格线）；`compileReleaseKotlin` · 相关单测（NativeSurfaceViewTest/SoftwareCanvasBackend 系列/MainGameScreenSelectionTest/FrameSkipPolicyTest 串行）· `lintRelease` 全绿。
 
+### 修复：GLES 中间层黑屏（EGL 上下文线程模型）+ 软件渲染拿起建筑 1 秒延迟（chunk 局部失效）
+
+> 2026-09 骁龙 8 Gen 2 真机实测：GLES 后端首次真机验证发现黑屏（EGL 上下文绑定在初始化线程、渲染/上传线程 GL 调用无上下文静默失败）；软件渲染下长按拿起建筑约 1 秒延迟（建筑占位格变化触发 16 块 chunk 全量 CPU 重建）。
+
+- **GLES 黑屏根因（EGL 线程模型）**：`GlesBackend::initEgl` 把 EGL 上下文绑定在 VulkanInit 线程后未迁移——渲染线程/主线程的 GL 调用全部无上下文静默失败。修复：初始化完成后释放线程绑定，渲染线程 `submitFrame` 开头 `ensureContextCurrent` 接管；纹理上传改为队列（`uploadTexture` 任意线程入队，渲染线程 `drainUploads` 真实执行 `glTexImage2D`）；`resize` 仅记录尺寸由 `submitFrame` 每帧落地 `glViewport`；`shutdown` 先接管上下文再清理 GL 资源。
+- **软件渲染拿起建筑 1 秒延迟根因（chunk 全量重建）**：拿起建筑 → `flatTileData` 占位格变化 → 软件渲染 `tileHash` 变化 → `invalidateAllChunks()` 全量重建 16 块 1536×1536 chunk（CPU 逐像素 ~1 秒）；Vulkan 无 chunk 缓存故无此延迟。修复：瓦片变化改 diff 局部失效（变化格 >1024 才全失效）；建筑数据变化同步改为局部失效（旧/新位置 chunk，空数组仍全失效防残留）。
+- **软件渲染降载**：`SOFTWARE_RENDER_SCALE_CAP` 0.6→0.5（移动跟随提速）。
+- **GLES 对比结论**：Vulkan 的 ASTC 块对齐/描述符集/离屏 renderPass/VBO 竞态等问题在 GLES 后端无对应机制（不同图形 API 路径），GLES 仅自身线程模型缺陷，已修复。
+- **验证**：真机实测 GLES 全链路正常（普通地图/放置模式/移动建筑）；软件渲染拿起延迟端到端 <150ms；`compileReleaseKotlin` · 相关单测（SoftwareCanvasBackend 系列/NativeSurfaceViewTest 串行）· `lintRelease` 全绿。
+
 ### 新增：建筑点击选中 + 底部"进入" UI（CoC 式选中重设计）
 
 > 2026-09 玩家指引：把「点击建筑直接弹详情」改为「点击建筑先选中」——选中态建筑上方显示固定 32dp 的 ✓/x 按钮（仅图标，无绿/红圆底），屏幕正下方显示"进入"按钮，点击弹出对应建筑详情；拖动选中的建筑可直接移动。灵田/炼丹炉/锻造坊使用专属进入图标（种植/炼丹/锻造）。

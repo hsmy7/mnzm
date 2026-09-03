@@ -58,6 +58,11 @@ private:
     bool initPipeline();
     void destroyPipeline();
 
+    /** 消费待上传队列（渲染线程 submitFrame 开头调用——GL 调用须在有上下文的线程） */
+    void drainUploads();
+    /** 把 EGL 上下文绑定到当前线程（跨线程迁移须先由原线程释放；渲染线程首次接管） */
+    bool ensureContextCurrent();
+
     // 纹理 id → GL 纹理；id=0 恒为白色纹理
     struct Tex { GLuint gl = 0; uint32_t id = 0; };
     GLuint glFor(uint32_t id) const;
@@ -79,6 +84,16 @@ private:
     // 纹理管理
     std::vector<Tex> m_textures;
     uint32_t m_nextTexId = 1;
+
+    // ★ 2026-09 线程模型修复：待上传队列（uploadTexture 在任意线程入队，
+    //   submitFrame 在渲染线程持上下文后真实执行 GL 上传）
+    struct PendingUpload {
+        uint32_t id;
+        int width;
+        int height;
+        std::vector<uint8_t> pixels;
+    };
+    std::vector<PendingUpload> m_pendingUploads;
 
     // 帧绘制状态（CPU 侧暂存，submitFrame 整批上传）
     struct DrawCommand { int vertexOffset; int count; uint32_t textureId; };

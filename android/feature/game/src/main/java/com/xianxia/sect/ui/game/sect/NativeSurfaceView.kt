@@ -397,8 +397,9 @@ class NativeSurfaceView(
         private const val ASTC_ATLAS_ASSET_PATH = "atlas/atlas_astc.ktx"
         /** 渲染线程停止等待截止（纳秒）：2s 绝对截止轮询（防 vk 调用阻塞时资源释放竞态） */
         private const val JOIN_DEADLINE_NS = 2_000_000_000L
-        /** 软件渲染分辨率上限（CPU 逐像素路径兜底：即使策略异常也不超过此值，避免全分辨率卡顿） */
-        private const val SOFTWARE_RENDER_SCALE_CAP = 0.6f
+        /** 软件渲染分辨率上限（CPU 逐像素路径兜底：即使策略异常也不超过此值，避免全分辨率卡顿；
+         *  2026-09 由 0.6 降至 0.5——拿起/移动预览响应实测 8fps，降 30% 像素换移动跟随流畅） */
+        private const val SOFTWARE_RENDER_SCALE_CAP = 0.5f
     }
 
     /**

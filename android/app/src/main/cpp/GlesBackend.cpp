@@ -80,6 +80,12 @@ bool GlesBackend::init(const RenderConfig& config, void* nativeWindow) {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
 
+    // ★ 2026-09 线程模型修复：initEgl 已释放线程绑定（渲染线程尚未启动，
+    //   上下文不得滞留于初始化线程——否则渲染线程 GL 调用全部无上下文静默失败，
+    //   真机实测黑屏根因）。管线创建（本函数）运行于初始化线程，此时上下文
+    //   在本线程，正常；退出前再次释放，交由渲染线程接管。
+    eglMakeCurrent(m_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+
     m_ready.store(true);
     GLES_LOGI("GLES backend initialized (%dx%d)", m_viewportW, m_viewportH);
     return true;
@@ -131,6 +137,9 @@ bool GlesBackend::initEgl(void* nativeWindow) {
         GLES_LOGE("eglMakeCurrent failed (%d)", eglGetError());
         return false;
     }
+    // ★ 2026-09 线程模型修复（释放时机）：上下文绑定保留至 init() 完成
+    //   （initPipeline 等后续 GL 调用仍在本线程执行）——init() 末尾统一释放，
+    //   渲染线程首次 submitFrame 经 ensureContextCurrent 接管
     return true;
 }
 
@@ -188,7 +197,12 @@ bool GlesBackend::initPipeline() {
 
 void GlesBackend::shutdown() {
     m_ready.store(false);
-    destroyPipeline();
+    // ★ 2026-09 线程模型修复：清理 GL 资源须持有上下文。shutdown 由主线程
+    //   调用（surfaceDestroyed 时渲染线程已停止——上下文空闲可接管）
+    const bool ctxOk = ensureContextCurrent();
+    if (ctxOk) {
+        destroyPipeline();
+    }
     if (m_display != EGL_NO_DISPLAY) {
         if (m_context != EGL_NO_CONTEXT) eglMakeCurrent(m_display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
         if (m_surface != EGL_NO_SURFACE) eglDestroySurface(m_display, m_surface);
@@ -201,6 +215,7 @@ void GlesBackend::shutdown() {
     m_window = nullptr;
     m_pendingDraws.clear();
     m_vertexBuffer.clear();
+    m_pendingUploads.clear();
 }
 
 void GlesBackend::destroyPipeline() {
@@ -220,12 +235,10 @@ void GlesBackend::destroyPipeline() {
 
 bool GlesBackend::resize(int width, int height) {
     if (width <= 0 || height <= 0) return false;
+    // ★ 2026-09 线程模型修复：resize 由主线程调用（handleSurfaceSizeChanged），
+    //   不再直接 glViewport（无上下文）——仅记录尺寸，submitFrame 每帧落地
     m_viewportW = width;
     m_viewportH = height;
-    if (m_display != EGL_NO_DISPLAY && m_surface != EGL_NO_SURFACE && m_context != EGL_NO_CONTEXT) {
-        eglMakeCurrent(m_display, m_surface, m_surface, m_context);
-        glViewport(0, 0, width, height);
-    }
     return true;
 }
 
@@ -237,20 +250,50 @@ void GlesBackend::beginFrame() {
 
 void GlesBackend::endFrame() {}
 
+bool GlesBackend::ensureContextCurrent() {
+    if (m_display == EGL_NO_DISPLAY || m_surface == EGL_NO_SURFACE ||
+        m_context == EGL_NO_CONTEXT) return false;
+    if (!eglMakeCurrent(m_display, m_surface, m_surface, m_context)) {
+        GLES_LOGE("ensureContextCurrent: eglMakeCurrent failed (%d)", eglGetError());
+        return false;
+    }
+    return true;
+}
+
+void GlesBackend::drainUploads() {
+    if (m_pendingUploads.empty()) return;
+    for (auto& up : m_pendingUploads) {
+        GLuint tex = 0;
+        glGenTextures(1, &tex);
+        glBindTexture(GL_TEXTURE_2D, tex);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, up.width, up.height, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, up.pixels.data());
+        m_textures.push_back({ tex, up.id });
+        GLES_LOGI("drainUploads: texture id=%u %dx%d uploaded (gl=%u)",
+                  up.id, up.width, up.height, tex);
+    }
+    m_pendingUploads.clear();
+}
+
 uint32_t GlesBackend::uploadTexture(const void* pixels, int width, int height) {
     if (!pixels || width <= 0 || height <= 0) return 0;
-    GLuint tex = 0;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
+    // ★ 2026-09 线程模型修复：GL 调用必须发生在持有 EGL 上下文的线程。
+    //   本方法由主线程（buildAtlas）调用——仅入队（拷贝像素数据），
+    //   真实 GL 上传由渲染线程在 submitFrame 开头经 drainUploads 执行
+    //   （否则主线程无上下文 → GL 调用静默失败 → 图集无效 → 全黑）。
     const uint32_t id = m_nextTexId++;
-    m_textures.push_back({ tex, id });
+    PendingUpload up;
+    up.id = id;
+    up.width = width;
+    up.height = height;
+    const size_t bytes = static_cast<size_t>(width) * height * 4;
+    up.pixels.resize(bytes);
+    memcpy(up.pixels.data(), pixels, bytes);
+    m_pendingUploads.push_back(std::move(up));
     return id;
 }
 
@@ -292,6 +335,12 @@ GLuint GlesBackend::glFor(uint32_t id) const {
 
 void GlesBackend::submitFrame() {
     if (!m_ready.load()) return;
+
+    // ★ 2026-09 线程模型修复：渲染线程接管 EGL 上下文 + 消费纹理上传队列 +
+    //   每帧应用视口（跨线程 resize 只记录尺寸，此处落地）
+    if (!ensureContextCurrent()) return;
+    drainUploads();
+    glViewport(0, 0, m_viewportW, m_viewportH);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);

@@ -42,6 +42,9 @@ class SoftwareCanvasBackend(
         private val NUM_CHUNKS_COL = 128 / CHUNK_SIZE_TILES  // 4
         private val NUM_CHUNKS_ROW = 128 / CHUNK_SIZE_TILES  // 4
 
+        /** 瓦片 diff 全量失效阈值：变化格超此值（大范围地形变化）放弃局部失效 */
+        private const val TILE_DIFF_FULL_INVALIDATE_THRESHOLD = 1024
+
         // ── 缩放保护常量 ──
         private const val MIN_SCALE = 0.1f
         private const val MAX_SCALE = 3.0f
@@ -173,7 +176,11 @@ class SoftwareCanvasBackend(
         val renderScale: Float,
         val tileHash: Int,
         val buildingHash: Int,
-        val roadHash: Int
+        val roadHash: Int,
+        /** 上一次建筑数据引用（局部 chunk 失效 diff 基准——移动建筑拿起/放下只重建相关 chunk） */
+        val prevBuildingData: FloatArray?,
+        /** 上一次瓦片数据引用（局部 chunk 失效 diff 基准——拿起建筑占位格变化只重建相关 chunk） */
+        val prevTileData: IntArray?
     )
 
     private class ViewTransform(
@@ -741,7 +748,11 @@ class SoftwareCanvasBackend(
         // ═══════════════════════════════════════════════════════
 
         // Chunk 失效检查 + 重建（WP5：装饰判定用 LOD 合并值——档位内浮点微动不触发重建防抖动）
-        if (invalidateChunksForChanges(tileHash, buildingHash, roadHash, decorSkip)) {
+        if (invalidateChunksForChanges(
+                tileHash, buildingHash, roadHash, decorSkip,
+                frame.buildingData, frameState.prevBuildingData,
+                frame.tileData, frameState.prevTileData
+            )) {
             rebuildInvalidChunks(atlas, frame, decorSkip)
         }
 
@@ -785,7 +796,11 @@ class SoftwareCanvasBackend(
         val td = frame.tileData
         val buildingArray = frame.buildingData
         val roadArray = frame.roadData
+        // ★ 局部失效 diff 基准：保存上一次引用后再更新缓存（2026-09 软件渲染
+        //   拿起建筑 1 秒延迟根因修复——tile/building 变化仅失效相关 chunk）
+        val prevTileData = cachedTileData
         val tileHash = if (td === cachedTileData) chunkTileHash else td.contentHashCode().also { cachedTileData = td }
+        val prevBuildingData = cachedBuildingData
         val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash
         else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }
         val roadHash = if (roadArray === cachedRoadData) chunkRoadHash
@@ -796,7 +811,9 @@ class SoftwareCanvasBackend(
             renderScale = rs,
             tileHash = tileHash,
             buildingHash = buildingHash,
-            roadHash = roadHash
+            roadHash = roadHash,
+            prevBuildingData = prevBuildingData,
+            prevTileData = prevTileData
         )
     }
 
@@ -848,7 +865,11 @@ class SoftwareCanvasBackend(
         tileHash: Int,
         buildingHash: Int,
         roadHash: Int,
-        decorSkip: Boolean
+        decorSkip: Boolean,
+        buildingArray: FloatArray?,
+        prevBuildingData: FloatArray?,
+        tileData: IntArray,
+        prevTileData: IntArray?
     ): Boolean {
         val chunkTileChanged = tileHash != chunkTileHash
         val chunkBuildingChanged = buildingHash != chunkBuildingHash
@@ -859,18 +880,29 @@ class SoftwareCanvasBackend(
             lastDecorationsDisabled = decorSkip
         }
         if (chunkTileChanged || chunkDecorChanged) {
-            invalidateAllChunks()
+            // ★ 2026-09 根因修复（软件渲染拿起建筑 1 秒延迟）：瓦片变化不再全量
+            //   重建 16 块 chunk（拿起建筑占位格清除 → 全重建 ~1 秒）——diff 变化格
+            //   仅失效相关 chunk；变化格超阈值（大范围地形变化）才全失效
+            if (chunkDecorChanged) {
+                invalidateAllChunks()
+            } else {
+                invalidateChunksForTileDiff(prevTileData, tileData)
+            }
             if (chunkTileChanged) chunkTileHash = tileHash
         }
         if (chunkBuildingChanged) {
             chunkBuildingHash = buildingHash
-            // 2026-08-16 修复（软件渲染残留根因）：建筑数据变化必须失效全部 chunk。
-            // 旧实现只失效「新建筑覆盖」的 chunk——进入无建筑宗门时总线推空数组
-            //（FloatArray(0)，非 null）：循环 0 次、不失效任何 chunk，上一宗门（主宗）
-            // 建筑残留在 chunk 位图里 → 屏幕显示主宗建筑但点击索引已空 → 点不中；
-            // 同理跨宗门切换时旧位置 chunk 不失效 → 旧建筑残留。空数组/非空列表统一
-            // 失效全部 chunk（4×4 网格 16 块，建筑变化低频，重建成本可接受）。
-            invalidateAllChunks()
+            // ★ 2026-09 根因修复（软件渲染放置模式 1 秒延迟）：建筑数据变化不再
+            //   全量失效 16 块 chunk（移动建筑拿起/放下各触发一次全量 CPU 重绘
+            //   → 方格/预览迟到约 1 秒）——改为局部失效：仅重建旧/新建筑位置
+            //   涉及的 chunk。空数组（进入无建筑宗门）仍全失效防残留
+            //   （2026-08-16 残留根因修复语义保留）。
+            if (buildingArray == null || buildingArray.isEmpty()) {
+                invalidateAllChunks()
+            } else {
+                invalidateChunksForBuildings(prevBuildingData)  // 旧位置（拿起/移动离开）
+                invalidateChunksForBuildings(buildingArray)     // 新位置（放下/新建）
+            }
         }
         if (chunkRoadChanged) {
             // 道路变化：失效全部 chunk（道路可能横跨多个 chunk，局部失效受 32×32 网格限制，
@@ -879,6 +911,55 @@ class SoftwareCanvasBackend(
             invalidateAllChunks()
         }
         return chunkTileChanged || chunkBuildingChanged || chunkRoadChanged || chunkDecorChanged
+    }
+
+    /** 失效建筑（含精灵尺寸范围，保守跨 chunk）覆盖的 chunk——建筑变化局部重建 */
+    private fun invalidateChunksForBuildings(buildings: FloatArray?) {
+        if (buildings == null || buildings.isEmpty()) return
+        var i = 0
+        while (i + 4 < buildings.size) {
+            val gx = buildings[i].toInt().coerceAtLeast(0)
+            val gy = buildings[i + 1].toInt().coerceAtLeast(0)
+            val spanW = buildings[i + 2].toInt().coerceAtLeast(1)
+            val spanH = buildings[i + 3].toInt().coerceAtLeast(1)
+            val minCol = (gx / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_COL - 1)
+            val maxCol = ((gx + spanW) / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_COL - 1)
+            val minRow = (gy / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_ROW - 1)
+            val maxRow = ((gy + spanH) / CHUNK_SIZE_TILES).coerceIn(0, NUM_CHUNKS_ROW - 1)
+            for (c in minCol..maxCol) {
+                for (r in minRow..maxRow) {
+                    chunkCaches[c][r].isValid = false
+                }
+            }
+            i += 5
+        }
+    }
+
+    /**
+     * 瓦片变化局部失效：diff 新旧数组找出变化格 → 仅失效覆盖的 chunk；
+     * 变化格超 [TILE_DIFF_FULL_INVALIDATE_THRESHOLD]（大范围地形变化）或
+     * 数组不兼容 → 全量失效。
+     */
+    private fun invalidateChunksForTileDiff(prev: IntArray?, cur: IntArray) {
+        if (prev == null || prev.size != cur.size) {
+            invalidateAllChunks()
+            return
+        }
+        val cols = config.worldWidthCells
+        var changed = 0
+        for (i in cur.indices) {
+            if (prev[i] == cur[i]) continue
+            changed++
+            if (changed > TILE_DIFF_FULL_INVALIDATE_THRESHOLD) {
+                invalidateAllChunks()
+                return
+            }
+            val c = (i % cols) / CHUNK_SIZE_TILES
+            val r = (i / cols) / CHUNK_SIZE_TILES
+            if (c in 0 until NUM_CHUNKS_COL && r in 0 until NUM_CHUNKS_ROW) {
+                chunkCaches[c][r].isValid = false
+            }
+        }
     }
 
     /** 重建全部失效 chunk（失效检查完成后统一执行，防半失效窗口） */
