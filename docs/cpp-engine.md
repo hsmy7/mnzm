@@ -47,23 +47,23 @@
 **⚠️ 缺口（审计确凿，后续工作对象）**
 | # | 缺口 | 证据 | 影响 |
 |---|---|---|---|
-| G1 | **无 ECS**：只有 DiscipleStore(单一实体 SoA，硬编码 ~124 列) + Kotlin EntityStore/ComponentTable；无 Entity/Component/System、无 SparseSet/Archetype/查询 | `disciple_store.h`（单一弟子型）、`month_settlement.h`（过程式 system 操作大状态） | **✅ ECS 基础①-④ 已建（2026-09 续作，见 §0.3）**；但结算/内政 system 仍为过程式，尚未经 ECS System 调度——后续迁移项 |
-| G2 | **完全单线程、无 JobSystem**：gamecore 无 std::thread/async/ThreadPool；游戏逻辑在单线程 executor | `GameEngineCore.kt:396` 单线程 | **✅ JobSystem（§0.3 ③）已建**；但现有 system 未接入并行（5000 弟子每旬 O(D) 单线程热点仍存在，待 ECS 调度迁移后释放） |
+| G1 | **无 ECS**：只有 DiscipleStore(单一实体 SoA，硬编码 ~124 列) + Kotlin EntityStore/ComponentTable；无 Entity/Component/System、无 SparseSet/Archetype/查询 | `disciple_store.h`（单一弟子型）、`month_settlement.h`（过程式 system 操作大状态） | **✅ ECS 基础①-④ 已建（2026-09 续作，见 §0.3）**；**每旬核心批次已接入 ECS System 调度（2026-09-10，PhaseCoreBatchSystem）**；月/年结算/内政 system 仍过程式（RNG 耦合，不可并行）——后续迁移项 |
+| G2 | **完全单线程、无 JobSystem**：gamecore 无 std::thread/async/ThreadPool；游戏逻辑在单线程 executor | `GameEngineCore.kt:396` 单线程 | **✅ JobSystem（§0.3 ③）已建**；**每旬核心批次（5000 弟子 O(D) 热点）已并行化（2026-09-10，runPhaseCoreBatchParallel）**——其余 system（月/年 RNG 耦合）未接入并行 |
 | G3 | **地图/建筑/地形数据不在引擎**：瓦片/建筑/道路数据由 Kotlin 生成并喂 RenderFrame；引擎仅道路合成器几何 | `SectMapTileGenerator`/`MainGameScreen` | 世界级 entity(建筑/NPC/空间)无 ECS 基础 |
 | G4 | **渲染路径结构性缺陷**：行业降级链均为 `Vulkan→GPU GLES→软件渲染(仅兜底)`，而本项目为 `Vulkan→CPU Canvas` 且**额外关闭系统硬件加速**(→真·CPU 逐像素)，**缺失行业标配的 GPU GLES 中间层**——这是性能/电量风险的最主要根因，也是与行业最大结构性差异 | `VulkanPolicy.detectTier`/`shouldDisableHardwareAcceleration` | **✅ 修复完成（2026-09-09 主修复 + 2026-09 量化阈值 + 2026-09 CPU Canvas 辅线收尾）**：① GPU GLES 中间层（降级链 `Vulkan→GPU GLES→CPU Canvas`）；② 量化阈值决策引擎（default Vulkan + 窄 Deny，`evaluateVulkanTier` + C++ 上报 `setVulkanDeviceInfo`）；③ CPU Canvas 分配微优化（地面子位图跨 chunk 共享 + crop 矩形复用——chunk 缓存/LOD/renderScale 已存在）。**剩余**：真机 Bugly 阈值校准、GLES 真机验证（坐标/UV、混合、ASTC/renderScale/REPEAT） |
 | G5 | **iOS/Metal 未开始**：无 Xcode 工程/无 .metal/无 Swift；只有 game-core 纯 C++ 可复用 | 全仓库 glob=0 | iOS 目标未达成 |
 | G6 | **主循环线程/帧率策略/存档编码( kotlinx-proto)/UI 全 Kotlin** | `GameEngineCore`/`T-CPP-1` | 双端需各自实现 |
-| G7 | **战斗/宗门口战副引擎部分留 Kotlin**（部分系统、AI 兽战后处理、部分平台效应） | 批 12-3/13-8~10 边界 | **✅ 副引擎战斗执行全部闭合（2026-09 收尾）**：批 A-D 已下沉 executeBattle + 三生产接线；**✅ G7-2 AI 攻击决策下沉完成（2026-09）**：`checkAttackConditions`/`decidePlayerAttack` 下沉 C++（`sect_attack_decision.h` + GameState 模型字段 aiSectPersonalities/activeAttackWarnings）+ 生产路由 nativeDecidePlayerAttack/nativeCheckAttackConditions + **DiffSectAttackDecisionTest（BATTLE 序列跨语言锁序 2 场景，逐位一致）** + 6 GTest；**保留 Kotlin** 设计边界（战斗组装 BattleDescriptionGenerator（JVM Random）/伤亡/占领落库 = 状态/平台效应；HeavenlyTrial 试炼敌人派生种子） |
+| G7 | **战斗/宗门口战副引擎部分留 Kotlin**（部分系统、AI 兽战后处理、部分平台效应） | 批 12-3/13-8~10 边界 | **✅ 副引擎战斗执行全部闭合（2026-09 收尾）**：批 A-D 已下沉 executeBattle + 三生产接线；**✅ G7-2 AI 攻击决策下沉完成（2026-09）**：`checkAttackConditions`/`decidePlayerAttack` 下沉 C++（`sect_attack_decision.h`）；**✅ 占领判定下沉+生产接线（2026-09-10，sect_attack_decision.h）**：`computeCanOccupy`（AI vs AI：winner==ATTACKER && 高阶全灭 `highRealmAllDead`）+ 常量 `kHighRealmOccupiableMax=5`（Kotlin 魔法数字提纯），纯确定性零 RNG；生产走 JNI `nativeComputeCanOccupy`（GameCoreBridge.cpp/.kt），Kotlin `executeSectBattleCore` 经 `tryNativeComputeCanOccupy` **native 优先、异常回退 Kotlin 判定**（AI 攻玩家路径 canOccupy 仅 `winner==ATTACKER` 无高阶门槛、无逻辑可下沉——保持 Kotlin）；GTest 守护（`SectAttackDecisionTest.ComputeCanOccupyFaithfulToKotlin`，桌面 763/763）· engine JUnit AISectAttackManagerTest/DiffSectBattleTest/DiffSectAttackDecisionTest 全绿（桌面 JNI .so）。**保留 Kotlin** 设计边界（战斗组装 BattleDescriptionGenerator（JVM Random）/伤亡/占领落库 = 状态/平台效应；HeavenlyTrial 试炼敌人派生种子——方案就绪） |
 
 ### 0.2 后续工作（主线，按优先级）
 
 | 优先级 | 工作 | 对应缺口 |
 |---|---|---|
-| **P0** | **ECS 基础 + 并行化（见 §0.3）**：对当前单线程/多实体迭代提升最大。**✅ ECS 基础①-④ 已实施（2026-09 续作，GTest 757/757）**——通用 ECS 骨架/System 调度/JobSystem/弟子组件化；现有 system 未接 ECS 调度、world 实体层为后续依赖项 | G1/G2 |
+| **P0** | **ECS 基础 + 并行化（见 §0.3）**：对当前单线程/多实体迭代提升最大。**✅ ECS 基础①-④ 已实施（2026-09 续作，GTest 757/757）**——通用 ECS 骨架/System 调度/JobSystem/弟子组件化。**✅ P0 续作（2026-09-10）：每旬核心批次接入 ECS System 调度 + JobSystem 并行化**——`runPhaseCoreBatchParallel`（`phase_settlement.h`）与串行版逐位一致（守护 `PhaseSettlementTest.CoreBatchParallelMatchesSerial`，762/762 通过）；GameCore AUTHORITATIVE core 模式经 `SystemScheduler` 驱动 `PhaseCoreBatchSystem`（ECS ISystem 适配器），内部 `parallelForIndexed` 分块并行 5000 弟子每旬 O(D) 热点。**其余 system（月/年结算）为 RNG 耦合编排，不可并行（红线）；world 实体层为后续依赖项** | G1/G2 |
 | P0 | **渲染路径结构性修正**：**补 GPU OpenGL ES 中间层**（`Vulkan→GPU GLES→CPU Canvas`）+ `VulkanPolicy` 量化阈值（默认 Vulkan + 窄 Deny）+ 驱动版本黑名单 + 崩溃自愈 + 预渲染地面层优化 Canvas 兜底。**✅ 主体已完成（2026-09-09 GLES 中间层 + 2026-09 量化阈值决策引擎 + 探测上报 + 单测 14 用例）**；**剩余**：CPU Canvas 优化（预渲染/LOD）、真机 Bugly 阈值校准、GLES 真机验证 | G4 |
 | P1 | **iOS 立项**：Xcode 工程 + MetalBackend(Metal-cpp) + Swift/ObjC++ 桥 + UI(Compose Multiplatform 1.8.0)/存档(SQLDelight)/图集/输入/音频 + 合规 | G5/G6 |
 | P1 | **世界实体层**：若有探索/大地图需求，把建筑/地形/NPC 纳入 ECS World + 空间索引 | G3 |
-| P1 | **战斗残余下沉**：宗门口战副引擎/部分平台效应入 C++ | G7 |
+| P1 | **战斗残余下沉**：**✅ 占领判定下沉（2026-09-10）**——`computeCanOccupy`（AI vs AI 高阶全灭判定）入 `sect_attack_decision.h` + 生产 JNI `nativeComputeCanOccupy` + Kotlin 接线（见 G7 行）；**HeavenlyTrial 敌人派生**（`enemySeed`+`buildTrialBaseStats`，纯确定性、方案就绪）为后续项；BattleDescriptionGenerator（JVM Random 措辞）评估为不高迁（对拍 diff 已排除 message） | G7 |
 
 > 渲染路径修正见 `docs/adr/render-strategy-decision.md`；iOS 见 `docs/adr/ios-migration-plan.md`；ECS 见 `docs/adr/ecs-foundation-design.md`。
 

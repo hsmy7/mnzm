@@ -21,6 +21,7 @@
 
 #include "gamecore/game_core.h"
 #include "gamecore/rng/pcg_xsh_rr.h"
+#include "gamecore/state/json_codec.h"
 #include "gamecore/system/phase_settlement.h"
 
 namespace {
@@ -778,6 +779,104 @@ TEST(PhaseSettlementTest, AutoGearSecretRealmMemberSkipped) {
     core->advancePhases(1);
     EXPECT_TRUE(st.disciples.materialize(0).weaponId.empty());
     EXPECT_TRUE(st.equipmentInstances.empty());
+}
+
+// ============================================================
+// P0 守护：每旬核心批次并行化 == 串行（确定性红线）
+//
+// runPhaseCoreBatchParallel（JobSystem 分块并行）必须与串行
+// runPhaseCoreBatch **逐位一致**——零 RNG、逐弟子独立写、读静态列，
+// 并行不改变任何抽取/写入序。本测试构造多弟子（含长老加成/父灵根/功法
+// 熟练度/装备孕养/藏经阁加成/死亡跳过）场景，串行与并行各跑一遍，
+// 全状态 JSON 逐字节比对。
+// ============================================================
+
+namespace {
+
+GameState makePhaseCoreState() {
+    GameState st;
+    // 弟子 1：外门（既是讲道长老 teaching=90，又装备武器 e1、修功法 m1/m2）
+    Disciple d1 = baseDisciple("1");
+    d1.cultivation = 50.0;
+    d1.currentHp = 100;
+    d1.currentMp = 50;
+    d1.teaching = 90;
+    d1.manualIds = {"m1", "m2"};
+    d1.weaponId = "e1";
+    // 弟子 2：外门，父为弟子 1（父灵根加成），修功法 m1
+    Disciple d2 = baseDisciple("2");
+    d2.cultivation = 40.0;
+    d2.currentHp = 80;
+    d2.currentMp = 40;
+    d2.manualIds = {"m1"};
+    d2.parentId1 = "1";
+    // 弟子 3：外门，藏经阁藏（熟练度加成）
+    Disciple d3 = baseDisciple("3");
+    d3.cultivation = 30.0;
+    d3.currentHp = 60;
+    d3.currentMp = 30;
+    // 弟子 4：已故（跳过）
+    Disciple d4 = baseDisciple("4");
+    d4.cultivation = 20.0;
+    d4.isAlive = false;
+    st.disciples.appendDisciple(d1);
+    st.disciples.appendDisciple(d2);
+    st.disciples.appendDisciple(d3);
+    st.disciples.appendDisciple(d4);
+
+    // 装备实例 e1（弟子 1 武器，孕养增长）
+    state::EquipmentInstance eq;
+    eq.id = "e1";
+    eq.name = "木剑";
+    eq.rarity = 1;
+    eq.slot = "WEAPON";
+    eq.minRealm = 9;
+    eq.ownerId = "1";
+    eq.isEquipped = true;
+    st.equipmentInstances.push_back(eq);
+
+    // 功法实例 m1/m2（熟练度）
+    state::ManualInstance m1;
+    m1.id = "m1";
+    m1.name = "功法甲";
+    state::ManualInstance m2;
+    m2.id = "m2";
+    m2.name = "功法乙";
+    st.manualInstances.push_back(m1);
+    st.manualInstances.push_back(m2);
+
+    // 讲道长老=弟子 1；藏经阁槽位=弟子 3
+    st.gameData.elderSlots.preachingElder = "1";
+    state::LibrarySlot lib;
+    lib.index = 0;
+    lib.discipleId = "3";
+    st.gameData.librarySlots.push_back(lib);
+    return st;
+}
+
+}  // namespace
+
+TEST(PhaseSettlementTest, CoreBatchParallelMatchesSerial) {
+    GameState serial = makePhaseCoreState();
+    GameState par = makePhaseCoreState();
+
+    system::runPhaseCoreBatch(serial);
+    ecs::JobSystem jobs(4);   // 多线程并行，真正分块
+    system::runPhaseCoreBatchParallel(par, jobs);
+
+    // 全状态 JSON 逐字节比对（零 RNG 批次 → 并行必须与串行完全一致）
+    nlohmann::json js;
+    gamecore::state::to_json(js, serial);
+    nlohmann::json jp;
+    gamecore::state::to_json(jp, par);
+    EXPECT_EQ(js.dump(), jp.dump()) << "并行核心批次必须与串行逐位一致";
+
+    // 显式关键字段抽查：修为/HP/MP/熟练度/装备孕养确实变化（场景生效）
+    EXPECT_GT(serial.disciples.materialize(1).cultivation, 40.0);
+    EXPECT_GT(serial.disciples.materialize(0).currentHp, 100);
+    EXPECT_EQ(1u, serial.gameData.manualProficiencies.count("1"));
+    EXPECT_EQ(1u, serial.gameData.manualProficiencies.count("2"));
+    EXPECT_GT(serial.equipmentInstances[0].nurtureProgress, 0.0);
 }
 
 }  // namespace

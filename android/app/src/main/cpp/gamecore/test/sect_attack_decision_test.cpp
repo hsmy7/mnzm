@@ -95,5 +95,32 @@ TEST(SectAttackDecisionTest, DecidePlayerAttackNoPlayerSectSkips) {
     EXPECT_EQ(rng.getRng(rng::RngPartition::kBattle).snapshot(), before);
 }
 
+// G7 剩余：占领判定（Kotlin executeSectBattleCore）下沉后守护
+// realm 语义 0=仙人 … 9=炼气；realm<=5 视为高阶战力（战败仍能守卫者）。
+TEST(SectAttackDecisionTest, ComputeCanOccupyFaithfulToKotlin) {
+    // 低阶弟子（realm>5）不会阻碍占领
+    std::vector<state::Disciple> pool;
+    { state::Disciple d = makeDisciple("a"); d.realm = 7; pool.push_back(d); }
+    { state::Disciple d = makeDisciple("b"); d.realm = 6; pool.push_back(d); }
+    EXPECT_TRUE(highRealmAllDead(pool, {}));          // 无 realm<=5 存活
+    EXPECT_TRUE(computeCanOccupy(true, pool, {}));    // 攻方胜 + 高阶全灭 → 可占领
+
+    // 存在高阶弟子（realm<=5）存活 → 高阶未灭 → 不可占领
+    { state::Disciple d = makeDisciple("c"); d.realm = 4; pool.push_back(d); }
+    EXPECT_FALSE(highRealmAllDead(pool, {}));
+    EXPECT_FALSE(computeCanOccupy(true, pool, {}));
+
+    // 该高阶弟子战死 → 不计入 → 高阶全灭 → 可占领
+    EXPECT_TRUE(highRealmAllDead(pool, {"c"}));
+
+    // 攻方失败 → 即使高阶全灭也不可占领
+    EXPECT_FALSE(computeCanOccupy(false, pool, {"c"}));
+
+    // 非存活弟子不计入
+    std::vector<state::Disciple> pool2;
+    { state::Disciple d = makeDisciple("d"); d.isAlive = false; d.realm = 1; pool2.push_back(d); }
+    EXPECT_TRUE(highRealmAllDead(pool2, {}));
+}
+
 }  // namespace
 }  // namespace gamecore::system::detail

@@ -7,6 +7,9 @@
 #include "gamecore/core/clock.h"
 #include "gamecore/core/logger.h"
 #include "gamecore/core/platform.h"
+#include "gamecore/ecs/job_system.h"
+#include "gamecore/ecs/system.h"
+#include "gamecore/ecs/world.h"
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/dirty_tracker.h"
 #include "gamecore/state/models.h"
@@ -193,6 +196,12 @@ private:
     rng::DeterministicRng aiRng_;      // AI 宗门独立 RNG（批 Y-4c）
     state::GameState state_;    // 游戏状态真相源
     system::SettlementEngine settlement_;  // 惰性结算引擎（批次 3）
+    // P0 ECS 接入：AUTHORITATIVE core 模式每旬核心批次经 ECS System 调度 +
+    // JobSystem 并行化（消除 5000 弟子单线程 O(D) 热点）。jobs_ 惰性创建
+    //（仅 core 模式），故非 core 测试/降级路径零线程开销。
+    ecs::World ecsWorld_;
+    ecs::SystemScheduler ecsScheduler_;
+    std::unique_ptr<ecs::JobSystem> jobs_;
     system::EngineLoop loop_;              // 引擎循环（阶段 5：AUTHORITATIVE 真相源）
     system::ProgressMonitor progressMonitor_;  // 看门狗统一判据（阶段 5）
     BatteryStatusProvider* batteryProvider_ = nullptr;  // 注入（不持有；访问器暴露）

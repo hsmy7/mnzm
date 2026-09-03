@@ -546,6 +546,38 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeCheckAttackConditio
     }
 }
 
+// G7 战斗残余：AI vs AI 战胜后占领判定（sect_attack_decision.h computeCanOccupy，
+// 纯确定性零 RNG——Kotlin executeSectBattleCore 战斗胜利后调用，替代内联判定）
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeComputeCanOccupy(
+    JNIEnv* env, jobject /*thiz*/, jbyteArray payloadJson) {
+    if (payloadJson == nullptr) return JNI_FALSE;
+    try {
+        const auto j = nlohmann::json::parse(jbytesToString(env, payloadJson));
+        const bool winnerIsAttacker = j.value("winnerIsAttacker", false);
+
+        std::vector<gamecore::state::Disciple> defenders;
+        if (j.contains("defenders") && j["defenders"].is_array()) {
+            for (const auto& d : j["defenders"]) {
+                gamecore::state::Disciple disc;
+                gamecore::state::from_json(d, disc);
+                defenders.push_back(std::move(disc));
+            }
+        }
+        std::vector<std::string> deadDefenderIds;
+        if (j.contains("deadDefenderIds") && j["deadDefenderIds"].is_array()) {
+            for (const auto& id : j["deadDefenderIds"]) {
+                deadDefenderIds.push_back(id.get<std::string>());
+            }
+        }
+        const bool result = gamecore::system::detail::computeCanOccupy(
+            winnerIsAttacker, defenders, deadDefenderIds);
+        return result ? JNI_TRUE : JNI_FALSE;
+    } catch (const std::exception&) {
+        return JNI_FALSE;
+    }
+}
+
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeLoopStart(

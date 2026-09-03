@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <string>
@@ -224,6 +225,40 @@ inline PlayerAttackDecision decidePlayerAttack(GameState& state, rng::RngManager
         }
     }
     return PlayerAttackDecision{};
+}
+
+// ── G7 剩余：战胜后占领判定下沉（Kotlin AISectAttackManager 占领判定） ──
+//
+// Kotlin executeSectBattleCore（AI vs AI）的占领判定——**纯确定性、零 RNG**：
+//   allDefenderDisciples = allSectDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
+//   highRealmAllDead      = allDefenderDisciples.filter { it.realm <= kHighRealmOccupiableMax }.isEmpty()
+//   canOccupy             = winner == ATTACKER && highRealmAllDead
+// 另 executePlayerSectBattle（AI 攻玩家）只有 canOccupy = winner == ATTACKER（无高阶门槛）。
+//
+// 阈值魔数 5（realm <= 5 视为"高阶战力"= 仙人~中层，战败后仍能守卫宗门者）提为命名常量
+//（编码规范 0.4）。realm 语义 0=仙人 … 9=炼气（battle.h / models.h 已对齐）。
+constexpr int32_t kHighRealmOccupiableMax = 5;
+
+/// 高阶弟子是否全灭（Kotlin highRealmAllDead：防守方宗门池中存活且未战死的
+/// 弟子的 realm 均 > kHighRealmOccupiableMax）。
+inline bool highRealmAllDead(
+    const std::vector<state::Disciple>& allDefenderDisciples,
+    const std::vector<std::string>& deadDefenderIds) {
+    for (const auto& d : allDefenderDisciples) {
+        if (!d.isAlive) continue;
+        const bool dead = std::find(deadDefenderIds.begin(), deadDefenderIds.end(), d.id) !=
+                          deadDefenderIds.end();
+        if (dead) continue;
+        if (d.realm <= kHighRealmOccupiableMax) return false;
+    }
+    return true;
+}
+
+/// AI vs AI 占领判定（Kotlin executeSectBattleCore：winner==ATTACKER && 高阶全灭）
+inline bool computeCanOccupy(
+    bool winnerIsAttacker, const std::vector<state::Disciple>& allDefenderDisciples,
+    const std::vector<std::string>& deadDefenderIds) {
+    return winnerIsAttacker && highRealmAllDead(allDefenderDisciples, deadDefenderIds);
 }
 
 }  // namespace gamecore::system::detail

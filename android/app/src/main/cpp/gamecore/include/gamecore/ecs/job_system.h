@@ -68,6 +68,18 @@ public:
     /// 静态连续分块——调度顺序确定性（每 index 恰一次）。chunkFn 须按 index 写独立切片。
     template <typename ChunkFn>
     void parallelFor(std::size_t count, ChunkFn&& chunkFn) {
+        parallelForIndexed(
+            count, [&chunkFn](std::size_t begin, std::size_t end, std::size_t) {
+                chunkFn(begin, end);
+            });
+    }
+
+    /// parallelFor 的索引版本：chunkFn(begin, end, chunkIndex)。
+    /// 每块任务把结果写进 chunkIndex 对应的独立切片，从而各块间无共享写、
+    /// 合并（按块序号）确定性——供需要块级输出的并行化场景（如逐弟子批次
+    /// 的本地暂存再合并）使用。其余约束与 parallelFor 相同。
+    template <typename ChunkFn>
+    void parallelForIndexed(std::size_t count, ChunkFn&& chunkFn) {
         if (count == 0) return;
         const std::size_t nChunks = std::min(threads_, count);
         const std::size_t chunk = (count + nChunks - 1) / nChunks;
@@ -75,7 +87,7 @@ public:
             const std::size_t begin = c * chunk;
             const std::size_t end = std::min(count, begin + chunk);
             if (begin >= end) continue;
-            submit([&chunkFn, begin, end]() { chunkFn(begin, end); });
+            submit([&chunkFn, begin, end, c]() { chunkFn(begin, end, c); });
         }
         wait();
     }

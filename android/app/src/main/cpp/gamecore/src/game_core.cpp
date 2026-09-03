@@ -168,10 +168,18 @@ bool GameCore::initialize(const GameCoreConfig& config) {
     if (config.authoritativeTickMode) {
         // T2.4（计划 v2 阶段 2d）：AUTHORITATIVE 过渡模式——core 模式下每旬
         // 只跑核心批次（步骤 1-5，零 RNG），月/年结算由 Kotlin 残留执行器
-        // 按 settleOnePhase 标志处理
+        // 按 settleOnePhase 标志处理。
+        // P0 ECS 接入：核心批次经 ECS System 调度（PhaseCoreBatchSystem）+
+        // JobSystem 并行化——消除 5000 弟子单线程 O(D) 热点的生产路径。
+        jobs_ = std::make_unique<ecs::JobSystem>();
+        ecsScheduler_.attach(
+            std::make_unique<system::PhaseCoreBatchSystem>(state_, *jobs_));
         settlement_.setCoreMode(true);
         settlement_.onCoreSettle = [this](state::GameState& s, state::GameData&) {
-            system::runPhaseCoreBatch(s);
+            // s == state_（SettlementEngine 以 state_ 驱动）；系统持有 state_
+            // 引用，经调度器驱动核心批次。
+            (void)s;
+            ecsScheduler_.runAll(ecsWorld_);
         };
     }
     syncRngStates();

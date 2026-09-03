@@ -11,6 +11,8 @@
 
 #include "gamecore/rng/rng_manager.h"
 #include "gamecore/state/models.h"
+#include "gamecore/ecs/job_system.h"
+#include "gamecore/ecs/system.h"
 #include "gamecore/system/auto_gear.h"
 #include "gamecore/system/breakthrough.h"
 #include "gamecore/system/cultivation.h"
@@ -1239,6 +1241,96 @@ inline void runPhaseCoreBatch(state::GameState& state) {
     detail::applyEquipmentUpdates(state, pendingEquipmentUpdates);
 }
 
+// ════════════════════════════════════════════════════════════════════
+// 每旬核心批次并行化（P0：ECS JobSystem 接入——消除 5000 弟子每旬 O(D) 单线程热点）
+//
+// 结构：与串行 [runPhaseCoreBatch] 完全同构，唯一区别 = 逐弟子循环改为
+// JobSystem::parallelForIndexed 分块并行，每块累积**局部** pending 提供，
+// 分块完成后按块序号**确定性合并**（块间无共享写；每弟子 id / 每装备 id
+// 在块间唯一，合并序无关——见下"确定性"）。
+//
+// ## 确定性论证（清零 RNG 红线）
+//   1. 本批次全程 **零 RNG**——不消耗任何分区（步骤 1-5 纯计算），
+//      因此并行不产生 RNG 抽取序问题。
+//   2. 逐弟子写入仅限**本人行**（currentHp/currentMp/cultivation 列），
+//      跨线程不同 index 写不同元素 → 无数据竞争。
+//   3. 读取面 = 本人行列 + 其他弟子**静态列**（realm/teaching/talent/
+//      isAlive/spiritRoot/parentId/masterId/type）+ gameData（elderSlots/
+//      residenceSlots/placedBuildings/manualProficiencies）——这些列在本批次
+//      循环内**从不被写**（仅 currentHp/currentMp/cultivation 被写），并发读安全。
+//   4. 熟练度/装备孕养暂存按各自 id 键控，且同一 id 只被一个弟子（行）
+//      处理 → 各块局部暂存合并到同一标准 map 时键唯一，最终结果与串行
+//      逐位一致、与合并顺序无关。
+//
+// ## 边界（与串行一致）
+//   - 每弟子同 id 行唯一（DiscipleStore.idToRow 保证）。
+//   - 装备实例 id 在本批次内唯一（每装备归一个弟子的四槽）。
+//   - 结果与 [runPhaseCoreBatch] 逐步一致——由守护测试
+//     PhaseSettlementTest.CoreBatchParallelMatchesSerial 强制校验。
+// ════════════════════════════════════════════════════════════════════
+
+/// 并行每旬核心批次（JobSystem 分块；与串行版逐位一致——守护测试校验）
+inline void runPhaseCoreBatchParallel(state::GameState& state,
+                                      ecs::JobSystem& jobs) {
+    const std::size_t rowCount = state.disciples.size();
+    if (rowCount == 0) return;
+    const auto eqMap = detail::equipmentMapOf(state.equipmentInstances);
+    const auto mnMap = detail::manualMapOf(state.manualInstances);
+    const auto idx = detail::indexById(state.disciples);
+    const auto secretIds = detail::secretRealmMemberIds(state.gameData);
+    // P-1 藏经阁弟子预构建集合
+    std::set<std::string> libraryIds;
+    for (const auto& slot : state.gameData.librarySlots) {
+        if (!slot.discipleId.empty()) libraryIds.insert(slot.discipleId);
+    }
+
+    struct ChunkResult {
+        detail::PendingProficiencies pending;
+        std::map<std::string, state::EquipmentInstance> equipmentUpdates;
+    };
+    const std::size_t nChunks = std::min(jobs.threadCount(), rowCount);
+    std::vector<ChunkResult> chunkResults(nChunks);
+
+    jobs.parallelForIndexed(rowCount, [&](std::size_t begin, std::size_t end,
+                                          std::size_t c) {
+        ChunkResult local;
+        state::DiscipleStore& ds = state.disciples;
+        for (std::size_t row = begin; row < end; ++row) {
+            if (ds.isAlive[row] == 0) continue;
+            const auto id = detail::toIntOrNull(ds.ids[row]);
+            if (!id.has_value() || secretIds.count(*id)) continue;
+            // 1) HP/MP 恢复（本人行列直写）
+            detail::recoverHpMp(ds, row, state.gameData, eqMap, mnMap);
+            // 2) 修炼累积（≥1e8 视为异常满值跳过）
+            if (ds.cultivations[row] < kCultivationSkipThreshold) {
+                detail::accumulateCultivation(state, row, idx, mnMap);
+            }
+            // 3) 功法熟练度（局部暂存）
+            detail::processManualProficiency(
+                state.gameData, ds, row, mnMap,
+                libraryIds.count(ds.ids[row]) > 0, local.pending);
+            // 4) 装备孕养（局部暂存）
+            detail::processEquipmentNurture(ds, row, eqMap,
+                                            local.equipmentUpdates);
+        }
+        chunkResults[c] = std::move(local);
+    });
+
+    // 确定性合并（按块序号；键在块间唯一 → 直接覆盖赋值）
+    detail::PendingProficiencies pendingProficiencies;
+    std::map<std::string, state::EquipmentInstance> pendingEquipmentUpdates;
+    for (ChunkResult& cr : chunkResults) {
+        for (auto& kv : cr.pending) {
+            pendingProficiencies[kv.first] = std::move(kv.second);
+        }
+        for (auto& kv : cr.equipmentUpdates) {
+            pendingEquipmentUpdates[kv.first] = std::move(kv.second);
+        }
+    }
+    detail::commitManualProficiencies(state.gameData, pendingProficiencies);
+    detail::applyEquipmentUpdates(state, pendingEquipmentUpdates);
+}
+
 /// 执行一旬弟子结算（时间推进由 SettlementEngine 负责，本函数只做结算）。
 /// @param state 完整游戏状态（就地修改）
 /// @param rng   RNG 分区管理器（仅 BREAKTHROUGH 分区被消耗）
@@ -1270,5 +1362,24 @@ inline void runPhaseSettlement(state::GameState& state,
     const auto idx = detail::indexById(state.disciples);
     detail::processBreakthroughs(state, rng, idx, committedDisciples, secretIds);
 }
+
+// ── ECS System 适配器：把每旬核心批次表达为可调度系统（P0 ECS 接入） ──
+//
+// 把 AUTHORITATIVE core 模式的每旬热路径（runPhaseCoreBatch）包成一个
+// ecs::ISystem，经 SystemScheduler 驱动（接入调度框架），内部用 JobSystem
+// 并行化逐弟子批次。DiscipleStore 仍是权威，ECS System 是调度/并行化外壳。
+class PhaseCoreBatchSystem : public ecs::ISystem {
+public:
+    PhaseCoreBatchSystem(state::GameState& state, ecs::JobSystem& jobs)
+        : state_(&state), jobs_(&jobs) {}
+    const char* name() const override { return "PhaseCoreBatch"; }
+    int priority() const override { return 0; }
+    // 系统内已用 JobSystem 并行化（页内并行）——系统级不再并行 → false
+    bool isParallelizable() const override { return false; }
+    void run(ecs::World&) override { runPhaseCoreBatchParallel(*state_, *jobs_); }
+private:
+    state::GameState* state_;
+    ecs::JobSystem* jobs_;
+};
 
 }  // namespace gamecore::system

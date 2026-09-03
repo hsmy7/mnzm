@@ -26,6 +26,7 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.nativebridge.GameCoreBridge
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -365,10 +366,17 @@ object AISectAttackManager {
             .filter { it.id !in survivorDefenderIds }
             .map { it.id }
 
-        val allDefenderDisciples = allSectDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
-        val highRealmAllDead = allDefenderDisciples.filter { it.realm <= 5 }.isEmpty()
-
-        val canOccupy = result.winner == AIBattleWinner.ATTACKER && highRealmAllDead
+        // G7 战斗残余：占领判定（winner==ATTACKER && 高阶全灭）经 C++
+        // computeCanOccupy 计算（sect_attack_decision.h，纯确定性零 RNG）；
+        // native 未加载/异常时回退 Kotlin 原判定（保障行为一致）。
+        val canOccupy = tryNativeComputeCanOccupy(
+            winnerIsAttacker = result.winner == AIBattleWinner.ATTACKER,
+            allSectDisciples = allSectDisciples,
+            deadDefenderIds = deadDefenderIds
+        ) ?: run {
+            val allDefenderDisciples = allSectDisciples.filter { it.isAlive && it.id !in deadDefenderIds }
+            result.winner == AIBattleWinner.ATTACKER && allDefenderDisciples.none { it.realm <= 5 }
+        }
 
         val survivorHpMap = result.attackers.associate { it.id to it.hp }
         val survivorMpMap = result.attackers.associate { it.id to it.mp }
@@ -1011,6 +1019,36 @@ object AISectAttackManager {
             throw e
         } catch (e: Exception) {
             DomainLog.w(TAG, "nativeCheckAttackConditions degraded to Kotlin: $e")
+            null
+        }
+    }
+
+    /**
+     * G7 战斗残余：AUTHORITATIVE 下经 C++ 判定战胜后占领（sect_attack_decision.h
+     * computeCanOccupy，纯确定性零 RNG）。降级：flag 关/native 未加载/异常 → null
+     * （调用方在 executeSectBattleCore 回退 Kotlin 原判定）。
+     */
+    @Suppress("TooGenericExceptionCaught")
+    private fun tryNativeComputeCanOccupy(
+        winnerIsAttacker: Boolean,
+        allSectDisciples: List<Disciple>,
+        deadDefenderIds: List<String>
+    ): Boolean? {
+        if (!NativeEngineFlag.authoritative) return null
+        if (!GameCoreBridge.isLoaded) return null
+        val payload = buildJsonObject {
+            put("winnerIsAttacker", JsonPrimitive(winnerIsAttacker))
+            putJsonArray("defenders") {
+                allSectDisciples.forEach { add(Json.encodeToJsonElement(Disciple.serializer(), it)) }
+            }
+            putJsonArray("deadDefenderIds") { deadDefenderIds.forEach { add(JsonPrimitive(it)) } }
+        }
+        return try {
+            GameCoreBridge.nativeComputeCanOccupy(payload.toString().encodeToByteArray())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "nativeComputeCanOccupy degraded to Kotlin: $e")
             null
         }
     }

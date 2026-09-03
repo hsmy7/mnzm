@@ -187,6 +187,18 @@ object GameCoreBridge {
         playerGarrisonJson: ByteArray
     ): Boolean
 
+    /**
+     * 战胜后占领判定通道（G7 战斗残余下沉）：AI vs AI 宗门战结束后的
+     * `winner==ATTACKER && 高阶全灭` 判定（sect_attack_decision.h computeCanOccupy，
+     * 纯确定性、零 RNG）。Kotlin `executeSectBattleCore` 在战斗胜利后调用，
+     * 传入 `allSectDisciples`（防守方全宗门弟子池）+ `deadDefenderIds`。
+     *
+     * @param payloadJson `{"winnerIsAttacker":bool,"deadDefenderIds":[...],
+     *        "defenders":[Disciple...]}`（defenders 为全宗门池，含复活/驻军）
+     * @return 是否可占领；解析失败/异常返回 false（调用方回退 Kotlin 判定）
+     */
+    external fun nativeComputeCanOccupy(payloadJson: ByteArray): Boolean
+
     // ============================================================
     // 状态快照
     // ============================================================
