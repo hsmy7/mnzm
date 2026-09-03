@@ -74,7 +74,9 @@ private fun computeFastPreview(
         v0 = uvs[1],
         u1 = uvs[2],
         v1 = uvs[3],
-        alpha = 0.5f
+        // ★ 2026-09 修复：精灵不透明显示（原 0.5 半透明与半透明预览框叠成
+        //   "两个绿色半透明背景"；与 SectMapViewport 放置路径 previewAlpha=1.0 一致）
+        alpha = 1.0f
     )
 }
 

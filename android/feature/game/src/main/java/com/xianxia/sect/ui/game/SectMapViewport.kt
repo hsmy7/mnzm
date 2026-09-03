@@ -290,7 +290,9 @@ private fun buildSectRenderFrame(
     previewTintRed = 1.0f,
     previewTintGreen = 1.0f,
     previewTintBlue = 1.0f,
-    previewAlpha = 0.5f,
+    // ★ 2026-09 修复：精灵不透明显示（原 0.5 半透明令绿色系建筑与半透明预览框
+    //   叠成"两个绿色半透明背景"，观感混乱——精灵全显、提示框仍半透明）
+    previewAlpha = 1.0f,
     // 占地框（预览框）：与预览精灵同帧同源（绿/红提示可放置/不可放置）
     previewBoxVisible = preview.hasPreview,
     previewBoxValid = preview.boxValid,

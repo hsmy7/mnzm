@@ -121,10 +121,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         drawDemolishHighlight(frame, effectiveBuildingData, effectiveBuildingCount, busWasDirty)
 
         if (frame.showPreview && host.atlasTextureId != 0) {
-            // 占地框（预览框）+ 建筑精灵：同帧同源绘制（绿/红提示可放置/不可放置），永不脱节
-            if (frame.previewBoxVisible) {
-                drawPreviewHighlight(frame)
-            }
+            // ★ 2026-09 调整：精灵先画、占地框（填充+描边）后画——填充绿纱罩于
+            //   精灵之上（标准放置 UI），且精灵透明区不再透出填充色
             NativeBridge.drawSprite(
                 frame.previewX, frame.previewY,
                 frame.previewW, frame.previewH,
@@ -134,6 +132,9 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
                 frame.previewTintRed, frame.previewTintGreen,
                 frame.previewTintBlue, frame.previewAlpha
             )
+            if (frame.previewBoxVisible) {
+                drawPreviewHighlight(frame)
+            }
         }
 
         // ★ 放置/移动模式网格线（预览精灵之上——与旧 Compose 覆盖层层叠顺序一致；
@@ -307,7 +308,8 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         val fillR = if (valid) PREVIEW_GREEN_R else PREVIEW_RED_R
         val fillG = if (valid) PREVIEW_GREEN_G else PREVIEW_RED_G
         val fillB = if (valid) PREVIEW_GREEN_B else PREVIEW_RED_B
-        // 填充 → 上边 → 下边 → 左边 → 右边（描边盖住填充边缘，避免颜色叠加发亮）
+        // 填充（绿/红半透明，可放置提示）→ 上边 → 下边 → 左边 → 右边
+        //（描边盖住填充边缘，避免颜色叠加发亮）
         NativeBridge.drawRect(x, y, w, h, fillR, fillG, fillB, PREVIEW_BOX_FILL_ALPHA)
         NativeBridge.drawRect(x, y, w, lineWidth, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
         NativeBridge.drawRect(x, y + h - lineWidth, w, lineWidth, fillR, fillG, fillB, PREVIEW_BOX_EDGE_ALPHA)
@@ -342,8 +344,10 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         val lastRow = ((cachedCamY + viewportH / scale) / tileSize).toInt()
             .coerceAtMost(host.renderConfig.worldHeightCells)
 
-        // 目标屏幕线宽 1px，换算回世界坐标（除 scale）；下限 0.5 世界单位防退化 quad
-        val lineWidth = maxOf(0.5f, 1f / scale)
+        // ★ 目标屏幕线宽 1px，换算回世界坐标（除 scale）；下限 0.5 世界单位防退化 quad。
+        //    2026-09 骁龙 8 Gen 2 修复：离屏降采样渲染下 1 物理屏像素 = 0.5 离屏像素，
+        //    细线光栅化被整条丢弃（放置模式方格不完整/单线根因）——线宽按 2 物理屏像素起
+        val lineWidth = maxOf(0.5f, 2f / scale)
         for (col in firstCol..lastCol) {
             val x = col * tileSize.toFloat()
             NativeBridge.drawRect(x, 0f, lineWidth, worldH.toFloat(), GRID_R, GRID_G, GRID_B, GRID_ALPHA)

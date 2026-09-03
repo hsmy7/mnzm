@@ -564,17 +564,28 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     // 整图单 quad 消除逐格接缝。g_groundTexId==0（未上传）时回退逐格地面保证可见。
     const float tileSizeF = (float)tileSize;
 
-    if (g_groundTexId != 0) {
+    // ★ 根因修复（2026-09 骁龙 8 Gen 2 地面黑屏）：整图 REPEAT 地面 quad 在
+    //   Adreno 740 上采样异常（黑屏，真机实测），且与图集非同一纹理需独立 draw。
+    //   改走逐格地面（图集 GROUND 精灵，与软件渲染路径同源同表现）——
+    //   整图 quad 代码保留（GROUND_QUAD_ENABLED 关闭），待驱动/采样问题定位后再启用。
+    constexpr bool GROUND_QUAD_ENABLED = false;
+    if (GROUND_QUAD_ENABLED && g_groundTexId != 0) {
+        SpriteBatcher groundBatcher;
+        groundBatcher.begin(g_projMatrix);
         float gx0 = std::max(0.0f, g_viewLeft);
         float gy0 = std::max(0.0f, g_viewTop);
         float gx1 = std::min((float)(cols * tileSize), g_viewRight);
         float gy1 = std::min((float)(rows * tileSize), g_viewBottom);
         if (gx1 > gx0 && gy1 > gy0) {
-            batcher.add(g_groundTexId,
+            groundBatcher.add(g_groundTexId,
                 gx0, gy0, gx1 - gx0, gy1 - gy0,
                 gx0 / tileSizeF, gy0 / tileSizeF,
                 gx1 / tileSizeF, gy1 / tileSizeF,
                 1.0f, 1.0f, 1.0f, fadeAlpha);
+        }
+        const int groundVerts = groundBatcher.end();
+        if (groundVerts > 0) {
+            g_renderer->draw(groundBatcher.vertices, groundVerts, g_groundTexId);
         }
     }
 
@@ -598,9 +609,10 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             // 可见性检测（钳制区间内仍保留——钳制边界含装饰溢出 1 格，地面格用精确检测）
             if (!isRectVisible(wx, wy, tileSizeF, tileSizeF)) continue;
 
-            // (A) 地面底图：上方整图地面 quad 已覆盖全部可见格；
-            //     g_groundTexId==0（未上传）时逐格回退绘制保证地面可见
-            if (g_groundTexId == 0) {
+            // (A) 地面底图：逐格绘制（图集 GROUND 精灵，与软件渲染路径同源）。
+            //     ★ 2026-09 骁龙 8 Gen 2：整图 REPEAT quad 采样异常黑屏（GROUND_QUAD_ENABLED
+            //     关闭），恒走逐格地面——原 g_groundTexId==0 才回退的条件放宽为恒真
+            if (!GROUND_QUAD_ENABLED || g_groundTexId == 0) {
                 int gIdx = 0;
                 for (int gv = 0; gv < GROUND_VARIANT_COUNT; gv++) {
                     if (tile == GROUND_VARIANTS[gv]) { gIdx = tile; break; }

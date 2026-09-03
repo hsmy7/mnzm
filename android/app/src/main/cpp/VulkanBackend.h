@@ -114,6 +114,8 @@ private:
     bool createLogicalDevice();
     bool createSwapchain(int width, int height);
     bool createRenderPass();
+    /** 离屏渲染 pass：attachment finalLayout = TRANSFER_SRC_OPTIMAL（供 blit 读取；PRESENT_SRC 仅对交换链图像合法） */
+    bool createOffscreenRenderPass();
     bool createPipeline();
     bool createVertexBuffer();
     bool createCommandObjects();
@@ -155,20 +157,26 @@ private:
     std::vector<VkFramebuffer> m_framebuffers;
 
     VkRenderPass m_renderPass = VK_NULL_HANDLE;
+    /** 离屏渲染 pass（finalLayout=TRANSFER_SRC_OPTIMAL；与主 pass 附件描述一致，管线兼容） */
+    VkRenderPass m_offscreenRenderPass = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
 
-    // 双缓冲 VBO（交替写入，避免 GPU 读 CPU 写冲突）
-    VkBuffer m_vertexBuffers[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    VkDeviceMemory m_vertexMemories[2] = { VK_NULL_HANDLE, VK_NULL_HANDLE };
-    void* m_vertexMapped[2] = { nullptr, nullptr };
+    // 同步对象（三重缓冲）
+    static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
+
+    // ★ VBO 三缓冲（2026-09 骁龙 8 Gen 2 放置模式白屏根因修复）：与
+    //   MAX_FRAMES_IN_FLIGHT 对齐、按 m_currentFrame 索引——此前仅双缓冲，
+    //   帧 N+2 写入 buffer A 时 GPU 帧 N 仍在读 buffer A（fence 只保护 3 帧前）
+    //   → 顶点数据撕裂 → 放置模式高频渲染时画面随机白屏
+    VkBuffer m_vertexBuffers[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    VkDeviceMemory m_vertexMemories[MAX_FRAMES_IN_FLIGHT] = { VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE };
+    void* m_vertexMapped[MAX_FRAMES_IN_FLIGHT] = { nullptr, nullptr, nullptr };
     VkDeviceSize m_vertexBufferSize = MAX_VERTICES * sizeof(SpriteVertex) * 2;
 
     VkCommandPool m_commandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> m_commandBuffers;  // per swapchain image
 
-    // 同步对象（三重缓冲）
-    static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
     std::vector<VkSemaphore> m_imageAvailable;
     std::vector<VkSemaphore> m_renderFinished;
     std::vector<VkFence> m_inFlightFences;
@@ -182,6 +190,12 @@ private:
         VkSampler sampler = VK_NULL_HANDLE;
         int width = 0, height = 0;
         uint32_t id = 1;  // 纹理 ID（1+ 为上传纹理，0 为白色纹理）
+        /** 采样器地址模式（上传时确定——地面 REPEAT/图集 CLAMP；setTextureQuality 重建采样器须保留原模式） */
+        VkSamplerAddressMode addressMode = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        /** 独立描述符集（★ 2026-09 根因修复：上传时分配+更新，submitFrame 仅 bind——
+         *  此前在 command buffer 记录期间多次 vkUpdateDescriptorSets 共享集（规范非法，
+         *  骁龙 8 Gen 2 放置模式白屏根因）） */
+        VkDescriptorSet descSet = VK_NULL_HANDLE;
     };
     std::vector<Texture> m_textures;
     uint32_t m_atlasTextureId = 0;  // 主图集纹理
@@ -190,10 +204,10 @@ private:
     // 描述符
     VkDescriptorPool m_descriptorPool = VK_NULL_HANDLE;
     VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
-    VkDescriptorSet m_descriptorSet = VK_NULL_HANDLE;
 
-    // 将描述符集指向指定的纹理（shader 中 binding=0 的 sampler2D）
-    void bindTextureToDescriptor(const Texture& tex);
+    // 为纹理分配/更新独立描述符集（upload/setTextureQuality/重建时调用；
+    // 非 command buffer 记录期间调用——submitFrame 仅 bind，见 Texture.descSet）
+    void updateTextureDescriptor(Texture& tex);
 
     // 纹理上传共享实现（CLAMP/REPEAT 由 addressMode 参数化；uploadTexture/uploadRepeatTexture 复用）
     uint32_t uploadTextureImpl(const void* pixels, int width, int height,
@@ -242,7 +256,6 @@ private:
 
     // VBO 双缓冲偏移
     int m_vboOffset = 0;                            // 当前帧 VBO 写入位置（字节偏移）
-    int m_activeBuffer = 0;                         // 当前活动 VBO 索引
 
     // Staging buffer（用于 OPTIMAL tiling 纹理上传）
     VkBuffer m_stagingBuffer = VK_NULL_HANDLE;

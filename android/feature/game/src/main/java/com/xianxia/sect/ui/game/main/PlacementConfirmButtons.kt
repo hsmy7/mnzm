@@ -12,7 +12,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -59,19 +58,9 @@ internal fun PlacementConfirmButtons(
         onConfirm = onConfirm,
         onCancel = onCancel
     )
-    // 放置预览覆盖层 — 尺寸需乘以相机缩放（与 worldToScreenX 同步）
-    val overlayWDp = (buildingSize.width * tileSize * cameraState.scale) / density
-    val overlayHDp = (buildingSize.height * tileSize * cameraState.scale) / density
-    val overlayColor = if (canConfirm) Color(0x664CAF50) else Color(0x66F44336)
-    Box(
-        modifier = Modifier
-            .graphicsLayer {
-                translationX = cameraState.worldToScreenX(worldX)
-                translationY = cameraState.worldToScreenY(worldY)
-            }
-            .size(width = overlayWDp.dp, height = overlayHDp.dp)
-            .background(overlayColor)
-    )
+    // ★ 2026-09 修复：删除 Compose"放置预览覆盖层"（40% 半透明绿矩形）——
+    //   与渲染层预览框（描边）叠加成"两个绿色半透明背景"；渲染层已承担
+    //   绿/红可放置提示职责，此覆盖层冗余
 }
 
 /**

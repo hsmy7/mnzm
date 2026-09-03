@@ -30,6 +30,20 @@
 - **守卫测试**：`AndroidSurfaceProviderTest` 新增 2 项——`surfaceCreated`/`创建到可用完整序列` 全程零 lockCanvas，锁定根因不回归。
 - **验证**：`:feature:game:testReleaseUnitTest`（AndroidSurfaceProviderTest + NativeSurfaceViewTest 串行）全绿 · `compileReleaseKotlin` 通过。
 
+### 修复：骁龙 8 Gen 2 真机 Vulkan 渲染管线五连修复（建筑像素点/地面黑屏/放置模式白屏/网格线缺失/双重绿框）
+
+> 2026-09 骁龙 8 Gen 2 真机首次打通 GPU 渲染后逐层暴露的 Vulkan 管线问题链，全部根因修复：图集块级错乱、地面黑屏、放置模式白屏、网格线不完整、预览双重绿色色块。
+
+- **ASTC 图集块级错位（建筑"密密麻麻像素点"根因）**：`uploadCompressedTexture` 逐级拷贝的 `bufferOffset = cursor + 4`（跳过 KTX [size4] 前缀）非 16 字节（ASTC 块大小）倍数，违反 VUID-VkBufferImageCopy-bufferOffset-00193 → Adreno 块级错位。修复：staging 逐级紧凑拷贝纯块数据，偏移恒 16 字节对齐。
+- **地面黑屏（双重根因）**：① 地面 REPEAT 采样器在 `setTextureQuality` 重建时被硬编码 CLAMP 覆盖（UV>1 钳制为边缘色）——修复为按纹理记录地址模式重建；② 整图地面 quad 与图集非同一纹理却在同一 batcher 以 atlasTexId 提交——地面暂改逐格绘制（图集 GROUND 精灵，与软件路径同源，`GROUND_QUAD_ENABLED=false` 兜底）。
+- **放置模式白屏（描述符集根因）**：`submitFrame` 在 command buffer 记录期间多次 `vkUpdateDescriptorSets` 改写共享描述符集（规范非法）——普通模式单纹理不触发、放置模式图集+白纹切换触发，Adreno 上描述符错乱 → 后续 draw 全采白纹。修复：每纹理独立描述符集（upload/setTextureQuality 时分配+更新，submitFrame 仅 `vkCmdBindDescriptorSets` 切换）。
+- **网格线缺失/单线（离屏细线光栅化丢弃）**：线宽 1 物理屏像素在 0.5 离屏分辨率下不足 1 离屏像素被整条丢弃——线宽下限提至 2 物理屏像素；同时 `MAX_SPRITES_PER_FRAME` 4096→8192（放置模式瓦片+装饰+网格线超限被丢弃）。
+- **VBO 双缓冲 + 3 in-flight 覆盖竞态（预防）**：VBO 增至三缓冲、按 `m_currentFrame` 索引（fence 语义对齐），根除帧 N+2 覆写 GPU 仍在读的 buffer。
+- **离屏 renderPass 布局非法**：`finalLayout = PRESENT_SRC_KHR` 对非交换链图像非法——新增独立 `createOffscreenRenderPass`（TRANSFER_SRC_OPTIMAL）+ `setRenderScale` 重建顺序修正（framebuffer 引用新 renderPass，消除 VUID 00873 违规）。
+- **Vulkan 清屏色米白→黑**（此前 Canvas 路径已修、Vulkan 路径漏改；淡入期间透出白屏）。
+- **预览双重绿色色块**：删除 Compose `PlacementConfirmButtons` 冗余覆盖层（40% 半透明绿矩形）；预览框（渲染层）恢复"填充+描边"且改为精灵先画、填充罩上（绿纱标准放置 UI，精灵透明区不再透出填充色）；预览精灵 alpha 0.5→1.0 不透明（放置/移动两路径一致）。
+- **验证**：真机实测全链路正常（普通地图/放置模式/移动建筑/网格线）；`compileReleaseKotlin` · 相关单测（NativeSurfaceViewTest/SoftwareCanvasBackend 系列/MainGameScreenSelectionTest/FrameSkipPolicyTest 串行）· `lintRelease` 全绿。
+
 ### 新增：建筑点击选中 + 底部"进入" UI（CoC 式选中重设计）
 
 > 2026-09 玩家指引：把「点击建筑直接弹详情」改为「点击建筑先选中」——选中态建筑上方显示固定 32dp 的 ✓/x 按钮（仅图标，无绿/红圆底），屏幕正下方显示"进入"按钮，点击弹出对应建筑详情；拖动选中的建筑可直接移动。灵田/炼丹炉/锻造坊使用专属进入图标（种植/炼丹/锻造）。

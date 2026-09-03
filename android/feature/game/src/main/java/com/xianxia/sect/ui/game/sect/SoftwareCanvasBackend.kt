@@ -754,11 +754,12 @@ class SoftwareCanvasBackend(
         }
         drawDemolishHighlight(canvas, frame, drawScale)
         if (frame.showPreview) {
-            // 占地框（预览框）+ 建筑精灵：同帧同源绘制（绿/红提示可放置/不可放置），永不脱节
+            // ★ 2026-09 调整：精灵先画、占地框（填充+描边）后画——填充绿纱罩于
+            //   精灵之上（标准放置 UI），与 Vulkan 路径顺序一致
+            drawPreview(canvas, atlas, frame, drawScale)
             if (frame.previewBoxVisible) {
                 drawPreviewHighlight(canvas, frame, drawScale, config.tileSize, previewBoxPaint)
             }
-            drawPreview(canvas, atlas, frame, drawScale)
         }
         drawGridOverlay(canvas, frame, drawScale, fbW, fbH)
 
@@ -1418,9 +1419,9 @@ private fun drawPreviewHighlight(
     if (offScreenX || offScreenY || degenerate) return
 
     val lineWidth = maxOf(2f, tileSize * PREVIEW_BOX_HIGHLIGHT_LINE_WIDTH_TILES * drawScale)
+    // 填充（绿/红半透明，可放置提示）→ 描边盖住填充边缘：上 → 下 → 左 → 右
     previewBoxPaint.color = if (frame.previewBoxValid) PREVIEW_GREEN_FILL_COLOR else PREVIEW_RED_FILL_COLOR
     canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), previewBoxPaint)
-    // 描边盖住填充边缘：上 → 下 → 左 → 右
     previewBoxPaint.color = if (frame.previewBoxValid) PREVIEW_GREEN_EDGE_COLOR else PREVIEW_RED_EDGE_COLOR
     canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), top + lineWidth, previewBoxPaint)
     canvas.drawRect(left.toFloat(), bottom - lineWidth, right.toFloat(), bottom.toFloat(), previewBoxPaint)

@@ -250,6 +250,7 @@ bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH
 
     if (!createSwapchain(viewportW, viewportH)) { LOGE("initSurface: createSwapchain failed"); return false; }
     if (!createRenderPass()) { LOGE("initSurface: createRenderPass failed"); return false; }
+    if (!createOffscreenRenderPass()) { LOGE("initSurface: createOffscreenRenderPass failed"); return false; }
     if (!createFramebuffers()) { LOGE("initSurface: createFramebuffers failed"); return false; }
     if (!createOffscreenTargets()) { LOGE("initSurface: createOffscreenTargets failed"); return false; }
 
@@ -267,7 +268,7 @@ bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH
     if (!createWhiteTexture()) {
         LOGE("initSurface: white texture creation failed (non-fatal)");
     } else {
-        bindTextureToDescriptor(m_whiteTexture);
+        updateTextureDescriptor(m_whiteTexture);
     }
 
     orthoProj(m_projMatrix, 0.0f, (float)viewportW, (float)viewportH, 0.0f);
@@ -339,8 +340,8 @@ void VulkanBackend::shutdown() {
     if (m_descriptorPool) { vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr); m_descriptorPool = VK_NULL_HANDLE; }
     if (m_descriptorSetLayout) { vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr); m_descriptorSetLayout = VK_NULL_HANDLE; }
 
-    // 清理双缓冲 VBO
-    for (int i = 0; i < 2; i++) {
+    // 清理三缓冲 VBO
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (m_vertexMapped[i]) {
             vkUnmapMemory(m_device, m_vertexMemories[i]);
             m_vertexMapped[i] = nullptr;
@@ -754,7 +755,8 @@ void VulkanBackend::destroyOffscreenTargets() {
 
 bool VulkanBackend::createOffscreenTargets() {
     // 缩放 1.0 或设备不支持 blit → 直渲路径（不创建离屏目标）
-    if (m_renderScale >= 1.0f || !m_blitSupported || m_renderPass == VK_NULL_HANDLE) {
+    if (m_renderScale >= 1.0f || !m_blitSupported ||
+        m_offscreenRenderPass == VK_NULL_HANDLE) {
         m_usingOffscreen = false;
         return true;
     }
@@ -837,7 +839,10 @@ bool VulkanBackend::createOffscreenTargets() {
 
         VkFramebufferCreateInfo fbInfo{};
         fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        fbInfo.renderPass = m_renderPass;
+        // ★ 用离屏专用 renderPass（finalLayout=TRANSFER_SRC_OPTIMAL）创建——主
+        //   renderPass 的 PRESENT_SRC 布局对非交换链图像非法，且重建时序上
+        //   主 renderPass 可能在 framebuffer 之前被销毁（VUID 00873）
+        fbInfo.renderPass = m_offscreenRenderPass;
         fbInfo.attachmentCount = 1;
         fbInfo.pAttachments = &m_offscreenViews[i];
         fbInfo.width = offW;
@@ -878,25 +883,46 @@ float VulkanBackend::setRenderScale(float scale) {
     m_ready = false;
     vkDeviceWaitIdle(m_device);
 
-    bool wasOffscreen = m_usingOffscreen;
+    // 旧离屏目标先销毁（其 framebuffers 引用 m_offscreenRenderPass——
+    // 必须早于 renderPass 销毁，VUID-vkDestroyRenderPass-renderPass-00873）
     destroyOffscreenTargets();
     m_renderScale = scale;
-    createOffscreenTargets();  // 内部失败自动回退 1.0
+    const bool willUseOffscreen = scale < 1.0f;
 
-    // 渲染目标尺寸变化 → viewport/scissor 变 → 重建管线（Pipeline Cache 加速，~ms 级）
-    if (wasOffscreen != m_usingOffscreen) {
+    // ★ 顺序修正（2026-09 骁龙 8 Gen 2 黑屏噪点根因）：
+    //   旧顺序 createOffscreenTargets 先于 renderPass 重建——offscreen framebuffer
+    //   以旧 renderPass 创建，随后 destroyGraphicsObjects 销毁该 renderPass
+    //   （违反 VUID-vkDestroyRenderPass-renderPass-00873）。新顺序：
+    //   先重建 graphics 对象（管线 viewport 已改为按 m_renderScale 现场推导，
+    //   不依赖离屏目标创建时机），最后创建离屏目标（framebuffer 绑定新
+    //   m_offscreenRenderPass）。
+    //   任何 scale 变化都改变 viewport extent（直渲值仅 1.0 且被 fabs 提前返回拦截），
+    //   故无条件重建 graphics（Pipeline Cache 命中，~ms 级）。
+    destroyGraphicsObjects();
+    if (!createRenderPass() || !createOffscreenRenderPass() ||
+        !createFramebuffers() || !createPipeline()) {
+        LOGE("setRenderScale: graphics rebuild failed — falling back to direct render");
+        m_renderScale = 1.0f;
         destroyGraphicsObjects();
-        if (!createRenderPass() || !createFramebuffers() || !createPipeline()) {
-            LOGE("setRenderScale: pipeline rebuild failed — falling back to direct render");
-            destroyOffscreenTargets();
-            m_renderScale = 1.0f;
-            m_usingOffscreen = false;
-            destroyGraphicsObjects();
-            createRenderPass();
-            createFramebuffers();
-            createPipeline();
-        }
+        createRenderPass();
+        createOffscreenRenderPass();
+        createFramebuffers();
+        createPipeline();
     }
+    // 离屏目标最后创建（内部失败自动回退直渲，此时管线 viewport 恒为直渲尺寸）
+    createOffscreenTargets();
+    if (willUseOffscreen && !m_usingOffscreen) {
+        // createOffscreenTargets 失败回退：重建管线为直渲 viewport
+        destroyGraphicsObjects();
+        createRenderPass();
+        createOffscreenRenderPass();
+        createFramebuffers();
+        createPipeline();
+    }
+    // ★ 重建独立描述符集（池/layout 随管线重建，纹理 descSet 已被 destroyGraphicsObjects
+    //   置空）——非 command buffer 记录期，合法
+    updateTextureDescriptor(m_whiteTexture);
+    for (auto& tex : m_textures) updateTextureDescriptor(tex);
 
     m_ready = true;
     LOGI("Render scale set to %.2f (offscreen=%d)", m_renderScale, m_usingOffscreen ? 1 : 0);
@@ -922,6 +948,7 @@ bool VulkanBackend::resize(int width, int height) {
 
     if (!createSwapchain(width, height)) return false;
     if (!createRenderPass()) return false;
+    if (!createOffscreenRenderPass()) return false;
     if (!createFramebuffers()) return false;
     // 跳过 loadShaders() — ShaderModule 在 initDevice 时已创建，跨 resize 复用
     if (!createOffscreenTargets()) return false;  // 内部失败自动回退直渲（返回 true）
@@ -946,6 +973,9 @@ bool VulkanBackend::resize(int width, int height) {
     }
 
     orthoProj(m_projMatrix, 0.0f, (float)width, (float)height, 0.0f);
+    // ★ 重建独立描述符集（池/layout 随管线重建）——非 command buffer 记录期，合法
+    updateTextureDescriptor(m_whiteTexture);
+    for (auto& tex : m_textures) updateTextureDescriptor(tex);
     m_ready = true;  // 重建完成恢复渲染（见 resize 开头注释）
     LOGI("Resized to %dx%d", width, height);
     return true;
@@ -996,6 +1026,57 @@ bool VulkanBackend::createRenderPass() {
 
     if (vkCreateRenderPass(m_device, &rpInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
         LOGE("Failed to create render pass");
+        return false;
+    }
+    return true;
+}
+
+bool VulkanBackend::createOffscreenRenderPass() {
+    if (m_offscreenRenderPass) vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
+
+    // ★ 根因修复（2026-09 骁龙 8 Gen 2 黑屏噪点）：离屏图像不是交换链图像，
+    //   finalLayout = PRESENT_SRC_KHR 对非 swapchain 图像非法（Vulkan 规范），
+    //   Adreno 740 上 renderPass 结束布局转换未定义 → blit 读到未初始化数据 →
+    //   每帧随机噪点（真机实测两帧差异 88%）。离屏 pass 的 finalLayout 使用
+    //   TRANSFER_SRC_OPTIMAL（blit 源布局），与主 pass 附件描述一致（管线兼容）。
+    VkAttachmentDescription colorAtt{};
+    colorAtt.format = m_swapchainFormat;
+    colorAtt.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAtt.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAtt.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAtt.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAtt.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAtt.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAtt.finalLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+
+    VkAttachmentReference colorRef{};
+    colorRef.attachment = 0;
+    colorRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorRef;
+
+    VkSubpassDependency dep{};
+    dep.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dep.dstSubpass = 0;
+    dep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep.srcAccessMask = 0;
+    dep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    VkRenderPassCreateInfo rpInfo{};
+    rpInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    rpInfo.attachmentCount = 1;
+    rpInfo.pAttachments = &colorAtt;
+    rpInfo.subpassCount = 1;
+    rpInfo.pSubpasses = &subpass;
+    rpInfo.dependencyCount = 1;
+    rpInfo.pDependencies = &dep;
+
+    if (vkCreateRenderPass(m_device, &rpInfo, nullptr, &m_offscreenRenderPass) != VK_SUCCESS) {
+        LOGE("Failed to create offscreen render pass");
         return false;
     }
     return true;
@@ -1123,29 +1204,21 @@ bool VulkanBackend::createPipeline() {
     }
 
     // 描述符池
+    // 描述符池 — ★ 2026-09 根因修复：每纹理独立描述符集（白纹 + 图集 + 地面 +
+    // RGBA 回退图集等），maxSets 预留 16（此前单共享集 maxSets=1，纹理切换靠
+    // command buffer 记录期间 vkUpdateDescriptorSets——规范非法，放置模式白屏根因）
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSize.descriptorCount = 1;
+    poolSize.descriptorCount = 16;
 
     VkDescriptorPoolCreateInfo dpInfo{};
     dpInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    dpInfo.maxSets = 1;
+    dpInfo.maxSets = 16;
     dpInfo.poolSizeCount = 1;
     dpInfo.pPoolSizes = &poolSize;
 
     if (vkCreateDescriptorPool(m_device, &dpInfo, nullptr, &m_descriptorPool) != VK_SUCCESS) {
         LOGE("Failed to create descriptor pool");
-        return false;
-    }
-
-    VkDescriptorSetAllocateInfo dsAlloc{};
-    dsAlloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    dsAlloc.descriptorPool = m_descriptorPool;
-    dsAlloc.descriptorSetCount = 1;
-    dsAlloc.pSetLayouts = &m_descriptorSetLayout;
-
-    if (vkAllocateDescriptorSets(m_device, &dsAlloc, &m_descriptorSet) != VK_SUCCESS) {
-        LOGE("Failed to allocate descriptor set");
         return false;
     }
 
@@ -1184,8 +1257,14 @@ bool VulkanBackend::createPipeline() {
     inputAssem.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
     // 视口 — render scale 离屏模式用降采样 extent；投影矩阵仍为物理尺寸，
-    // NDC→viewport 映射自动把同一世界范围压进更少像素（缩放仅此一处公式适配）
-    const VkExtent2D rtExtent = m_usingOffscreen ? m_offscreenExtent : m_swapchainExtent;
+    // NDC→viewport 映射自动把同一世界范围压进更少像素（缩放仅此一处公式适配）。
+    // ★ 2026-09 修正：按 m_renderScale 现场推导 extent（不再依赖 m_usingOffscreen/
+    //   m_offscreenExtent 的设置时机——setRenderScale 中管线重建先于离屏目标创建）
+    VkExtent2D rtExtent = m_swapchainExtent;
+    if (m_renderScale < 1.0f) {
+        rtExtent.width = (uint32_t)std::max(1, (int)llround(m_swapchainExtent.width * m_renderScale));
+        rtExtent.height = (uint32_t)std::max(1, (int)llround(m_swapchainExtent.height * m_renderScale));
+    }
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
@@ -1279,7 +1358,24 @@ bool VulkanBackend::createPipeline() {
     return true;
 }
 
-void VulkanBackend::bindTextureToDescriptor(const Texture& tex) {
+void VulkanBackend::updateTextureDescriptor(Texture& tex) {
+    if (m_descriptorPool == VK_NULL_HANDLE || m_descriptorSetLayout == VK_NULL_HANDLE) {
+        LOGE("updateTextureDescriptor: pool/layout not ready");
+        return;
+    }
+    // 独立描述符集：未分配则先分配（池/布局在 createPipeline 中创建）
+    if (tex.descSet == VK_NULL_HANDLE) {
+        VkDescriptorSetAllocateInfo alloc{};
+        alloc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc.descriptorPool = m_descriptorPool;
+        alloc.descriptorSetCount = 1;
+        alloc.pSetLayouts = &m_descriptorSetLayout;
+        if (vkAllocateDescriptorSets(m_device, &alloc, &tex.descSet) != VK_SUCCESS) {
+            LOGE("updateTextureDescriptor: failed to allocate set for tex %u", tex.id);
+            return;
+        }
+    }
+
     VkDescriptorImageInfo descImg{};
     descImg.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     descImg.imageView = tex.view;
@@ -1287,7 +1383,7 @@ void VulkanBackend::bindTextureToDescriptor(const Texture& tex) {
 
     VkWriteDescriptorSet write{};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.dstSet = m_descriptorSet;
+    write.dstSet = tex.descSet;
     write.dstBinding = 0;
     write.descriptorCount = 1;
     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1304,11 +1400,16 @@ void VulkanBackend::destroyGraphicsObjects() {
     m_pipelineLayout = VK_NULL_HANDLE;
     if (m_renderPass) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
     m_renderPass = VK_NULL_HANDLE;
+    if (m_offscreenRenderPass) vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
+    m_offscreenRenderPass = VK_NULL_HANDLE;
     // 预存泄漏修复（2026-08-14）：descriptorPool 销毁时自动释放其 descriptorSet。
     // 此前 resize 每次重建管线泄漏 pool+set 一对（resize 高频场景下累积显存）。
     if (m_descriptorPool) vkDestroyDescriptorPool(m_device, m_descriptorPool, nullptr);
     m_descriptorPool = VK_NULL_HANDLE;
-    if (m_descriptorSet) m_descriptorSet = VK_NULL_HANDLE;
+    // ★ 池销毁后所有纹理的 descSet 悬空——置空待重建（createPipeline 后
+    //   updateTextureDescriptor 重新分配，upload 后同理）
+    m_whiteTexture.descSet = VK_NULL_HANDLE;
+    for (auto& tex : m_textures) tex.descSet = VK_NULL_HANDLE;
     if (m_descriptorSetLayout) vkDestroyDescriptorSetLayout(m_device, m_descriptorSetLayout, nullptr);
     m_descriptorSetLayout = VK_NULL_HANDLE;
 }
@@ -1409,7 +1510,8 @@ bool VulkanBackend::savePipelineCache() {
 // ============================================================
 
 bool VulkanBackend::createVertexBuffer() {
-    // 创建双缓冲 VBO（交替写入，避免 GPU 读 CPU 写冲突）
+    // 创建三缓冲 VBO（按 m_currentFrame 轮转写入，与 MAX_FRAMES_IN_FLIGHT
+    // 对齐避免 GPU 读 CPU 写冲突——2026-09 双缓冲+3 in-flight 撕裂根因修复）
     VkBufferCreateInfo bufInfo{};
     bufInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufInfo.size = m_vertexBufferSize / 2;  // 每个 buffer 为总大小的一半
@@ -1419,7 +1521,7 @@ bool VulkanBackend::createVertexBuffer() {
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
 
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (vkCreateBuffer(m_device, &bufInfo, nullptr, &m_vertexBuffers[i]) != VK_SUCCESS) {
             LOGE("Failed to create vertex buffer %d", i);
             return false;
@@ -1620,6 +1722,9 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
     Texture tex;
     tex.width = width;
     tex.height = height;
+    // 记录地址模式——setTextureQuality 重建采样器须按原模式（地面 REPEAT 不可变
+    // CLAMP，否则整图铺 UV>1 被钳制为边缘单色 → 地面全黑）
+    tex.addressMode = addressMode;
 
     VkPhysicalDeviceMemoryProperties memProps;
     vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
@@ -1788,6 +1893,8 @@ uint32_t VulkanBackend::uploadTextureImpl(const void* pixels, int width, int hei
         uint32_t id = s_nextTextureId++;
         tex.id = id;
         m_textures.push_back(tex);
+        // ★ 分配独立描述符集并写入（非 command buffer 记录期——上传在主线程）
+        updateTextureDescriptor(m_textures.back());
         LOGI("Texture %dx%d uploaded (id=%u, OPTIMAL)", width, height, id);
         return id;
     }
@@ -1858,24 +1965,27 @@ void VulkanBackend::setTextureQuality(float anisotropyMax, bool mipmap) {
     m_anisotropyMax = anisotropyMax;
     m_mipmapEnabled = mipmap;
     // 重建所有已上传纹理的采样器（图集/地面/图集 RGBA 回退同通道），白纹理保持 NEAREST 单 mip 不变。
-    // 描述符集在每次 draw 时经 bindTextureToDescriptor 重绑定（tex.sampler 于绑定时刻读取），
-    // 故重建采样器后下一帧自动生效，无需此处手动重绑。
+    // ★ 采样器重建后须重新写入各纹理的独立描述符集（vkUpdateDescriptorSets 在本函数
+    //   调用期——渲染循环内、command buffer 未记录——合法；submitFrame 仅 bind）
     for (auto& tex : m_textures) {
         if (!tex.sampler) continue;
         vkDestroySampler(m_device, tex.sampler, nullptr);
         tex.sampler = VK_NULL_HANDLE;
-        if (!createSampler(tex.sampler, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE)) {
+        // ★ 按纹理原始地址模式重建（地面 REPEAT / 图集 CLAMP）——此前硬编码 CLAMP
+        //   把地面整图铺采样器改成 CLAMP，UV>1 被钳制为边缘单色 → 地面全黑
+        if (!createSampler(tex.sampler, tex.addressMode)) {
             LOGE("setTextureQuality: 重建采样器失败 tex=%u, 回退单 mip 线性", tex.id);
             // 兜底：单 mip 线性（旧行为），不中断
             VkSamplerCreateInfo fallback{};
             fallback.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
             fallback.magFilter = VK_FILTER_LINEAR;
             fallback.minFilter = VK_FILTER_LINEAR;
-            fallback.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            fallback.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            fallback.addressModeU = tex.addressMode;
+            fallback.addressModeV = tex.addressMode;
             fallback.maxLod = 1.0f;
             vkCreateSampler(m_device, &fallback, nullptr, &tex.sampler);
         }
+        updateTextureDescriptor(tex);
     }
     LOGI("setTextureQuality: aniso=%.1f mip=%d 已应用（%zu 个纹理采样器重建）",
          m_anisotropyMax, m_mipmapEnabled, m_textures.size());
@@ -1998,7 +2108,26 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
             LOGE("uploadCompressedTexture: staging map failed");
             goto fail;
         }
-        memcpy(mapped, data, dataSize);
+        // ★ 根因修复（2026-09 骁龙 8 Gen 2 建筑点阵噪点）：逐级跳过 KTX [size4]
+        //   前缀紧凑拷贝纯块数据——此前整区 memcpy 后按 cursor+4 偏移拷贝，
+        //   bufferOffset 非 16 字节（ASTC 块大小）倍数，违反
+        //   VUID-VkBufferImageCopy-bufferOffset-00193 → Adreno 上块级错位，
+        //   图集内容错乱（真机实测建筑呈"密密麻麻像素点"）
+        size_t dstOffset = 0;
+        size_t srcCursor = 0;
+        for (int i = 0; i < mipCount; i++) {
+            uint32_t lw = (uint32_t)width >> i;
+            uint32_t lh = (uint32_t)height >> i;
+            if (lw < ktx1::ASTC_BLOCK) lw = ktx1::ASTC_BLOCK;
+            if (lh < ktx1::ASTC_BLOCK) lh = ktx1::ASTC_BLOCK;
+            const size_t levelSize =
+                (size_t)(lw / ktx1::ASTC_BLOCK) * (size_t)(lh / ktx1::ASTC_BLOCK) *
+                ktx1::ASTC_BLOCK_BYTES;
+            memcpy((char*)mapped + dstOffset,
+                   data + srcCursor + ktx1::DATA_SIZE_FIELD, levelSize);
+            dstOffset += levelSize;
+            srcCursor += ktx1::DATA_SIZE_FIELD + levelSize;
+        }
         vkUnmapMemory(m_device, m_stagingMemory);
     }
 
@@ -2037,10 +2166,10 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
                              VK_PIPELINE_STAGE_TRANSFER_BIT,
                              0, 0, nullptr, 0, nullptr, 1, &preBarrier);
 
-        // 逐级 Copy: staging buffer → image（每级 [size4][数据]，按块拷贝）
-        // 每级独立 region（bufferOffset 指向该级数据起始，跳过其 [size4] 前缀）
+        // 逐级 Copy: staging buffer → image（staging 已为纯块数据紧凑布局——
+        //   bufferOffset = 各前缀级数据长度和，恒为 16 字节块对齐）
         std::vector<VkBufferImageCopy> regions;
-        size_t cursor = 0;  // 数据区游标（staging 内偏移）
+        size_t cursor = 0;  // staging 纯数据游标（16 字节对齐）
         for (int i = 0; i < mipCount; i++) {
             uint32_t lw = (uint32_t)width >> i;
             uint32_t lh = (uint32_t)height >> i;
@@ -2049,14 +2178,14 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
             const uint32_t levelSize =
                 (lw / ktx1::ASTC_BLOCK) * (lh / ktx1::ASTC_BLOCK) * ktx1::ASTC_BLOCK_BYTES;
             VkBufferImageCopy r{};
-            r.bufferOffset = cursor + ktx1::DATA_SIZE_FIELD;  // 跳过该级 [size4] 前缀
+            r.bufferOffset = cursor;  // 纯块数据偏移（恒 16 字节对齐，满足 VUID 00193）
             r.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             r.imageSubresource.mipLevel = (uint32_t)i;
             r.imageSubresource.baseArrayLayer = 0;
             r.imageSubresource.layerCount = 1;
             r.imageExtent = { lw, lh, 1 };
             regions.push_back(r);
-            cursor += ktx1::DATA_SIZE_FIELD + levelSize;
+            cursor += levelSize;
         }
         vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -2109,6 +2238,8 @@ uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t data
         uint32_t id = s_nextTextureId++;
         tex.id = id;
         m_textures.push_back(tex);
+        // ★ 分配独立描述符集并写入（非 command buffer 记录期——上传在主线程）
+        updateTextureDescriptor(m_textures.back());
         LOGI("ASTC texture %dx%d uploaded (id=%u, %zu bytes, mips=%d)",
              width, height, id, dataSize, mipCount);
         return id;
@@ -2140,8 +2271,9 @@ void VulkanBackend::draw(const SpriteVertex* vertices, int count,
                           uint32_t textureId) {
     if (!m_ready || count == 0) return;
 
-    // 直接写入当前活动的 VBO（不再存储裸指针）
-    // 数据在当前帧的 beginFrame 之后到 submitFrame 之前写入
+    // 直接写入当前帧 VBO（★ 2026-09 三缓冲：按 m_currentFrame 索引——与
+    //   MAX_FRAMES_IN_FLIGHT 对齐，GPU 消费完同索引前帧（fence 保证）才覆写，
+    //   根除双缓冲+3 in-flight 的顶点撕裂）
     size_t copySize = count * sizeof(SpriteVertex);
     if (m_vboOffset + (int)copySize > (int)(m_vertexBufferSize / 2)) {
         LOGE("VBO overflow: %d + %zu > %llu",
@@ -2149,7 +2281,7 @@ void VulkanBackend::draw(const SpriteVertex* vertices, int count,
         return;
     }
 
-    memcpy((char*)m_vertexMapped[m_activeBuffer] + m_vboOffset,
+    memcpy((char*)m_vertexMapped[m_currentFrame] + m_vboOffset,
            vertices, copySize);
 
     m_pendingDraws.push_back({
@@ -2162,8 +2294,7 @@ void VulkanBackend::draw(const SpriteVertex* vertices, int count,
 
 void VulkanBackend::beginFrame() {
     m_pendingDraws.clear();
-    // 双缓冲交替：切换 VBO 并重置偏移
-    m_activeBuffer = (m_activeBuffer + 1) % 2;
+    // 三缓冲按 m_currentFrame 轮转（submitFrame 末尾递增），此处仅重置写入偏移
     m_vboOffset = 0;
 }
 
@@ -2215,13 +2346,17 @@ void VulkanBackend::submitFrame() {
 
     vkBeginCommandBuffer(cmd, &beginInfo);
 
-    VkClearValue clearColor = { { { 0.95f, 0.93f, 0.89f, 1.0f } } }; // #F2EDE4
+    // ★ 纯黑清屏（2026-09）：曾为米白 #F2EDE4——淡入期间（fadeAlpha<1）瓦片半透明
+    //   会透出清屏色呈"全屏半透明白色覆盖"（与 Canvas 路径 124e2555 同一根因，Vulkan
+    //   路径此前从未真机初始化成功故漏改；骁龙 8 Gen 2 修复 GPU 初始化后首现）。
+    VkClearValue clearColor = { { { 0.0f, 0.0f, 0.0f, 1.0f } } };
 
     // render scale 离屏模式：渲染进降采样目标（offscreen），提交前 blit 上采样到交换链
     const bool offscreen = m_usingOffscreen;
     VkRenderPassBeginInfo rpBegin{};
     rpBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    rpBegin.renderPass = m_renderPass;
+    // ★ 离屏用独立 renderPass（finalLayout=TRANSFER_SRC_OPTIMAL，对非交换链图像合法）
+    rpBegin.renderPass = offscreen ? m_offscreenRenderPass : m_renderPass;
     rpBegin.framebuffer = offscreen ? m_offscreenFramebuffers[m_currentFrame] : m_framebuffers[imageIndex];
     rpBegin.renderArea.offset = {0, 0};
     rpBegin.renderArea.extent = offscreen ? m_offscreenExtent : m_swapchainExtent;
@@ -2233,47 +2368,50 @@ void VulkanBackend::submitFrame() {
     // 有绘制内容时绑定管线并提交 draw calls，空帧则仅清除颜色缓冲
     if (!m_pendingDraws.empty()) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                m_pipelineLayout, 0, 1, &m_descriptorSet, 0, nullptr);
 
         // 设置投影矩阵
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
                            0, sizeof(m_projMatrix), m_projMatrix);
 
-        VkBuffer vertexBuffers[] = { m_vertexBuffers[m_activeBuffer] };
+        VkBuffer vertexBuffers[] = { m_vertexBuffers[m_currentFrame] };
         VkDeviceSize offsets[] = { 0 };
         vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
 
-        // 提交所有 pending draw calls，按纹理 ID 切换描述符集
-        // 数据已在 draw() 调用时直接写入 VBO，此处只需提交 draw calls
+        // 提交所有 pending draw calls，按纹理 ID 切换独立描述符集。
+        // ★ 2026-09 根因修复：仅 vkCmdBindDescriptorSets 切换（set 在 upload/
+        //   setTextureQuality 时已分配+更新）——此前此处 vkUpdateDescriptorSets
+        //   在 command buffer 记录期间改写共享集（规范非法），Adreno 上描述符
+        //   错乱 → 放置模式全屏白（普通模式单纹理不触发切换故正常）
         uint32_t currentBoundTexId = UINT32_MAX;
+        VkDescriptorSet currentSet = VK_NULL_HANDLE;
         for (auto& draw : m_pendingDraws) {
             if (draw.count <= 0) continue;
 
-            // 纹理切换：找到对应纹理并更新描述符集
+            // 纹理切换：仅切换预分配的独立描述符集
             if (draw.textureId != currentBoundTexId) {
                 currentBoundTexId = draw.textureId;
+                VkDescriptorSet target = VK_NULL_HANDLE;
                 if (draw.textureId == 0) {
-                    bindTextureToDescriptor(m_whiteTexture);
+                    target = m_whiteTexture.descSet;
                 } else {
-                    bool found = false;
                     for (const auto& tex : m_textures) {
                         if (tex.id == draw.textureId) {
-                            bindTextureToDescriptor(tex);
-                            found = true;
+                            target = tex.descSet;
                             break;
                         }
                     }
-                    if (!found) {
-                        // 纹理未找到时回退到白色纹理，避免描述符集指向错误数据
-                        bindTextureToDescriptor(m_whiteTexture);
+                    if (target == VK_NULL_HANDLE) {
+                        // 纹理未找到/描述符集未就绪时回退到白色纹理
+                        target = m_whiteTexture.descSet;
                         currentBoundTexId = 0;  // 下次遇到 ID≠0 会重新查找
                     }
                 }
-                // 重新绑定描述符集到 command buffer
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        m_pipelineLayout, 0, 1, &m_descriptorSet,
-                                        0, nullptr);
+                if (target != VK_NULL_HANDLE && target != currentSet) {
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                            m_pipelineLayout, 0, 1, &target,
+                                            0, nullptr);
+                    currentSet = target;
+                }
             }
 
             // 直接使用 VBO 中已有的数据（已在 draw() 中写入）
@@ -2294,7 +2432,9 @@ void VulkanBackend::submitFrame() {
         offscreenToBlit.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         offscreenToBlit.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         offscreenToBlit.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-        offscreenToBlit.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;  // renderPass finalLayout
+        // ★ 离屏 renderPass finalLayout 即 TRANSFER_SRC_OPTIMAL——此处仅做 access
+        //   同步（layout 不转换；PRESENT_SRC 对非交换链图像非法，见 createOffscreenRenderPass）
+        offscreenToBlit.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         offscreenToBlit.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         offscreenToBlit.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         offscreenToBlit.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;

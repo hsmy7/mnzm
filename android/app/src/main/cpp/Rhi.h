@@ -38,8 +38,10 @@ struct alignas(4) SpriteVertex {
     float r, g, b, a; // 顶点颜色
 };
 
-// 每帧最大精灵数（对应 48×48 地图的可见区域）
-static constexpr int MAX_SPRITES_PER_FRAME = 4096;
+// 每帧最大精灵数（对应 48×48 地图的可见区域 + 放置模式网格线/预览——
+// 2026-09 骁龙 8 Gen 2 实测放置模式瓦片+装饰+建筑+网格线超 4096 被丢弃
+// 导致网格线缺失/空白区域，提升至 8192）
+static constexpr int MAX_SPRITES_PER_FRAME = 8192;
 static constexpr int VERTICES_PER_SPRITE = 6;   // 两个三角形
 static constexpr int MAX_VERTICES = MAX_SPRITES_PER_FRAME * VERTICES_PER_SPRITE;
 
