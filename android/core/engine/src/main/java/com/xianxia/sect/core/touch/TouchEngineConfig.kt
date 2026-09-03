@@ -23,9 +23,6 @@ package com.xianxia.sect.core.touch
  * @property edgePanDwellMs 边缘平移激活前的驻留时长（毫秒）
  *   — 手指仅划过屏幕边缘不触发（防拖建筑时地图误平移）；≥ 该时长才自动滚屏
  * @property pinchMinDistPx 双指缩放最小间距（像素），低于此距离不计算缩放，防抖
- * @property minHitTargetDp 触控命中外扩最小目标（dp）
- *   — 低于该尺寸的建筑命中区向四周外扩；来源: Apple HIG 44pt / Material 48dp
- * @property nearestFallbackMaxDp tap 未直接命中时最近建筑兜底的最大半径（dp）
  * @property pickUpBuildingOnDown 建筑按下即拾起（Clash of Clans 手感）
  *   — true：Down 在建筑上立即进入拖拽状态，位移 ≤ touchSlop 快速抬起仍视为 tap；
  *     false：维持 200ms 长按后拾起的旧行为
@@ -41,8 +38,6 @@ data class TouchEngineConfig(
     val maxEdgePanSpeed: Float = 600f,
     val edgePanDwellMs: Long = 150L,
     val pinchMinDistPx: Float = 16f,
-    val minHitTargetDp: Float = 40f,
-    val nearestFallbackMaxDp: Float = 32f,
     val pickUpBuildingOnDown: Boolean = true
 ) {
     /** touchSlop 的平方，用于距离比较 */

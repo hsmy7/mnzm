@@ -98,7 +98,10 @@ object SectAtlasAssembler {
         val slots = buildSpriteSlots()
         val loadedCount = drawSlotsToAtlas(context, canvas, paint, slots)
 
-        android.util.Log.i(TAG, "buildAtlas: $loadedCount/${slots.size} sprites loaded @ ${w}x$h (scale=$canvasAtlasScale)")
+        android.util.Log.i(
+            TAG,
+            "buildAtlas: $loadedCount/${slots.size} sprites loaded @ ${w}x$h (scale=$canvasAtlasScale)"
+        )
         return atlas
     }
 

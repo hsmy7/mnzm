@@ -1002,8 +1002,7 @@ object AISectAttackManager {
         defender: WorldSect,
         playerGarrisonMap: Map<String, List<Disciple>>
     ): Boolean? {
-        if (!NativeEngineFlag.authoritative) return null
-        if (!GameCoreBridge.isLoaded) return null
+        if (!NativeEngineFlag.authoritative || !GameCoreBridge.isLoaded) return null
         val garrisonJson = buildJsonObject {
             for ((sectId, disciples) in playerGarrisonMap) {
                 putJsonArray(sectId) {
@@ -1034,8 +1033,7 @@ object AISectAttackManager {
         allSectDisciples: List<Disciple>,
         deadDefenderIds: List<String>
     ): Boolean? {
-        if (!NativeEngineFlag.authoritative) return null
-        if (!GameCoreBridge.isLoaded) return null
+        if (!NativeEngineFlag.authoritative || !GameCoreBridge.isLoaded) return null
         val payload = buildJsonObject {
             put("winnerIsAttacker", JsonPrimitive(winnerIsAttacker))
             putJsonArray("defenders") {

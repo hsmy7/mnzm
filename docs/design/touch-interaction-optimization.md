@@ -4,6 +4,15 @@
 
 ---
 
+## ⚠️ 变更记录（2026-09）：A 组"点击命中宽容"部分回退
+
+> 本方案 A 组中的 **hit slop 命中外扩** 与 **最近建筑兜底** 已于 2026-09 移除（玩家反馈"点空白处自动选中附近建筑"）。tap/长按/拆除/触控回调查找改为 **精确格命中** `BuildingSpatialIndex.findBuildingAt`；`HitSlopPolicy`、`findNearestBuilding`/`findBuildingAtRect`/`queryRect` 及 `nearestFallbackMaxDp`/`minHitTargetDp` 配置删除。删除详因见 `CHANGELOG.md` 4.01.12 本次条目。
+>
+> A 组中**保留**的：tap 双点判定（`onTap(downX,downY,upX,upY)` 签名）、`worldToGrid`(roundToInt) 命中统一、拆除精确格优先语义。B/C/D/E 组不受影响。
+
+---
+
+
 ## 一、背景与目标
 
 ### 需求要点

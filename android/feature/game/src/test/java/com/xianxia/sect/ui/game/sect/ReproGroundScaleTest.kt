@@ -37,17 +37,38 @@ class ReproGroundScaleTest {
 
     @Test
     fun `ground fill covers whole view - no cream gaps when atlas is 0_5 scaled`() {
-        val backend = SoftwareCanvasBackend(
-            NativeRenderConfig(
-                tileSize = GameConfig.SectMap.TILE_SIZE,
-                worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS,
-                worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS,
-                worldPixelWidth = GameConfig.SectMap.WORLD_PIXEL_WIDTH,
-                worldPixelHeight = GameConfig.SectMap.WORLD_PIXEL_HEIGHT,
-                renderFlags = RenderFlags()
-            )
-        )
+        val backend = buildBackend()
+        val atlas = buildScaledGroundAtlas()
+        val frame = buildGroundFrame()
 
+        val result = backend.renderFrame(frame, atlas, vpW = 360, vpH = 360)
+        assertTrue("renderFrame 不应返回 null", result != null)
+        val fb = requireNotNull(result)
+
+        val (creamRatio, greenRatio) = measureColorRatios(fb)
+        // 修复前：地面源裁到相邻槽位+透明 → 米色占比显著（>10%）。修复后应 <1%。
+        assertTrue(
+            "地面出现米色空隙占比=$creamRatio——源矩形未按图集缩放，REPEAT 地面源裁到错误区域",
+            creamRatio < 0.01f
+        )
+        assertTrue(
+            "地面应主要为主绿色 (绿色占比=$greenRatio)",
+            greenRatio > 0.9f
+        )
+    }
+
+    private fun buildBackend(): SoftwareCanvasBackend = SoftwareCanvasBackend(
+        NativeRenderConfig(
+            tileSize = GameConfig.SectMap.TILE_SIZE,
+            worldWidthCells = GameConfig.SectMap.WORLD_WIDTH_CELLS,
+            worldHeightCells = GameConfig.SectMap.WORLD_HEIGHT_CELLS,
+            worldPixelWidth = GameConfig.SectMap.WORLD_PIXEL_WIDTH,
+            worldPixelHeight = GameConfig.SectMap.WORLD_PIXEL_HEIGHT,
+            renderFlags = RenderFlags()
+        )
+    )
+
+    private fun buildScaledGroundAtlas(): Bitmap {
         // 0.5× 缩放图集：GROUND 槽位 (0,0,128,128) → (0,0,64,64) 画纯绿，其余透明。
         val atlas = createBitmap(2048, 2048, Bitmap.Config.ARGB_8888)
         val c = Canvas(atlas)
@@ -58,23 +79,22 @@ class ReproGroundScaleTest {
             (groundRect.x + groundRect.w) * s, (groundRect.y + groundRect.h) * s,
             Paint().apply { color = Color.rgb(0, 255, 0) }
         )
+        return atlas
+    }
 
-        val frame = RenderFrame(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = IntArray(SpriteAtlasDef.TileType.values().let {
-                GameConfig.SectMap.WORLD_WIDTH_CELLS * GameConfig.SectMap.WORLD_HEIGHT_CELLS
-            }) { SpriteAtlasDef.TileType.GROUND.index },
-            cols = GameConfig.SectMap.WORLD_WIDTH_CELLS,
-            rows = GameConfig.SectMap.WORLD_HEIGHT_CELLS,
-            buildingData = null,
-            buildingCount = 0,
-            buildingVisible = true
-        )
+    private fun buildGroundFrame(): RenderFrame = RenderFrame(
+        camX = 0f, camY = 0f, scale = 1f,
+        tileData = IntArray(SpriteAtlasDef.TileType.values().let {
+            GameConfig.SectMap.WORLD_WIDTH_CELLS * GameConfig.SectMap.WORLD_HEIGHT_CELLS
+        }) { SpriteAtlasDef.TileType.GROUND.index },
+        cols = GameConfig.SectMap.WORLD_WIDTH_CELLS,
+        rows = GameConfig.SectMap.WORLD_HEIGHT_CELLS,
+        buildingData = null,
+        buildingCount = 0,
+        buildingVisible = true
+    )
 
-        val result = backend.renderFrame(frame, atlas, vpW = 360, vpH = 360)
-        assertTrue("renderFrame 不应返回 null", result != null)
-        val fb = result!!
-
+    private fun measureColorRatios(fb: Bitmap): Pair<Float, Float> {
         var creamCount = 0
         var greenCount = 0
         var sampled = 0
@@ -82,7 +102,9 @@ class ReproGroundScaleTest {
             for (x in 0 until fb.width step 3) {
                 sampled++
                 val px = fb.getPixel(x, y)
-                val r = Color.red(px); val g = Color.green(px); val b = Color.blue(px)
+                val r = Color.red(px)
+                val g = Color.green(px)
+                val b = Color.blue(px)
                 val isCream = kotlin.math.abs(r - 0xF2) <= 12 &&
                     kotlin.math.abs(g - 0xED) <= 12 && kotlin.math.abs(b - 0xE4) <= 12
                 val isGreen = g > 100 && g > r + 30 && g > b + 30
@@ -90,16 +112,6 @@ class ReproGroundScaleTest {
                 if (isGreen) greenCount++
             }
         }
-        val creamRatio = creamCount.toFloat() / sampled
-        // 修复前：地面源裁到相邻槽位+透明 → 米色占比显著（>10%）。修复后应 <1%。
-        assertTrue(
-            "地面出现米色空隙占比=$creamRatio (cream=$creamCount green=$greenCount sampled=$sampled)——" +
-                "源矩形未按图集缩放，REPEAT 地面源裁到错误区域",
-            creamRatio < 0.01f
-        )
-        assertTrue(
-            "地面应主要为主绿色 (green=$greenCount sampled=$sampled)",
-            greenCount > sampled * 0.9f
-        )
+        return (creamCount.toFloat() / sampled) to (greenCount.toFloat() / sampled)
     }
 }

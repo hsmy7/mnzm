@@ -78,10 +78,8 @@ import com.xianxia.sect.ui.game.main.SectInfoCard
 import com.xianxia.sect.ui.game.main.SectMapEdgeOverlay
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchEngineConfig
-import com.xianxia.sect.core.touch.HitSlopPolicy
 import com.xianxia.sect.core.animation.CameraAnimator
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.ui.platform.LocalDensity
 
 
 
@@ -662,18 +660,17 @@ private fun rememberMainGameScreenTouchEngine(
     renderData: MainGameScreenRenderData,
     viewportData: MainGameScreenViewportData,
     viewModel: GameViewModel,
-    touchConfig: TouchEngineConfig,
-    hitSlopPolicy: HitSlopPolicy
+    touchConfig: TouchEngineConfig
 ): SectMapTouchEngine {
     val cameraState = viewportData.cameraState
     val buildingIndex = renderData.buildingIndex
     val gridSystem = renderData.gridSystem
-    return remember(cameraState, buildingIndex, gridSystem, touchConfig, hitSlopPolicy) {
+    return remember(cameraState, buildingIndex, gridSystem, touchConfig) {
         SectMapTouchEngine(
             callbacks = buildMainGameScreenTouchCallbacks(
                 state = state, derived = derived, mapData = mapData,
                 renderData = renderData, viewportData = viewportData,
-                viewModel = viewModel, config = touchConfig, hitSlopPolicy = hitSlopPolicy
+                viewModel = viewModel
             ),
             scope = viewportData.touchScope,
             config = touchConfig
@@ -704,16 +701,12 @@ private fun rememberMainGameScreenData(
         glesRendering = glesRendering,
         vulkanInitListener = vulkanInitListener
     )
-    // 手势配置 + 命中外扩策略（density 按设备注入，跨设备触控目标一致）
-    val density = LocalDensity.current.density
+    // 手势配置（触控引擎参数；命中已统一为精确格判定，不再需 hit slop 外扩策略）
     val touchConfig = remember { TouchEngineConfig() }
-    val hitSlopPolicy = remember(touchConfig, density) {
-        HitSlopPolicy(minHitTargetDp = touchConfig.minHitTargetDp, density = density)
-    }
     val touchEngine = rememberMainGameScreenTouchEngine(
         state = state, derived = derived, mapData = mapData, renderData = renderData,
         viewportData = viewportData, viewModel = viewModel,
-        touchConfig = touchConfig, hitSlopPolicy = hitSlopPolicy
+        touchConfig = touchConfig
     )
     return MainGameScreenData(
         derived = derived, mapData = mapData, renderData = renderData,

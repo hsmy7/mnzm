@@ -449,18 +449,6 @@ class SoftwareCanvasBackend(
         }
 
         /**
-         * 建筑/固定结构占地尺寸解析：结构（nameIdx ≥ BUILDING_NAMES.size）走
-         * SpriteAtlasDef.STRUCTURES，建筑走 FOOTPRINT_BY_NAME_INDEX，越界兜底 2×2。
-         */
-        private fun footprintOf(nameIdx: Int): Pair<Int, Int> {
-            if (nameIdx >= SpriteAtlasDef.BUILDING_NAMES.size) {
-                val s = SpriteAtlasDef.STRUCTURES.getOrNull(nameIdx - SpriteAtlasDef.BUILDING_NAMES.size)
-                return (s?.footprintW ?: 2) to (s?.footprintH ?: 2)
-            }
-            return SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }
-        }
-
-        /**
          * 工具方法：绘制建筑列表到 chunk 位图（地砖 → 阴影 → 精灵）。
          *
          * @param view 相对相机（camX/camY = chunk 左上角世界坐标，scale=1）——
@@ -632,32 +620,21 @@ class SoftwareCanvasBackend(
      */
     private var sourceScale: Float = 1f
 
-    private fun <T> buildScaledRects(source: List<T>, rectOf: (T) -> SpriteRect): Array<Rect> =
-        source.mapIndexed { _, item ->
-            val sr = rectOf(item)
-            Rect(
-                (sr.x * sourceScale).roundToInt(),
-                (sr.y * sourceScale).roundToInt(),
-                ((sr.x + sr.w) * sourceScale).roundToInt(),
-                ((sr.y + sr.h) * sourceScale).roundToInt()
-            )
-        }.toTypedArray()
-
     private val tileSrcRects: Array<Rect> by lazy {
         @Suppress("UNCHECKED_CAST")
-        buildScaledRects(SpriteAtlasDef.TileType.values().toList()) { it.rect } as Array<Rect>
+        buildScaledRects(sourceScale, SpriteAtlasDef.TileType.values().toList()) { it.rect } as Array<Rect>
     }
 
     /** 灵田作物三阶段图源矩形（WP6，与 C++ TextureAtlas.h crop_* 同步） */
     private val cropSrcRects: Array<Rect> by lazy {
         @Suppress("UNCHECKED_CAST")
-        buildScaledRects(SpriteAtlasDef.CropStage.values().toList()) { it.rect } as Array<Rect>
+        buildScaledRects(sourceScale, SpriteAtlasDef.CropStage.values().toList()) { it.rect } as Array<Rect>
     }
 
     /** 云层精灵图源矩形（按 SpriteAtlasDef.CLOUD_RECTS 声明顺序，与 C++ CLOUD_UV_MAP 同源） */
     private val cloudSrcRects: Array<Rect> by lazy {
         @Suppress("UNCHECKED_CAST")
-        buildScaledRects(SpriteAtlasDef.CLOUD_RECTS) { it.second } as Array<Rect>
+        buildScaledRects(sourceScale, SpriteAtlasDef.CLOUD_RECTS) { it.second } as Array<Rect>
     }
 
     private val buildingSrcRects: Array<Rect> by lazy {
@@ -1425,3 +1402,35 @@ private fun cloudScreenRect(
     val visible = !offRightOrLeft && !offBottomOrTop && !degenerate
     return if (visible) Rect(left, top, right, bottom) else null
 }
+
+/**
+ * 建筑/固定结构占地尺寸解析：结构（nameIdx ≥ BUILDING_NAMES.size）走
+ * SpriteAtlasDef.STRUCTURES，建筑走 FOOTPRINT_BY_NAME_INDEX，越界兜底 2×2。
+ * 顶层函数（不增加 SoftwareCanvasBackend 类函数数——TooManyFunctions 守卫）。
+ */
+private fun footprintOf(nameIdx: Int): Pair<Int, Int> {
+    if (nameIdx >= SpriteAtlasDef.BUILDING_NAMES.size) {
+        val s = SpriteAtlasDef.STRUCTURES.getOrNull(nameIdx - SpriteAtlasDef.BUILDING_NAMES.size)
+        return (s?.footprintW ?: 2) to (s?.footprintH ?: 2)
+    }
+    return SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.getOrElse(nameIdx) { 2 to 2 }
+}
+
+/**
+ * 按源图集缩放（sourceScale）换算一组精灵图源矩形到像素裁剪矩形。
+ * 顶层函数（不增加 SoftwareCanvasBackend 类函数数——TooManyFunctions 守卫）。
+ */
+private fun <T> buildScaledRects(
+    sourceScale: Float,
+    source: List<T>,
+    rectOf: (T) -> SpriteRect
+): Array<Rect> =
+    source.mapIndexed { _, item ->
+        val sr = rectOf(item)
+        Rect(
+            (sr.x * sourceScale).roundToInt(),
+            (sr.y * sourceScale).roundToInt(),
+            ((sr.x + sr.w) * sourceScale).roundToInt(),
+            ((sr.y + sr.h) * sourceScale).roundToInt()
+        )
+    }.toTypedArray()

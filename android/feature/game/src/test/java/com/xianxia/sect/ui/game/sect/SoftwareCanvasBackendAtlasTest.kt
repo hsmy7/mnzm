@@ -197,7 +197,10 @@ class SoftwareCanvasBackendAtlasTest {
         // 全尺寸图集：全灰地面 + 门楼源矩形涂白（STRUCTURES[0].rect）
         val fullAtlas = createBitmap(SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H, Bitmap.Config.ARGB_8888)
         val c = Canvas(fullAtlas)
-        c.drawRect(0f, 0f, SpriteAtlasDef.ATLAS_W.toFloat(), SpriteAtlasDef.ATLAS_H.toFloat(), Paint().apply { color = Color.rgb(100, 100, 100) })
+        c.drawRect(
+            0f, 0f, SpriteAtlasDef.ATLAS_W.toFloat(), SpriteAtlasDef.ATLAS_H.toFloat(),
+            Paint().apply { color = Color.rgb(100, 100, 100) }
+        )
         val gateRect = SpriteAtlasDef.STRUCTURES[0].rect
         c.drawRect(
             gateRect.x.toFloat(), gateRect.y.toFloat(),

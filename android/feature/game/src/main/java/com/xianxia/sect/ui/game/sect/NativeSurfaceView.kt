@@ -1247,13 +1247,12 @@ class NativeSurfaceView(
         private fun consumePendingTextureQuality() {
             val aniso = clarityAnisotropy
             val mip = clarityMipmap
-            if (renderMode == RenderMode.VULKAN && isReady &&
-                (aniso != appliedTextureAniso || mip != appliedTextureMipmap)
-            ) {
-                appliedTextureAniso = aniso
-                appliedTextureMipmap = mip
-                NativeBridge.setTextureQuality(aniso, mip)
-            }
+            if (renderMode != RenderMode.VULKAN || !isReady) return
+            val qualityChanged = aniso != appliedTextureAniso || mip != appliedTextureMipmap
+            if (!qualityChanged) return
+            appliedTextureAniso = aniso
+            appliedTextureMipmap = mip
+            NativeBridge.setTextureQuality(aniso, mip)
         }
 
         /**

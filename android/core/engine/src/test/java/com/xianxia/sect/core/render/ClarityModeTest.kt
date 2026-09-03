@@ -34,8 +34,11 @@ class ClarityModeTest {
     fun `renderScaleCap is non-decreasing across tiers`() {
         val caps = ClarityMode.entries.map { it.renderScaleCap }
         for (i in 1 until caps.size) {
-            assertTrue("renderScaleCap 应随档位递增: ${ClarityMode.entries[i - 1]}(${caps[i - 1]}) > ${ClarityMode.entries[i]}(${caps[i]})",
-                caps[i] >= caps[i - 1])
+            assertTrue(
+                "renderScaleCap 应随档位递增: ${ClarityMode.entries[i - 1]}(${caps[i - 1]}) > " +
+                    "${ClarityMode.entries[i]}(${caps[i]})",
+                caps[i] >= caps[i - 1]
+            )
         }
         assertEquals(0.5f, ClarityMode.VERY_LOW.renderScaleCap, 0.001f)
         assertEquals(1.0f, ClarityMode.VERY_HIGH.renderScaleCap, 0.001f)

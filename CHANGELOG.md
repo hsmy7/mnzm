@@ -1,5 +1,26 @@
 ## [4.01.12] - 2026-09-02
 
+### 修复：点击宗门地图空白处不再误选附近建筑（移除命中外扩与最近建筑兜底）
+
+> 2026-09 玩家反馈「点宗门地图的空白处却会自动选中旁边的建筑」问题根治：tap 命中改为**精确格判定**——点击格上有建筑才选中，点空白一律清除选中。
+
+- **根因**：tap 命中此前叠加**两层位置宽容**——`HitSlopPolicy` 的命中外扩（把命中区向四周扩展后按矩形找建筑）与 `BuildingSpatialIndex.findNearestBuilding` 的最近兜底（点未命中时，以按下点为中心按 32dp 半径向外搜最近建筑并选中）。玩家点一片空地时，系统仍会命中旁边建筑并弹出详情。
+- **修复**：移除两层位置宽容——删除 `HitSlopPolicy`、`findNearestBuilding`/`findBuildingAtRect`/`queryRect`（及 `nearestFallbackMaxDp`/`minHitTargetDp` 配置），tap/长按/拆除/触控回调查找全部改为 `BuildingSpatialIndex.findBuildingAt` 精确格命中；点空白一律清除选中。高层建筑（塔楼/藏经阁等）上半身悬空区域仍可点中（精灵包围盒在索引内，`findBuildingAt` 覆盖占地∪精灵包围盒）。
+- **副作用（已接受）**：1×1 小建筑（灵田等）命中区收敛为单格，缩小状态下点偏一格不易命中；命中不再做自动扩展（此为本次移除目标之一）。
+- **验证**：`compileReleaseKotlin` · `testReleaseUnitTest`（串行）全绿 · `lintRelease` · 全模块 `detekt`。
+
+### 代码质量：清理 detekt 存量未冻结违规（8 文件 13 条）
+
+> 随"点击空白不再误选"批次一并对 `detekt` 报告中的存量未冻结违规做根因修复（未新增 baseline 条目，detekt-baseline 只缩不增），全模块 `detekt` 恢复全绿。
+
+- `AISectAttackManager`：`tryNativeComputeCanOccupy`/`tryNativeCheckAttackConditions` 合并早期返回（ReturnCount 3→2）
+- `ClarityModeTest` / `SoftwareCanvasBackendAtlasTest` / `SectAtlasAssembler` / `SpriteSourceMappingGuardTest`：拆超长行（MaxLineLength）
+- `SpriteSourceMappingGuardTest`：清理 3 个未用 import（UnusedImports）；`isMaxDimItem` 提取拆复杂条件（ComplexCondition）
+- `NativeSurfaceView.consumePendingTextureQuality`：复杂条件拆分（ComplexCondition）——early-return + 提取变更判断
+- `SoftwareCanvasBackend`：`footprintOf`/`buildScaledRects` 移出为顶层函数（TooManyFunctions 20→18）
+- `ReproGroundScaleTest`：超长测试拆为 4 个私有辅助（LongMethod）
+- **验证**：全模块 `detekt` 全绿 · 相关测试（ReproGroundScaleTest/SoftwareCanvasBackendAtlasTest/SoftwareCanvasBackendTest/NativeSurfaceViewTest/ClarityModeTest/SpriteSourceMappingGuardTest）全绿 · `compileReleaseKotlin`。
+
 ### 修复：软件渲染路径宗门地图地面出现米色空隙（图集源矩形缩放回归）
 
 > 2026-09-03 玩家反馈「宗门地图变成一块块米色空隙」问题根治。为同年 4.01.12「图集 2048→4096」批次遗留的坐标采样错误闭环——该批次提升了图集分辨率并给软件路径图集加了 0.5× 封顶缩放，但 `SoftwareCanvasBackend` 采样 `SpriteAtlasDef` 源矩形时未同步缩放。

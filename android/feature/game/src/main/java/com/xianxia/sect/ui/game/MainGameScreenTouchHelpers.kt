@@ -2,79 +2,18 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.render.SpriteAtlasDef
-import com.xianxia.sect.core.touch.HitSlopPolicy
-import com.xianxia.sect.core.touch.TouchEngineConfig
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.sect.FastPreviewSnapshot
 
 /**
  * MainGameScreen 触控辅助函数簇（2026-08-30 触控优化拆分）。
- * 独立文件承载——命中宽容判定（hit slop / 最近兜底）与预览快通道写入
- * 均与手势引擎回调解耦，保持 MainGameScreenGestures.kt 函数数低于 detekt 文件阈值。
+ * 独立文件承载——预览快通道写入与手势引擎回调解耦，保持 MainGameScreenGestures.kt
+ * 函数数低于 detekt 文件阈值。
+ *
+ * 注：命中宽容判定（hit slop 外扩 / 最近建筑兜底）已移除，建筑命中统一改为
+ * 精确格命中（见 MainGameScreenGestures 的 findBuildingAt）。
  */
-
-/**
- * 外扩矩形命中（hit slop）：把被点格向四周外扩 [HitSlopPolicy.expandCells] 格后，
- * 返回绘制顺序最上层的建筑——小建筑（灵田等 1×1）按下点偏一格仍可命中。
- */
-internal fun findBuildingExpanded(
-    mapData: MainGameScreenMapData,
-    renderData: MainGameScreenRenderData,
-    viewportData: MainGameScreenViewportData,
-    hitSlopPolicy: HitSlopPolicy,
-    screenX: Float,
-    screenY: Float
-): GridBuildingData? {
-    val wx = viewportData.cameraState.screenToWorldX(screenX)
-    val wy = viewportData.cameraState.screenToWorldY(screenY)
-    return findBuildingExpandedAtWorld(mapData, renderData, viewportData, hitSlopPolicy, wx, wy)
-}
-
-/** 外扩矩形命中（世界坐标变体）：供已持有世界坐标的调用方使用（拆除模式格中心等）。 */
-internal fun findBuildingExpandedAtWorld(
-    mapData: MainGameScreenMapData,
-    renderData: MainGameScreenRenderData,
-    viewportData: MainGameScreenViewportData,
-    hitSlopPolicy: HitSlopPolicy,
-    wx: Float,
-    wy: Float
-): GridBuildingData? {
-    val gx = GridSnapHelper.worldToGrid(wx, mapData.tileSize)
-    val gy = GridSnapHelper.worldToGrid(wy, mapData.tileSize)
-    val expand = hitSlopPolicy.expandCells(mapData.tileSize, viewportData.cameraState.scale)
-    if (expand <= 0) return renderData.buildingIndex.findBuildingAt(gx, gy)
-    return renderData.buildingIndex.findBuildingAtRect(
-        gx - expand, gy - expand, gx + expand, gy + expand
-    )
-}
-
-/**
- * 双点宽容命中（tap 用）：按下/抬起点任一做外扩矩形命中（[findBuildingExpanded]），
- * 都未命中时以按下点为锚做最近建筑兜底（半径 [TouchEngineConfig.nearestFallbackMaxDp]）。
- */
-// 拆分聚合:平铺参数搬移自原公共函数（与 MainGameScreenGestures 既有 @Suppress 惯例一致）
-@Suppress("LongParameterList", "ReturnCount")
-internal fun findBuildingTolerant(
-    mapData: MainGameScreenMapData,
-    renderData: MainGameScreenRenderData,
-    viewportData: MainGameScreenViewportData,
-    hitSlopPolicy: HitSlopPolicy,
-    config: TouchEngineConfig,
-    downX: Float,
-    downY: Float,
-    upX: Float,
-    upY: Float
-): GridBuildingData? {
-    findBuildingExpanded(mapData, renderData, viewportData, hitSlopPolicy, downX, downY)?.let { return it }
-    findBuildingExpanded(mapData, renderData, viewportData, hitSlopPolicy, upX, upY)?.let { return it }
-    // 最近建筑兜底（以下点为锚，容忍手指落点偏差）
-    val wx = viewportData.cameraState.screenToWorldX(downX)
-    val wy = viewportData.cameraState.screenToWorldY(downY)
-    val maxDistPx = hitSlopPolicy.density * config.nearestFallbackMaxDp
-    return renderData.buildingIndex.findNearestBuilding(wx, wy, mapData.tileSize, maxDistPx)
-}
 
 /**
  * 预览快通道写入（拖拽高频路径）：不经 Compose 重组/帧率门控，直接把最新预览

@@ -2,12 +2,9 @@ package com.xianxia.sect
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -129,11 +126,16 @@ class SpriteSourceMappingGuardTest {
         val regCats = loadRegistryCategories()
         // 小物件分类：应为 maxDim 烘焙；大图分类：应为 preserve
         val smallCats = setOf("PILL", "MATERIAL", "EQUIPMENT", "STORAGE_BAG", "MANUAL")
-        val preserveCats = setOf("PORTRAIT", "BUILDING", "UI", "BACKGROUND", "BEAST", "CAVE", "HEAVENLY_TRIAL", "SPIRIT_STONE", "SECT_ICON")
+        val preserveCats = setOf(
+            "PORTRAIT", "BUILDING", "UI", "BACKGROUND", "BEAST",
+            "CAVE", "HEAVENLY_TRIAL", "SPIRIT_STONE", "SECT_ICON"
+        )
         for ((category, entries) in regCats) {
             for ((_, res) in entries) {
                 val e = mapping[res] ?: continue
-                if (category in smallCats || (category == "ITEM" && (res.startsWith("herb_") || res.startsWith("seed_")))) {
+                val isMaxDimItem = category == "ITEM" &&
+                    (res.startsWith("herb_") || res.startsWith("seed_"))
+                if (category in smallCats || isMaxDimItem) {
                     val maxDim = e.bake["maxDim"]?.jsonPrimitive?.content?.toIntOrNull()
                     assertNotNull("$res($category) 应使用 maxDim 烘焙而非 preserve", maxDim)
                     assertTrue("$res maxDim 应为 1024", maxDim == 1024)
