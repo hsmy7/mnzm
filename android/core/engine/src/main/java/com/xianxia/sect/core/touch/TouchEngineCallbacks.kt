@@ -42,7 +42,9 @@ interface TouchEngineCallbacks {
     fun onLongPress(screenX: Float, screenY: Float): LongPressResult = LongPressResult.NotHandled
 
     /**
-     * 查找屏幕坐标处的建筑（用于 DOWN 时刻快速判断）。
+     * 查找屏幕坐标处的可拾起目标（用于 DOWN 时刻快速判断）。
+     * UI 层只应返回可进入拖拽的目标：当前选中建筑 / 移动中建筑 / 放置预览；
+     * 未选中建筑返回 null（视同空地：拖动平移视角、点按选中、长按不拾起）。
      * 返回非 null → 长按超时缩短为 200ms（可进入 BuildingDrag）；null → 使用
      * config.longPressTimeoutMs（默认 800ms，仅金手指）。Down→Scrolling 判决
      * 统一由 touchSlop 决定，与返回值无关。

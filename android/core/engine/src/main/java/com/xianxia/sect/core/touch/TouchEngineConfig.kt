@@ -23,8 +23,8 @@ package com.xianxia.sect.core.touch
  * @property edgePanDwellMs 边缘平移激活前的驻留时长（毫秒）
  *   — 手指仅划过屏幕边缘不触发（防拖建筑时地图误平移）；≥ 该时长才自动滚屏
  * @property pinchMinDistPx 双指缩放最小间距（像素），低于此距离不计算缩放，防抖
- * @property pickUpBuildingOnDown 建筑按下即拾起（Clash of Clans 手感）
- *   — true：Down 在建筑上立即进入拖拽状态，位移 ≤ touchSlop 快速抬起仍视为 tap；
+ * @property pickUpBuildingOnDown 可拾起目标（见 [TouchEngineCallbacks.findBuildingAt]，即选中建筑）按下即拾起
+ *   — true：Down 在目标上立即进入拖拽状态，位移 ≤ touchSlop 快速抬起仍视为 tap；
  *     false：维持 200ms 长按后拾起的旧行为
  */
 data class TouchEngineConfig(

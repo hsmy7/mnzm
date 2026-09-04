@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.game.building.registerDefaults
 import com.xianxia.sect.ui.game.main.BuildingEntrySpec
 import com.xianxia.sect.ui.game.main.buildingEntrySpec
@@ -14,6 +15,7 @@ import org.junit.Test
  * 建筑选中交互重设计相关逻辑单测：
  * - [buildingDialogType]：建筑显示名 → 详情对话框类型映射（"进入"按钮分发）
  * - [buildingEntrySpec]：建筑显示名 → "进入"按钮图标/文本映射（灵田/炼丹炉/锻造坊专属）
+ * - [canPickUpBuilding]：按住/长按拾起闸门（仅选中建筑可进入移动模式）
  */
 class MainGameScreenSelectionTest {
 
@@ -90,5 +92,43 @@ class MainGameScreenSelectionTest {
     @Test
     fun `buildingEntrySpec - 未注册显示名回退通用进入`() {
         assertEquals(BuildingEntrySpec("ui_enter", "进入"), buildingEntrySpec("未知建筑"))
+    }
+
+    // ============================================================
+    // canPickUpBuilding — 按住/长按拾起闸门（仅选中建筑可移动）
+    // ============================================================
+
+    @Test
+    fun `canPickUpBuilding - 选中的建筑允许拾起移动`() {
+        val state = MainGameScreenState()
+        state.selectedBuilding = GridBuildingData(instanceId = "b1")
+        assert(canPickUpBuilding(state, "b1"))
+    }
+
+    @Test
+    fun `canPickUpBuilding - 未选中建筑不允许拾起`() {
+        val state = MainGameScreenState()
+        state.selectedBuilding = GridBuildingData(instanceId = "b1")
+        assert(!canPickUpBuilding(state, "b2"))
+    }
+
+    @Test
+    fun `canPickUpBuilding - 无选中且无移动时不允许拾起`() {
+        val state = MainGameScreenState()
+        assert(!canPickUpBuilding(state, "b1"))
+    }
+
+    @Test
+    fun `canPickUpBuilding - 移动确认态同一建筑允许续拖`() {
+        val state = MainGameScreenState()
+        state.movingBuilding = GridBuildingData(instanceId = "b1")
+        assert(canPickUpBuilding(state, "b1"))
+    }
+
+    @Test
+    fun `canPickUpBuilding - 移动确认态其他建筑不允许拾起`() {
+        val state = MainGameScreenState()
+        state.movingBuilding = GridBuildingData(instanceId = "b1")
+        assert(!canPickUpBuilding(state, "b2"))
     }
 }

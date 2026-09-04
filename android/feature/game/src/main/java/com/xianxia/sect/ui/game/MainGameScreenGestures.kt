@@ -155,7 +155,7 @@ private fun handleMainGameScreenTap(
     }
 }
 
-/** 长按处理（MainGameScreen 拆分）：金手指入口检测 / 建筑移动模式 */
+/** 长按处理（MainGameScreen 拆分）：金手指入口检测 / 选中建筑移动模式 */
 // 拆分聚合:平铺参数搬移自原公共函数
 // 拆分搬移:多出口与原函数一致
 @Suppress("LongParameterList", "ReturnCount")
@@ -183,14 +183,16 @@ private fun handleMainGameScreenLongPress(
         )
     }
 
-    // 非放置模式 → 建筑长按 → 移动模式
+    // 非放置模式 → 选中建筑按住/长按 → 移动模式
     // 注意：movingBuilding 可能非 null（上次拖拽后确认/取消按钮还在显示）
-    // 如果按钮显示期间再次长按同一建筑，应允许继续拖拽
+    // 如果按钮显示期间再次按住同一建筑，应允许继续拖拽
     // 拆除模式禁止长按移动
     if (!state.isPlacingBuilding && !state.isDemolishMode) {
         val touched = renderData.buildingIndex.findBuildingAt(gx, gy)
             ?: (if (state.movingBuilding != null) state.movingBuilding else null)
         if (touched != null) {
+            // 仅选中建筑可拾起移动（未选中建筑长按视同空地，不进入移动模式）
+            if (!canPickUpBuilding(state, touched.instanceId)) return LongPressResult.NotHandled
             val isResumeDrag = state.movingBuilding?.instanceId == touched.instanceId
             if (!isResumeDrag) {
                 // 新建筑拖拽 → 从该建筑的原始网格坐标开始
@@ -347,7 +349,7 @@ private fun handleMainGameScreenGoldFingerUpdate(
     )
 }
 
-/** 触控命中建筑检测（MainGameScreen 拆分）：拆除/放置/移动模式分支（命中区外扩） */
+/** 触控命中建筑检测（MainGameScreen 拆分）：仅返回可拾起目标——放置预览 / 移动中建筑 / 选中建筑 */
 // 拆分搬移:多出口与原函数一致
 // 拆分搬移:嵌套/条件结构与原函数一致
 @Suppress("ReturnCount", "ComplexCondition")
@@ -382,7 +384,9 @@ private fun findMainGameScreenBuildingAt(
     val gx = GridSnapHelper.worldToGrid(wx, mapData.tileSize)
     val gy = GridSnapHelper.worldToGrid(wy, mapData.tileSize)
 
-    // buildingIndex 不包含 movingBuilding，手动检查
+    // buildingIndex 不包含 movingBuilding，手动检查。
+    // 移动确认态：只命中移动中建筑本身（按住续拖）；其他建筑/空地返回 null 视同空地——
+    // 若放行其他建筑，引擎会进入无 UI 目标的 BuildingDrag，onBuildingDragUpdate 会错误驱动旧移动状态
     val mb = state.movingBuilding
     if (mb != null) {
         // 用当前拖拽位置（movingSnappedGridX/Y）而非原始位置检查
@@ -391,9 +395,12 @@ private fun findMainGameScreenBuildingAt(
         ) {
             return mb
         }
+        return null
     }
-    // 精确格命中：点击格上有建筑才命中（不做外扩/最近兜底）
+    // 精确格命中：点击格上有建筑才命中（不做外扩/最近兜底），
+    // 且仅选中建筑可作为拾起目标（未选中建筑按住/长按视同空地）
     return renderData.buildingIndex.findBuildingAt(gx, gy)
+        ?.takeIf { canPickUpBuilding(state, it.instanceId) }
 }
 
 /** 拆除模式点击处理（MainGameScreen 拆分）：区域模式范围选中 / 单点切换选中 / 删路 */

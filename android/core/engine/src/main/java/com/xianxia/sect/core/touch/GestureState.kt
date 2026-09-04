@@ -26,7 +26,7 @@ sealed class GestureState {
     data object Flinging : GestureState()
 
     /**
-     * 长按检测到建筑，正在拖拽移动建筑。
+     * 按住/长按检测到可拾起目标（由 UI 层回调判定，通常是选中的建筑），正在拖拽移动。
      * 引擎不持有建筑引用（由 UI 层通过 movingBuilding 变量维护），
      * 只负责将移动增量通过 onBuildingDragUpdate 回调传递给 UI 层。
      */

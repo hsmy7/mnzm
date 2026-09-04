@@ -224,7 +224,7 @@ internal class MainGameScreenState {
     var isAreaSelectMode by mutableStateOf(false)
     var areaDiameter by mutableIntStateOf(AREA_DEFAULT_DIAMETER)
 
-    // 建筑移动状态（长按拖动）
+    // 建筑移动状态（选中后按住拖动）
     var movingBuilding by mutableStateOf<GridBuildingData?>(null)
     var movingWorldX by mutableFloatStateOf(0f)
     var movingWorldY by mutableFloatStateOf(0f)

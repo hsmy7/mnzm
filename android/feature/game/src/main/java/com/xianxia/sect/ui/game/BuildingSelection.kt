@@ -16,6 +16,15 @@ internal fun canSelectBuilding(state: MainGameScreenState): Boolean =
     !state.isPlacingBuilding && state.movingBuilding == null && !state.buildingBarExpanded
 
 /**
+ * 是否允许按下/长按拾起该建筑进入移动模式：仅当前选中建筑（先点选、再按住拖动），
+ * 或移动确认态中的同一建筑（确认按钮显示期间按住续拖）。
+ * 未选中建筑返回 false —— 引擎侧视同空地（拖动平移视角、点按选中）。
+ */
+internal fun canPickUpBuilding(state: MainGameScreenState, instanceId: String): Boolean =
+    state.movingBuilding?.instanceId == instanceId ||
+        state.selectedBuilding?.instanceId == instanceId
+
+/**
  * 建筑显示名 → 详情对话框类型（纯函数，可单测）。
  * 返回 null 表示无专用 DialogType，回退到通用建筑点击回调（详见 [openBuildingDetailFor]）。
  */
