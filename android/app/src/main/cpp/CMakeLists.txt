@@ -33,6 +33,7 @@ add_library(native-renderer SHARED
     SpriteBatcher.cpp
     TextureAtlas.cpp
     KtxLoader.cpp
+    SkyBackground.cpp
     NativeBridge.cpp
 )
 

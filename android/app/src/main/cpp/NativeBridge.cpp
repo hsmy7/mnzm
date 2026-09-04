@@ -14,6 +14,7 @@
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
 #include "KtxLoader.h"
+#include "SkyBackground.h"
 // 建筑占地尺寸查找表（2026-08-01：由 SpriteAtlasDef.kt 生成，禁止手改——
 // 运行 ./gradlew generateFootprintHeader 重新生成）
 #include "footprint_table.h"
@@ -44,6 +45,9 @@ static constexpr float UV_EPSILON = 0.5f / static_cast<float>(ATLAS_W);
 static Renderer2D* g_renderer = nullptr;
 static TextureAtlas* g_atlas = nullptr;
 static float g_projMatrix[16]{};
+
+// 程序绘制天空渐变背景模块（安全：Compose 线程写 setXxx，RenderThread 读 getScreenVertices）
+static SkyBackground g_sky;
 
 // 渲染后端类型（VULKAN=0 默认 / GLES=1）——NativeSurfaceView 在 initRenderer 前
 // 经 nativeSetRenderBackend 设置，决定 initRenderer 创建哪种 Rhi 实现。
@@ -329,6 +333,9 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     // 旧 surface 的进度基准不得污染新 surface 的播种/收获插值
     g_lastCropProgress.clear();
     g_activeCropKeys.clear();
+    // SkyBackground：surface 重建/降级链切换后恢复默认天空配置，防代际残留；
+    // 新 surface 初始化后由 NativeSurfaceView 重放当前 skyConfig（仿 pushRenderQuality）
+    g_sky.resetToDefault();
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -513,6 +520,46 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setFadeAlpha(
     if (a < 0.0f) a = 0.0f;
     if (a > 1.0f) a = 1.0f;
     g_fadeAlpha.store(a);
+}
+
+/**
+ * SkyBackground 配置推送（Compose 线程调用，渲染线程下一帧生效）。
+ * 四段渐变（top→second→third→bottom）。只需改颜色/位置/强度即可实现未来
+ * 晴天/傍晚/夜晚/阴天切换，不改地图渲染。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setSkyConfig(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat topR, jfloat topG, jfloat topB,
+    jfloat secondR, jfloat secondG, jfloat secondB,
+    jfloat thirdR, jfloat thirdG, jfloat thirdB,
+    jfloat botR, jfloat botG, jfloat botB,
+    jfloat secondT, jfloat thirdT,
+    jfloat strength) {
+
+    g_sky.setTopColor(topR, topG, topB);
+    g_sky.setUpperMidColor(secondR, secondG, secondB);
+    g_sky.setLowerMidColor(thirdR, thirdG, thirdB);
+    g_sky.setBotColor(botR, botG, botB);
+    g_sky.setStops(secondT, thirdT);
+    g_sky.setStrength(strength);
+}
+
+/**
+ * 绘制屏幕空间天空背景（渲染线程帧首调用，beginFrame 之后、drawAllTiles 之前）。
+ * 背景以屏幕正交投影绘制（相机平移/缩放不影响），始终为最底图层。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawSky(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+
+    if (!g_renderer) return;
+    int count = 0;
+    const SpriteVertex* verts = g_sky.getScreenVertices(count);
+    if (count > 0 && verts) {
+        g_renderer->drawBackground(verts, count, g_sky.getGradientParams());
+    }
+    g_sky.markDrawn();
 }
 
 extern "C" JNIEXPORT void JNICALL

@@ -11,6 +11,19 @@
 #include <thread>
 #include <chrono>
 
+// SkyBackground 天空管线 push-constant 结构（与 sky.vert / sky.frag 的 SkyPC 布局一致）：
+//   mat4 proj(0..63) + topColor(64..79) + upperMidColor(80..95) + lowerMidColor(96..111) + bottomColor(112..127) = 128B
+// 四段渐变：颜色取 .rgb；位置/强度编码在 alpha（topColor.a=upperMidT, upperMidColor.a=lowerMidT,
+// lowerMidColor.a=strength），以控制在 minPushConstantsSize(=128B) 内。
+struct alignas(16) SkyPushConstants {
+    float proj[16];
+    float topColor[4];
+    float upperMidColor[4];
+    float lowerMidColor[4];
+    float bottomColor[4];
+};
+static_assert(sizeof(SkyPushConstants) == 128, "SkyPushConstants must be 128 bytes (minPushConstantsSize)");
+
 /** Vulkan 驱动版本缓存（由 initDevice 设置，供 JNI getVulkanDriverVersion 读取） */
 volatile int VulkanBackend::s_driverVersion = 0;
 /** Vulkan API 版本（VK_MAKE_VERSION 编码）与 GPU vendorID/设备名缓存（selectPhysicalDevice 设置，供 JNI 上报量化阈值） */
@@ -284,6 +297,11 @@ bool VulkanBackend::initSurface(void* nativeWindow, int viewportW, int viewportH
 
 bool VulkanBackend::init(const RenderConfig& config, void* nativeWindow) {
     m_config = config;
+
+    // SkyBackground 屏幕正交投影（常量）：归一化屏幕坐标 (x∈[0,1] 左→右, y∈[0,1] 顶→底)
+    // → Vulkan NDC（Y 向下：y=0 顶 → -1，y=1 底 → +1）。与相机矩阵/分辨率无关，仅算一次。
+    orthoProj(m_screenOrtho, 0.0f, 1.0f, 1.0f, 0.0f);
+
     LOGI("init(%dx%d, window=%p, renderScale=%.2f)",
          config.viewportW, config.viewportH, nativeWindow, config.renderScale);
 
@@ -1086,14 +1104,17 @@ bool VulkanBackend::loadShaders() {
     // 从构建时生成的 C 头文件中加载 SPIR-V 字节码
     m_vertShader = compileShader(sprite_vert_spv, sprite_vert_spv_size);
     m_fragShader = compileShader(sprite_frag_spv, sprite_frag_spv_size);
+    // SkyBackground 天空管线（sky.vert + sky.frag：分段 smoothstep 解析渐变；失败回退主管线）
+    m_skyVertShader = compileShader(sky_vert_spv, sky_vert_spv_size);
+    m_skyFragShader = compileShader(sky_frag_spv, sky_frag_spv_size);
 
-    if (!m_vertShader || !m_fragShader) {
+    if (!m_vertShader || !m_fragShader || !m_skyVertShader || !m_skyFragShader) {
         LOGE("Failed to compile shaders");
         return false;
     }
 
-    LOGI("Shaders loaded from embedded SPIR-V (vert=%zu, frag=%zu bytes)",
-         sprite_vert_spv_size, sprite_frag_spv_size);
+    LOGI("Shaders loaded from embedded SPIR-V (vert=%zu, frag=%zu, skyVert=%zu, skyFrag=%zu bytes)",
+         sprite_vert_spv_size, sprite_frag_spv_size, sky_vert_spv_size, sky_frag_spv_size);
     return true;
 }
 
@@ -1201,6 +1222,25 @@ bool VulkanBackend::createPipeline() {
     if (vkCreatePipelineLayout(m_device, &plInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
         LOGE("Failed to create pipeline layout");
         return false;
+    }
+
+    // SkyBackground 天空管线 layout：mat4 proj(VERTEX) + 三段颜色/位置/强度(FRAGMENT)，
+    // 共 128B push constant（Vulkan 保证 minPushConstantsSize >= 128B）。
+    VkPushConstantRange skyPushRange{};
+    skyPushRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    skyPushRange.offset = 0;
+    skyPushRange.size = 16 * sizeof(float) + 4 * 4 * sizeof(float);  // mat4 + 4×vec4 = 128B
+
+    VkPipelineLayoutCreateInfo skyPlInfo{};
+    skyPlInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    skyPlInfo.setLayoutCount = 1;
+    skyPlInfo.pSetLayouts = &m_descriptorSetLayout;
+    skyPlInfo.pushConstantRangeCount = 1;
+    skyPlInfo.pPushConstantRanges = &skyPushRange;
+
+    if (vkCreatePipelineLayout(m_device, &skyPlInfo, nullptr, &m_skyPipelineLayout) != VK_SUCCESS) {
+        LOGE("Failed to create sky pipeline layout — sky will fall back to main pipeline");
+        m_skyPipelineLayout = VK_NULL_HANDLE;
     }
 
     // 描述符池
@@ -1354,6 +1394,31 @@ bool VulkanBackend::createPipeline() {
         return false;
     }
 
+    // ── SkyBackground 屏幕空间渐变管线 ──
+    // 与主管线共用顶点输入 / 视口 / 光栅化 / 混合；layout/着色器不同：
+    //   - vertex：sky.vert（归一化屏幕→NDC，输出 inUV.v）
+    //   - fragment：sky.frag（分段 smoothstep 解析渐变 + 有序抖动，参数经 push-constant）
+    // 失败置空 → submitFrame 回退主管线（用顶点色三段渐变，无平滑/无抖动）。
+    if (m_skyPipelineLayout != VK_NULL_HANDLE) {
+        VkPipelineShaderStageCreateInfo skyStages[2]{};
+        skyStages[0] = stages[0];
+        skyStages[0].module = m_skyVertShader;
+        skyStages[1] = stages[1];
+        skyStages[1].module = m_skyFragShader;
+        VkGraphicsPipelineCreateInfo skyInfo = pipeInfo;
+        skyInfo.pStages = skyStages;
+        skyInfo.stageCount = 2;
+        skyInfo.layout = m_skyPipelineLayout;
+        if (vkCreateGraphicsPipelines(m_device, cache, 1, &skyInfo, nullptr, &m_skyPipeline)
+            != VK_SUCCESS) {
+            LOGE("Failed to create sky pipeline — sky will fall back to main pipeline");
+            m_skyPipeline = VK_NULL_HANDLE;
+        }
+    } else {
+        LOGE("Sky pipeline layout not created — sky will fall back to main pipeline");
+        m_skyPipeline = VK_NULL_HANDLE;
+    }
+
     LOGI("Pipeline created successfully");
     return true;
 }
@@ -1396,8 +1461,12 @@ void VulkanBackend::destroyGraphicsObjects() {
     // 仅销毁依赖 Surface 的图形对象，保留 ShaderModule 和 PipelineCache
     if (m_pipeline) vkDestroyPipeline(m_device, m_pipeline, nullptr);
     m_pipeline = VK_NULL_HANDLE;
+    if (m_skyPipeline) vkDestroyPipeline(m_device, m_skyPipeline, nullptr);
+    m_skyPipeline = VK_NULL_HANDLE;
     if (m_pipelineLayout) vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
     m_pipelineLayout = VK_NULL_HANDLE;
+    if (m_skyPipelineLayout) vkDestroyPipelineLayout(m_device, m_skyPipelineLayout, nullptr);
+    m_skyPipelineLayout = VK_NULL_HANDLE;
     if (m_renderPass) vkDestroyRenderPass(m_device, m_renderPass, nullptr);
     m_renderPass = VK_NULL_HANDLE;
     if (m_offscreenRenderPass) vkDestroyRenderPass(m_device, m_offscreenRenderPass, nullptr);
@@ -1419,6 +1488,10 @@ void VulkanBackend::destroyShaderModules() {
     m_vertShader = VK_NULL_HANDLE;
     if (m_fragShader) vkDestroyShaderModule(m_device, m_fragShader, nullptr);
     m_fragShader = VK_NULL_HANDLE;
+    if (m_skyVertShader) vkDestroyShaderModule(m_device, m_skyVertShader, nullptr);
+    m_skyVertShader = VK_NULL_HANDLE;
+    if (m_skyFragShader) vkDestroyShaderModule(m_device, m_skyFragShader, nullptr);
+    m_skyFragShader = VK_NULL_HANDLE;
 }
 
 void VulkanBackend::destroyPipelineObjects() {
@@ -2292,10 +2365,31 @@ void VulkanBackend::draw(const SpriteVertex* vertices, int count,
     m_vboOffset += (int)copySize;
 }
 
+void VulkanBackend::drawBackground(const SpriteVertex* vertices, int count,
+                                   const SkyGradientParams& params) {
+    if (!m_ready || count == 0 || !vertices) return;
+
+    // 屏幕空间背景：写入当前帧 VBO 头部（offset=0）。注意: 必须在所有世界 draw()
+    // 之前调用（NativeBridge.drawSky 帧首触发）——本函数推进 m_vboOffset，使后续世界
+    // 顶点追加在背景之后；背景绘制命令单独记录，submitFrame 最先绘制。
+    size_t copySize = count * sizeof(SpriteVertex);
+    if (m_vboOffset + (int)copySize > (int)(m_vertexBufferSize / 2)) {
+        LOGE("VBO overflow (background): %d + %zu > %llu",
+             m_vboOffset, copySize, (unsigned long long)(m_vertexBufferSize / 2));
+        return;
+    }
+
+    memcpy((char*)m_vertexMapped[m_currentFrame] + m_vboOffset, vertices, copySize);
+    m_backgroundVertexCount = count;
+    m_skyParams = params;   // 供 submitFrame 经 push-constant 推给 sky.frag
+    m_vboOffset += (int)copySize;
+}
+
 void VulkanBackend::beginFrame() {
     m_pendingDraws.clear();
     // 三缓冲按 m_currentFrame 轮转（submitFrame 末尾递增），此处仅重置写入偏移
     m_vboOffset = 0;
+    m_backgroundVertexCount = 0;
 }
 
 void VulkanBackend::endFrame() {
@@ -2365,11 +2459,54 @@ void VulkanBackend::submitFrame() {
 
     vkCmdBeginRenderPass(cmd, &rpBegin, VK_SUBPASS_CONTENTS_INLINE);
 
+    // ── SkyBackground 屏幕空间背景（最先绘制 — 最底图层）──────────────────
+    // 用"屏幕正交投影"（m_screenOrtho）而非相机矩阵(m_projMatrix)，Camera 平移/缩放
+    // 完全不作用于背景；渐变顶点色经天空管线（sky.frag：顶点色 + 有序抖动去色带）渲染，
+    // 若天空管线创建失败则回退主管线（白纹理 × 顶点色，无抖动）。VBO offset=0，
+    // 顶点已在 drawBackground() 写入当前帧 VBO 头部。
+    if (m_backgroundVertexCount > 0) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          m_skyPipeline ? m_skyPipeline : m_pipeline);
+        if (m_skyPipeline) {
+            // 天空管线：push-constant = 屏幕正交投影(mat4) + 四段颜色（color 取 .rgb，
+            // 位置/强度编码在 alpha：c0.a=t1, c1.a=t2, c2.a=strength），共 128B VERTEX|FRAGMENT。
+            // 片元按 inUV.v 分段 smoothstep 解析渐变。
+            SkyPushConstants skyPC{};
+            memcpy(skyPC.proj, m_screenOrtho, sizeof(skyPC.proj));
+            skyPC.topColor[0] = m_skyParams.topColor[0]; skyPC.topColor[1] = m_skyParams.topColor[1];
+            skyPC.topColor[2] = m_skyParams.topColor[2]; skyPC.topColor[3] = m_skyParams.upperMidT;
+            skyPC.upperMidColor[0] = m_skyParams.upperMidColor[0]; skyPC.upperMidColor[1] = m_skyParams.upperMidColor[1];
+            skyPC.upperMidColor[2] = m_skyParams.upperMidColor[2]; skyPC.upperMidColor[3] = m_skyParams.lowerMidT;
+            skyPC.lowerMidColor[0] = m_skyParams.lowerMidColor[0]; skyPC.lowerMidColor[1] = m_skyParams.lowerMidColor[1];
+            skyPC.lowerMidColor[2] = m_skyParams.lowerMidColor[2]; skyPC.lowerMidColor[3] = m_skyParams.strength;
+            skyPC.bottomColor[0] = m_skyParams.bottomColor[0]; skyPC.bottomColor[1] = m_skyParams.bottomColor[1];
+            skyPC.bottomColor[2] = m_skyParams.bottomColor[2]; skyPC.bottomColor[3] = 1.0f;
+            vkCmdPushConstants(cmd, m_skyPipelineLayout,
+                               VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                               0, sizeof(skyPC), &skyPC);
+        } else {
+            // 回退主管线：仅投影（顶点色三段渐变，无平滑/无抖动）
+            vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
+                               0, sizeof(m_screenOrtho), m_screenOrtho);
+        }
+
+        VkBuffer vertexBuffers[] = { m_vertexBuffers[m_currentFrame] };
+        VkDeviceSize offsets[] = { 0 };
+        vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers, offsets);
+
+        if (m_whiteTexture.descSet != VK_NULL_HANDLE) {
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_pipelineLayout, 0, 1, &m_whiteTexture.descSet,
+                                    0, nullptr);
+        }
+        vkCmdDraw(cmd, m_backgroundVertexCount, 1, 0, 0);
+    }
+
     // 有绘制内容时绑定管线并提交 draw calls，空帧则仅清除颜色缓冲
     if (!m_pendingDraws.empty()) {
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
 
-        // 设置投影矩阵
+        // 设置投影矩阵（相机矩阵——世界空间绘制）
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
                            0, sizeof(m_projMatrix), m_projMatrix);
 
@@ -2414,7 +2551,7 @@ void VulkanBackend::submitFrame() {
                 }
             }
 
-            // 直接使用 VBO 中已有的数据（已在 draw() 中写入）
+            // 直接使用 VBO 中已有的数据（已在 draw() 中写入；offset 已含背景段偏移）
             vkCmdDraw(cmd, draw.count, 1, draw.vertexOffset, 0);
         }
     }

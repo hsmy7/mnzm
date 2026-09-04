@@ -14,7 +14,14 @@ import com.xianxia.sect.core.render.RoadCompositorBridge
 import com.xianxia.sect.core.render.SpiritCropRender
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.render.SpriteRect
+import com.xianxia.sect.core.render.SkyColor
+import com.xianxia.sect.core.render.SkyBackgroundConfig
 import kotlin.math.roundToInt
+
+// 顶层常量（供顶层 sanitizeRenderScale 使用——避免类方法数超 TooManyFunctions 阈值）
+private const val SOFTWARE_CANVAS_TAG = "SoftwareCanvasBackend"
+private const val SOFTWARE_MIN_SCALE = 0.1f
+private const val SOFTWARE_MAX_SCALE = 3.0f
 
 /**
  * SoftwareCanvasBackend — Canvas 软件回退渲染器 v3（Chunk 缓存版）。
@@ -30,12 +37,15 @@ import kotlin.math.roundToInt
  *
  * @param config NativeRenderConfig（tileSize, worldWidthCells 等）
  */
+// TooManyFunctions：SoftwareCanvasBackend 为单一职责的大型软件渲染器（单文件的渲染主干），
+// 辅助逻辑（SkyBackground 渐变/精灵合成器等含成员缓存的绘制块）已下沉为独立类（SkyCanvasRenderer）
+// 或顶层函数（footprintOf/sanitizeRenderScale/buildScaledRects），此处类内方法数仍达阈值——
+// 为了不掩盖后续新增方法的"应提取"信号，仅对本类抑制并保留上述提取职责。
+@Suppress("TooManyFunctions")
 class SoftwareCanvasBackend(
     private val config: NativeRenderConfig
 ) {
     companion object {
-        private const val TAG = "SoftwareCanvasBackend"
-
         // ── Chunk 化常量 ──
         private const val CHUNK_SIZE_TILES = 32
         private val CHUNK_PIXEL = CHUNK_SIZE_TILES * GameConfig.SectMap.TILE_SIZE  // 32格 × 48px = 1536px
@@ -45,9 +55,7 @@ class SoftwareCanvasBackend(
         /** 瓦片 diff 全量失效阈值：变化格超此值（大范围地形变化）放弃局部失效 */
         private const val TILE_DIFF_FULL_INVALIDATE_THRESHOLD = 1024
 
-        // ── 缩放保护常量 ──
-        private const val MIN_SCALE = 0.1f
-        private const val MAX_SCALE = 3.0f
+        // ── 缩放保护常量（MIN/MAX 已上移为文件级常量，供顶层 sanitizeRenderScale 使用） ──
 
         /** 热控降质阈值：qualityFactor < 0.6 时装饰层跳过 + 帧缓冲降为 RGB_565（与 C++ skipDecor 同常量双端对齐） */
 
@@ -589,6 +597,11 @@ class SoftwareCanvasBackend(
         isDither = false
     }
 
+    // ── SkyBackground 屏幕空间渐变绘制助手（缓存 Paint，配置/尺寸变化才重建） ──
+    private val skyRenderer = SkyCanvasRenderer()
+    /** 本帧天空配置（renderFrame 设置，composeVisibleChunks 读取——避免 LongParameterList） */
+    private var currentSkyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT
+
     /** 云层 Paint（独立实例——逐帧改 alpha 不得污染共享 paint，仿 cropPaint 惯例） */
     private val cloudPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
         isFilterBitmap = false
@@ -709,7 +722,8 @@ class SoftwareCanvasBackend(
         vpW: Int,
         vpH: Int,
         fadeAlpha: Float = 1f,
-        cloudData: FloatArray? = null
+        cloudData: FloatArray? = null,
+        skyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT
     ): Bitmap? {
         // ★ 源矩形坐标缩放比：软件路径图集由 SectAtlasAssembler 按 0.5× 缩到 2048，
         // 而 SpriteAtlasDef 源矩形是 4096 坐标系——直接采样会越界/取到相邻槽位，
@@ -732,7 +746,7 @@ class SoftwareCanvasBackend(
         ensureFrameBuffer(fbW, fbH, decorSkip)
         val canvas = frameCanvas
         val fb = frameBuffer
-        val scale = sanitizeScale(frame)
+        val scale = sanitizeRenderScale(frame)
         // 三守卫合并（canvas/fb 生命周期绑定；scale 非法时返回旧帧缓冲不渲染）
         if (canvas == null || fb == null || scale == null) return fb
         // 世界→帧缓冲像素的生效比例（fbW/drawScale = physW/scale 比率自洽，
@@ -749,12 +763,17 @@ class SoftwareCanvasBackend(
 
         // Chunk 失效检查 + 重建（WP5：装饰判定用 LOD 合并值——档位内浮点微动不触发重建防抖动）
         if (invalidateChunksForChanges(
-                tileHash, buildingHash, roadHash, decorSkip,
-                frame.buildingData, frameState.prevBuildingData,
-                frame.tileData, frameState.prevTileData
+                ChunkInvalidationInput(
+                    tileHash, buildingHash, roadHash, decorSkip,
+                    frame.buildingData, frameState.prevBuildingData,
+                    frame.tileData, frameState.prevTileData
+                )
             )) {
             rebuildInvalidChunks(atlas, frame, decorSkip)
         }
+
+        // ★ 本帧天空配置（composeVisibleChunks 读取——避免长参数表）
+        currentSkyConfig = skyConfig
 
         // 合成可见 chunk → 灵田作物层 → 云层 → 选中高亮 → 拆除高亮 → 预览精灵 → 网格线
         composeVisibleChunks(canvas, frame, tileSize, drawScale, fbW, fbH, fadeAlpha)
@@ -836,16 +855,7 @@ class SoftwareCanvasBackend(
      *
      * @return 合法 → 钳制后的 scale；NaN/Inf → null（调用方返回当前帧缓冲不渲染）
      */
-    private fun sanitizeScale(frame: RenderFrame): Float? {
-        if (frame.camX.isNaN() || frame.camX.isInfinite() ||
-            frame.camY.isNaN() || frame.camY.isInfinite() ||
-            frame.scale.isNaN() || frame.scale.isInfinite()
-        ) {
-            android.util.Log.w(TAG, "renderFrame: NaN/Inf in camera/scale")
-            return null
-        }
-        return frame.scale.coerceIn(MIN_SCALE, MAX_SCALE)
-    }
+    // sanitizeScale 已下沉为顶层 sanitizeRenderScale（减少类方法数——TooManyFunctions 守卫）
 
     /** 全部 chunk 失效（瓦片/装饰/建筑清空路径统一入口） */
     private fun invalidateAllChunks() {
@@ -859,25 +869,17 @@ class SoftwareCanvasBackend(
     /**
      * Chunk 失效检查（WP5：装饰判定用 LOD 合并值——档位内浮点微动不触发重建防抖动）。
      *
+     * @param input 失效判定输入（分组长参数表——LongParameterList 守卫）
      * @return 是否有 chunk 需要重建
      */
-    private fun invalidateChunksForChanges(
-        tileHash: Int,
-        buildingHash: Int,
-        roadHash: Int,
-        decorSkip: Boolean,
-        buildingArray: FloatArray?,
-        prevBuildingData: FloatArray?,
-        tileData: IntArray,
-        prevTileData: IntArray?
-    ): Boolean {
-        val chunkTileChanged = tileHash != chunkTileHash
-        val chunkBuildingChanged = buildingHash != chunkBuildingHash
-        val chunkRoadChanged = roadHash != chunkRoadHash
-        val chunkDecorChanged = decorSkip != lastDecorationsDisabled
+    private fun invalidateChunksForChanges(input: ChunkInvalidationInput): Boolean {
+        val chunkTileChanged = input.tileHash != chunkTileHash
+        val chunkBuildingChanged = input.buildingHash != chunkBuildingHash
+        val chunkRoadChanged = input.roadHash != chunkRoadHash
+        val chunkDecorChanged = input.decorSkip != lastDecorationsDisabled
 
         if (chunkDecorChanged) {
-            lastDecorationsDisabled = decorSkip
+            lastDecorationsDisabled = input.decorSkip
         }
         if (chunkTileChanged || chunkDecorChanged) {
             // ★ 2026-09 根因修复（软件渲染拿起建筑 1 秒延迟）：瓦片变化不再全量
@@ -886,28 +888,28 @@ class SoftwareCanvasBackend(
             if (chunkDecorChanged) {
                 invalidateAllChunks()
             } else {
-                invalidateChunksForTileDiff(prevTileData, tileData)
+                invalidateChunksForTileDiff(input.prevTileData, input.tileData)
             }
-            if (chunkTileChanged) chunkTileHash = tileHash
+            if (chunkTileChanged) chunkTileHash = input.tileHash
         }
         if (chunkBuildingChanged) {
-            chunkBuildingHash = buildingHash
+            chunkBuildingHash = input.buildingHash
             // ★ 2026-09 根因修复（软件渲染放置模式 1 秒延迟）：建筑数据变化不再
             //   全量失效 16 块 chunk（移动建筑拿起/放下各触发一次全量 CPU 重绘
             //   → 方格/预览迟到约 1 秒）——改为局部失效：仅重建旧/新建筑位置
             //   涉及的 chunk。空数组（进入无建筑宗门）仍全失效防残留
             //   （2026-08-16 残留根因修复语义保留）。
-            if (buildingArray == null || buildingArray.isEmpty()) {
+            if (input.buildingArray == null || input.buildingArray.isEmpty()) {
                 invalidateAllChunks()
             } else {
-                invalidateChunksForBuildings(prevBuildingData)  // 旧位置（拿起/移动离开）
-                invalidateChunksForBuildings(buildingArray)     // 新位置（放下/新建）
+                invalidateChunksForBuildings(input.prevBuildingData)  // 旧位置（拿起/移动离开）
+                invalidateChunksForBuildings(input.buildingArray)     // 新位置（放下/新建）
             }
         }
         if (chunkRoadChanged) {
             // 道路变化：失效全部 chunk（道路可能横跨多个 chunk，局部失效受 32×32 网格限制，
             // 全失效 16 块重建成本低——道路放置/删除低频，满足"只更新受影响区域"）。
-            chunkRoadHash = roadHash
+            chunkRoadHash = input.roadHash
             invalidateAllChunks()
         }
         return chunkTileChanged || chunkBuildingChanged || chunkRoadChanged || chunkDecorChanged
@@ -1032,7 +1034,9 @@ class SoftwareCanvasBackend(
         val lastChunkRow = ((viewBottom / tileSize) / CHUNK_SIZE_TILES).toInt()
             .coerceIn(0, NUM_CHUNKS_ROW - 1)
 
-        canvas.drawColor(Color.rgb(0xF2, 0xED, 0xE4))
+        // ★ SkyBackground 屏幕空间渐变背景（最底图层——在 chunk 绘制之前、纯屏幕/帧缓冲
+        // 坐标，不受相机平移缩放影响；以全帧矩形绘制，无黑边/透明/未覆盖区）。
+        canvas.drawRect(0f, 0f, fbW.toFloat(), fbH.toFloat(), skyRenderer.paintFor(currentSkyConfig, fbH))
         paint.alpha = (fadeAlpha.coerceIn(0f, 1f) * 255).toInt()
         val reuseRect = Rect()
         val firstChunkWorldX = (firstChunkCol * CHUNK_SIZE_TILES * tileSize).toFloat()
@@ -1547,6 +1551,23 @@ private fun cloudScreenRect(
 }
 
 /**
+ * 相机/缩放合法性检查 + 缩放钳制（原 SoftwareCanvasBackend.sanitizeScale 下沉为顶层函数——
+ * 减少该类方法数，TooManyFunctions 守卫；行为不变）。
+ *
+ * @return 合法 → 钳制后的 scale；NaN/Inf → null（调用方返回当前帧缓冲不渲染）
+ */
+private fun sanitizeRenderScale(frame: RenderFrame): Float? {
+    if (isNonFinite(frame.camX) || isNonFinite(frame.camY) || isNonFinite(frame.scale)) {
+        android.util.Log.w(SOFTWARE_CANVAS_TAG, "renderFrame: NaN/Inf in camera/scale")
+        return null
+    }
+    return frame.scale.coerceIn(SOFTWARE_MIN_SCALE, SOFTWARE_MAX_SCALE)
+}
+
+/** NaN/Inf 判定（拆分裂合条件——ComplexCondition 守卫） */
+private fun isNonFinite(v: Float): Boolean = v.isNaN() || v.isInfinite()
+
+/**
  * 建筑/固定结构占地尺寸解析：结构（nameIdx ≥ BUILDING_NAMES.size）走
  * SpriteAtlasDef.STRUCTURES，建筑走 FOOTPRINT_BY_NAME_INDEX，越界兜底 2×2。
  * 顶层函数（不增加 SoftwareCanvasBackend 类函数数——TooManyFunctions 守卫）。
@@ -1577,3 +1598,90 @@ private fun <T> buildScaledRects(
             ((sr.y + sr.h) * sourceScale).roundToInt()
         )
     }.toTypedArray()
+
+/**
+ * Chunk 失效检查输入（分组 [SoftwareCanvasBackend.invalidateChunksForChanges] 长参数表——
+ * LongParameterList 守卫；数据类自动生成 component1..8 供解构复用）。
+ */
+private data class ChunkInvalidationInput(
+    val tileHash: Int,
+    val buildingHash: Int,
+    val roadHash: Int,
+    val decorSkip: Boolean,
+    val buildingArray: FloatArray?,
+    val prevBuildingData: FloatArray?,
+    val tileData: IntArray,
+    val prevTileData: IntArray?
+)
+
+/**
+ * SkyCanvasRenderer — Canvas 软件路径的 SkyBackground 屏幕空间渐变绘制助手。
+ *
+ * 独立于 [SoftwareCanvasBackend]（不增加后者 TooManyFunctions 计数）。持有并缓存渐变
+ * Paint（配置/帧缓冲尺寸变化才重建，避免每帧分配）；与 C++ SkyBackground 同公式
+ * （四段 top→second→third→bottom + positions [0,secondT,thirdT,1] + strength 向顶色混合）。
+ * Paint 仅用于全帧矩形（屏幕/帧缓冲坐标），不受相机平移缩放影响。
+ */
+private class SkyCanvasRenderer {
+
+    private var skyPaint: Paint? = null
+    private var skyPaintConfig: SkyBackgroundConfig? = null
+    private var skyPaintFbH: Int = -1
+
+    /** 取屏幕空间渐变 Paint（缓存在配置/帧缓冲尺寸变化才重建） */
+    fun paintFor(config: SkyBackgroundConfig, fbH: Int): Paint {
+        val sp = skyPaint
+        if (sp == null || skyPaintConfig != config || skyPaintFbH != fbH) {
+            val s = config.strength.coerceIn(0f, 1f)
+            // 四段渐变：每段 = mix(顶色, 该段色, strength)，strength 向顶色混合
+            val colors = intArrayOf(
+                mix(config.topColor, config.topColor, s),
+                mix(config.topColor, config.secondColor, s),
+                mix(config.topColor, config.thirdColor, s),
+                mix(config.topColor, config.bottomColor, s)
+            )
+            val shader = LinearGradient(
+                0f, 0f, 0f, fbH.toFloat(),
+                colors, normalizePositions(0f, config.secondT, config.thirdT, 1f),
+                Shader.TileMode.CLAMP
+            )
+            skyPaint = Paint().apply {
+                isAntiAlias = false
+                isDither = false   // 禁止噪声/颗粒（清新柔和纯净渐变，不做抖动）
+                this.shader = shader
+            }
+            skyPaintConfig = config
+            skyPaintFbH = fbH
+        }
+        return skyPaint!!
+    }
+
+    /** 颜色插值并转 0..255 整型（t ∈ [0,1]，从 from → to） */
+    private fun mix(from: SkyColor, to: SkyColor, t: Float): Int {
+        val a = t.coerceIn(0f, 1f)
+        val r = ((from.r + (to.r - from.r) * a) * 255).roundToInt().coerceIn(0, 255)
+        val g = ((from.g + (to.g - from.g) * a) * 255).roundToInt().coerceIn(0, 255)
+        val b = ((from.b + (to.b - from.b) * a) * 255).roundToInt().coerceIn(0, 255)
+        return Color.rgb(r, g, b)
+    }
+
+    /**
+     * 归一化并保证四段位置严格递增（LinearGradient 要求单调递增，否则 skia 抛异常）。
+     * 退化段（相邻停靠点重合）用极小 epsilon 展开，视觉近似线性，防崩溃不闪黑。
+     */
+    private fun normalizePositions(a: Float, b: Float, c: Float, d: Float): FloatArray {
+        val eps = 1e-4f
+        var p0 = a.coerceIn(0f, 1f)
+        var p1 = b.coerceIn(0f, 1f)
+        var p2 = c.coerceIn(0f, 1f)
+        var p3 = d.coerceIn(0f, 1f)
+        if (p1 <= p0) p1 = p0 + eps
+        if (p2 <= p1) p2 = p1 + eps
+        if (p3 <= p2) p3 = p2 + eps
+        p0 = p0.coerceAtLeast(0f)
+        p1 = p1.coerceAtMost(1f)
+        p2 = p2.coerceAtMost(1f)
+        p3 = p3.coerceAtMost(1f)
+        return floatArrayOf(p0, p1, p2, p3)
+    }
+}

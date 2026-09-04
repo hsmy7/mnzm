@@ -6,12 +6,14 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import com.xianxia.sect.core.render.RenderFrame
+import com.xianxia.sect.core.render.SkyColor
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.roundToInt
 
 /**
  * SoftwareCanvasBackend 单元测试（核心渲染路径）。
@@ -513,7 +515,7 @@ class SoftwareCanvasBackendTest {
     }
 
     @Test
-    fun `tile gap - background color is beige not transparent`() {
+    fun `tile gap - background is sky gradient not transparent`() {
         // 注：Robolectric 中 getPixel 不可靠，仅验证尺寸和渲染不崩溃
         val td = IntArray(2 * 2) { 0 }
         val frame = RenderFrame(
@@ -525,7 +527,8 @@ class SoftwareCanvasBackendTest {
         assertEquals(200, result!!.width)
         assertEquals(200, result.height)
 
-        // step A drawColor 已改为米色（非透明），缝隙处无透明像素闪烁
+        // step A drawColor 已改为SkyBackground 屏幕空间渐变背景（非透明），
+        // 缝隙处无透明像素闪烁；天空为最底图层，不受相机平移缩放影响。
     }
 
     @Test
@@ -675,4 +678,94 @@ class SoftwareCanvasBackendTest {
         assertNear(178, Color.green(pixel), tolerance = 8)
         assertNear(178, Color.blue(pixel), tolerance = 8)
     }
+
+    // ============================================================
+    // SkyBackground（程序绘制天空渐变背景，2026 天幕组件）
+    // ============================================================
+
+    /**
+     * 相机移到世界之外足够远（camX/camY=100000，远超唯一 chunk 的覆盖范围）→
+     * chunk 被绘制到视口左侧/上方之外，落在帧缓冲的区域全为天空——保证天空可见。
+     * （实测 chunk 不透明基色会在相机较近时覆盖天空，须把世界彻底移出视口。）
+     */
+    private fun skyFrame(camX: Float, camY: Float): RenderFrame {
+        return RenderFrame(
+            tileData = createFlatTileData(10, 10), cols = 10, rows = 10,
+            camX = camX, camY = camY, scale = 1f
+        )
+    }
+
+    @Test
+    fun `sky gradient - top pixel is topColor bottom is bottomColor`() {
+        val img = backend.renderFrame(skyFrame(100000f, 100000f), atlas, vpW = 200, vpH = 200)
+        assertNotNull(img)
+        val bmp = img!!
+        val top = skyColorInt(SkyColor.DEFAULT_TOP)
+        val bot = skyColorInt(SkyColor.DEFAULT_BOTTOM)
+        val topPixel = bmp.getPixel(100, 2)
+        val botPixel = bmp.getPixel(100, 198)
+        // 顶部/底部像素应接近 topColor / bottomColor（±12 容差：渐变插值 + 抖动噪声）
+        assertNear(Color.red(top), Color.red(topPixel), 12)
+        assertNear(Color.green(top), Color.green(topPixel), 12)
+        assertNear(Color.blue(top), Color.blue(topPixel), 12)
+        assertNear(Color.red(bot), Color.red(botPixel), 12)
+        assertNear(Color.green(bot), Color.green(botPixel), 12)
+        assertNear(Color.blue(bot), Color.blue(botPixel), 12)
+    }
+
+    @Test
+    fun `sky gradient - 4 stop colors at 33pct and 66pct positions`() {
+        // 四段渐变：停靠位置 0 / 0.33 / 0.66 / 1，颜色 top / upperMid / lowerMid / bottom。
+        // 在 0.33 与 0.66 处（y=66 / y=132，fbH=200）像素应接近 upperMid / lowerMid 停靠色。
+        val img = backend.renderFrame(skyFrame(100000f, 100000f), atlas, vpW = 200, vpH = 200)
+        assertNotNull(img)
+        val bmp = img!!
+        val second = skyColorInt(SkyColor.DEFAULT_SECOND)
+        val third = skyColorInt(SkyColor.DEFAULT_THIRD)
+        val mid1 = bmp.getPixel(100, 66)
+        val mid2 = bmp.getPixel(100, 132)
+        assertNear(Color.red(second), Color.red(mid1), 12)
+        assertNear(Color.green(second), Color.green(mid1), 12)
+        assertNear(Color.blue(second), Color.blue(mid1), 12)
+        assertNear(Color.red(third), Color.red(mid2), 12)
+        assertNear(Color.green(third), Color.green(mid2), 12)
+        assertNear(Color.blue(third), Color.blue(mid2), 12)
+    }
+
+    @Test
+    fun `sky gradient - camera pan does not change sky pixel`() {
+        // 两种不同相机（都把世界移出视口、天空铺满帧缓冲）→ 天空像素必须一致：
+        // 天空是 Screen Space 背景，不参与世界坐标移动。
+        // 注：backend.renderFrame 复用同一帧缓冲，须在下次渲染前取像素。
+        val a = backend.renderFrame(skyFrame(100000f, 100000f), atlas, vpW = 200, vpH = 200)!!
+        val aTop = a.getPixel(100, 2)
+        val aBot = a.getPixel(100, 198)
+        val b = backend.renderFrame(skyFrame(300000f, 300000f), atlas, vpW = 200, vpH = 200)!!
+        assertEquals("天空像素不应随相机平移变化", aTop, b.getPixel(100, 2))
+        assertEquals("天空像素不应随相机平移变化", aBot, b.getPixel(100, 198))
+    }
+
+    @Test
+    fun `sky gradient - camera zoom does not change sky pixel`() {
+        val z1 = RenderFrame(
+            tileData = createFlatTileData(10, 10), cols = 10, rows = 10,
+            camX = 100000f, camY = 100000f, scale = 1f
+        )
+        val z2 = RenderFrame(
+            tileData = createFlatTileData(10, 10), cols = 10, rows = 10,
+            camX = 100000f, camY = 100000f, scale = 4f
+        )
+        val a = backend.renderFrame(z1, atlas, vpW = 200, vpH = 200)!!
+        val aPix = a.getPixel(100, 2)
+        val b = backend.renderFrame(z2, atlas, vpW = 200, vpH = 200)!!
+        assertEquals("天空像素不应随相机缩放变化", aPix, b.getPixel(100, 2))
+    }
+
+    /** SkyColor → 0..255 ARGB int（与后端 skyPaintFor 同换算） */
+    private fun skyColorInt(c: SkyColor): Int =
+        Color.rgb(
+            (c.r * 255).roundToInt().coerceIn(0, 255),
+            (c.g * 255).roundToInt().coerceIn(0, 255),
+            (c.b * 255).roundToInt().coerceIn(0, 255)
+        )
 }

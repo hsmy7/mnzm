@@ -34,6 +34,42 @@ static const char* kFragSrc =
     "  gl_FragColor = texture2D(uTex, vUV) * vColor;\n"
     "}\n";
 
+// SkyBackground 屏幕空间渐变片元着色器（GLSL ES 1.00 最大兼容）。
+// 四段渐变（uTopColor@0 → uUpperMidColor@upperMidT → uLowerMidColor@lowerMidT → uBottomColor@1）
+// 由 uniform 逐像素解析：分段 smoothstep（C1 平滑）；无噪声/无颗粒/无 dither（清新柔和纯净渐变）。
+// vUV.v 为归一化 Y（0=顶 1=底）；不做纹理采样；vColor 作天空程序失败时的回退未用。
+// 位置/强度编码在对应向量 alpha 通道（uTopColor.a=upperMidT, uUpperMidColor.a=lowerMidT,
+// uLowerMidColor.a=strength），颜色取 .rgb。
+static const char* kSkyFragSrc =
+    "precision mediump float;\n"
+    "uniform vec4 uTopColor;\n"
+    "uniform vec4 uUpperMidColor;\n"
+    "uniform vec4 uLowerMidColor;\n"
+    "uniform vec4 uBottomColor;\n"
+    "varying vec2 vUV;\n"
+    "varying vec4 vColor;\n"
+    "float skySmooth(float e0, float e1, float t) {\n"
+    "  float f = (t - e0) / max(e1 - e0, 0.0001);\n"
+    "  f = clamp(f, 0.0, 1.0);\n"
+    "  return f * f * (3.0 - 2.0 * f);\n"
+    "}\n"
+    "void main() {\n"
+    "  float t = vUV.y;\n"
+    "  float t1 = uTopColor.a;\n"
+    "  float t2 = uUpperMidColor.a;\n"
+    "  float strength = uLowerMidColor.a;\n"
+    "  vec3 c;\n"
+    "  if (t < t1) {\n"
+    "    c = mix(uTopColor.rgb, uUpperMidColor.rgb, skySmooth(0.0, t1, t));\n"
+    "  } else if (t < t2) {\n"
+    "    c = mix(uUpperMidColor.rgb, uLowerMidColor.rgb, skySmooth(t1, t2, t));\n"
+    "  } else {\n"
+    "    c = mix(uLowerMidColor.rgb, uBottomColor.rgb, skySmooth(t2, 1.0, t));\n"
+    "  }\n"
+    "  c = mix(uTopColor.rgb, c, strength);\n"
+    "  gl_FragColor = vec4(c, 1.0);\n"
+    "}\n";
+
 namespace {
 
 GLuint compileShader(GLenum type, const char* src) {
@@ -66,6 +102,10 @@ bool GlesBackend::init(const RenderConfig& config, void* nativeWindow) {
     m_config = config;
     m_viewportW = config.viewportW;
     m_viewportH = config.viewportH;
+
+    // SkyBackground 屏幕正交投影（GLES NDC Y 向上）：归一化屏幕坐标 (x∈[0,1] 左→右,
+    // y∈[0,1] 顶→底) → NDC（y=0 顶 → +1，y=1 底 → -1）。与相机矩阵/分辨率无关，仅算一次。
+    orthoProj(m_screenOrtho, 0.0f, 1.0f, 0.0f, 1.0f);
 
     if (!initEgl(nativeWindow)) return false;
     if (!initPipeline()) {
@@ -175,6 +215,48 @@ bool GlesBackend::initPipeline() {
     }
     m_projLoc = glGetUniformLocation(m_program, "uProj");
 
+    // ── SkyBackground 屏幕空间渐变程序（同顶点 shader，片元用 kSkyFragSrc 加抖动去色带）──
+    // 失败置 0 → submitFrame 回退主管线（无抖动）。
+    {
+        GLuint skyVs = compileShader(GL_VERTEX_SHADER, kVertSrc);
+        GLuint skyFs = compileShader(GL_FRAGMENT_SHADER, kSkyFragSrc);
+        if (skyVs && skyFs) {
+            m_skyProgram = glCreateProgram();
+            glAttachShader(m_skyProgram, skyVs);
+            glAttachShader(m_skyProgram, skyFs);
+            glBindAttribLocation(m_skyProgram, 0, "aPos");
+            glBindAttribLocation(m_skyProgram, 1, "aUV");
+            glBindAttribLocation(m_skyProgram, 2, "aColor");
+            glLinkProgram(m_skyProgram);
+            glDeleteShader(skyVs);
+            glDeleteShader(skyFs);
+            GLint skyOk = 0;
+            glGetProgramiv(m_skyProgram, GL_LINK_STATUS, &skyOk);
+            if (skyOk) {
+                m_skyProjLoc = glGetUniformLocation(m_skyProgram, "uProj");
+                m_skyTopLoc = glGetUniformLocation(m_skyProgram, "uTopColor");
+                m_skyUpperMidLoc = glGetUniformLocation(m_skyProgram, "uUpperMidColor");
+                m_skyLowerMidLoc = glGetUniformLocation(m_skyProgram, "uLowerMidColor");
+                m_skyBottomLoc = glGetUniformLocation(m_skyProgram, "uBottomColor");
+            } else {
+                GLint len = 0;
+                glGetProgramiv(m_skyProgram, GL_INFO_LOG_LENGTH, &len);
+                std::string log(len > 1 ? len - 1 : 0, '\0');
+                if (len > 1) glGetProgramInfoLog(m_skyProgram, len, nullptr, &log[0]);
+                GLES_LOGE("GLES sky program link failed: %s", log.c_str());
+                glDeleteProgram(m_skyProgram);
+                m_skyProgram = 0;
+                m_skyProjLoc = m_skyTopLoc = m_skyUpperMidLoc = m_skyLowerMidLoc = m_skyBottomLoc = -1;
+            }
+        } else {
+            if (skyVs) glDeleteShader(skyVs);
+            if (skyFs) glDeleteShader(skyFs);
+            GLES_LOGE("GLES sky shader compile failed — sky falls back to main program");
+            m_skyProgram = 0;
+            m_skyProjLoc = m_skyTopLoc = m_skyUpperMidLoc = m_skyLowerMidLoc = m_skyBottomLoc = -1;
+        }
+    }
+
     glGenBuffers(1, &m_vbo);
 
     // 1×1 白色纹理（id=0，纯色矩形）——先注册，供 glFor(0) 命中
@@ -227,10 +309,13 @@ void GlesBackend::destroyPipeline() {
     }
     if (m_vbo) glDeleteBuffers(1, &m_vbo);
     if (m_program) glDeleteProgram(m_program);
+    if (m_skyProgram) glDeleteProgram(m_skyProgram);
     m_vbo = 0;
     m_program = 0;
+    m_skyProgram = 0;
     m_whiteTex = 0;
     m_projLoc = -1;
+    m_skyProjLoc = -1;
 }
 
 bool GlesBackend::resize(int width, int height) {
@@ -246,6 +331,7 @@ void GlesBackend::beginFrame() {
     // 清屏与提交统一在 submitFrame 处理；beginFrame 仅重置状态
     m_pendingDraws.clear();
     m_vertexBuffer.clear();
+    m_backgroundVertexCount = 0;
 }
 
 void GlesBackend::endFrame() {}
@@ -324,6 +410,18 @@ void GlesBackend::draw(const SpriteVertex* vertices, int count, uint32_t texture
     m_pendingDraws.push_back({ offset, count, textureId });
 }
 
+void GlesBackend::drawBackground(const SpriteVertex* vertices, int count,
+                                 const SkyGradientParams& params) {
+    if (!vertices || count <= 0) return;
+    // 屏幕空间背景：写入 m_vertexBuffer 头部（beginFrame 已清空，帧首为空）。
+    // 必须在所有世界 draw() 之前调用（NativeBridge.drawSky 帧首触发）——本函数先
+    // 插入背景顶点，因此后续世界 draw() 记录的 vertexOffset 自然衔接在背景之后；
+    // submitFrame 最先绘制本背景段。
+    m_vertexBuffer.insert(m_vertexBuffer.end(), vertices, vertices + count);
+    m_backgroundVertexCount = count;
+    m_skyParams = params;   // 供 submitFrame 经 uniform 推给 kSkyFragSrc
+}
+
 GLuint GlesBackend::glFor(uint32_t id) const {
     for (const auto& t : m_textures) {
         if (t.id == id) return t.gl;
@@ -346,7 +444,6 @@ void GlesBackend::submitFrame() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     glUseProgram(m_program);
-    glUniformMatrix4fv(m_projLoc, 1, GL_FALSE, m_projMatrix);
 
     if (!m_vertexBuffer.empty()) {
         glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
@@ -363,6 +460,35 @@ void GlesBackend::submitFrame() {
         glEnableVertexAttribArray(2);
         glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, stride, (const GLvoid*)(4 * sizeof(float)));
 
+        // ── SkyBackground 屏幕空间背景（最先绘制 — 最底图层）──────────────────
+        // 用屏幕正交投影(m_screenOrtho)而非相机矩阵(m_projMatrix)，Camera 平移/缩放
+        // 完全不作用于背景。主路径用天空程序（kSkyFragSrc：分段 smoothstep 解析渐变 +
+        // 有序抖动，参数经 uniform 传入）；失败则回退主管线（顶点色三段渐变，无平滑）。
+        // VBO 段从 offset 0 开始。
+        if (m_backgroundVertexCount > 0) {
+            glUseProgram(m_skyProgram ? m_skyProgram : m_program);
+            if (m_skyProgram) {
+                // 四段渐变：颜色 .rgb + 位置/强度编码在 alpha（uTopColor.a=upperMidT,
+                // uUpperMidColor.a=lowerMidT, uLowerMidColor.a=strength）
+                const float top[4] = { m_skyParams.topColor[0], m_skyParams.topColor[1], m_skyParams.topColor[2], m_skyParams.upperMidT };
+                const float upperMid[4] = { m_skyParams.upperMidColor[0], m_skyParams.upperMidColor[1], m_skyParams.upperMidColor[2], m_skyParams.lowerMidT };
+                const float lowerMid[4] = { m_skyParams.lowerMidColor[0], m_skyParams.lowerMidColor[1], m_skyParams.lowerMidColor[2], m_skyParams.strength };
+                const float bottom[4] = { m_skyParams.bottomColor[0], m_skyParams.bottomColor[1], m_skyParams.bottomColor[2], 1.0f };
+                glUniformMatrix4fv(m_skyProjLoc, 1, GL_FALSE, m_screenOrtho);
+                glUniform4fv(m_skyTopLoc, 1, top);
+                glUniform4fv(m_skyUpperMidLoc, 1, upperMid);
+                glUniform4fv(m_skyLowerMidLoc, 1, lowerMid);
+                glUniform4fv(m_skyBottomLoc, 1, bottom);
+            } else {
+                glUniformMatrix4fv(m_projLoc, 1, GL_FALSE, m_screenOrtho);
+            }
+            glBindTexture(GL_TEXTURE_2D, m_whiteTex);
+            glDrawArrays(GL_TRIANGLES, 0, m_backgroundVertexCount);
+        }
+
+        // 世界绘制（相机投影）
+        glUseProgram(m_program);
+        glUniformMatrix4fv(m_projLoc, 1, GL_FALSE, m_projMatrix);
         GLuint curTex = 0;
         for (const auto& cmd : m_pendingDraws) {
             const GLuint g = glFor(cmd.textureId);

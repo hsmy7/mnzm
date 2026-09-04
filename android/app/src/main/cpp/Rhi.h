@@ -41,7 +41,11 @@ struct alignas(4) SpriteVertex {
 // 每帧最大精灵数（对应 48×48 地图的可见区域 + 放置模式网格线/预览——
 // 2026-09 骁龙 8 Gen 2 实测放置模式瓦片+装饰+建筑+网格线超 4096 被丢弃
 // 导致网格线缺失/空白区域，提升至 8192）
-static constexpr int MAX_SPRITES_PER_FRAME = 8192;
+// ★ 2026-09 天空缩放：缩小看到整座浮空岛时整张地图（128×128 = 16384 格）可见，
+//   单批 8192 会让后半地面瓦片被丢弃、岛屿残缺不全。提升到 20480 以容纳整岛地面
+//   （地面 16384 + 建筑/作物/道路余量；装饰层在 scale<0.6 由 LOD 跳过，不占批）。
+//   VBO 相应扩容（在 VulkanBackend 按 MAX_VERTICES 计算）。
+static constexpr int MAX_SPRITES_PER_FRAME = 20480;
 static constexpr int VERTICES_PER_SPRITE = 6;   // 两个三角形
 static constexpr int MAX_VERTICES = MAX_SPRITES_PER_FRAME * VERTICES_PER_SPRITE;
 
@@ -50,6 +54,23 @@ struct DrawBatch {
     uint32_t textureId;         // 纹理 ID
     int vertexOffset;           // VBO 偏移（顶点数）
     int vertexCount;            // 顶点数量
+};
+
+// ============================================================
+// SkyBackground 渐变参数（片元解析渐变：四段颜色 + 两个内部停靠位置 + 强度）
+// 由上层 SkyBackground 持有配置、每帧交给 Renderer2D::drawBackground；
+// 后端用 push-constant/uniform 传给天空片元着色器逐像素平滑计算，对应着色器中的
+// uTopColor / uUpperMidColor / uLowerMidColor / uBottomColor。
+// 停靠点：topColor@0 → upperMidColor@upperMidT → lowerMidColor@lowerMidT → bottomColor@1。
+// ============================================================
+struct SkyGradientParams {
+    float topColor[3];        // 顶部颜色（@0）
+    float upperMidColor[3];   // 上中部（@upperMidT）
+    float lowerMidColor[3];   // 下中部（@lowerMidT）
+    float bottomColor[3];     // 底部颜色（@1）
+    float upperMidT;          // 上中部停靠位置（0=顶, 1=底）
+    float lowerMidT;          // 下中部停靠位置（0=顶, 1=底）
+    float strength;           // 渐变强度（0=平铺为顶色, 1=全渐变）
 };
 
 class Renderer2D {
@@ -74,6 +95,25 @@ public:
     virtual void setProjection(const float mat[16]) = 0;
     virtual void draw(const SpriteVertex* vertices, int count, uint32_t textureId) = 0;
     virtual void submitFrame() = 0;
+
+    // === 屏幕空间渐变背景（SkyBackground，2026 天幕组件） ===
+    // 绘制屏幕空间全屏背景渐变，作为本帧**最底图层**，位于所有世界空间绘制之下。
+    //
+    // 与相机的关系（硬性约束）：
+    //   本绘制不使用 setProjection 注入的相机矩阵，而用后端内部维护的常量
+    //   "屏幕正交矩阵"把 vertices（归一化屏幕坐标）映射到自身 NDC——
+    //   因此 Camera 的平移、缩放**均不影响**背景（Screen Space / Background Layer）。
+    //
+    // 顶点约定（对上层统一，后端自行做 NDC 映射）：
+    //   vertices 用**归一化屏幕坐标**：x ∈ [0,1]（左→右），y ∈ [0,1]（顶→底）。
+    //   顶点色为三段渐变（作为天空片元管线创建失败时的**回退**）；主路径由 [params]
+    //   经天空片元着色器逐像素平滑（分段 smoothstep）计算，消除顶点插值的中段折痕
+    //   与 8-bit 色带（片元内有序抖动）。
+    //
+    // 每次帧首最多调用一次（由 NativeBridge.drawSky 触发）；后端将顶点缓冲在帧首
+    // 复制进 VBO 头部并记录，submitFrame 时最先绘制。
+    virtual void drawBackground(const SpriteVertex* vertices, int count,
+                                const SkyGradientParams& params) = 0;
 };
 
 // ============================================================

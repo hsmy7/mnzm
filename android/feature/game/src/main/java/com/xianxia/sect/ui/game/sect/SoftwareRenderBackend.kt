@@ -114,7 +114,9 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                 // ★ 地图淡入 alpha（WP4）：渲染线程每帧计算，合成 paint.alpha 应用
                 fadeAlpha = host.fadeAlpha,
                 // ★ 云层实例数据（渲染线程逐帧快照——与 Vulkan 路径同一份数据）
-                cloudData = cloudData
+                cloudData = cloudData,
+                // ★ 天空渐变配置（渲染侧单一真相源；天气/时间系统改此即可切换天际）
+                skyConfig = host.skyConfig
             )
         } catch (e: RuntimeException) {
             android.util.Log.e("SoftwareRenderBackend", "renderFrame failed: ${e.message}", e)

@@ -14,7 +14,7 @@ import org.junit.Test
  */
 class FrameSkipPolicyTest {
 
-    /** 全静止输入（七守卫全 false） */
+    /** 全静止输入（八守卫全 false） */
     private fun idleInputs() = FrameSkipInputs(
         cameraDirty = false,
         frameChanged = false,
@@ -22,7 +22,8 @@ class FrameSkipPolicyTest {
         fadeActive = false,
         scaleChanged = false,
         cloudDirty = false,
-        previewDirty = false
+        previewDirty = false,
+        skyDirty = false
     )
 
     @Test
@@ -65,6 +66,13 @@ class FrameSkipPolicyTest {
     fun `preview dirty - must render`() {
         // 预览快通道版本未消费（拖动/放置预览更新）：必须立即渲染，防预览帧被脏帧跳过漏画
         assertFalse(FrameSkipPolicy.shouldSkipFrame(idleInputs().copy(previewDirty = true)))
+    }
+
+    @Test
+    fun `sky config changed - must render`() {
+        // 天空渐变配置（天气/时间系统）变化：静止画面也须强制渲染更新天空配色，
+        // 否则配色要等到下一次相机/数据变化才生效（当前帧定格在旧配色）
+        assertFalse(FrameSkipPolicy.shouldSkipFrame(idleInputs().copy(skyDirty = true)))
     }
 
     @Test

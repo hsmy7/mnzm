@@ -46,6 +46,7 @@
 | power_save_mode | 系统省电模式监听（ACTION_POWER_SAVE_MODE_CHANGED → fpsCap 30；与低电量 45 取 min；evaluatePowerPolicy 纯函数） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP5（BatteryAwareControllerTest 扩展） |
 | dynamic_adpf_target | ADPF 目标帧时长动态化（实际帧率 → 系统性能预算；frameDurationNs 纯函数 + renderFrameRate collect 联动） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP4（GameEngineCoreFpsPolicyTest + ThermalMonitorTest 扩展） |
 | cloud_layer | 世界顶部动态云朵（CloudLayerAnimator 渲染线程驱动：只在世界外生成/横向穿越/出界消失，速度 3 格/秒（2026-08 由 5 调低），随机类型/方向/Y/缩放（0.4~0.8，2026-08 整体缩小 50%）/透明度；实例数据快照 host.cloudData 双后端共享；绘制在建筑/作物层之上、高亮/预览/网格线之下；skipDecor 同判定降级；云活跃时 cloudDirty 阻止脏帧跳过） | ✅ | ✅ | ✅ | 2026-08-22（CloudLayerAnimatorTest + SoftwareCanvasBackendCloudTest + FrameSkipPolicyTest） |
+| sky_background | 程序绘制天空渐变背景（Screen Space / Background Layer：纯 GPU/渐变绘制**四段** top→second→third→bottom，非图片纹理、无大 Bitmap、每帧零临时分配；绘制于所有世界内容之下（最底图层），Camera 平移/缩放不影响；Vulkan/GLES 走 C++ SkyBackground + RHI drawBackground（天空管线 sky.vert + sky.frag：片元内分段 smoothstep 解析渐变 + 有序抖动去色带，参数经 push-constant/uniform），Canvas 走 screen-space LinearGradient + isDither；配置化 SkyBackgroundConfig（四色/位置/强度），为天气时间系统预留接口；配置变化才重建、非每帧；skyConfig 变更经 FrameSkipPolicy.skyDirty 强制渲染一帧——静止画面也更新配色） | ✅ | ✅ | ✅ | 2026-09（SoftwareCanvasBackendTest 天空用例组 + FrameSkipPolicyTest skyDirty 守卫 + 淡入/云层 alpha 复算更新） |
 
 ## 新增特性流程
 

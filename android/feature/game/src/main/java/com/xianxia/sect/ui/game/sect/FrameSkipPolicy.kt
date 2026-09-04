@@ -21,6 +21,9 @@ package com.xianxia.sect.ui.game.sect
  * - 云朵运动/生成/销毁 → [FrameSkipInputs.cloudDirty] = true → 不跳
  *   （云层动画由渲染线程逐节拍推进——跳帧期间仍推进生成定时器，云活跃时画面
  *   持续变化必须渲染；无云静止时恢复跳帧省电）
+ * - 天空渐变配置变化 → [FrameSkipInputs.skyDirty] = true → 不跳
+ *   （SkyBackgroundConfig 由天气/时间系统更新——静止画面若跳过，天空配色不会更新，
+ *   直到下一次相机/数据变化强制渲染；故配置变更必须强制渲染一帧）
  *
  * ## 与帧率阶梯的关系
  * 循环仍按帧率节拍唤醒（30 次/秒唤醒成本可忽略），仅跳过渲染与指标统计——
@@ -41,7 +44,8 @@ object FrameSkipPolicy {
             !inputs.fadeActive &&
             !inputs.scaleChanged &&
             !inputs.cloudDirty &&
-            !inputs.previewDirty
+            !inputs.previewDirty &&
+            !inputs.skyDirty
 }
 
 /**
@@ -61,7 +65,9 @@ data class FrameSkipInputs(
     /** 云层动画变化（云朵移动/生成/销毁——云活跃时画面持续变化必须渲染） */
     val cloudDirty: Boolean,
     /** 预览快通道版本变化（拖动/放置预览更新——快通道自唤醒，与 Compose 重组解耦） */
-    val previewDirty: Boolean
+    val previewDirty: Boolean,
+    /** 天空渐变配置变化（天气/时间系统更新 SkyBackgroundConfig——静止画面也须更新天空配色） */
+    val skyDirty: Boolean
 )
 
 /**

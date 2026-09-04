@@ -5,6 +5,7 @@ import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
+import com.xianxia.sect.core.render.SkyBackgroundConfig
 import com.xianxia.sect.core.render.SpriteAtlasDef
 
 /**
@@ -44,6 +45,12 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
             selectionHighlight = host.renderConfig.renderFlags.selectionHighlight,
             decorLod = host.renderConfig.renderFlags.decorLod
         )
+        // SkyBackground：surface 重建后 C++ g_sky 已 resetToDefault，此处重放当前
+        // skyConfig（仿 pushRenderQuality/重放语义，防降级链切换后天空配置残留）。
+        // 重置 lastPushedSkyConfig 强制重放——backend 新实例 = surface 重建，C++ 侧已恢复默认，
+        // 即使 skyConfig 与上次相同也必须重新推送，否则沿用 C++ 默认色。
+        host.lastPushedSkyConfig = null
+        pushSkyConfigIfChanged(host.skyConfig)
     }
 
     override fun resize(width: Int, height: Int) {
@@ -62,6 +69,11 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
 
     override fun renderFrame(frame: RenderFrame, viewportW: Int, viewportH: Int): Boolean {
         NativeBridge.beginFrame()
+
+        // ★ SkyBackground 屏幕空间渐变背景（帧首、最底图层，先于地图/建筑/特效绘制）：
+        // 配置变化推送到 C++（天气/时间切换），随后 drawSky 以屏幕正交投影绘制——
+        // Camera 平移/缩放不影响背景（Screen Space / Background Layer）。
+        drawSkyBackground()
 
         // ★ 地图淡入 alpha 推送（WP4）：渲染线程每帧计算（EaseOutCubic 纯时钟驱动），
         // C++ g_fadeAlpha 乘算 drawAllTiles 全部 quad——预览/高亮 drawRect 不受影响
@@ -141,21 +153,50 @@ open class VulkanRenderBackend(private val host: NativeSurfaceView) : RenderBack
         // 范围按缓存最新相机计算，与 g_projMatrix 同源零错位）
         drawGridOverlay(frame, viewportW, viewportH)
 
+        recordMetrics()
+        NativeBridge.submitFrame()
+        return true
+    }
+
+    /** 帧指标记录（热控降级可观测 + 帧计数——提取以收敛 renderFrame 行数） */
+    private fun recordMetrics() {
         // ★ 热控降级可观测性：装饰层被跳过（decorationsDisabled || qualityFactor < 0.6）
         //   的 Vulkan 帧计数——与 C++ drawAllTiles 的 skipDecor 判定同语义（阈值同 0.6）
         if (host.renderDecorationsDisabled || host.renderQualityFactor < DECOR_QUALITY_THRESHOLD) {
             RenderMetrics.vulkanDecorSkippedFrames.incrementAndGet()
         }
-
         RenderMetrics.vulkanFrames.incrementAndGet()
         RenderMetrics.totalFrames.incrementAndGet()
         RenderMetrics.recordFrame()
-        NativeBridge.submitFrame()
-        return true
     }
 
     override fun release() {
         NativeBridge.shutdownRenderer()
+    }
+
+    /**
+     * 绘制屏幕空间天空背景：先把当前 skyConfig 推送到 C++（仅变化时，避免每帧 JNI 开销），
+     * 再触发 drawSky（以屏幕正交投影绘制，Camera 平移/缩放不影响）。
+     */
+    private fun drawSkyBackground() {
+        pushSkyConfigIfChanged(host.skyConfig)
+        NativeBridge.drawSky()
+    }
+
+    /**
+     * 推送天空配置到 C++（仅配置变化时调用，避免每帧 JNI 开销）。
+     * 与 C++ g_sky.resetToDefault() 配合：surface 重建/降级链切换后由 [init] 重放当前配置。
+     */
+    private fun pushSkyConfigIfChanged(config: SkyBackgroundConfig) {
+        if (host.lastPushedSkyConfig == config) return
+        NativeBridge.setSkyConfig(
+            config.topColor.r, config.topColor.g, config.topColor.b,
+            config.secondColor.r, config.secondColor.g, config.secondColor.b,
+            config.thirdColor.r, config.thirdColor.g, config.thirdColor.b,
+            config.bottomColor.r, config.bottomColor.g, config.bottomColor.b,
+            config.secondT, config.thirdT, config.strength
+        )
+        host.lastPushedSkyConfig = config
     }
 
     /**

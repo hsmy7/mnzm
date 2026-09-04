@@ -171,6 +171,40 @@ object NativeBridge {
      */
     external fun setFadeAlpha(fadeAlpha: Float)
 
+    // ============================================================
+    // 程序绘制天空渐变背景（SkyBackground，2026 天幕组件）
+    // ============================================================
+
+    /**
+     * SkyBackground 配置推送（Compose 线程调用，渲染线程下一帧生效）。
+     * 四段渐变（top→second→third→bottom）；只需改颜色/位置/强度即可实现未来
+     * 晴天/傍晚/夜晚/阴天切换，不改地图渲染。
+     *
+     * @param topR/G/B 顶部颜色（蔚蓝 #4B9FD1）
+     * @param secondR/G/B 第二停靠色（浅蓝青 #62B0D8，位于 secondT）
+     * @param thirdR/G/B 第三停靠色（更浅蓝青 #78C0DF，位于 thirdT）
+     * @param botR/G/B 底部颜色（淡蓝白 #A9DCE8）
+     * @param secondT 第二停靠位置（0=屏幕顶，1=屏幕底；默认 0.25）
+     * @param thirdT 第三停靠位置（0=屏幕顶，1=屏幕底；默认 0.6）
+     * @param strength 渐变强度（0=整面平铺为顶色，1=全渐变；C++ 侧 clamp [0,1]）
+     */
+    // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
+    // LongParameterList 抑制为声明性豁免（与 drawAllTiles 同约定），参数语义见逐行注释
+    @Suppress("LongParameterList")
+    external fun setSkyConfig(
+        topR: Float, topG: Float, topB: Float,
+        secondR: Float, secondG: Float, secondB: Float,
+        thirdR: Float, thirdG: Float, thirdB: Float,
+        botR: Float, botG: Float, botB: Float,
+        secondT: Float, thirdT: Float, strength: Float
+    )
+
+    /**
+     * 绘制屏幕空间天空背景（渲染线程帧首调用：beginFrame 之后、drawAllTiles 之前）。
+     * 背景以屏幕正交投影绘制（相机平移/缩放不影响），始终为最底图层。
+     */
+    external fun drawSky()
+
     /** 统一瓦片绘制（地面+装饰+建筑+地砖合并到图集单次 draw call） */
     // JNI external 声明必须与 C++ 函数签名 1:1 平铺（参数分组会破坏 JNI 映射）——
     // LongParameterList 抑制为声明性豁免，参数语义见逐行注释

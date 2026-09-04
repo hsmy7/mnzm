@@ -83,6 +83,7 @@ public:
     void setTextureQuality(float anisotropyMax, bool mipmap);
     void setProjection(const float mat[16]) override;
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
+    void drawBackground(const SpriteVertex* vertices, int count, const SkyGradientParams& params) override;
     void submitFrame() override;
 
     // === 两阶段初始化（主流游戏做法） ===
@@ -160,7 +161,11 @@ private:
     /** 离屏渲染 pass（finalLayout=TRANSFER_SRC_OPTIMAL；与主 pass 附件描述一致，管线兼容） */
     VkRenderPass m_offscreenRenderPass = VK_NULL_HANDLE;
     VkPipelineLayout m_pipelineLayout = VK_NULL_HANDLE;
+    /** SkyBackground 天空管线 layout：mat4 proj + 三段颜色/位置/强度（128B，VERTEX|FRAGMENT push constant） */
+    VkPipelineLayout m_skyPipelineLayout = VK_NULL_HANDLE;
     VkPipeline m_pipeline = VK_NULL_HANDLE;
+    /** SkyBackground 屏幕空间渐变管线（sky.vert + sky.frag：分段 smoothstep 解析渐变；创建失败则回退主管线） */
+    VkPipeline m_skyPipeline = VK_NULL_HANDLE;
 
     // 同步对象（三重缓冲）
     static constexpr int MAX_FRAMES_IN_FLIGHT = 3;
@@ -222,6 +227,10 @@ private:
     // 着色器
     VkShaderModule m_vertShader = VK_NULL_HANDLE;
     VkShaderModule m_fragShader = VK_NULL_HANDLE;
+    /** SkyBackground 屏幕空间渐变顶点着色器（sky.vert：归一化屏幕→NDC，输出 inUV.v） */
+    VkShaderModule m_skyVertShader = VK_NULL_HANDLE;
+    /** SkyBackground 屏幕空间渐变片元着色器（sky.frag：分段 smoothstep 解析渐变 + 有序抖动） */
+    VkShaderModule m_skyFragShader = VK_NULL_HANDLE;
 
     // Pipeline Cache（加速管线创建，跨会话持久化）
     VkPipelineCache m_pipelineCache = VK_NULL_HANDLE;
@@ -231,6 +240,15 @@ private:
     // 渲染配置
     RenderConfig m_config{};
     float m_projMatrix[16]{};
+
+    // === SkyBackground 屏幕空间背景（2026 天幕组件） ===
+    // 屏幕正交投影（归一化屏幕坐标 → Vulkan NDC，Y 向下：y=0 顶 → -1，y=1 底 → +1）。
+    // 常量矩阵，不随相机矩阵/分辨率/旋转变化——Camera 平移缩放不影响背景。
+    float m_screenOrtho[16]{};
+    // 本帧屏幕背景顶点数（drawBackground 写入 VBO 头部 offset=0；submitFrame 最先绘制）
+    int m_backgroundVertexCount = 0;
+    // 本帧天空渐变参数（drawBackground 传入；submitFrame 经 push-constant 推给 sky.frag）
+    SkyGradientParams m_skyParams{};
 
     /** 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 记录，WP7） */
     bool m_astcSupported = false;

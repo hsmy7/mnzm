@@ -18,6 +18,7 @@ import com.xianxia.sect.core.render.RenderBackend
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
 import com.xianxia.sect.core.render.RenderScalePolicy
+import com.xianxia.sect.core.render.SkyBackgroundConfig
 import com.xianxia.sect.core.perf.GpuTier
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
@@ -435,6 +436,18 @@ class NativeSurfaceView(
      */
     @Volatile
     var cloudData: FloatArray? = null
+
+    /**
+     * 当前天空渐变配置（渲染侧单一真相源）。
+     * Vulkan/GLES 路径由 [com.xianxia.sect.ui.game.sect.VulkanRenderBackend] 经
+     * NativeBridge.setSkyConfig 推送到 C++；Canvas 路径由 [SoftwareCanvasBackend] 直接读取。
+     * 未来天气/时间系统改此值即可切换晴天/傍晚/夜晚/阴天。
+     */
+    @Volatile
+    var skyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT
+
+    /** 上次已推送到 C++ 的天空配置（Vulkan/GLES 路径进帧时比较，仅变化时 setSkyConfig） */
+    var lastPushedSkyConfig: SkyBackgroundConfig? = null
 
     /**
      * 相机脏标记 — [currentFrame] 更新时置 true，渲染线程读取后复位。
@@ -1083,6 +1096,9 @@ class NativeSurfaceView(
         /** 预览快通道已消费版本（渲染线程单消费者；= fastPreviewVersion 表示已合成） */
         private var lastConsumedFastPreviewVersion: Long = 0L
 
+        /** 上次实际渲染的天空配置（渲染线程单消费者；!= host.skyConfig 表示天空配置变化须渲染） */
+        private var lastRenderedSkyConfig: SkyBackgroundConfig = SkyBackgroundConfig.DEFAULT
+
         override fun run() {
             // ★ 地图淡入：渲染线程每次启动（= 每次 surface 初始化：首次进入/
             // 重入/降级路径）触发——覆盖所有初始化路径，天然幂等。
@@ -1181,7 +1197,8 @@ class NativeSurfaceView(
                 // 淡入完成兜底（2026-08-18）：淡入已结束但最后一帧仍以淡入中 alpha
                 // 渲染时强制补渲一帧完整不透明地图——防脏帧跳过把"半透明瓦片 +
                 // 米白清屏色 #F2EDE4"帧永久定格（"进入游戏全屏半透明白色覆盖"根因）
-                if (shouldSkipFrame(frame, lastRenderedFrame, cloudDirty) &&
+                if (shouldSkipFrame(frame, lastRenderedFrame, cloudDirty,
+                        skyDirty = skyConfig != lastRenderedSkyConfig) &&
                     !needsFadeCompletionFrame(lastRenderedFadeAlpha, fade)
                 ) {
                     diagSkipCount++
@@ -1195,6 +1212,7 @@ class NativeSurfaceView(
                 lastRenderedFrame = frame
                 lastRenderedFadeAlpha = fade
                 lastRenderedScaleVersion = softwareRenderScaleVersion
+                lastRenderedSkyConfig = skyConfig
                 diagRenderCount++
 
                 // ★ 统一 EWMA 渲染能力追踪（VULKAN/SOFTWARE 双路径一致）。
@@ -1217,7 +1235,8 @@ class NativeSurfaceView(
         private fun shouldSkipFrame(
             frame: RenderFrame?,
             lastRenderedFrame: RenderFrame?,
-            cloudDirty: Boolean
+            cloudDirty: Boolean,
+            skyDirty: Boolean
         ): Boolean {
             return FrameSkipPolicy.shouldSkipFrame(
                 FrameSkipInputs(
@@ -1228,7 +1247,9 @@ class NativeSurfaceView(
                     scaleChanged = softwareRenderScaleVersion != lastRenderedScaleVersion,
                     cloudDirty = cloudDirty,
                     // ★ 预览快通道自唤醒：版本未消费即强制渲染（跳过会漏画预览帧——拖拽延迟根因）
-                    previewDirty = fastPreviewChannel.version != lastConsumedFastPreviewVersion
+                    previewDirty = fastPreviewChannel.version != lastConsumedFastPreviewVersion,
+                    // ★ 天空配置变化（天气/时间系统）——静止画面也须更新天空配色
+                    skyDirty = skyDirty
                 )
             )
         }

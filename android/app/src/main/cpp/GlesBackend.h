@@ -49,8 +49,10 @@ public:
     bool isReady() const override { return m_ready.load(); }
     uint32_t uploadTexture(const void* pixels, int width, int height) override;
     void destroyTexture(uint32_t id) override;
+    // Rhi.h 接口实现（drawBackground 见下）
     void setProjection(const float mat[16]) override;
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
+    void drawBackground(const SpriteVertex* vertices, int count, const SkyGradientParams& params) override;
     void submitFrame() override;
 
 private:
@@ -80,6 +82,15 @@ private:
     GLint m_projLoc = -1;
     GLuint m_vbo = 0;
     GLuint m_whiteTex = 0;
+    /** SkyBackground 屏幕空间渐变程序（sky.vert 复用 + kSkyFragSrc 解析渐变+抖动；0 = 回退主管线） */
+    GLuint m_skyProgram = 0;
+    GLint m_skyProjLoc = -1;
+    GLint m_skyTopLoc = -1;
+    GLint m_skyUpperMidLoc = -1;
+    GLint m_skyLowerMidLoc = -1;
+    GLint m_skyBottomLoc = -1;
+    /** 本帧天空渐变参数（drawBackground 传入；submitFrame 经 uniform 推给 kSkyFragSrc） */
+    SkyGradientParams m_skyParams{};
 
     // 纹理管理
     std::vector<Tex> m_textures;
@@ -105,4 +116,11 @@ private:
     float m_projMatrix[16]{};
     int m_viewportW = 0;
     int m_viewportH = 0;
+
+    // === SkyBackground 屏幕空间背景（2026 天幕组件） ===
+    // 屏幕正交投影（归一化屏幕坐标 → GLES NDC，Y 向上：y=0 顶 → +1，y=1 底 → -1）。
+    // 常量矩阵，不随相机矩阵/分辨率变化——Camera 平移缩放不影响背景。
+    float m_screenOrtho[16]{};
+    // 本帧屏幕背景顶点数（drawBackground 写入 m_vertexBuffer 头部；submitFrame 最先绘制）
+    int m_backgroundVertexCount = 0;
 };

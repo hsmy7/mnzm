@@ -14,6 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.roundToInt
 
 /**
  * SoftwareCanvasBackend 云层渲染测试（2026-08-22 动态云层）。
@@ -113,18 +114,20 @@ class SoftwareCanvasBackendCloudTest {
 
     @Test
     fun `云层 alpha 与淡入乘算`() {
-        // alpha=1.0 × fade=0.5 → 半透明混合：0.5×云色 + 0.5×建筑白
+        // 云 alpha=1.0 × fade=0.5 → 多层 src-over：云(0.5) → 建筑白(0.5) → 天空背景(1.0)。
+        // 最终 = 0.5×云色 + 0.25×建筑白 + 0.25×天空色（采样点 y=32，天空蓝）。
         val half = backend.renderFrame(
             cloudFrame(), atlas, vpW = 200, vpH = 200,
             fadeAlpha = 0.5f, cloudData = cloudDataAt(0f)
         )!!
         val px = half.getPixel(32, 32)
-        val expR = (CLOUD_RED + 255) / 2
-        val expG = (CLOUD_GREEN + 255) / 2
-        val expB = (CLOUD_BLUE + 255) / 2
-        assertNear(expR, Color.red(px), 8)
-        assertNear(expG, Color.green(px), 8)
-        assertNear(expB, Color.blue(px), 8)
+        val sky = skyRgbIntAt(32f, 200)
+        val expR = (0.5f * CLOUD_RED + 0.25f * 255 + 0.25f * Color.red(sky)).roundToInt()
+        val expG = (0.5f * CLOUD_GREEN + 0.25f * 255 + 0.25f * Color.green(sky)).roundToInt()
+        val expB = (0.5f * CLOUD_BLUE + 0.25f * 255 + 0.25f * Color.blue(sky)).roundToInt()
+        assertNear(expR, Color.red(px), 10)
+        assertNear(expG, Color.green(px), 10)
+        assertNear(expB, Color.blue(px), 10)
     }
 
     @Test

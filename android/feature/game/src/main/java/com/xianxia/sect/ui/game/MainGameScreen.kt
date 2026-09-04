@@ -78,7 +78,6 @@ import com.xianxia.sect.ui.game.main.HideUiToggleButton
 import com.xianxia.sect.ui.game.main.JadeSymbolBadge
 import com.xianxia.sect.ui.game.main.PlacementConfirmButtons
 import com.xianxia.sect.ui.game.main.SectInfoCard
-import com.xianxia.sect.ui.game.main.SectMapEdgeOverlay
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchEngineConfig
 import com.xianxia.sect.core.animation.CameraAnimator
@@ -1022,13 +1021,9 @@ private fun MainGameScreenMapOverlays(
         )
     }
 
-    // 宗门地图边缘装饰 — 在世界边界外绘制古风卷轴边缘渐变
-    // 位于地图之上、UI 元素之下，对两渲染后端透明
-    SectMapEdgeOverlay(
-        cameraState = data.viewportData.cameraState,
-        worldPixelWidth = data.mapData.worldPixelWidth,
-        worldPixelHeight = data.mapData.worldPixelHeight
-    )
+    // 宗门地图边缘装饰 — 已停用：天空（SkyBackground）已提供地图外的干净全景背景，
+    // 原有的古风卷轴边缘渐变（#3D2B1F）会在缩小露出天空后叠加到天空上、与清新天空冲突。
+    // 若后续需要"浮空岛描边"效果，应改用与天空协调的描边方案，而非此装饰层。
 }
 
 /** 灵植阁光环范围（MainGameScreen 拆分）：放置/移动灵植阁时显示光环 + 灵田高亮 */

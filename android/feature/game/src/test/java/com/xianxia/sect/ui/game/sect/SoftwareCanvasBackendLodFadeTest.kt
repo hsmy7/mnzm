@@ -41,10 +41,10 @@ class SoftwareCanvasBackendLodFadeTest {
     @Test
     fun `renderFrame - fade alpha blends content toward background`() {
         val td = createFlatTileData(10, 10)
-        // (72,40)：阴影条带区（米色底 × 阴影 0.8≈(194,190,182)）——
-        // 淡入合成 alpha<1 时向背景米色 (0xF2EDE4) 靠拢 → 变亮
+        // (72,40)：阴影条带区（chunk 底 × 阴影暗化 ≈(189,190,181)）——
+        // 淡入合成 alpha<1 时向背景 **SkyBackground（蓝**）靠拢 → 变暗/变蓝。
         // 注：RenderFlags.buildingShadows 默认已关闭，此处显式开启以构造
-        // "内容（阴影暗化）≠ 背景"的对比，验证淡入向背景靠拢。
+        // "内容（阴影暗化）≠ 背景"的对比，验证淡入向背景（天空）靠拢。
         val fadeBackend = SoftwareCanvasBackend(
             testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
         )
@@ -55,20 +55,22 @@ class SoftwareCanvasBackendLodFadeTest {
         val zero = fadeBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200, fadeAlpha = 0f)!!
             .getPixel(72, 40)
 
+        // fade 降低 → 内容向蓝天背景靠拢（红通道随天空蓝色下降）
         assertTrue(
-            "fade 0.5 应比不透明帧亮（向背景靠拢）: full=#%06X half=#%06X"
+            "fade 0.5 应比不透明帧更蓝（向天空靠拢）: full=#%06X half=#%06X"
                 .format(full and 0xFFFFFF, half and 0xFFFFFF),
-            Color.red(half) > Color.red(full) + 10
+            Color.red(half) < Color.red(full) - 10
         )
         assertTrue(
-            "fade 0 应比 fade 0.5 更亮: half=#%06X zero=#%06X"
+            "fade 0 应比 fade 0.5 更蓝（纯天空）: half=#%06X zero=#%06X"
                 .format(half and 0xFFFFFF, zero and 0xFFFFFF),
-            Color.red(zero) > Color.red(half) + 10
+            Color.red(zero) < Color.red(half) - 10
         )
-        // fade=0 完全等于背景米色（alpha=0 → 仅 drawColor 可见）
-        assertNear(0xF2, Color.red(zero), tolerance = 4)
-        assertNear(0xED, Color.green(zero), tolerance = 4)
-        assertNear(0xE4, Color.blue(zero), tolerance = 4)
+        // fade=0 完全等于天空背景色（alpha=0 → 仅 SkyBackground 可见）
+        val sky = skyRgbIntAt(40f, 200)
+        assertNear(Color.red(sky), Color.red(zero), tolerance = 10)
+        assertNear(Color.green(sky), Color.green(zero), tolerance = 10)
+        assertNear(Color.blue(sky), Color.blue(zero), tolerance = 10)
     }
 
     @Test

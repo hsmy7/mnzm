@@ -9,6 +9,7 @@ import android.graphics.Rect
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFlags
 import com.xianxia.sect.core.render.RenderFrame
+import com.xianxia.sect.core.render.SkyColor
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.render.SpriteRect
 import kotlin.math.roundToInt
@@ -184,3 +185,32 @@ internal fun twoBuildingFrame(td: IntArray, markers: ByteArray? = null): RenderF
  * ——排除 WP3 阴影干扰，纯测作物层
  */
 internal const val CROP_SAMPLE = 8
+
+/**
+ * SkyBackground 默认配置下，屏幕 y（0=顶，1=底归一化）处的天空渐变颜色 ARGB int。
+ * 与后端 [com.xianxia.sect.ui.game.sect.SoftwareCanvasBackend] 的 skyPaintFor 同公式
+ * （四段 top→second→third→bottom + positions [0,0.25,0.6,1] + CLAMP + strength=1），
+ * 供淡入/云层 alpha 混合断言复算背景色。
+ */
+internal fun skyRgbIntAt(y: Float, fbH: Int): Int {
+    // 默认 strength=1 → 全渐变（向顶色混合系数为 1 = 该段原色）
+    fun mix(from: SkyColor, to: SkyColor, t: Float): Int {
+        val a = t.coerceIn(0f, 1f)
+        val r = ((from.r + (to.r - from.r) * a) * 255).roundToInt().coerceIn(0, 255)
+        val g = ((from.g + (to.g - from.g) * a) * 255).roundToInt().coerceIn(0, 255)
+        val b = ((from.b + (to.b - from.b) * a) * 255).roundToInt().coerceIn(0, 255)
+        return Color.rgb(r, g, b)
+    }
+    val top = SkyColor.DEFAULT_TOP
+    val second = SkyColor.DEFAULT_SECOND
+    val third = SkyColor.DEFAULT_THIRD
+    val bottom = SkyColor.DEFAULT_BOTTOM
+    val t = y.toFloat() / fbH
+    val t1 = 0.33f
+    val t2 = 0.66f
+    return when {
+        t <= t1 -> mix(top, second, t / t1)
+        t <= t2 -> mix(second, third, (t - t1) / (t2 - t1))
+        else -> mix(third, bottom, (t - t2) / (1f - t2))
+    }
+}

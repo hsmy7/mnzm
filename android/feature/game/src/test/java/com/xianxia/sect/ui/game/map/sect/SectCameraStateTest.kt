@@ -348,33 +348,30 @@ class SectCameraStateTest {
             updateViewport(phoneVpW, phoneVpH)
         }
         camera.zoom(0.01f, phoneVpW / 2f, phoneVpH / 2f)
-        assertTrue("zoom 缩小不应低于 MIN_ZOOM", camera.scale >= CameraState.MIN_ZOOM)
+        // 允许缩到世界适配以下（看到地图外天空），但不应低于合理的绝对下限（不缩成一点）
+        assertTrue("zoom 缩小不应低于合理下限", camera.scale > 0.05f)
+        assertTrue("zoom 缩小应为有限值", camera.scale.isFinite())
     }
 
     @Test
-    fun `zoom - 缩小受限安全下界，视口不看到地图外`() {
+    fun `zoom - 缩小可超出世界适配，浮空岛四周露出天空`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
             updateViewport(phoneVpW, phoneVpH)
         }
-        val minBound = maxOf(
-            CameraState.MIN_ZOOM,
-            phoneVpW.toFloat() / worldWidth,
-            phoneVpH.toFloat() / worldHeight
-        )
-        // 极端缩小 → scale 恰好被钳制到安全下界
+        val default = camera.scale
+        // 极端缩小 → 被钳制到天空可视下界（低于世界适配），视口超出世界 → 露出天空
         camera.zoom(0.001f, phoneVpW / 2f, phoneVpH / 2f)
-        assertEquals("缩小下界应等于安全下界", minBound, camera.scale, 0.001f)
-        // 视口世界尺寸不得超出世界尺寸（不看到地图外）
+        assertTrue("缩小后 scale 应低于世界适配（可看到地图外天空）", camera.scale < default)
         val ew = phoneVpW / camera.scale
         val eh = phoneVpH / camera.scale
-        assertTrue("缩小后视口世界宽度不应超过世界宽度", ew <= worldWidth + 0.1f)
-        assertTrue("缩小后视口世界高度不应超过世界高度", eh <= worldHeight + 0.1f)
-        // 至少一个维度正好填满视口（无空白）
-        assertTrue(
-            "缩小到极限时应无空白",
-            worldWidth * camera.scale >= phoneVpW - 0.5f ||
-                worldHeight * camera.scale >= phoneVpH - 0.5f
-        )
+        assertTrue("缩小后视口世界尺寸应超出世界（露出天空）", ew > worldWidth || eh > worldHeight)
+        // 天空可视下界受绝对下限保护（不缩成一点）
+        assertTrue("scale 不应低于合理下限", camera.scale > 0.05f)
+        // 岛屿仍完整可见：世界中心在视口内（未被钳到角落/移出画面）
+        val cx = camera.worldToScreenX(worldWidth / 2f)
+        val cy = camera.worldToScreenY(worldHeight / 2f)
+        assertTrue("世界中心应在视口内",
+            cx in (0f..phoneVpW.toFloat()) && cy in (0f..phoneVpH.toFloat()))
     }
 
     @Test

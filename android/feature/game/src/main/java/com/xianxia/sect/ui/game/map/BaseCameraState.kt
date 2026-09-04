@@ -199,9 +199,20 @@ abstract class BaseCameraState(
         // NaN/Infinity 净化：coerceIn 不处理 NaN，NaN 会传播到渲染线程
         if (cameraX.isNaN() || cameraX.isInfinite()) cameraX = 0f
         if (cameraY.isNaN() || cameraY.isInfinite()) cameraY = 0f
-        val ew = viewportWidth / scale
-        val eh = viewportHeight / scale
-        cameraX = cameraX.coerceIn(0f, (worldWidth - ew).coerceAtLeast(0f))
-        cameraY = cameraY.coerceIn(0f, (worldHeight - eh).coerceAtLeast(0f))
+        clampPosition(viewportWidth / scale, viewportHeight / scale)
+    }
+
+    /**
+     * 按可见世界尺寸钳制相机位置。
+     *
+     * 默认：视口超出世界时锚定到左上（世界在视口左上角）；子类可覆盖为居中
+     * （例如宗门地图提供"浮空岛四周露出天空"需把世界居中）。
+     *
+     * @param visibleW 视口世界宽度（viewportWidth / scale）
+     * @param visibleH 视口世界高度（viewportHeight / scale）
+     */
+    protected open fun clampPosition(visibleW: Float, visibleH: Float) {
+        cameraX = cameraX.coerceIn(0f, (worldWidth - visibleW).coerceAtLeast(0f))
+        cameraY = cameraY.coerceIn(0f, (worldHeight - visibleH).coerceAtLeast(0f))
     }
 }

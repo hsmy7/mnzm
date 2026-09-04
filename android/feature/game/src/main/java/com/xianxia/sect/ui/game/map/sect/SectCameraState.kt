@@ -19,10 +19,11 @@ import kotlin.math.sqrt
  * 以及「缩放中值」初始视角策略。
  *
  * 核心缩放策略：
- * - 缩放范围 [minScaleBound, MAX_ZOOM]：下界取安全值，保证缩小视角时视口
- *   不超出世界边界（不看到地图外）；上界为全局 [CameraState.MAX_ZOOM]
- * - 初始视角 = 缩放范围上下界的几何中值 √(minScaleBound × MAX_ZOOM)，
- *   保证从初始视角向放大/缩小两端可缩放的倍数一致
+ * - 缩放范围 [minScaleBound, MAX_ZOOM]：下界允许缩到比"世界适配"更小，使视口超出世界、
+ *   四周露出天空（浮空岛悬浮天际）；上界为全局 [CameraState.MAX_ZOOM]
+ * - 初始视角 = 世界适配缩放与 [CameraState.MAX_ZOOM] 的几何中值 √(safeMinScale × MAX_ZOOM)，
+ *   保证从"岛屿铺满屏幕"的初始视角向两端可缩放倍数一致
+ * - 视口超出世界时世界居中（两侧天空均分），实现浮空岛漂浮于天空中央的效果
  *
  * 支持动态缩放（scale），v4.0.45+ 新增用户缩放（双指捏合 / 双击）：
  * - 默认缩放为缩放区间几何中值，各设备可缩放倍数一致
@@ -60,6 +61,16 @@ class SectCameraState(
     /** 自动居中触发阈值（世界像素），避免反复居中打断用户操作 */
     private companion object {
         const val CENTER_THRESHOLD = 100f
+
+        /**
+         * 天空可视缩小系数：缩放下界 = 世界适配缩放 × 该系数——使视口略大于世界、
+         * 四周留出天空边距（浮空岛悬浮天际），但**不要缩到岛太小/几乎看不见**。
+         * 0.75 → 岛在最小缩放时约占视口 75%（两侧各约 12.5% 天空），既见天空又保留岛的主体。
+         */
+        const val SKY_MARGIN_FACTOR = 0.75f
+
+        /** 天空可视绝对最小缩放（防岛屿被缩得过小） */
+        const val MIN_SKY_SCALE = 0.12f
     }
 
     /**
@@ -105,13 +116,26 @@ class SectCameraState(
     }
 
     /**
-     * 用户缩放最小下界 — 保证缩小视角时视口不超出世界边界（不看到地图外）。
-     * 取 max(全局 MIN_ZOOM, 视口宽/世界宽, 视口高/世界高)：缩放不低于该值即可
-     * 保证横向/纵向至少一个维度的视口不超出世界。
+     * 用户缩放最小下界 — 允许缩到比"世界适配"更小，使视口超出世界、四周露出天空
+     * （浮空岛悬浮天际）。下界 = max(绝对下限, 世界适配缩放 × [SKY_MARGIN_FACTOR])。
      */
     override fun minScaleBound(): Float {
         if (viewportWidth <= 0 || viewportHeight <= 0) return CameraState.MIN_ZOOM
-        return safeMinScale(viewportWidth, viewportHeight)
+        return max(
+            MIN_SKY_SCALE,
+            safeMinScale(viewportWidth, viewportHeight) * SKY_MARGIN_FACTOR
+        )
+    }
+
+    /**
+     * 视口超出世界时把世界居中（两侧天空均分）——浮空岛悬浮于天空中央；
+     * 视口小于世界时钳制到世界边界内（同基类默认）。
+     */
+    override fun clampPosition(visibleW: Float, visibleH: Float) {
+        cameraX = if (visibleW >= worldWidth) (worldWidth - visibleW) / 2f
+                  else cameraX.coerceIn(0f, worldWidth - visibleW)
+        cameraY = if (visibleH >= worldHeight) (worldHeight - visibleH) / 2f
+                  else cameraY.coerceIn(0f, worldHeight - visibleH)
     }
 
     /** 安全最小缩放：视口尺寸与最小下界的最大值 */

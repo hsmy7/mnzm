@@ -1,5 +1,28 @@
 ## [4.01.12] - 2026-09-02
 
+### 修复：宗门天空真机显示为全屏同一颜色（天空渐变方向错误——俯视视角只见顶部色）
+
+> 真机实测：宗门地图天空只显示为整屏同一颜色（偏深蓝），未出现竖向渐变。根因：天空全屏四边形的**顶点 UV.v 被写成 0**（`SpriteVertex{ px, py, u, v, ... }` 的第 4 字段），导致片元 `inUV.v` 恒为 0 → 渐变始终取顶部色 `t=0`，全屏停在 `#4B9FD1`（游戏中为俯视视角，看不到渐变）。
+
+- **根因修复**：`SkyBackground::rebuildLocked` 把每行顶点 UV.v 设为该行归一化 Y（`ya`/`yb`，0=顶/1=底），使片元 `inUV.v` 随屏幕纵向连续变化 → 四段 `smoothstep` 渐变正确呈现（顶 `#4B9FD1` → `#62B0D8`(0.33) → `#78C0DF`(0.66) → 底 `#A9DCE8`）。Vulkan 与 GLES 共用同一组顶点，一并修复。
+- **验证**：原生 `externalNativeBuildRelease` 编译通过 · `SoftwareCanvasBackend*`/`RenderBackendContractTest` 全绿 · `:feature:game`/`:core:engine` detekt 干净。GPU 路径观感需真机确认（Canvas 软件回退走 `LinearGradient` 不经过顶点 UV，未受影响）。
+
+### 新增：程序绘制天空渐变背景（Screen Space / Background Layer）
+
+> 宗门地图底层新增**纯程序实时绘制**的天空渐变背景（无天空图片纹理、无大尺寸 Bitmap），作为整个游戏场景的最底层背景，绘于浮空岛/地块/建筑/树木/NPC/云层/特效之前。为后续天气/时间系统预留接口（改颜色/位置/强度即可切换晴天/傍晚/夜晚/阴天，不改地图渲染）。
+
+- **屏幕空间背景（Camera 无关）**：天空用独立于相机矩阵的"屏幕正交投影"绘制——Camera 平移、缩放均不影响天空（Screen Space / Background Layer，而非 World Space）。Vulkan/GLES 经 `Renderer2D::drawBackground`（Rhi.h 新增纯虚，VulkanBackend/GlesBackend 双实现，submitFrame 最先生成绘制位）；Canvas 路径在 `composeVisibleChunks` 用 `canvas.drawRect(0,0,fbW,fbH, LinearGradient)` 画在 chunk 之前。
+- **四段渐变（top→second→third→bottom）**：`SkyBackground`（C++，`SkyBackground.h/.cpp`）+ `SkyBackgroundConfig`/`SkyColor`（Kotlin `core:engine` render 包）为渲染侧单一真相源；可配置四个停靠色 + 两个内部位置（0=顶,1=底）+ 渐变强度。默认天幕：#4B9FD1（顶）→ #62B0D8(@0.25) → #78C0DF(@0.6) → #A9DCE8（底）。
+- **封装为独立模块**：天空配置/顶点装配完全隔离在 `SkyBackground` 模块与渲染通道内，不散落到地图/建筑/Camera 代码；双端（Vulkan/GLES 与 Canvas）共用同一份 `skyConfig`，视觉一致。
+- **低开销**：天空为全屏单 quad（最多 3 子段，18 顶点）/全帧矩形 + 恒定 draw call；配置或视口变化才重建（懒缓存，每帧零堆分配）；无新增大纹理/PNG/JPG。
+- **GPU 平滑渐变 + 无噪声颗粒**：新增专用天空管线（Vulkan `sky.vert`+`sky.frag`→SPIR-V 内嵌 `shaders.h`；GLES 天空程序）——**片元内逐像素解析渐变**：按 `inUV.v`（归一化 Y）做**分段 smoothstep**（C1 平滑，无中段折痕、无硬切换、无断层），渐变参数（四段颜色/位置/强度）经 push-constant/uniform 传入；**不做纹理采样、无噪声/颗粒/dither**，保持清新柔和纯净渐变。天空管线创建失败自动回退主管线（顶点色四段渐变，功能不受影响）。Canvas 路径用 `LinearGradient`（按像素渐变）+ `isDither=false`，双端一致。
+- **扩展接口**：`NativeBridge.setSkyConfig(...)`/`drawSky()`（JNI）+ `NativeSurfaceView.skyConfig`（`@Volatile` 渲染侧单一真相源）；`VulkanRenderBackend`/`SoftwareRenderBackend` 分别推送到 C++ 与 Canvas。
+- **验证**：`compileReleaseKotlin` · 原生 externalNativeBuildRelease 编译通过（含 sky 管线/shader）· `SoftwareCanvasBackendTest` 新增天空渐变端点色/相机平移/缩放不变（3 项）+ 淡入与云层 alpha 混合复算更新，`SoftwareCanvasBackend*` 全绿。
+- **相机可缩到地图外看天空（浮空岛悬浮天际）**：`SectCameraState.minScaleBound()` 由"视口不超出世界"改为"世界适配 × 天空边距系数"（默认 0.75，四周留天际边距；受绝对最小缩放保护）——**0.75 使浮空岛在最小缩放时仍约占视口 75%**（既见天空又保留岛的主体，不至于缩到岛太小/几乎看不见）；视口超出世界时岛屿居中（`clampPosition` 覆盖，两侧天空均分）。`CameraState.MIN_ZOOM`/`MAX_ZOOM` 与相关回归测试同步更新。（2026-09 真机修正：最初 0.6 使岛在最小缩放时过小、几乎只剩天空，已上调至 0.75。）
+- **停用宗门地图边缘装饰层**：`SectMapEdgeOverlay`（古风卷轴边缘渐变 #3D2B1F）在缩小露出天空后会叠加到天空左右两侧、与清新天空冲突，已从 `MainGameScreen` 移除——天空（SkyBackground）已提供地图外的干净全景背景。若后续需要"浮空岛描边"，应改用与天空协调的方案。
+- **修复：缩小看到整座浮空岛时地图残缺/消失（精灵批上限溢出）**：缩小到整岛可见（128×128 = 16384 格）时，单批精灵上限 8192 导致后半地面瓦片被丢弃、岛屿残缺不全（看起来像"地图消失"）。根因并非装饰物 LOD（那是 scale<0.6 有意跳装饰、反而降低精灵数），而是地面瓦片数超过 `MAX_SPRITES_PER_FRAME`。已将 `MAX_SPRITES_PER_FRAME` 由 8192 提升至 20480（容纳整岛地面 + 建筑/作物/道路余量；Vulkan VBO 按其扩容）；GLES 批缓冲随之自适应。
+- **已知限制**：Canvas 软件回退路径的地块用不透明 RGB_565 chunk 烘焙（含米色底），因此天空只在地块覆盖范围之外显示；Vulkan/GLES（主路径）为逐格绘制，天空在浮空岛边缘正确显示。若需让 Canvas 在岛边缘也显示天空，需将 chunk 改为 ARGB_8888（低端内存代价）或改为逐格合成，属后续可选优化。
+
 ### 修复：拖动建筑时网格与建筑预览延迟约 1 秒（预览组件原子化 + 渲染线程自唤醒）
 
 > 2026-09 玩家反馈「选中建筑并拖动后，网格与建筑预览约 1 秒后才出现」。根因：渲染线程的脏帧跳过策略（`FrameSkipPolicy`）只在相机/帧引用/总线/缩放/云等信号变化时才渲染，而拖动时更新预览的"快通道"（`FastPreviewChannel`）**不设置任何脏信号**——网格与精灵只能等待 Compose 那条被拉长的链路才被画出来；再叠加 `computeFramePacing` 在 step>1 下用 effectiveFps 作间隔又套 step 跳帧的平方减速（30fps→15fps、10fps→约1.67fps）。
