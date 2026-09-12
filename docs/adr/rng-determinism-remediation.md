@@ -18,21 +18,55 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 ### 定性：**架构级问题，但不是"架构设计错了"**
 
 问题的本质不是分区设计有问题，而是**"随机流"与"该流是否可复现/可归档"这两个概念在代码里没有绑死**——
-任何一处新代码随手用 `Random.Default`、或自持一个 RNG，都不会有任何机制拦住它。
+任何一处新代码随手用 `Random.Default`、自持一个 RNG、或调用一个"看起来是有种子的"全局 RNG，
+都不会有任何机制拦住它。
 
-**实测规模**：`core:domain` + `core:engine` + `feature:game` + `app` **主源**共 **114 处**
-消费 `.random()` / `Random.Default`（按文件集中度前列：`RedeemCodeRewardOps.kt` 13 /
+**实测规模（三类未受治理的流）**：
+
+| 流 | 生产调用点 | 是否落盘 | 是否种子化 | 判据 |
+|---|---|---|---|---|
+| `kotlin.random.Random.Default`（`.random()` / `generateRandom*` 默认参数） | **114 处**（含表现层） | ❌ | ❌（进程启动随机） | 同一存档两次抽取结果不同 |
+| `GameRandom`（`object`，XorShift128Plus） | **8 处**（见下） | ❌ | ❌（**`setSeed()` 生产零调用**，种子 = `System.currentTimeMillis()`，且 `@ThreadLocal` 每线程独立流） | 同档跨会话/跨线程结果不同 |
+| `AISectDiscipleManager._rng` | 自愈 + 回退臂 AI 域 | ❌（影子） | ✅（`initForSlot(mapSeed)`） | 与真源 `kAiSect` 分区**各自漂移** |
+
+**→ 三个流全部不落盘，只有第三个有种子。**
+
+`.random()` / `Random.Default` 按文件集中度前列：`RedeemCodeRewardOps.kt` 13 /
 `BattleDescriptionGenerator.kt` 12 / `RedeemCodeService.kt` 9 / `TalentDatabase.kt` 6 /
 `DiplomacyVassalTexts.kt` 5 / `AffixDatabase.kt` 5 / `NameService.kt` 4 /
 `DiplomacyGiftTexts.kt` 4 / `EquipmentDatabase.kt` 4 / `MailAttachmentDistributeOps.kt` 4 /
-`GameEngineTraitWashRoll.kt` 4 …）。
+`GameEngineTraitWashRoll.kt` 4。
+
+`GameRandom` 的 **8 处生产调用点（🔴 全部影响状态，无一为纯表现）**：
+
+| 位置 | 用途 | 影响 |
+|---|---|---|
+| `GameEngineLoadDataOps.kt:262` / `:332` | **`mapSeed = GameRandom.nextInt()`**（`createNewGame` / `loadData`） | 🔴 **世界生成的根种子**——世界内容由挂钟时间与调用线程决定 |
+| `Disciple.kt:228-234` | 弟子 HP/MP/物攻/法攻/物防/法防/速度 方差（7 抽） | 🔴 弟子属性 |
+| `SpiritRootGenerator.kt:33` | 灵根洗牌（Fisher-Yates） | 🔴 弟子灵根 |
+| `GameConfig.kt:421` | `GameRandom.nextDouble()` | 🔴 需逐点确认消费面 |
+| `HeavenlyTrialComponents.kt:188-189` | 天劫对手性别/立绘抽取 | 🔴 且**在 feature:game（UI 层）**调用 |
+
+### 🔴 本 ADR 的一处自我勘误（必须如实记录）
+
+本 ADR 初稿称"实测规模 114 处"，并据此推断"RNG 治理主要是清理 `Random.Default`"。
+**该口径不完整**：114 只统计了 `.random()` / `Random.Default` / `kotlin.random.Random`
+三种字面量，**未包含 `GameRandom.`**（其标识符不同，正则漏配）。补查后新增第三类
+未治理流（8 处，且**全部影响状态**）。
+
+**教训（防复发）**：审计"随机流覆盖面"不能用单一正则；必须先枚举**所有随机源入口**
+（本项目实为 4 类：`GameRngManager` 分区 / `kotlin.random.Random.Default` / `GameRandom` /
+对象内自持 RNG），再逐入口统计消费点。阶段 0 的逐处分类表（§11 盲区 1）必须先产出此
+四类入口清单，否则会像本 ADR 初稿一样漏掉整类。
+
 
 ### 现有守卫为何没拦住（三条都失效）
 
 1. **CI 的 RNG 红线是 import 级 grep**（`grep "import kotlin.random.Random"`）——而 `templates.random()`
-   是 stdlib 扩展函数，**不带任何 import**，永远匹配不到；
+   是 stdlib 扩展函数、`GameRandom` 是自建 object，**两者都不带该 import**，永远匹配不到；
 2. 实测该 grep 断言在当前 `android/.github/workflows/ci.yml` 中**已不存在**（红线事实上失守）；
-3. 项目**没有**"新增影响状态的随机必须注册分区"的清单式守卫。
+3. 项目**没有**"新增影响状态的随机必须注册分区"的清单式守卫；也**没有**任何机制阻止
+   新建一个自持 RNG 的 object（`GameRandom` 本身就是这么来的）。
 
 ---
 
@@ -69,7 +103,7 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 2. 第 1、3 条守卫与项目既有的清单式守卫测试（`SlotCategoryCoverageTest`）同款题型，**成本低**；
 3. 只修两处（选项 1）无法阻止下一个批次再踩——114 处里还有 100+ 处同族。
 
-### 3.1 四项验收不变量（batch-21 引用此节；简称 R1–R4）
+### 3.1 五项验收不变量（batch-21 引用此节；简称 R1–R5）
 
 | 编号 | 不变量 |
 |---|---|
@@ -77,6 +111,10 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 | **R2** | 每个分区的状态必须可导出/恢复（现状已成立，补守卫测试锁死） |
 | **R3** | 表现类随机（战斗描述文案、外交对话文本等，**不影响状态**）与决策类随机物理隔离，走独立的 `PresentationRandom`；该类**不落盘**且不得被决策路径调用 |
 | **R4** | 新增影响状态的随机调用点必须注册进分区表（清单式守卫：未注册即测试红并列出待办） |
+| **R5** | **禁止自建随机源**：不得新增 `object`/单例自持 RNG（`GameRandom` 是反面教材：自称支持确定性存档、`setSeed` 生产零调用）；所有随机必须经 `GameRngManager` 分区 |
+
+> **R5 的由来**：`GameRandom` 的存在证明"设计正确"不足以防腐——只要允许自建随机源，
+> 就一定会出现第三个、第四个不受治理的流。故守卫必须**从源头禁止新建**，而非事后审计。
 
 ---
 
@@ -84,8 +122,8 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 
 | 阶段 | 内容 | 规模 | 前置 |
 |---|---|---|---|
-| **阶段 0** | 本 ADR 入档 + handover 新增 §6 + **重写 CI 红线为可执行检查**（替换失效的 import grep：同时拦截 `import kotlin.random.Random` **与** `.random()` / `Random.Default` 字面量，扫描 `core:domain` / `core:engine` 主源） | 小 | 无 |
-| **阶段 1** | 两个已知缺陷批次：① 开袋 3 处 `Random.Default` 抽签改走 `EXPLORATION` 分区（ActionId 1734+，新 `storage_bag_tx.h`）；② `AISectDiscipleManager._rng` 归一到 `GameRngManager` 的 `AI_SECT` 分区 + `checkAndRepairAiSectDisciples` 下沉 C++（复用 `ai_sect_recruit.h` 既有 `generateRandomAiDisciple` / `applyGearToAiDisciple` / `truncateToAiLimit` / `aiEnsureDiscipleGear`；缺的仅编排三件：`initializeSectDisciples` / `fillDisciplesToTarget` / `isGearCompleteForLevel`） | 中 | 无 |
+| **阶段 0** | 本 ADR 入档 + handover §6 + **产出四类随机源入口的逐处分类表**（决策 / 表现 / 无关；§11 盲区 1，**这是本项的工作清单**）+ **重写 CI 红线为可执行检查**（覆盖全部四类入口：`import kotlin.random.Random`、`.random()`、`Random.Default`、`GameRandom.`，扫描 `core:domain` / `core:engine` 主源） | 小 | 无 |
+| **阶段 1** | 三个已知缺陷批次：① 开袋 3 处 `Random.Default` 抽签改走 `EXPLORATION` 分区（ActionId 1734+，新 `storage_bag_tx.h`）；② `AISectDiscipleManager._rng` 归一到 `GameRngManager` 的 `AI_SECT` 分区 + `checkAndRepairAiSectDisciples` 下沉 C++（复用 `ai_sect_recruit.h` 既有 `generateRandomAiDisciple` / `applyGearToAiDisciple` / `truncateToAiLimit` / `aiEnsureDiscipleGear`；缺的仅编排三件：`initializeSectDisciples` / `fillDisciplesToTarget` / `isGearCompleteForLevel`）；③ **`GameRandom` 摘除**——8 处全部改走对应分区（`mapSeed` 生成改 `SYSTEM` 或显式 `GameRandom`→分区；弟子属性方差 → `SYSTEM`/`AI_SECT`；灵根洗牌 → `SYSTEM`；天劫 → `BATTLE`），并删除 `GameRandom` 对象（**它自称"支持种子以实现确定性存档"但 `setSeed` 生产零调用——该承诺未实现，属死抽象**） | 中 | 无 |
 | **阶段 2** | `R3` 落地：`PresentationRandom` 引入，`BattleDescriptionGenerator`（12 处）/ `DiplomacyVassalTexts`（5）/ `DiplomacyGiftTexts`（4）/ `SectResponseTexts` 等纯表现消费点迁入 | 中 | 阶段 0 |
 | **阶段 3** | 决策类消费点按域逐批下沉（兑换码 13+9 / 邮件附件 4 / 天赋体质词条 roll 6+5 / `NameService` 4 / `EquipmentDatabase` 4 …），每批"域 → 写入者 → 批次"表进 handover | 大（分批） | 阶段 0；`R1` 守卫全程开着 |
 | **阶段 4** | 守卫三件套收口：`R4` 清单式守卫测试 + `R2` 分区状态往返测试 + CI 红线门禁；**六模块 baseline 恒 0 不得新增** | 小 | 阶段 1–3 |
@@ -102,6 +140,11 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 | `android/core/engine/.../domain/inventory/InventoryFacadeImpl*.kt` | 改 | 3 处 `templates.random()` 改显式传分区 RNG；`generateRandomPill`/`generateRandomMaterial` 调用补 `random` 实参 |
 | `android/core/domain/.../registry/*.kt` | 改 | `BaseTemplateRegistry.getRandom` / `EquipmentRegistry.generateRandom` 等默认参数从 `Random` 改为**必传**（消除默认值陷阱——这是漏洞的真正入口） |
 | `android/core/engine/.../domain/diplomacy/AISectDiscipleManager.kt` | 改 | `_rng`/`initForSlot` 摘除，`rng` 访问器取 `GameRngManager.getRng(AI_SECT)` |
+| `android/core/domain/.../util/GameRandom.kt` | **删** | 8 处生产调用点全部改走分区后整个对象删除（`setSeed` 生产零调用 = 死抽象；KDoc 的"确定性存档"承诺未实现） |
+| `android/core/domain/.../model/Disciple.kt` | 改 | 7 处属性方差 `GameRandom.nextInt` → 分区 RNG（需按调用上下文定分区：玩家弟子生成 vs AI 弟子生成） |
+| `android/core/domain/.../util/SpiritRootGenerator.kt` | 改 | 灵根洗牌 `GameRandom` → 分区 RNG（**洗牌顺序即抽取序，属 RNG 红线**） |
+| `android/core/domain/.../GameConfig.kt:421` | 改 | `GameRandom.nextDouble()` 消费面待逐点确认后改分区 |
+| `android/feature/game/.../dialogs/heavenlytrial/HeavenlyTrialComponents.kt` | 改 | 天劫对手性别/立绘抽取 → 分区（**当前在 UI 层调用随机，属架构违规**，需按 §2.6 口径移入引擎线程） |
 | `android/core/engine/.../GameEngineLoadDataOps.kt` | 改 | 两处 `AISectDiscipleManager.initForSlot(mapSeed)` 调用点同步（该调用失去意义后删除） |
 | `android/core/engine/.../GameEngineLifecycleOps.kt` | 改 | `checkAndRepairAiSectDisciples` 首行 native 臂 + Kotlin 回退臂保留 |
 | `gamecore/include/gamecore/system/ai_sect_repair_tx.h`（新） | 新增 | AI 弟子池自愈事务（复用 `ai_sect_recruit.h` 原语 + 编排三件） |
@@ -182,10 +225,12 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 
 | # | 盲点 / 未验证假设 | 影响 | 完善建议 |
 |---|---|---|---|
-| 1 | **"114 处"口径**来自正则统计（`.random()` / `Random.Default` / `kotlin.random.Random`，排除注释行），未逐处人工判"是否影响状态" | 阶段 3 的分批清单可能与实际有偏差 | 阶段 0 边做边产出**逐处分类表**（决策 / 表现 / 无关），表进 handover §6 附件；分类表是本项的工作清单，必须成文 |
-| 2 | **JNI 成本假设未实测**（我未做基准） | 阶段 3 可能被迫改方案 | 阶段 1 前先跑基准（见 §8 首行），用数据决定阶段 3 的粒度 |
-| 3 | `PresentationRandom` 是否需要**每局同构**（同一存档重进游戏，战斗描述文案是否应一致）未定义 | 影响 `R3` 的种子策略 | 建议：`PresentationRandom` 由 `mapSeed` 派生但不入档 ⇒ 同会话内可复现、跨会话重放；若需跨会话一致则必须入档。**需产品口径确认，登记为待拍板** |
-| 4 | 阶段 1 的 AI RNG 归一是否会让**回退臂**的 AI 序列变化（原先走影子、归一走真源） | 回退路径行为变化 | 归一后回退臂与 AUTHORITATIVE 臂**同源**，属改善；但需在批次验证里显式比对回退臂 AI 演化结果并登记 |
-| 5 | `NameService`（4 处）曾做过名字随机源分区化（batch-14b），是否还有残留未走分区 | 存档可复现性盲点 | 阶段 3 单列该文件，核对 batch-14b 覆盖范围 |
-| 6 | 本治理与 **WS-1 阶段 3 数据导向存储**的相互影响 | 协议演进时可能重复动抽取面 | 已在 §10 触发条件中关联；实施阶段 3 前重读 WS-1 计划 |
-| 7 | 守卫规则可能误伤**测试源** | 测试里裸用 `Random` 是常见做法 | `R1`/`R3` 守卫**只扫主源**（`src/main`），测试源显式排除并在守卫里声明理由 |
+| 1 | **"114 处"口径不完整**（初稿只统计 `.random()` / `Random.Default` / `kotlin.random.Random`，漏掉 `GameRandom` 整类；见 §1 自我勘误） | 阶段 3 的分批清单会漏项 | 阶段 0 必须先枚举**四类随机源入口**（`GameRngManager` 分区 / `Random.Default` / `GameRandom` / 对象自持 RNG）再逐入口统计，产出**逐处分类表**（决策 / 表现 / 无关）并把表附进 handover §6；**表即工作清单，必须成文** |
+| 2 | **`GameRandom` 是否还有别的生产消费者**（本次 grep 覆盖 `android/` 全树 `.kt`，共 34 处命中，其中 26 处在测试；但可能存在字符串/反射形式调用） | 摘除对象可能漏改 | 阶段 1③ 摘除前跑一次编译 + 全量测试；`GameRandom` 删除会让所有残留调用**编译期报错**（编译即守卫，优于正则） |
+| 3 | **`GameRandom` 的 `@ThreadLocal` 语义是否有人依赖**（每线程独立流在多线程下"互不干扰"是它声称的性能设计） | 摘除后多线程调用面行为变化 | 分区 RNG 有引擎线程契约（`jniRequireEngineThread`）——摘除前须确认 8 处调用都在引擎线程；`HeavenlyTrialComponents`（UI 层）那处是明确的反例，必须先迁线程 |
+| 4 | **JNI 成本假设未实测**（我未做基准） | 阶段 3 可能被迫改方案 | 阶段 1 前先跑基准（见 §8 首行），用数据决定阶段 3 的粒度 |
+| 5 | `PresentationRandom` 是否需要**每局同构**（同一存档重进游戏，战斗描述文案是否应一致）未定义 | 影响 `R3` 的种子策略 | 建议：`PresentationRandom` 由 `mapSeed` 派生但不入档 ⇒ 同会话内可复现、跨会话重放；若需跨会话一致则必须入档。**需产品口径确认，登记为待拍板** |
+| 6 | 阶段 1 的 AI RNG 归一是否会让**回退臂**的 AI 序列变化（原先走影子、归一走真源） | 回退路径行为变化 | 归一后回退臂与 AUTHORITATIVE 臂**同源**，属改善；但需在批次验证里显式比对回退臂 AI 演化结果并登记 |
+| 7 | `NameService`（4 处）曾做过名字随机源分区化（batch-14b），是否还有残留未走分区 | 存档可复现性盲点 | 阶段 3 单列该文件，核对 batch-14b 覆盖范围 |
+| 8 | 本治理与 **WS-1 阶段 3 数据导向存储**的相互影响 | 协议演进时可能重复动抽取面 | 已在 §10 触发条件中关联；实施阶段 3 前重读 WS-1 计划 |
+| 9 | 守卫规则可能误伤**测试源** | 测试里裸用 `Random` 是常见做法 | `R1`/`R3` 守卫**只扫主源**（`src/main`），测试源显式排除并在守卫里声明理由 |
