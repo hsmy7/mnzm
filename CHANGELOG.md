@@ -1,4 +1,5 @@
-## [未发布] - 2026-09-13
+## [4.01.14] - 2026-09-08
+
 
 ### 特性：Batch-23——残余域补齐·妖兽视图锁定 + 设置项域 17 字段入 C++（lock_beast_tx.h 唯一真相 + AUTHORITATIVE 转发 + Kotlin 回退臂；ActionId 1730–1731；桌面 C++ 1301/1301 含 +17 GTest）
 
@@ -56,7 +57,6 @@
 - **Kotlin 接线**：新文件 `GameEngineSectAttackNativeOps.kt`（`SectAttackNativeForward` 转发器 + 两 native 臂；**空集直接返回 false** 免无收益跨语言往返）；`GameEngineBattleOps.kt` 的 `removeDeadDefenders` / `grantWarSoulPowers` 首行 native 臂，原 Kotlin 事务体保留为回退臂。
 - **测试**：GTest `sect_attack_tx_test.cpp` **9 用例**（仅目标池/目标宗门生效 + 非目标池同 id 不误删 + 槽 index 保留展示字段全清；空集无操作逐位不变；池/宗门缺失容错；魂魄存活过滤 + 累加 + 空集无操作；**零 RNG 全分区快照差分** + **双运行全状态逐位一致**；信封级 success + 段内未注册动作 `NOT_IMPLEMENTED`）——桌面 **1284/1284**（1275 + 9）。
 
-## [未发布] - 2026-09-11
 
 ### 特性：Batch-11——库存域收官：商人购买/充公族入 C++（inventory_tx.h 唯一真相 + AUTHORITATIVE 转发 + Kotlin 回退臂；ActionId 1530–1531；桌面 C++ 1073/1073 含 +17 GTest；开袋按路线 B 诚实登记不下沉）
 
@@ -70,7 +70,6 @@
 - **测试**：GTest `inventory_tx_test.cpp` +17 用例（购买 happy 灵石精确扣减 + 六失败臂零写入 + Partial 溢出转草稿 + 灵石商品直加 + 充堆叠/装备实例两轨 + 幂等防复制 + 模板缺失与数量篡改保留 + 满仓袋条目保留 + **全分区 RNG 快照差分** + **双运行全状态逐位一致**）——桌面 **1073/1073**（1056 + 17）；Kotlin `InventoryNativeTxGateTest` +4 用例（新入口双模式降级 null + 购买回退臂/判定链拒绝 + 充公回退臂），商人价格校验既有守卫零改动通过。引擎全量 **3161/0/0/0**（282 类，3157→3161）。
 - **验证/登记**：detekt 六模块全绿（baseline 全 0）；六模块主源+测试源编译通过；NDK arm64 通过；`:app:lintRelease` 通过；core:data / feature:game / app 定向回归全绿。开袋路线 B 登记为 batch-23（待拍板）。
 
-## [未发布] - 2026-09-11
 
 ### 改进：W2-b batch-14b——自由招募名字随机源分区化（新档初始弟子同 mapSeed 全量可复现）
 
@@ -255,7 +254,6 @@
 - **SlotCache.markDirty() 同族核查登记**（不扩本批）：生产零调用（仅 RepositoryModelsTest 自测）方法级死码候选；dirty 字段本身有活消费者（ensureIndexes 惰性重建/updateCache 快路径）与 GameStateRepository 不同族；连带 `isCacheDirty()` 无调用方——**已随集成收口批（§2.40）删除**。
 - **验证**：detekt 六模块全绿（baseline 零新增、guard 不动）；:core:data 全量 707 用例 0 失败；:app state/repository 定向全绿；引擎全量 3118 用例（含 45 个 Diff 对拍类，JNI 注入）0 失败——读档路径零行为影响经对拍证实；RNG 抽取集与顺序零变更。
 
-## [未发布] - 2026-09-10
 
 ### 修复：Batch-01 续修（含跨模块下界清偿 + DI 破环）——core:engine 拆分损伤根治 + 验证全绿（六模块 baseline 全归零；引擎 3140/0、feature:game 868/0、lint 通过）
 
@@ -343,7 +341,6 @@
 - **新增违规处置**：discipleColumnGroupByName LongMethod（80 行映射表）附理由豁免（注册表每列一行与 assemble 读取点 1:1 对照，与 buildCopyableRefs 既有豁免同口径）。
 - **残量口径**：拆分任务队列余量 **42 条**（engine 34 / game 8，domain 归零）；`detekt-baseline-count.guard` core/domain=2→0 只缩。
 
-## [未发布] - 2026-09-09
 
 ### 重构：M3 第十批——detekt 拆分任务队列首轮：core:data 全域清偿（LargeClass 3 + TMF 11 条目实跑裁决全部真实结构拆分）+ 并行线遗留 5 处活违规根治 + app 契约面豁免（baseline 59→45）
 
@@ -374,7 +371,6 @@
 - **途中顺手清偿/登记**：GameStateRepository dirty 记账机制 write-only 残留登记（markAllDirty 有 loadFromSnapshot 回滚路径测试依赖，保留待专项拍板）；并行工作线冲突两次（MainGameScreen 覆盖写回退重应用、:app 编译被并行批未完成符号阻塞——本批提交严格限定触碰文件清单，app 定向回归由并行批收尾后补跑）。
 - **残留口径**：拆分任务队列余量 **196 条**（TMF 113 / CCM 68 / LargeClass 15；CCM 85→68 含 baseline 重建清除 17 条历史签名漂移死条目 + 本批真根治 1 条）——逐族专项批推进、不可赶工。
 
-## [未发布] - 2026-09-08
 
 ### 重构：M3 第六批——detekt 判定边界族收官：ComplexCondition 17 + NestedBlockDepth 28 + ReturnCount 33 真实重构清偿（baseline 370→292）
 
