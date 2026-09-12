@@ -5,9 +5,9 @@
 | 文档性质 | **协调文档**（非实施批）：剩余工作全集 → 批次映射、依赖图、多批并行的共享文件协议、统一验证与纪律。各实施批见同目录 `batch-11` ~ `batch-21` |
 | 依据 | [cpp-migration-handover-m0.md](../cpp-migration-handover-m0.md) §4 遗留待办 + §5 下轮建议 + [ui-read-surface.md](../ui-read-surface.md) §4.1 逐域写者审计 + `core:engine` 实测（2026-09-11） |
 | **基线（开工前必读）** | 上一轮十批（batch-01~10）已合流 `main`；**W2-a 已清偿**（§2.41，提交 `c7faad7` + `7bfbaa7`）：库存**出售/上架/材料消耗族**写者已下沉 C++（`system/inventory_tx.h`，ActionId 1520–1525） |
-| 基线实测值（勿凭记忆；**2026-09-13 最新实测**） | ActionId **166**（maxId=**1712**，实用段 1520–1531 / 1550–1559 / 1570–1573 / 1590–1594 / 1610–1616 / 1630–1632 / 1650–1657 / 1670–1672 / 1680–1682 / 1690–1693 / 1710–1712）；桌面 C++ **1284/1284**；引擎全量 **3237 用例 / 289 类 / 跳过 0**（**27 处失败为并行线在途 / 预存，逐类归属见 handover §3**）；detekt 六模块 baseline **全 0**（触碰面 0 违规；`:feature:game` 6 处为纹理并行线在途）；`execute_dispatch.cpp` handler **31** 个 |
+| 基线实测值（勿凭记忆；**2026-09-14 最新实测**） | ActionId **170**（maxId=**1733**，实用段 1520–1531 / 1550–1559 / 1570–1573 / 1590–1594 / 1610–1616 / 1630–1632 / 1650–1657 / 1670–1672 / 1680–1682 / 1690–1693 / 1710–1712 / **1730–1733**）；桌面 C++ **1309/1309**；引擎全量 **3249 用例 / 290 类 / 0 失败 0 跳过**（存量 27 处失败已于 2026-09-14 逐类根因清偿）；detekt 六模块 baseline **全 0**（触碰面 0 违规）；`execute_dispatch.cpp` handler **33** 个。**并行阻塞项**：纹理重构族在途破损（`NativeBridge.cpp:1499 ktx1::KtxInfo` 未解析 ⇒ NDK；`VulkanRenderBackend hasAnyCliffTexture/cliffTextureCount` + `MainGameScreen textureMask` ⇒ `:feature:game` 与 lint）——该族收口前 **lint / NDK / 模块回归三关不可走** |
 | 分支 | 每批一分支 `w2/<NN>-<slug>`；完成后按 §9 收口清单合入 `main` |
-| **收口状态（2026-09-13）** | **已交付并并入主树**：batch-11（库存收官：商人购买/充公）｜**batch-12（巡逻/住所/矿场/年俸，见下方"未实施"更正）**｜batch-13（探索）｜batch-14（弟子生命周期，含 14b 名字随机源分区化）｜batch-15（弟子任命/驻守/洗炼）｜batch-16（招募残余）｜batch-17（生产 UI 面 + 灵田）｜batch-18（月年边界）｜batch-19（玉符/宗门升级/邮件）｜batch-20a（秘境平台段）｜**batch-20b（攻宗确定性写回，见下方"未实施"更正）**。已交付批次的实施文档除 **batch-12** 与 **batch-20**（二分交付，保留为设计记录）外均已删除——内容落入 [handover §2.42–§2.52 集成收口 + §2.43 / §2.51b](../cpp-migration-handover-m0.md)（权威记录），CHANGELOG 同步。**唯一未实施**：batch-21（反向通道关闭，前置未达成）。**❗ 更正（2026-09-13）**：本行原记"batch-12（巡逻/住所）未实施；batch-20b（攻宗/执法/战利品残余）未实施"——**两批已于 2026-09-13 交付**（`patrol_tx.h` 1550–1559 / `sect_attack_tx.h` 1711–1712，桌面 1244→1284）。**集成期登记**：`:core:engine` 全量 **27 处失败**（`BootSequenceControllerTest` 10 / `ProductionUiNativeTxGateTest` 4 / `JadeNativeTxGateTest` 1 = 原登记 15 处，另 **`PolicyNativeTxGateTest` 12 处为首次实跑暴露的预存 mock 缺陷**——`getSlots()` 返回 `EmptyList` 而非 `StateFlow`）——被测主体均**不在触碰面**，归属其他并行工作流 / 预存，未代改（见 handover §2.52 + §3）。**另注**：本轮 `.git` 对象库两度被破坏（refs/logs/worktrees 被删、pack 缺失、远端不可达），历史提交不可恢复，成果以工作区文件保全 |
+| **收口状态（2026-09-14）** | **已交付并并入主树**：batch-11（库存收官）｜batch-12（巡逻/住所/矿场/年俸，§2.43）｜batch-13（探索）｜batch-14（弟子生命周期 + 14b 名字随机源分区化）｜batch-15（弟子任命/驻守/洗炼）｜batch-16（招募残余）｜batch-17（生产 UI 面 + 灵田）｜batch-18（月年边界）｜batch-19（玉符/宗门升级/邮件）｜batch-20a（秘境平台段）｜batch-20b（攻宗确定性写回，§2.51b）｜**batch-23（残余域补齐：妖兽视图锁定 + 设置项 17 字段，§2.55）**｜**batch-24（弟子管理残差：灵根/特质 confirm，§2.56）**。已交付批次的实施文档除 **batch-12** 与 **batch-20**（二分交付，保留为设计记录）外均已删除——内容落入 [handover §2.42–§2.57](../cpp-migration-handover-m0.md)（权威记录），CHANGELOG 同步。**唯一未实施**：batch-21（反向通道关闭）——前置收敛为 **2 项**：① 库存开袋（已拍板：走路线 A 下沉，见 [ADR rng-determinism-remediation](../adr/rng-determinism-remediation.md) 阶段 1）；② `aiSectDisciples` 读档/存档自愈（同 ADR 阶段 1，需先做 AI RNG 归一）。**存量失败清算（2026-09-14）**：引擎全量 27 处失败逐类根因清偿（`BootSequenceControllerTest` 10 夹具读/写路径不连通 + 缺 `gameEngineCore` stub；`ProductionUiNativeTxGateTest` 4 夹具只播 repo 未播镜像；`PolicyNativeTxGateTest` 12 Mockito `getSlots()` 与同名属性 getter 反射冲突→改 `spy(真实 repository)`；`JadeNativeTxGateTest` 1 → 显式 stub 发放链 + 冷却用例直接播种凭据），并**顺手根因修复一处生产缺陷**（宗门等级领奖"物品入账失败却报 Success"致冷却失效）。**登记（未收敛）**：`Jade` 凭据持久化环境缺陷（`FakeAtomicStateStore` 事务缓冲与 `sectLevelClaimRecords` 交互，已复现）待专项。**另注**：2026-09-13 本轮 `.git` 对象库两度被破坏，历史提交不可恢复，成果以工作区文件保全 |
 
 > **教训前置（上一轮真实事故，本轮协议已固化）**：① 各批在自己分支交付后**无人合并**，且最全分支的 C++ 树因"顺手带走他批在途 Kotlin 改动"而断裂（缺 2 头文件 + 2 测试文件，干净检出无法编译桌面 GTest 与 NDK）→ **共享文件必须整组提交，批次分支必须在收口时合并验证**；② 合并冲突**不得取 "theirs" 整体覆盖**（旧基线分支会把后续批次的结构重构整体回退），须逐项补差；③ 收口后立即清理分支，非祖先提交先打 `archive/*` tag 再删。
 
@@ -31,14 +31,19 @@
 | 18 | [batch-18-month-year-boundary.md](batch-18-month-year-boundary.md) 月年边界编排族 | 编排 | `CultivationEventProcessor.kt` + `GameEngineCoordination.kt` + `GameEngineGuideOps.kt` + `SectPolicyToggleUseCase.kt` | 1670–1689 | 大（可二分） | ✅ 组 C |
 | 19 | [batch-19-jade-redeem-sect.md](batch-19-jade-redeem-sect.md) 玉符/兑换码/宗门升级/邮件附件 | 货币与运营 | `JadeSymbolService.kt` + `RedeemCodeManager.kt` + `GameEngineSectLevelOps.kt` + `MailAttachmentDistributeOps.kt` | 1690–1709 | 中批 | ✅ 组 C |
 | 20 | [batch-20-realm-platform-battle.md](batch-20-realm-platform-battle.md) 秘境平台段 + 攻宗/执法残余 | 秘境/战斗 | `GameEngineSecretRealmOps.kt` + `GameEngineBattleOps.kt` + `LawEnforcement*.kt` | 1710–1729（**实用 1710 / 1711–1712**） | WS-2 | **✅ 二分已交付 2026-09-13**（20a §2.51 / 20b §2.51b；20b 经审计改判为两段 + 三条登记不下沉） |
-| 21 | [batch-21-reverse-channel-closeout.md](batch-21-reverse-channel-closeout.md) **反向通道关闭批（终局）** | 同步通道 | `GameStateStoreImpl.kt`（捕获面）+ `StateSyncService.kt` | 无新 ActionId | 收敛批 | ⛔ **串行**，依赖 11–20 全部完成（**11–20 已全部交付 → 前置的"批次侧"已达成；仍需 ui-read-surface §4.1 残余域逐域下沉后方可执行**） |
+| 21 | [batch-21-reverse-channel-closeout.md](batch-21-reverse-channel-closeout.md) **反向通道关闭批（终局）** | 同步通道 | `GameStateStoreImpl.kt`（捕获面）+ `StateSyncService.kt` | 无新 ActionId | 收敛批 | ⛔ **串行**——前置（2026-09-14 实测收敛为 2 项）：① 库存开袋（**已拍板**：走路线 A 下沉）；② `aiSectDisciples` 读档/存档自愈（需先做 AI RNG 归一）。两者同属 [ADR rng-determinism-remediation](../adr/rng-determinism-remediation.md) **阶段 1**，完成后即可开本批 |
+| 23 | （无独立批文档，见 handover §2.55）残余域补齐：妖兽视图锁定 + 设置项域 17 字段 | 残余域 | `system/lock_beast_tx.h` + `GameEngineResidualNativeOps/SettingsOps*` | **1730–1731** | 中批 | ✅ **已交付 2026-09-14** |
+| 24 | （无独立批文档，见 handover §2.56）弟子管理残差：灵根/特质 confirm 两入口 | 弟子 | `system/appointment_tx.h`（追加事务 8/9） | **1732–1733** | 中批 | ✅ **已交付 2026-09-14**（弟子管理域至此无稳态 Kotlin 直改写者） |
+| 25+ | **随机源治理（已拍板选项 2：根治）**——见 [ADR](../adr/rng-determinism-remediation.md) | 确定性 | 分区覆盖 + `PresentationRandom` + 三道守卫 | 阶段 1 用 **1734+** | 分批（阶段 0–4） | ✅ **阶段 0 已做**（ADR 入档 + handover §6 + CI 红线重写待实施）；**阶段 1 = batch-21 前置** |
+
 
 ### 第二~四类：不可并行（见 [non-parallel-work.md](non-parallel-work.md)）
 
 | 类别 | 项 | 处置 |
 |---|---|---|
-| 真机验证 | batch-22 物理设备验证批（原 10 项残留 + W2-a/W2-b 新增 native 臂 6 项） | 需物理设备；与全部代码批正交，**不阻塞** |
-| 待拍板 | WS-4 NPC 移动系统 / P1-5 月结配对结构级优化 / 地图跨版本冻结协议 / `TimeSystem.onPhaseTick` 与 `GameSettingsData.autoSave` 删除 | **需用户决策**，未拍板前不派工 |
+| 真机验证 | batch-22 物理设备验证批（原 10 项残留 + W2-a/W2-b/11–20b/23–24 新增 native 臂） | 需物理设备；与全部代码批正交，**不阻塞**；与 batch-21 **必须串行**（先采基线再关闭后复测） |
+| 待拍板 | WS-4 NPC 移动系统 / P1-5 月结配对结构级优化 / 地图跨版本冻结协议 / `TimeSystem.onPhaseTick` 与 `GameSettingsData.autoSave` 删除 / **`PresentationRandom` 是否需跨会话同构**（见 ADR §11 盲区 3） | **需用户决策**，未拍板前不派工 |
+| 立项 | **随机源治理（已拍板选项 2）**——见 [ADR rng-determinism-remediation](../adr/rng-determinism-remediation.md)，阶段 1 为 batch-21 前置 | 阶段 3 规模大（114 处按域分批）；阶段 3 开工前置 = 高频抽取的 JNI 成本基准 |
 | 立项 | WS-1 阶段 3 数据导向存储（列级 delta/二进制通道 + dirty_tracker 列级写屏障） | 约 145+ 列写点回归风险，**需单独立项**，非派工项 |
 
 ---
