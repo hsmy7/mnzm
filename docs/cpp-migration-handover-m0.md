@@ -3032,3 +3032,20 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 > **⑤ 两处工具链失真已更正**：桌面 JNI 脚本在**仓库根 `scripts/`**（验证模板工作目录为 `android/`，
 > 须写 `../scripts/...`）；桌面 GTest 运行时需 **`llvm-mingw-<版本>-ucrt-x86_64\bin`** 在 PATH
 > （仅加外层 wrapper 目录会缺 `libc++.dll` → `STATUS_DLL_NOT_FOUND`）。
+
+> **2026-09-14 残余域收口（实测更正本条 ④ 的过时口径）**：
+> **① 残余域清单从 5 项收敛为 2 项**——batch-23（§2.55）下沉 `lockedBeastIds` UI 操作面与
+> **设置项域 17 字段**；batch-24（§2.56）下沉 **弟子管理残余两入口**（灵根/特质 confirm）；
+> §2.57 审计把 `aiSectDisciples` load/save 自愈改判为**登记不下沉**（消费独立 AI RNG 分区，
+> 该分区不在快照协议 `rngStates` 面内），并定界天劫 / 洞府探索（均登记不下沉）。
+> **剩余：① 库存开袋（双重 RNG，待拍板）② `aiSectDisciples` 自愈（需先统一 AI RNG 通道）**。
+> **② 存量失败清零**：引擎全量从 **3237 用例 / 27 失败** → **3249 用例 / 290 类 / 0 失败 0 跳过**
+> （Boot 10 / Policy 12 / ProductionUi 4 / Jade 1 逐类根因清偿 + 1 处生产缺陷根因修复：
+> 宗门等级领奖"物品入账失败却写 Success"导致冷却失效）；桌面 C++ **1309/1309**。
+> **③ 并行阻塞项（非本批归属，但阻断三关门禁）**：纹理重构族在途破损——`feature:game`
+> （VulkanRenderBackend `hasAnyCliffTexture`/`cliffTextureCount` + MainGameScreen `textureMask`）
+> ⇒ `lintRelease` 同因；`NativeBridge.cpp:1499` `ktx1::KtxInfo`/`loadKtx1`（HEAD 即断）⇒ NDK arm64。
+> **该族收口前 lint / NDK / 模块回归三关不可走**。
+> **④ 开工前必读**：本文件 §2.55/§2.56/§2.57 + [ui-read-surface §4.3 前置现状块](ui-read-surface.md)
+> + [parallel-batches-w2/non-parallel-work.md §四 排期（第三波）](parallel-batches-w2/non-parallel-work.md)。
+

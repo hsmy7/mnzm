@@ -158,13 +158,24 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 **在 4.1 表全部域下沉前执行任何"停捕获"都是数据丢失缺陷**（该域 Kotlin 写入将永达
 C++）。
 
-> **前置现状（2026-09-13 实测）**：4.1 表中**多数域已 ✅**，但**尚未全部下沉**——剩余项：
-> ① 库存**开袋**（双重 RNG，路线 B 备案不下沉，待拍板）；② 弟子管理残余（`recruitDisciple`
-> 名字种子策略待拍板 / 状态同步族 / 特质 confirm 两入口）；③ `aiSectDisciples` 段残余
-> （月结回退路径阵亡吞并 + load/存档自愈）；④ `lockedBeastIds` UI 操作面
-> （`lockBeastView`/`unlockBeastView`，**至今未派工**）；⑤ 月年编排残余（设置项 / 天劫
-> `HeavenlyTrial*` / 洞府探索 —— 待判断是否独立 UI 写者）。
-> **结论：关闭批（batch-21）仍不可开**——须先处置上述五项（③④⑤ 需先审计定界）。
+> **前置现状（2026-09-14 实测，batch-23/24 收口后）**：4.1 表中**仅剩 2 项未关闭**——
+> ① 库存**开袋**（双重 RNG：EXPLORATION 分区 `nextInt(16)`+逐件 `nextInt(7)` 与分支内
+> `Random.Default` 模板抽取混用；路线 B 备案不下沉，**待拍板**是否接受路线 A 的行为基线变化）；
+> ② **`aiSectDisciples` load/save 自愈**（`checkAndRepairAiSectDisciples`，boot Step 5 与
+> `upgradeSectLevel` 修复路径）——实测其消费 `AISectDiscipleManager` 的**独立 AI RNG 分区**，
+> 该分区状态**不在快照协议 `rngStates` 段内**（C++ 无镜像状态），复刻需先统一 AI RNG 通道
+> （WS-4/AI 域规模，见 handover §2.57）。
+>
+> **已收口**：③ `lockedBeastIds` UI 操作面 → ✅ batch-23（`BEAST_VIEW_LOCK_TX=1730`）；
+> ④ 弟子管理残余 → ✅ batch-24（`SPIRIT_ROOT_WASH_CONFIRM_TX=1732` /
+> `TRAIT_WASH_CONFIRM_TX=1733`；`recruitDisciple` 经复核已有 native 臂（`tryNativeManualRecruit`，
+> batch-14 名字随机源分区化），状态同步族为槽位派生逻辑、无 C++ 状态写入者）；
+> ⑤ 月年编排残余 → ✅ 设置项（batch-23，`SETTINGS_PATCH_TX=1731`，17 字段）；
+> 天劫（非确定性模板随机与凭据溢出抑制同一事务、`recordPhaseClear` 与领奖共用
+> `heavenlyTrialState` 段）与洞府探索（仅月结 Kotlin 回退编排内）**登记不下沉**。
+>
+> **结论：关闭批（batch-21）前置收敛为 ①（待拍板）与 ②（需先统一 AI RNG 通道）两项。**
+
 
 ---
 
