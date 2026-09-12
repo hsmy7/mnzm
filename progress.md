@@ -1305,3 +1305,41 @@ handover §5 载明的唯一长期主轴「UI 操作面逐域下沉 C++」推进
   S6 秘境/ThermalMonitor 热档/放置确认/道路装配/云存档/WS-1 埋点）。
 - **待拍板**：WS-4 NPC 玩法设计文档 / P1-5 配对结构级优化 / 地图跨版本冻结协议。
 - **立项**：WS-1 阶段 3 数据导向存储（列级 delta/二进制通道 + dirty_tracker 列级写屏障）。
+
+## Session 2026-09-12（W2-b 集成收口）：batch-11 + batch-14 并入主树（handover §2.52）
+
+### 背景与交付面
+并行实施产出分散在三个工作树（主树 + `XianxiaSectNative-b11` + `XianxiaSectNative-w2-14`）。
+本轮把只在 worktree 的 **batch-11（库存收官：商人购买/充公）** 与 **batch-14（弟子生命周期 + 14b 名字随机源分区化）**
+并入主树，合并协议原子变更集（154 动作 / maxId=1710）。
+
+### 关键判定方法（可复用）
+- **超集校验**：`Compare-Object` 逐行比对 main 版与 worktree 版，`mainOnly=0` 即 worktree 版为纯追加 → 可整体覆盖
+  （避免逐行手工合并引入回归）。`DiscipleFacadeImpl.kt` 虽有 13 行 mainOnly，逐行核对确认均为被 native 臂包裹的原实现 → 同样可覆盖。
+- **协议只重生成不手工拼接**：合并 `gen-action-ids.mjs` 目录条目后 `node scripts/gen-action-ids.mjs` 重建两份生成物。
+- **编译驱动补漏**：先复制已验证文件 → 编译 → 按报错回补依赖（本轮补出 `DiscipleService.kt`）。
+
+### 验证（主树实跑）
+| Test | 结果 |
+|------|------|
+| 桌面 C++ 全量（合并后重建） | **1244/1244 全绿** |
+| :core:engine 主源 + 测试源编译 | BUILD SUCCESSFUL |
+| 引擎全量单测（desktop JNI + --rerun-tasks） | **3218 用例 / 15 失败**（未达） |
+| detekt / NDK / lint / 模块回归 | 未重跑（受阻） |
+
+**15 失败归属**：`BootSequenceControllerTest` 10 / `ProductionUiNativeTxGateTest` 4 / `JadeNativeTxGateTest` 1；
+三者被测主体（`BootSequenceController.kt` / `BuildingFacadeImpl.kt` / `GameEngineSectLevelOps.kt`）
+哈希比对确认**不在本次合并触碰面**（由其他并行工作流改动）→ 登记为在途失败，不代改。
+**途中修复**：`SpriteAtlasDefGeneratedTest.kt` 缺回 `private data class StructureDef`（纹理并行批重构误删，
+致 core:engine 测试源整模块编译红）。
+
+### git 事故（重要教训）
+`.git` 两度被破坏：refs/logs/worktrees 被删、objects 仅剩 6 个游离对象、pack 缺失、远端本次不可达
+→ 历史不可恢复，改为「工作区文件为唯一事实源重建单一可编译树 + 根提交」。
+**防复发**：① 多会话共享工作区时禁止并发 `git stash`/`gc`/`worktree` 操作；
+② 关键成果尽早落盘为普通文件（本轮据此保全）；③ 定期 `git bundle` 异地备份。
+
+### 剩余（下轮接续）
+- **未实施**：batch-12（巡逻/住所）｜batch-20b（攻宗/执法/战利品残余）｜batch-21（反向通道关闭，前置未达成）。
+- **在途失败**：上述 15 处（归属其他并行工作流，需其收口）。
+- 非并行项见 `docs/parallel-batches-w2/non-parallel-work.md`（真机验证 / 待拍板四项 / WS-1 立项）。
