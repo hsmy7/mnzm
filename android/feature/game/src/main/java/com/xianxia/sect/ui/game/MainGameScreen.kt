@@ -60,6 +60,7 @@ import com.xianxia.sect.core.render.IslandCliffBridge
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
+import com.xianxia.sect.ui.game.sect.IslandCliffTextureSet
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost

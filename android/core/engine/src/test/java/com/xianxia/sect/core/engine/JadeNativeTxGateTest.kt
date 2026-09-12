@@ -8,13 +8,18 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.service.WallClock
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.SectLevelClaimRecord
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import kotlinx.coroutines.runBlocking
@@ -24,6 +29,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
@@ -105,7 +111,18 @@ class JadeNativeTxGateTest {
     /** 构造期 Facade 访问器 stub 链（对齐既有测试）。 */
     private fun mockEconomyFacade(): EconomyFacade = mock<EconomyFacade>().also {
         val mockInventoryFacade = mock<InventoryFacade>()
-        whenever(mockInventoryFacade.inventorySystem).thenReturn(mock())
+        // 奖励发放必须真实成功（`DomainResult.Success`）：`writeSectLevelRewards`
+        // 在任一物品写入非 Success 时跳过领取记录——mockSmart 的 SmartNull 不是
+        // `DomainResult` 实例，会让"领取成功但无凭据"（冷却失效）。此处显式 stub
+        // 使凭据写入路径真实执行，断言才有语义。
+        // 注意：mock 与 stub 必须逐条语句分离（嵌套 during stubbing 会触发
+        // Mockito UnfinishedStubbingException）。
+        val inventorySystem = mock<InventorySystem>()
+        whenever(inventorySystem.addMaterial(any<Material>()))
+            .thenReturn(DomainResult.Success(Material()))
+        whenever(inventorySystem.addStorageBag(any<StorageBag>()))
+            .thenReturn(DomainResult.Success(StorageBag()))
+        whenever(mockInventoryFacade.inventorySystem).thenReturn(inventorySystem)
         whenever(it.inventoryFacade).thenReturn(mockInventoryFacade)
         whenever(it.mailService).thenReturn(mock())
     }
@@ -239,9 +256,15 @@ class JadeNativeTxGateTest {
     @Test
     fun `claimSectLevelReward within cooldown is rejected identically`() = runBlocking {
         seedPlayerSect()
-        // 先领取一次（建立领取记录），随后立即再领 → AlreadyClaimed
-        NativeEngineFlag.withMode(NativeEngineFlag.Mode.AUTHORITATIVE) {
-            runBlocking { engine.claimSectLevelReward(SectLevel.SMALL) }
+        // 直接播种冷却凭据（不依赖首次领取的发放链——本用例守护的是**冷却判定**
+        // 双臂一致，而非奖励发放；发放链由 `claimSectLevelReward falls back
+        // identically and records claim once` 覆盖）
+        store.update {
+            gameData = gameData.copy(
+                sectLevelClaimRecords = listOf(
+                    SectLevelClaimRecord(level = SectLevel.SMALL, claimedAtEpochMs = System.currentTimeMillis())
+                )
+            )
         }
         val firstRecords = store.gameDataSnapshot.sectLevelClaimRecords
 

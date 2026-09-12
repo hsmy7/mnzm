@@ -170,6 +170,9 @@ private fun GameEngine.buildSectAttackCombatants(
 
 /** AI 阵亡守军清理（attackSect 提取） */
 private fun GameEngine.removeDeadDefenders(sectId: String, defenderPoolSectId: String, deadDefenderIds: Set<String>) {
+    // native 臂（batch-20b）：C++ 承 aiSectDisciples 段过滤 + 目标宗门驻军槽清空
+    // （零 RNG 纯确定性变换）；成功即完成，失败/降级走下方 Kotlin 原实现。
+    if (removeDeadDefendersNative(sectId, defenderPoolSectId, deadDefenderIds)) return
     stateStore.update {
         gameData = gameData.copy(
             aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId,
@@ -290,6 +293,9 @@ private const val BATTLE_RECORD_WINDOW_YEARS = 3
 
 /** 胜方存活弟子魂魄+1（attackSect 提取） */
 private fun GameEngine.grantWarSoulPowers(sectSurvivorIds: Set<String>) {
+    // native 臂（batch-20b）：C++ 承 rowOf 行序 + 存活性过滤 + 逐行自增（零 RNG）；
+    // 成功即完成，失败/降级走下方 Kotlin 原实现。
+    if (grantWarSoulPowersNative(sectSurvivorIds)) return
     stateStore.update { discipleTables.ids.filter { it.toString() in sectSurvivorIds && discipleTables
         .isAlive[it] == 1 }.forEach { id -> discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1 } }
 }

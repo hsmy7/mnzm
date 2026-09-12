@@ -176,8 +176,19 @@ class ProductionUiNativeTxGateTest {
         assignedDiscipleName = if (occupant == null) "" else "弟子$occupant"
     )
 
+    /**
+     * 播种生产槽（repo + **镜像双写**）。
+     *
+     * 双写理由（生产不变量，非测试便利）：batch-17 起镜像
+     * （`gameData.productionSlots`）为生产槽真源，放置建筑时经
+     * `BuildingFacadeImpl.addProductionSlot` 双写、月结前经
+     * `alignProductionSlotsForNativeMonth`（repo → 镜像整表对齐）——因此
+     * **稳态下镜像与 repo 必然同时含目标槽**。只播 repo 会让回退臂的
+     * "按镜像 map 写槽"成为空操作（无槽可 map），断言失去语义。
+     */
     private suspend fun seedRepository(vararg slots: ProductionSlot) {
         repository.loadSlots(slots.toList())
+        state.gameData = state.gameData.copy(productionSlots = slots.toList())
     }
 
     // ── 转发臂门控：降级信号（零镜像变更） ────────────────────────

@@ -184,6 +184,18 @@ suspend fun GameEngine.confirmTraitWash(
         DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 非法弟子ID=$discipleId")
         return@withEngineContext TraitWashConfirmResult.Error("非法弟子ID")
     }
+    // native 臂（batch-24）：AUTHORITATIVE 稳态写者归 C++（三态判定 + 替换 +
+    // lifespan 同步 + checkpoint 同事务）；业务拒绝文案由 C++ 信封回传
+    // （与 Kotlin 回退臂逐字一致）；不可用 → 走下方 Kotlin 原事务体。
+    when (val outcome = confirmTraitWashNative(discipleId, type.name, targetId, newId)) {
+        is ConfirmNativeOutcome.Applied -> return@withEngineContext TraitWashConfirmResult.Success
+        is ConfirmNativeOutcome.Refused -> {
+            // C++ 文案（弟子不存在 / 弟子已死亡 / 该特质已不存在）直接作为用户可见错误
+            DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}被拒: id=$id code=${outcome.code}")
+            return@withEngineContext TraitWashConfirmResult.Error(outcome.message)
+        }
+        is ConfirmNativeOutcome.Unavailable -> Unit  // 降级：走 Kotlin 原路径
+    }
     try {
         // 三态区分失败原因：NOT_FOUND/DEAD 给玩家明确文案
         // （死亡弟子确认替换也须可区分于"弟子不存在"）

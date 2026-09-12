@@ -315,14 +315,27 @@ class GameEngine @Inject constructor(
 
     // ── 妖兽界面锁定 ──────────────────────────────────────────
 
-    /** 锁定妖兽：玩家打开详情弹窗时，月度结算跳过该妖兽的 AI 攻击判定 */
+    /**
+     * 锁定妖兽：玩家打开详情弹窗时，月度结算跳过该妖兽的 AI 攻击判定。
+     *
+     * native 臂（batch-23）：AUTHORITATIVE 稳态写者归 C++
+     * （`lockedBeastIds` 为 NativeGameState 顶层段，也是月结"锁定妖兽不被
+     * AI 攻击"判据的输入）；失败/降级走 Kotlin 原写入。
+     */
     fun lockBeastView(beastId: String) {
+        if (lockBeastViewNative(beastId, locked = true)) return
         stateStore.update { gameData = gameData.copy(lockedBeastIds = gameData.lockedBeastIds + beastId) }
     }
 
-    /** 解锁妖兽：玩家关闭详情弹窗后，AI 可正常进攻该妖兽 */
+    /**
+     * 解锁妖兽：玩家关闭详情弹窗后，AI 可正常进攻该妖兽。
+     *
+     * native 臂（batch-23）：同 [lockBeastView]；空 id 由 native 臂与
+     * Kotlin 原路径双重早退（语义不变）。
+     */
     fun unlockBeastView(beastId: String) {
         if (beastId.isEmpty()) return
+        if (lockBeastViewNative(beastId, locked = false)) return
         stateStore.update { gameData = gameData.copy(lockedBeastIds = gameData.lockedBeastIds - beastId) }
     }
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates

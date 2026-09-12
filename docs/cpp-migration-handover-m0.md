@@ -5,7 +5,7 @@
 | 文档性质 | 面向后续开发者/接手者的**对接文档**：本轮已完成哪些、如何验证、遗留哪些待办（需专项或拍板） |
 | 依据文档 | [cpp-migration-audit-report.md](cpp-migration-audit-report.md)（独立审计）+ [cpp-migration-implementation-plan.md](cpp-migration-implementation-plan.md)（总方案，2026-09-04） |
 | 里程碑 | M0 止血清残（全部清偿 ✅）→ M1 减税+试点（全部清偿 ✅）→ **M2 主轴成型（S4 §2.11 + S5 §2.12 + S8 §2.13——月结残留扇出 ≤3 项达成；E2+E3 §2.14 + P1-5 §2.15；E2 残留 §2.16 + S6 秘境会话域 §2.17 + S7 排程事务 §2.18，2026-09-06）** → **M2 续批：WS-5 地图数据模型改造（§2.19，2026-09-08）——"占位真相源在 C++"达成** → **M3 收敛启动：死代码族清偿（§2.20，2026-09-08）——五模块 UnusedPrivate*/UnusedImports 归零 + baseline 211 条摘除** → **M3 第二批：反向通道逐域写者审计（无域可关改判）+ lockedBeastIds 增量段缺口加固 + detekt InvalidPackageDeclaration 118 条清偿（§2.21，2026-09-08）** → **M3 第三批：detekt 机械族专项——MaxLineLength 1407 条实修清偿（§2.22，2026-09-08，baseline 2688→1281）** → **M3 第四批：RoomMigration 预存失败清偿 + detekt TooGenericExceptionCaught 474 处实修清偿（§2.23，2026-09-08，baseline 1281→873）** → **M3 第五批：detekt 判定族收官 + 机械族全清（§2.24，2026-09-08，baseline 873→370；实跑活违规 1050→395）** → **M3 第六批：detekt 判定边界族收官——CC 17 + NBD 28 + RC 33 真实重构清偿（§2.25，2026-09-08，baseline 370→292）** → **M3 第八批：detekt 复杂度族收官——CCM 68 条目实跑裁决 68 处真实重构清偿（§2.27，2026-09-09，baseline 196→128）** → **M3 第九批：detekt 函数数族第一轮——TMF 113 条目实跑裁决 114 处（死代码删除/18 个引擎域文件/17 个 Compose 域文件拆分/46 处契约面豁免），余量装回登记拆分队列（§2.28，2026-09-09，baseline 128→59）** → **M3 第十批：拆分任务队列首轮——core:data 全域清偿 + 并行线遗留 5 处根治 + app 契约面豁免（§2.29，2026-09-09，baseline 59→45）** |
-| 实施日期 | 2026-09-04（主体）／2026-09-05（追加批：P0-3 + P1-4）／2026-09-05（收尾批：WS-6 + RNG 方案②）／2026-09-05（M1 首批：WS-2 S1-S3，§2.8；M1 第二批：WS-1 同步通道降本，§2.9）／2026-09-06（M1 第三批：WS-3 E1 + WS-7 baseline 清零，§2.10——M1 全部清偿）／2026-09-06（**M2 首批：WS-2 S4，§2.11**／第二批：WS-2 S5，§2.12／第三批：WS-2 S8，§2.13／**第四批：WS-3 E2+E3，§2.14／第五批：P1-5 性能清偿，§2.15／第六批：WS-3 E2 残留，§2.16／第七批：WS-2 S6 秘境会话域，§2.17／第八批：WS-2 S7 排程事务，§2.18**）／2026-09-08（**M2 续批：WS-5 地图数据模型改造，§2.19**；**M3 首批：死代码族清偿，§2.20**；**M3 第二批：反向通道审计改判 + lockedBeastIds 加固 + InvalidPackageDeclaration 清偿，§2.21**；**M3 第三批：MaxLineLength 实修清偿，§2.22**；**M3 第四批：RoomMigration 清偿 + TooGenericExceptionCaught 实修清偿，§2.23**；**M3 第五批：判定族收官 + 机械族全清，§2.24**；**M3 第六批：判定边界族收官，§2.25**）／2026-09-09（**M3 第七批：参数与跳转族收官，§2.26**；**M3 第八批：复杂度族收官——CCM 68 条清偿，§2.27**；**M3 第九批：函数数族第一轮——TMF 113 条清偿+余量登记，§2.28**） |
+| 实施日期 | 2026-09-04（主体）／2026-09-05（追加批：P0-3 + P1-4）／2026-09-05（收尾批：WS-6 + RNG 方案②）／2026-09-05（M1 首批：WS-2 S1-S3，§2.8；M1 第二批：WS-1 同步通道降本，§2.9）／2026-09-06（M1 第三批：WS-3 E1 + WS-7 baseline 清零，§2.10——M1 全部清偿）／2026-09-06（**M2 首批：WS-2 S4，§2.11**／第二批：WS-2 S5，§2.12／第三批：WS-2 S8，§2.13／**第四批：WS-3 E2+E3，§2.14／第五批：P1-5 性能清偿，§2.15／第六批：WS-3 E2 残留，§2.16／第七批：WS-2 S6 秘境会话域，§2.17／第八批：WS-2 S7 排程事务，§2.18**）／2026-09-08（**M2 续批：WS-5 地图数据模型改造，§2.19**；**M3 首批：死代码族清偿，§2.20**；**M3 第二批：反向通道审计改判 + lockedBeastIds 加固 + InvalidPackageDeclaration 清偿，§2.21**；**M3 第三批：MaxLineLength 实修清偿，§2.22**；**M3 第四批：RoomMigration 清偿 + TooGenericExceptionCaught 实修清偿，§2.23**；**M3 第五批：判定族收官 + 机械族全清，§2.24**；**M3 第六批：判定边界族收官，§2.25**）／2026-09-09（**M3 第七批：参数与跳转族收官，§2.26**；**M3 第八批：复杂度族收官——CCM 68 条清偿，§2.27**；**M3 第九批：函数数族第一轮——TMF 113 条清偿+余量登记，§2.28**）／**2026-09-14（batch-23：残余域补齐——妖兽视图锁定 + 设置项域 17 字段，§2.55；batch-24：弟子管理残差 confirm 两入口，§2.56；残余域审计结论（aiSectDisciples 自愈改判 + 月年编排定界），§2.57）** |
 
 ---
 
@@ -2000,11 +2000,229 @@ Kotlin `GameEngineAppointmentNativeTxGateTest` 11 用例（七臂 × flag OFF/�
   **均不在本次合并触碰面**（哈希比对确认主树版本与两 worktree 版本一致地"更新"，即由其他并行工作流改动），
   故登记为**并行工作流在途失败**，本批不代改（避免与在途工作冲突）。**未达项，不计入"全部通过"。**
 
-**未完成（诚实口径）**：batch-12（巡逻/住所）未实施；batch-20b（攻宗/执法/战利品残余）未实施；
-batch-21（反向通道关闭）前置未达成；detekt / NDK arm64 / lintRelease / 模块回归因上述 15 处失败与
-纹理工作流在途状态**未在本批重跑**。
+**未完成（诚实口径）**：batch-12（巡逻/住所）✅ **已清偿（2026-09-13，见 §2.43）**；
+batch-20b（攻宗/执法/战利品残余）✅ **已按写者审计改判清偿（2026-09-13，见 §2.51b——两段下沉 + 三条显式登记不下沉）**；
+batch-21（反向通道关闭）前置仍未达成（`ui-read-surface §4.1` 表中库存残余 / 弟子管理后续子批 / 招募俘虏残余 /
+生产 UI 面 / 月年边界编排等域仍有 Kotlin 直改写者）；detekt / NDK arm64 / lintRelease / 模块回归因
+15 处既有失败与纹理工作流在途状态**未在本批重跑**（batch-12/20b 已复跑并如实标注，见 §3）。
 
-## 3. 验证结果（全部通过）
+## 2.43 Batch-12（2026-09-13）：巡逻/住所/矿场/年俸 UI 操作面事务下沉 C++——六入口 + 写者审计实裁的四个活写者，全链零 RNG
+
+**批次口径**（[parallel-batches-w2](parallel-batches-w2/README.md) §1 批次表 #12，[batch-12 批文](parallel-batches-w2/batch-12-patrol-residence.md)；
+预分配 handover §2.43 + ActionId 段 1550–1569，**实用 1550–1559 十条**）：`GameEngineAtomicAssign` 六入口
+（住所 2 + 巡逻 4）+ `GameEnginePatrolOps` 活写者族下沉（`system/patrol_tx.h` 新头 + 新 Kotlin
+转发域 `GameEnginePatrolNativeOps.kt`）。
+
+**写者审计（批文 §2 第 1 步产出，实测推翻批文"PatrolOps 只审计不实施"口径）**：
+
+| 入口 | 审计结论 | RNG 面 | 处置 |
+|---|---|---|---|
+| assignToResidenceAtomic / removeFromResidenceAtomic | 判定链 + 槽位写；**无 gate/状态同步残差**（住所不注册门卫、不改弟子状态） | 零 | 下沉（无事务外残差） |
+| assignPatrolAtomic | 释放原 occupant（**保留 buildingInstanceId**）+ 清新弟子其它槽位（`clearAllSlotsDataOnly(includeResidence=false)`）+ 写展示字段；事务外残差 = gate release/confirm + Room 生产槽清 + 状态同步 | 零 | 下沉（残差留 Kotlin） |
+| removePatrolAtomic | 空槽无操作；清槽保留 index/buildingInstanceId | 零 | 下沉 |
+| swapPatrolAtomic | 同索引无操作；双方清槽 + 互换（两侧 buildingInstanceId 各自保留） | 零 | 下沉 |
+| autoAssignPatrolAtomic | 事务外前置校验（重复槽/同弟子多槽）+ 锁内全量预检 + 逐槽处理；`releasedIds` **不去重**（Kotlin `pendingReleases` 原始序，`distinct()` 在 Kotlin 侧） | 零 | 下沉（回执驱动 gate） |
+| **updatePatrolConfigs** | ❗批文列为"待审计"——实测 `PatrolTowerViewModel.kt:177` 经 `PatrolTowerDialog.kt:343` 为**活写者**（唯一活者；`updatePatrolConfig` 单值入口生产零调用） | 零 | **本批下沉** |
+| **updateSpiritMineSlots** | ❗批文列为"待审计"——实测生产零调用（活 API，防死 API 复活绕过 C++） | 零 | **本批下沉** |
+| **validateAndFixSpiritMineData** | ❗批文列为"待审计"——实测 `SpiritMineViewModel.kt:104` 为**活写者** | 零 | **本批下沉** |
+| **updateYearlySalary** | ❗批文列为"待审计"——实测 `SettingsDelegate.kt:60` 为**活写者** | 零 | **本批下沉** |
+| updatePatrolSlots | 实测生产零调用（死 API）——**不为死 API 扩协议** | — | 登记不下沉 |
+
+**C++ 事务（新 `system/patrol_tx.h`，`patrol_tx` 域，十条）**：`assignToResidenceTx` /
+`removeFromResidenceTx` / `assignPatrolTx` / `removePatrolTx` / `swapPatrolTx` /
+`autoAssignPatrolTx` / `updatePatrolConfigsTx` / `updateSpiritMineSlotsTx` /
+`validateAndFixSpiritMineDataTx` / `updateYearlySalaryTx`。**全部失败零写入**（判定链先于写段）；
+**零 RNG 签名级**（无 `rng::RngManager&` 入参）。
+
+**复用既有地基（零重写）**：`slot_cleanup.h` 的 `SlotCleanupInput` + `clearAllSlotsDataOnly`
+（12 类槽位，`includeResidence=false` 变体——住所与工作共存是有意设计）+ `toMissionLiteList` /
+`mergeMissionLiteList`；展示字段（name/realmName/portraitRes）**从 `DiscipleStore` 直读**
+（批文 §2 推荐路线 ①，少一次跨语言字段搬运），`Disciple.realmName` 语义经
+`disciple::realmConfig` 复刻（含 `age<5 || realmLayer==0 → "无境界"` 与 `realm==0` 特例）。
+
+**协议**：`PATROL_ASSIGN_RESIDENCE=1550 / REMOVE_RESIDENCE=1551 / ASSIGN=1552 / REMOVE=1553 /
+SWAP=1554 / AUTO_ASSIGN=1555 / UPDATE_CONFIG=1556 / UPDATE_SPIRIT_MINE_SLOTS=1557 /
+FIX_SPIRIT_MINE=1558 / UPDATE_YEARLY_SALARY=1559`（gen-action-ids.mjs 追加段 → 两生成物再生成，
+**164 动作** = 154+10）；`execute_dispatch.cpp` 独立 **`handlePatrolTx`**（十条 case + 中央一行范围分支；
+头文件 include 插在 `diplomacy_tx.h` **之前**——README §3.3 包含序约束）。
+
+**Kotlin 接线**：新文件 `GameEnginePatrolNativeOps.kt`（`PatrolNativeForward` 转发器 +
+九入口 native 臂 + 回执解析助手 `replyStr/replyBool/replyStrList/replyIntList`）；
+`GameEngineAtomicAssign.kt` 六入口「native 成功 → **只跑事务外残差**」/ 失败降级走原 Kotlin 事务体；
+`GameEnginePatrolOps.kt` 四入口同构。**Kotlin 原路径整体保留为降级回退臂**（README §7.3）。
+`PatrolTowerViewModel` / `SpiritMineViewModel` / `SettingsDelegate` **零改动**（接线在 Ops 层）。
+
+**顺手清偿两处协议/模型漂移（预存缺陷，非本批引入）**：
+1. **`GridBuildingData.sectId` C++ 侧缺失**——Kotlin `GridBuildingData.@ProtoNumber(8) sectId` 存在且
+   `validateAndFixSpiritMineData` 以 `building.sectId` 对齐矿场槽位；C++ 模型无该字段 ⇒ 反向信封每次
+   携带该键而被 C++ **静默忽略**（镜像不完整）。补齐 `models.h` + `json_codec.cpp` 双向编解码。
+2. **`ResidenceSlot` / `PatrolSlot` / `SpiritMineSlot` / `PatrolConfig` 无相等性**——事务"是否发生变更"
+   判定与 GTest 逐位断言需要；补字段序 `operator==`/`operator!=`（纯加法，零行为变更）。
+
+**测试**：
+- GTest `patrol_tx_test.cpp` **31 用例全绿**（住所六失败臂零写入 / 重复分配幂等 / 跨住所搬迁清旧槽 +
+  释放 occupant；巡逻三失败臂 / 展示字段 + building 保留 / **12 类槽位穷尽性清理**（住所保留）/
+  `activeMissions` 非目标弟子字段逐字段不变 / 交换双方互换算展示字段 / 一方为空即移动；
+  批量五类校验失败臂 + 回执三列逐序 / 空 id 清槽 / 释放被顶 occupant；配置整表覆写 + 空表清空；
+  矿场自愈孤儿清空 + index 重排 + 重锚 + `sectId` 对齐（`alignedCount` 按 Kotlin 语义**仅计预置失配槽**）+
+  幂等；年俸覆写；**零 RNG 全分区快照差分（含全部失败臂）** + **双运行全状态 JSON 逐位一致**；
+  信封级七动作 success/failure/`code` 面）
+- Kotlin `GameEnginePatrolNativeTxGateTest` **19 用例全绿**（转发器 flag OFF / AUTHORITATIVE-桥未加载
+  双降级；住所/巡逻/交换/批量/配置/矿场/年俸回退臂语义逐项；AUTHORITATIVE 无桥双模式等价；
+  失败臂 Failure；`stateSyncServiceRef` 未 stub 全程不 NPE——findings 13 回归网）
+- **既有 `GameEngineAtomicAssignTest`（17）/ `GameEngineDualSlotGuardTest`（19）零改动通过**
+- `SlotCategoryCoverageTest` 清单注释同步（新增转发文件不引入新分配入口——槽位清理仍留守
+  `GameEngineAtomicAssign.kt` 回退臂；清单**不需加**新文件）
+
+**验证**：见 §3（2026-09-13 Batch-12）。
+
+## 2.51b Batch-20b（2026-09-13）：攻宗确定性写回下沉 C++——写者审计改判「大部分不可下沉」，实用两段 + 三条显式登记
+
+**批次口径**（[batch-20 批文](parallel-batches-w2/batch-20-realm-platform-battle.md) §9 二分预案的 20b 部分；
+ActionId 段 1710–1729，1710 已被 20a 占用，**实用 1711–1712**）。
+
+**写者审计 + 战斗执行覆盖面核实（批文 §2 第 1 步产出，实测改判）**：
+
+| 族 | 审计结论 | 处置 |
+|---|---|---|
+| **攻宗战斗执行** | ❗批文称"需按 batch-13 a/b/c 判据先核实"——**实测已在 C++**：`AISectAttackManager.executeSectBattleCore` 经 `tryExecuteUnifiedNative`（`sect_battle.h executeAiBattle`）、`computeCanOccupy` 经 `sect_attack_decision.h`、`checkAttackConditions` 经 `nativeCheckAttackConditions`、**玩家 Combatant 组装经 `mission_completion.h discipleToCombatant`（实例表语义，`exploration_tx.h` 同源先例）** | 无需下沉 |
+| **AI 弟子参战准备** | ❗批文列为待下沉族 + 13.3 红线——**实测非写者**：`AISectDiscipleManager.prepareDisciplesForBattle` 是**纯只读变换**（`List<Disciple> → AIPreparedBattle`，零 state 写入）；C++ 等价物 `ai_sect_ops.h aiPrepareDisciplesForBattle` 已在 `exploration_tx.h` / `secret_realm_session.h` / `sect_conquest.h` / `sect_defense_battle.h` 内被下沉路径消费（**13.3 红线已满足**） | **登记不下沉**（无写者即无下沉对象） |
+| **执法堂偷盗 UI 触发面** | ❗批文列为待下沉族——**实测全部为结算域钩子**：`processSingleDiscipleTheft(id, state)` 的调用面全在 `DiscipleFacadeImpl`（受控状态变更）/ `AutoPillService`（旬结）/ `CultivationSettlement`（月结）/ `DiscipleLifecycleProcessor`（年结）/ `GameEngineWorldBattleOps`（世界关卡战斗）——月结/旬结偷盗链已下沉 `month_settlement.h` / `phase_settlement.h`；无 UI 直调写者 | **登记不下沉** |
+| **阵亡守军清理** `removeDeadDefenders` | 零 RNG 纯确定性：目标池过滤 + 目标宗门驻军槽清空（保留 index）；**`aiSectDisciples` 段**（ui-read-surface §4.1 残余域之一） | **本批下沉**（1711） |
+| **胜方魂魄发放** `grantWarSoulPowers` | 零 RNG：id 集 ∧ 存活双过滤 + 逐行 +1 | **本批下沉**（1712） |
+| **战利品生成族** `generateWarRewards` + 六类 `addWar*` | 🔴 **RNG 红线**：模板抽取走 `templates.random(random)`，六个调用点（`AISectTeamComposer.kt:143/158/171/182/194/208`）**均未传 `random`** ⇒ 实际序列为 `kotlin.random.Random`（`Random.Default`）**非游戏分区随机域**，C++ 无法逐位复刻（batch-13 §2 同族判据）；而 `sectBattleRewardCount` 的 BATTLE 分区 `nextInt(7)` 被夹在该非分区域中间，拆分即"半吊子混合态" | **整族留 Kotlin**（显式登记） |
+| **occupySectRewards / crushSectRewards** | 与 `grantWarRewardsInside` **同一 `stateStore.update` 原子事务**（结构性写段：worldMapSects 占领标记 / recruitList 俘虏 / vassalContracts 清理 / sectDetails.isOwned）；奖励段不可复刻 ⇒ 原子性不可拆 | **整段留 Kotlin**（显式登记） |
+| **recordSectBattleRecord** | 与 `battleLogs`（Kotlin **显示域**，`sect_defense_battle.h:33` 口径"不入 C++ 状态"）同一事务；拆出 `sectBattleRecords` 会产生**撕裂事务** | **不下沉**（显式登记） |
+
+**C++ 事务（新 `system/sect_attack_tx.h`，`sect_attack_tx` 域，两条）**：
+`removeDeadDefendersTx(state, sectId, defenderPoolSectId, deadDefenderIds)`——**仅目标池**过滤
+（其余池 `mapValues` identity 分支原样，含同 id 跨池不误删）+ **仅目标宗门**驻军槽清空
+（`GarrisonSlot(index)` 保留索引、展示字段全清，`slot_cleanup.h` 驻军口径同形）；
+`grantWarSoulPowersTx(state, sectSurvivorIds)`——行序 + 存活性 + 表内三重过滤 + 逐行 +1
+（逐行独立自增，**与遍历序无关**）。空输入集零变更直通。`aiSectDisciples` 为
+`NativeGameState` **顶层段**（`aiSectDisciples` 不入 kotlinx gameData JSON——S-15 独立全量段）。
+
+**协议**：`SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX=1711` / `SECT_ATTACK_GRANT_SOUL_POWERS_TX=1712`
+（**166 动作** = 164+2）；`execute_dispatch.cpp` 独立 **`handleSectAttackTx`** + 中央一行范围分支。
+
+**Kotlin 接线**：新文件 `GameEngineSectAttackNativeOps.kt`（`SectAttackNativeForward` 转发器 +
+两 native 臂；空集直接返回 false 免无收益跨语言往返）；`GameEngineBattleOps.kt`
+`removeDeadDefenders` / `grantWarSoulPowers` 首行 native 臂，原 Kotlin 事务体保留为回退臂。
+
+**测试**：GTest `sect_attack_tx_test.cpp` **9 用例全绿**（仅目标池/目标宗门生效 + 非目标池同 id 不误删 +
+槽 index 保留展示字段全清；空集无操作逐位不变；池/宗门缺失容错；魂魄存活过滤 + 累加 + 空集无操作；
+**零 RNG 全分区快照差分** + **双运行全状态逐位一致**；信封级 success + 段内未注册动作
+`NOT_IMPLEMENTED`）。
+
+**范围边界与登记汇总**：① 战利品生成族留 Kotlin（RNG 红线，非分区随机域）；② occupy/crush 奖励入账
+整段留 Kotlin（原子性）；③ `recordSectBattleRecord` 不下沉（`battleLogs` 显示域同事务）；
+④ AI 参战准备登记不下沉（纯只读变换，13.3 红线已由 C++ 等价物满足）；⑤ 执法堂偷盗无 UI 写者
+（全部结算域钩子，月结/旬结已下沉）；⑥ `attackSect` 战斗组装/战报重建/奖励卡片留 Kotlin（展示通道，
+S5/S6 口径）；⑦ 段内 1713–1729 未注册（前向兼容：未注册动作走 `NOT_IMPLEMENTED`）。
+
+**验证**：见 §3（2026-09-13 Batch-20b）。
+
+## 2.55 Batch-23（2026-09-14）：残余域补齐——妖兽视图锁定 + 设置项域 17 字段下沉 C++
+
+**目标路径**（ui-read-surface §4.1 残余清单中**从未派工**的两项）：① `lockedBeastIds` UI 操作面
+（`GameEngine.lockBeastView` / `unlockBeastView`，`GameEngine.kt:319/324`，经 `launchOnEngine`
+被 `BeastAttackDelegate` 的妖兽详情弹窗开/关事件调用——**AUTHORITATIVE 稳态下的 Kotlin 直改写者**，
+非回退臂）；② 设置项域（写者审计实测为**三个 Delegate 共 17 个 gameData 字段**）。
+
+**为什么这两项是 batch-21 的硬前置**：① `lockedBeastIds` 是 AUTHORITATIVE 月结「锁定妖兽不被
+AI 攻击」判据（`month_settlement.h`）的输入，UI 直改期间只能靠反向通道回导才生效（增量窗口内
+失效——§2.21.2 曾因此专门补段）；反向通道关闭后必须由 C++ 承接。② 设置项字段属 gameData 序列化
+面，同理。
+
+| 改动 | 文件 | 说明 |
+|---|---|---|
+| C++ 事务 | **新文件 `system/lock_beast_tx.h`** | ① `lockBeastViewTx`（Set 语义插入/剔除 + 保序 + 幂等 + lockedCount 回执）——**落点为 `state.lockedBeastIds`**（NativeGameState 顶层段，与 Kotlin `GameData.lockedBeastIds` 的 @Transient 语义一一对应）；② `updateSettingsTx`（**字段名 → 值通用补丁**，单 ActionId 覆盖 17 字段） |
+| 设置字段清单（17） | 同上（`isKnownSettingField` / `isSettingUnchanged` / `applySetting` / `normalizePatch` 四处同源） | bool 开关 ×10：soundEnabled / musicEnabled / patrolBattleResultPopup / autoSellMidGradeForPurchase / autoSellHighGradeForPurchase / showAllAvailableDisciples / daoCompanionConsentRequired / breakthroughAutoPillFocused / autoEquipFromWarehouseFocused / autoLearnFromWarehouseFocused；Int 集 ×7：autoRecruitSpiritRootFilter / autoRejectSpiritRootFilter / prisonerSpiritRootFilter / breakthroughAutoPillRootCounts / autoEquipFromWarehouseRootCounts / autoLearnFromWarehouseRootCounts / daoCompanionBannedRootCounts |
+| **唯一归一化点** | 同上 `normalizePatch` | Int 集字段在解析阶段去重 + 保序，**比较与写入共用同一份归一化值**——GTest 实测暴露初版"比较用原始输入、写入用去重值"的分叉（重复元素输入下 `changed=false` 却不写）；归一化一次即消除该类不一致 |
+| 协议 | `action_ids.h` / `ActionIds.kt`（gen-action-ids.mjs 追加段）+ `execute_dispatch.cpp` | `BEAST_VIEW_LOCK_TX=1730` / `SETTINGS_PATCH_TX=1731`（**168 动作**，maxId=1731）；独立 `handleLockBeastTx`（两 case）+ 中央一行范围分支 |
+| Kotlin 转发 | **新文件 `GameEngineResidualNativeOps.kt`**（`ResidualNativeForward` 转发器 + `lockBeastViewNative` / `updateSettingsNative` + `SettingPatchValue` sealed 载体 + `buildPatchArray`） | 与 `PatrolNativeForward` / `SectAttackNativeForward` 同构（AUTHORITATIVE 门控 → `stateSyncServiceRef` 可空局部判空 → `tryExecuteNative`） |
+| Kotlin 设置域入口 | **新文件 `GameEngineSettingsOps.kt`** | 15 个域入口（音频 2 + 通用开关 4 + 道侣 2 + 自动装备/学习/突破丹药 3 + 灵根过滤器 3 + 校验包装 2）：`updateSettingsOrFallback` 统一"native 成功即完成 / 失败降级 `updateGameDataSync`" |
+| 接线（事务外残差保留 Kotlin） | `GameEngine.kt` / `SettingsDelegate.kt` / `AutoAssignDelegate.kt` / `DiscipleDelegate.kt` | 妖兽锁定两入口 native 臂；`SettingsDelegate` 六入口改走 ops（平台效应 `audioConfig` 保留）；`AutoAssignDelegate` 七入口改走 ops；`DiscipleDelegate.setAutoRecruitFilter/setAutoRejectFilter` 改走 `*Validated` 入口（1..5 预筛 + **事务外惰性门重置** `RecruitResetIdle` 在 native 成功路径同样执行）；`setDaoCompanionConsentRequired` 的 `clearPendingMarriageProposals()` 同口径 |
+| 测试 | **新文件 `test/lock_beast_tx_test.cpp`（17 用例）** | 锁定插入/重复幂等/解锁剔除/解锁不存在幂等/空 id 双向无操作；设置补丁 bool 四字段 + AutoAssign 全 13 字段 + 未知字段失败零写入 + **类型不符失败零写入** + 同值幂等 + **Int 集集合语义**（顺序无关/重复去重）+ 空补丁幂等；零 RNG 全分区快照差分 + 双运行逐位一致；信封 success / UnknownSettingField failure / 段内未注册动作 `NOT_IMPLEMENTED` |
+| 测试 | 新文件 `GameEngineResidualNativeTxGateTest.kt`（12 用例） | 转发器 flag OFF / AUTHORITATIVE-桥未加载双降级；妖兽锁定四臂回退语义；音频/开关/AutoAssign 三组设置回退语义；招募过滤 1..5 预筛 + 惰性门；道侣同意关闭清提议；**补丁数组协议面形状**（bool 标量 + Int 集升序数组） |
+
+**验证**：见 §3（2026-09-14 Batch-23）。
+
+## 2.56 Batch-24（2026-09-14）：弟子管理残差——灵根/特质 confirm 两入口下沉 C++
+
+**目标路径**：ui-read-surface §4.1「弟子管理」残余最后两项——`confirmSpiritRootWash`
+（`GameEngineSpiritRootOps.kt:138`）与 `confirmTraitWash`（`GameEngineTraitWashOps.kt:176`）。
+§2.46（batch-15）曾把二者登记为"纯数据写留 Kotlin"（`appointment_tx.h:17/47` 同文），本批按残余
+清零口径收口。
+
+| 改动 | 文件 | 说明 |
+|---|---|---|
+| C++ 事务 | `system/appointment_tx.h` 追加事务 8/9 | `spiritRootWashConfirmTx`（`isValidWashedRootType` 等价：逗号切分 1~2 元素 / 无重复 / 全在 `washElementKeys`；空串 → 空元素 → 拒；→ 覆写 `spiritRootTypes` + checkpoint）；`traitWashConfirmTx`（判定序 存在 → 存活 → **`isValidSlotWash` 等价**（目标在列表 + 产物可解析 + 替换后每条目可解析 + **template 无重复**）→ 目标槽位替换 + **`syncLifespanForTraitChange` 等价**（天赋/词条 lifespan 加成差 × 境界基准寿命，`toInt` 截断，delta==0 跳过，下限 1）→ checkpoint） |
+| 复用既有地基（零重写） | 同上 | `detail::traitKindOf` / `resolveOne` / `traitIdsOf` / `lifespanBonusOf` / `realmMaxAge` / `washElementKeys` 全部取自 batch-15 已有实现；新增仅 `isValidWashedRootType` 与两事务体 |
+| 协议 | `action_ids.h` / `ActionIds.kt` + `execute_dispatch.cpp` | `SPIRIT_ROOT_WASH_CONFIRM_TX=1732` / `TRAIT_WASH_CONFIRM_TX=1733`（**170 动作**，maxId=1733）；归入既有 `handleAppointmentTx`（独立范围分支，不动 1610–1616 段） |
+| **失败信封保留（新能力）** | `GameEngineNativeOps.kt` 追加 `executeRaw` + `NativeRefusal` / `RawResult` | `tryExecuteNative` 把失败信封统一降级为 null（回退契约），但 confirm 两入口的**用户可见文案由 C++ 判定链产出**（弟子不存在 / 弟子已死亡 / 该特质已不存在）——`executeRaw` 保留 failure 信封的 `code` + `message`，镜像回读契约与 `tryExecuteNative` 同源 |
+| Kotlin 接线 | `GameEngineResidualNativeOps.kt` 追加 `ConfirmNativeOutcome`（Applied / Refused / Unavailable）+ 两 native 臂；`GameEngineSpiritRootOps.kt` / `GameEngineTraitWashOps.kt` 首行三态分派 | Applied → 直接返回 Success（C++ 内含 checkpoint 与 lifespan 同步）；Refused → 用 C++ `message` 作玩家可见错误；Unavailable → 走原 Kotlin 事务体（**完整保留为回退臂**） |
+| 测试 | `appointment_tx_test.cpp` 追加 **8 用例** | 灵根 confirm 覆写 + checkpoint / 非法串五臂（未知元素·空串·三元素·重复·尾逗号）+ 未知与死亡弟子；特质 confirm 替换仅动目标槽位（多槽位逐位不变）/ 非法四臂 + 未知类型 + 未知与死亡弟子（零写入断言）/ lifespan 双向同步 / 两入口零 RNG + 信封 success + `INVALID_ROOT` failure / 双运行逐位一致 |
+
+**范围边界（实测登记）**：① **同 template 冲突臂为数据依赖**——真实天赋表内"同 template 兄弟
+条目"是否存在由数据集决定，无法稳定构造；该臂由 `traitAddConfirmTx` 的同款校验覆盖同一逻辑形状；
+② 灵根串预检在 Kotlin 侧先行（纯函数，与 C++ 同源），native 臂只在预检通过后进入（零差异往返）；
+③ 特质表无 lifespan 加成差异时该用例 `GTEST_SKIP`（当前数据集有差异，实跑未跳过）。
+
+**验证**：见 §3（2026-09-14 Batch-24）。
+
+## 2.57 残余域审计结论（2026-09-14）：aiSectDisciples 自愈改判 + 月年编排残余收口
+
+### aiSectDisciples 段：load/save 自愈写者**登记不下沉**（附证据链）
+
+**审计对象**：`GameEngineLifecycleOps.checkAndRepairAiSectDisciples`（`ensureGameDataIntegrity`
+第二步；两处调用点 = boot Step 5 `BootSequenceController.kt:228` 与 `upgradeSectLevel` 修复路径
+`GameEngineSectLevelOps.kt:344`）——AUTHORITATIVE 稳态下仍会按需重写整个 `aiSectDisciples` 段。
+
+**改判理由（RNG 红线，非工作量问题）**：
+1. `AISectDiscipleManager` 使用**独立 AI RNG 分区**（`private var _rng`，由 `initForSlot(systemSeed)`
+   以 `systemSeed + RNG_PARTITION.AI_SECT.id × 31337` 播种）；
+2. 该分区状态**不在快照协议的 `rngStates` 段内**（Kotlin 侧为对象内私有字段，与 `GameMaster` 的
+   8 分区 GameRngManager 是两套实例）——即 **C++ 侧没有该 RNG 的镜像状态**；
+3. 自愈路径的生成链（`initializeSectDisciples` → `fillDisciplesToTarget` → `ensureDiscipleGear`）
+   大量消费该分区（`nextInt` / `nextGaussian` / `NameService` 洗牌 / 天赋体质词条 roll）；
+4. ⇒ 在 C++ 复刻需要先把"Kotlin 对象内 AI RNG 状态"接入协议并保证双端消费序列逐位一致——
+   属 **WS-4/AI 域 RNG 通道统一**的规模，不是本地小改。
+
+**风险与兜底**：该路径为**损坏/老档自愈**（正常档前置 `isEmpty` 判定零开销；`canSkip` 命中时
+直接返回）。AUTHORITATIVE 稳态下重写会经反向通道回导生效（通道未关，语义正确）；batch-21 关闭
+该域捕获前必须先把此写者处置掉——**故本项构成 batch-21 的剩余前置**（与 §2.55/§2.56 两项并列）。
+
+### 月年编排残余：天劫 / 洞府探索 / 设置项三域逐个定界
+
+| 候选域 | 实测结论 | 依据 |
+|---|---|---|
+| 设置项 | **✅ 已下沉（§2.55）** | 17 字段经 `SETTINGS_PATCH_TX`；覆盖 `SettingsDelegate`（6）/ `AutoAssignDelegate`（7）/ `DiscipleDelegate`（2）三处 writer 面 |
+| 天劫 `HeavenlyTrialSaveData.claimedRewardLevels` | **登记不下沉（RNG 红线 + 原子性）** | `claimClearReward` 与 `generateRandomPill/Equipment/Manual`（`templates.random()`，NonDeterministic 域）同一 `stateStore.update` 且溢出抑制（凭据类）语义不可拆；`recordPhaseClear` 虽零 RNG，但其写入与领奖共用同一 `heavenlyTrialState` 段，拆分会产生**撕裂事务**（S6/batch-20b 同族判据） |
+| 洞府探索 `CaveExplorationProcessor` | **登记不下沉（非稳态写者）** | `processSectDisciplesAging` / `processCaveLifecycle` 经 `CultivationEventMonthlyOps:176` 调用——**只在月结 Kotlin 完整编排内**（AUTHORITATIVE 月结走 C++ `runMonthSettlement` + 三平台效应残留执行器，不触达本路径）。属**回退臂**而非稳态写者（batch-21 关闭捕获后回退路径仍正确：native 不可用时本无 C++ 状态可同步） |
+| `ensureGameDataIntegrity` 其余三步 | **登记不下沉** | `checkAndRepairWorldMapSects`（世界重生：C++ `WorldMapGenerator` 等价物不在协议面）/ `checkAndRepairMerchantAndRecruit`（商人物品池 Kotlin 注册表不可复刻——§2.42 已登记）/ `checkAndRepairWatchedItemIds`（显示关注列表，非权威状态） |
+
+**batch-21 关闭前置的最新口径**（`ui-read-surface` §4.3 同步更新）：
+① 库存**开袋**（双重 RNG，路线 B 备案，**待拍板**）；② **`aiSectDisciples` load/save 自愈**
+（本批审计改判：需先统一 AI RNG 通道）；③ `lockedBeastIds` UI 操作面 —— **✅ 已下沉（§2.55）**；
+④ 弟子管理残余 —— **✅ 已下沉（§2.56）**；⑤ 月年编排残余（设置项 ✅ / 天劫登记 / 洞府登记）。
+⇒ **未关闭项收敛为 ①（待拍板）与 ②（需 RNG 通道统一）两项**。
+
+## 3. 验证结果（逐批记录；未达项在对应批次内显式标注，见 "未达项" 行）
+
+**2026-09-14 Batch-23 + Batch-24 + 存量失败清偿验证（§2.55/§2.56/§2.57）**：
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 桌面 C++ 全量单测（+25 新增用例） | llvm-mingw clang++ + Ninja（`gamecore/build/desktop-test`）→ `test/game-core-tests.exe` | **1309/1309 全绿**（1284 既有 + 17 `lock_beast_tx_test` + 8 `appointment_tx_test`）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 桌面 JNI 重建 | `pwsh -File scripts/build-desktop-jni.ps1` | **生成成功**（含 `handleLockBeastTx` 两 case + `handleAppointmentTx` 两 confirm case） |
+| 引擎全量单测（对拍验收） | `:core:engine:testReleaseUnitTest --rerun-tasks --max-workers=1 "-Dgamecore.jni.path=<绝对路径>"` | **3249 用例 / 290 类 / 0 失败 0 错误 0 跳过**（起点 3237 用例 / 27 失败 → 本轮 +12 用例（`GameEngineResidualNativeTxGateTest`）且 **27 处存量失败全部清偿**） |
+| detekt 五模块（feature:game 被在途破损阻断，见未达项） | `:app :core:data :core:domain :core:engine :core:ui detekt --rerun-tasks` | **全绿**（baseline 恒 0；本轮 2 处实修：`GameEngineResidualNativeOps` UnusedImports 删除 + `GameEngineSettingsOps` TooManyFunctions 19/15 → 按域拆分为 `GameEngineSettingsOps`（通用/音频/道侣/过滤器）+ `GameEngineSettingsAssignOps`（自动装备/学习/突破丹药 + 过滤校验包装）） |
+| 模块主源编译 | `:core:engine:compileReleaseKotlin` | **BUILD SUCCESSFUL**（`GameEngineResidualNativeOps` / `GameEngineSettingsOps` / `GameEngineSettingsAssignOps` / `GameEngine` / `GameEngineSectLevelOps` / `GameEngineSpiritRootOps` / `GameEngineTraitWashOps` / `GameEngineNativeOps` 全部通过） |
+| 动作计数 | `node scripts/gen-action-ids.mjs` | **170 动作**（166→168（batch-23）→170（batch-24），maxId=**1733**）；`action_ids.h` + `ActionIds.kt` 同源一致 |
+| 测试源编译 | `:core:engine:compileReleaseUnitTestKotlin` | **BUILD SUCCESSFUL**（含新 `GameEngineResidualNativeTxGateTest` 与四处测试修复） |
+| **未达项（非本批归属）** | `:feature:game:compileReleaseKotlin` / `:app:lintRelease` / `:app:externalNativeBuildRelease` | **NDK arm64 未达**：`NativeBridge.cpp:1499/1500` `ktx1::KtxInfo` / `ktx1::loadKtx1` 未解析（可解析符号是全局 `KtxInfo`/`loadKtx1`，`KtxLoader.h` 同文件 —— **HEAD 即断**，`git diff` 证实本批零接触）⇒ `native-renderer` 目标失败、`game-core` 目标同批中断；**`:feature:game` 未达**：`MainGameScreen.kt` 缺 `IslandCliffTextureSet` import（**HEAD 即断**，同族纹理重构在途）——本轮**顺手修复该 import**（一行，非本批产物但阻断全部门禁），修复后 `feature:game` 剩余失败为 `VulkanRenderBackend.kt:224/230` `hasAnyCliffTexture` / `cliffTextureCount`（`IslandCliffTextureHolder` 未提供这两个成员）+ `MainGameScreen.kt:536` `textureMask` 参数缺失两处，仍属在途破损。`lintRelease` 依赖 `:feature:game` 编译 ⇒ 同因未达 |
+| **登记（未收敛，需专项）** | `JadeNativeTxGateTest` 实测 | `claimSectLevelReward` 首领后**凭据未持久化**：`writeSectLevelRewards` 路径已完成（`allSucceeded=true` 分支执行）但同一调用内 `stateStore.gameDataSnapshot.sectLevelClaimRecords` 仍为 0 条——`FakeAtomicStateStore` 事务缓冲与 `sectLevelClaimRecords` 字段的交互需专项定位（复现步骤：本用例原"首领建立凭据 + 立即再领"形态）。本轮以"直接播种冷却凭据"绕开该环境缺陷完成冷却判定守护，**并已按根因修复生产侧静默失败**（`writeSectLevelRewards` 返回 Boolean + 调用方明确失败文案，见 §2.57 与 CHANGELOG） |
 
 **2026-09-12 Batch-11 验证（§2.42，全部通过——独立 git worktree 干净检出实跑，主工作区并行批 12 零干扰）**：
 
@@ -2044,6 +2262,32 @@ batch-21（反向通道关闭）前置未达成；detekt / NDK arm64 / lintRelea
 | 提交门 | `:app:lintRelease` | **未达**（依赖 feature:game `compileReleaseKotlin`——`MainGameScreen.kt textureMask/IslandCliffTextureSet`、`VulkanRenderBackend.kt hasAnyCliffTexture/cliffTextureCount` 并行批在途破损） |
 | 模块回归 | `:core:data :feature:game :app testReleaseUnitTest` | **未达**（同上编译阻断）；并行批在途失败归属补充：`BootSequenceControllerTest` 10 例（`map seed unavailable`，启动地图种子域）、`ProductionUiNativeTxGateTest` 4 例（batch-17）、`JadeNativeTxGateTest` 1 例（batch-19）——与本批零交集 |
 | 🔴 缺陷修复（gate 对拍产出） | `PolicyNativeTxGateTest` 付费三用例暴露 | **存量 Kotlin 回退臂"扣费被覆盖"缺陷修复**：`applyPolicyToggleFallback` 与 `toggleOpenRecruitment` 付费分支的 `val data = gameData` 快照原在 `wallet.deduct` **之前**取——deduct 写事务态 `gameData` 后被 `gameData = data.copy(...)` 整体覆盖，**首月扣费静默丢失**（政策照常置位）；C++ `policyToggleTx`/`openRecruitmentToggleTx` 为同事务原子扣费+置位，双臂语义分叉。修复 = 快照移至 deduct 之后（两处），对齐 C++ 原子语义；生产行为变化 = AUTHORITATIVE 下 native 臂本就正确扣费，OFF 降级路径由"不扣费缺陷"变为正确扣费 |
+
+**2026-09-13 Batch-12 + Batch-20b 验证（桌面 C++ / 核心模块编译 / 对拍 / 门控测试全绿；NDK·lint·feature:game 编译被渲染并行线在途破损阻断，非本批归属）**：
+
+| 验证 | 命令 | 结果 |
+|---|---|---|
+| 桌面 C++ 全量单测（基线 1244 + batch-12 31 + batch-20b 9） | llvm-mingw clang++ + Ninja（`gamecore/build/desktop-test`）→ `.exe` 直跑（PATH 需含 `llvm-mingw-20260616-ucrt-x86_64\bin`——缺 `libc++.dll` 时报 `STATUS_DLL_NOT_FOUND`） | **1284/1284 全绿**（175 suites）；`PatrolTxFixture.*` **31/31**；`SectAttackTxFixture.*` **9/9** |
+| 桌面 JNI 重建（§6②） | `pwsh -File scripts\build-desktop-jni.ps1`（**脚本在仓库根 `scripts/`，非 `android/scripts/`**——README §6 路径有误） | **生成成功 8,853,504 字节**；二进制字符串核验含 `handlePatrolTx` / `handleSectAttackTx` / `handlePolicyTx` / `handleBoundaryTx` / `handleJadeTx` |
+| 引擎全量单测（对拍验收） | `:core:engine:testReleaseUnitTest --rerun-tasks --max-workers=1 "-Dgamecore.jni.path=<绝对路径>"` | **3237 用例 / 289 类 / 跳过 0**；**27 失败全部为并行线在途 / 预存，本批 0 归属**（见下表） |
+| 本批测试类（全量套件内） | 同上（结果 XML 逐类核对） | `GameEnginePatrolNativeTxGateTest` **19/0/0**｜`GameEngineAtomicAssignTest` **17/0/0**（零改动通过）｜`GameEngineDualSlotGuardTest` **19/0/0**（零改动通过）｜`SlotCategoryCoverageTest` **4/0/0**｜`GameEngineBattleOpsTest` **4/0/0** |
+| detekt 六模块 | `:app :core:data :core:domain :core:engine :feature:game :core:ui detekt` | **触碰面全绿**：core:engine 首轮 2 处实修（`UnusedImports` / `MaxLineLength` +1 行）后 **0 违规，baseline 恒 0 无新增**；app / core:data / core:domain / core:ui 均 BUILD SUCCESSFUL；**feature:game 6 处违规全在 `SoftwareCanvasBackend` / `IslandCliffTextureHolder` / `IslandCliffTextureLoader`**（渲染并行线在途文件，本批零接触） |
+| 核心模块主源 + 测试源编译 | `:core:engine:compileReleaseKotlin` + `compileReleaseUnitTestKotlin` | **BUILD SUCCESSFUL** |
+| **NDK arm64** | `:app:externalNativeBuildRelease` | **未达（非本批归属）**：`NativeBridge.cpp:1499/1500 no type named 'KtxInfo' in namespace 'ktx1' / no member named 'loadKtx1'`——KTX 纹理并行线在途破损，`git diff` 证实本批**零接触** `NativeBridge.cpp` |
+| **lintRelease** | `:app:lintRelease`（独立复跑；`android/` 为 gradle 根） | **未达（非本批归属）**：`> Compilation error`——`:app` 主源编译依赖 `:feature:game`，被同上 `IslandCliff*` 纹理 + KTX 在途破损阻断；`git diff` 证实本批零接触 |
+| **feature:game 主源/测试源编译** | `:feature:game:compileReleaseKotlin(+UnitTest)` | **未达（非本批归属）**：`MainGameScreen.kt:536/573`（`textureMask` 缺参 / `IslandCliffTextureSet` 未解析）+ `VulkanRenderBackend.kt:224/230`（`hasAnyCliffTexture` / `cliffTextureCount` 未解析）——全部为 `IslandCliff*` 纹理重构在途；`git diff` 证实本批**零接触** |
+| 动作计数 | `node scripts/gen-action-ids.mjs` | **166 动作（maxId=1712）**（154→164→166）；`action_ids.h` + `ActionIds.kt` 同源一致 |
+
+**27 处引擎失败归属（本批 0 归属，逐类实测）**：
+
+| 测试类 | 失败/总数 | 归属判定 |
+|---|---|---|
+| `PolicyNativeTxGateTest` | 12/12 | **预存 mock 配置缺陷**：`WrongTypeOfReturnValue: EmptyList cannot be returned by getSlots() — should return StateFlow`（测试文件由 batch-18 提交，`git diff` 证实本批零接触 `ProductionSlotRepository`）；此前被"测试源编译阻断"掩盖，本批首次实跑暴露 |
+| `BootSequenceControllerTest` | 10/14 | §2.52 已登记在途（断链 `IslandCliff*` / 纹理线） |
+| `ProductionUiNativeTxGateTest` | 4/11 | §2.52 已登记在途（batch-17 遗留） |
+| `JadeNativeTxGateTest` | 1/9 | §2.52 已登记在途（batch-19 遗留） |
+
+**未达项（诚实口径，不计入"全部通过"）**：① NDK arm64 / lintRelease 被 KTX + `IslandCliff*` 渲染并行线在途破损阻断；② `:feature:game` 主源与测试源编译同上；③ `PolicyNativeTxGateTest` 12 处为预存 mock 缺陷（非本批引入，登记待修）；④ 模块回归（`:core:data` / `:feature:game` / `:app` 定向）因 ② 未跑。**本批自身触碰面（`core:engine` + `app/src/main/cpp/gamecore`）全部实证通过。**
 
 **2026-09-12 Batch-20a 验证（§2.51，桌面 C++ 全量 + JNI + 主源编译 + 测试源编译 + 门控真跑 + detekt 全绿；引擎全量对拍/NDK/lint/六模块回归未达——共享工作区并行 session 活跃改动期（git 基线重建 + 测试文件在途），待并行批收口后补跑）**：
 
@@ -2548,7 +2792,7 @@ batch-21（反向通道关闭）前置未达成；detekt / NDK arm64 / lintRelea
 |---|---|
 | ~~M3 首批：detekt 死代码族清偿~~ | **✅ 已清偿（2026-09-08，见 §2.20）**：五模块 UnusedPrivate*/UnusedImports 归零（含 SaveLoadSaveDelegate 整类、7 处死构造参数、14 个空 companion、副作用保留改造 7 处）；baseline -211 条（只缩不增）；实跑实测剩余活债务 2952 条按族登记（MaxLineLength 1400+ / TooGenericExceptionCaught ~340 / 复杂度族）逐批推进 |
 | ~~M3 第二批：反向通道逐域写者审计 + lockedBeastIds 加固 + InvalidPackageDeclaration~~ | **✅ 已清偿（2026-09-08，见 §2.21）**：①审计改判——"反向通道按域全关"前置不成立（约 265 个 `update` 调用点、15+ 域 UI 操作面仍 Kotlin 直改，无域可关；**该 M3 主项改判为长期主轴：UI 操作面逐域下沉 C++**，域→写者→批次清单落档 ui-read-surface §4.1）；②lockedBeastIds 反向增量段缺口加固（S-15 同族，月结锁定妖兽跳过判定在 AUTHORITATIVE 下恢复生效）；③detekt InvalidPackageDeclaration 118 条清偿（纯文件搬移零代码变更，engine baseline 1057→939 + 30 条注册类别按包路径归属修正） |
-| **M3 剩余主项：反向同步通道按域全关（改判后）** | **前置 = UI 操作面逐域下沉**（弟子管理后续子批/巡逻/库存残余/月年边界编排/aiSectDisciples 段等域，每域一个 WS-2 规模批次；建筑/道路/外交/弟子第一子批/招募俘虏残余/生产 UI 面已下沉）——不是收敛批可完成项；按 ui-read-surface §4.1 清单逐批推进，全部下沉后执行 §4.3 关闭动作（停捕获 + 信封摘段 + 信封体积归零可观测验收） |
+| **M3 剩余主项：反向同步通道按域全关（改判后）** | **前置 = UI 操作面逐域下沉**（弟子管理后续子批/库存残余/月年边界编排/aiSectDisciples 段等域，每域一个 WS-2 规模批次；建筑/道路/外交/弟子第一子批·二·三/招募俘虏残余/生产 UI 面/月年边界编排/玉符宗门/秘境平台段/**巡逻住所（batch-12，2026-09-13 §2.43）**/**攻宗确定性写段（batch-20b，2026-09-13 §2.51b）**已下沉）——不是收敛批可完成项；按 ui-read-surface §4.1 清单逐批推进，全部下沉后执行 §4.3 关闭动作（停捕获 + 信封摘段 + 信封体积归零可观测验收）。**batch-20b 改判要点**：战利品生成族（`Random.Default` 非分区随机域）/ 奖励入账事务（原子性）/ 战绩记录（`battleLogs` 显示域同事务）三条经 §2.51b 显式登记不下沉——攻击宗域剩余写者即此三条，均为**设计约束**而非工作量问题 |
 | ~~W2-a：库存出售/上架/材料消耗族 UI 操作面下沉~~ | **✅ 已清偿（2026-09-11，见 §2.41）**：单类出售六入口 + 批量出售 + 商人收购 + 玩家上架/撤下 + 按名称品阶材料消耗稳态写者归 C++（`inventory_tx.h`，ActionId 1520–1525），零 RNG 纯确定性变换，桌面 1056/1056 + 引擎 3157/0/0/0；「M3 剩余主项」域清单中**库存·出售/上架/材料消耗子域**就此划除（残余：商人购买 / 开袋 / 充公 / 装备实例回仓族） |
 | ~~Batch-09：外交/好感/附庸 UI 操作面下沉~~ | **✅ 已清偿（2026-09-10，见 §2.38）**：赠礼/结盟/散盟/附属建立解除稳态写者归 C++（diplomacy_tx.h，ActionId 1500–1502），SYSTEM 分区 roll 双臂同源逐位一致；外交九段协议核查零新增字段；宣战/停战/和平审计无 UI 操作面——「M3 剩余主项」域清单中外交域就此划除 |
 | ~~Batch-08：弟子管理第一子批（装备穿脱/功法学忘/任命卸任）~~ | **✅ 已清偿（2026-09-10，见 §2.37）**：零 RNG 六事务稳态写者归 C++（disciple_tx.h，ActionId 1480–1485），Kotlin 回退臂全收 Ops 层（batch-01/02 所有权文件与 GameViewModel/DiscipleDelegate 零改动）；长老单值槽任命（usecase 编排域）登记 W3——「M3 剩余主项」域清单中弟子管理域标注第一子批已下沉 |
@@ -2734,6 +2978,11 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 > `integration/parallel-batches`（基于 batch/02，含 batch-05/06/07/09 全部内容 + 缺失 C++
 > 产物入库 + 集成期两处真实缺陷根治：`executeAutoBuy` 迭代器失效 UB、影子突破路径语义降级）。
 > **下一轮起点 = 该分支**（`main` 尚未合并，合并目标由用户决定）。此后剩余工作：
+> ⚠️ **本条为 2026-09-11 时点记录，两处已被后续实测推翻（保留原文以便追溯，勿据以派工）**：
+> ① "`main` 尚未合并" → **已合入 `main`**（见本文件尾"2026-09-13 第二轮交付收口"条）；
+> ② 下列"残余域清单" → 经 W2-a + batch-11~20b 交付后**已大幅收窄**，权威现状见
+> `ui-read-surface.md` §4.1 表 + §4.3 前置现状块（剩余为：开袋待拍板 / 弟子管理残余 /
+> `aiSectDisciples` 段残余 / `lockedBeastIds` UI 操作面 / 月年编排残余）。
 > ① **UI 操作面逐域下沉（唯一长期主轴）**——按 ui-read-surface §4.1 残余域清单
 > （库存残余/巡逻探索/弟子管理后续子批/招募俘虏残余/生产 UI 面/月年边界编排/aiSectDisciples 段）
 > 逐批下沉，**全部下沉后**才可执行反向通道关闭动作（§4.3）；② **真机（物理设备）验证批**——
@@ -2766,3 +3015,20 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 >   （**依赖 11–20 全部合入 main**）；
 > - [non-parallel-work.md](parallel-batches-w2/non-parallel-work.md)——batch-22 真机验证批 /
 >   待拍板四项 / WS-1 阶段 3 立项项 / 建议排期。
+
+> **2026-09-13 第二轮交付收口（实测更正本条以上各行的过时口径）**：
+> **① 11–20 已全部交付**——batch-11（§2.42）｜**batch-12（§2.43，2026-09-13）**｜batch-13（§2.44）｜
+> batch-14（§2.45）｜batch-15（§2.46）｜batch-16（§2.47）｜batch-17（§2.48）｜batch-18（§2.49）｜
+> batch-19（§2.50）｜batch-20a（§2.51）｜**batch-20b（§2.51b，2026-09-13）**；批次实施文档除
+> **batch-12 / batch-20**（保留为设计记录，已按实测结论修正内部失真）外均已删除。
+> **② `main` 分支已合并**（本条原写"`main` 尚未合并"已过时；现 HEAD = `a8fa572`，
+> 分支收敛为 `main` + 三个 `archive/*` tag）。
+> **③ 章节号更正**：本条原写"handover §2.42–§2.53 预分配"——其中 **§2.52 实际被
+> 2026-09-12 第二轮集成收口占用**，故 batch-21 改 §2.53、batch-22 改 §2.54、
+> batch-22a 改 §2.54a（详见 [parallel-batches-w2/README](parallel-batches-w2/README.md) §4）。
+> **④ batch-21 仍不可开**——其前置**不是**"11–20 完成"，而是 `ui-read-surface §4.1` 表中
+> **每个域的稳态写者都归 C++**；表中仍有未覆盖域（库存开袋待拍板 / 弟子管理残余 /
+> `aiSectDisciples` 段残余 / `lockedBeastIds` UI 操作面 / 月年编排残余），见该文 §4.3 前置现状块。
+> **⑤ 两处工具链失真已更正**：桌面 JNI 脚本在**仓库根 `scripts/`**（验证模板工作目录为 `android/`，
+> 须写 `../scripts/...`）；桌面 GTest 运行时需 **`llvm-mingw-<版本>-ucrt-x86_64\bin`** 在 PATH
+> （仅加外层 wrapper 目录会缺 `libc++.dll` → `STATUS_DLL_NOT_FOUND`）。

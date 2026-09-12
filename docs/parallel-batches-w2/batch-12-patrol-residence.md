@@ -6,7 +6,8 @@
 | 模块 | C++（新 `system/patrol_tx.h`）+ Kotlin（`GameEngineAtomicAssign.kt` / `GameEnginePatrolOps.kt`） |
 | 性质 | WS-2 规模下沉：六入口（住所 2 + 巡逻 4），零 RNG 纯事务 |
 | 来源 | [ui-read-surface](../ui-read-surface.md) §4.1「巡逻/探索 —— assign/remove/swap/autoAssignPatrolAtomic」 |
-| 预分配 | handover **§2.43**；**ActionId 段 1550–1569** |
+| 预分配 | handover **§2.43**；**ActionId 段 1550–1569**（实用 1550–1559） |
+| **交付状态** | ✅ **已交付（2026-09-13，handover §2.43）**——本批非"待实施"：`patrol_tx.h` 十事务 + `handlePatrolTx` 已上线，九入口（六主 + 三审计实裁活写者）稳态写者归 C++；GTest 31/31、Kotlin 门控 19/19、桌面全量 1284/1284。**本文件保留为批次设计记录**（含下方"待审计"行已按实测结论修正） |
 
 ## 1. 范围
 
@@ -23,12 +24,15 @@
 
 **Out-of-scope（勿扩范围）**：
 - **Gate 注册表**（`assignmentGate.release/confirmAssign`）、**Room 生产槽 Repository 清理**（`clearDiscipleFromProductionRepository`）、**弟子状态同步**（`syncSingleDiscipleStatus` / `syncAllDiscipleStatuses`）—— 三类均为 Kotlin 侧残差，**保留 Kotlin 在事务外执行**（batch-06 拆除残差同口径）。
-- `GameEnginePatrolOps` 的 `updatePatrolSlots` / `updatePatrolConfig(s)` / `updateSpiritMineSlots` / `validateAndFixSpiritMineData` / `updateYearlySalary` —— **整体镜像覆写类 API**（UI 设置面），**本批只审计不实施**，结论写进 §2.43；若确认为 UI 活写者则登记 `batch-23`（避免本批膨胀）。
+- `GameEnginePatrolOps` 的 `updatePatrolSlots` / `updatePatrolConfig(s)` / `updateSpiritMineSlots` / `validateAndFixSpiritMineData` / `updateYearlySalary` —— **实测结论（2026-09-13 修正本文原"只审计不实施"口径）**：调用面穷尽扫描后确认
+  **`updatePatrolConfigs`（`PatrolTowerDialog.kt:343` ← `PatrolTowerViewModel.kt:177`）、`validateAndFixSpiritMineData`（`SpiritMineViewModel.kt:104`）、`updateYearlySalary`（`SettingsDelegate.kt:60`）为活写者**，`updateSpiritMineSlots` 生产零调用但按活 API 下沉（防死 API 复活绕过 C++）——**四者已随本批一并下沉**（ActionId 1556–1559）；
+  **`updatePatrolSlots` 实测生产零调用（死 API）→ 登记不下沉**（不为死 API 扩协议）。
+  ⚠️ **原"只审计不实施"是错误口径**：留一个活写者在 Kotlin 会让该域无法满足 batch-21 的关闭前置（强行关闭即数据丢失），故必须同批下沉。
 - 巡逻战斗/奖励结算（`PatrolBattleSystem`，月结/旬结域）—— 不动。
 
 ## 2. 写者审计（第 1 步）
 
-产出「入口 → 判定序 → 触碰字段 → RNG → 残差归属」表进 handover §2.43。已知事实（复核并补全）：
+产出「入口 → 判定序 → 触碰字段 → RNG → 残差归属」表进 handover §2.43。**已据实裁（2026-09-13）**：
 
 - **判定序**（`require` 抛出 → 被 `DomainResult.catching` 捕获成 Failure）：巡逻 3 入口均为
   ① 弟子存在（`id in discipleTables.ids`）② 弟子存活（`isAlive != 0`）③ 槽位越界；`autoAssign` 额外有**事务外**的重复槽/同弟子多槽前置校验。
@@ -38,8 +42,9 @@
   caveExplorationTeams / activeMissions），其中 `includeResidence = false`（工作分配保留住所）。
 - **展示字段**：`discipleName` / `discipleRealm` / `portraitRes` 来自 `discipleTables.assemble(id)`。
   **两条落地路线**：① C++ 从 `DiscipleStore` 直读 + `realmName` 派生（`secret_realm_session.h:discipleRealmName` 已有等价实现）；
-  ② Kotlin 随请求传入（`disciple_tx.h` 的 `DISCIPLE_TX_ASSIGN_SLOT` 已用此先例）。**推荐 ①**（少一次跨语言字段搬运，但须复刻 `Disciple.realmName` 的 `realm==0` 特例）。
-- **RNG**：预期**全链零抽取**——须以签名级 + GTest 全分区快照差分双重证据落实。
+  ② Kotlin 随请求传入（`disciple_tx.h` 的 `DISCIPLE_TX_ASSIGN_SLOT` 已用此先例）。**实际采用 ①**（少一次跨语言字段搬运；
+  `Disciple.realmName` 的 `realm==0` / `age<5 || realmLayer==0 → "无境界"` 特例经 `disciple::realmConfig` 复刻）。
+- **RNG**：**实测全链零抽取**——头文件签名级无 `rng::RngManager&` 入参，并由 GTest 全分区 `rngStates` 快照差分 + 双运行逐位一致双重证明。
 
 ## 3. 地基（已就绪）
 

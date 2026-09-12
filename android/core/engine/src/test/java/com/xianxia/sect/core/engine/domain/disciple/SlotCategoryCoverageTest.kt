@@ -147,7 +147,8 @@ class SlotCategoryCoverageTest {
     @Test
     fun `all known assignment entries reference slot cleanup`() {
         val entriesRequiringCleanup = listOf(
-            "com/xianxia/sect/core/engine/GameEngineAtomicAssign.kt",          // 巡逻 3 入口
+            // 巡逻 3 入口 + 住所 2 入口（batch-12 native 臂后回退臂仍持清理）
+            "com/xianxia/sect/core/engine/GameEngineAtomicAssign.kt",
             "com/xianxia/sect/core/engine/GameEngineMissionOps.kt",             // 任务（M3 第九批自 Coordination 拆出）
             "com/xianxia/sect/core/engine/GameEngineBloodRefinementOps.kt",     // 血炼（M3 第九批自 Coordination 拆出）
             "com/xianxia/sect/core/engine/GameEngineSecretRealmOps.kt",  // 秘境出发

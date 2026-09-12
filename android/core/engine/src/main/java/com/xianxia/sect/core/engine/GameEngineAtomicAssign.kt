@@ -12,6 +12,7 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.JsonElement
 
 
 
@@ -38,6 +39,11 @@ suspend fun GameEngine.assignToResidenceAtomic(
     slotIndex: Int,
     discipleId: String
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    // native 臂（batch-12）：C++ 承判定链 + 槽位写；住所不注册门卫、不改弟子状态、
+    // 不触 Room 生产槽——事务外零残差，成功即整体完成。失败/降级 → 回退臂语义不变。
+    if (assignToResidenceNative(buildingInstanceId, slotIndex, discipleId) != null) {
+        return@withEngineContext DomainResult.Success(Unit)
+    }
     DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("分配住所失败 id=$discipleId")
 ) {
@@ -178,6 +184,10 @@ suspend fun GameEngine.removeFromResidenceAtomic(
     buildingInstanceId: String,
     slotIndex: Int
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    // native 臂（batch-12）：住所移除零事务外残差（不触 gate / 状态同步）
+    if (removeFromResidenceNative(buildingInstanceId, slotIndex) != null) {
+        return@withEngineContext DomainResult.Success(Unit)
+    }
     DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("移除住所失败")
 ) {
@@ -218,6 +228,14 @@ suspend fun GameEngine.assignPatrolAtomic(
     discipleId: String,
     globalIndex: Int
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    // native 臂（batch-12）：C++ 承判定链 + 槽位写（释放原 occupant / 清新弟子其它
+    // 槽位 / 写展示字段）；成功则只执行事务外残差（gate 登记与释放 / Room 生产槽
+    // 清理 / 弟子状态同步）。
+    val nativeReply = assignPatrolNative(discipleId, globalIndex)
+    if (nativeReply != null) {
+        runPatrolAssignResiduals(discipleId, globalIndex, nativeReply)
+        return@withEngineContext DomainResult.Success(Unit)
+    }
     DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("分配巡逻失败 id=$discipleId")
 ) {
@@ -245,6 +263,42 @@ suspend fun GameEngine.assignPatrolAtomic(
     } catch (e: Exception) {
         DomainLog.w("GameEngine", "assignPatrol: syncSingleDiscipleStatus 失败", e)
     }
+    }
+}
+
+/**
+ * 巡逻分配 native 臂的事务外残差（gate 登记与释放 / Room 生产槽清理 / 状态同步）。
+ *
+ * 与回退臂的残差段逐项同序同语义：先释放被覆盖 occupant，再登记新分配者并清
+ * Room 生产槽，最后同步新旧两侧弟子状态。任一残差失败不回滚 C++ 已提交事务
+ * （C++ 为 AUTHORITATIVE 真相源；残差为平台/UI 效应，S7 同口径）。
+ */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+private fun GameEngine.runPatrolAssignResiduals(
+    discipleId: String,
+    globalIndex: Int,
+    nativeReply: JsonElement
+) {
+    val occupantId = nativeReply.replyStr("releasedOccupantId")
+    if (occupantId.isNotEmpty()) {
+        assignmentGate.release(occupantId)
+    }
+    if (discipleId.toIntOrNull() != null) {
+        assignmentGate.confirmAssign(
+            discipleId,
+            SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex")
+        )
+        clearDiscipleFromProductionRepository(discipleId)
+    }
+    try {
+        discipleFacade.syncSingleDiscipleStatus(discipleId)
+        if (occupantId.isNotEmpty()) {
+            discipleFacade.syncSingleDiscipleStatus(occupantId)
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "assignPatrol: syncSingleDiscipleStatus 失败", e)
     }
 }
 
@@ -344,9 +398,17 @@ suspend fun GameEngine.assignPatrolAtomic(
 suspend fun GameEngine.removePatrolAtomic(
     globalIndex: Int
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
-    DomainResult.catching(
-    AppError.Domain.GameLoop.Unknown("移除巡逻失败")
-) {
+    // native 臂（batch-12）：C++ 承判定链 + 清槽；成功则只跑事务外残差（gate 释放 +
+    // 状态同步），不重复执行 Kotlin 事务体。
+    val nativeReply = removePatrolNative(globalIndex)
+    if (nativeReply != null) {
+        val removed = nativeReply.replyStr("removedDiscipleId")
+        if (removed.isNotEmpty()) {
+            assignmentGate.release(removed)
+            syncReleasedStatusSafely(removed)
+        }
+        return@withEngineContext DomainResult.Success(Unit)
+    }
     var removedDiscipleId = ""
     stateStore.update {
         require(globalIndex in gameData.patrolSlots.indices) {
@@ -373,13 +435,19 @@ suspend fun GameEngine.removePatrolAtomic(
     if (removedDiscipleId.isNotEmpty()) {
         assignmentGate.release(removedDiscipleId)
     }
+    syncReleasedStatusSafely(removedDiscipleId)
+    DomainResult.Success(Unit)
+}
+
+/** 状态同步（log-and-continue：非关键 UI 效应，失败不回滚已提交槽位事务）。 */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+private fun GameEngine.syncReleasedStatusSafely(discipleId: String) {
     try {
-        discipleFacade.syncSingleDiscipleStatus(removedDiscipleId)
+        discipleFacade.syncSingleDiscipleStatus(discipleId)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         DomainLog.w("GameEngine", "removePatrol: syncSingleDiscipleStatus 失败", e)
-    }
     }
 }
 
@@ -393,6 +461,13 @@ suspend fun GameEngine.swapPatrolAtomic(
     fromGlobalIndex: Int,
     toGlobalIndex: Int
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    // native 臂（batch-12）：C++ 承判定链 + 双方清槽 + 互换；成功则只跑事务外残差
+    // （gate 双侧释放/登记 + Room 生产槽清理 + 全量状态同步）。
+    val nativeReply = swapPatrolNative(fromGlobalIndex, toGlobalIndex)
+    if (nativeReply != null) {
+        runPatrolSwapResiduals(fromGlobalIndex, toGlobalIndex, nativeReply)
+        return@withEngineContext DomainResult.Success(Unit)
+    }
     DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("交换巡逻失败")
 ) {
@@ -427,6 +502,41 @@ suspend fun GameEngine.swapPatrolAtomic(
     } catch (e: Exception) {
         DomainLog.w("GameEngine", "swapPatrol: syncAllDiscipleStatuses 失败", e)
     }
+    }
+}
+
+/**
+ * 巡逻交换 native 臂的事务外残差（gate 双侧释放与登记 / Room 生产槽清理 /
+ * 全量状态同步）——与回退臂残差段逐项同序同语义。
+ */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+private fun GameEngine.runPatrolSwapResiduals(
+    fromGlobalIndex: Int,
+    toGlobalIndex: Int,
+    nativeReply: JsonElement
+) {
+    val fromDid = nativeReply.replyStr("fromDiscipleId")
+    val toDid = nativeReply.replyStr("toDiscipleId")
+    if (fromDid.isNotEmpty()) assignmentGate.release(fromDid)
+    if (toDid.isNotEmpty()) assignmentGate.release(toDid)
+    if (toDid.isNotEmpty()) {
+        assignmentGate.confirmAssign(
+            toDid, SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$fromGlobalIndex")
+        )
+    }
+    if (fromDid.isNotEmpty()) {
+        assignmentGate.confirmAssign(
+            fromDid, SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$toGlobalIndex")
+        )
+    }
+    if (fromDid.isNotEmpty()) clearDiscipleFromProductionRepository(fromDid)
+    if (toDid.isNotEmpty()) clearDiscipleFromProductionRepository(toDid)
+    try {
+        discipleFacade.syncAllDiscipleStatuses()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "swapPatrol: syncAllDiscipleStatuses 失败", e)
     }
 }
 
@@ -557,6 +667,15 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
     // 校验：重复槽位索引 / 同一弟子分配到多个槽位
     validateAutoAssignPatrol(assignments)
 
+    // native 臂（batch-12）：C++ 承前置校验 + 锁内全量预检 + 逐槽处理；成功则只跑
+    // 事务外残差（releasedIds 逐序去重释放 + confirmedIds 逐序登记 + Room 生产槽
+    // 清理 + 全量状态同步），不重复执行 Kotlin 事务体。
+    val nativeReply = autoAssignPatrolNative(assignments)
+    if (nativeReply != null) {
+        runAutoAssignPatrolResiduals(nativeReply)
+        return@catching
+    }
+
     // 收集事务成功后需要执行的 gate 操作
     val pendingReleases = mutableListOf<String>()
     val pendingConfirms = mutableListOf<Pair<String, SlotRef>>()
@@ -599,6 +718,38 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
     } catch (e: Exception) {
         DomainLog.w("GameEngine", "autoAssignPatrol: syncAllDiscipleStatuses 失败", e)
     }
+    }
+}
+
+/**
+ * 批量分配 native 臂的事务外残差（gate 逐序释放与登记 / Room 生产槽清理 /
+ * 全量状态同步）——与回退臂残差段逐项同序同语义。
+ *
+ * `releasedIds` 由 C++ 按 assignments 序、非空 id、不去重登记（Kotlin
+ * `pendingReleases` 原始序），此处按回退臂口径 `distinct()` 后逐序释放；
+ * `confirmedIds` 与 `confirmedIndexes` 同序配对构造 SlotRef。
+ */
+@Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+private fun GameEngine.runAutoAssignPatrolResiduals(nativeReply: JsonElement) {
+    val released = nativeReply.replyStrList("releasedIds")
+    val confirmed = nativeReply.replyStrList("confirmedIds")
+    val confirmedIndexes = nativeReply.replyIntList("confirmedIndexes")
+
+    released.distinct().forEach { assignmentGate.release(it) }
+    for (i in confirmed.indices) {
+        val did = confirmed[i]
+        val globalIndex = confirmedIndexes.getOrNull(i) ?: continue
+        assignmentGate.confirmAssign(
+            did, SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex")
+        )
+    }
+    confirmed.forEach { clearDiscipleFromProductionRepository(it) }
+    try {
+        discipleFacade.syncAllDiscipleStatuses()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "autoAssignPatrol: syncAllDiscipleStatuses 失败", e)
     }
 }
 

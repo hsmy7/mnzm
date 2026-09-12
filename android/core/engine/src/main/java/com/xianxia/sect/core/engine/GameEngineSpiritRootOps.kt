@@ -146,6 +146,15 @@ suspend fun GameEngine.confirmSpiritRootWash(
     if (id == null) {
         return@withEngineContext SpiritRootWashConfirmResult.Error("非法弟子ID")
     }
+    // native 臂（batch-24）：AUTHORITATIVE 稳态写者归 C++（覆盖写 + checkpoint
+    // 同事务）；业务拒绝文案由 C++ 信封回传（与 Kotlin 回退臂逐字一致）；
+    // 不可用 → 走下方 Kotlin 原事务体（双实现并行契约）。
+    when (val outcome = confirmSpiritRootWashNative(discipleId, newRootType)) {
+        is ConfirmNativeOutcome.Applied -> return@withEngineContext SpiritRootWashConfirmResult.Success
+        is ConfirmNativeOutcome.Refused ->
+            return@withEngineContext SpiritRootWashConfirmResult.Error(outcome.message)
+        is ConfirmNativeOutcome.Unavailable -> Unit  // 降级：走 Kotlin 原路径
+    }
     try {
         val replaced = stateStore.updateAndReturn<Boolean> {
             if (id !in discipleTables.ids) return@updateAndReturn false

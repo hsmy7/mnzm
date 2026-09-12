@@ -13,7 +13,15 @@ import com.xianxia.sect.core.util.DomainLog
 
 // ── Cross-domain: Spirit mine / patrol / salary ─────────────────────
 
+/**
+ * 矿场槽位自愈（同步入口）。
+ *
+ * native 臂（batch-12）：AUTHORITATIVE 稳态下槽位重建与 sectId 对齐归 C++；
+ * 成功即整体完成（无事务外残差）。失败/降级 → 走下方 Kotlin 原实现
+ * （SpiritMineSectAlignmentTest 基线语义不变）。
+ */
 fun GameEngine.validateAndFixSpiritMineData() {
+    if (validateAndFixSpiritMineDataNative() != null) return
     // unifiedState → 独立窄流直读
     val data = stateStore.gameData.value
     val discipleMap = stateStore.disciples.value.associateBy { it.id }
@@ -75,13 +83,26 @@ private fun rebuildSpiritMineSlot(
 }
 
 fun GameEngine.updateSpiritMineSlots(slots: List<SpiritMineSlot>) {
+    // native 臂（batch-12）：整表覆写零判定链；成功即完成，失败/降级走 Kotlin 覆写
+    if (updateSpiritMineSlotsNative(slots) != null) return
     updateGameDataSync { it.copy(spiritMineSlots = slots) }
 }
 fun GameEngine.updatePatrolSlots(slots: List<PatrolSlot>) { updateGameDataSync { it.copy(patrolSlots = slots) } }
-fun GameEngine.updatePatrolConfig(config: PatrolConfig) { updateGameDataSync { it.copy(patrolConfig = config) } }
+
+/**
+ * 巡视塔配置整表覆写。
+ *
+ * native 臂（batch-12）：稳态写者归 C++（`PatrolTowerViewModel.updatePatrolConfig`
+ * 读 patrolConfigs → 补足到 towerIndex 的默认 PatrolConfig → 就地覆写 → 整表写回，
+ * 是唯一活写者——C++ 事务逐字对齐该"补位 + 覆写"两段语义）；
+ * 失败/降级走 Kotlin 覆写。
+ */
 fun GameEngine.updatePatrolConfigs(configs: List<PatrolConfig>) {
+    if (updatePatrolConfigsNative(configs) != null) return
     updateGameDataSync { it.copy(patrolConfigs = configs) }
 }
+
+fun GameEngine.updatePatrolConfig(config: PatrolConfig) { updateGameDataSync { it.copy(patrolConfig = config) } }
 
 fun GameEngine.addSpiritStones(amount: Long) {
     gameEngineCore.launchInScope {
@@ -90,7 +111,11 @@ fun GameEngine.addSpiritStones(amount: Long) {
     }
 }
 
-fun GameEngine.updateYearlySalary(newSalary: Map<Int, Int>) { updateGameDataSync { it.copy(yearlySalary = newSalary) } }
+fun GameEngine.updateYearlySalary(newSalary: Map<Int, Int>) {
+    // native 臂（batch-12）：年俸整表覆写零判定链；成功即完成，失败/降级走 Kotlin 覆写
+    if (updateYearlySalaryNative(newSalary) != null) return
+    updateGameDataSync { it.copy(yearlySalary = newSalary) }
+}
 
 // ── Private: Migration ──────────────────────────────────────────────
 

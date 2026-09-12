@@ -464,12 +464,12 @@ void to_json(nlohmann::json& j, const GridBuildingData& v) {
     j = nlohmann::json::object();
     GC_TO(v, j, buildingId); GC_TO(v, j, displayName);
     GC_TO(v, j, gridX); GC_TO(v, j, gridY); GC_TO(v, j, width); GC_TO(v, j, height);
-    GC_TO(v, j, instanceId);
+    GC_TO(v, j, instanceId); GC_TO(v, j, sectId);
 }
 void from_json(const nlohmann::json& j, GridBuildingData& v) {
     GC_FROM(j, v, buildingId); GC_FROM(j, v, displayName);
     GC_FROM(j, v, gridX); GC_FROM(j, v, gridY); GC_FROM(j, v, width); GC_FROM(j, v, height);
-    GC_FROM(j, v, instanceId);
+    GC_FROM(j, v, instanceId); GC_FROM(j, v, sectId);
 }
 
 // ── 石板道路状态（Kotlin RoadData ↔ C++ RoadData） ─────────────────

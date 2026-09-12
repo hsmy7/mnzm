@@ -5,9 +5,9 @@
 | 文档性质 | **协调文档**（非实施批）：剩余工作全集 → 批次映射、依赖图、多批并行的共享文件协议、统一验证与纪律。各实施批见同目录 `batch-11` ~ `batch-21` |
 | 依据 | [cpp-migration-handover-m0.md](../cpp-migration-handover-m0.md) §4 遗留待办 + §5 下轮建议 + [ui-read-surface.md](../ui-read-surface.md) §4.1 逐域写者审计 + `core:engine` 实测（2026-09-11） |
 | **基线（开工前必读）** | 上一轮十批（batch-01~10）已合流 `main`；**W2-a 已清偿**（§2.41，提交 `c7faad7` + `7bfbaa7`）：库存**出售/上架/材料消耗族**写者已下沉 C++（`system/inventory_tx.h`，ActionId 1520–1525） |
-| 基线实测值（勿凭记忆） | ActionId **114**（maxId=1525）；桌面 C++ **1056/1056**；引擎全量 **3157/0/0/0**（282 测试类）；detekt 六模块 baseline **全 0**；`execute_dispatch.cpp` handler **20** 个 |
+| 基线实测值（勿凭记忆；**2026-09-13 最新实测**） | ActionId **166**（maxId=**1712**，实用段 1520–1531 / 1550–1559 / 1570–1573 / 1590–1594 / 1610–1616 / 1630–1632 / 1650–1657 / 1670–1672 / 1680–1682 / 1690–1693 / 1710–1712）；桌面 C++ **1284/1284**；引擎全量 **3237 用例 / 289 类 / 跳过 0**（**27 处失败为并行线在途 / 预存，逐类归属见 handover §3**）；detekt 六模块 baseline **全 0**（触碰面 0 违规；`:feature:game` 6 处为纹理并行线在途）；`execute_dispatch.cpp` handler **31** 个 |
 | 分支 | 每批一分支 `w2/<NN>-<slug>`；完成后按 §9 收口清单合入 `main` |
-| **收口状态（2026-09-12）** | **已交付并并入主树**：batch-11（库存收官：商人购买/充公）｜batch-13（探索）｜batch-14（弟子生命周期，含 14b 名字随机源分区化）｜batch-15（弟子任命/驻守/洗炼）｜batch-16（招募残余）｜batch-17（生产 UI 面 + 灵田）｜batch-18（月年边界）｜batch-19（玉符/宗门升级/邮件）｜batch-20a（秘境平台段）。**上述批次的实施文档已删除**——内容全部落入 [handover §2.42–§2.51 + §2.52 集成收口](../cpp-migration-handover-m0.md)（权威记录），CHANGELOG 同步。**未实施/未完成（文档保留）**：batch-12（巡逻/住所）｜batch-20b（攻宗/执法/战利品残余）｜batch-21（反向通道关闭，前置未达成）。**集成期登记**：`:core:engine` 全量 3218 用例中 **15 失败**（`BootSequenceControllerTest` 10 / `ProductionUiNativeTxGateTest` 4 / `JadeNativeTxGateTest` 1）——被测主体均**不在合并触碰面**，归属其他并行工作流在途，未代改（见 §2.52）。**另注**：本轮 `.git` 对象库两度被破坏（refs/logs/worktrees 被删、pack 缺失、远端不可达），历史提交不可恢复，成果以工作区文件保全 |
+| **收口状态（2026-09-13）** | **已交付并并入主树**：batch-11（库存收官：商人购买/充公）｜**batch-12（巡逻/住所/矿场/年俸，见下方"未实施"更正）**｜batch-13（探索）｜batch-14（弟子生命周期，含 14b 名字随机源分区化）｜batch-15（弟子任命/驻守/洗炼）｜batch-16（招募残余）｜batch-17（生产 UI 面 + 灵田）｜batch-18（月年边界）｜batch-19（玉符/宗门升级/邮件）｜batch-20a（秘境平台段）｜**batch-20b（攻宗确定性写回，见下方"未实施"更正）**。已交付批次的实施文档除 **batch-12** 与 **batch-20**（二分交付，保留为设计记录）外均已删除——内容落入 [handover §2.42–§2.52 集成收口 + §2.43 / §2.51b](../cpp-migration-handover-m0.md)（权威记录），CHANGELOG 同步。**唯一未实施**：batch-21（反向通道关闭，前置未达成）。**❗ 更正（2026-09-13）**：本行原记"batch-12（巡逻/住所）未实施；batch-20b（攻宗/执法/战利品残余）未实施"——**两批已于 2026-09-13 交付**（`patrol_tx.h` 1550–1559 / `sect_attack_tx.h` 1711–1712，桌面 1244→1284）。**集成期登记**：`:core:engine` 全量 **27 处失败**（`BootSequenceControllerTest` 10 / `ProductionUiNativeTxGateTest` 4 / `JadeNativeTxGateTest` 1 = 原登记 15 处，另 **`PolicyNativeTxGateTest` 12 处为首次实跑暴露的预存 mock 缺陷**——`getSlots()` 返回 `EmptyList` 而非 `StateFlow`）——被测主体均**不在触碰面**，归属其他并行工作流 / 预存，未代改（见 handover §2.52 + §3）。**另注**：本轮 `.git` 对象库两度被破坏（refs/logs/worktrees 被删、pack 缺失、远端不可达），历史提交不可恢复，成果以工作区文件保全 |
 
 > **教训前置（上一轮真实事故，本轮协议已固化）**：① 各批在自己分支交付后**无人合并**，且最全分支的 C++ 树因"顺手带走他批在途 Kotlin 改动"而断裂（缺 2 头文件 + 2 测试文件，干净检出无法编译桌面 GTest 与 NDK）→ **共享文件必须整组提交，批次分支必须在收口时合并验证**；② 合并冲突**不得取 "theirs" 整体覆盖**（旧基线分支会把后续批次的结构重构整体回退），须逐项补差；③ 收口后立即清理分支，非祖先提交先打 `archive/*` tag 再删。
 
@@ -22,7 +22,7 @@
 | # | 批次文档 | 域 | 主触碰文件（所有权） | ActionId 段 | 规模 | 可并行 |
 |---|---|---|---|---|---|---|
 | 11 | [batch-11-inventory-final.md](batch-11-inventory-final.md) 库存域收官（商人购买/开袋/充公/实例回仓） | 库存 | `InventoryFacadeImpl.kt` + `InventoryNativeTx.kt` + `inventory_tx.h` | 1530–1549 | WS-2 | ✅ 组 A |
-| 12 | [batch-12-patrol-residence.md](batch-12-patrol-residence.md) 巡逻/住所分配族 | 巡逻 | `GameEngineAtomicAssign.kt` + `GameEnginePatrolOps.kt` + 新 `patrol_tx.h` | 1550–1569 | WS-2 | ✅ 组 A |
+| 12 | [batch-12-patrol-residence.md](batch-12-patrol-residence.md) 巡逻/住所分配族 | 巡逻 | `GameEngineAtomicAssign.kt` + `GameEnginePatrolOps.kt` + 新 `patrol_tx.h` | 1550–1569（**实用 1550–1559**） | WS-2 | **✅ 已交付 2026-09-13**（handover §2.43） |
 | 13 | [batch-13-exploration.md](batch-13-exploration.md) 探索族（侦察/世界关卡/洞府） | 探索 | `GameEngineScoutOps.kt` + `GameEngineWorldBattleOps.kt` + 新 `exploration_tx.h` | 1570–1589 | WS-2 | ✅ 组 A |
 | 14 | [batch-14-disciple-lifecycle.md](batch-14-disciple-lifecycle.md) 弟子管理二（收徒/逐出/状态/婚姻） | 弟子 | `DiscipleFacadeImpl*.kt`（3 文件）+ `DiscipleLifecycleManager.kt` + `DiscipleStatusService.kt` | 1590–1609 | WS-2 | ✅ 组 B |
 | 15 | [batch-15-disciple-appointment.md](batch-15-disciple-appointment.md) 弟子管理三（任命/驻守/亲传/长老单值槽） | 弟子 | `GameEngineWarehouseOps.kt` + `ElderManagementUseCase.kt` + 新 `appointment_tx.h` | 1610–1629 | WS-2 | ✅ 组 B |
@@ -30,8 +30,8 @@
 | 17 | [batch-17-production-spiritfield.md](batch-17-production-spiritfield.md) 生产 UI 面 + 灵田种植族 | 生产 | `BuildingFacadeImpl.kt` + `GameEngineProductionOps.kt` + `SpiritFieldOps*.kt` | 1650–1669 | WS-2 | ✅ 组 C |
 | 18 | [batch-18-month-year-boundary.md](batch-18-month-year-boundary.md) 月年边界编排族 | 编排 | `CultivationEventProcessor.kt` + `GameEngineCoordination.kt` + `GameEngineGuideOps.kt` + `SectPolicyToggleUseCase.kt` | 1670–1689 | 大（可二分） | ✅ 组 C |
 | 19 | [batch-19-jade-redeem-sect.md](batch-19-jade-redeem-sect.md) 玉符/兑换码/宗门升级/邮件附件 | 货币与运营 | `JadeSymbolService.kt` + `RedeemCodeManager.kt` + `GameEngineSectLevelOps.kt` + `MailAttachmentDistributeOps.kt` | 1690–1709 | 中批 | ✅ 组 C |
-| 20 | [batch-20-realm-platform-battle.md](batch-20-realm-platform-battle.md) 秘境平台段 + 攻宗/执法残余 | 秘境/战斗 | `GameEngineSecretRealmOps.kt` + `GameEngineBattleOps.kt` + `LawEnforcement*.kt` | 1710–1729 | WS-2 | ✅ 组 D |
-| 21 | [batch-21-reverse-channel-closeout.md](batch-21-reverse-channel-closeout.md) **反向通道关闭批（终局）** | 同步通道 | `GameStateStoreImpl.kt`（捕获面）+ `StateSyncService.kt` | 无新 ActionId | 收敛批 | ⛔ **串行**，依赖 11–20 全部完成 |
+| 20 | [batch-20-realm-platform-battle.md](batch-20-realm-platform-battle.md) 秘境平台段 + 攻宗/执法残余 | 秘境/战斗 | `GameEngineSecretRealmOps.kt` + `GameEngineBattleOps.kt` + `LawEnforcement*.kt` | 1710–1729（**实用 1710 / 1711–1712**） | WS-2 | **✅ 二分已交付 2026-09-13**（20a §2.51 / 20b §2.51b；20b 经审计改判为两段 + 三条登记不下沉） |
+| 21 | [batch-21-reverse-channel-closeout.md](batch-21-reverse-channel-closeout.md) **反向通道关闭批（终局）** | 同步通道 | `GameStateStoreImpl.kt`（捕获面）+ `StateSyncService.kt` | 无新 ActionId | 收敛批 | ⛔ **串行**，依赖 11–20 全部完成（**11–20 已全部交付 → 前置的"批次侧"已达成；仍需 ui-read-surface §4.1 残余域逐域下沉后方可执行**） |
 
 ### 第二~四类：不可并行（见 [non-parallel-work.md](non-parallel-work.md)）
 
@@ -85,22 +85,24 @@ batch-21 反向通道关闭批（停捕获 + 信封摘段 + 体积归零验收�
 手工在 `execute_dispatch.cpp` 新增**独立** `handleXxxTx` 域函数 + 中央 switch **各自一行** `case`/范围分支 → CMakeLists 追加自己的 GTest 文件。
 追加式改动 git 可自动合并；**禁止改动其他批的段或 handler**。
 
-### 3.2 ActionId 段预分配（当前 maxId = 1525）
+### 3.2 ActionId 段预分配（**当前 maxId = 1712；实际使用见"实占"列**）
 
-| 批 | 段 | 用途 |
-|---|---|---|
-| （预留） | 1526–1529 | 紧急修复 |
-| 11 | **1530–1549** | 库存收官（商人购买/开袋/充公/实例回仓） |
-| 12 | **1550–1569** | 巡逻/住所 |
-| 13 | **1570–1589** | 探索 |
-| 14 | **1590–1609** | 弟子生命周期 |
-| 15 | **1610–1629** | 弟子任命/驻守/长老 |
-| 16 | **1630–1649** | 招募/俘虏 |
-| 17 | **1650–1669** | 生产/灵田 |
-| 18 | **1670–1689** | 月年边界编排 |
-| 19 | **1690–1709** | 玉符/兑换码/宗门/邮件 |
-| 20 | **1710–1729** | 秘境平台段/战斗执法 |
-| 后续 | 1730+ | 开批时再分配 |
+> 更正（2026-09-13）：原表头写"当前 maxId = 1525"为 W2-a 时点值，已过时。下表"实占"列为实测使用情况（`action_ids.h` / `ActionIds.kt` 同源核对）。
+
+| 批 | 段 | 用途 | 实占 |
+|---|---|---|---|
+| （预留） | 1526–1529 | 紧急修复 | 未用 |
+| 11 | **1530–1549** | 库存收官（商人购买/开袋/充公/实例回仓） | **1530–1531**（购买 + 充公；开袋按路线 B 不下沉） |
+| 12 | **1550–1569** | 巡逻/住所 | **1550–1559**（十事务，2026-09-13） |
+| 13 | **1570–1589** | 探索 | **1570–1573** |
+| 14 | **1590–1609** | 弟子生命周期 | **1590–1594** |
+| 15 | **1610–1629** | 弟子任命/驻守/长老 | **1610–1616** |
+| 16 | **1630–1649** | 招募/俘虏 | **1630–1632** |
+| 17 | **1650–1669** | 生产/灵田 | **1650–1657** |
+| 18 | **1670–1689** | 月年边界编排 | **1670–1672 + 1680–1682**（政策开关落 `government.h` 段） |
+| 19 | **1690–1709** | 玉符/兑换码/宗门/邮件 | **1690–1693**（兑换码不下沉） |
+| 20 | **1710–1729** | 秘境平台段/战斗执法 | **1710**（20a）+ **1711–1712**（20b） |
+| 后续 | 1730+ | 开批时再分配 | 空闲 |
 
 ### 3.3 其他共享文件
 
@@ -125,8 +127,10 @@ batch-21 反向通道关闭批（停捕获 + 信封摘段 + 体积归零验收�
 | 12 | §2.43 | 17 | §2.48 |
 | 13 | §2.44 | 18 | §2.49 |
 | 14 | §2.45 | 19 | §2.50 |
-| 15 | §2.46 | 20 | §2.51 |
-| 21 | §2.52 | — | — |
+| 15 | §2.46 | 20 | §2.51（20a）／**§2.51b（20b）** |
+| 21 | **§2.53** | — | — |
+
+> ❗ **更正（2026-09-13）**：原表把 batch-21 预分配为 **§2.52**——但 `§2.52` 已被 **2026-09-12 第二轮集成收口**占用（handover 实有章节）。为避免并行批写同一节号冲突，**batch-21 起改用 §2.53**；非并行项顺延：batch-22 → **§2.54**、batch-22a（debug 埋点小批）→ **§2.54a**。（batch-20 的 20a/20b 二分沿用 §2.51 / §2.51b 的字母后缀先例。）
 
 **共享规划记忆文件**（`findings.md` / `progress.md` / `task_plan.md` / `CODE_WIKI.md` / `docs/cpp-engine.md` §9 计数表 / `docs/ui-read-surface.md` §4.1）：
 各批**不直接编辑**（并行编辑冲突率高）——把要写入的内容作为"findings 候选 / 文档同步项"写进 PR 描述，由**收口人统一合并**。
@@ -159,8 +163,9 @@ batch-21 反向通道关闭批（停捕获 + 信封摘段 + 体积归零验收�
 # 工作目录：android/（gradle 根）
 # ① 桌面 C++ 全量单测（触碰 C++ 的批次；先构建 desktop 套件）
 cd android/app/src/main/cpp/gamecore/build/desktop-test && cmake --build . && ctest
-# ② 重建桌面 JNI（对拍用；触碰 C++ 必跑）
-pwsh -File scripts/build-desktop-jni.ps1
+# ② 重建桌面 JNI（对拍用；触碰 C++ 必跑）——脚本在【仓库根 scripts/】，工作目录为 android/ 故用 ../
+pwsh -File ../scripts/build-desktop-jni.ps1
+#    （或任意 cwd 下用绝对路径：pwsh -File C:\Mnzm\XianxiaSectNative\scripts\build-desktop-jni.ps1）
 # ③ 引擎全量单测（对拍验收）——JNI 路径必须【绝对完整文件路径】，且必须 --rerun-tasks
 ./gradlew.bat :core:engine:testReleaseUnitTest --rerun-tasks --max-workers=1 \
   "-Dgamecore.jni.path=C:\Mnzm\XianxiaSectNative\android\core\engine\build\desktop-jni\libgamecorejni.so"
@@ -178,6 +183,7 @@ pwsh -File scripts/build-desktop-jni.ps1
 ./gradlew.bat :app:testReleaseUnitTest --tests "com.xianxia.sect.core.state.*" --tests "com.xianxia.sect.core.repository.*" --max-workers=1
 ```
 
+> 注：**工作目录 = `android/`**（gradle 根）。故仓库根脚本须写 **`../scripts/...`**——`scripts/build-desktop-jni.ps1` 在 `android/` 下**不存在**（原 §6 ② 行按根目录相对路径书写，实为失真，2026-09-13 更正）。
 > 注：**不要**写 `:app :core:data … compileReleaseKotlin` 这种裸模块名 + 尾任务的形式（Gradle 8.14.5 报 `task 'app' not found`）——逐模块写全任务名。
 
 **已知坑（沿用 handover findings，勿重踩）**：

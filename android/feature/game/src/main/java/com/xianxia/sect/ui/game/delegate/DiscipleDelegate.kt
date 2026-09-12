@@ -15,8 +15,8 @@ import com.xianxia.sect.core.engine.removeFromRecruitList
 import com.xianxia.sect.core.engine.renameDisciple
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
 import com.xianxia.sect.core.engine.updateDisciple
-import com.xianxia.sect.core.engine.updateGameData
-import com.xianxia.sect.core.engine.service.RecruitService
+import com.xianxia.sect.core.engine.setAutoRecruitFilterValidated
+import com.xianxia.sect.core.engine.setAutoRejectFilterValidated
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
@@ -261,22 +261,10 @@ class DiscipleDelegate(
     }
 
     fun setAutoRecruitFilter(filter: Set<Int>) {
-        val validated = filter.filter { it in 1..5 }.toSet()
-        gameEngine.launchOnEngine {
-            gameEngine.updateGameData { gd ->
-                gd.copy(autoRecruitSpiritRootFilter = validated)
-            }
-            RecruitService.resetAutoRecruitIdle()
-        }
+        gameEngine.launchOnEngine { gameEngine.setAutoRecruitFilterValidated(filter) }
     }
 
     fun setAutoRejectFilter(filter: Set<Int>) {
-        val validated = filter.filter { it in 1..5 }.toSet()
-        gameEngine.launchOnEngine {
-            gameEngine.updateGameData { gd ->
-                gd.copy(autoRejectSpiritRootFilter = validated)
-            }
-            RecruitService.resetAutoRejectIdle()
-        }
+        gameEngine.launchOnEngine { gameEngine.setAutoRejectFilterValidated(filter) }
     }
 }

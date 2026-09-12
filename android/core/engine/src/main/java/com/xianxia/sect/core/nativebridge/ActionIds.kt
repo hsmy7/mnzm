@@ -467,4 +467,52 @@ object ActionIds {
     /** 读档恢复会话域判定（到期关闭 closeSecretRealmByExpiry 状态段/死局 endSession 重置/成员净化写回，零 RNG） */
     const val SECRET_REALM_CONTINUE_TX: Int = 1710
 
+    /** 住所分配（释放原 occupant + 跨住所搬迁清旧槽 + name 写回，零 RNG） */
+    const val PATROL_ASSIGN_RESIDENCE: Int = 1550
+
+    /** 住所移除（空槽无操作，零 RNG） */
+    const val PATROL_REMOVE_RESIDENCE: Int = 1551
+
+    /** 巡逻分配（释放原 occupant 保留 buildingInstanceId + 清新弟子其它槽位 + 展示字段重建，零 RNG） */
+    const val PATROL_ASSIGN: Int = 1552
+
+    /** 巡逻移除（空槽无操作；index/buildingInstanceId 保留，零 RNG） */
+    const val PATROL_REMOVE: Int = 1553
+
+    /** 巡逻交换（同索引无操作；一方为空即移动；两侧 buildingInstanceId 各自保留，零 RNG） */
+    const val PATROL_SWAP: Int = 1554
+
+    /** 批量自动分配（前置校验重复槽/同弟子多槽 + 锁内全量预检 + releasedIds/confirmedIds 回执，零 RNG） */
+    const val PATROL_AUTO_ASSIGN: Int = 1555
+
+    /** 巡视配置覆写（补足到 towerIndex 的 PatrolConfig 默认填位 + 就地覆写，零 RNG） */
+    const val PATROL_UPDATE_CONFIG: Int = 1556
+
+    /** 矿场槽位整表覆写，零 RNG */
+    const val PATROL_UPDATE_SPIRIT_MINE_SLOTS: Int = 1557
+
+    /** 矿场槽位自愈（按灵矿场建筑重建 3 槽：孤儿引用清空 + index 重排 + buildingInstanceId 重锚 + sectId 对齐，零 RNG） */
+    const val PATROL_FIX_SPIRIT_MINE: Int = 1558
+
+    /** 年俸覆写，零 RNG */
+    const val PATROL_UPDATE_YEARLY_SALARY: Int = 1559
+
+    /** AI 阵亡守军清理（目标池过滤 + 目标宗门驻军槽清空保留索引，零 RNG） */
+    const val SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX: Int = 1711
+
+    /** 胜方存活玩家弟子魂魄 +1（行序 + 存活性过滤，零 RNG） */
+    const val SECT_ATTACK_GRANT_SOUL_POWERS_TX: Int = 1712
+
+    /** 妖兽视图锁定/解锁（Set 语义幂等 + 保序剔除 + lockedCount 回执，零 RNG） */
+    const val BEAST_VIEW_LOCK_TX: Int = 1730
+
+    /** 设置项字段补丁（17 字段通用：bool 开关 + Int 集，未知字段失败零写入，零 RNG） */
+    const val SETTINGS_PATCH_TX: Int = 1731
+
+    /** 洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符） */
+    const val SPIRIT_ROOT_WASH_CONFIRM_TX: Int = 1732
+
+    /** 特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符） */
+    const val TRAIT_WASH_CONFIRM_TX: Int = 1733
+
 }

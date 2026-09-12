@@ -554,13 +554,32 @@ android/app/src/main/cpp/
 | batch-08 | 弟子装备穿脱/功法学忘/任命卸任 | 1480–1485 | `system/disciple_tx.h` | `disciple_tx_test.cpp`（21） |
 | batch-09 | 外交/好感/附庸 | 1500–1502 | `system/diplomacy_tx.h` | `diplomacy_tx_test.cpp`（16） |
 | W2-a | 库存出售/上架/材料消耗 | 1520–1525 | `system/inventory_tx.h` | `inventory_tx_test.cpp`（33） |
+| batch-11 | 库存收官：商人购买/充公（**开袋不下沉**：双重 RNG 路线 B） | 1530–1531 | `system/inventory_tx.h`（追加） | `inventory_tx_test.cpp`（+17） |
+| **batch-12** | **巡逻/住所/矿场/年俸 UI 操作面**（九入口；`updatePatrolSlots` 死 API 不下沉） | **1550–1559** | `system/patrol_tx.h` | `patrol_tx_test.cpp`（31） |
+| batch-13 | 探索：世界关卡/侦察战斗 + 伤亡写回 + 分舵驻守 | 1570–1573 | `system/exploration_tx.h` | `exploration_tx_test.cpp`（14） |
+| batch-14 | 弟子生命周期：逐出/拜师/婚姻批准/释放思过/年俸开关 | 1590–1594 | `system/disciple_lifecycle_tx.h` | `disciple_lifecycle_tx_test.cpp`（11） |
+| batch-15 | 弟子任命/仓库驻守/洗炼消耗 | 1610–1616 | `system/appointment_tx.h` | `appointment_tx_test.cpp`（31） |
+| batch-16 | 招募列表残余三直调点 | 1630–1632 | `system/recruit_tx.h` | `recruit_tx_test.cpp`（12） |
+| batch-17 | 生产 UI 面 + 灵田种植族 | 1650–1657 | `system/production.h`（ui_tx）/ `system/spirit_field.h` | `production_ui_tx_test.cpp`（28） |
+| batch-18 | 月年边界：guide 计数面 + 政策开关 | 1670–1672 / 1680–1682 | `system/boundary_tx.h` / `system/government.h`（追加） | `boundary_tx_test.cpp`（15）/ `government_tx_test.cpp`（18） |
+| batch-19 | 玉符 / 宗门升级 / 玉符购买落账 | 1690–1693 | `system/jade_tx.h` | `jade_tx_test.cpp`（17） |
+| batch-20a | 秘境平台段读档恢复（`continueSecretRealmExploration`） | 1710 | `system/secret_realm_platform_tx.h` | `secret_realm_platform_tx_test.cpp`（12） |
+| **batch-20b** | **攻宗确定性写回**（阵亡守军清理 + 魂魄发放；**奖励生成族/奖励入账/战绩记录三条登记不下沉**） | **1711–1712** | `system/sect_attack_tx.h` | `sect_attack_tx_test.cpp`（9） |
 
-**仍待下沉的域**（反向通道按域关闭的剩余前置，详见 `docs/ui-read-surface.md` §4.1）：
-库存残余（商人购买/开袋/充公/装备实例回仓族）、巡逻与探索、弟子管理后续子批（收徒/逐出/状态同步/婚姻/
-仓库驻守/玉符/checkpoint/长老单值槽）、招募派遣俘虏残余、生产 UI 面残余、秘境平台段、
-月年边界编排（设置项/guide/洞府探索/天劫/兑换码/宗门升级/政策开关/邮件附件）、
-`aiSectDisciples` 段月变真相源切换。
+**仍待下沉的域**（反向通道按域关闭的剩余前置，详见 `docs/ui-read-surface.md` §4.1 与 §4.3 前置现状块）：
 
-**集成收口（2026-09-11，handover §2.40）**：十批并行成果已合流为单一可编译树
-（`integration/parallel-batches`，尚未合入 `main`）；集成期根治 `executeAutoBuy` 迭代器失效 UB
-与影子突破路径语义降级两处缺陷；动作数以 `gen-action-ids.mjs` 重新生成收敛为 108。
+> 2026-09-13 实测更新——第一波（W2-a + batch-11~20b）**已全部交付**，故原列表大幅收窄。**剩余项**：
+> ① **库存开袋**（EXPLORATION 分区 + 分支内 `Random.Default` 模板抽取的**双重 RNG**——路线 B 备案不下沉，需用户拍板是否接受路线 A 行为基线变化）；
+> ② **弟子管理残余**：`recruitDisciple` 自由招募（名字种子策略待拍板；C++ `createDisciple`/`name_service` 地基已就绪）、状态同步族、特质 confirm 两入口（纯数据写）；
+> ③ **`aiSectDisciples` 段残余**：月结回退路径的战斗阵亡/吞并写者 + load/存档自愈写者（攻宗阵亡清理已于 batch-20b 下沉）；
+> ④ **`lockedBeastIds` UI 操作面**（`lockBeastView`/`unlockBeastView`）——**至今未派工**，是 4.2 表中明确的保留段前置；
+> ⑤ **月年编排残余**：设置项 / 天劫（`HeavenlyTrial*`）/ 洞府探索（`CaveExplorationProcessor` 结算域）——**需先审计是否独立 UI 写者**；
+> ⑥ 派遣 `startMission`（batch-16 登记"惰性门留月变真相源批"）。
+> **结论：batch-21（反向通道关闭）仍不可开**——其前置是**逐域**写者归 C++，不是"批次数"。
+
+**集成收口（2026-09-11，handover §2.40；✅ 已合入 `main`）**：十批并行成果已合流为单一可编译树
+（`integration/parallel-batches` → **已合入 `main`**，合并树与 integration 提交 `b7f6788` 逐字节相同）；
+集成期根治 `executeAutoBuy` 迭代器失效 UB 与影子突破路径语义降级两处缺陷。**第二轮集成收口
+（2026-09-12，handover §2.52）**：batch-11 + batch-14 分支成果并入主树 + 协议原子变更集合并
+（**154 动作 / maxId=1710**）。**第二轮全量交付（2026-09-13）**：batch-12 + batch-20b 补齐后
+动作数 **166（maxId=1712）**，桌面 C++ **1284/1284**，引擎全量 **3237 用例 / 289 类**。

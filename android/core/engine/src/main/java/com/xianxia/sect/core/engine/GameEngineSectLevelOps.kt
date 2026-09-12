@@ -86,12 +86,21 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
         if (!tryNativeSectLevelClaim(level = level, nowMs = nowMs, prepared = prepared)) {
             // Kotlin 原路径：任一物品发放失败/溢出（仓库满）时不写领取记录，
             // 玩家清理仓库后可重新领取，奖励不会永久消耗（凭据类路径：抑制溢出转邮件，
-            // 溢出部分由重试补齐，避免"邮件 + 重试"重复发放）
-            writeSectLevelRewards(
-                level = level,
-                nowMs = nowMs,
-                prepared = prepared
-            )
+            // 溢出部分由重试补齐，避免"邮件 + 重试"重复发放）。
+            // **凭据未写入时必须按失败上抛**：忽略返回值会让"发放失败 + 无凭据"被
+            // 报成 Success——冷却判定失去依据（`sectLevelClaimRecords` 为空），
+            // 玩家可在冷却窗口内无限重领。抛出后由下方 IllegalStateException 分支
+            // 转为明确的玩家可见失败文案（奖励未发放，可重试）。
+            if (!writeSectLevelRewards(
+                    level = level,
+                    nowMs = nowMs,
+                    prepared = prepared
+                )
+            ) {
+                // 凭据未写入 = 玩家可见的"未发放"失败（可重试），不得报成功
+                DomainLog.w(TAG, "claimSectLevelReward: level=$level 存在未成功入账的奖励，凭据未写（可重试）")
+                return@withEngineContext SectLevelClaimResult.Error("奖励未完全发放，请清理仓库后重试")
+            }
         }
 
         // 3. 入队飞行卡片（具体物品名，精灵图可正确解析）
@@ -116,8 +125,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
     } catch (e: Exception) {
         DomainLog.e(TAG, "claimSectLevelReward failed: level=$level", e)
         return@withEngineContext SectLevelClaimResult.Error("领取失败: ${e.message}")
-    }
-}
+    }}
 
 /** 领取冷却检查：距上次领取不足 7 天返回 AlreadyClaimed，否则 null */
 private suspend fun GameEngine.findSectLevelCooldownResult(
@@ -249,13 +257,23 @@ private fun GameEngine.buildSectLevelRewardCards(
     )
 }
 
-/** 奖励发放入账：兽血/储物袋/灵石发放 + 领取记录写入（凭据类抑制溢出转邮件） */
+/**
+ * 奖励发放入账：兽血/储物袋/灵石发放 + 领取记录写入（凭据类抑制溢出转邮件）。
+ *
+ * @return true = 领取凭据（`sectLevelClaimRecords`）已写入；false = 存在未成功
+ *         入账的物品 → **凭据未写**（调用方必须按失败处理，见 [claimSectLevelReward]）。
+ *
+ * 根因说明：凭据写入与物品入账必须同生共死——若物品入账失败却写凭据，玩家在
+ * 冷却期内既拿不到奖励也无法重领（凭据被白耗）；若物品入账失败又不告知调用方
+ * （旧实现忽略本返回值恒报 Success），则冷却判定失效、可无限重领。
+ * 返回值的唯一消费者是 [claimSectLevelReward]，它据此返回明确失败文案。
+ */
 @Suppress("ThrowsCount")
 private fun GameEngine.writeSectLevelRewards(
     level: Int,
     nowMs: Long,
     prepared: SectLevelRewardPrepared
-) {
+): Boolean {
     // 2. 写入 state（发放物品 + 记录领取时间戳）：任一物品发放失败/溢出（仓库满）时不写领取记录，
     // 凭据类路径抑制溢出转邮件，溢出部分由重试补齐，避免"邮件 + 重试"重复发放
     var allSucceeded = true
@@ -312,6 +330,7 @@ private fun GameEngine.writeSectLevelRewards(
         }
         }
     }
+    return allSucceeded
 }
 
 /**

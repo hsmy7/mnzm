@@ -292,6 +292,67 @@ const ACTION_CATALOG = [
   //    判定段（到期关闭/死局重置/成员净化），零 RNG 纯确定性变换，
   //    失败零写入 Kotlin 回退原路径）──
   { id: 1710, name: 'SECRET_REALM_CONTINUE_TX', desc: '读档恢复会话域判定（到期关闭 closeSecretRealmByExpiry 状态段/死局 endSession 重置/成员净化写回，零 RNG）' },
+
+  // ── 巡逻 / 住所 / 矿场 / 年俸 UI 操作面事务（batch-12——patrol_tx.h；
+  //    ui-read-surface §4.1「巡逻/探索」族写者下沉：GameEngineAtomicAssign
+  //    六入口（住所 2 + 巡逻 4）+ GameEnginePatrolOps 四个活写者
+  //    （updatePatrolConfig 补位覆写 / updateSpiritMineSlots 整表覆写 /
+  //    validateAndFixSpiritMineData 矿场自愈 / updateYearlySalary 年俸）。
+  //    **全链零 RNG**（签名级无 RngManager 入参）；事务外残差
+  //    （assignmentGate release/confirmAssign、Room 生产槽清理、弟子状态
+  //    同步）保留 Kotlin，经 releasedIds/confirmedIds 信封回执驱动；
+  //    失败零写入 → Kotlin 回退臂重执行校验链）──
+  { id: 1550, name: 'PATROL_ASSIGN_RESIDENCE', desc: '住所分配（释放原 occupant + 跨住所搬迁清旧槽 + name 写回，零 RNG）' },
+  { id: 1551, name: 'PATROL_REMOVE_RESIDENCE', desc: '住所移除（空槽无操作，零 RNG）' },
+  { id: 1552, name: 'PATROL_ASSIGN', desc: '巡逻分配（释放原 occupant 保留 buildingInstanceId + 清新弟子其它槽位 + 展示字段重建，零 RNG）' },
+  { id: 1553, name: 'PATROL_REMOVE', desc: '巡逻移除（空槽无操作；index/buildingInstanceId 保留，零 RNG）' },
+  { id: 1554, name: 'PATROL_SWAP', desc: '巡逻交换（同索引无操作；一方为空即移动；两侧 buildingInstanceId 各自保留，零 RNG）' },
+  { id: 1555, name: 'PATROL_AUTO_ASSIGN', desc: '批量自动分配（前置校验重复槽/同弟子多槽 + 锁内全量预检 + releasedIds/confirmedIds 回执，零 RNG）' },
+  { id: 1556, name: 'PATROL_UPDATE_CONFIG', desc: '巡视配置覆写（补足到 towerIndex 的 PatrolConfig 默认填位 + 就地覆写，零 RNG）' },
+  { id: 1557, name: 'PATROL_UPDATE_SPIRIT_MINE_SLOTS', desc: '矿场槽位整表覆写，零 RNG' },
+  { id: 1558, name: 'PATROL_FIX_SPIRIT_MINE', desc: '矿场槽位自愈（按灵矿场建筑重建 3 槽：孤儿引用清空 + index 重排 + buildingInstanceId 重锚 + sectId 对齐，零 RNG）' },
+  { id: 1559, name: 'PATROL_UPDATE_YEARLY_SALARY', desc: '年俸覆写，零 RNG' },
+
+  // ── 攻宗确定性写回事务（batch-20b——sect_attack_tx.h；ui-read-surface
+  //    §4.1「aiSectDisciples 段」+ 战斗域 UI 触发面写者下沉。攻宗战斗执行
+  //    覆盖面已在 C++（executeAiBattle / computeCanOccupy /
+  //    nativeCheckAttackConditions / discipleToCombatant 实例语义组装），
+  //    本段只承 UI 触发面仍 Kotlin 独占的**零 RNG** 写段。
+  //    登记不下沉（RNG 红线/协议形状，见 handover §2.51b）：
+  //    战利品生成族（Random.Default 非分区随机域）/ occupy·crush 奖励入账
+  //    （同一原子事务含奖励段）/ recordSectBattleRecord（与 Kotlin 显示域
+  //    battleLogs 同事务，battleLogs 不入 C++ 状态））──
+  { id: 1711, name: 'SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX', desc: 'AI 阵亡守军清理（目标池过滤 + 目标宗门驻军槽清空保留索引，零 RNG）' },
+  { id: 1712, name: 'SECT_ATTACK_GRANT_SOUL_POWERS_TX', desc: '胜方存活玩家弟子魂魄 +1（行序 + 存活性过滤，零 RNG）' },
+
+  // ── 残余域补齐（batch-23——lock_beast_tx.h；ui-read-surface §4.1
+  //    两处 **AUTHORITATIVE 稳态 Kotlin 直改写者**下沉（写者审计实测
+  //    结论，见 handover §2.55）：
+  //      · GameEngine.lockBeastView/unlockBeastView（GameEngine.kt:319/324，
+  //        launchOnEngine 调用面 = 妖兽详情弹窗开/关事件）→ lockedBeastIds
+  //        （NativeGameState 顶层段，@Transient——S-15 独立全量段；
+  //        AUTHORITATIVE 月结「锁定妖兽不被 AI 攻击」判据的输入）；
+  //      · 设置项域（SettingsDelegate :21/:25/:29/:33/:73/:83 +
+  //        AutoAssignDelegate :18/:25/:83/:92/:101/:109/:118 +
+  //        InventoryDelegate :157/:177）——17 个 gameData 标量/Int 集字段
+  //        经**字段名 → 值通用补丁**单动作覆盖（未知字段 → 失败信封）。
+  //    **全链零 RNG**（签名级无 RngManager 入参）；失败零写入 →
+  //    Kotlin 回退臂重执行校验链；零 JNI 新导出（nativeExecute 通道）。
+  //    证据：自动分配策略族（sectPolicies）走独立入口
+  //    batchUpdateAutoAssignAndGuide（batch-18 已下沉 boundary_tx.h），
+  //    属 policy 域而非 settings 域，本段不重复承接）──
+  { id: 1730, name: 'BEAST_VIEW_LOCK_TX', desc: '妖兽视图锁定/解锁（Set 语义幂等 + 保序剔除 + lockedCount 回执，零 RNG）' },
+  { id: 1731, name: 'SETTINGS_PATCH_TX', desc: '设置项字段补丁（17 字段通用：bool 开关 + Int 集，未知字段失败零写入，零 RNG）' },
+
+  // ── 弟子管理残差 confirm 两入口（batch-24——appointment_tx.h 追加事务；
+  //    ui-read-surface §4.1「弟子管理」残余最后一项。两入口为**纯数据写**：
+  //    灵根替换（校验串合法性 → 覆盖写 → checkpoint）与特质单槽替换
+  //    （三态判定 → 替换 + lifespan 同步 → checkpoint）——**零玉符、零 RNG**
+  //    （与 batch-15 已下沉的 roll 族分离：roll 扣玉符+抽取在 1613/1615/1616，
+  //    confirm 只做数据落地）。失败零写入 → Kotlin 回退臂重执行校验链
+  //    （用户可见文案由 Kotlin 臂产出：弟子不存在/已死亡/该特质已不存在））──
+  { id: 1732, name: 'SPIRIT_ROOT_WASH_CONFIRM_TX', desc: '洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符）' },
+  { id: 1733, name: 'TRAIT_WASH_CONFIRM_TX', desc: '特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符）' },
 ];
 
 const MAX_ID = ACTION_CATALOG.reduce((m, a) => Math.max(m, a.id), 0);

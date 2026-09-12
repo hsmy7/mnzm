@@ -106,6 +106,9 @@ add_executable(game-core-tests
     government_tx_test.cpp
     jade_tx_test.cpp
     secret_realm_platform_tx_test.cpp
+    patrol_tx_test.cpp
+    sect_attack_tx_test.cpp
+    lock_beast_tx_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

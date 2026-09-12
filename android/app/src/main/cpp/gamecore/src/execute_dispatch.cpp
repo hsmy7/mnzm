@@ -24,6 +24,7 @@
 #include "gamecore/system/jade_tx.h"
 #include "gamecore/system/lifecycle.h"
 #include "gamecore/system/level_generator.h"
+#include "gamecore/system/lock_beast_tx.h"
 #include "gamecore/system/rarity_progression.h"
 #include "gamecore/system/redeem_code.h"
 #include "gamecore/system/secret_realm.h"
@@ -36,6 +37,8 @@
 #include "gamecore/system/sect_trade.h"
 #include "gamecore/system/slot_cleanup.h"
 #include "gamecore/system/spirit_field.h"
+#include "gamecore/system/patrol_tx.h"
+#include "gamecore/system/sect_attack_tx.h"
 // recruit_tx.h（batch-16 招募列表 UI 直调事务）传递引入 year_settlement.h →
 // month_settlement.h using 声明——按 README §3.3 置于包含块末尾、diplomacy_tx.h 之前
 #include "gamecore/system/recruit_tx.h"
@@ -1352,6 +1355,217 @@ nlohmann::json handleSecretRealmPlatformTx(GameCore* core, int32_t actionId,
     return ok(std::move(env));
 }
 
+/// 攻宗确定性写回事务（ActionIds.SECT_ATTACK_* —— batch-20b）。
+/// 零 RNG；失败零写入 → 失败信封供 Kotlin 回退臂重执行。
+/// 登记不下沉：战利品生成族（Random.Default 非分区随机域）/ 奖励入账事务 /
+/// 战绩记录（与 Kotlin 显示域 battleLogs 同事务）——见 handover §2.51b。
+nlohmann::json handleSectAttackTx(GameCore* core, int32_t actionId,
+                                  const nlohmann::json& params) {
+    namespace sat = gamecore::system::sect_attack_tx;
+    auto& state = core->state();
+
+    auto toFailure = [](const sat::TxResult& r) {
+        return fail(r.errorType.empty() ? "INVALID" : r.errorType, r.message);
+    };
+
+    switch (actionId) {
+        case action::SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX: {
+            std::vector<std::string> deadIds;
+            if (params.contains("deadDefenderIds")) {
+                for (const auto& e : params.at("deadDefenderIds")) {
+                    deadIds.push_back(e.get<std::string>());
+                }
+            }
+            const auto r = sat::removeDeadDefendersTx(
+                state, params.at("sectId").get<std::string>(),
+                params.at("defenderPoolSectId").get<std::string>(), deadIds);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"removedFromPool", r.removedFromPool},
+                       {"clearedGarrisonSlots", r.clearedGarrisonSlots}});
+        }
+        case action::SECT_ATTACK_GRANT_SOUL_POWERS_TX: {
+            std::vector<std::string> survivorIds;
+            for (const auto& e : params.at("sectSurvivorIds")) {
+                survivorIds.push_back(e.get<std::string>());
+            }
+            const auto r = sat::grantWarSoulPowersTx(state, survivorIds);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"granted", r.granted}});
+        }
+        default:
+            return fail("NOT_IMPLEMENTED",
+                        "unknown sect attack action: " + std::to_string(actionId));
+    }
+}
+
+/// 巡逻 / 住所 / 矿场 / 年俸 UI 操作面事务（ActionIds.PATROL_* —— batch-12）。
+/// 全链零 RNG；失败零写入 → 失败信封供 Kotlin 回退臂重执行校验链。
+/// 信封回执 releasedIds/confirmedIds 驱动 Kotlin 事务外残差（gate / Room / 状态同步）。
+nlohmann::json handlePatrolTx(GameCore* core, int32_t actionId,
+                              const nlohmann::json& params) {
+    namespace pt = gamecore::system::patrol_tx;
+    auto& state = core->state();
+
+    /// 统一失败信封：ok=false 时按 Kotlin AppError 分型回传
+    auto toFailure = [](const pt::TxResult& r) {
+        return fail(r.errorType.empty() ? "INVALID" : r.errorType, r.message);
+    };
+    /// 批量分配回执（releasedIds/confirmedIds/confirmedIndexes 三列同序）
+    auto autoAssignEnvelope = [&](const pt::AutoAssignOutcome& r) {
+        if (!r.base.ok) return toFailure(r.base);
+        nlohmann::json released = nlohmann::json::array();
+        for (const auto& id : r.releasedIds) released.push_back(id);
+        nlohmann::json confirmed = nlohmann::json::array();
+        for (const auto& id : r.confirmedIds) confirmed.push_back(id);
+        nlohmann::json indexes = nlohmann::json::array();
+        for (const auto idx : r.confirmedIndexes) indexes.push_back(idx);
+        return ok({{"changed", r.changed},
+                   {"releasedIds", std::move(released)},
+                   {"confirmedIds", std::move(confirmed)},
+                   {"confirmedIndexes", std::move(indexes)}});
+    };
+
+    switch (actionId) {
+        case action::PATROL_ASSIGN_RESIDENCE: {
+            const auto r = pt::assignToResidenceTx(
+                state, params.at("buildingInstanceId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>(),
+                params.at("discipleId").get<std::string>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed},
+                       {"releasedOccupantId", r.releasedOccupantId}});
+        }
+        case action::PATROL_REMOVE_RESIDENCE: {
+            const auto r = pt::removeFromResidenceTx(
+                state, params.at("buildingInstanceId").get<std::string>(),
+                params.at("slotIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"removedDiscipleId", r.removedDiscipleId}});
+        }
+        case action::PATROL_ASSIGN: {
+            const auto r = pt::assignPatrolTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("globalIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed},
+                       {"releasedOccupantId", r.releasedOccupantId}});
+        }
+        case action::PATROL_REMOVE: {
+            const auto r = pt::removePatrolTx(
+                state, params.at("globalIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"removedDiscipleId", r.removedDiscipleId}});
+        }
+        case action::PATROL_SWAP: {
+            const auto r = pt::swapPatrolTx(
+                state, params.at("fromGlobalIndex").get<int32_t>(),
+                params.at("toGlobalIndex").get<int32_t>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed},
+                       {"fromDiscipleId", r.fromDiscipleId},
+                       {"toDiscipleId", r.toDiscipleId}});
+        }
+        case action::PATROL_AUTO_ASSIGN: {
+            std::vector<std::pair<int32_t, std::string>> assignments;
+            for (const auto& e : params.at("assignments")) {
+                assignments.emplace_back(e.at("globalIndex").get<int32_t>(),
+                                         e.at("discipleId").get<std::string>());
+            }
+            return autoAssignEnvelope(pt::autoAssignPatrolTx(state, assignments));
+        }
+        case action::PATROL_UPDATE_CONFIG: {
+            std::vector<gamecore::state::PatrolConfig> configs;
+            for (const auto& e : params.at("configs")) {
+                gamecore::state::PatrolConfig cfg;
+                if (e.contains("targetRealms")) {
+                    for (const auto& v : e.at("targetRealms")) {
+                        cfg.targetRealms.push_back(v.get<int32_t>());
+                    }
+                }
+                cfg.maxBeastCount = e.value("maxBeastCount", 1);
+                cfg.requireFullStatus = e.value("requireFullStatus", true);
+                configs.push_back(std::move(cfg));
+            }
+            const auto r = pt::updatePatrolConfigsTx(state, std::move(configs));
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}});
+        }
+        case action::PATROL_UPDATE_SPIRIT_MINE_SLOTS: {
+            std::vector<gamecore::state::SpiritMineSlot> slots;
+            for (const auto& e : params.at("slots")) {
+                slots.push_back(e.get<gamecore::state::SpiritMineSlot>());
+            }
+            const auto r = pt::updateSpiritMineSlotsTx(state, std::move(slots));
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}});
+        }
+        case action::PATROL_FIX_SPIRIT_MINE: {
+            const auto r = pt::validateAndFixSpiritMineDataTx(state);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}, {"alignedCount", r.alignedCount}});
+        }
+        case action::PATROL_UPDATE_YEARLY_SALARY: {
+            std::map<int32_t, int32_t> salary;
+            for (const auto& e : params.at("yearlySalaryEntries")) {
+                salary[e.at("realm").get<int32_t>()] = e.at("amount").get<int32_t>();
+            }
+            const auto r = pt::updateYearlySalaryTx(state, std::move(salary));
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}});
+        }
+        default:
+            return fail("NOT_IMPLEMENTED",
+                        "unknown patrol action: " + std::to_string(actionId));
+    }
+}
+
+/// 妖兽视图锁定 + 设置项字段补丁事务（ActionIds.BEAST_VIEW_LOCK_TX /
+/// SETTINGS_PATCH_TX —— batch-23）。零 RNG；失败零写入 → 失败信封供
+/// Kotlin 回退臂重执行（双实现并行契约，见 lock_beast_tx.h 头注释）。
+nlohmann::json handleLockBeastTx(GameCore* core, int32_t actionId,
+                                 const nlohmann::json& params) {
+    namespace lbt = gamecore::system::lock_beast_tx;
+    auto& state = core->state();
+
+    auto toFailure = [](const lbt::TxResult& r) {
+        return fail(r.errorType.empty() ? "INVALID" : r.errorType, r.message);
+    };
+
+    switch (actionId) {
+        case action::BEAST_VIEW_LOCK_TX: {
+            const auto r = lbt::lockBeastViewTx(
+                state, params.at("beastId").get<std::string>(),
+                params.at("locked").get<bool>());
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}, {"lockedCount", r.lockedCount}});
+        }
+        case action::SETTINGS_PATCH_TX: {
+            // 字段补丁：k/v 数组逐项解析（bool → 开关字段；int 数组 → Int 集字段）
+            lbt::SettingPatch patch;
+            for (const auto& e : params.at("patch")) {
+                const std::string field = e.at("field").get<std::string>();
+                const auto& value = e.at("value");
+                if (value.is_boolean()) {
+                    patch[field] = value.get<bool>();
+                } else if (value.is_array()) {
+                    std::vector<int32_t> ints;
+                    ints.reserve(value.size());
+                    for (const auto& v : value) ints.push_back(v.get<int32_t>());
+                    patch[field] = std::move(ints);
+                } else {
+                    return fail("TypeMismatch", "未知设置项值类型 " + field);
+                }
+            }
+            const auto r = lbt::updateSettingsTx(state, patch);
+            if (!r.base.ok) return toFailure(r.base);
+            return ok({{"changed", r.changed}, {"appliedFields", r.appliedFields}});
+        }
+        default:
+            return fail("NOT_IMPLEMENTED",
+                        "unknown residual action: " + std::to_string(actionId));
+    }
+}
+
 /// 生产排程交互事务（ActionIds.PRODUCTION_START/RESET——
 /// 手动排班 C++ 真相先行；Kotlin 后置持久化 + 消耗日志）
 nlohmann::json handleProductionScheduling(GameCore* core, int32_t actionId,
@@ -2026,6 +2240,23 @@ nlohmann::json handleAppointmentTx(GameCore* core, int32_t actionId,
                        {"newPityCount", r.newPityCount},
                        {"jadeAfter", r.jadeAfter}});
         }
+        // ── batch-24：confirm 两入口（纯数据写残差，零 RNG / 零玉符）──
+        case action::SPIRIT_ROOT_WASH_CONFIRM_TX: {
+            const auto r = appointment_tx::spiritRootWashConfirmTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("newRootType").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"replaced", true}});
+        }
+        case action::TRAIT_WASH_CONFIRM_TX: {
+            const auto r = appointment_tx::traitWashConfirmTx(
+                state, params.at("discipleId").get<std::string>(),
+                params.at("type").get<std::string>(),
+                params.at("targetId").get<std::string>(),
+                params.at("newId").get<std::string>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            return ok({{"replaced", true}});
+        }
         default:
             return fail("UNKNOWN_ACTION",
                         "appointment tx action " + std::to_string(actionId));
@@ -2465,6 +2696,15 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
         } else if (actionId >= action::INV_SELL_ITEM &&
                    actionId <= action::INV_CONFISCATE_BAG_ITEM) {
             result = handleInventoryTx(this, actionId, params);
+        } else if (actionId >= action::PATROL_ASSIGN_RESIDENCE &&
+                   actionId <= action::PATROL_UPDATE_YEARLY_SALARY) {
+            result = handlePatrolTx(this, actionId, params);
+        } else if (actionId >= action::SECT_ATTACK_REMOVE_DEAD_DEFENDERS_TX &&
+                   actionId <= action::SECT_ATTACK_GRANT_SOUL_POWERS_TX) {
+            result = handleSectAttackTx(this, actionId, params);
+        } else if (actionId >= action::BEAST_VIEW_LOCK_TX &&
+                   actionId <= action::SETTINGS_PATCH_TX) {
+            result = handleLockBeastTx(this, actionId, params);
         } else if (actionId >= action::DISCIPLE_LIFECYCLE_EXPEL &&
                    actionId <= action::DISCIPLE_LIFECYCLE_SALARY_TOGGLE) {
             result = handleDiscipleLifecycleTx(this, actionId, params);
@@ -2473,6 +2713,9 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
             result = handleExplorationTx(this, actionId, params);
         } else if (actionId >= action::ELDER_APPOINT_TX &&
                    actionId <= action::TRAIT_WASH_SLOT_TX) {
+            result = handleAppointmentTx(this, actionId, params);
+        } else if (actionId >= action::SPIRIT_ROOT_WASH_CONFIRM_TX &&
+                   actionId <= action::TRAIT_WASH_CONFIRM_TX) {
             result = handleAppointmentTx(this, actionId, params);
         } else if (actionId >= action::RECRUIT_REMOVE_TX &&
                    actionId <= action::RECRUIT_AGE_TX) {

@@ -830,6 +830,238 @@ TEST_F(AppointmentTxFixture, TraitWashDoubleRunBitwise) {
     EXPECT_EQ(rngSnapshot(), firstStates);
 }
 
+// ── batch-24：confirm 两入口（纯数据写；零 RNG / 零玉符）──────────────
+
+/// 取一条可解析的天赋模板 id（本地信任模型：confirm 不校验产物来源，只校验可解析性）
+static std::string firstTalentId() {
+    return gamecore::data::talentTemplates().front().id;
+}
+
+/// 取与 excludeId **template 相同**的另一个天赋 id（不存在 → 空串）
+static std::string conflictingTalentId(const std::string& excludeId) {
+    const auto& all = gamecore::data::talentTemplates();
+    std::string tmpl;
+    for (const auto& t : all) {
+        if (t.id == excludeId) { tmpl = t.tmpl; break; }
+    }
+    for (const auto& t : all) {
+        if (t.id != excludeId && t.tmpl == tmpl) return t.id;
+    }
+    return "";
+}
+
+TEST_F(AppointmentTxFixture, SpiritRootConfirmReplacesRootAndCheckpoints) {
+    addDisciple("1");
+    const std::size_t row = *core_->state().disciples.rowOf("1");
+    core_->state().disciples.cultivations[row] = 1234;
+    core_->state().disciples.cultivationCheckpoints[row] = 0;
+    core_->state().disciples.cultivationCheckpointGameMonths[row] = 0;
+
+    // 单灵根 + 双灵根均合法（1~2 个元素、无重复、全在洗炼元素表）
+    ASSERT_TRUE(appointment_tx::spiritRootWashConfirmTx(
+                    core_->state(), "1", "metal").ok);
+    EXPECT_EQ(core_->state().disciples.spiritRootTypes[row], "metal");
+    // checkpoint 重记账（灵根影响修炼速率——替换瞬间重新投影基准）
+    EXPECT_EQ(core_->state().disciples.cultivationCheckpoints[row], 1234);
+
+    ASSERT_TRUE(appointment_tx::spiritRootWashConfirmTx(
+                    core_->state(), "1", "metal,water").ok);
+    EXPECT_EQ(core_->state().disciples.spiritRootTypes[row], "metal,water");
+}
+
+TEST_F(AppointmentTxFixture, SpiritRootConfirmRejectsInvalidRootStrings) {
+    addDisciple("1");
+    const std::string before = core_->exportStateJson();
+    // 非法串五臂：未知元素 / 空串 / 三元素 / 重复元素 / 尾逗号（空元素）
+    const char* kInvalid[] = {"unknown", "", "metal,water,fire", "metal,metal", "metal,"};
+    for (const std::string& invalid : kInvalid) {
+        const auto r = appointment_tx::spiritRootWashConfirmTx(
+            core_->state(), "1", invalid);
+        EXPECT_FALSE(r.ok) << invalid;
+        EXPECT_EQ(r.errorType, "INVALID_ROOT") << invalid;
+    }
+    EXPECT_EQ(core_->exportStateJson(), before);  // 零写入
+}
+
+TEST_F(AppointmentTxFixture, SpiritRootConfirmRejectsMissingAndDeadDisciple) {
+    addDisciple("1");
+    const auto missing = appointment_tx::spiritRootWashConfirmTx(
+        core_->state(), "999", "metal");
+    EXPECT_FALSE(missing.ok);
+    EXPECT_EQ(missing.errorType, "NotFound");
+
+    killDisciple("1");
+    const std::string before = core_->exportStateJson();
+    const auto dead = appointment_tx::spiritRootWashConfirmTx(core_->state(), "1", "water");
+    EXPECT_FALSE(dead.ok);
+    EXPECT_EQ(dead.errorType, "InvalidId");
+    EXPECT_EQ(core_->exportStateJson(), before);
+}
+
+TEST_F(AppointmentTxFixture, TraitWashConfirmReplacesSlotOnly) {
+    addDisciple("1");
+    const std::size_t row = *core_->state().disciples.rowOf("1");
+    const std::string targetId = firstTalentId();
+    core_->state().disciples.talentIds[row] = {targetId};
+
+    // 合法替换：产物 template 与目标槽位不同 → 替换成功且仅动目标槽位
+    const auto siblings = gamecore::data::talentTemplates();
+    std::string distinctTmplId;
+    for (const auto& t : siblings) {
+        if (t.tmpl != siblings.front().tmpl) { distinctTmplId = t.id; break; }
+    }
+    ASSERT_FALSE(distinctTmplId.empty());
+    const auto ok = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", targetId, distinctTmplId);
+    ASSERT_TRUE(ok.ok) << ok.message;
+    ASSERT_EQ(core_->state().disciples.talentIds[row].size(), 1u);
+    EXPECT_EQ(core_->state().disciples.talentIds[row][0], distinctTmplId);
+
+    // 多槽位：仅目标槽位被替换，其余槽位逐位不变
+    const std::string secondId = siblings.back().id;
+    core_->state().disciples.talentIds[row] = {targetId, secondId};
+    const auto two = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", targetId, distinctTmplId);
+    ASSERT_TRUE(two.ok) << two.message;
+    ASSERT_EQ(core_->state().disciples.talentIds[row].size(), 2u);
+    EXPECT_EQ(core_->state().disciples.talentIds[row][0], distinctTmplId);
+    EXPECT_EQ(core_->state().disciples.talentIds[row][1], secondId);
+}
+
+TEST_F(AppointmentTxFixture, TraitWashConfirmRejectsInvalidArms) {
+    addDisciple("1");
+    const std::size_t row = *core_->state().disciples.rowOf("1");
+    const std::string targetId = firstTalentId();
+    core_->state().disciples.talentIds[row] = {targetId};
+
+    // 目标不在当前列表
+    const auto notOwned = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", "not_owned", targetId);
+    EXPECT_FALSE(notOwned.ok);
+    EXPECT_EQ(notOwned.errorType, "INVALID");
+
+    // 产物不可解析
+    const auto unknown = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", targetId, "unknown_trait");
+    EXPECT_FALSE(unknown.ok);
+    EXPECT_EQ(unknown.errorType, "INVALID");
+
+    // 空产物 id
+    const auto empty = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", targetId, "");
+    EXPECT_FALSE(empty.ok);
+    EXPECT_EQ(empty.errorType, "INVALID");
+
+    // **同 template 冲突臂（isValidSlotWash 的 template 互斥）为数据依赖**：
+    // 需构造"产物与其它槽位同 template"的场景，而真实天赋表中每条活跃条目的
+    // template 是否唯一由数据集决定（生成器可能为每条目分配独立 template）。
+    // 该臂不在此强行构造（产物与目标同 id 时替换为幂等，非冲突）——由
+    // `traitAddConfirmTx` 的同款校验覆盖同一逻辑形状。
+    const std::string before = core_->exportStateJson();
+
+    // 未知类型 / 未知弟子 / 死亡弟子
+    const auto badType = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "NOPE", targetId, targetId);
+    EXPECT_EQ(badType.errorType, "UnknownTraitType");
+
+    const auto missing = appointment_tx::traitWashConfirmTx(
+        core_->state(), "999", "TALENT", targetId, targetId);
+    EXPECT_EQ(missing.errorType, "NOT_FOUND");
+    // 前四臂（不在列表/不可解析/空产物/未知类型/未知弟子）全部零写入
+    EXPECT_EQ(core_->exportStateJson(), before);
+
+    // 死亡弟子臂：拒绝且不动弟子特质列（死亡标记本身由 killDisciple 写入）
+    killDisciple("1");
+    const auto idsBefore = core_->state().disciples.talentIds[row];
+    const auto dead = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", targetId, targetId);
+    EXPECT_EQ(dead.errorType, "DEAD");
+    EXPECT_EQ(core_->state().disciples.talentIds[row], idsBefore);
+}
+
+TEST_F(AppointmentTxFixture, TraitWashConfirmSyncsLifespanBothDirections) {
+    // 选两条 lifespan 加成不同的天赋（差值为正/负两臂）
+    const auto& all = gamecore::data::talentTemplates();
+    std::string highId;
+    std::string lowId;
+    double highBonus = -1e9;
+    double lowBonus = 1e9;
+    for (const auto& t : all) {
+        const auto it = t.effects.find("lifespan");
+        if (it == t.effects.end()) continue;
+        if (it->second > highBonus) { highBonus = it->second; highId = t.id; }
+        if (it->second < lowBonus) { lowBonus = it->second; lowId = t.id; }
+    }
+    if (highId.empty() || lowId.empty() || highId == lowId || highBonus == lowBonus) {
+        GTEST_SKIP() << "天赋表无 lifespan 加成差异（跳过 lifespan 双向用例）";
+    }
+
+    addDisciple("1");
+    const std::size_t row = *core_->state().disciples.rowOf("1");
+    core_->state().disciples.talentIds[row] = {highId};
+    core_->state().disciples.lifespans[row] = 100;
+
+    // 高加成 → 低加成：寿命下调
+    const auto down = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", highId, lowId);
+    ASSERT_TRUE(down.ok) << down.message;
+    const int32_t afterDown = core_->state().disciples.lifespans[row];
+    EXPECT_LT(afterDown, 100);
+
+    // 低加成 → 高加成：寿命上调
+    const auto up = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", lowId, highId);
+    ASSERT_TRUE(up.ok) << up.message;
+    const int32_t afterUp = core_->state().disciples.lifespans[row];
+    EXPECT_GT(afterUp, afterDown);
+}
+
+TEST_F(AppointmentTxFixture, ConfirmFamilyIsZeroRngAndEnveloped) {
+    // 零 RNG：两 confirm 全程不触任何分区（签名级 + 快照差分）
+    addDisciple("1");
+    const std::size_t row = *core_->state().disciples.rowOf("1");
+    const auto baseline = rngSnapshot();
+
+    ASSERT_TRUE(appointment_tx::spiritRootWashConfirmTx(core_->state(), "1", "water").ok);
+    const std::string targetId = firstTalentId();
+    core_->state().disciples.talentIds[row] = {targetId};
+    // 非法臂（目标不在列表）同样零抽取
+    const auto r = appointment_tx::traitWashConfirmTx(
+        core_->state(), "1", "TALENT", "not_owned", targetId);
+    EXPECT_FALSE(r.ok);
+    EXPECT_EQ(rngSnapshot(), baseline);
+
+    // 信封级：成功 + 失败（Kotlin 回退臂契约）
+    const auto okEnv = exec(action::SPIRIT_ROOT_WASH_CONFIRM_TX,
+                            {{"discipleId", "1"}, {"newRootType", "wood"}});
+    EXPECT_EQ(okEnv["status"], "success") << okEnv.dump();
+    EXPECT_EQ(okEnv["data"]["replaced"], true);
+
+    const auto failEnv = exec(action::SPIRIT_ROOT_WASH_CONFIRM_TX,
+                              {{"discipleId", "1"}, {"newRootType", "bogus"}});
+    EXPECT_EQ(failEnv["status"], "failure") << failEnv.dump();
+    EXPECT_EQ(failEnv["code"], "INVALID_ROOT");
+}
+
+TEST_F(AppointmentTxFixture, ConfirmDoubleRunProducesBitIdenticalState) {
+    const auto run = [this]() {
+        addDisciple("1");
+        const std::size_t row = *core_->state().disciples.rowOf("1");
+        appointment_tx::spiritRootWashConfirmTx(core_->state(), "1", "metal,water");
+        const std::string targetId = firstTalentId();
+        core_->state().disciples.talentIds[row] = {targetId};
+        // 非法臂（同 template 冲突）——双运行同样须逐位一致
+        appointment_tx::traitWashConfirmTx(
+            core_->state(), "1", "TALENT", targetId, targetId);
+        return core_->exportStateJson();
+    };
+
+    const std::string first = run();
+    SetUp();
+    const std::string second = run();
+    EXPECT_EQ(second, first);
+}
+
 // ── 零 RNG 族审计 + 信封级双保险 ─────────────────────────────────────
 
 TEST_F(AppointmentTxFixture, ZeroRngFamilyLeavesRngStatesUntouched) {

@@ -630,6 +630,11 @@ struct GridBuildingData {
     int32_t width = 0;
     int32_t height = 0;
     std::string instanceId;
+    /// 归属宗门 id（Kotlin GridBuildingData.@ProtoNumber(8) sectId）。
+    /// batch-12 补齐：Kotlin 侧矿场自愈（validateAndFixSpiritMineData）以
+    /// building.sectId 对齐矿场槽位 sectId，C++ 复刻该语义需要本字段；
+    /// 原缺失使反向信封每次携带该键而 C++ 静默忽略（镜像不完整）。
+    std::string sectId;
 };
 
 /// RoadData（石板道路——Kotlin RoadData）
@@ -928,6 +933,12 @@ struct ResidenceSlot {
     int32_t slotIndex = 0;
     std::string discipleId;
     std::string discipleName;
+    // 字段序相等性（batch-12：事务"是否发生变更"判定与 GTest 逐位断言用）
+    bool operator==(const ResidenceSlot& o) const {
+        return buildingInstanceId == o.buildingInstanceId && slotIndex == o.slotIndex &&
+               discipleId == o.discipleId && discipleName == o.discipleName;
+    }
+    bool operator!=(const ResidenceSlot& o) const { return !(*this == o); }
 };
 
 /// SpiritFieldPlant（灵田种植状态）
@@ -949,6 +960,12 @@ struct PatrolConfig {
     std::vector<int32_t> targetRealms;   // Set<Int> → JSON 数组
     int32_t maxBeastCount = 1;
     bool requireFullStatus = true;
+    // 字段序相等性（batch-12：整表覆写"是否发生变化"判定用）
+    bool operator==(const PatrolConfig& o) const {
+        return targetRealms == o.targetRealms && maxBeastCount == o.maxBeastCount &&
+               requireFullStatus == o.requireFullStatus;
+    }
+    bool operator!=(const PatrolConfig& o) const { return !(*this == o); }
 };
 
 /// PatrolSlot（巡视槽位——Kotlin PatrolSlot）
@@ -959,6 +976,13 @@ struct PatrolSlot {
     std::string discipleRealm;
     std::string portraitRes;
     std::string buildingInstanceId;
+    // 字段序相等性（batch-12：事务"是否发生变更"判定与 GTest 逐位断言用）
+    bool operator==(const PatrolSlot& o) const {
+        return index == o.index && discipleId == o.discipleId &&
+               discipleName == o.discipleName && discipleRealm == o.discipleRealm &&
+               portraitRes == o.portraitRes && buildingInstanceId == o.buildingInstanceId;
+    }
+    bool operator!=(const PatrolSlot& o) const { return !(*this == o); }
 };
 
 // ── SecretRealm（远古秘境）状态机 ───────────────────────────────────────
@@ -1196,6 +1220,14 @@ struct SpiritMineSlot {
     std::string sectId;
     int32_t consecutiveMiningMonths = 0;
     std::string buildingInstanceId;
+    // 字段序相等性（batch-12：矿场自愈"是否发生变化"判定与 GTest 逐位断言用）
+    bool operator==(const SpiritMineSlot& o) const {
+        return index == o.index && discipleId == o.discipleId &&
+               discipleName == o.discipleName && output == o.output &&
+               sectId == o.sectId && consecutiveMiningMonths == o.consecutiveMiningMonths &&
+               buildingInstanceId == o.buildingInstanceId;
+    }
+    bool operator!=(const SpiritMineSlot& o) const { return !(*this == o); }
 };
 
 /// LibrarySlot（藏经阁槽位——Kotlin LibrarySlot）

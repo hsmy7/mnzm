@@ -30,9 +30,13 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -69,10 +73,20 @@ class BootSequenceControllerTest {
         whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
 
         // GameEngine 属性: 扩展函数 (updateGameData / ensureHeavyDataLoaded) 内部
-        // 通过 gameEngine.stateStore 访问 FakeGameStateStore，因此需要 stub
+        // 通过 gameEngine.stateStore 访问 FakeGameStateStore，因此需要 stub。
+        // **双路径连通**：boot 的写经 stateStore（Fake），而恢复前置判据
+        // （`gameEngine.gameData.value.sectName`）读 gameData flow——两者若各自
+        // 独立，写不反映到读：恢复恒失败、全部成功臂变红。故安装 store→flow
+        // 同步收集器（Unconfined 立即投递，测试读到的即为最新写值）。
         whenever(gameEngine.stateStore).thenReturn(stateStore)
         whenever(gameEngine.gameData).thenReturn(gameDataFlow)
-        whenever(gameEngine.gameDataSnapshot).thenReturn(gameDataFlow.value)
+        whenever(gameEngine.gameDataSnapshot).thenAnswer { gameDataFlow.value }
+        // gameEngineCore 引用：GameEngine 的委托方法（lockBeastView 的 native 臂
+        // 经 stateSyncService → gameEngineCore）与属性访问器都走该引用——mock
+        // 未 stub 时返回 null → 属性访问器内部 NPE（boot 全链变红）。
+        whenever(gameEngine.gameEngineCore).thenReturn(gameEngineCore)
+        stateStore.gameData.onEach { gameDataFlow.value = it }
+            .launchIn(CoroutineScope(Dispatchers.Unconfined))
         whenever(gameEngine.disciples).thenReturn(disciplesFlow)
         whenever(gameEngine.discipleTables).thenReturn(discipleTables)
         whenever(gameEngine.discipleAggregatesSnapshot).thenReturn(emptyList())
@@ -126,7 +140,10 @@ class BootSequenceControllerTest {
         stateStore.bootPhase.value = BootPhase.UNINITIALIZED
         var onSuccessCalled = false
 
-        val result = controller.boot(slot = 1, onSuccess = { onSuccessCalled = true })
+        val result = controller.boot(
+            slot = 1,
+            onSuccess = { onSuccessCalled = true }
+        )
 
         assertTrue("boot should succeed", result.isSuccess)
         assertTrue("onSuccess callback should be called", onSuccessCalled)
@@ -164,7 +181,9 @@ class BootSequenceControllerTest {
                 placedBuildings = listOf(
                     GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
                         width = 6, height = 3, instanceId = "legacy_tianshu"),
-                    GridBuildingData(displayName = "灵田", gridX = 0, gridY = 0,
+                    // 置于边界树环之外（BORDER_TREE_RING 内侧）——否则
+                    // migrateBorderZoneBuildings 会把它一并拆除，断言失去语义
+                    GridBuildingData(displayName = "灵田", gridX = 40, gridY = 40,
                         width = 1, height = 1, instanceId = "field")
                 )
             )

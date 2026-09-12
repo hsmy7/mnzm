@@ -71,6 +71,9 @@
 
 namespace gamecore::system::appointment_tx {
 
+/// 事务形参类型别名（detail 内另有 using，本层供事务签名使用）
+using gamecore::state::GameState;
+
 // ── GameConfig 常量（Kotlin GameConfig.SpiritRoot / TraitWash / TraitAdd）──
 
 /// 洗炼保底阈值（SpiritRoot.WASH_PITY_THRESHOLD == TraitWash.WASH_PITY_THRESHOLD == 2）
@@ -119,6 +122,32 @@ inline std::optional<std::pair<std::string, std::size_t>> resolveDiscipleRow(
     const auto row = ds.rowOf(canonicalId);
     if (!row.has_value()) return std::nullopt;
     return std::make_pair(canonicalId, *row);
+}
+
+/// 洗炼灵根串合法性（Kotlin `isValidWashedRootType` 逐字等价）：
+/// `split(",")` 后 1~2 个元素、无重复、全部在 [washElementKeys] 内。
+/// 空串/空白 → split 出空元素 → 不在元素表 → 拒绝（Kotlin `"".split(",")`
+/// == `[""]` 同象）。
+inline bool isValidWashedRootType(const std::string& newRootType) {
+    std::vector<std::string> parts;
+    std::size_t start = 0;
+    while (true) {
+        const std::size_t comma = newRootType.find(',', start);
+        const std::size_t endPos =
+            (comma == std::string::npos) ? newRootType.size() : comma;
+        parts.push_back(newRootType.substr(start, endPos - start));
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+    }
+    if (parts.empty() || parts.size() > 2) return false;
+    const std::vector<std::string>& keys = washElementKeys();
+    for (std::size_t i = 0; i < parts.size(); ++i) {
+        if (std::find(keys.begin(), keys.end(), parts[i]) == keys.end()) return false;
+        for (std::size_t j = i + 1; j < parts.size(); ++j) {
+            if (parts[i] == parts[j]) return false;  // distinct 语义
+        }
+    }
+    return true;
 }
 
 /// 11 类槽位清理（disciple_tx.h / patrol_tx.h detail 同族——本头文件独立
@@ -888,6 +917,146 @@ inline TraitWashOutcome traitWashSlotTx(gamecore::state::GameState& state,
     // 预检保证候选非空；保底放弃产出时兜底目标不变（Kotlin roll.newId ?: targetId）
     out.newId = entry.has_value() ? entry->id : targetId;
     out.base.ok = true;
+    return out;
+}
+
+// ── 事务 8：洗炼灵根确认替换（GameEngineSpiritRootOps.confirmSpiritRootWash）──
+//
+// Kotlin 源语义（GameEngineSpiritRootOps.kt:138）：
+//   1) isValidWashedRootType(newRootType) —— split(",") 后 1~2 个元素、
+//      无重复、全部在 WASH_ELEMENT_KEYS 内（防外部篡改写入；空串/空白会被
+//      split 出的空元素自然拒绝——Kotlin `"".split(",")` == [""] → 空元素
+//      不在元素表 → 拒绝）
+//   2) discipleId.toIntOrNull()（非法 → 拒绝）
+//   3) 事务内：存在 → 存活 → spiritRootType 覆写 → checkpointDisciple
+//      （灵根影响修炼速率——替换瞬间重新记账，见 CheckpointCallSiteGuardTest）
+//
+// 校验失败语义与 Kotlin 一致：非法灵根串/非法弟子 ID → 拒绝且零写入。
+// **零 RNG**（纯数据写；API 不接受 rng 参数）。
+inline TxResult spiritRootWashConfirmTx(GameState& state,
+                                        const std::string& discipleId,
+                                        const std::string& newRootType) {
+    TxResult out;
+    auto& ds = state.disciples;
+    auto& gd = state.gameData;
+
+    // 1) 灵根串合法性（isValidWashedRootType 逐字等价）
+    if (!detail::isValidWashedRootType(newRootType)) {
+        out.errorType = "INVALID_ROOT";
+        out.message = "非法灵根数据";
+        return out;
+    }
+    // 2) 弟子 id 解析（toIntOrNull → canonical → rowOf）
+    const auto resolved = detail::resolveDiscipleRow(ds, discipleId);
+    if (!resolved.has_value()) {
+        out.errorType = "NotFound";
+        out.message = "弟子不存在";
+        return out;
+    }
+    const std::size_t row = resolved->second;
+    if (ds.isAlive[row] != 1) {
+        out.errorType = "InvalidId";
+        out.message = "弟子不存在";
+        return out;
+    }
+    // 3) 覆写 + checkpoint 重记账
+    ds.spiritRootTypes[row] = newRootType;
+    ds.cultivationCheckpoints[row] = ds.cultivations[row];
+    ds.cultivationCheckpointGameMonths[row] = gd.gameYear * 12 + gd.gameMonth;
+    out.ok = true;
+    return out;
+}
+
+// ── 事务 9：特质单槽确认替换（GameEngineTraitWashOps.confirmTraitWash）────
+//
+// Kotlin 源语义（GameEngineTraitWashOps.kt:176）：
+//   1) discipleId.toIntOrNull()（非法 → 拒绝）
+//   2) 事务内三态：不存在 → NOT_FOUND；已死亡 → DEAD；
+//      替换校验失败（isValidSlotWash）→ INVALID
+//   3) 通过：replaceSlot（目标槽位替换）→ syncLifespanForTraitChange
+//      （天赋/词条 lifespan 加成差 × 境界基准寿命折算，toInt 截断，
+//        delta==0 跳过，lifespan 下限 1）→ checkpointDisciple
+//
+// isValidSlotWash 逐字等价（GameEngineTraitWashOps.kt:237）：
+//   targetId ∈ currentIds ∧ newId 非空白 ∧ resolveOne(newId) 可解析
+//   ∧ 替换后每条目均可解析（resolved.size == replaced.size）
+//   ∧ 替换后 template 无重复（同一 template 的特质互斥）
+//
+// **零 RNG**；失败零写入（三态判定全部先于写段）。
+inline TxResult traitWashConfirmTx(GameState& state,
+                                   const std::string& discipleId,
+                                   const std::string& type,
+                                   const std::string& targetId,
+                                   const std::string& newId) {
+    TxResult out;
+    auto& ds = state.disciples;
+    auto& gd = state.gameData;
+
+    const auto kind = detail::traitKindOf(type);
+    if (!kind.has_value()) {
+        out.errorType = "UnknownTraitType";
+        out.message = "未知特质类型 " + type;
+        return out;
+    }
+    const auto resolved = detail::resolveDiscipleRow(ds, discipleId);
+    if (!resolved.has_value()) {
+        out.errorType = "NOT_FOUND";
+        out.message = "弟子不存在";
+        return out;
+    }
+    const std::size_t row = resolved->second;
+    if (ds.isAlive[row] != 1) {
+        out.errorType = "DEAD";
+        out.message = "弟子已死亡";
+        return out;
+    }
+    std::vector<std::string>& currentIds = detail::traitIdsOf(ds, row, *kind);
+
+    // ── 替换校验（isValidSlotWash 逐字等价；零写入）─────────────────
+    const bool targetPresent =
+        std::find(currentIds.begin(), currentIds.end(), targetId) != currentIds.end();
+    const auto newEntry = detail::resolveOne(*kind, newId);
+    if (!targetPresent || newId.empty() || !newEntry.has_value()) {
+        out.errorType = "INVALID";
+        out.message = "该特质已不存在";
+        return out;
+    }
+    // 替换后 template 无重复 + 每条目均可解析
+    std::set<std::string> templates;
+    for (const std::string& currentId : currentIds) {
+        const std::string replacedId = (currentId == targetId) ? newId : currentId;
+        const auto entry = detail::resolveOne(*kind, replacedId);
+        if (!entry.has_value()) {
+            out.errorType = "INVALID";
+            out.message = "该特质已不存在";
+            return out;
+        }
+        if (templates.count(entry->tmpl) != 0) {
+            out.errorType = "INVALID";
+            out.message = "该特质已不存在";
+            return out;
+        }
+        templates.insert(entry->tmpl);
+    }
+
+    // ── 写段：替换 + lifespan 同步 + checkpoint ─────────────────────
+    const std::vector<std::string> oldTalentIds = ds.talentIds[row];
+    const std::vector<std::string> oldAffixIds = ds.affixIds[row];
+    for (std::string& currentId : currentIds) {
+        if (currentId == targetId) currentId = newId;  // Kotlin map { if (it == target) new else it }
+    }
+    const double bonusDiff =
+        detail::lifespanBonusOf(ds.talentIds[row], ds.affixIds[row]) -
+        detail::lifespanBonusOf(oldTalentIds, oldAffixIds);
+    const int32_t delta = static_cast<int32_t>(
+        static_cast<double>(realmMaxAge(ds.realms[row])) * bonusDiff);
+    if (delta != 0) {
+        const int32_t updated = ds.lifespans[row] + delta;
+        ds.lifespans[row] = updated > 1 ? updated : 1;
+    }
+    ds.cultivationCheckpoints[row] = ds.cultivations[row];
+    ds.cultivationCheckpointGameMonths[row] = gd.gameYear * 12 + gd.gameMonth;
+    out.ok = true;
     return out;
 }
 

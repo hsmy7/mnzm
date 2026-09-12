@@ -25,6 +25,10 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.repository.ProductionSlotDataPort
+import kotlinx.coroutines.SupervisorJob
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
@@ -40,7 +44,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.mockito.Mockito
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.spy
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -91,8 +97,23 @@ class PolicyNativeTxGateTest {
         // 测试置 Unconfined 内联执行，避免跨线程等待）
         core.gameDispatcher = Dispatchers.Unconfined
 
-        productionSlotRepository = mock(ProductionSlotRepository::class.java)
-        whenever(productionSlotRepository.getSlots()).thenReturn(emptyList())
+        // **真实 repository 的 spy**：Mockito 对纯 mock 的 `getSlots()` 返回值校验
+        // 与同名属性 getter（`val slots: StateFlow<...>`）反射匹配冲突，任何
+        // mock/doReturn 组合都触发 "getSlots() should return StateFlow"。
+        // spy(真实实例) 让 `getSlots()` 走真实语义（`_slots.value` = 空列表 →
+        // checkpoint 路径早退），同时保留 `verify(repository).getSlots()` 的
+        // 可观测点（13.3 红线断言：生产类政策开启必须触发 checkpoint）。
+        val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        productionSlotRepository = spy(
+            ProductionSlotRepository(
+                dao = mockSmart(ProductionSlotDataPort::class.java),
+                configService = mockSmart(BuildingConfigService::class.java),
+                scopeProvider = object : CoroutineScopeProvider {
+                    override val scope: CoroutineScope = repositoryScope
+                    override val ioScope: CoroutineScope = repositoryScope
+                }
+            )
+        )
         val processor = mock(ProductionProcessor::class.java)
         whenever(processor.stateStore).thenReturn(store)
         whenever(processor.productionSlotRepository).thenReturn(productionSlotRepository)

@@ -1,3 +1,91 @@
+# Session 2026-09-14（batch-23 + batch-24）：残余域补齐 + 弟子管理残差 + 存量失败全清
+
+### 背景
+- 用户指令 `docs/cpp-migration-handover-m0.md实施`。实测确认：**批次侧（batch-11~20b）已全部交付，
+  但在途未提交**（工作区含 batch-12 `patrol_tx.h` + batch-20b `sect_attack_tx.h` 全部实现与文档）；
+  batch-21（反向通道关闭）**仍不可开**——其真正前置是 ui-read-surface §4.1 表中每个域的稳态写者
+  都归 C++，表中尚有 5 项残余。本批按计划收口可实施项 + 清偿实测暴露的 27 处存量测试失败。
+
+### 实施要点
+
+**WS-0 在途收口**：batch-12/20b 桌面 C++ 首次实跑 **1284/1284**（文档结论为真，非虚报）；
+引擎全量 **3237 用例 / 27 失败**（逐类归属：Boot 10 / Policy 12 / ProductionUi 4 / Jade 1）。
+
+**WS-1 batch-23（残余域补齐）**：
+- C++ 新 `system/lock_beast_tx.h`：`lockBeastViewTx`（Set 语义 + 保序 + 幂等 + lockedCount；
+  **落点 `state.lockedBeastIds`**——NativeGameState 顶层段）+ `updateSettingsTx`
+  （**字段名 → 值通用补丁**，单 ActionId 覆盖 17 字段，未知字段/类型不符失败零写入）。
+- **唯一归一化点**：Int 集字段解析阶段去重归一化（比较与写入共用同值）——GTest 首轮暴露
+  初版"比较用原始输入、写入用去重值"的分叉（重复元素下 changed=false 却不写），重构消除。
+- 协议 `BEAST_VIEW_LOCK_TX=1730` / `SETTINGS_PATCH_TX=1731`；Kotlin 新
+  `GameEngineResidualNativeOps.kt`（转发器 + SettingPatchValue sealed）+ `GameEngineSettingsOps.kt`
+  /`GameEngineSettingsAssignOps.kt`（同域拆分，19 入口超 detekt 文件阈值）；
+  `SettingsDelegate`/`AutoAssignDelegate`/`DiscipleDelegate` 共 15 入口改走域入口，
+  平台效应（AudioConfig / 招募惰性门 / 待处理提议清理）保留 Kotlin。
+- GTest 17 用例 + Kotlin 门控 12 用例。
+
+**WS-2 batch-24（弟子管理残差）**：
+- `appointment_tx.h` 追加事务 8/9（灵根 confirm / 特质 confirm）：复用 batch-15 既有地基
+  （traitKindOf/resolveOne/traitIdsOf/lifespanBonusOf/realmMaxAge/washElementKeys），
+  新增 `isValidWashedRootType` + 两事务体。
+- 协议 1732/1733；**新能力 `executeRaw`**（保留 failure 信封 code+message——confirm 的用户可见
+  文案由 C++ 判定链产出）；`ConfirmNativeOutcome` 三态（Applied/Refused/Unavailable）。
+- GTest 8 用例。**弟子管理域至此无稳态 Kotlin 直改写者。**
+
+**WS-3 残余域审计结论**：
+- `aiSectDisciples` load/save 自愈**登记不下沉**（证据链：`AISectDiscipleManager` 用独立 AI RNG
+  分区，其状态**不在快照协议 rngStates 段内**，C++ 无镜像状态；复刻需先统一 AI RNG 通道）。
+- 天劫（`claimClearReward` 非确定性随机 + 凭据溢出抑制同事务；`recordPhaseClear` 与领奖共用
+  同一 `heavenlyTrialState` 段 → 拆分即撕裂事务）、洞府探索（只在月结 Kotlin 回退编排内）→ 登记。
+
+**WS-4 存量失败清偿（27 → 0）**：
+- `BootSequenceControllerTest` 10 处：夹具**读/写路径不连通**（mock gameData 独立空 flow vs
+  写经 stateStore）+ 未 stub `gameEngine.gameEngineCore`（native 臂属性访问器 NPE）+ 边界树环内
+  测试建筑被 `migrateBorderZoneBuildings` 拆除。
+- `ProductionUiNativeTxGateTest` 4 处：夹具只播 repo 未播镜像（batch-17 起镜像为真源）→ 双写。
+- `JadeNativeTxGateTest` 1 处：mockSmart SmartNull 非 DomainResult → 发放链未真实完成即无凭据 →
+  显式 stub 发放 + 冷却用例改为直接播种凭据。
+- `PolicyNativeTxGateTest` 12 处：**Mockito `getSlots()` 返回值校验与同名属性 getter
+  （`val slots: StateFlow`）反射匹配冲突**——mock/doReturn 组合均触发 "should return StateFlow"；
+  改用 `spy(真实 ProductionSlotRepository)`（真实语义 + verify 可观测点）。
+- 🔴 **根因修复（生产缺陷）**：宗门等级领奖 `writeSectLevelRewards` 原 `Unit` 返回且调用方忽略
+  `allSucceeded` → 物品入账失败时**凭据不写却报 Success**（冷却失效、可无限重领）；
+  改为返回 `Boolean` + 调用方明确失败文案。
+
+### 验证
+| Test | 结果 |
+|------|------|
+| 桌面 C++ 全量（+25 用例） | **1309/1309 全绿** |
+| 桌面 JNI 重建 | 成功（含新 handler） |
+| 引擎全量（--rerun-tasks + JNI 注入） | **3249 用例 / 290 类 / 0 失败 0 跳过** |
+| detekt 五模块（--rerun-tasks） | 全绿（baseline 恒 0；2 处实修） |
+| `:core:engine` 主源 + 测试源编译 | BUILD SUCCESSFUL |
+| 动作计数 | **170 动作**（maxId=1733） |
+| :feature:game 编译 / lintRelease / NDK arm64 | **未达（HEAD 即断，非本批归属）**：`NativeBridge.cpp:1499` `ktx1::KtxInfo` 未解析；`VulkanRenderBackend.kt:224/230` `hasAnyCliffTexture`/`cliffTextureCount` 未解析 + `MainGameScreen.kt:536` `textureMask` 缺参（同族纹理重构在途）——本轮顺手修复 `MainGameScreen` 缺的 `IslandCliffTextureSet` import |
+
+### 途中发现（登记 findings）
+1. **Mockito 同名 getter 陷阱**：`fun getSlots(): List<T>` 与 `val slots: StateFlow<T>` 在同一类上
+   共存时，`whenever(mock.getSlots()).thenReturn(emptyList())` 触发返回值类型校验冲突
+   （报"should return StateFlow"）；`doReturn` 亦无效——须改用真实实例 + `spy`。
+2. **native 臂会改变 mock 环境的 NPE 面**：`lockBeastView` 上升为 native 臂后新增
+   `stateSyncService → gameEngineCore` 属性访问链，mock 未 stub `gameEngineCore` 即在属性访问器
+   内部 NPE（既有测试夹具需补该 stub）。
+3. **测试夹具"只播一端"是隐性失效源**：本批两处失败（Boot 的 store/flow、ProductionUi 的
+   repo/镜像）根因同族——夹具只播一端时，下沉后的读路径看到空状态。**新增夹具须双写**。
+4. **边界树环测试夹具**：`gridX/gridY=0` 的建筑会被 `migrateBorderZoneBuildings` 合法拆除，
+   断言"其他建筑保留"须把非目标建筑放到边界环内侧。
+5. **HEAD 在途破损会静默跳过后半段构建目标**：`externalNativeBuildRelease` 在 `native-renderer`
+   失败后不再构建 `native-game-core`——"NDK 通过"必须以产物存在为准，不能只看任务退出码。
+
+### 剩余（下轮接续）
+- **batch-21 关闭前置**（收敛为 2 项）：① 库存**开袋**（双重 RNG，路线 B 备案，**待拍板**）；
+  ② **`aiSectDisciples` load/save 自愈**（需先统一 AI RNG 通道）。
+- **`feature:game` / `NativeBridge.cpp` 在途破损**（纹理重构族的未完成接口）——修好前
+  lint / NDK / 模块回归三关不可走。本轮已顺手补 `IslandCliffTextureSet` import，剩余三处
+  （`hasAnyCliffTexture` / `cliffTextureCount` / `textureMask` 传递）属该族自身产物。
+- **Jade 凭据持久化环境缺陷**（`FakeAtomicStateStore` 事务缓冲与 `sectLevelClaimRecords` 交互）待专项。
+- 真机验证批（§4.1 登记 10 项 + W2-a/W2-b/本批 native 臂）。
+
 # Progress Log：C++ 迁移整改
 
 ## Session 2026-09-09（M3 第七批）：detekt 参数与跳转族清偿（baseline 292→196）
