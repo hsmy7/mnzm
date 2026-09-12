@@ -128,9 +128,9 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 | 招募/派遣/俘虏 | ~~手动+一键主路径已 C++；回退路径、列表刷新/老化、lifeEvents 补写~~ **✅ 残余三直调点已下沉（2026-09-12，batch-16，§2.47）**：`removeFromRecruitList` / `refreshRecruitList` / `ageRecruitList` → `recruit_tx.h` 复用年度权威链零复制（ActionId 1630–1632）；**审计判定不下沉**：MerchantAndRecruitService 零招募写者、派遣 `startMission`（惰性门留月变真相源批）、奖励发放（结算域已 C++）、`id=""` 候选跨年去重（拍板项） | 残余族 ✅ |
 | 生产 | 手动排班/重置已 C++（S7）；**✅ 生产 UI 面 + 灵田种植族已下沉（2026-09-12，batch-17，§2.48）**（四生产槽 UI 事务 + 四灵田种植事务，ActionId 1650–1657）；**审计判定保留 Kotlin**：`autoHarvestCompletedAlchemySlots`（读档路径/AUTHORITATIVE 基线窗口——迁此会在首月读档产生"免费收获"）、`MaterialConsumptionLog`（平台效应）、自动续班启动（S4 月结末尾已 C++） | **UI 面 ✅**；S4 窗口对齐已兜月结 |
 | 秘境 | ~~会话三入口已 C++（S6）；start 换岗/到期守卫/回退路径 Kotlin 直改~~ **✅ 平台段已下沉（2026-09-12，batch-20a，handover §2.51）**：唯一未下沉写者 `continueSecretRealmExploration`（读档恢复：到期关闭/死局 endSession/成员净化/gate 重建）归 C++（`secret_realm_platform_tx.h`，ActionId 1710）；`autoAssignSecretRealmTeam` 审计为**纯只读选择器**（无写者）、pause/resume/renew 为**运行时时钟平台残差**（S5/S6 口径留 Kotlin）；**顺手根治** `secret_realm_settlement.h` 的 `kOpenYears` 移植缺陷（50→5，此前 AUTHORITATIVE 下秘境满 5 年还要再挂 45 年） | ~~平台段批次~~ ✅ |
-| 月年编排 | ~~processMonthYearChange 边界效果、玉符、洞府探索、天劫、兑换码、宗门升级、政策开关、设置项、guide、邮件附件~~ **✅ 已审计收窄（2026-09-12，batch-18，§2.49）**：六候选域中仅 **guide 计数面三写者**（increment/batchUpdate/backfill → `boundary_tx.h`，1670–1672）与**政策开关三入口**（toggle/openRecruitment/spiritMineBoost → `government.h`，1680–1682）为 Kotlin 独占活路径，已下沉；**审计判定不下沉**：月年边界效果 / 战后 HP-MP / 游戏结束判定 / YearlyOpsQueue / 通用写入口 / claimGuideReward 六域（死代码 / 月变事务内步骤（C++ 权威已存在）/ 通用写入口 / Kotlin 注册表不可复刻）。**✅ 玉符/宗门升级（2026-09-12，batch-19，§2.50）**（`jade_tx.h`，1690–1693）；**不下沉**：兑换码 `redeemCode`（C++ 无物品随机生成器，RNG 红线）、邮件附件（无新写者）；**待办**：设置项 / 天劫（`HeavenlyTrial*`）/ 洞府探索（`CaveExplorationProcessor` 结算域）→ 若审计确认独立 UI 写者则另立批 | 边界效果域（**guide/政策/玉符/宗门 ✅**；设置项·天劫·洞府待审） |
+| 月年编排 | ~~processMonthYearChange 边界效果、玉符、洞府探索、天劫、兑换码、宗门升级、政策开关、设置项、guide、邮件附件~~ **✅ 已审计收窄（2026-09-12，batch-18，§2.49）**：六候选域中仅 **guide 计数面三写者**（increment/batchUpdate/backfill → `boundary_tx.h`，1670–1672）与**政策开关三入口**（toggle/openRecruitment/spiritMineBoost → `government.h`，1680–1682）为 Kotlin 独占活路径，已下沉；**审计判定不下沉**：月年边界效果 / 战后 HP-MP / 游戏结束判定 / YearlyOpsQueue / 通用写入口 / claimGuideReward 六域（死代码 / 月变事务内步骤（C++ 权威已存在）/ 通用写入口 / Kotlin 注册表不可复刻）。**✅ 玉符/宗门升级（2026-09-12，batch-19，§2.50）**（`jade_tx.h`，1690–1693）；**不下沉**：兑换码 `redeemCode`（C++ 无物品随机生成器，RNG 红线）、邮件附件（无新写者）。**✅ 设置项（2026-09-14，batch-23，§2.55）**：17 字段 → `SETTINGS_PATCH_TX=1731`；**天劫/洞府探索经 §2.57 定界登记不下沉**（理由见下方滚动更新表） | 边界效果域**全部收口**（设置项 ✅ / 天劫·洞府：登记不下沉） |
 | ~~外交/好感/附庸~~ | ~~diplomacy/vassal/favor 全部 Kotlin 直改~~ **✅ 已下沉（2026-09-10，batch-09，handover §2.38）**：赠礼/结盟/散盟/附属建立解除稳态写者归 C++（diplomacy_tx.h 事务，1500–1502），Kotlin 原路径降级回退臂；聊天响应模板（Random.Default 非游戏分区）与月结面（已下沉）不在写者面；宣战/停战/和平经审计无 UI 操作面 | ~~外交族批次~~ ✅ |
-| aiSectDisciples 段 | ~~战斗阵亡/吞并（月结/遭遇战 Kotlin 回退事务内）、load 自愈、存档自愈~~ **⚠️ 部分下沉（2026-09-13，batch-20b，handover §2.51b）**：**攻宗的阵亡守军清理已下沉**（`sect_attack_tx.h removeDeadDefendersTx`，ActionId 1711——本段最大 UI 触发写者）**+ 魂魄发放（1712）**；**残余**：月结回退路径的战斗阵亡/吞并写者 + load/存档自愈写者 → 关闭前置仍差此二者复核 | 月变真相源切换批（S-15/S-16）后反转或关闭 |
+| aiSectDisciples 段 | ~~战斗阵亡/吞并（月结/遭遇战 Kotlin 回退事务内）、load 自愈、存档自愈~~ **⚠️ 部分下沉（2026-09-13，batch-20b，handover §2.51b）**：**攻宗的阵亡守军清理已下沉**（`sect_attack_tx.h removeDeadDefendersTx`，ActionId 1711——本段最大 UI 触发写者）**+ 魂魄发放（1712）**；**残余两项定界（2026-09-14，§2.57）**：① 月结回退路径的战斗阵亡/吞并写者 = **回退臂**（AUTHORITATIVE 月结走 C++ `runMonthSettlement`，不触达该路径 ⇒ 非稳态写者，捕获关闭后回退路径仍正确）；② **load/存档自愈 = 稳态写者，已拍板下沉**（见下方滚动更新表的 AI RNG 归一改判） | ② 经 [ADR](adr/rng-determinism-remediation.md) 阶段 1 下沉后本段可关 |
 | 时间/结算输出域 | 无（只读镜像） | **已关**（无写入者，反向窗口天然不含） |
 
 **2026-09-14 batch-23/24 滚动更新（§2.55/§2.56/§2.57）**：
@@ -140,7 +140,7 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 | `lockedBeastIds` UI 操作面 | **✅ 已下沉（batch-23）**：`GameEngine.lockBeastView`/`unlockBeastView`（`:319/:324`，`launchOnEngine` 调用面 = 妖兽详情弹窗开/关）稳态写者归 C++（`lock_beast_tx.h` `BEAST_VIEW_LOCK_TX=1730`；Set 语义 + 保序 + 幂等 + lockedCount 回执）；反向增量段（§2.21.2 补齐）维持不变 |
 | 设置项域（原「月年编排残余」中的设置项） | **✅ 已下沉（batch-23）**：17 个 gameData 字段经 `SETTINGS_PATCH_TX=1731` 通用补丁——覆盖 `SettingsDelegate`（6：音频 2 + 战报弹窗 + 中/高阶自动出售 + 显示全部弟子）/ `AutoAssignDelegate`（7：突破丹药 2 + 自动装备 2 + 自动学习 2 + 道侣禁止灵根数 + 道侣同意）/ `DiscipleDelegate`（2：自动招募/自动拒绝过滤，1..5 预筛 + 惰性门残差留 Kotlin）；平台效应（`AudioConfig` / 惰性门 / 待处理提议清理）保留 Kotlin |
 | 弟子管理残余 | **✅ 已清（batch-24）**：`confirmSpiritRootWash` / `confirmTraitWash` 两入口下沉（`appointment_tx.h` 事务 8/9，ActionId 1732/1733）——纯数据写（零玉符/零 RNG）+ checkpoint 与 lifespan 同步同事务；三态拒绝文案由 C++ 信封 `executeRaw` 回传。**弟子管理域至此无稳态 Kotlin 直改写者** |
-| `aiSectDisciples` 段 | **⚠️ 改判：登记不下沉（附证据链，见 handover §2.57）**——`checkAndRepairAiSectDisciples`（load/save 自愈）消费 `AISectDiscipleManager` 的**独立 AI RNG 分区**，该分区状态**不在快照协议 `rngStates` 段内**，C++ 无镜像状态；复刻需先统一 AI RNG 通道（WS-4/AI 域规模）。**故该域构成 batch-21 剩余前置之一** |
+| `aiSectDisciples` 段 | **⚠️ 已拍板下沉（2026-09-14 审计勘误 + [ADR](adr/rng-determinism-remediation.md) 阶段 1）**——`checkAndRepairAiSectDisciples`（load/save 自愈）消费 `AISectDiscipleManager._rng`，该对象是**真源的影子拷贝**：真源 `GameRngManager.getRng(AI_SECT)` 在 AUTHORITATIVE 下**已委托到 C++ `kAiSect` 分区，且该分区本就在 `rngStates` 协议面内**（`exportStates()` 遍历全部 8 分区）；影子只在 `createNewGame`/`loadData` 两处 `initForSlot(mapSeed)` 重播，之后与真源各自漂移。**故下沉路径 = 先归一（影子摘除）再下沉自愈**，非"需大立项"（缺的 C++ 原语仅编排三件，生成/装备/截断已在 `ai_sect_recruit.h`）——**该域构成 batch-21 剩余前置之一** |
 | 天劫 / 洞府探索 | **登记不下沉**：天劫 `claimClearReward`（模板非确定性随机 + 凭据溢出抑制同一 `stateStore.update`，原子性不可拆）与 `recordPhaseClear`（与领奖共用 `heavenlyTrialState` 段，拆分即撕裂事务）；洞府探索 `processSectDisciplesAging`/`processCaveLifecycle` 经 `CultivationEventMonthlyOps` **只在月结 Kotlin 完整编排内**（回退臂，非稳态写者） |
 
 ### 4.2 顶层 @Transient 段的通道现状（2026-09-08 审计订正）
@@ -158,13 +158,21 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 **在 4.1 表全部域下沉前执行任何"停捕获"都是数据丢失缺陷**（该域 Kotlin 写入将永达
 C++）。
 
-> **前置现状（2026-09-14 实测，batch-23/24 收口后）**：4.1 表中**仅剩 2 项未关闭**——
-> ① 库存**开袋**（双重 RNG：EXPLORATION 分区 `nextInt(16)`+逐件 `nextInt(7)` 与分支内
-> `Random.Default` 模板抽取混用；路线 B 备案不下沉，**待拍板**是否接受路线 A 的行为基线变化）；
+> **前置现状（2026-09-14 实测，batch-23/24 收口后）**：4.1 表中**仅剩 2 项未关闭**，且两项
+> 均已**拍板立项**（[ADR rng-determinism-remediation](adr/rng-determinism-remediation.md) 阶段 1）——
+> 立项原因：两项都属「随机源治理」同一架构漏洞的出口，单独打补丁无法阻止复发。
+>
+> ① 库存**开袋**——**已拍板走路线 A**（下沉 C++，ActionId 1734+）。实测澄清：开袋的
+> 「抽到哪一件」走 `templates.random()` / `generateRandomPill` / `generateRandomMaterial` 的
+> 默认参数（`kotlin.random.Random.Default`，**不入存档、不随档走**），而件数与类型走
+> `EXPLORATION` 分区；故"路线 A 会破坏行为基线"的前提**不成立**——同一存档两次开袋结果
+> **今天就已经不同**，改造只是把"每次不同"变为"可复现"。
 > ② **`aiSectDisciples` load/save 自愈**（`checkAndRepairAiSectDisciples`，boot Step 5 与
-> `upgradeSectLevel` 修复路径）——实测其消费 `AISectDiscipleManager` 的**独立 AI RNG 分区**，
-> 该分区状态**不在快照协议 `rngStates` 段内**（C++ 无镜像状态），复刻需先统一 AI RNG 通道
-> （WS-4/AI 域规模，见 handover §2.57）。
+> `upgradeSectLevel` 修复路径）——**已拍板**：先做 **AI RNG 归一**（`AISectDiscipleManager._rng`
+> 是 `GameRngManager.getRng(AI_SECT)` 的影子拷贝；真源在 AUTHORITATIVE 下已委托 C++ `kAiSect`
+> 分区，且该分区**本就在 `rngStates` 协议面内**）再下沉自愈；缺的 C++ 原语仅为编排三件
+> （`initializeSectDisciples` / `fillDisciplesToTarget` / `isGearCompleteForLevel`），
+> 生成/装备/截断原语已在 `ai_sect_recruit.h`。
 >
 > **已收口**：③ `lockedBeastIds` UI 操作面 → ✅ batch-23（`BEAST_VIEW_LOCK_TX=1730`）；
 > ④ 弟子管理残余 → ✅ batch-24（`SPIRIT_ROOT_WASH_CONFIRM_TX=1732` /
@@ -174,7 +182,7 @@ C++）。
 > 天劫（非确定性模板随机与凭据溢出抑制同一事务、`recordPhaseClear` 与领奖共用
 > `heavenlyTrialState` 段）与洞府探索（仅月结 Kotlin 回退编排内）**登记不下沉**。
 >
-> **结论：关闭批（batch-21）前置收敛为 ①（待拍板）与 ②（需先统一 AI RNG 通道）两项。**
+> **结论：关闭批（batch-21）前置 = ADR 阶段 1 的两批交付**（不再有"待拍板"阻塞项）。
 
 
 ---
