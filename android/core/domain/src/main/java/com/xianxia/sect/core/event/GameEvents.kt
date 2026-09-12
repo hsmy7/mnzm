@@ -1,0 +1,404 @@
+package com.xianxia.sect.core.event
+
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DomainLog
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
+import javax.inject.Inject
+import javax.inject.Singleton
+
+interface DomainEvent {
+    val timestamp: Long get() = System.currentTimeMillis()
+    val type: String
+}
+
+data class CultivationEvent(
+    val discipleId: String,
+    val discipleName: String,
+    val oldRealm: Int,
+    val newRealm: Int,
+    val cultivation: Long,
+    override val type: String = "cultivation"
+) : DomainEvent
+
+data class BreakthroughEvent(
+    val discipleId: String,
+    val discipleName: String,
+    val realm: Int,
+    val success: Boolean,
+    val newLayer: Int,
+    override val type: String = "breakthrough"
+) : DomainEvent
+
+data class CombatEvent(
+    val attackerId: String,
+    val defenderId: String,
+    val damage: Int,
+    val isCritical: Boolean,
+    val skillName: String?,
+    override val type: String = "combat"
+) : DomainEvent
+
+data class DeathEvent(
+    val entityId: String,
+    val entityName: String,
+    val cause: String,
+    override val type: String = "death"
+) : DomainEvent
+
+data class ItemEvent(
+    val itemId: String,
+    val itemName: String,
+    val action: String,
+    val quantity: Int,
+    val targetId: String?,
+    override val type: String = "item"
+) : DomainEvent
+
+data class SectEvent(
+    val sectId: String,
+    val sectName: String,
+    val action: String,
+    val details: Map<String, Any> = emptyMap(),
+    override val type: String = "sect"
+) : DomainEvent
+
+data class TimeEvent(
+    val year: Int,
+    val month: Int,
+    val day: Int,
+    val action: String,
+    override val type: String = "time"
+) : DomainEvent
+
+data class SaveEvent(
+    val slot: Int,
+    val success: Boolean,
+    val message: String,
+    override val type: String = "save"
+) : DomainEvent
+
+data class ErrorEvent(
+    val errorCode: String,
+    val message: String,
+    val details: Map<String, Any> = emptyMap(),
+    override val type: String = "error"
+) : DomainEvent
+
+data class NotificationEvent(
+    val title: String,
+    val message: String,
+    val severity: NotificationSeverity = NotificationSeverity.INFO,
+    override val type: String = "notification"
+) : DomainEvent
+
+enum class NotificationSeverity {
+    INFO, WARNING, ERROR, SUCCESS
+}
+
+data class DiscipleUpdatedEvent(
+    val discipleId: String,
+    val changes: Map<String, Any?>,
+    override val type: String = "disciple_updated"
+) : DomainEvent
+
+data class CultivationProgressEvent(
+    val discipleId: String,
+    val progress: Double,
+    override val type: String = "cultivation_progress"
+) : DomainEvent
+
+data class ItemCraftedEvent(
+    val itemId: String,
+    val itemType: String,
+    override val type: String = "item_crafted"
+) : DomainEvent
+
+data class BattleCompletedEvent(
+    val battleId: String,
+    val result: BattleResultInfo,
+    override val type: String = "battle_completed"
+) : DomainEvent
+
+data class BattleResultInfo(
+    val victory: Boolean,
+    val playerLosses: Int = 0,
+    val enemyLosses: Int = 0,
+    val rewards: List<RewardItemInfo> = emptyList()
+)
+
+data class RewardItemInfo(
+    val itemId: String,
+    val itemName: String,
+    val quantity: Int,
+    val rarity: Int
+)
+
+data class BattleStartedEvent(
+    val attackerId: String,
+    val defenderId: String,
+    val attackerName: String = "",
+    val defenderName: String = "",
+    override val type: String = "battle_started"
+) : DomainEvent
+
+data class BuildingCompletedEvent(
+    val buildingId: String,
+    val buildingName: String = "",
+    val gridX: Int = 0,
+    val gridY: Int = 0,
+    override val type: String = "building_completed"
+) : DomainEvent
+
+data class SpiritStonesChangedEvent(
+    val delta: Long,
+    val newTotal: Long,
+    val reason: String = "",
+    override val type: String = "spirit_stones_changed"
+) : DomainEvent
+
+data class SectRelationChangedEvent(
+    val sectId: String,
+    val sectName: String = "",
+    val oldFavor: Int = 0,
+    val newFavor: Int = 0,
+    override val type: String = "sect_relation_changed"
+) : DomainEvent
+
+data class DiscipleRecruitedEvent(
+    val discipleId: String,
+    val discipleName: String = "",
+    val realm: Int = 0,
+    override val type: String = "disciple_recruited"
+) : DomainEvent
+
+data class DiscipleExpelledEvent(
+    val discipleId: String,
+    val discipleName: String = "",
+    val reason: String = "",
+    override val type: String = "disciple_expelled"
+) : DomainEvent
+
+data class ProductionCompletedEvent(
+    val buildingType: String,
+    val slotIndex: Int,
+    val itemName: String = "",
+    val quantity: Int = 0,
+    override val type: String = "production_completed"
+) : DomainEvent
+
+data class AllianceFormedEvent(
+    val sectId: String,
+    val sectName: String = "",
+    val startYear: Int = 0,
+    override val type: String = "alliance_formed"
+) : DomainEvent
+
+data class AllianceDissolvedEvent(
+    val sectId: String,
+    val sectName: String = "",
+    val reason: String = "",
+    override val type: String = "alliance_dissolved"
+) : DomainEvent
+
+/** 事件丢弃上报节流窗口（毫秒）——与 DomainLog 同频 */
+private const val DROP_REPORT_THROTTLE_MS = 5000L
+
+interface DomainEventSubscriber {
+    fun onEvent(event: DomainEvent)
+    val subscribedTypes: Set<String>
+}
+
+interface EventBusPort {
+    val events: Flow<DomainEvent>
+    val latestNotifications: StateFlow<List<NotificationEvent>>
+    suspend fun emit(event: DomainEvent)
+    fun emitSync(event: DomainEvent): Boolean
+    fun emitAll(events: List<DomainEvent>)
+    fun subscribe(subscriber: DomainEventSubscriber)
+    fun unsubscribe(subscriber: DomainEventSubscriber)
+    fun <T : DomainEvent> emitTyped(event: T)
+    fun clearNotifications()
+    fun dispose()
+}
+
+@Singleton
+class EventBus @Inject constructor(
+    private val scopeProvider: CoroutineScopeProvider
+) : EventBusPort {
+
+    private val scope get() = scopeProvider.scope
+
+    private val eventChannel = Channel<DomainEvent>(capacity = 256)
+    override val events: Flow<DomainEvent> = eventChannel.receiveAsFlow()
+    
+    private val _latestNotifications = MutableStateFlow<List<NotificationEvent>>(emptyList())
+    override val latestNotifications: StateFlow<List<NotificationEvent>> = _latestNotifications.asStateFlow()
+    
+    private val subscribers = ConcurrentHashMap<String, CopyOnWriteArrayList<DomainEventSubscriber>>()
+    
+    private val maxNotificationHistory = 50
+    
+    private var isProcessing = false
+
+    private val droppedEventCount = java.util.concurrent.atomic.AtomicLong(0L)
+    private val lastDropLogTime = java.util.concurrent.atomic.AtomicLong(0L)
+
+    /**
+     * 事件丢弃上报器：app 层注入 Bugly 自定义事件实现，core/domain 零 Android 依赖。
+     * 调用方已按 5s 节流（与 DomainLog 同频）。
+     */
+    @Volatile
+    var dropReporter: EventDropReporter? = null
+    
+    init {
+        startProcessing()
+    }
+    
+    private fun startProcessing() {
+        if (isProcessing) return
+        isProcessing = true
+        
+        scope.launch {
+            for (event in eventChannel) {
+                if (event is NotificationEvent) {
+                    addToNotificationHistory(event)
+                }
+                notifySubscribers(event)
+            }
+        }
+    }
+    
+    override suspend fun emit(event: DomainEvent) {
+        val result = eventChannel.trySend(event)
+        if (!result.isSuccess) {
+            reportDrop(event)
+        }
+    }
+
+    /**
+     * 丢弃上报（CAS 节流赢家制：多线程并发 emit 同时进入 5s 节流窗口时，
+     * 仅一个赢家上报，计数原子）。
+     */
+    // 刻意吞取消(形态③): try体无挂起点, CE只能来自上报器缺陷误抛;
+    // 隔离设计保证上报失败不影响事件通道——重抛反而放大为通道故障
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun reportDrop(event: DomainEvent) {
+        val total = droppedEventCount.incrementAndGet()
+        val now = System.currentTimeMillis()
+        val previous = lastDropLogTime.get()
+        if (now - previous < DROP_REPORT_THROTTLE_MS) return
+        if (!lastDropLogTime.compareAndSet(previous, now)) return
+        DomainLog.w("EventBus", "Event dropped (total: $total), type=${event.type}. Consider reducing event frequency.")
+        // 溢出上报（节流内调用；上报失败不得影响事件通道）
+        try {
+            dropReporter?.onEventDropped(total, event.type)
+        } catch (e: Exception) {
+            DomainLog.w("EventBus", "dropReporter failed (non-fatal)", e)
+        }
+    }
+    
+    override fun emitSync(event: DomainEvent): Boolean {
+        val result = eventChannel.trySend(event)
+        if (!result.isSuccess) {
+            droppedEventCount.incrementAndGet()
+        }
+        return result.isSuccess
+    }
+    
+    override fun emitAll(events: List<DomainEvent>) {
+        for (event in events) {
+            eventChannel.trySend(event)
+        }
+    }
+    
+    override fun subscribe(subscriber: DomainEventSubscriber) {
+        val types = subscriber.subscribedTypes
+        if (types.isEmpty()) return
+        types.forEach { type ->
+            subscribers.computeIfAbsent(type) { CopyOnWriteArrayList() }.add(subscriber)
+        }
+    }
+    
+    override fun unsubscribe(subscriber: DomainEventSubscriber) {
+        subscriber.subscribedTypes.forEach { type ->
+            subscribers[type]?.remove(subscriber)
+        }
+    }
+    
+    override fun <T : DomainEvent> emitTyped(event: T) {
+        // 背压统一：与 emit/emitSync 同一契约——满通道丢弃 +
+        // 计数 + 节流上报。原 launch{send} 在通道饱和时把每次调用转成无上限
+        // 挂起协程堆积（月度灵石流水高频事件下内存单调上涨）；
+        // 丢弃可容忍（消费方既有降级语义），无界协程不可容忍。
+        val result = eventChannel.trySend(event)
+        if (!result.isSuccess) {
+            reportDrop(event)
+        }
+    }
+    
+    override fun clearNotifications() {
+        _latestNotifications.value = emptyList()
+    }
+    
+    private fun addToNotificationHistory(event: NotificationEvent) {
+        val current = _latestNotifications.value.toMutableList()
+        current.add(0, event)
+        if (current.size > maxNotificationHistory) {
+            _latestNotifications.value = current.take(maxNotificationHistory)
+        } else {
+            _latestNotifications.value = current
+        }
+    }
+    
+    // 背压统一：订阅者通知在通道消费协程内串行执行——
+    // 原每事件×每订阅者各 launch 一个协程属无上限协程创建（防御性修复，
+    // 当前 0 订阅者）；消费协程为本事件总线的唯一串行面，内联调用有界。
+    // 刻意吞取消(形态③): try体无挂起点, CE只能来自订阅者缺陷误抛;
+    // 重抛会放大为消费协程死亡——订阅者异常隔离是总线契约
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    private fun notifySubscribers(event: DomainEvent) {
+        subscribers[event.type]?.forEach { subscriber ->
+            try {
+                subscriber.onEvent(event)
+            } catch (e: Exception) {
+                DomainLog.e("EventBus", "Error notifying subscriber for event ${event.type}", e)
+            }
+        }
+    }
+    
+    override fun dispose() {
+        eventChannel.close()
+        isProcessing = false
+    }
+}
+
+class DomainEventHistory(private val maxSize: Int = 100) {
+    private val history = CopyOnWriteArrayList<DomainEvent>()
+    
+    fun add(event: DomainEvent) {
+        history.add(0, event)
+        while (history.size > maxSize) {
+            history.removeAt(history.size - 1)
+        }
+    }
+    
+    fun getAll(): List<DomainEvent> = history.toList()
+    
+    fun getByType(type: String): List<DomainEvent> = history.filter { it.type == type }
+    
+    fun getSince(timestamp: Long): List<DomainEvent> = history.filter { it.timestamp >= timestamp }
+    
+    fun clear() {
+        history.clear()
+    }
+    
+    fun size(): Int = history.size
+}

@@ -1,0 +1,232 @@
+package com.xianxia.sect.data.concurrent
+
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+
+class SlotLockManagerTest {
+
+    private lateinit var lockManager: SlotLockManager
+
+    @Before
+    fun setUp() {
+        lockManager = SlotLockManager(maxSlots = 5)
+    }
+
+    // ==================== isValidSlot ====================
+
+    @Test
+    fun `isValidSlot - slot 0 (cloud session) is valid`() {
+        assertTrue("云会话槽位 0 应为合法槽位", lockManager.isValidSlot(0))
+    }
+
+    @Test
+    fun `isValidSlot - slot 1 is valid`() {
+        assertTrue(lockManager.isValidSlot(1))
+    }
+
+
+    @Test
+    fun `isValidSlot - slots 0 to maxSlots are valid`() {
+        for (slot in 0..5) {
+            assertTrue("Slot $slot should be valid", lockManager.isValidSlot(slot))
+        }
+    }
+
+    @Test
+    fun `isValidSlot - slot exceeding maxSlots is invalid`() {
+        assertFalse(lockManager.isValidSlot(6))
+        assertFalse(lockManager.isValidSlot(100))
+    }
+
+    @Test
+    fun `isValidSlot - slot -2 is invalid (not EMERGENCY_SLOT)`() {
+        assertFalse(lockManager.isValidSlot(-2))
+    }
+
+    @Test
+    fun `isValidSlot - slot -10 is invalid`() {
+        assertFalse(lockManager.isValidSlot(-10))
+    }
+
+    @Test
+    fun `withWriteLockLight - executes block for cloud session slot 0`() = runTest {
+        val result = lockManager.withWriteLockLight(0) { "cloud_session" }
+        assertEquals("cloud_session", result)
+    }
+
+    // ==================== getMaxSlots ====================
+
+    @Test
+    fun `getMaxSlots returns configured value`() {
+        assertEquals(5, lockManager.getMaxSlots())
+    }
+
+    @Test
+    fun `getMaxSlots with custom value`() {
+        val custom = SlotLockManager(maxSlots = 10)
+        assertEquals(10, custom.getMaxSlots())
+    }
+
+    // ==================== withReadLockLight ====================
+
+    @Test
+    fun `withReadLockLight - executes block and returns result`() = runTest {
+        val result = lockManager.withReadLockLight(1) { 42 }
+        assertEquals(42, result)
+    }
+
+    @Test
+    fun `withReadLockLight - executes block for slot 1`() = runTest {
+        val result = lockManager.withReadLockLight(1) { "manual_save" }
+        assertEquals("manual_save", result)
+    }
+
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `withReadLockLight - throws for invalid slot`() = runTest {
+        lockManager.withReadLockLight(99) { "invalid" }
+    }
+
+    // ==================== withWriteLockLight ====================
+
+    @Test
+    fun `withWriteLockLight - executes block and returns result`() = runTest {
+        val result = lockManager.withWriteLockLight(1) { 100 }
+        assertEquals(100, result)
+    }
+
+    @Test
+    fun `withWriteLockLight - executes block for all valid slots`() = runTest {
+        for (slot in 1..5) {
+            val result = lockManager.withWriteLockLight(slot) { slot * 10 }
+            assertEquals(slot * 10, result)
+        }
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `withWriteLockLight - throws for invalid slot`() = runTest {
+        lockManager.withWriteLockLight(-5) { "invalid" }
+    }
+
+    // ==================== Lock Statistics ====================
+
+    @Test
+    fun `getLockStats - initial stats have zero acquisitions`() {
+        val stats = lockManager.getLockStats(1)
+        assertEquals(0L, stats.totalAcquisitions)
+        assertEquals(0, stats.currentHoldCount)
+    }
+
+    @Test
+    fun `getLockStats - increments acquisition count after lock`() = runTest {
+        lockManager.withReadLockLight(1) { /* no-op */ }
+        val stats = lockManager.getLockStats(1)
+        assertEquals(1L, stats.totalAcquisitions)
+    }
+
+    @Test
+    fun `getLockStats - increments acquisition count for each lock operation`() = runTest {
+        lockManager.withReadLockLight(2) { /* no-op */ }
+        lockManager.withWriteLockLight(2) { /* no-op */ }
+        lockManager.withReadLockLight(2) { /* no-op */ }
+        val stats = lockManager.getLockStats(2)
+        assertEquals(3L, stats.totalAcquisitions)
+    }
+
+    @Test
+    fun `getLockStats - currentHoldCount is 0 after lock released`() = runTest {
+        lockManager.withWriteLockLight(3) { /* no-op */ }
+        assertEquals(0, lockManager.getLockStats(3).currentHoldCount)
+    }
+
+    // ==================== isSlotLocked ====================
+
+    @Test
+    fun `isSlotLocked - returns false when no lock held`() {
+        assertFalse(lockManager.isSlotLocked(1))
+    }
+
+    @Test
+    fun `isSlotLocked - returns false after lock released`() = runTest {
+        lockManager.withReadLockLight(1) { /* no-op */ }
+        assertFalse(lockManager.isSlotLocked(1))
+    }
+
+    // ==================== clearAllLocks ====================
+
+    @Test
+    fun `clearAllLocks - resets all statistics`() = runTest {
+        lockManager.withReadLockLight(1) { /* no-op */ }
+        lockManager.withWriteLockLight(2) { /* no-op */ }
+        lockManager.clearAllLocks()
+        assertEquals(0L, lockManager.getLockStats(1).totalAcquisitions)
+        assertEquals(0L, lockManager.getLockStats(2).totalAcquisitions)
+    }
+
+    // ==================== withMultipleReadLocksSuspend ====================
+
+    @Test
+    fun `withMultipleReadLocksSuspend - acquires multiple slots and executes block`() = runTest {
+        val result = lockManager.withMultipleReadLocksSuspend(listOf(1, 2, 3)) {
+            "multi_read"
+        }
+        assertEquals("multi_read", result)
+    }
+
+    @Test
+    fun `withMultipleReadLocksSuspend - works with empty list`() = runTest {
+        val result = lockManager.withMultipleReadLocksSuspend(emptyList()) {
+            "empty"
+        }
+        assertEquals("empty", result)
+    }
+
+    @Test
+    fun `withMultipleReadLocksSuspend - works with single slot`() = runTest {
+        val result = lockManager.withMultipleReadLocksSuspend(listOf(1)) {
+            "single"
+        }
+        assertEquals("single", result)
+    }
+
+    // ==================== withMultipleWriteLocksSuspend ====================
+
+    @Test
+    fun `withMultipleWriteLocksSuspend - acquires multiple slots and executes block`() = runTest {
+        val result = lockManager.withMultipleWriteLocksSuspend(listOf(1, 2)) {
+            "multi_write"
+        }
+        assertEquals("multi_write", result)
+    }
+
+    // ==================== Global Lock ====================
+
+    @Test
+    fun `withGlobalReadLockLight - executes block`() = runTest {
+        val result = lockManager.withGlobalReadLockLight { "global_read" }
+        assertEquals("global_read", result)
+    }
+
+    @Test
+    fun `withGlobalWriteLockLight - executes block`() = runTest {
+        val result = lockManager.withGlobalWriteLockLight { "global_write" }
+        assertEquals("global_write", result)
+    }
+
+    // ==================== Companion constants ====================
+
+
+
+    // ==================== LockStats data class ====================
+
+    @Test
+    fun `LockStats - constructor sets fields correctly`() {
+        val stats = LockStats(totalAcquisitions = 10L, currentHoldCount = 2, queuedRequests = 3)
+        assertEquals(10L, stats.totalAcquisitions)
+        assertEquals(2, stats.currentHoldCount)
+        assertEquals(3, stats.queuedRequests)
+    }
+
+}

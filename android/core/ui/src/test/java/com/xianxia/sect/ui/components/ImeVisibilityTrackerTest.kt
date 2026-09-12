@@ -1,0 +1,234 @@
+package com.xianxia.sect.ui.components
+
+import android.app.Activity
+import android.view.View
+import androidx.core.graphics.Insets
+import androidx.core.view.WindowInsetsCompat
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+/**
+ * ImeVisibilityTracker 键盘可见性跟踪测试（多窗口语义）：
+ * 状态翻转、透传不消费、attach 幂等、多窗口独立状态、detach 清理、翻转回调。
+ *
+ * 可见性提取通过注入 [ImeVisibilityTracker.imeVisibilityExtractor] 控制——
+ * Robolectric 对 android.view.WindowInsets 的 ime 类型支持不全，
+ * 状态机逻辑与框架 insets 解析解耦验证（提取函数默认实现为
+ * androidx.core 官方 isVisible，真机可靠）。
+ */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
+class ImeVisibilityTrackerTest {
+
+    private val activity: Activity by lazy {
+        Robolectric.buildActivity(Activity::class.java).setup().get()
+    }
+
+    @After
+    fun tearDown() {
+        ImeVisibilityTracker.resetForTest()
+    }
+
+    private fun imeInsetsWith(height: Int): WindowInsetsCompat =
+        WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, height))
+            .build()
+
+    @Test
+    fun `onInsetsApplied - 键盘弹出时状态翻转为可见`() {
+        ImeVisibilityTracker.attach(activity.window)
+        assertFalse(ImeVisibilityTracker.isImeVisible)
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(200), activity.window)
+        assertTrue(ImeVisibilityTracker.isImeVisible)
+        assertTrue("窗口级查询应同步为可见", ImeVisibilityTracker.isImeVisibleFor(activity.window))
+    }
+
+    @Test
+    fun `onInsetsApplied - 键盘收起时状态翻转为不可见`() {
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(200), activity.window)
+        ImeVisibilityTracker.imeVisibilityExtractor = { false }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
+        assertFalse(ImeVisibilityTracker.isImeVisible)
+        assertFalse("窗口级查询应同步为不可见", ImeVisibilityTracker.isImeVisibleFor(activity.window))
+    }
+
+    @Test
+    fun `onInsetsApplied - 可见性未变化时不翻转状态`() {
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.setImeVisibleForTest(true)
+        // 提取结果与当前状态一致（均可见）→ 状态保持，无翻转
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(100), activity.window)
+        assertTrue(ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `onInsetsApplied - 透传返回原 insets 引用不消费`() {
+        ImeVisibilityTracker.attach(activity.window)
+        val insets = imeInsetsWith(300)
+        val result = ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertEquals("insets 应原样透传给 View 分发链", insets, result)
+    }
+
+    @Test
+    fun `attach - 同一窗口重复 attach 幂等且仅追加回调`() {
+        var flipCount = 0
+        ImeVisibilityTracker.attach(activity.window) { flipCount++ }
+        ImeVisibilityTracker.attach(activity.window) { flipCount++ }
+        // 不抛异常即幂等成立；insets 分发仍可正常更新状态，且两次回调均已注册
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(150), activity.window)
+        assertTrue(ImeVisibilityTracker.isImeVisible)
+        assertEquals("重复 attach 只追加回调不重装监听", 1, ImeVisibilityTracker.windowCountForTest())
+        assertEquals("两个翻转回调均应触发", 2, flipCount)
+    }
+
+    @Test
+    fun `多窗口 - 任一窗口键盘可见全局为真且状态独立`() {
+        val dialogActivity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.attach(dialogActivity.window)
+        assertEquals(2, ImeVisibilityTracker.windowCountForTest())
+
+        // Dialog 窗口键盘弹出（Activity 窗口无键盘）
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(
+            View(dialogActivity), imeInsetsWith(200), dialogActivity.window
+        )
+        assertTrue("任一窗口键盘可见 → 全局可见", ImeVisibilityTracker.isImeVisible)
+        assertTrue(ImeVisibilityTracker.isImeVisibleFor(dialogActivity.window))
+        assertFalse("Activity 窗口自身应仍不可见", ImeVisibilityTracker.isImeVisibleFor(activity.window))
+
+        // 另一窗口状态翻转不影响本窗口
+        ImeVisibilityTracker.imeVisibilityExtractor = { false }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
+        assertTrue("Dialog 窗口仍可见 → 全局保持可见", ImeVisibilityTracker.isImeVisible)
+
+        // Dialog 窗口键盘收起 → 全局回落
+        ImeVisibilityTracker.onInsetsApplied(View(dialogActivity), imeInsetsWith(0), dialogActivity.window)
+        assertFalse(ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `detach - 解除跟踪后条目移除且全局回落`() {
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(200), activity.window)
+        assertTrue(ImeVisibilityTracker.isImeVisible)
+
+        ImeVisibilityTracker.detach(activity.window)
+        assertEquals(0, ImeVisibilityTracker.windowCountForTest())
+        assertFalse("窗口销毁后全局应回落为不可见", ImeVisibilityTracker.isImeVisible)
+        assertFalse(ImeVisibilityTracker.isImeVisibleFor(activity.window))
+    }
+
+    @Test
+    fun `attach - 翻转回调在窗口状态翻转时触发且无变化不触发`() {
+        var flipCount = 0
+        ImeVisibilityTracker.attach(activity.window) { flipCount++ }
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(200), activity.window)
+        assertEquals(1, flipCount)
+        ImeVisibilityTracker.imeVisibilityExtractor = { false }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
+        assertEquals(2, flipCount)
+        // 可见性无变化 → 不触发回调
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
+        assertEquals(2, flipCount)
+    }
+
+    // ── isVisible 真值判定（M6）──
+    // 默认提取器 = isVisible(ime)（API 30+ 唯一真值；bottom>0 仅 API<30 兜底）：
+    // bottom>0 在键盘隐藏/动画/兼容模式下仍可能非零，误判是"界面反复下拉/
+    // 错误恢复"的头号来源（docs/ime-android-system-research.md M6）。
+
+    @Test
+    fun `isVisible 真值 - API30 以上 isVisible 为 false 且 bottom 大于 0 时判为不可见`() {
+        ImeVisibilityTracker.attach(activity.window)
+        // 不注入提取器，直接验证默认实现（Robolectric sdk 34 → API 30+ 路径）
+        val insets = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 200))
+            .setVisible(WindowInsetsCompat.Type.ime(), false)
+            .build()
+        ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertFalse("API30+ 必须以 isVisible 为真值，bottom>0 不得误判可见", ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `isVisible 真值 - isVisible 为 true 且底部高度为 0 时判为可见`() {
+        ImeVisibilityTracker.attach(activity.window)
+        val insets = WindowInsetsCompat.Builder()
+            .setVisible(WindowInsetsCompat.Type.ime(), true)
+            .build()
+        ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertTrue("可见性标志为真值应判可见", ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `isVisible 真值 - API29 以下 bottom 大于 0 兜底判为可见`() {
+        // @Config(sdk=[29]) 单独用例验证 API<30 兜底路径
+        val insets = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 200))
+            .setVisible(WindowInsetsCompat.Type.ime(), false)
+            .build()
+        // 直接驱动提取函数（API 分支由 Build.VERSION 决定，Robolectric sdk 34 下走 30+ 路径；
+        // API<30 兜底语义由 defaultImeVisibilityExtractor 的 else 分支保证，此处注入验证）
+        ImeVisibilityTracker.imeVisibilityExtractor = {
+            it.getInsets(WindowInsetsCompat.Type.ime()).bottom > 0
+        }
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.onInsetsApplied(View(activity), insets, activity.window)
+        assertTrue("API<30 兜底：bottom>0 应判可见", ImeVisibilityTracker.isImeVisible)
+    }
+
+    @Test
+    fun `lastImeBottomPx - insets 回调更新为最近一次平台报告`() {
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(300), activity.window)
+        assertEquals("应记录最近平台报告的 IME 高度", 300, ImeVisibilityTracker.lastImeBottomPx)
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(0), activity.window)
+        assertEquals("键盘收起应记录 0", 0, ImeVisibilityTracker.lastImeBottomPx)
+    }
+
+    @Test
+    fun `imeBottomFor - 按窗口隔离不跨窗口污染`() {
+        val dialogActivity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        ImeVisibilityTracker.attach(activity.window)
+        ImeVisibilityTracker.attach(dialogActivity.window)
+
+        // 仅 Dialog 窗口收到 400px 报告；Activity 窗口高度保持 0
+        ImeVisibilityTracker.onInsetsApplied(
+            View(dialogActivity), imeInsetsWith(400), dialogActivity.window
+        )
+        assertEquals("Dialog 窗口按自身报告取值", 400, ImeVisibilityTracker.imeBottomFor(dialogActivity.window))
+        assertEquals("Activity 窗口不得被 Dialog 窗口高度污染", 0, ImeVisibilityTracker.imeBottomFor(activity.window))
+        // 未跟踪窗口（null/外部）回退全局聚合值（兼容语义）
+        assertEquals(400, ImeVisibilityTracker.imeBottomFor(null))
+    }
+
+    @Test
+    fun `removeOnFlip - 移除指定翻转回调后不再触发`() {
+        var aCount = 0
+        var bCount = 0
+        val listenerA: () -> Unit = { aCount++ }
+        val listenerB: () -> Unit = { bCount++ }
+        ImeVisibilityTracker.attach(activity.window, listenerA)
+        ImeVisibilityTracker.attach(activity.window, listenerB)
+        ImeVisibilityTracker.removeOnFlip(activity.window, listenerA)
+
+        ImeVisibilityTracker.imeVisibilityExtractor = { true }
+        ImeVisibilityTracker.onInsetsApplied(View(activity), imeInsetsWith(200), activity.window)
+        assertEquals("已移除的监听器不应触发", 0, aCount)
+        assertEquals(1, bCount)
+    }
+}

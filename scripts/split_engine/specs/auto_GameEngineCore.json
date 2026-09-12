@@ -1,0 +1,64 @@
+{
+ "files": [
+  {
+   "name": "GameEngineCoreDomainOps",
+   "header": "// ── GameEngineCore 拆分域（行为零变更） ──",
+   "fns": [
+    "performEmergencyRestart",
+    "stopWatchdog",
+    "transitionLoopPhase",
+    "pause",
+    "resume",
+    "pauseForBackground",
+    "resumeFromBackground",
+    "clearBackgroundPauseFlag",
+    "onUserInteraction",
+    "tickInternal",
+    "skipTickIfNeeded",
+    "setObservedRenderFps"
+   ]
+  },
+  {
+   "name": "GameEngineCore更新Ops",
+   "header": "// ── GameEngineCore 拆分域（行为零变更） ──",
+   "fns": [
+    "updateRenderFrameRate",
+    "emergencyRestartGameLoop"
+   ]
+  },
+  {
+   "name": "GameEngineCore属性Ops",
+   "header": "// ── GameEngineCore 拆分域（行为零变更） ──",
+   "fns": [
+    "scopeForStateIn",
+    "checkAndResetStuckStates",
+    "watchdogForceResetStuckStates",
+    "forceResetStuckStates"
+   ]
+  },
+  {
+   "name": "GameEngineCore境界Ops",
+   "header": "// ── GameEngineCore 拆分域（行为零变更） ──",
+   "fns": [
+    "pauseForSecretRealm",
+    "resumeFromSecretRealm",
+    "renewSecretRealmPauseLease"
+   ]
+  },
+  {
+   "name": "GameEngineCore处理Ops",
+   "header": "// ── GameEngineCore 拆分域（行为零变更） ──",
+   "fns": [
+    "processMonthYearChange"
+   ]
+  },
+  {
+   "name": "GameEngineCore加载Ops",
+   "header": "// ── GameEngineCore 拆分域（行为零变更） ──",
+   "fns": [
+    "registerActiveLoadJob",
+    "clearActiveLoadJob"
+   ]
+  }
+ ]
+}

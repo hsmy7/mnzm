@@ -1,0 +1,336 @@
+package com.xianxia.sect.core.engine.domain.exploration
+
+import com.xianxia.sect.core.util.ItemNames
+
+import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.CultivatorCave
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.hpVariance
+import com.xianxia.sect.core.model.speedVariance
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.weaponId
+import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.engine.generateRandomEquipment
+
+
+
+
+
+
+object CaveExplorationSystem {
+    /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
+
+    fun createGuardianBattle(
+        playerDisciples: List<Disciple>,
+        playerEquipmentMap: Map<String, EquipmentInstance>,
+        playerManualMap: Map<String, ManualInstance>,
+        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        cave: CultivatorCave,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
+    ): Battle {
+        val playerCombatants = buildPlayerCombatants(
+            playerDisciples = playerDisciples,
+            playerEquipmentMap = playerEquipmentMap,
+            playerManualMap = playerManualMap,
+            playerManualProficiencies = playerManualProficiencies,
+            bloodRefinementMap = bloodRefinementMap
+        )
+
+        val guardianRealm = (cave.ownerRealm - 1).coerceIn(0, 9)
+        val guardianCount = when {
+            cave.ownerRealm <= 2 -> 4 + rng.nextInt(3)
+            cave.ownerRealm <= 4 -> 3 + rng.nextInt(3)
+            else -> 2 + rng.nextInt(3)
+        }
+        val hasBoss = cave.ownerRealm <= 3 && rng.nextDouble() < 0.3
+        val guardians = (1..guardianCount).mapIndexed { index, _ ->
+            val isBoss = hasBoss && index == 0
+            createGuardian(guardianRealm, index, isBoss)
+        }
+
+        return Battle(
+            team = playerCombatants,
+            beasts = guardians,
+            turn = 0,
+            isFinished = false,
+            winner = null,
+            maxTurns = Int.MAX_VALUE
+        )
+    }
+
+    /** 玩家弟子 → 参战单位 */
+    @Suppress("CyclomaticComplexMethod")
+    private fun buildPlayerCombatants(
+        playerDisciples: List<Disciple>,
+        playerEquipmentMap: Map<String, EquipmentInstance>,
+        playerManualMap: Map<String, ManualInstance>,
+        playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal>
+    ): List<Combatant> = playerDisciples.map { disciple ->
+        val discipleEquipment = buildMap {
+            disciple.equipment.weaponId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            disciple.equipment.armorId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            disciple.equipment.bootsId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+            disciple.equipment.accessoryId?.let { id -> playerEquipmentMap[id]?.let { put(id, it) } }
+        }
+        val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
+        val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
+        val stats = disciple.getFinalStats(
+            discipleEquipment, discipleManuals, discipleProficiencies,
+            bloodRefinementMap[disciple.id]
+        )
+        val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp
+            .coerceAtMost(stats.maxHp)
+        val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp
+            .coerceAtMost(stats.maxMp)
+        val skills = disciple.manualIds.mapNotNull { manualId ->
+            val manual = discipleManuals[manualId] ?: return@mapNotNull null
+            val proficiencyData = discipleProficiencies[manualId]
+            val masteryLevel = proficiencyData?.masteryLevel ?: 0
+            val baseSkill = manual.skill ?: return@mapNotNull null
+            val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
+                baseSkill.damageMultiplier,
+                masteryLevel
+            )
+            baseSkill.copy(
+                damageMultiplier = adjustedMultiplier
+            ).toCombatSkill(manualName = manual.name)
+        }
+        Combatant(
+            id = disciple.id,
+            name = disciple.name,
+            side = CombatantSide.DEFENDER,
+            hp = effectiveHp,
+            maxHp = stats.maxHp,
+            mp = effectiveMp,
+            maxMp = stats.maxMp,
+            physicalAttack = stats.physicalAttack,
+            magicAttack = stats.magicAttack,
+            physicalDefense = stats.physicalDefense,
+            magicDefense = stats.magicDefense,
+            speed = stats.speed,
+            critRate = stats.critRate,
+            skills = skills,
+            realm = disciple.realm,
+            realmName = disciple.realmName,
+            realmLayer = disciple.realmLayer,
+            element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
+        )
+    }
+
+    private fun createGuardian(realm: Int, index: Int, isBoss: Boolean = false): Combatant {
+        val realmIndex = realm.coerceIn(0, 9)
+        val stats = GameConfig.Beast.getRealmStats(realmIndex)
+        val beastType = GameConfig.Beast.TYPES[rng.nextInt(GameConfig.Beast.TYPES.size)]
+        /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
+        val realmLayer = 1 + rng.nextInt(9)
+        val layerMult = 1.0 + (realmLayer - 1) * 0.1
+
+        val hpVariance = -0.2 + rng.nextDouble() * 0.4
+        val atkVariance = -0.2 + rng.nextDouble() * 0.4
+        val defVariance = -0.2 + rng.nextDouble() * 0.4
+        val speedVariance = -0.2 + rng.nextDouble() * 0.4
+
+        val bossMultiplier = if (isBoss) 2.5 else 1.0
+
+        val hp = (stats.hp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
+        val mp = (stats.mp * layerMult * (beastType.hpMod + hpVariance) * bossMultiplier).toInt()
+        val physicalAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
+        val magicAttack = (stats.attack * layerMult * (beastType.atkMod + atkVariance) * bossMultiplier).toInt()
+        val physicalDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
+        val magicDefense = (stats.defense * layerMult * (beastType.defMod + defVariance) * bossMultiplier).toInt()
+        val speed = (stats.speed * layerMult * (beastType.speedMod + speedVariance) * bossMultiplier).toInt()
+
+        val beastSkills = createBeastSkills(beastType = beastType)
+
+        val guardianName =
+            if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "守护兽·${beastType.prefix}${beastType.name}"
+
+        return Combatant(
+            id = if (isBoss) "guardian_boss_$index" else "guardian_$index",
+            name = guardianName,
+            side = CombatantSide.ATTACKER,
+            hp = hp,
+            maxHp = hp,
+            mp = mp,
+            maxMp = mp,
+            physicalAttack = physicalAttack,
+            magicAttack = magicAttack,
+            physicalDefense = physicalDefense,
+            magicDefense = magicDefense,
+            speed = speed,
+            critRate = 0.05 + realmIndex * 0.01 + if (isBoss) 0.1 else 0.0,
+            skills = beastSkills,
+            realm = realmIndex,
+            realmName = GameConfig.Realm.getName(realmIndex),
+            realmLayer = realmLayer,
+            element = beastType.element,
+            isBeast = true
+        )
+    }
+
+    /** 守护兽技能映射 */
+    private fun createBeastSkills(beastType: GameConfig.BeastTypeConfig): List<CombatSkill> =
+        beastType.skills.map { skillConfig ->
+            CombatSkill(
+                name = skillConfig.name,
+                skillType = skillConfig.skillType,
+                damageType = skillConfig.damageType,
+                damageMultiplier = skillConfig.damageMultiplier,
+                mpCost = skillConfig.mpCost,
+                cooldown = skillConfig.cooldown,
+                hits = skillConfig.hits,
+                healPercent = skillConfig.healPercent,
+                healFixed = skillConfig.healFixed,
+                healType = skillConfig.healType,
+                buffType = skillConfig.buffType,
+                buffValue = skillConfig.buffValue,
+                buffDuration = skillConfig.buffDuration,
+                buffs = skillConfig.buffs,
+                isAoe = skillConfig.isAoe,
+                targetScope = skillConfig.targetScope,
+                shieldPercent = skillConfig.shieldPercent,
+                turnAdvancePercent = skillConfig.turnAdvancePercent,
+                damageSharePercent = skillConfig.damageSharePercent,
+                damageLinkPercent = skillConfig.damageLinkPercent,
+                skillDescription = skillConfig.skillDescription
+            )
+        }
+
+    fun generateVictoryRewards(cave: CultivatorCave): CaveRewards {
+        val rewards = mutableListOf<CaveRewardItem>()
+        
+        val spiritStones = 800 + rng.nextInt(4201)
+        rewards.add(CaveRewardItem(
+            type = "spiritStones",
+            name = ItemNames.SPIRIT_STONE,
+            quantity = spiritStones
+        ))
+        
+        val rarityRange = CaveGenerator.getRarityRangeForCave(cave.ownerRealm)
+        
+        val itemTypes = listOf("pill", "equipment", "manual").shuffled(java.util.Random(rng.nextInt().toLong())).take(2)
+        
+        itemTypes.forEach { type ->
+            val rarity = rarityRange[rng.nextInt(rarityRange.size)]
+            val quantity = 1 + rng.nextInt(3)
+            
+            val item = when (type) {
+                "pill" -> generateRandomPill(rarity)
+                "equipment" -> generateRandomEquipment(rarity)
+                "manual" -> generateRandomManual(rarity)
+                else -> null
+            }
+            
+            if (item != null) {
+                rewards.add(CaveRewardItem(
+                    type = type,
+                    name = item.name,
+                    quantity = quantity,
+                    rarity = rarity,
+                    itemId = item.itemId
+                ))
+            }
+        }
+        
+        return CaveRewards(
+            caveId = cave.id,
+            caveName = cave.name,
+            items = rewards
+        )
+    }
+    
+    private fun generateRandomPill(rarity: Int): CaveRewardItem? {
+        var currentRarity = rarity
+        while (currentRarity >= 1) {
+            val recipes = PillRecipeDatabase.getRecipesByTier(currentRarity)
+            if (recipes.isNotEmpty()) {
+                val recipe = recipes[rng.nextInt(recipes.size)]
+                return CaveRewardItem(
+                    type = "pill",
+                    name = recipe.name,
+                    quantity = 1,
+                    rarity = currentRarity,
+                    itemId = recipe.id
+                )
+            }
+            currentRarity--
+        }
+        return null
+    }
+    
+    private fun generateRandomEquipment(rarity: Int): CaveRewardItem? {
+        var currentRarity = rarity
+        while (currentRarity >= 1) {
+            val allEquipment = EquipmentDatabase.weapons.values.filter { it.rarity == currentRarity } +
+                               EquipmentDatabase.armors.values.filter { it.rarity == currentRarity } +
+                               EquipmentDatabase.boots.values.filter { it.rarity == currentRarity } +
+                               EquipmentDatabase.accessories.values.filter { it.rarity == currentRarity }
+            
+            if (allEquipment.isNotEmpty()) {
+                val template = allEquipment[rng.nextInt(allEquipment.size)]
+                return CaveRewardItem(
+                    type = "equipment",
+                    name = template.name,
+                    quantity = 1,
+                    rarity = currentRarity,
+                    itemId = template.id
+                )
+            }
+            currentRarity--
+        }
+        return null
+    }
+    
+    private fun generateRandomManual(rarity: Int): CaveRewardItem? {
+        var currentRarity = rarity
+        while (currentRarity >= 1) {
+            val allManuals = ManualDatabase.getByRarity(currentRarity)
+            
+            if (allManuals.isNotEmpty()) {
+                val template = allManuals[rng.nextInt(allManuals.size)]
+                return CaveRewardItem(
+                    type = "manual",
+                    name = template.name,
+                    quantity = 1,
+                    rarity = currentRarity,
+                    itemId = template.id
+                )
+            }
+            currentRarity--
+        }
+        return null
+    }
+}
+
+data class CaveRewards(
+    val caveId: String,
+    val caveName: String,
+    val items: List<CaveRewardItem>
+)
+
+data class CaveRewardItem(
+    val type: String,
+    val name: String,
+    val quantity: Int,
+    val rarity: Int = 1,
+    val itemId: String = ""
+)

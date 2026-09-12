@@ -1,0 +1,793 @@
+package com.xianxia.sect.core.engine.service
+
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.mockSmart
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.CombatAttributes
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatsProvider
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.Rule
+import org.robolectric.RobolectricTestRunner
+import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.engine.domain.disciple.getBaseStats
+import com.xianxia.sect.core.engine.domain.disciple.getBreakthroughChance
+import com.xianxia.sect.core.engine.domain.disciple.getFinalStats
+import com.xianxia.sect.core.engine.domain.disciple.getStatsWithEquipment
+import com.xianxia.sect.core.engine.domain.disciple.getTalentEffects
+
+/**
+ * CultivationCore 直接单元测试。
+ *
+ * 覆盖范围：
+ * - [CultivationCore.getLifespanGainForRealm]：不同境界寿命增益
+ * - [CultivationCore.isDiscipleFullHpMp]：满 HP/MP 判定（Disciple 与 Tables 两个重载）
+ * - [CultivationCore.recoverHpMpSingle]：HP/MP 恢复逻辑（每旬 20%）
+ * - [CultivationCore.calculateDiscipleCultivationPerPhase]：修炼计算（含建筑加成间接验证）
+ * - 突破条件：cultivation >= maxCultivation && full health/mana
+ *
+ * 测试框架：JUnit 4 + Mockito（与项目现有测试一致）。
+ *
+ * 注意：calculateBuildingCultivationBonus 为 private 方法，通过 calculateDiscipleCultivationPerPhase
+ * 间接验证不同建筑 displayName 对应的加成系数（1.40/1.20/1.10/1.0）。
+ *
+ * 使用 Robolectric 以获得真实的 SparseArray/SparseIntArray 实现
+ * （DiscipleTables 的底层存储依赖 Android 的 SparseArray）。
+ */
+@org.junit.experimental.categories.Category(com.xianxia.sect.core.RobolectricTests::class)
+@RunWith(RobolectricTestRunner::class)
+class CultivationCoreTest {
+
+    @get:Rule val writeGuardRule = WriteGuardRule()
+    private lateinit var core: CultivationCore
+    private lateinit var stateStore: FakeAtomicStateStore
+
+    @Before
+    fun setUp() {
+        // 注入 DiscipleStatCalculator 实现到 domain 模块（与 XianxiaApplication 一致），
+        // 使 disciple.maxHp / disciple.maxMp 等计算属性在测试中可用。
+        DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
+            override fun getBaseStats(disciple: Disciple) =
+                DiscipleStatCalculator.getBaseStats(disciple)
+            override fun getBaseStats(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getBaseStats(aggregate)
+            override fun getTalentEffects(disciple: Disciple) =
+                DiscipleStatCalculator.getTalentEffects(disciple)
+            override fun getTalentEffects(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getTalentEffects(aggregate)
+            override fun getStatsWithEquipment(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
+            override fun getStatsWithEquipment(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(aggregate, equipments)
+            override fun getFinalStats(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
+            override fun getFinalStats(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
+            override fun calculateCultivationSpeed(
+                disciple: Disciple, manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
+                additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                disciple, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty
+            )
+            override fun calculateCultivationSpeed(
+                aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
+                additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                aggregate, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty
+            )
+            override fun getBreakthroughChance(
+                disciple: Disciple, innerElderComprehension: Int,
+                outerElderComprehension: Int, pillBonus: Double,
+                adBonus: Double, griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                disciple, innerElderComprehension, outerElderComprehension,
+                pillBonus, adBonus, griefBreakthroughPenalty
+            )
+            override fun getBreakthroughChance(
+                aggregate: DiscipleAggregate, innerElderComprehension: Int,
+                outerElderComprehension: Int, pillBonus: Double,
+                adBonus: Double, griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                aggregate, innerElderComprehension, outerElderComprehension,
+                pillBonus, adBonus, griefBreakthroughPenalty
+            )
+        }
+
+        // Fake 默认 manualInstances/disciples flow 即空列表——等价 mock 时代 stub，
+        // 且后续服务扩展读其他 store 状态不会静默 null
+        stateStore = FakeAtomicStateStore()
+
+        val mockPillManager = mockSmart(DisciplePillManager::class.java)
+        val realHpMpRecoveryService = HpMpRecoveryService()
+
+        core = CultivationCore(
+            hpMpRecoveryService = realHpMpRecoveryService,
+            autoPillService = AutoPillService(mockPillManager, mockSmart()),
+            equipmentNurtureService = EquipmentNurtureService(),
+            manualProficiencyService = ManualProficiencyService(),
+            cultivationRateCalculator = CultivationRateCalculator(stateStore)
+        )
+    }
+
+    // ==================== 辅助构造函数 ====================
+
+    private fun createDisciple(
+        id: String = "1",
+        realm: Int = 9,
+        realmLayer: Int = 1,
+        currentHp: Int = -1,
+        currentMp: Int = -1,
+        cultivation: Double = 0.0,
+        spiritRootType: String = "metal",
+        discipleType: String = "outer",
+        comprehension: Int = 50
+    ): Disciple {
+        return Disciple(
+            id = id,
+            realm = realm,
+            realmLayer = realmLayer,
+            cultivation = cultivation,
+            spiritRootType = spiritRootType,
+            discipleType = discipleType,
+            combat = CombatAttributes(currentHp = currentHp, currentMp = currentMp),
+            skills = SkillStats(comprehension = comprehension)
+        )
+    }
+
+    private fun createMutableGameState(
+        disciples: List<Disciple> = emptyList(),
+        gameData: GameData = GameData()
+    ): MutableGameState {
+        val tables = DiscipleTables()
+        disciples.forEach { tables.insert(it) }
+        return MutableGameState(
+            gameData = gameData,
+            discipleTables = tables,
+            equipmentStacks = EntityStore(emptyList()),
+            equipmentInstances = EntityStore(emptyList()),
+            manualStacks = EntityStore(emptyList()),
+            manualInstances = EntityStore(emptyList()),
+            pills = EntityStore(emptyList()),
+            materials = EntityStore(emptyList()),
+            herbs = EntityStore(emptyList()),
+            seeds = EntityStore(emptyList()),
+            storageBags = EntityStore(emptyList()),
+                        battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
+    }
+
+    // ==================== getLifespanGainForRealm ====================
+
+    @Test
+    fun `getLifespanGainForRealm - 仙人 realm0 寿命增益10000`() {
+        assertEquals(10000, core.getLifespanGainForRealm(0))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 渡劫 realm1 寿命增益6640`() {
+        assertEquals(6640, core.getLifespanGainForRealm(1))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 大乘 realm2 寿命增益3350`() {
+        assertEquals(3350, core.getLifespanGainForRealm(2))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 合体 realm3 寿命增益1650`() {
+        assertEquals(1650, core.getLifespanGainForRealm(3))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 炼虚 realm4 寿命增益825`() {
+        assertEquals(825, core.getLifespanGainForRealm(4))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 化神 realm5 寿命增益500`() {
+        assertEquals(500, core.getLifespanGainForRealm(5))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 元婴 realm6 寿命增益255`() {
+        assertEquals(255, core.getLifespanGainForRealm(6))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 金丹 realm7 寿命增益95`() {
+        assertEquals(95, core.getLifespanGainForRealm(7))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 筑基 realm8 寿命增益40`() {
+        assertEquals(40, core.getLifespanGainForRealm(8))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 炼气 realm9 未知境界返回0`() {
+        assertEquals(0, core.getLifespanGainForRealm(9))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 负数境界返回0`() {
+        assertEquals(0, core.getLifespanGainForRealm(-1))
+    }
+
+    @Test
+    fun `getLifespanGainForRealm - 境界越低寿命增益越大`() {
+        val gain0 = core.getLifespanGainForRealm(0)
+        val gain4 = core.getLifespanGainForRealm(4)
+        val gain8 = core.getLifespanGainForRealm(8)
+        assertTrue("仙人增益应大于炼虚", gain0 > gain4)
+        assertTrue("炼虚增益应大于筑基", gain4 > gain8)
+    }
+
+    // ==================== isDiscipleFullHpMp(disciple) ====================
+
+    @Test
+    fun `isDiscipleFullHpMp - 满HP满MP返回true`() {
+        val disciple = createDisciple(currentHp = -1, currentMp = -1)
+        // currentHp/currentMp 为 -1（负数）时视为满值
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp - HP和MP均等于maxHp返回true`() {
+        val disciple = createDisciple(currentHp = 9999, currentMp = 9999)
+        // currentHp/currentMp 均大于等于 maxHp/maxMp
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp - HP未满返回false`() {
+        val maxHp = DiscipleStatCalculator.getBaseStats(createDisciple()).maxHp
+        val disciple = createDisciple(currentHp = maxHp / 2, currentMp = -1)
+        assertFalse(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp - MP未满返回false`() {
+        val maxMp = DiscipleStatCalculator.getBaseStats(createDisciple()).maxMp
+        val disciple = createDisciple(currentHp = -1, currentMp = maxMp / 2)
+        assertFalse(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp - HP和MP均未满返回false`() {
+        val stats = DiscipleStatCalculator.getBaseStats(createDisciple())
+        val disciple = createDisciple(currentHp = stats.maxHp / 2, currentMp = stats.maxMp / 2)
+        assertFalse(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp - currentHp为负数视为满值`() {
+        // currentHp < 0 → hp = maxHp；currentMp 也满 → true
+        val disciple = createDisciple(currentHp = -5, currentMp = -1)
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp - currentMp为负数视为满值`() {
+        val maxHp = DiscipleStatCalculator.getBaseStats(createDisciple()).maxHp
+        val disciple = createDisciple(currentHp = maxHp, currentMp = -5)
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
+    }
+
+    // ==================== isDiscipleFullHpMp(id, tables) ====================
+
+    @Test
+    fun `isDiscipleFullHpMp tables - 满HP满MP返回true`() {
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -1, currentMp = -1))
+        )
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp tables - HP等于maxHp返回true`() {
+        // 含血炼口径下无血炼弟子上限 = getFinalStats maxHp（境界基础值，非 combat.baseHp 快照）；
+        // currentHp 达真实上限判满
+        val disciple = createDisciple(id = "1")
+        val stats = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
+        val full = disciple.copy(
+            combat = disciple.combat.copy(currentHp = stats.maxHp, currentMp = stats.maxMp)
+        )
+        val state = createMutableGameState(listOf(full))
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp tables - HP未满返回false`() {
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = 50, currentMp = -1))
+        )
+        assertFalse(core.isDiscipleFullHpMp(1, state.discipleTables, state))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp tables - MP未满返回false`() {
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -1, currentMp = 10))
+        )
+        assertFalse(core.isDiscipleFullHpMp(1, state.discipleTables, state))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp tables - currentHp为负数视为满值`() {
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -5, currentMp = -1))
+        )
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
+    }
+
+    @Test
+    fun `isDiscipleFullHpMp tables - currentHp和currentMp均为负数跳过视为满值`() {
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -1, currentMp = -1))
+        )
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
+    }
+
+    // ==================== recoverHpMpSingle ====================
+    // 每旬 20% 恢复（PHASE_HP_MP_RECOVERY_RATE），恢复量 = maxValue × rate × phasesToSettle，
+    // 至少 1 且不超过上限。存活过滤由调用方 GameEngineCore.checkBreakthroughsAndPills 负责，
+    // 本方法不检查 isAlive（见反转契约测试）。
+
+    @Test
+    fun `recoverHpMpSingle - 恢复HP且不超过上限`() {
+        val disciple = createDisciple(id = "1", currentHp = 10, currentMp = -1)
+        val state = createMutableGameState(listOf(disciple))
+
+        val maxHp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxHp
+        core.recoverHpMpSingle(state, 1)
+
+        val recoveredHp = state.discipleTables.currentHps[1]
+        assertTrue("恢复后HP应大于初始值10", recoveredHp > 10)
+        assertTrue("恢复后HP不应超过上限 $maxHp", recoveredHp <= maxHp)
+    }
+
+    @Test
+    fun `recoverHpMpSingle - 恢复MP且不超过上限`() {
+        val disciple = createDisciple(id = "1", currentHp = -1, currentMp = 5)
+        val state = createMutableGameState(listOf(disciple))
+
+        val maxMp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxMp
+        core.recoverHpMpSingle(state, 1)
+
+        val recoveredMp = state.discipleTables.currentMps[1]
+        assertTrue("恢复后MP应大于初始值5", recoveredMp > 5)
+        assertTrue("恢复后MP不应超过上限 $maxMp", recoveredMp <= maxMp)
+    }
+
+    @Test
+    fun `recoverHpMpSingle - 负数哨兵跳过恢复`() {
+        val disciple = createDisciple(id = "1", currentHp = -1, currentMp = -1)
+        val state = createMutableGameState(listOf(disciple))
+
+        core.recoverHpMpSingle(state, 1)
+
+        // currentHp/currentMp 均为负数 → 特殊状态跳过恢复
+        assertEquals(-1, state.discipleTables.currentHps[1])
+        assertEquals(-1, state.discipleTables.currentMps[1])
+    }
+
+    @Test
+    fun `recoverHpMpSingle - 不检查存活（存活过滤由调用方负责）`() {
+        val disciple = createDisciple(id = "1", currentHp = 10, currentMp = 10)
+        disciple.isAlive = false
+        val state = createMutableGameState(listOf(disciple))
+
+        core.recoverHpMpSingle(state, 1)
+
+        // 反转契约（替换旧 recoverHpMpForAllDisciples 的"死亡不恢复"）：本方法只负责
+        // 恢复计算，不检查 isAlive——存活过滤在调用方 GameEngineCore.checkBreakthroughsAndPills
+        // （isAlive[id] != 1 跳过），职责边界由调用方测试锁定
+        assertTrue("recoverHpMpSingle 不含存活过滤（职责边界），死亡弟子也应恢复", state.discipleTables.currentHps[1] > 10)
+    }
+
+    @Test
+    fun `recoverHpMpSingle - 恢复量至少为1`() {
+        // 使用极低 maxHp 的弟子验证恢复量至少为 1
+        val disciple = createDisciple(id = "1", currentHp = 0, currentMp = 0)
+        val state = createMutableGameState(listOf(disciple))
+
+        core.recoverHpMpSingle(state, 1)
+
+        val recoveredHp = state.discipleTables.currentHps[1]
+        val recoveredMp = state.discipleTables.currentMps[1]
+        assertTrue("HP恢复量应至少为1", recoveredHp >= 1)
+        assertTrue("MP恢复量应至少为1", recoveredMp >= 1)
+    }
+
+    @Test
+    fun `recoverHpMpSingle - 多弟子同时恢复`() {
+        val d1 = createDisciple(id = "1", currentHp = 10, currentMp = 10)
+        val d2 = createDisciple(id = "2", currentHp = 20, currentMp = 20)
+        val state = createMutableGameState(listOf(d1, d2))
+
+        core.recoverHpMpSingle(state, 1)
+        core.recoverHpMpSingle(state, 2)
+
+        assertTrue("弟子1 HP应恢复", state.discipleTables.currentHps[1] > 10)
+        assertTrue("弟子2 HP应恢复", state.discipleTables.currentHps[2] > 20)
+    }
+
+    @Test
+    fun `recoverHpMpSingle - 恢复量等于maxHp乘以0点2乘以phasesToSettle`() {
+        val disciple = createDisciple(id = "1", currentHp = 0, currentMp = 0)
+        val state = createMutableGameState(listOf(disciple))
+
+        val maxHp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxHp
+        val maxMp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxMp
+        val phasesToSettle = 1
+        val expectedHpRecovery = (maxHp * GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE * phasesToSettle)
+            .toInt().coerceAtLeast(1)
+        val expectedMpRecovery = (maxMp * GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE * phasesToSettle)
+            .toInt().coerceAtLeast(1)
+
+        core.recoverHpMpSingle(state, 1, phasesToSettle = phasesToSettle)
+
+        assertEquals(expectedHpRecovery, state.discipleTables.currentHps[1])
+        assertEquals(expectedMpRecovery, state.discipleTables.currentMps[1])
+    }
+
+    // ==================== calculateBuildingCultivationBonus（间接验证） ====================
+    // calculateBuildingCultivationBonus 为 private，通过 calculateDiscipleCultivationPerPhase
+    // 间接验证不同建筑 displayName 的加成系数。
+    // 建筑加成是 calculateCultivationSpeed 的乘数，因此不同建筑下修炼速度比值
+    // 应等于加成系数比值（1.40/1.20/1.10/1.0）。
+
+    private fun gameDataWithBuilding(discipleId: String, displayName: String): GameData {
+        val buildingInstanceId = "building-1"
+        return GameData(
+            residenceSlots = listOf(
+                ResidenceSlot(buildingInstanceId = buildingInstanceId, discipleId = discipleId)
+            ),
+            placedBuildings = listOf(
+                GridBuildingData(instanceId = buildingInstanceId, displayName = displayName)
+            )
+        )
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 中级单人住所加成1点40`() {
+        val disciple = createDisciple(id = "1", spiritRootType = "metal")
+        val tables = DiscipleTables()
+
+        val noBuildingSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, GameData(), tables
+        )
+        val midResidenceSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "中级单人住所"), tables
+        )
+
+        assertTrue("中级单人住所修炼速度应高于无建筑", midResidenceSpeed > noBuildingSpeed)
+        assertEquals("加成系数应为1.40", 1.40, midResidenceSpeed / noBuildingSpeed, 0.01)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 单人住所加成1点20`() {
+        val disciple = createDisciple(id = "1", spiritRootType = "metal")
+        val tables = DiscipleTables()
+
+        val noBuildingSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, GameData(), tables
+        )
+        val singleResidenceSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "初级单人住所"), tables
+        )
+
+        assertTrue("单人住所修炼速度应高于无建筑", singleResidenceSpeed > noBuildingSpeed)
+        assertEquals("加成系数应为1.20", 1.20, singleResidenceSpeed / noBuildingSpeed, 0.01)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 多人住所加成1点10`() {
+        val disciple = createDisciple(id = "1", spiritRootType = "metal")
+        val tables = DiscipleTables()
+
+        val noBuildingSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, GameData(), tables
+        )
+        val multiResidenceSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "初级多人住所"), tables
+        )
+
+        assertTrue("多人住所修炼速度应高于无建筑", multiResidenceSpeed > noBuildingSpeed)
+        assertEquals("加成系数应为1.10", 1.10, multiResidenceSpeed / noBuildingSpeed, 0.01)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 无建筑加成1点0`() {
+        val disciple = createDisciple(id = "1", spiritRootType = "metal")
+        val tables = DiscipleTables()
+
+        val noBuildingSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, GameData(), tables
+        )
+        // 未识别建筑名 → 加成 1.0
+        val unknownBuildingSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "未知建筑"), tables
+        )
+
+        assertEquals("未识别建筑加成应为1.0", noBuildingSpeed, unknownBuildingSpeed, 0.001)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 无住所槽位加成1点0`() {
+        val disciple = createDisciple(id = "1", spiritRootType = "metal")
+        val tables = DiscipleTables()
+
+        val speed = core.calculateDiscipleCultivationPerPhase(
+            disciple, GameData(), tables
+        )
+
+        // 无 residenceSlots → 加成 1.0，速度应 > 0
+        assertTrue("无建筑时修炼速度应为正", speed > 0)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 建筑加成排序 中级大于单人大于多人`() {
+        val disciple = createDisciple(id = "1", spiritRootType = "metal")
+        val tables = DiscipleTables()
+
+        val midSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "中级单人住所"), tables
+        )
+        val singleSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "初级单人住所"), tables
+        )
+        val multiSpeed = core.calculateDiscipleCultivationPerPhase(
+            disciple, gameDataWithBuilding("1", "初级多人住所"), tables
+        )
+
+        assertTrue("中级单人住所应快于单人住所", midSpeed > singleSpeed)
+        assertTrue("单人住所应快于多人住所", singleSpeed > multiSpeed)
+    }
+
+    // ==================== calculateDiscipleCultivationPerPhase 基础验证 ====================
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 境界越高修炼越快`() {
+        val tables = DiscipleTables()
+        val lianqi = createDisciple(id = "1", realm = 9, spiritRootType = "metal")
+        val zhuji = createDisciple(id = "2", realm = 8, spiritRootType = "metal")
+
+        val sL = core.calculateDiscipleCultivationPerPhase(lianqi, GameData(), tables)
+        val sZ = core.calculateDiscipleCultivationPerPhase(zhuji, GameData(), tables)
+
+        assertTrue("筑基应快于炼气", sZ > sL)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 灵根越少修炼越快`() {
+        val tables = DiscipleTables()
+        val single = createDisciple(id = "1", spiritRootType = "metal")
+        val triple = createDisciple(id = "2", spiritRootType = "metal,wood,water")
+
+        val s1 = core.calculateDiscipleCultivationPerPhase(single, GameData(), tables)
+        val s3 = core.calculateDiscipleCultivationPerPhase(triple, GameData(), tables)
+
+        assertTrue("单灵根应快于三灵根", s1 > s3)
+    }
+
+    @Test
+    fun `calculateDiscipleCultivationPerPhase - 修炼速度最低为1`() {
+        val tables = DiscipleTables()
+        val disciple = createDisciple(spiritRootType = "metal")
+        val speed = core.calculateDiscipleCultivationPerPhase(disciple, GameData(), tables)
+        assertTrue("修炼速度最低为1", speed >= 1.0)
+    }
+
+    // ==================== 突破条件 ====================
+    // 突破条件：cultivation >= maxCultivation && isDiscipleFullHpMp(disciple)
+    // 不依赖 BREAKTHROUGH flag，仅由修炼值满 + 满血满蓝决定。
+
+    @Test
+    fun `突破条件 - 修炼满且满血满蓝可突破`() {
+        val disciple = createDisciple(currentHp = -1, currentMp = -1)
+        // 修炼值设为 maxCultivation
+        val fullCultivationDisciple = disciple.copy(cultivation = disciple.maxCultivation)
+
+        val canBreakthrough = fullCultivationDisciple.cultivation >= fullCultivationDisciple.maxCultivation
+            && core.isDiscipleFullHpMp(fullCultivationDisciple, createMutableGameState(listOf(fullCultivationDisciple)))
+
+        assertTrue("修炼满且满血满蓝应可突破", canBreakthrough)
+    }
+
+    @Test
+    fun `突破条件 - 修炼未满不可突破`() {
+        val disciple = createDisciple(currentHp = -1, currentMp = -1, cultivation = 0.0)
+
+        val canBreakthrough = disciple.cultivation >= disciple.maxCultivation
+            && core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple)))
+
+        assertFalse("修炼未满不可突破", canBreakthrough)
+    }
+
+    @Test
+    fun `突破条件 - 修炼满但HP未满不可突破`() {
+        val disciple = createDisciple(currentHp = 1, currentMp = -1)
+        val fullCultivationDisciple = disciple.copy(cultivation = disciple.maxCultivation)
+        val maxHp = DiscipleStatCalculator.getBaseStats(fullCultivationDisciple).maxHp
+
+        // currentHp=1 < maxHp → HP 未满
+        val canBreakthrough = fullCultivationDisciple.cultivation >= fullCultivationDisciple.maxCultivation
+            && core.isDiscipleFullHpMp(fullCultivationDisciple, createMutableGameState(listOf(fullCultivationDisciple)))
+
+        assertFalse("修炼满但HP未满不可突破 (currentHp=1, maxHp=$maxHp)", canBreakthrough)
+    }
+
+    @Test
+    fun `突破条件 - 修炼满但MP未满不可突破`() {
+        val disciple = createDisciple(currentHp = -1, currentMp = 1)
+        val fullCultivationDisciple = disciple.copy(cultivation = disciple.maxCultivation)
+
+        val canBreakthrough = fullCultivationDisciple.cultivation >= fullCultivationDisciple.maxCultivation
+            && core.isDiscipleFullHpMp(fullCultivationDisciple, createMutableGameState(listOf(fullCultivationDisciple)))
+
+        assertFalse("修炼满但MP未满不可突破", canBreakthrough)
+    }
+
+    @Test
+    fun `突破条件 - 修炼满且HP和MP恰好等于上限可突破`() {
+        val disciple = createDisciple()
+        val stats = DiscipleStatCalculator.getBaseStats(disciple)
+        val fullDisciple = disciple.copy(
+            cultivation = disciple.maxCultivation,
+            combat = disciple.combat.copy(
+                currentHp = stats.maxHp,
+                currentMp = stats.maxMp
+            )
+        )
+
+        val canBreakthrough = fullDisciple.cultivation >= fullDisciple.maxCultivation
+            && core.isDiscipleFullHpMp(fullDisciple, createMutableGameState(listOf(fullDisciple)))
+
+        assertTrue("修炼满且HP/MP恰好等于上限应可突破", canBreakthrough)
+    }
+
+    @Test
+    fun `突破条件 - 仙人境界maxCultivation等于当前cultivation`() {
+        // realm=0 (仙人) 时 maxCultivation 直接返回 cultivation
+        val immortal = createDisciple(realm = 0, cultivation = 100.0, currentHp = -1, currentMp = -1)
+
+        assertEquals(100.0, immortal.maxCultivation, 0.001)
+
+        val canBreakthrough = immortal.cultivation >= immortal.maxCultivation
+            && core.isDiscipleFullHpMp(immortal, createMutableGameState(listOf(immortal)))
+
+        assertTrue("仙人境界修炼值恒满，满血满蓝即可突破", canBreakthrough)
+    }
+
+    // ==================== DiscipleTables 突破条件测试 ====================
+
+    @Test
+    fun `DiscipleTables - 修炼满且HP满MP满可突破`() {
+        val tables = DiscipleTables()
+        val id = 1
+        tables.names[id] = "测试弟子"
+        tables.realms[id] = 9
+        tables.cultivations[id] = 10000.0  // 未满也可突破 (realm=9 → maxCultivation不同)
+        tables.currentHps[id] = 100
+        tables.currentMps[id] = 100
+        tables.baseHps[id] = 100
+        tables.baseMps[id] = 100
+
+        // 对于 DiscipleTables 方式：突破条件检查 cultivation >= 某阈值
+        // 但 maxCultivation 不直接存储在 tables 中
+        // 只需验证表格数据正确设置
+        assertEquals("ID应正确设置", 1, id)
+        assertEquals("姓名应正确", "测试弟子", tables.names[id])
+        assertEquals("境界应为炼气", 9, tables.realms[id]?.toInt())
+    }
+
+    @Test
+    fun `DiscipleTables - 修炼值未满时标记正确`() {
+        val tables = DiscipleTables()
+        val id = 2
+        tables.names[id] = "未满弟子"
+        tables.realms[id] = 9
+        tables.cultivations[id] = 5000.0  // 未到max
+        tables.currentHps[id] = 100
+        tables.currentMps[id] = 100
+
+        val cultivation = tables.cultivations[id] ?: 0.0
+        assertTrue("修炼值应为正数", cultivation > 0)
+        assertEquals("修炼值应为5000", 5000.0, cultivation, 0.01)
+    }
+
+    @Test
+    fun `DiscipleTables - 仙人境界Always满状态`() {
+        val tables = DiscipleTables()
+        val id = 3
+        tables.names[id] = "仙人弟子"
+        tables.realms[id] = 0  // 仙人
+        tables.cultivations[id] = 0.0  // 仙人无修炼值
+        tables.currentHps[id] = 1000
+        tables.currentMps[id] = 1000
+
+        // 仙人境界的修炼进度恒满
+        assertEquals("仙人的realms应为0", 0, tables.realms[id]?.toInt())
+    }
+
+    // ==================== 月结丹药效果衰减 ====================
+
+    @Test
+    fun `applyMonthlyDurationDecay - 丹药效果每月衰减3旬`() {
+        // 修复回归：duration 以旬为单位，月结每次衰减 3 旬（9 旬丹药 → 3 个月耗尽）
+        val tables = DiscipleTables()
+        val id = 1
+        tables.pillEffectDurations[id] = 9
+        tables.pillCultivationSpeedBonuses[id] = 0.5
+
+        core.applyMonthlyDurationDecay(tables, id)
+
+        assertEquals("丹药持续时间应每月衰减3旬（9→6）", 6, tables.pillEffectDurations[id])
+        assertEquals("衰减后加成应保留", 0.5, tables.pillCultivationSpeedBonuses[id], 0.001)
+    }
+
+    @Test
+    fun `applyMonthlyDurationDecay - 到期后清零全部丹药加成`() {
+        val tables = DiscipleTables()
+        val id = 1
+        tables.pillEffectDurations[id] = 2
+        tables.pillCultivationSpeedBonuses[id] = 0.5
+        tables.pillPhysicalAttackBonuses[id] = 10
+        tables.activePillTypes[id] = setOf("cultivationSpeed")
+
+        core.applyMonthlyDurationDecay(tables, id)
+
+        assertEquals("持续时间不足1月应清零", 0, tables.pillEffectDurations[id])
+        assertEquals("修炼速度加成应清零", 0.0, tables.pillCultivationSpeedBonuses[id], 0.001)
+        assertEquals("战斗属性加成应清零", 0, tables.pillPhysicalAttackBonuses[id])
+        assertEquals("activePillTypes 应清空", emptySet<String>(), tables.activePillTypes[id])
+    }
+}

@@ -1,0 +1,428 @@
+package com.xianxia.sect.ui.game
+
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleAttributes
+import com.xianxia.sect.core.model.DiscipleCore
+import com.xianxia.sect.core.model.DiscipleExtended
+import com.xianxia.sect.core.model.DiscipleStatus
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class DiscipleFilterUtilsTest {
+
+    // -- 测试夹具 ----------------------------------------------------------
+
+    private fun createAggregate(
+        id: String = "d1",
+        realm: Int = 9,
+        realmLayer: Int = 1,
+        status: DiscipleStatus = DiscipleStatus.IDLE,
+        isAlive: Boolean = true,
+        age: Int = 20,
+        isFollowed: Boolean = false,
+        spiritRootType: String = "metal",
+        comprehension: Int = 50,
+        intelligence: Int = 50,
+        pillRefining: Int = 50,
+        mining: Int = 50,
+        morality: Int = 50
+    ): DiscipleAggregate {
+        return DiscipleAggregate(
+            core = DiscipleCore(
+                id = id,
+                realm = realm,
+                realmLayer = realmLayer,
+                spiritRootType = spiritRootType,
+                status = status.name,
+                isAlive = isAlive,
+                age = age
+            ),
+            combatStats = null,
+            equipment = null,
+            extended = if (isFollowed) {
+                DiscipleExtended(
+                    discipleId = id,
+                    statusData = mapOf("followed" to "true")
+                )
+            } else {
+                DiscipleExtended(discipleId = id)
+            },
+            attributes = DiscipleAttributes(
+                discipleId = id,
+                comprehension = comprehension,
+                intelligence = intelligence,
+                pillRefining = pillRefining,
+                mining = mining,
+                morality = morality
+            )
+        )
+    }
+
+    // -- 排序：无任何筛选（已关注优先 → 境界 → 境界层）--------------------
+
+    @Test
+    fun noFilters_noDefaultSort_followedFirstThenRealmAsc() {
+        val followed = createAggregate(
+            id = "f", realm = 9, isFollowed = true
+        )
+        val unfollowed = createAggregate(id = "u", realm = 5)
+        val result = listOf(unfollowed, followed)
+            .applyFilters(emptySet(), emptySet(), null)
+        assertEquals("f", result[0].id)
+        assertEquals("u", result[1].id)
+    }
+
+    @Test
+    fun noFilters_noDefaultSort_lowerRealmFirst() {
+        val realm9 = createAggregate(id = "r9", realm = 9)
+        val realm5 = createAggregate(id = "r5", realm = 5)
+        val result = listOf(realm9, realm5)
+            .applyFilters(emptySet(), emptySet(), null)
+        assertEquals("r5", result[0].id)
+        assertEquals("r9", result[1].id)
+    }
+
+    @Test
+    fun noFilters_noDefaultSort_sameRealm_higherLayerFirst() {
+        val layer1 = createAggregate(
+            id = "l1", realm = 9, realmLayer = 1
+        )
+        val layer9 = createAggregate(
+            id = "l9", realm = 9, realmLayer = 9
+        )
+        val result = listOf(layer1, layer9)
+            .applyFilters(emptySet(), emptySet(), null)
+        assertEquals("l9", result[0].id)
+        assertEquals("l1", result[1].id)
+    }
+
+    // -- 排序：无筛选 + 推荐属性（已关注 → 推荐属性 → 境界）----------------
+
+    @Test
+    fun noFilters_withDefaultSort_followedFirstThenAttributeThenRealm() {
+        val followedLowAttr = createAggregate(
+            id = "fLow", realm = 9, isFollowed = true, pillRefining = 10
+        )
+        val unfollowedHighAttr = createAggregate(
+            id = "uHigh", realm = 5, pillRefining = 99
+        )
+        val followedHighAttr = createAggregate(
+            id = "fHigh", realm = 9, isFollowed = true, pillRefining = 80
+        )
+        val result = listOf(unfollowedHighAttr, followedLowAttr, followedHighAttr)
+            .applyFilters(emptySet(), emptySet(), null, "pillRefining")
+        assertEquals("fHigh", result[0].id)
+        assertEquals("fLow", result[1].id)
+        assertEquals("uHigh", result[2].id)
+    }
+
+    // -- 排序：属性排序模式（属性↓ → 境界↑ → 境界层↓ → 灵根数↑）--------
+
+    @Test
+    fun attributeSort_descendingAttribute_thenRealm_thenLayer_thenSpiritRootCount() {
+        val single = createAggregate(
+            id = "s", realm = 5, pillRefining = 90,
+            spiritRootType = "metal"
+        )
+        val dual = createAggregate(
+            id = "d", realm = 5, pillRefining = 90,
+            spiritRootType = "metal,water"
+        )
+        val sameAttrHigherRealm = createAggregate(
+            id = "h", realm = 9, pillRefining = 90
+        )
+        val result = listOf(sameAttrHigherRealm, single, dual)
+            .applyFilters(emptySet(), emptySet(), "pillRefining")
+        assertEquals("s", result[0].id)
+        assertEquals("d", result[1].id)
+        assertEquals("h", result[2].id)
+    }
+
+    @Test
+    fun attributeSort_sameRealmSameAttr_higherLayerFirst() {
+        val layer1 = createAggregate(
+            id = "l1", realm = 5, realmLayer = 1, pillRefining = 80
+        )
+        val layer9 = createAggregate(
+            id = "l9", realm = 5, realmLayer = 9, pillRefining = 80
+        )
+        val higherRealm = createAggregate(
+            id = "hr", realm = 3, pillRefining = 80
+        )
+        val result = listOf(layer1, layer9, higherRealm)
+            .applyFilters(emptySet(), emptySet(), "pillRefining")
+        assertEquals("hr", result[0].id)
+        assertEquals("l9", result[1].id)
+        assertEquals("l1", result[2].id)
+    }
+
+    // -- 排序：有筛选无属性排序（境界↑ → 境界层↓ → 灵根数↑）--------------
+
+    @Test
+    fun realmFilter_sortsByRealmThenLayerThenSpiritRoot() {
+        val realm9Layer1 = createAggregate(
+            id = "r9l1", realm = 9, realmLayer = 1
+        )
+        val realm9Layer9 = createAggregate(
+            id = "r9l9", realm = 9, realmLayer = 9
+        )
+        val realm9Layer9Dual = createAggregate(
+            id = "r9l9d", realm = 9, realmLayer = 9,
+            spiritRootType = "metal,water"
+        )
+        val realm5Followed = createAggregate(
+            id = "r5f", realm = 5, isFollowed = true
+        )
+        val realm3 = createAggregate(id = "r3", realm = 3)
+        val result = listOf(
+            realm9Layer1, realm3, realm9Layer9, realm5Followed, realm9Layer9Dual
+        ).applyFilters(setOf(9, 5, 3), emptySet(), null)
+        assertEquals("r3", result[0].id)
+        assertEquals("r5f", result[1].id)
+        assertEquals("r9l9", result[2].id)
+        assertEquals("r9l9d", result[3].id)
+        assertEquals("r9l1", result[4].id)
+    }
+
+    @Test
+    fun spiritRootFilter_sortsByRealmThenLayerThenSpiritRootCount() {
+        val singleHighRealm = createAggregate(
+            id = "sh", realm = 3, spiritRootType = "metal"
+        )
+        val dualLowRealm = createAggregate(
+            id = "dl", realm = 9, spiritRootType = "metal,water"
+        )
+        val result = listOf(dualLowRealm, singleHighRealm)
+            .applyFilters(emptySet(), setOf(1, 2), null)
+        assertEquals("sh", result[0].id)
+        assertEquals("dl", result[1].id)
+    }
+
+    @Test
+    fun bothRealmAndSpiritRootFilter_noAttributeSort_sortsByRealm() {
+        val realm3Single = createAggregate(
+            id = "r3s", realm = 3, spiritRootType = "metal"
+        )
+        val realm3Dual = createAggregate(
+            id = "r3d", realm = 3, spiritRootType = "metal,water"
+        )
+        val realm9Single = createAggregate(
+            id = "r9s", realm = 9, spiritRootType = "metal"
+        )
+        val result = listOf(realm9Single, realm3Dual, realm3Single)
+            .applyFilters(setOf(3, 9), setOf(1, 2), null)
+        assertEquals(3, result.size)
+        assertEquals("r3s", result[0].id)
+        assertEquals("r3d", result[1].id)
+        assertEquals("r9s", result[2].id)
+    }
+
+    // -- 过滤：排除不匹配的弟子 --------------------------------------------
+
+    @Test
+    fun realmFilter_filtersOutNonMatching() {
+        val realm5 = createAggregate(id = "r5", realm = 5)
+        val realm9 = createAggregate(id = "r9", realm = 9)
+        val result = listOf(realm5, realm9)
+            .applyFilters(setOf(5), emptySet(), null)
+        assertEquals(1, result.size)
+        assertEquals("r5", result[0].id)
+    }
+
+    @Test
+    fun spiritRootFilter_filtersOutNonMatching() {
+        val single = createAggregate(
+            id = "s", spiritRootType = "metal"
+        )
+        val dual = createAggregate(
+            id = "d", spiritRootType = "metal,water"
+        )
+        val triple = createAggregate(
+            id = "t", spiritRootType = "metal,water,fire"
+        )
+        val result = listOf(single, dual, triple)
+            .applyFilters(emptySet(), setOf(1), null)
+        assertEquals(1, result.size)
+        assertEquals("s", result[0].id)
+    }
+
+    // -- 组合：属性排序 + 过滤 --------------------------------------------
+
+    @Test
+    fun realmWithAttributeSort_attributePriority() {
+        val lowAttr = createAggregate(
+            id = "low", realm = 3, comprehension = 10
+        )
+        val highAttr = createAggregate(
+            id = "high", realm = 9, comprehension = 90
+        )
+        val result = listOf(lowAttr, highAttr)
+            .applyFilters(setOf(3, 9), emptySet(), "comprehension")
+        assertEquals("high", result[0].id)
+        assertEquals("low", result[1].id)
+    }
+
+    @Test
+    fun allThreeFilters_attributePriority_thenFilterAll() {
+        val target = createAggregate(
+            id = "t", realm = 5, comprehension = 90,
+            spiritRootType = "metal"
+        )
+        val wrongRealm = createAggregate(
+            id = "wr", realm = 9, comprehension = 80,
+            spiritRootType = "metal"
+        )
+        val lowAttr = createAggregate(
+            id = "la", realm = 5, comprehension = 70,
+            spiritRootType = "metal"
+        )
+        val result = listOf(target, wrongRealm, lowAttr)
+            .applyFilters(setOf(5), setOf(1), "comprehension")
+        assertEquals(2, result.size)
+        assertEquals("t", result[0].id)
+        assertEquals("la", result[1].id)
+    }
+
+    // -- 边界条件 ----------------------------------------------------------
+
+    @Test
+    fun emptyList_noFilters_returnsEmpty() {
+        val result = emptyList<DiscipleAggregate>()
+            .applyFilters(emptySet(), emptySet(), null)
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun emptyList_withFilters_returnsEmpty() {
+        val result = emptyList<DiscipleAggregate>()
+            .applyFilters(setOf(5), setOf(1), "comprehension")
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun defaultSortAttribute_ignoredWhenRealmFilterActive() {
+        val followedHighAttr = createAggregate(
+            id = "fHigh", realm = 9, isFollowed = true, pillRefining = 99
+        )
+        val unfollowedLowAttr = createAggregate(
+            id = "uLow", realm = 3, pillRefining = 10
+        )
+        val result = listOf(followedHighAttr, unfollowedLowAttr)
+            .applyFilters(setOf(3, 9), emptySet(), null, "pillRefining")
+        assertEquals("uLow", result[0].id)
+        assertEquals("fHigh", result[1].id)
+    }
+
+    // -- 辅助函数 ----------------------------------------------------------
+
+    @Test
+    fun getAttributeValue_unknownKey_returnsZero() {
+        val d = createAggregate(id = "d1", comprehension = 80)
+        assertEquals(0, d.getAttributeValue("nonexistent"))
+    }
+
+    // -- eligibleElderCandidates：长老/执事岗位候选（不含状态过滤）------------
+
+    @Test
+    fun eligibleElderCandidates_containsIdleAndOnDuty() {
+        // 回归：数据源预过滤 status == IDLE 会导致"显示所有弟子"勾选失效，
+        // 候选必须包含在岗（非任务/非队伍）弟子，状态过滤由对话框 filterByDiscipleStatus 负责
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val patrolling = createAggregate(id = "patrolling", status = DiscipleStatus.PATROLLING)
+        val refining = createAggregate(id = "refining", status = DiscipleStatus.REFINING)
+        val onMission = createAggregate(id = "mission", status = DiscipleStatus.ON_MISSION)
+        val inTeam = createAggregate(id = "team", status = DiscipleStatus.IN_TEAM)
+
+        val result = listOf(idle, patrolling, refining, onMission, inTeam).eligibleElderCandidates()
+
+        val ids = result.map { it.id }.toSet()
+        assertTrue("空闲中弟子应包含", "idle" in ids)
+        assertTrue("巡视中在岗弟子应包含（showAll 可选中）", "patrolling" in ids)
+        assertTrue("血炼中在岗弟子应包含（showAll 可选中）", "refining" in ids)
+        assertTrue("任务中弟子应包含（状态过滤由 filterByDiscipleStatus 排除）", "mission" in ids)
+        assertTrue("队伍中弟子应包含（状态过滤由 filterByDiscipleStatus 排除）", "team" in ids)
+    }
+
+    @Test
+    fun eligibleElderCandidates_excludesDeadUnderageAndNoRealm() {
+        val normal = createAggregate(id = "ok", age = 20, realmLayer = 1)
+        val dead = createAggregate(id = "dead", age = 20, realmLayer = 1, isAlive = false)
+        val underage = createAggregate(id = "young", age = GameConfig.Disciple.MIN_AGE - 1, realmLayer = 1)
+        val noRealm = createAggregate(id = "noRealm", age = 20, realmLayer = 0)
+
+        val result = listOf(normal, dead, underage, noRealm).eligibleElderCandidates()
+
+        val ids = result.map { it.id }.toSet()
+        assertEquals(1, result.size)
+        assertEquals("ok", ids.single())
+    }
+
+    // -- filterByDiscipleStatus：显示所有可用弟子开关 -------------------------
+
+    @Test
+    fun filterByDiscipleStatus_showAll_excludesSecretRealmAndTeamAndMission() {
+        // 回归：秘境成员由推导系统标记为 SECRET_REALM（不再并入 IN_TEAM），
+        // 漏排除会在"显示所有"弹窗变成可选中（可被误分配）
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val secretRealm = createAggregate(id = "secret", status = DiscipleStatus.SECRET_REALM)
+        val inTeam = createAggregate(id = "team", status = DiscipleStatus.IN_TEAM)
+        val onMission = createAggregate(id = "mission", status = DiscipleStatus.ON_MISSION)
+        val refining = createAggregate(id = "refining", status = DiscipleStatus.REFINING)
+
+        val result = listOf(idle, secretRealm, inTeam, onMission, refining)
+            .filterByDiscipleStatus(showAllEnabled = true)
+
+        val ids = result.map { it.id }.toSet()
+        assertTrue("空闲中弟子应显示", "idle" in ids)
+        assertTrue("血炼中弟子应显示（showAll 可见，选中触发血炼失败）", "refining" in ids)
+        assertTrue("远古秘境中弟子必须排除", "secret" !in ids)
+        assertTrue("队伍中弟子必须排除", "team" !in ids)
+        assertTrue("任务中弟子必须排除", "mission" !in ids)
+    }
+
+    @Test
+    fun filterByDiscipleStatus_showAll_warehouseGarrisonVisible() {
+        // WAREHOUSE_GARRISON 与 GARRISONING 一致：showAll 可见可选中（选中走正常卸任）
+        val warehouse = createAggregate(id = "wh", status = DiscipleStatus.WAREHOUSE_GARRISON)
+        val garrisoning = createAggregate(id = "gar", status = DiscipleStatus.GARRISONING)
+
+        val result = listOf(warehouse, garrisoning)
+            .filterByDiscipleStatus(showAllEnabled = true)
+
+        val ids = result.map { it.id }.toSet()
+        assertTrue("仓库驻守中弟子应可见", "wh" in ids)
+        assertTrue("据点驻守中弟子应可见", "gar" in ids)
+    }
+
+    @Test
+    fun filterByDiscipleStatus_idleOnly_unchangedForSecretRealmAndWarehouse() {
+        // 不勾选 showAll 时仅 IDLE——新状态同样被排除
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val secretRealm = createAggregate(id = "secret", status = DiscipleStatus.SECRET_REALM)
+        val warehouse = createAggregate(id = "wh", status = DiscipleStatus.WAREHOUSE_GARRISON)
+
+        val result = listOf(idle, secretRealm, warehouse)
+            .filterByDiscipleStatus(showAllEnabled = false)
+
+        val ids = result.map { it.id }.toSet()
+        assertEquals(1, result.size)
+        assertEquals("idle", ids.single())
+    }
+
+    @Test
+    fun filterByDiscipleStatus_battleAndExplorationIds_stillExcluded() {
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val busy = createAggregate(id = "busy", status = DiscipleStatus.IDLE)
+
+        val result = listOf(idle, busy)
+            .filterByDiscipleStatus(
+                showAllEnabled = true,
+                battleAndExplorationIds = setOf("busy")
+            )
+
+        val ids = result.map { it.id }.toSet()
+        assertEquals("idle", ids.single())
+    }
+}

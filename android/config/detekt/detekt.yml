@@ -1,0 +1,112 @@
+style:
+  ReturnCount:
+    active: true
+    max: 5                  # 拍板：默认 2 与 Kotlin 守卫子句/校验链早退惯用形
+                            # 冲突（实跑 220 处违规几乎全为 3~5 return 的合法早退形态）；
+                            # >5 return 的函数属真实缠绕，必须拆分。
+                            # 与 TooManyFunctions/LargeClass 同口径：阈值拍板留痕，禁止回删注释
+  MaxLineLength:
+    maxLineLength: 120       # Compose UI 链式调用需要
+  WildcardImport:
+    active: true
+    # D-06 白名单：第三方/平台库通配放行（Compose 生态惯例、JUnit 断言惯例、
+    # Room/协程/序列化/标准库），仅自有包 com.xianxia.sect.* 要求显式化
+    excludeImports:
+      - 'android.graphics.*'
+      - 'androidx.compose.animation.*'
+      - 'androidx.compose.foundation.*'
+      - 'androidx.compose.foundation.layout.*'
+      - 'androidx.compose.material.icons.filled.*'
+      - 'androidx.compose.material3.*'
+      - 'androidx.compose.runtime.*'
+      - 'androidx.room.*'
+      - 'java.io.*'
+      - 'java.security.*'
+      - 'java.util.*'
+      - 'javax.crypto.*'
+      - 'javax.crypto.spec.*'
+      - 'kotlinx.coroutines.*'
+      - 'kotlinx.coroutines.flow.*'
+      - 'kotlinx.coroutines.test.*'
+      - 'kotlinx.serialization.*'
+      - 'com.xianxia.sect.proto.templates.*'   # KSP 生成代码包（proto 模板），符号表不可得，无法显式化
+      - 'org.junit.Assert.*'
+      - 'org.mockito.Mockito.*'
+      - 'org.mockito.kotlin.*'
+  UnusedImports:
+    active: true              # 未使用 import 必须清理
+  MagicNumber:
+    active: false            # 游戏数学常量
+naming:
+  FunctionNaming:
+    ignoreAnnotated:
+      - 'Composable'         # Compose 函数使用 PascalCase
+complexity:
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 15     # 从 30 收紧
+    thresholdInClasses: 20   # 函数拆分批次后类内函数数基线——EncounterBattleService 14、
+                             # AISectBeastAttackProcessor 14、AISectBattleProcessor 19（AI 攻防域聚合：
+                             # 热控修炼/等级同步/攻打玩家/AI-vs-AI/防守战 5 条子流程均为同一域职责）；
+                             # 默认 11 会阻止继续拆分 God Method
+    thresholdInObjects: 12   # Dagger @Module 的 @Provides 函数属于 DI 样板代码
+  LargeClass:
+    active: true
+    threshold: 800            # 默认 600 与"既有违规冻结 baseline"哲学冲突——类主体
+                              # 略超 600 的新增改动（如 BuildingService 768 行）会新增
+                              # baseline 条目（违反只缩不增）。800 覆盖全部既有 frozen 类中
+                              # 最小者（CaveExplorationProcessor 695/InventoryFacadeImpl 769），
+                              # 其 baseline 条目随之摘除；>800 的冻结类（BattleSystem 1292 等）
+                              # 保持冻结作为拆分任务队列
+  LongParameterList:
+    functionThreshold: 8
+    constructorThreshold: 10
+    ignoreDefaultParameters: true   # 带默认值的参数不计数：UnifiedGameDialog 19 参
+                                    # 数中 18 个有默认值，调用方仅传 1~2 个，实际
+                                    # 负担远低于阈值（overlay 槽位）
+  LongMethod:
+    active: true
+    threshold: 60            # 单函数体最大 60 行（CLAUDE.md 3.3）
+    # 现有违规冻结在 detekt-baseline.xml（实测 245 条：app 14/data 16/domain 12/engine 58/ui 6/game 139），
+    # 作为超长函数拆分任务队列（docs/code-quality-task-queue.md），拆分一个摘除一条（baseline 只缩不增）
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 15            # 单函数圈复杂度最大 15（rules/code-quality.md 量化指标）
+    # 默认即激活；现有超限已冻结在 detekt-baseline.xml（engine 114 条 / app 7 条），
+    # 新代码圈复杂度超 15 必须拆分，禁止加入 baseline（baseline 只缩不增）
+    # 注：detekt 1.23+ 中 ComplexMethod 已更名为 CyclomaticComplexMethod（区分圈/认知复杂度）
+empty-blocks:
+  EmptyCatchBlock:
+    active: true             # 禁止空 catch 块
+
+# ════════════════════════════════════════════
+# 自定义规则：game-engine（防 ANR #9041/#5068）
+# ════════════════════════════════════════════
+game-engine:
+  LaunchOnEngineRequired:
+    active: true
+    description: "Delegate 中的引擎调用必须通过 GameEngine.launchOnEngine 派发到引擎线程"
+  BlockingCallInCoroutine:
+    active: true
+    description: "协程上下文中的阻塞调用检测"
+  RunBlockingInSuspend:
+    active: true
+    description: "挂起函数中的 runBlocking 检测"
+
+# ════════════════════════════════════════════
+# 自定义规则：code-quality（代码规模守卫）
+# ════════════════════════════════════════════
+code-quality:
+  FileLength:
+    active: true
+    threshold: 2000          # 单文件最大 2000 行（CLAUDE.md 3.1）
+    # 主工作树当前零违规；.worktrees/ui-layout-unification 分支
+    # 4 个超限文件（CultivationService 4227 行等）合回时被此规则拦截
+
+# ════════════════════════════════════════════
+# 测试代码 `!!` 评审规则
+# 测试 sourceSet 存在 ~160 处 `!!`（Robolectric 测试惯例），
+# 不批量改（历史测试行为稳定）。评审要求：
+# - 新增测试代码禁止使用 `!!`（与主源码同标准）
+# - 已有测试 `!!` 随触碰文件顺带清理
+# ════════════════════════════════════════════

@@ -1,0 +1,31 @@
+{
+ "files": [
+  {
+   "name": "SectPolicyToggleToggles",
+   "header": "// ── 政策开关域（自 SectPolicyToggleUseCase 拆出，行为零变更） ──────────────────",
+   "fns": [
+    "toggleSpiritMineBoost",
+    "isSpiritMineBoostEnabled",
+    "toggleFrugality",
+    "isFrugalityEnabled",
+    "toggleEnhancedSecurity",
+    "isEnhancedSecurityEnabled",
+    "toggleAlchemyIncentive",
+    "isAlchemyIncentiveEnabled",
+    "toggleForgeIncentive",
+    "isForgeIncentiveEnabled",
+    "toggleHerbCultivation",
+    "isHerbCultivationEnabled",
+    "toggleManualResearch",
+    "isManualResearchEnabled",
+    "toggleCurfew",
+    "isCurfewEnabled",
+    "toggleRewardPunish",
+    "isRewardPunishEnabled",
+    "toggleStrictTraining",
+    "isStrictTrainingEnabled",
+    "toggleRelaxedMgmt"
+   ]
+  }
+ ]
+}

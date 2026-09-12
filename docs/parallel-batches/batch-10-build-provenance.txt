@@ -1,0 +1,46 @@
+ .../cpp/gamecore/include/gamecore/action_ids.h     |    8 +-
+ .../src/main/cpp/gamecore/src/execute_dispatch.cpp |   44 +
+ .../xianxia/sect/core/state/GameStateStoreImpl.kt  |   27 +-
+ .../sect/core/state/StateRevertRegressionTest.kt   |  104 +-
+ .../sect/core/state/TestStateStoreSupport.kt       |    6 +-
+ .../com/xianxia/sect/data/GameStateRepository.kt   |   69 --
+ .../com/xianxia/sect/data/archive/DataArchiver.kt  |    7 +
+ .../sect/data/cache/GameDataCacheMaintenance.kt    |    3 +
+ .../xianxia/sect/data/crypto/SaveCryptoKeyCache.kt |    3 +
+ .../sect/data/crypto/SaveCryptoKeyDerivation.kt    |    3 +
+ .../sect/data/engine/DataArchiveScheduler.kt       |    9 +
+ .../sect/data/engine/DataPruningScheduler.kt       |   11 +
+ .../sect/data/engine/ProactiveMemoryGuard.kt       |    3 +
+ .../com/xianxia/sect/data/engine/StorageEngine.kt  |    6 +
+ .../sect/data/engine/StorageEngineSaveSupport.kt   |   18 +-
+ .../com/xianxia/sect/data/facade/StorageFacade.kt  |    2 +
+ .../sect/data/incremental/ChangeLogPersistence.kt  |    9 +
+ .../com/xianxia/sect/data/wal/FunctionalWAL.kt     |    9 +
+ .../java/com/xianxia/sect/core/event/GameEvents.kt |    4 +-
+ .../test/java/com/xianxia/sect/GameConfigTest.kt   | 1072 --------------------
+ .../sect/core/config/HttpRemoteConfigProvider.kt   |    3 +
+ .../xianxia/sect/core/nativebridge/ActionIds.kt    |    8 +-
+ 22 files changed, 248 insertions(+), 1180 deletions(-)
+ M android/app/src/main/cpp/gamecore/include/gamecore/action_ids.h
+ M android/app/src/main/cpp/gamecore/src/execute_dispatch.cpp
+ M android/app/src/main/java/com/xianxia/sect/core/state/GameStateStoreImpl.kt
+ M android/app/src/test/java/com/xianxia/sect/core/state/StateRevertRegressionTest.kt
+ M android/app/src/test/java/com/xianxia/sect/core/state/TestStateStoreSupport.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/GameStateRepository.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/archive/DataArchiver.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/cache/GameDataCacheMaintenance.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyCache.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/crypto/SaveCryptoKeyDerivation.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/DataArchiveScheduler.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/DataPruningScheduler.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/ProactiveMemoryGuard.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngine.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/engine/StorageEngineSaveSupport.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/facade/StorageFacade.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/incremental/ChangeLogPersistence.kt
+ M android/core/data/src/main/java/com/xianxia/sect/data/wal/FunctionalWAL.kt
+ M android/core/domain/src/main/java/com/xianxia/sect/core/event/GameEvents.kt
+ D android/core/domain/src/test/java/com/xianxia/sect/GameConfigTest.kt
+ M android/core/engine/src/main/java/com/xianxia/sect/core/config/HttpRemoteConfigProvider.kt
+ M android/core/engine/src/main/java/com/xianxia/sect/core/nativebridge/ActionIds.kt
+ M scripts/gen-action-ids.mjs

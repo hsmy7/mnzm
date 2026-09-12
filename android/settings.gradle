@@ -1,0 +1,41 @@
+pluginManagement {
+    includeBuild("build-logic")
+    repositories {
+        maven { url = 'https://maven.aliyun.com/repository/google' }
+        maven { url = 'https://maven.aliyun.com/repository/gradle-plugin' }
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        maven { url = 'https://maven.aliyun.com/repository/google' }
+        google()
+        mavenCentral()
+        maven { url = 'https://jitpack.io' }
+        // TapTap 私有镜像仅解析 TapTap 包（不含限定则会被用于 androidx 等
+        // 依赖解析，镜像缺 artifact 导致依赖解析失败）
+        maven {
+            url = 'https://maven.taptap.io'
+            content { includeGroupByRegex("com\\.taptap.*") }
+        }
+        maven { url = 'https://developer.huawei.com/repo/' }
+        // Dirichlet 聚合 SDK 穿山甲（Pangle）核心依赖仓库
+        maven { url = 'https://artifact.bytedance.com/repository/pangle' }
+        // Dirichlet 聚合 SDK AAR 本地仓库
+        flatDir { dirs 'app/src/main/libs' }
+    }
+}
+
+rootProject.name = "XianxiaSect"
+include ':app'
+include ':baselineprofile'
+include ':core:domain'
+include ':core:data'
+include ':core:engine'
+include ':core:ui'
+include ':feature:game'
+include ':detekt-rules'

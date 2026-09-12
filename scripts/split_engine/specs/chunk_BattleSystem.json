@@ -1,0 +1,75 @@
+{
+ "files": [
+  {
+   "name": "BattleSystem战斗Ops1",
+   "header": "// ── BattleSystem 拆分域 1/4（行为零变更） ──",
+   "fns": [
+    "createBattle",
+    "convertDiscipleToCombatant",
+    "createBeast",
+    "resolveBeastStats",
+    "buildBeastSkills",
+    "executeBattle",
+    "executeBattleWithTimeout",
+    "buildBattleSnapshots",
+    "updateBattleSnapshots",
+    "resolveBattleWinner",
+    "executeTurnWithLog",
+    "executeCombatantTurn"
+   ]
+  },
+  {
+   "name": "BattleSystem回合Ops2",
+   "header": "// ── BattleSystem 拆分域 2/4（行为零变更） ──",
+   "fns": [
+    "resolveTurnSides",
+    "recordTurnAction",
+    "applyCooldownUpdate",
+    "applySupportEffects",
+    "applySupportHealing",
+    "applySupportTeamBuffs",
+    "executeSkillAction",
+    "executeAllyScopeSupport",
+    "executeTeamSupport",
+    "executeAoeSkillAction",
+    "executeSingleSkillAction",
+    "executeBasicAttackAction"
+   ]
+  },
+  {
+   "name": "BattleSystem伤害Ops3",
+   "header": "// ── BattleSystem 拆分域 3/4（行为零变更） ──",
+   "fns": [
+    "applyDamageEffects",
+    "writeBack",
+    "applySkillDebuff",
+    "applyDamageLinkDebuff",
+    "applyAoeDebuff",
+    "buildTurnMessage",
+    "processTurnAdvance",
+    "resolveAdvancedAlly",
+    "decideAdvancedAction",
+    "executeAdvancedAction",
+    "buildAdvancedActionLog",
+    "applyAdvancedDamage"
+   ]
+  },
+  {
+   "name": "BattleSystem更新Ops4",
+   "header": "// ── BattleSystem 拆分域 4/4（行为零变更） ──",
+   "fns": [
+    "updateAdvancedCooldown",
+    "applyControlEffects",
+    "updateCombatantBuffs",
+    "processDotEffects",
+    "executeAttack",
+    "executeSkill",
+    "executeSupportSkill",
+    "calculateRealmGapFactors",
+    "selectSkill",
+    "selectTarget",
+    "generateRewards"
+   ]
+  }
+ ]
+}

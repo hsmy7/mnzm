@@ -1,0 +1,91 @@
+plugins {
+    id 'xianxia.android'
+    alias(libs.plugins.kotlin.compose)
+    // kover：全模块纳入覆盖率统计
+    alias(libs.plugins.kover)
+    // detekt：core/ui 纳入静态检查
+    alias(libs.plugins.detekt)
+}
+
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+kover {
+    if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
+        disable()
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
+}
+
+android {
+    namespace = 'com.xianxia.sect.core.ui'
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildFeatures {
+        compose = true
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric 渲染组件（painterResource 读取 R.drawable 资源）必需
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+
+    composeCompiler {
+        enableStrongSkippingMode = true
+        stabilityConfigurationFile = rootProject.file("stability_config.conf")
+    }
+}
+
+// 显式单 fork——共享静态状态跨测试类并行污染
+tasks.withType(Test).configureEach {
+    maxParallelForks = 1
+}
+
+dependencies {
+    api project(':core:domain')
+    detektPlugins(project(':detekt-rules'))
+
+    // AndroidX Core (WindowCompat, etc.)
+    implementation libs.core.ktx
+    implementation libs.appcompat
+
+    // Activity Compose (BackHandler, etc.)
+    implementation libs.activity.compose
+
+    // Jetpack Compose
+    implementation platform(libs.compose.bom)
+    implementation libs.compose.ui
+    implementation libs.compose.ui.graphics
+    implementation libs.compose.ui.tooling.preview
+    implementation libs.compose.material3
+    implementation libs.compose.material.icons.core
+    debugImplementation libs.compose.ui.tooling
+
+    // Test
+    testImplementation libs.junit
+    // GameRouteDialogTypeMappingTest 用 Kotlin 反射枚举 sealedSubclasses
+    testImplementation libs.kotlin.reflect
+    testImplementation libs.coroutines.test
+    testImplementation libs.robolectric
+    testImplementation(platform(libs.compose.bom))
+    testImplementation libs.compose.ui.test
+    testImplementation libs.compose.ui.test.junit4
+}
+
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+    }
+}

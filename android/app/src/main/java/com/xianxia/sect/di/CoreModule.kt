@@ -1,0 +1,284 @@
+package com.xianxia.sect.di
+
+import android.content.Context
+import com.xianxia.sect.core.engine.system.ChildBirthSystem
+import com.xianxia.sect.core.engine.system.ExplorationTickSystem
+import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.engine.system.MailSystem
+import com.xianxia.sect.core.engine.system.PartnerSystem
+import com.xianxia.sect.core.engine.system.SystemManager
+import com.xianxia.sect.core.engine.system.TimeSystem
+import com.xianxia.sect.core.engine.system.building.AlchemySystem
+import com.xianxia.sect.core.engine.system.building.ForgeSystem
+import com.xianxia.sect.core.engine.system.building.PlantingSystem
+import com.xianxia.sect.core.event.EventBus
+import com.xianxia.sect.core.event.EventBusPort
+import com.xianxia.sect.core.util.AnalyticsTracker
+import com.xianxia.sect.core.util.BackgroundTaskScheduler
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GCOptimizer
+import com.xianxia.sect.core.util.GCOptimizerProvider
+import com.xianxia.sect.core.util.HttpClientProvider
+import com.xianxia.sect.core.util.MemoryMonitor
+import com.xianxia.sect.core.util.MemoryMonitorProvider
+import com.xianxia.sect.core.config.ConfigLoader
+import com.xianxia.sect.network.SecureHttpClient
+import kotlinx.coroutines.CoroutineScope
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.EngineContextDispatcher
+import com.xianxia.sect.core.engine.GameEngineCore
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+
+
+@Module
+@InstallIn(SingletonComponent::class)
+@Suppress("TooManyFunctions") // DI @Provides 样板面：函数数=依赖图装配点数（detekt.yml thresholdInObjects 注记认定的样板代码）
+object CoreModule {
+
+    @Provides
+    @Singleton
+    fun provideCoroutineScopeProvider(impl: ApplicationScopeProvider): CoroutineScopeProvider = impl
+
+    @Provides
+    @Singleton
+    fun provideEngineContextDispatcher(core: GameEngineCore): EngineContextDispatcher = core
+
+    @Provides
+    @Singleton
+    fun provideCoroutineScope(scopeProvider: ApplicationScopeProvider): CoroutineScope = scopeProvider.scope
+
+    @Provides
+    @Singleton
+    fun provideBackgroundTaskScheduler(scopeProvider: ApplicationScopeProvider): BackgroundTaskScheduler =
+        BackgroundTaskScheduler(scopeProvider.scope)
+
+    @Provides
+    @Singleton
+    fun provideEventBusPort(eventBus: EventBus): EventBusPort = eventBus
+
+    @Suppress("LongParameterList")
+    @Provides
+    @Singleton
+    fun provideSystemManager(
+        timeSystem: TimeSystem,
+        inventorySystem: InventorySystem,
+        explorationTickSystem: ExplorationTickSystem,
+        mailSystem: MailSystem,
+        partnerSystem: PartnerSystem,
+        childBirthSystem: ChildBirthSystem,
+        // 建筑生产系统（月变时触发收获/完成检测所需）
+        plantingSystem: PlantingSystem,
+        alchemySystem: AlchemySystem,
+        forgeSystem: ForgeSystem
+    ): SystemManager = SystemManager(
+        setOf(
+            timeSystem,
+            inventorySystem,
+            explorationTickSystem,
+            mailSystem,
+            partnerSystem,
+            childBirthSystem,
+            plantingSystem,
+            alchemySystem,
+            forgeSystem
+        )
+    )
+
+    @Provides
+    @Singleton
+    fun provideDiscipleFacade(impl: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacadeImpl): com.xianxia.sect
+        .core.engine.domain.disciple.DiscipleFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideBattleFacade(impl: com.xianxia.sect.core.engine.domain.battle.BattleFacadeImpl): com.xianxia.sect.core
+        .engine.domain.battle.BattleFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideBuildingFacade(impl: com.xianxia.sect.core.engine.domain.building.BuildingFacadeImpl): com.xianxia.sect
+        .core.engine.domain.building.BuildingFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideRoadFacade(
+        stateStore: com.xianxia.sect.core.state.GameStateStore,
+        gameEngineCore: com.xianxia.sect.core.engine.GameEngineCore
+    ): com.xianxia.sect.core.engine.domain.road.RoadFacade =
+        // 镜像通道是 GameEngineCore 手工单例（reverseSender 默认 lambda 无 Dagger 绑定，
+        // 构造注入 MissingBinding 且会分叉反向通道实例）——经 core:engine 工厂取同引用
+        com.xianxia.sect.core.engine.domain.road.createRoadFacade(stateStore, gameEngineCore)
+
+    @Provides
+    @Singleton
+    fun provideInventoryFacade(impl: com.xianxia.sect.core.engine.domain.inventory.InventoryFacadeImpl): com.xianxia
+        .sect.core.engine.domain.inventory.InventoryFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideDiplomacyFacade(impl: com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacadeImpl): com.xianxia
+        .sect.core.engine.domain.diplomacy.DiplomacyFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideExplorationFacade(impl: com.xianxia.sect.core.engine.domain.exploration.ExplorationFacadeImpl): com
+        .xianxia.sect.core.engine.domain.exploration.ExplorationFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideCultivationFacade(impl: com.xianxia.sect.core.engine.domain.cultivation.CultivationFacadeImpl): com
+        .xianxia.sect.core.engine.domain.cultivation.CultivationFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideEconomyFacade(impl: com.xianxia.sect.core.engine.domain.economy.EconomyFacadeImpl): com.xianxia.sect.core
+        .engine.domain.economy.EconomyFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideProductionFacade(impl: com.xianxia.sect.core.engine.domain.production.ProductionFacadeImpl): com.xianxia
+        .sect.core.engine.domain.production.ProductionFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideGameStateStore(impl: com.xianxia.sect.core.state.GameStateStoreImpl): com.xianxia.sect.core.state
+        .GameStateStore = impl
+
+    @Provides
+    @Singleton
+    fun provideSaveFacade(impl: com.xianxia.sect.core.engine.domain.save.SaveFacadeImpl): com.xianxia.sect.core.engine
+        .domain.save.SaveFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideHttpClientProvider(secureClient: SecureHttpClient): HttpClientProvider {
+        return object : HttpClientProvider {
+            override suspend fun get(url: String): String {
+                val request = secureClient.newRequestBuilder(url).build()
+                val response = secureClient.execute(request)
+                return response.body?.string() ?: ""
+            }
+
+            override suspend fun post(url: String, body: String): String {
+                val requestBody = body.toRequestBody("application/json; charset=utf-8".toMediaType())
+                val request = secureClient.newRequestBuilder(url)
+                    .post(requestBody)
+                    .build()
+                val response = secureClient.execute(request)
+                return response.body?.string() ?: ""
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    @Provides
+    @Singleton
+    fun provideConfigLoader(@ApplicationContext context: Context): ConfigLoader {
+        // assetReader: 从 assets 读取文件文本，返回 null 表示文件不存在
+        val assetReader: (String) -> String? = { path ->
+            try {
+                context.assets.open(path).use { stream ->
+                    stream.bufferedReader().use { it.readText() }
+                }
+            } catch (ignored: Exception) {
+                null
+            }
+        }
+        // 远程配置预留：启用热更新时改为
+        //   ConfigLoader(assetReader, HttpRemoteConfigProvider(httpClientProvider), REMOTE_CONFIG_URL)
+        return ConfigLoader(assetReader)
+    }
+
+    @Provides
+    @Singleton
+    fun provideMemoryMonitorProvider(memoryMonitor: MemoryMonitor): MemoryMonitorProvider {
+        return object : MemoryMonitorProvider {
+            override fun getCurrentMemoryInfo(): MemoryMonitorProvider.MemoryInfo? {
+                return memoryMonitor.getCurrentMemoryInfo()?.let {
+                    MemoryMonitorProvider.MemoryInfo(
+                        totalMemory = it.totalMemory,
+                        availableMemory = it.availableMemory,
+                        usedMemory = it.usedMemory,
+                        usedPercent = it.usedPercent,
+                        isLowMemory = it.isLowMemory,
+                        isWarning = it.isWarning,
+                        isCritical = it.isCritical
+                    )
+                }
+            }
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideGCOptimizerProvider(gcOptimizer: GCOptimizer): GCOptimizerProvider {
+        return object : GCOptimizerProvider {
+            override fun getGCStats(): GCOptimizerProvider.GCStats {
+                val stats = gcOptimizer.getGCStats()
+                return GCOptimizerProvider.GCStats(
+                    totalGCCount = stats.totalGCCount,
+                    totalGCTimeMs = stats.totalGCTimeMs,
+                    averageGCTimeMs = stats.averageGCTimeMs,
+                    lastGCTimeMs = stats.lastGCTimeMs,
+                    timeSinceLastGC = stats.timeSinceLastGC
+                )
+            }
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideMailRepository(impl: MailRepositoryImpl): com.xianxia.sect.core.repository.MailRepository = impl
+
+    @Provides
+    @Singleton
+    fun provideSaveStorage(impl: SaveStorageImpl): com.xianxia.sect.core.repository.SaveStorage = impl
+
+    @Provides
+    @Singleton
+    fun provideThermalReader(impl: com.xianxia.sect.platform.AndroidThermalReader): com.xianxia.sect.core.thermal
+        .ThermalReader = impl
+
+    @Provides
+    @Singleton
+    fun provideBatteryStatusProvider(impl: com.xianxia.sect.platform.BatteryAwareController): com.xianxia.sect.core
+        .thermal.BatteryStatusProvider = impl
+
+    @Provides
+    @Singleton
+    fun provideAssetSource(impl: com.xianxia.sect.platform.AndroidAssetSource): com.xianxia.sect.core.platform
+        .AssetSource = impl
+
+    @Provides
+    @Singleton
+    fun provideApkSigningCertificateSource(impl: com.xianxia.sect.platform.AndroidApkSigningCertificateSource): com
+        .xianxia.sect.core.platform.ApkSigningCertificateSource = impl
+
+    @Provides
+    @Singleton
+    fun provideThermalStatusReader(impl: com.xianxia.sect.platform.AndroidThermalStatusReader): com.xianxia.sect.core
+        .perf.ThermalStatusReader = impl
+
+    @Provides
+    @Singleton
+    fun providePerformanceHintPort(impl: com.xianxia.sect.platform.AndroidPerformanceHintPort): com.xianxia.sect.core
+        .perf.PerformanceHintPort = impl
+
+    @Provides
+    @Singleton
+    fun provideThermalCheckIntervalMs(): Long = ThermalController.CHECK_INTERVAL_MS
+
+    @Provides
+    @Singleton
+    fun provideAnalyticsTracker(impl: com.xianxia.sect.analytics.TapDBAnalyticsTracker): AnalyticsTracker = impl
+}

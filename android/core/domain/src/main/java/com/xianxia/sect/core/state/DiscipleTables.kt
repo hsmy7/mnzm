@@ -1,0 +1,1040 @@
+package com.xianxia.sect.core.state
+
+import android.util.Log
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentNurtureData
+import com.xianxia.sect.core.model.StorageBagItem
+
+/**
+ * 弟子组件表集合。
+ *
+ * 替代旧的 `MutableGameState.disciples: List<Disciple>`。
+ * 每张组件表存储所有弟子的某一种属性。
+ *
+ * 全部操作 O(log n)，无对象分配（int/double 基本类型零装箱）。
+ *
+ * 使用方式：
+ *   val name = tables.names[id]
+ *   tables.loyalties[id] = 90
+ *   tables.cultivations.update(id) { it + rate * delta }
+ *   for (id in tables.ids) { ... }
+ */
+@Suppress("TooManyFunctions") // 弟子镜像列协议：每列读/写访问器对（WS-1 字段级镜像通道协议载体），
+// 函数数=镜像列数×读写双向，拆分即改镜像协议寻址面
+class DiscipleTables {
+
+    /**
+     * 写操作计数器——由列级写入回调（bindAllOnWrite 的 dirtyCb）自动递增。
+     * 禁止在其他位置显式递增本计数器（会造成双计）。
+     */
+    @Volatile var mutationVersion: Long = 0
+        private set
+
+    // ── ID 列表守卫方法 ──
+
+    /** 添加一个弟子 ID（含守卫检查） */
+    fun addId(id: Int) { requireWriteAccess(); _ids.add(id) }
+
+    /** 移除一个弟子 ID（含守卫检查） */
+    fun removeId(id: Int) { requireWriteAccess(); _ids.remove(id) }
+
+    /**
+     * 记录指定弟子 ID 的组件数据被修改。
+     * 写入组件表的值方法应调用此方法以支持增量组装。
+     * 注：通过 [IntComponentTable.set] / [ComponentTable.set] 等列级写入时，
+     *     由 onWrite → dirtyTracker.markDirty 负责列级脏标记，
+     *     本方法处理弟子级脏标记以支持增量 assemble。
+     */
+    fun recordChangedId(id: Int) { changedIdTracker.record(id) }
+
+    /**
+     * 批量记录多个弟子 ID 被修改。
+     * 用于 [replaceAll] / [clear] 等批量操作。
+     */
+    fun recordChangedIds(ids: Collection<Int>) { changedIdTracker.recordAll(ids) }
+
+    /**
+     * 运行时写保护标志。仅在 stateStore.update{} 事务内为 true。
+     * 对标 Android StrictMode：所有写方法在入口检查此标志，
+     * 绕过 update{} 的直接写立即抛 IllegalStateException。
+     *
+     * 警告：不应在 update{} 事务外手动设为 true。所有写方法均检查此标志，
+     * 但刻意绕过仍会解除守卫。这不是安全机制，而是开发期契约强制手段。
+     */
+    @Volatile var writeAllowed: Boolean = false
+
+    /**
+     * 事务内组装缓存（P1-B B1）：同事务多次 [assembleAll] 只组装一次。
+     * 每次 update 的 COW deepCopy 新建表实例 → 每事务自动复位；任何写操作
+     * （列写/insert/remove/clear/markDead，均经本守卫）使缓存失效。
+     * @Volatile：锁外 dispatchAssemble 也可能读取（读"最近提交表"语义一致）。
+     */
+    @Volatile
+    private var txAssembled: List<Disciple>? = null
+
+    /**
+     * 显式失效事务内组装缓存（P1-B B1）。
+     * 正常路径由写操作经 [requireWriteAccess] 自动失效；本方法供
+     * benchmark 测量"真实全量组装耗时"与特殊绕过场景使用。
+     */
+    internal fun invalidateAssembleCache() {
+        txAssembled = null
+    }
+
+    /** 写方法入口守卫（同时使事务内组装缓存失效——失效必须无条件执行） */
+    private fun requireWriteAccess() {
+        txAssembled = null
+        if (!writeGuardEnabled) return
+        require(writeAllowed) {
+            "Direct write to DiscipleTables outside stateStore.update{} " +
+            "is forbidden. Use stateStore.update { ... } instead."
+        }
+    }
+
+    // === 标识 ===
+    // _ids 是普通 mutableListOf（非 CopyOnWriteArrayList）：读侧暴露可变列表的
+    // 只读引用，调用方不得持有后跨线程使用；所有写点均以 synchronized(_ids)
+    // 互斥（DiscipleTables 不是唯一受影响的表 — insert/remove 操作约 90 张
+    // 组件表），多表原子性由同一把锁保证。
+    /** 弟子 ID 列表 — 由 synchronized(_ids) 写互斥保护 */
+    private val _ids = mutableListOf<Int>()
+    val ids: List<Int> get() = _ids
+
+    // === 基础信息（ComponentTable<String>） ===
+    val names = ComponentTable<String>()          // id → name
+    val surnames = ComponentTable<String>()       // id → surname
+    val genders = ComponentTable<String>()        // id → "male"/"female"
+    val portraitRes = ComponentTable<String>()    // id → 头像资源
+    val discipleTypes = ComponentTable<String>()  // id → "outer"/"inner"/"elder"
+    val spiritRootTypes = ComponentTable<String>()// id → "metal"/"fire"/...
+    val slotIds = IntComponentTable()             // id → slot_id (持久化用)
+
+    // === 境界与修为（Int/Double 基本类型表） ===
+    val realms = IntComponentTable()              // id → realm (9=练气 ... 0=仙人)
+    val realmLayers = IntComponentTable()         // id → layer (1-9)
+    val cultivations = DoubleComponentTable()     // id → cultivation progress
+    val ages = IntComponentTable()                // id → age
+    val lifespans = IntComponentTable()           // id → lifespan
+    val deathYears = IntComponentTable()          // id → deathYear（存活弟子该值为 0 或无条目）
+    val isAlive = IntComponentTable()             // id → 0/1 (用 Int 避免 Boolean 装箱)
+    val soulPowers = IntComponentTable()          // id → soulPower
+
+    // === 修炼加速 ===
+    val cultivationSpeedBonuses = DoubleComponentTable()
+    val cultivationSpeedDurations = IntComponentTable()
+    val cultivationCheckpoints = DoubleComponentTable()  // id → checkpoint cultivation
+    val cultivationCheckpointGameMonths = IntComponentTable()  // id → checkpoint gameMonth
+
+    // === 列表类型（ComponentTable<List<T>>） ===
+    val manualIds = ComponentTable<List<String>>()        // id → [manualId1, ...]
+    val talentIds = ComponentTable<List<String>>()        // id → [talentId1, ...]
+    val physiqueIds = ComponentTable<List<String>>()      // id → [physiqueId1, ...]
+    val affixIds = ComponentTable<List<String>>()         // id → [affixId1, ...]
+    val lifeEvents = ComponentTable<List<String>>()       // id → ["11岁：加入宗门", ...]
+    val manualMasteries = ComponentTable<Map<String, Int>>()
+
+    // === 状态 ===
+    val statuses = ComponentTable<DiscipleStatus>()
+    val statusData = ComponentTable<Map<String, String>>()
+
+    // === 战斗属性（窄表） ===
+    val baseHps = IntComponentTable()
+    val baseMps = IntComponentTable()
+    val basePhysicalAttacks = IntComponentTable()
+    val baseMagicAttacks = IntComponentTable()
+    val basePhysicalDefenses = IntComponentTable()
+    val baseMagicDefenses = IntComponentTable()
+    val baseSpeeds = IntComponentTable()
+    val hpVariances = IntComponentTable()
+    val mpVariances = IntComponentTable()
+    val physicalAttackVariances = IntComponentTable()
+    val magicAttackVariances = IntComponentTable()
+    val physicalDefenseVariances = IntComponentTable()
+    val magicDefenseVariances = IntComponentTable()
+    val speedVariances = IntComponentTable()
+    val totalCultivations = ComponentTable<Long>()
+    val breakthroughCounts = IntComponentTable()
+    val breakthroughFailCounts = IntComponentTable()
+    val currentHps = IntComponentTable()
+    val currentMps = IntComponentTable()
+
+    // === 丹药效果 ===
+    val pillPhysicalAttackBonuses = IntComponentTable()
+    val pillMagicAttackBonuses = IntComponentTable()
+    val pillPhysicalDefenseBonuses = IntComponentTable()
+    val pillMagicDefenseBonuses = IntComponentTable()
+    val pillHpBonuses = IntComponentTable()
+    val pillMpBonuses = IntComponentTable()
+    val pillSpeedBonuses = IntComponentTable()
+    val pillEffectDurations = IntComponentTable()
+    val pillCritRateBonuses = DoubleComponentTable()
+    val pillCritEffectBonuses = DoubleComponentTable()
+    val pillCultivationSpeedBonuses = DoubleComponentTable()
+    val pillSkillExpSpeedBonuses = DoubleComponentTable()
+    val pillNurtureSpeedBonuses = DoubleComponentTable()
+    val activePillCategories = ComponentTable<String>()
+    val activePillTypes = ComponentTable<Set<String>>()
+
+    // === 装备 ===
+    val weaponIds = ComponentTable<String>()
+    val armorIds = ComponentTable<String>()
+    val bootsIds = ComponentTable<String>()
+    val accessoryIds = ComponentTable<String>()
+    val weaponNurtures = ComponentTable<EquipmentNurtureData>()
+    val armorNurtures = ComponentTable<EquipmentNurtureData>()
+    val bootsNurtures = ComponentTable<EquipmentNurtureData>()
+    val accessoryNurtures = ComponentTable<EquipmentNurtureData>()
+    val storageBagItems = ComponentTable<List<StorageBagItem>>()
+    val storageBagSpiritStones = ComponentTable<Long>()
+    val discipleSpiritStones = IntComponentTable()
+    val cultivationCompletionMonths = IntComponentTable()
+    val cultivationCompletionPhases = IntComponentTable()
+    val manualCompletionMonths = IntComponentTable()
+    val manualCompletionPhases = IntComponentTable()
+    val equipmentNurturingCompletionMonths = IntComponentTable()
+    val equipmentNurturingCompletionPhases = IntComponentTable()
+
+    // === 社交 ===
+    val partnerIds = ComponentTable<String?>()       // nullable
+    val partnerSectIds = ComponentTable<String?>()
+    val parentId1s = ComponentTable<String?>()
+    val parentId2s = ComponentTable<String?>()
+    val lastChildYears = IntComponentTable()
+    val childBirthMonths = ComponentTable<Int?>()    // nullable
+    val griefEndYears = IntComponentTable()
+    val masterIds = ComponentTable<String?>()        // 师父弟子ID（师徒关系）
+
+    // === 技能属性 ===
+    val intelligences = IntComponentTable()
+    val charms = IntComponentTable()
+    val loyalties = IntComponentTable()
+    val comprehensions = IntComponentTable()
+    val artifactRefinings = IntComponentTable()
+    val pillRefinings = IntComponentTable()
+    val spiritPlantings = IntComponentTable()
+    val minings = IntComponentTable()
+    val teachings = IntComponentTable()
+    val moralities = IntComponentTable()
+    val aptitudes = IntComponentTable()                  // 资质（固定属性；默认 50 为"未生成"哨兵，读档自愈按灵根补算）
+    val salaryPaidCounts = IntComponentTable()
+    val salaryMissedCounts = IntComponentTable()
+    val alchemyLevels = IntComponentTable()              // id → 炼丹师职业等级（0=无职业）
+    val alchemyPromotionCounts = IntComponentTable()     // id → 当前解锁最高阶成功炼制次数
+    val forgeLevels = IntComponentTable()                // id → 炼器师职业等级（0=无职业）
+    val forgePromotionCounts = IntComponentTable()       // id → 当前解锁最高阶成功锻造次数
+
+    // === 使用追踪 ===
+    val usedFunctionalPillTypes = ComponentTable<List<String>>()
+    val usedExtendLifePillIds = ComponentTable<List<String>>()
+    val usedPermanentPillKeys = ComponentTable<Set<String>>()
+    val usedExtendLifePillTypes = ComponentTable<Set<String>>()
+    val recruitedMonths = IntComponentTable()
+    val lastTheftJudgementYears = IntComponentTable()  // id → 上次偷盗判定年份（0=从未判定）
+    val hasReviveEffects = IntComponentTable()    // 0/1
+    val hasClearAllEffects = IntComponentTable()  // 0/1
+
+    // === 弟子总数 ===
+    val count: Int get() = ids.size
+
+    // ================================================================
+    // 迭代式 CRUD 支持（所有组件表的统一引用列表）
+    // ================================================================
+
+    /** 所有组件表的统一引用列表，用于 [remove]/[clear]/[bindAllOnWrite]/[deepCopy] 的迭代操作 */
+    companion object {
+        private const val TAG = "DiscipleTables"
+
+        /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
+        const val GRIEF_YEAR_NULL_SENTINEL = -1
+
+        /** 资质默认值：=50 表示"未生成"（旧档 Migration/序列化默认），读档自愈 [healDefaultAptitudes] 按灵根补算 */
+        const val DEFAULT_APTITUDE = 50
+
+        /** 合法的死亡原因集合 */
+        private val VALID_DEATH_CAUSES = setOf("age", "battle", "scout", "exploration", "cave", "unknown")
+
+        /**
+         * WriteGuard 开关。
+         * - 生产环境始终为 true
+         * - 单元测试中设为 false（测试直接操作组件表绕过 stateStore.update{}）
+         */
+        private val _writeGuardEnabled = ThreadLocal.withInitial { true }
+        var writeGuardEnabled: Boolean
+            get() = _writeGuardEnabled.get()
+            set(value) = _writeGuardEnabled.set(value)
+
+        /**
+         * 跨表一致性校验开关。Release 构建建议关闭。
+         * 在 GameStateStoreImpl 的 Release 构造函数中设为 false。
+         */
+        @Volatile var consistencyCheckEnabled: Boolean = true
+
+        /**
+         * COW 兜底开关：为 true 时 [deepCopy] 走旧的逐元素全量复制路径。
+         * 仅用于重构回归调试，生产环境保持 false。
+         */
+        @Volatile var forceFullCopy: Boolean = false
+
+        /**
+         * Mutable 列值对象防御开关（浅共享配套）。
+         *
+         * 13 张 List/Map/Set 列以 O(1) 浅共享，值对象在源快照与事务缓冲间共享
+         * 引用——若未来代码对列返回值做原地修改（绕过 set → 不触发 ensureOwned），
+         * 会污染源存储破坏快照隔离。Debug/CI 开启时 [deepCopy] 对 Mutable 列每值
+         * 包装 unmodifiable（任何原地修改立即抛 UnsupportedOperationException）；
+         * Release 关闭（纯共享零成本）。
+         */
+        @Volatile var mutableValueGuardEnabled: Boolean = true
+    }
+
+    private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs().also { refs ->
+        // 为每张组件表分配 DirtyTracker 索引，用于增量 deepCopy
+        refs.forEachIndexed { index, ref -> ref.columnIndex = index }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // DirtyTracker — 脏标记跟踪系统
+    //
+    // 每张组件表的 onWrite 回调会自动标记对应列为脏，
+    // deepCopy() 时只复制被修改过的列，大幅减少数据复制量。
+    //
+    // 参考实现：
+    // - Unreal Engine TTripleBuffer: 脏标记跳过无数据交换
+    // - GDExtensionECS: mark_components_dirty() 触发过滤器重建
+    // ════════════════════════════════════════════════════════════
+    class DirtyTracker {
+        private val dirtyColumns = mutableSetOf<Int>()
+        private val lock = Any()
+
+        /** 标记指定列索引为脏 */
+        fun markDirty(columnIndex: Int) {
+            synchronized(lock) { dirtyColumns.add(columnIndex) }
+        }
+
+        /**
+         * 消费并清除脏列集合。
+         * @return 当前所有脏列的索引集合（空集合表示无变化）
+         */
+        fun consumeDirtyColumns(): Set<Int> {
+            synchronized(lock) {
+                val copy = dirtyColumns.toSet()
+                dirtyColumns.clear()
+                return copy
+            }
+        }
+
+        /** 当前是否有脏列 */
+        val isDirty: Boolean get() = synchronized(lock) { dirtyColumns.isNotEmpty() }
+    }
+
+    /** DirtyTracker 实例 — 在 stateStore.update 事务内追踪哪些列被修改 */
+    val dirtyTracker = DirtyTracker()
+
+    // ════════════════════════════════════════════════════════════
+    // ChangedIdTracker — 增量 assemble 支持
+    //
+    // 追踪哪些弟子 ID 的组件数据被修改过，用于增量组装。
+    // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+    // ════════════════════════════════════════════════════════════
+    class ChangedIdTracker {
+        // 使用 java.util.BitSet：每旬 D 次列写热路径零装箱、单字更新；
+        // consume 用 nextSetBit 构造，天然升序供增量归并使用
+        private val changedBits = java.util.BitSet()
+
+        /** 容量拒绝标志：record 因 id 超上限被拒时置位 */
+        private var rejectedRecord = false
+
+        private val lock = Any()
+
+        /**
+         * 记录某弟子 ID 被修改。
+         * BitSet 内存与最大 id 成正比——crafted 存档 id=2^30 时 set() 分配
+         * ~128MB 可 OOM，因此超出安全上限的 id 拒绝记录，并置 [rejectedRecord]
+         * 标志——消费方读到后强制全量组装（仅凭 changedIds 为空判断会漏掉
+         * 被拒大 id 弟子，残留陈旧快照）。
+         */
+        fun record(id: Int) {
+            synchronized(lock) {
+                if (id < 0) return
+                if (id >= MAX_SAFE_CAPACITY) {
+                    rejectedRecord = true
+                    return
+                }
+                changedBits.set(id)
+            }
+        }
+
+        /** 记录多个弟子 ID 被修改（如批量写入场景） */
+        fun recordAll(ids: Collection<Int>) {
+            synchronized(lock) {
+                ids.forEach {
+                    if (it < 0) return@forEach
+                    if (it >= MAX_SAFE_CAPACITY) rejectedRecord = true else changedBits.set(it)
+                }
+            }
+        }
+
+        /**
+         * 消费并清除强制全量组装标志。
+         * 由 GameStateStoreImpl.dispatchAssemble 在消费 changedIds 的同位置读取，
+         * 二者由同一 [lock] 保证原子性。
+         */
+        fun consumeRejectedRecord(): Boolean = synchronized(lock) {
+            val flag = rejectedRecord
+            rejectedRecord = false
+            flag
+        }
+
+        /** 测试专用：模拟一次容量拒绝（避免测试构造 10M 级 id 的巨内存开销） */
+        fun markRejectedForTest() {
+            synchronized(lock) { rejectedRecord = true }
+        }
+
+        /**
+         * 非消费快照：读取当前已修改的 ID 集合（不清除）。
+         *
+         * 反向增量通道：AUTHORITATIVE tick 残留窗口的
+         * 脏弟子捕获点在 [GameStateStoreImpl.commitUpdateState] 锁内读取本快照
+         * 累积到 store 级槽位，[dispatchAssemble] 随后按原路径消费（互不干扰）。
+         */
+        fun snapshotChangedIds(): Set<Int> {
+            synchronized(lock) {
+                if (changedBits.isEmpty) return emptySet()
+                val result = LinkedHashSet<Int>()
+                var bit = changedBits.nextSetBit(0)
+                while (bit >= 0) {
+                    result.add(bit)
+                    bit = changedBits.nextSetBit(bit + 1)
+                }
+                return result
+            }
+        }
+
+        /** 非消费快照：当前是否置位强制全量标志（不清除）。 */
+        fun snapshotRejectedRecord(): Boolean = synchronized(lock) { rejectedRecord }
+
+        /**
+         * 消费并清除已修改的 ID 集合。
+         * @return 自上次消费以来被修改过的所有弟子 ID（升序）
+         */
+        fun consumeChangedIds(): Set<Int> {
+            synchronized(lock) {
+                if (changedBits.isEmpty) return emptySet()
+                val result = LinkedHashSet<Int>()
+                var bit = changedBits.nextSetBit(0)
+                while (bit >= 0) {
+                    result.add(bit)
+                    bit = changedBits.nextSetBit(bit + 1)
+                }
+                changedBits.clear()
+                return result
+            }
+        }
+    }
+
+    /** ChangedIdTracker 实例 — 追踪本次事务中哪些弟子被修改 */
+    val changedIdTracker = ChangedIdTracker()
+
+    /**
+     * 列索引 → 子对象组。
+     *
+     * 列名从 [buildCopyableRefs] 注册表按名解析为索引；未知列（新列未注册映射）
+     * 值为 -1 → [assembleAllPatched] 整体退化全量（正确性优先，绝不复用旧数据）。
+     * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/assembleSocial/
+     * assembleSkills/assembleUsage 的读取点逐行推导，新增列必须同步更新。
+     */
+    // P3-20（审计）：纯静态映射按需单次构建——deepCopy/回滚基线等纯写副本
+    // 零成本（原为构造期 eager 构建，90 项 mapOf 每实例重建）
+    private val columnGroupByIndex: IntArray by lazy { run {
+        val byName = discipleColumnGroupByName()
+        IntArray(_allCopyableRefs.size) { index ->
+            byName[_allCopyableRefs[index].debugName]?.ordinal ?: -1
+        }
+    } }
+
+    /** 测试辅助：列名 → 注册索引（-1 表示列未注册）。 */
+    internal fun columnIndexOf(name: String): Int =
+        _allCopyableRefs.indexOfFirst { it.debugName == name }
+
+    init { bindAllOnWrite() }
+
+    /* ================================================================
+     * 核心 API
+     * ================================================================ */
+
+    /**
+     * 原子分配 ID 并写入全部组件表。
+     *
+     * 在单个 [synchronized(ids)] 锁内完成 ID 分配 + 组件数据写入，
+     * 消灭 [allocateNextId] 与 [insert] 之间的悬空窗口。
+     * 无论 [disciple.id] 是什么值，都会被新分配的 ID 覆盖。
+     *
+     * 对标 Unity DOTS [EntityManager.CreateEntity] / Flecs [world.entity]
+     * 的原子实体创建模式，杜绝"分配 ID 后未写入数据"的窗口期。
+     *
+     * @param disciple 待插入的弟子对象（其 ID 将被覆盖）
+     * @return 新分配的 ID（String 格式）
+     */
+    fun allocateAndInsert(disciple: Disciple): String = synchronized(_ids) {
+        requireWriteAccess()
+        val id = (_ids.maxOrNull() ?: 0) + 1
+        val idStr = id.toString()
+        _ids.add(id)
+        // copy() 不复制 class body 属性（如 lifeEvents），手动保留
+        val d = if (disciple.skills.aptitude == DEFAULT_APTITUDE) {
+            // 旧档 recruitList/俘虏资质未生成（哨兵 50）→ 入宗时按灵根阶梯补算，
+            // 避免本局内资质保持 50、下次读档才自愈的"招募后资质跳变"窗口
+            val rootCount = disciple.spiritRootType.takeIf { it.isNotBlank() }?.split(",")?.size ?: 5
+            disciple.copy(
+                id = idStr,
+                skills = disciple.skills.copy(aptitude = rollHealedAptitude(id, rootCount))
+            )
+        } else {
+            disciple.copy(id = idStr)
+        }
+        d.lifeEvents = disciple.lifeEvents
+        writeAllFields(d)
+        recordChangedId(id)
+        idStr
+    }
+
+    /**
+     * 添加一个新弟子。所有组件表同时插入一行。
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
+     */
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun insert(disciple: Disciple) {
+        val id = disciple.id.toInt()
+        synchronized(_ids) {
+            requireWriteAccess()
+            if (id in _ids) {
+                update(disciple)
+                return
+            }
+            _ids.add(id)
+            try {
+                writeAllFields(disciple)
+            } catch (e: Exception) {
+                // writeAllFields 中途异常 → 回滚 ids，防止幽灵 ID 残留
+                _ids.remove(id)
+                throw e
+            }
+            recordChangedId(id)
+        }
+        assertAllTablesConsistent()
+        if (!consistencyCheckEnabled) {
+            val ghostCount = ids.count { !isAlive.contains(it) }
+            if (ghostCount > 0) {
+                Log.w(TAG, "insert 后检测到 $ghostCount 个幽灵弟子（isAlive 表无记录）")
+            }
+        }
+    }
+
+    /**
+     * 更新一个已有弟子的所有组件字段（不修改 ids 列表）。
+     * 用于从组装后的 Disciple 对象写回修改。
+     */
+    fun update(disciple: Disciple) {
+        val id = disciple.id.toIntOrNull() ?: return
+        synchronized(_ids) {
+            requireWriteAccess()
+            if (!_ids.contains(id)) return@synchronized
+            writeAllFields(disciple)
+            recordChangedId(id)
+        }
+    }
+
+    /**
+     * 镜像行级 upsert：存在则全字段覆盖（等价 [update]），
+     * 不存在则插入（等价 [insert]）。
+     *
+     * 与直接调 [update] 的差别：存在性探测走 isAlive 列的 SparseArray 索引
+     * O(log n)——update 内部经 _ids 线性扫描 O(N)，镜像信封按 id 精确应用时
+     * k≈N 的每旬全脏场景会退化为 O(k·N)。幽灵行（isAlive 缺键但 _ids 存在，
+     * 异常态有日志）由 [insert] 的 `id in _ids` 检查兜底转 update，语义一致。
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)。
+     */
+    fun upsertMirrorRow(disciple: Disciple) {
+        val id = disciple.id.toIntOrNull() ?: return
+        synchronized(_ids) {
+            requireWriteAccess()
+            if (isAlive.contains(id)) {
+                writeAllFields(disciple)
+                recordChangedId(id)
+            } else {
+                insert(disciple)  // synchronized(_ids) 可重入；insert 内含一致性断言
+            }
+        }
+    }
+
+    /**
+     * 原子全量替换所有弟子数据。
+     *
+     * 在单个 [synchronized(ids)] 锁内完成四步操作：
+     *   1) ids.clear()       — 清空 ID 索引列表
+     *   2) 全表 clear()      — 清空所有组件表（通过 _allCopyableRefs 迭代）
+     *   3) 全量写入           — 对每个弟子调用 writeAllFields()
+     *   4) ids.addAll(...)   — 重建 ID 索引列表 + recordChangedIds
+     *   （mutationVersion 由列写回调自动递增）
+     *
+     * 替代 [clear] + 多次 [insert] 的 N+1 锁裸模式，提供更清晰的批量替换语义。
+     * 调用方传入的列表必须已是完整替换集——[replaceAll] 不负责过滤/保留。
+     * （审计 P2-4：deathRecords 已删除。）
+     *
+     * @param disciples 替换后的弟子完整列表，所有元素的 ID 必须已分配且唯一
+     */
+    fun replaceAll(disciples: List<Disciple>) {
+        requireWriteAccess()
+        // 在清除前保存 deathYears，writeAllFields 不写入此表
+        val savedDeathYears = mutableMapOf<Int, Int>()
+        synchronized(_ids) {
+            for (id in _ids) {
+                if (deathYears.contains(id)) {
+                    savedDeathYears[id] = deathYears[id]
+                }
+            }
+        }
+        synchronized(_ids) {
+            _ids.clear()
+            _allCopyableRefs.forEach { it.clear() }
+            disciples.forEach { writeAllFields(it) }
+            val newIds = disciples.map { it.id.toInt() }
+            check(newIds.size == newIds.distinct().size) {
+                "replaceAll: 弟子列表包含重复 ID（编程错误），列表大小=${newIds.size}"
+            }
+            _ids.addAll(newIds)
+            // 恢复死亡年份（仅对仍在列表中的弟子）
+            savedDeathYears.forEach { (id, year) ->
+                if (id in ids) deathYears[id] = year
+            }
+            recordChangedIds(newIds)
+        }
+        assertAllTablesConsistent()
+        if (!consistencyCheckEnabled) {
+            // Release 构建：轻量校验，仅日志不抛异常
+            val ghostCount = ids.count { !isAlive.contains(it) }
+            if (ghostCount > 0) {
+                Log.w(TAG, "replaceAll 后检测到 $ghostCount 个幽灵弟子（isAlive 表无记录）")
+            }
+        }
+    }
+    /**
+     * 从组件表组装一个完整的 Disciple 对象。
+     * 仅在需要"完整弟子视图"时调用：
+     *   - UI 渲染（Screen 层）
+     *   - 序列化/持久化
+     *   - 网络同步
+     * 不应在 tick 热路径中调用。
+     */
+    fun assemble(id: Int): Disciple = assembleCoreFields(id, prev = null, dirtyGroups = 0)
+
+    /**
+     * 旧档资质自愈：资质 == [DEFAULT_APTITUDE]（未生成哨兵）的弟子按灵根数阶梯
+     * 确定性重算资质（id 散列，幂等——同一 id 每次重算结果稳定）。
+     *
+     * 阶梯与生成站点（DiscipleFactory/AISectDiscipleManager/RedeemCodeManager）一致：
+     * 1根[80,200] 2根[60,200] 3根[40,200] 4根[20,200] 5根[1,200]。
+     * 生成站点与自愈均避开哨兵值（重算命中 [DEFAULT_APTITUDE] 时强制 +1 收敛），
+     * 保证"资质==50 ⇔ 未生成"判定在两次读档之间稳定，不会重复重算。
+     *
+     * @return 被补算的弟子数量（0 = 无修改，调用方据此决定是否需要持久化/重锚）
+     */
+    fun healDefaultAptitudes(): Int {
+        var count = 0
+        for (id in ids) {
+            if (aptitudes.getOrDefault(id, DEFAULT_APTITUDE) != DEFAULT_APTITUDE) continue
+            // 空串/空灵根兜底按 5 根（最宽区间），避免空数据误判 1 根生成低档资质
+            val rootCount = spiritRootTypes.getOrNull(id)
+                ?.takeIf { it.isNotBlank() }
+                ?.split(",")?.size ?: 5
+            aptitudes[id] = rollHealedAptitude(id, rootCount)
+            count++
+        }
+        return count
+    }
+
+    /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
+     *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。
+     *  isAlive.contains(id) 校验确保 ID 经过了 writeAllFields 全表写入，
+     * 防止仅 names 表有条目的半幽灵逃逸到 UI/存档。 */
+    fun assembleAll(): List<Disciple> {
+        // P1-B B1：事务内组装缓存命中——同事务多次 assembleAll 只组装一次
+        //（战斗流程 4 次全量 → 1 次 + 3 次 O(1) 命中；写操作经 requireWriteAccess 失效）
+        txAssembled?.let { return it }
+        val result = ids.distinct().mapNotNull { id ->
+            try {
+                // 全幽灵防御：isAlive + names + realms 任一缺失说明 ID 未完整写入
+                if (!isCompleteId(id)) {
+                    val reason = when {
+                        !isAlive.contains(id) -> "isAlive table missing"
+                        !names.contains(id) -> "names table missing"
+                        else -> "realms table missing"
+                    }
+                    Log.w(TAG, "GHOST DISCIPLE (skipped): id=$id, $reason")
+                    return@mapNotNull null
+                }
+                val d = assemble(id)
+                // 有意差异：deepCopy 的三表过滤保留空名字弟子（三表齐全，非半幽灵），
+                // 空名防御仅在本处 assembleAll 执行——两处组合保证 UI 永不见空名/半幽灵。
+                if (d.name.isBlank()) {
+                    Log.w(TAG, "GHOST DISCIPLE (skipped): id=${d.id}, " +
+                        "age=${d.age}, realm=${d.realm}/${d.realmLayer}, " +
+                        "cultivation=${d.cultivation}")
+                    null
+                } else d
+            } catch (e: NoSuchElementException) {
+                Log.w(TAG, "GHOST DISCIPLE (skipped): id=$id, error=${e.message}")
+                null
+            }
+        }
+        txAssembled = result
+        return result
+    }
+
+    /**
+     * 增量组装：只重新组装 [changedIds] 中的弟子，与 [prevSnapshot] 合并。
+     * 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+     *
+     * 归并策略：双指针归并（O(D + C)）——prevSnapshot 按 id 升序（既有不变量）、
+     * changedIds 按 BitSet 升序，线性归并且未变弟子复用旧对象引用
+     * （UI 侧 data class 相等跳过重组）。
+     *
+     * @param prevSnapshot 上一次的完整弟子列表（id 升序）
+     * @param changedIds 本次事务中修改过的弟子 ID（升序）
+     * @return 合并后的完整弟子列表（id 升序）
+     */
+    fun assembleAllIncremental(prevSnapshot: List<Disciple>, changedIds: Set<Int>): List<Disciple> {
+        if (changedIds.isEmpty()) return prevSnapshot
+
+        // 双指针归并依赖 prevSnapshot 按 id 升序——读档路径
+        //（DiscipleDataDao.getAllSync = ORDER BY realm, cultivation）产出非升序列表，
+        // 失序归并会产生重复弟子。
+        // 入口 O(D) 校验升序，失序时退化为全量组装（正确性优先）。
+        var prevSorted = true
+        var lastId = -1
+        for (d in prevSnapshot) {
+            val id = d.id.toIntOrNull()
+            if (id == null || id < lastId) { prevSorted = false; break }
+            lastId = id
+        }
+        if (!prevSorted) {
+            Log.w(TAG, "assembleAllIncremental: prevSnapshot 非升序（读档路径），退化为全量组装")
+            return assembleAll()
+        }
+        // changedIds 升序迭代（BitSet nextSetBit 天然升序）——组装为 id→Disciple 映射
+        val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
+        for (id in changedIds) {
+            if (!isCompleteId(id)) {
+                Log.w(TAG, "assembleAllIncremental: ghost skipped id=$id")
+                continue
+            }
+            try { changedMap[id] = assemble(id) } catch (e: NoSuchElementException) {
+                Log.w(TAG, "assembleAllIncremental: assemble 失败 id=$id（列缺失）", e)
+            }
+        }
+        // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子
+        //（组装必然失败），此时归并仍须从 prevSnapshot 剔除这些 id（防陈尸残留）
+
+        // 已移除/幽灵弟子 id：changedIds 中存在但组装失败的——归并时必须从
+        // prevSnapshot 中剔除（否则陈尸残留）
+        val removedIds = changedIds.filter { it !in changedMap }.toHashSet()
+
+        return mergeSortedSnapshotsById(prevSnapshot, changedMap, removedIds)
+    }
+
+    /**
+     * 子对象级 patch 增量组装：changedIds ≈ 全量时替代 [assembleAll]。
+     *
+     * 每旬 cultivation 列写几乎所有弟子 → 原全量路径每弟子 ~100 列读 + 10 个
+     * 嵌套对象分配。本方法按脏列所属子对象组只重装对应组（未脏组复用
+     * [prevSnapshot] 中同 ID 弟子的子对象引用），本体字段（~33 列）始终重读。
+     *
+     * 安全网：脏列含未注册映射的列（-1 组）时整体退化为全量 [assembleAll]——
+     * 新增列未同步映射时绝不复用旧子对象数据（正确性优先）。
+     * 失序/幽灵防御与 [assembleAllIncremental] 一致。
+     *
+     * @param prevSnapshot 上一次的完整弟子列表（id 升序）
+     * @param changedIds 本次事务中修改过的弟子 ID（升序）
+     * @param dirtyColumnIndices 本次事务脏列索引集合（DirtyTracker 消费结果）
+     * @return 合并后的完整弟子列表（id 升序）
+     */
+    fun assembleAllPatched(
+        prevSnapshot: List<Disciple>,
+        changedIds: Set<Int>,
+        dirtyColumnIndices: Set<Int>
+    ): List<Disciple> {
+        if (changedIds.isEmpty()) return prevSnapshot
+
+        // 脏列 → 组位图。注意：-1 组 = 本体列（如 cultivations，始终重读），
+        // 属正常情况不退化；仅"列索引越界"（新增列未注册）才整体退化全量。
+        val dirtyGroups = computeDirtyGroups(dirtyColumnIndices, columnGroupByIndex)
+        if (dirtyGroups == null) {
+            Log.w(
+                TAG,
+                "assembleAllPatched: 脏列含未注册组映射（新增列未同步 columnGroupByIndex），" +
+                    "退化为全量组装——请检查 DiscipleTables 的列→组映射表"
+            )
+            return assembleAll()
+        }
+
+        if (!isPrevSnapshotSorted(prevSnapshot = prevSnapshot, tag = "assembleAllPatched")) {
+            return assembleAll()
+        }
+
+        // prevSnapshot → id 映射（O(D)，patch 复用 prev 子对象引用）
+        val prevById = buildPrevById(prevSnapshot = prevSnapshot)
+
+        val changedMap = assemblePatchedChangedMap(
+            changedIds = changedIds,
+            prevById = prevById,
+            dirtyGroups = dirtyGroups
+        )
+        return mergePatchedSnapshots(
+            prevSnapshot = prevSnapshot,
+            changedIds = changedIds,
+            changedMap = changedMap
+        )
+    }
+
+    /** 组装变更弟子：幽灵跳过 + 列缺失防御 */
+    private fun assemblePatchedChangedMap(
+        changedIds: Set<Int>,
+        prevById: Map<Int, Disciple>,
+        dirtyGroups: Int
+    ): HashMap<Int, Disciple> {
+        val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
+        for (id in changedIds) {
+            if (!isCompleteId(id)) {
+                Log.w(TAG, "assembleAllPatched: ghost skipped id=$id")
+                continue
+            }
+            try {
+                changedMap[id] = assembleCoreFields(id, prevById[id], dirtyGroups)
+            } catch (e: NoSuchElementException) {
+                Log.w(TAG, "assembleAllPatched: assemble 失败 id=$id（列缺失）", e)
+            }
+        }
+        // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子
+        //（组装必然失败），此时归并仍须从 prevSnapshot 剔除这些 id（防陈尸残留）
+        return changedMap
+    }
+
+    /**
+     * 删除一个弟子。所有组件表同时删除对应行。
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
+     */
+    fun remove(id: Int) {
+        synchronized(_ids) {
+            requireWriteAccess()
+            _ids.remove(id)
+            _allCopyableRefs.forEach { it.remove(id) }
+            recordChangedId(id)
+            assertAllTablesConsistent()
+            if (!consistencyCheckEnabled) {
+                val ghosts = ids.filter { !isAlive.contains(it) }
+                if (ghosts.isNotEmpty()) {
+                    Log.w(TAG, "remove 后存在幽灵弟子: ids=$ghosts")
+                }
+            }
+        }
+    }
+
+    /** 清空所有组件表（审计 P2-4：deathRecords 零消费者纯开销，已删除） */
+    fun clear() {
+        requireWriteAccess()
+        synchronized(_ids) {
+            _ids.clear()
+            _allCopyableRefs.forEach { it.clear() }
+        }
+    }
+
+    /**
+     * 集中标记弟子死亡 —— 设置 isAlive/status/deathYears（审计 P2-4：DeathRecord 已删除）。
+     * 所有死亡路径必须调用此方法（或通过 handleDiscipleDeath），禁止手动写三个字段。
+     * [cause] 取值："age" / "battle" / "scout" / "exploration" / "cave" / "unknown"
+     * 使用方式：
+     *   discipleTables.markDead(id, currentYear, "battle")
+     *
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
+     */
+    fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
+        require(cause in VALID_DEATH_CAUSES) { "Invalid death cause: $cause. Valid: $VALID_DEATH_CAUSES" }
+        requireWriteAccess()
+        synchronized(_ids) {
+            if (!_ids.contains(id)) return@synchronized
+            // 审计 P2-4：DeathRecord 已删除（零消费者纯开销）——死亡信息
+            // 由 isAlive/status/deathYears 列承载
+            isAlive[id] = 0
+            statuses[id] = DiscipleStatus.DEAD
+            deathYears[id] = currentYear
+            // 记录 changedId：markDead 修改了弟子数据，若本事务还包含其他
+            // update/insert（产生 changedIds），增量组装必须重排本弟子，
+            // 否则快照会保留其"存活"旧数据（陈尸）。
+            recordChangedId(id)
+        }
+    }
+
+    /**
+     * 绑定所有子表的 onWrite → markMutated，以及 requireWrite → requireWriteAccess。
+     * deepCopy 构造函数同样调用此方法——副本的 requireWrite 指向副本的 requireWriteAccess，
+     * 与原始表互不干扰，确保 deepCopy 在 writeAllowed=true 时可写。
+     */
+    private fun bindAllOnWrite() {
+        val guard: () -> Unit = { requireWriteAccess() }
+        _allCopyableRefs.forEach { ref ->
+            // 脏标记回调：每次写入时同时递增 mutationVersion 并标记对应列为脏
+            val dirtyCb: () -> Unit = {
+                mutationVersion++
+                dirtyTracker.markDirty(ref.columnIndex)
+            }
+            // 按 id 写入回调：
+            // 列级 setter 记录被修改的弟子 ID → changedIdTracker → 增量 assemble 只重组脏弟子
+            val idCb: (Int) -> Unit = { id -> changedIdTracker.record(id) }
+            when (ref) {
+                is IntTableRef -> {
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
+                }
+                is DoubleTableRef -> {
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
+                }
+                is RefTableRef<*> -> {
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
+                }
+                is MutableTableRef<*> -> {
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
+                }
+            }
+        }
+    }
+
+    /**
+     * 深拷贝组件表（列级 Copy-on-Write 快照隔离）。
+     *
+     * 默认路径（[forceFullCopy] = false）：每张组件表 [shareStoreTo] 共享源表存储
+     * （O(1) 引用赋值，零数据复制），事务缓冲首次写入某列时自动私有化。
+     * 非脏列共享的是引用而非空数组——assembleAll() 在任意快照上都能读到全列数据。
+     * 旧快照（UI 持有）引用旧存储，事务永不原地修改源存储，天然隔离。
+     *
+     * 兜底路径（[forceFullCopy] = true）：逐元素全量复制。
+     *
+     * @param dirtyColumns 兼容参数（已弃用——COW 每列 O(1) adopt，无需增量复制）。
+     *   由 [dirtyTracker.consumeDirtyColumns] 收集，仅用于 DirtyTracker 维护。
+     */
+    @Suppress("UnusedParameter") // dirtyColumns: 阶段 3 数据导向存储的列级写屏障预留钩子（handover 登记项，勿删）
+    fun deepCopy(dirtyColumns: Set<Int>? = null): DiscipleTables {
+        val copy = DiscipleTables()
+        copy.writeAllowed = true
+        synchronized(_ids) {
+            val idsSnapshot = this._ids.toList()
+            if (forceFullCopy) {
+                // 兜底路径：逐元素全量复制
+                _allCopyableRefs.forEach { it.copyTo(copy) }
+            } else {
+                // COW 路径：共享存储引用，首次写入时自动私有化
+                // （Mutable 列的 unmodifiable 包装已在 MutableTableRef.shareStoreTo 内完成）
+                _allCopyableRefs.forEach { it.shareStoreTo(copy) }
+            }
+            // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
+            // 三表判据与 assembleAll/assembleAllIncremental 一致（isCompleteId）
+            copy._ids.addAll(idsSnapshot.filter { copy.isCompleteId(it) })
+        }
+        // 显式复制死亡记录，防止跨 update 边界丢失
+        copy.writeAllowed = false  // 复制完成后重置守卫，由调用方（update{}）的 .apply { writeAllowed = true } 再次开启
+        return copy
+    }
+
+    /**
+     * 修炼检查点 — 将当前修炼值同步到检查点。
+     *
+     * 在任意影响修炼速率的操作后调用（政策、长老、丹药、突破等），
+     * 使后续 [getEffectiveCultivation] 在新速率下正确投影。
+     *
+     * @param id 弟子 ID
+     * @param currentMonth 当前绝对月份（gameYear * 12 + gameMonth）
+     */
+    fun checkpointDisciple(id: Int, currentMonth: Int) {
+        requireWriteAccess()
+        if (isAlive[id] != 1) return
+        cultivationCheckpoints[id] = cultivations.getOrDefault(id, 0.0)
+        cultivationCheckpointGameMonths[id] = currentMonth
+    }
+
+    /**
+     * 全量弟子检查点 — 对所有存活弟子同步检查点。
+     *
+     * 在影响全体弟子的速率变化后调用（政策切换、全局丹药等）。
+     *
+     * @param currentMonth 当前绝对月份（gameYear * 12 + gameMonth）
+     */
+    fun checkpointAllDisciples(currentMonth: Int) {
+        for (id in ids) {
+            checkpointDisciple(id, currentMonth)
+        }
+    }
+
+    /**
+     * 修炼投影值：检查点值 + 速率 × 经过月份 × 3。
+     * 无检查点时回退到实际修炼值（兼容旧数据/新弟子）。
+     *
+     * [checkpointDisciple] 已全量接入所有速率变化点，
+     * 投影计算在新速率下正确反映从检查点以来的增量。
+     */
+    fun getEffectiveCultivation(id: Int, currentMonth: Int, rate: Double): Double {
+        if (!cultivationCheckpoints.contains(id)) return cultivations.getOrDefault(id, 0.0)
+        val checkpoint = cultivationCheckpoints[id]
+        val cpMonth = cultivationCheckpointGameMonths.getOrDefault(id, currentMonth)
+        if (rate <= 0.0) return checkpoint
+        val monthsElapsed = (currentMonth - cpMonth).coerceAtLeast(0)
+        if (monthsElapsed <= 0) return checkpoint
+        return checkpoint + rate * monthsElapsed * 3.0
+    }
+
+    /**
+     * 剔除死亡超过 [thresholdYear] 年的弟子（审计 P2-4：原「基本信息保留到
+     * deathRecords」随零消费者字段删除一并移除）。
+     * 使用 [deathYears] 组件判断死亡时长，无 deathYear 记录的不会剔除。
+     * 用于 [DiscipleLifecycleProcessor.processYearlyAging] 年变事件。
+     *
+     * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
+     */
+    fun cullDeadDisciples(thresholdYear: Int) {
+        requireWriteAccess()
+        val toRemove = synchronized(_ids) {
+            _ids.filter { id ->
+                deathYears.contains(id) && deathYears[id] <= thresholdYear
+            }
+        }
+        toRemove.forEach { remove(it) }
+    }
+
+    /**
+     * Debug 模式: 断言 ids 中所有 id 在每张组件表中都存在。
+     * 对标 Bevy UnsafeWorldCell Debug 运行时检查模式。
+     * 违反时立即 `check()` 失败，杜绝幽灵弟子逃逸到生产环境。
+     */
+    private fun assertAllTablesConsistent() {
+        if (!consistencyCheckEnabled) return
+        synchronized(_ids) {
+            for (id in _ids) {
+                _allCopyableRefs.forEach { ref ->
+                    // deathYears 是稀疏表——仅已故弟子有条目，存活弟子无写入。
+                    // 与 markDead() 的生命周期合约一致，不在此检查范围内。
+                    if (ref.debugName == "deathYears" || ref.debugName == "lastTheftJudgementYears") return@forEach
+                    check(ref.contains(id)) {
+                        "GHOST DISCIPLE: id=$id missing in ${ref.debugName}. " +
+                        "Insert/remove/replaceAll did not write to all component tables."
+                    }
+                }
+            }
+        }
+    }
+}

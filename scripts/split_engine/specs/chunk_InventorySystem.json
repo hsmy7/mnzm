@@ -1,0 +1,138 @@
+{
+ "files": [
+  {
+   "name": "InventorySystemWithOps1",
+   "header": "// ── InventorySystem 拆分域 1/7（行为零变更） ──",
+   "fns": [
+    "withTrackingSource",
+    "withOverflowMailSuppressed",
+    "handleOverflowResult",
+    "resolveOverflowItemId",
+    "sendOverflowMail",
+    "validateQuantity",
+    "logWarning",
+    "getMaxStackForType",
+    "getById",
+    "getQuantity",
+    "currentEquipmentStacks",
+    "currentEquipmentInstances",
+    "currentManualStacks",
+    "currentManualInstances"
+   ]
+  },
+  {
+   "name": "InventorySystem丹药Ops2",
+   "header": "// ── InventorySystem 拆分域 2/7（行为零变更） ──",
+   "fns": [
+    "currentPills",
+    "currentMaterials",
+    "currentHerbs",
+    "currentSeeds",
+    "getCapacityInfo",
+    "canAddItem",
+    "canAddItemInTransaction",
+    "canAddItems",
+    "canAddEquipment",
+    "canAddPill",
+    "canAddManual",
+    "canAddMaterial",
+    "canAddHerb",
+    "canAddSeed"
+   ]
+  },
+  {
+   "name": "InventorySystem校验Ops3",
+   "header": "// ── InventorySystem 拆分域 3/7（行为零变更） ──",
+   "fns": [
+    "validateStackableItem",
+    "returnEquipmentToStack",
+    "materializeBagItemsToWarehouse",
+    "materializeSingleBagItem",
+    "materializeEquipmentInstance",
+    "materializeManualInstance",
+    "reconstructStackedItem",
+    "materializeStackedItem",
+    "materializeDiscipleBagAndMarkDead",
+    "returnManualToStack",
+    "removeEquipment",
+    "removeEquipmentInstance",
+    "updateEquipmentStack",
+    "updateEquipmentInstance"
+   ]
+  },
+  {
+   "name": "InventorySystem装备Ops4",
+   "header": "// ── InventorySystem 拆分域 4/7（行为零变更） ──",
+   "fns": [
+    "getEquipmentStackById",
+    "getEquipmentInstanceById",
+    "removeManual",
+    "removeManualInstance",
+    "updateManualStack",
+    "updateManualInstance",
+    "getManualStackById",
+    "getManualInstanceById",
+    "addPill:L726",
+    "removePill",
+    "removePillByName",
+    "updatePill",
+    "getPillById",
+    "getPillQuantity"
+   ]
+  },
+  {
+   "name": "InventorySystem丹药Ops5",
+   "header": "// ── InventorySystem 拆分域 5/7（行为零变更） ──",
+   "fns": [
+    "hasPill",
+    "addMaterial:L857",
+    "removeMaterial",
+    "removeMaterialByName",
+    "updateMaterial",
+    "getMaterialById",
+    "getMaterialQuantity",
+    "hasMaterial",
+    "addHerb:L963",
+    "removeHerb",
+    "removeHerbByName",
+    "updateHerb",
+    "getHerbById",
+    "getHerbQuantity"
+   ]
+  },
+  {
+   "name": "InventorySystemHasOps6",
+   "header": "// ── InventorySystem 拆分域 6/7（行为零变更） ──",
+   "fns": [
+    "hasHerb",
+    "addSeed:L1087",
+    "addStorageBag",
+    "removeSeed",
+    "addSeedSync",
+    "removeSeedSync",
+    "removeSeedByName",
+    "updateSeed",
+    "getSeedById",
+    "getSeedQuantity",
+    "hasSeed",
+    "getItemCountByType",
+    "consolidateStacks",
+    "sortWarehouse"
+   ]
+  },
+  {
+   "name": "InventorySystemHasOps7",
+   "header": "// ── InventorySystem 拆分域 7/7（行为零变更） ──",
+   "fns": [
+    "hasEnoughSpiritStones",
+    "createEquipmentFromRecipe",
+    "createEquipmentFromMerchantItem",
+    "createManualFromMerchantItem",
+    "createPillFromMerchantItem",
+    "createMaterialFromMerchantItem",
+    "createHerbFromMerchantItem",
+    "createSeedFromMerchantItem"
+   ]
+  }
+ ]
+}

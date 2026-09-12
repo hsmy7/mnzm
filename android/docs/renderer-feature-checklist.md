@@ -1,0 +1,63 @@
+# 渲染特性清单 (Renderer Feature Checklist)
+
+每新增渲染特性必须两端同步实现，确保 Vulkan 和 Canvas 路径行为一致。
+
+## 命名约定
+
+使用注释标记标明特性在两端的状态：
+
+```kotlin
+// @RenderFeature(name="camera_offset", vulkan=true, canvas=true, test=true)
+```
+
+## 特性清单
+
+| 特性 | 描述 | Vulkan | Canvas | 测试 | 状态 |
+|------|------|--------|--------|------|------|
+| ground_tiling | 地面平铺绘制 | ✅ | ✅ | ✅ | 已实现 |
+| decor_overlay | 装饰叠加（草/石/树：显示尺寸按素材纵横比取小数格，锚点 = 格底边居中；草/石走地面层逐格绘制） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（TILE_SPRITE_W/H codegen + SpriteSizingFidelityTest） |
+| decor_object_layer | 立体层装饰（树）与建筑同一画家序（按地面接触点归并，同键建筑在后，覆盖同接触点装饰；树冠可向上越出 2.29 格而不再被北侧建筑无脑压掉） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（gamecore/map/draw_order.h + draw_order_test + SoftwareCanvasBackendDecorLayerTest） |
+| decor_overhang_range | 装饰越界绘制范围外扩（渲染遍历/可见性按 DECOR_MARGIN_COLS/ROWS 外扩——否则 chunk 缝处树冠被整块裁掉） | ✅ | ✅ | ✅ | 2026-09 立绘尺寸口径（SoftwareCanvasBackendDecorLayerTest chunk 顶行树用例） |
+| building_draw | 建筑精灵绘制 | ✅ | ✅ | ✅ | 已实现 |
+| camera_offset | 相机平移偏移 | ✅ | ✅ | ✅ | v4.0.45 修复 |
+| camera_zoom | 缩放 (scale) | ✅ | ✅ | ✅ | 已实现 |
+| building_preview | 建造/移动预览 | ✅ | ✅ | ✅ | 已实现 |
+| preview_tint | 预览精灵调色 | ✅ | ✅ | ✅ | 已实现 |
+| viewport_culling | 视锥剔除 | ✅ | ✅ | ✅ | v4.0.45 修复 |
+| building_culling | 建筑视口外裁剪 | ✅ | ✅ | ✅ | v4.0.45 修复 |
+| fling_30fps | 弹射动画 30FPS | ✅ | ✅ | ✅ | 已实现 |
+| fade_transition | 地图淡入动画（300ms EaseOutCubic，RenderThread 启动触发覆盖首次/重入/降级；仅地图层受 fade，预览/高亮独立不受影响） | ✅ | ✅ | ✅ | 2026-08-10 WP4 |
+| heat_control_quality | 热控降质（qualityFactor + 装饰跳过） | ✅ | ✅ | ✅ | 2026-08-10 WP1 |
+| decor_lod | 缩放 LOD（scale<0.6 装饰层跳过，双端同阈值；Canvas 离散档位失效，Vulkan g_scale 条件） | ✅ | ✅ | ✅ | 2026-08-10 WP5 |
+| vsync_pacing | 渲染线程 vsync 帧节奏（Canvas Choreographer 对齐 + FrameDropPolicy 帧跳过；Vulkan FIFO 交换链天然对齐；失败回退 sleep 节拍） | ✅ | ✅ | ✅ | 2026-08-10 WP5 |
+| building_shadow | 建筑投影阴影（半透明黑 quad + 右下偏移 0.25 格） | ✅ | ✅ | ✅ | 2026-08-10 WP3（硬边无高斯模糊，0.2 alpha 视觉补偿，已知取舍） |
+| selection_highlight | 普通点击选中金色描边（动态叠加，不烘焙 chunk） | ✅ | ✅ | ✅ | 2026-08-10 WP3（RenderFlags 双端开关 + 总线脏帧防错位） |
+| demolish_highlight | 一键拆除模式绿/红占地高亮（数据通道 RenderFrame.demolishHighlightData，与 buildingData 同序；总线脏帧跳帧防索引错位；null=跳过） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose 覆盖层迁移至 native——同帧同相机，消除拖拽相位差） |
+| grid_overlay | 放置/移动模式全视口网格线（RenderFrame.gridOverlayVisible 标志驱动，范围钳制到世界边界；Canvas drawLine / Vulkan 薄 quad） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose GridOverlay 迁移至 native——同帧同相机，消除拖拽相位差） |
+| spirit_crop | 灵田作物三阶段生长动画（stage 边界 1/3、2/3 + crossfade × 全局 fade 乘算；Vulkan 瓦片层后批内追加，Canvas 不烘焙逐帧叠加；数据通道 RenderFrame.spiritCropData，null=跳过） | ✅ | ✅ | ✅ | 2026-08-10 WP6（NaN/越界双端防御；无专属 flag，数据驱动；cropBitmaps 死代码已删） |
+| texture_compression | Vulkan GPU 图集 ASTC 4x4 LDR 压缩（KTX1 容器全字段校验，16MB→4MB；设备不支持/资产损坏全链回退 RGBA 视觉零差异；Canvas 保持运行时 RGBA 拼装不变） | ✅ | ➖（仅 Vulkan 路径） | ✅ | 2026-08-10 WP7（KtxLoader 校验 + AtlasManifestSyncTest 守卫 + 构建管线 build-atlas.mjs） |
+| gesture_pan | 拖拽平移 | ✅ | ✅ | ✅ | 手势引擎共用 |
+| gesture_tap | 点击建筑 | ✅ | ✅ | ✅ | 手势引擎共用 |
+| gesture_longpress | 长按拖动 | ✅ | ✅ | ✅ | 手势引擎共用 |
+| gesture_fling | 惯性滑行 | ✅ | ✅ | ✅ | 手势引擎共用 |
+| shared_constants | 双端共享渲染常量 codegen 收敛（LOD 阈值/阴影常量/瓦片索引/语义建筑索引——LAYOUT 单一数据源，Kotlin SpriteAtlasDef + C++ TextureAtlas.h 双产物自动一致） | ✅ | ✅ | ✅ | 2026-08-13 批次 2（SpriteCodegenSyncTest 双端常量全等守卫） |
+| render_command_bus | 渲染命令总线（单槽覆盖式建筑数据通道——命令 FIFO 双通道已按对抗性审查删除：零生产消费者，见 RenderCommandBus.kt KDoc） | ✅ | ✅ | ✅ | 2026-08-13 批次 2 + 对抗性审查修正 |
+| render_scale | 渲染分辨率缩放（平板/大屏省电：RenderScalePolicy 决策 → Vulkan 离屏目标 + vkCmdBlitImage 上采样 / Canvas 降采样帧缓冲 + 双线性拉伸提交；renderScale=1.0 时两端行为与现状逐位一致为回归基线；接口契约保持物理像素） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP1（RenderScalePolicyTest + SoftwareCanvasBackendRenderScaleTest + RenderBackendContractTest 基线） |
+| refresh_rate_declaration | 帧率↔刷新率联动声明（>60Hz 面板声明 {60,30} 两档省屏耗 + 升档 2s 防抖；≤60Hz 面板旧行为逐位一致；RenderFlags.refreshRateDeclaration 开关回退） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP2（FrameRateDeclarationPolicyTest） |
+| dirty_frame_skip | 脏帧跳过（静止画面跳过渲染与指标：相机/帧引用/总线/淡入/缩放五守卫；EWMA 跳帧不统计防虚高） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP3（FrameSkipPolicyTest） |
+| power_save_mode | 系统省电模式监听（ACTION_POWER_SAVE_MODE_CHANGED → fpsCap 30；与低电量 45 取 min；evaluatePowerPolicy 纯函数） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP5（BatteryAwareControllerTest 扩展） |
+| dynamic_adpf_target | ADPF 目标帧时长动态化（实际帧率 → 系统性能预算；frameDurationNs 纯函数 + renderFrameRate collect 联动） | ✅ | ✅ | ✅ | 2026-08-14 平板省电 WP4（GameEngineCoreFpsPolicyTest + ThermalMonitorTest 扩展） |
+| cloud_layer | 世界顶部动态云朵（CloudLayerAnimator 渲染线程驱动：只在世界外生成/横向穿越/出界消失，速度 3 格/秒（2026-08 由 5 调低），随机类型/方向/Y/缩放（0.4~0.8，2026-08 整体缩小 50%）/透明度；实例数据快照 host.cloudData 双后端共享；绘制在建筑/作物层之上、高亮/预览/网格线之下；skipDecor 同判定降级；云活跃时 cloudDirty 阻止脏帧跳过） | ✅ | ✅ | ✅ | 2026-08-22（CloudLayerAnimatorTest + SoftwareCanvasBackendCloudTest + FrameSkipPolicyTest） |
+| sky_background | 程序绘制天空渐变背景（Screen Space / Background Layer：纯 GPU/渐变绘制**四段** top→second→third→bottom，非图片纹理、无大 Bitmap、每帧零临时分配；绘制于所有世界内容之下（最底图层），Camera 平移/缩放不影响；Vulkan/GLES 走 C++ SkyBackground + RHI drawBackground（天空管线 sky.vert + sky.frag：片元内分段 smoothstep 解析渐变 + 有序抖动去色带，参数经 push-constant/uniform），Canvas 走 screen-space LinearGradient + isDither；配置化 SkyBackgroundConfig（四色/位置/强度），为天气时间系统预留接口；配置变化才重建、非每帧；skyConfig 变更经 FrameSkipPolicy.skyDirty 强制渲染一帧——静止画面也更新配色） | ✅ | ✅ | ✅ | 2026-09（SoftwareCanvasBackendTest 天空用例组 + FrameSkipPolicyTest skyDirty 守卫 + 淡入/云层 alpha 复算更新） |
+
+## 新增特性流程
+
+1. 在 Vulkan 路径（`NativeBridge.cpp`/`VulkanBackend.cpp`）中实现
+2. 在 Canvas 路径（`SoftwareCanvasBackend.kt` + `NativeSurfaceView.kt`）中实现
+3. 在 `SoftwareCanvasBackendTest.kt` 中添加测试用例
+4. 更新本清单
+
+## 回归检测
+
+在 CI 中运行 `./gradlew.bat :feature:game:testReleaseUnitTest`，
+确保 `SoftwareCanvasBackendTest` 中 22+ 个测试全部通过。

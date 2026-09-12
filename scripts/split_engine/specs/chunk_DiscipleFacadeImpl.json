@@ -1,0 +1,44 @@
+{
+ "files": [
+  {
+   "name": "DiscipleFacadeImpl功法Ops1",
+   "header": "// ── DiscipleFacadeImpl 拆分域 1/2（行为零变更） ──",
+   "fns": [
+    "tryNativeManualRecruit",
+    "mirrorAppendJoinSectLifeEvent",
+    "recruitDiscipleFromListLegacy",
+    "rewardEquipment",
+    "equippedItemIdOf",
+    "depositOldEquipmentToBag",
+    "clearEquipmentSlot",
+    "setEquipmentSlot",
+    "consumeEquipmentStack",
+    "grantEquipmentToBag",
+    "rewardManual",
+    "applyCultivationAddEffect",
+    "applySkillExpEffect",
+    "applyExtendLifeEffect"
+   ]
+  },
+  {
+   "name": "DiscipleFacadeImpl战斗Ops2",
+   "header": "// ── DiscipleFacadeImpl 拆分域 2/2（行为零变更） ──",
+   "fns": [
+    "applyBattleAttrEffects",
+    "applyHealEffect",
+    "applyClearAllEffect",
+    "rewardPill",
+    "rewardMaterial",
+    "rewardHerb",
+    "rewardSeed",
+    "getElderSlotOccupant",
+    "replaceElderSlot",
+    "growElderSlotList",
+    "getDirectDiscipleId",
+    "usePill",
+    "learnManual",
+    "forgetManual"
+   ]
+  }
+ ]
+}

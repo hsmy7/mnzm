@@ -1,0 +1,218 @@
+plugins {
+    // SDK 等公共配置由 convention plugin（xianxia.android）提供
+    id 'xianxia.android'
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.protobuf)
+    // kover：全模块纳入覆盖率统计
+    alias(libs.plugins.kover)
+    alias(libs.plugins.detekt)
+}
+
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+kover {
+    if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
+        disable()
+    }
+}
+
+// 配置期文件读取经 providers.fileContents 声明式跟踪，改 api.properties/
+// version.properties 后配置缓存正确失效（普通 File IO 无法感知）。
+// 文件不存在时 asText 返回空文本 → 空 Properties。
+def loadProperties(String text) {
+    def p = new Properties()
+    p.load(new StringReader(text))
+    p
+}
+
+def apiProperties = providers.fileContents(rootProject.layout.projectDirectory.file("api.properties"))
+    .asText.map { loadProperties(it) }.get()
+def versionProps = providers.fileContents(rootProject.layout.projectDirectory.file("../version.properties"))
+    .asText.map { loadProperties(it) }.get()
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
+}
+
+android {
+    namespace = 'com.xianxia.sect.core.engine'
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            returnDefaultValues = true
+        }
+    }
+
+    // 显式单 fork——共享静态状态跨测试类并行污染
+    tasks.withType(Test).configureEach {
+        maxParallelForks = 1
+
+        // 桌面 JNI 对拍库路径转发：
+        // 命令行 `./gradlew -Dgamecore.jni.path=...` 传入 Gradle daemon JVM，
+        // 此处转发到测试 JVM；未传时 DiffRngTest 自动跳过（Assume）。
+        // 构建方式见 scripts/build-desktop-jni.ps1（本地）/ ci.yml cpp-engine-test（CI）
+        if (System.getProperty('gamecore.jni.path')) {
+            systemProperty 'gamecore.jni.path', System.getProperty('gamecore.jni.path')
+        }
+    }
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+
+        buildConfigField "String", "API_BASE_URL", '"' + apiProperties.getProperty('API_BASE_URL', 'https://api.xianxia.com/api/') + '"'
+        buildConfigField "String", "APK_SIGNATURE_HASH", '"' + apiProperties.getProperty('APK_SIGNATURE_HASH', '') + '"'
+        buildConfigField "int", "VERSION_CODE",
+            versionProps.getProperty('versionCode', '1')
+    }
+}
+
+// ============================================================
+// 精灵图集布局 Kotlin 生成任务（Godot 导入管线 codegen 接线）
+// 权威源：scripts/build-atlas.mjs 的 LAYOUT 常量（内容 hash 增量，未变则跳过）
+// 产物：build/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt（不入库）
+// 禁止手改生成物——改布局只改 LAYOUT 常量。
+// ============================================================
+tasks.register('generateSpriteAtlasDef') {
+    group = 'build'
+    description = '从 build-atlas.mjs LAYOUT 源数据生成 SpriteAtlasDef.kt（core/engine 编译单元）'
+    // inputs/outputs 声明（mjs 内部内容 hash 为第二道防线）。
+    // 注意：.atlas-def.hash 必须一并声明——脚本"内容未变则跳过写文件"，
+    // 若 Gradle 执行前清理 output 而 hash 文件不在声明内 → 脚本跳过 → 任务
+    // "成功"但产物缺失 → 空快照被判定 UP-TO-DATE 死锁。
+    inputs.file("${rootProject.projectDir}/scripts/build-atlas.mjs")
+    outputs.file("$buildDir/generated/sprite/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
+    outputs.file("$buildDir/generated/sprite/.atlas-def.hash")
+    // 配置缓存约束——脚本目录在配置期捕获（doLast 内禁止 rootProject）
+    def scriptDir = rootProject.projectDir
+    doLast {
+        def proc = ['node', 'scripts/build-atlas.mjs', '--atlas-def-only'].execute(null, scriptDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException("generateSpriteAtlasDef: build-atlas.mjs 退出码 ${exit}")
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn('generateSpriteAtlasDef') }
+// 所有 Kotlin 编译（含测试编译）依赖生成任务——compileReleaseKotlin
+// 不经 preBuild 链，clean 后单独编译会缺文件（增量 UP-TO-DATE 时零开销）
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach { dependsOn('generateSpriteAtlasDef') }
+// 生成物一致性守卫测试读取生成文件——测试前必须已生成
+tasks.withType(Test).configureEach { dependsOn('generateSpriteAtlasDef') }
+
+// ============================================================
+// Robolectric 双任务拆分
+// 背景：engine 62 类 Robolectric 测试占测试时长 58%（34.8s/60s），
+// 沙箱类加载/ASM 处理是大头。拆出 testJvmRelease（纯 JUnit，快）与
+// testRobolectricRelease（沙箱），收益是 **up-to-date 隔离而非并行**：
+// 改纯 JUnit 类 → testJvmRelease 重跑 ~25s，testRobolectricRelease 全
+// UP-TO-DATE。串行约束不变（两任务各自 maxParallelForks=1 且
+// --max-workers=1 下永不并发）。
+// 默认任务 testReleaseUnitTest 不动——CI / koverHtmlReport / CLAUDE.md
+// 语义零变化。用法见 docs/build-perf/test-split.md。
+// 注意：JUnit4 @Category 仅在 useJUnit{include/excludeCategories} 下生效，
+// 不改变默认任务的测试集。
+// ============================================================
+def robolectricCategory = 'com.xianxia.sect.core.RobolectricTests'
+// AGP 的 testReleaseUnitTest 为延迟注册任务，配置期 tasks.named() 立即解析会
+// 报 not found——用惰性闭包，输入固化时任务已注册。
+def originalTestClosure = { tasks.getByName('testReleaseUnitTest') }
+// Test 的 testClassesDirs/classpath 是抽象属性，新建任务时未初始化（null），
+// 先赋空集合再惰性 from。注意必须在任务配置闭包内（delegate=任务）执行。
+tasks.register('testRobolectricRelease', Test) {
+    group = 'verification'
+    description = '仅跑标注 @Category(RobolectricTests) 的沙箱测试（Robolectric 类改动的快速回归）'
+    testClassesDirs = files()
+    testClassesDirs.from { originalTestClosure().testClassesDirs }
+    classpath = files()
+    classpath.from { originalTestClosure().classpath }
+    useJUnit { includeCategories(robolectricCategory) }
+}
+tasks.register('testJvmRelease', Test) {
+    group = 'verification'
+    description = '仅跑非 Robolectric 的 JUnit 测试（改纯 JUnit 类时的快速回归，最常用）'
+    testClassesDirs = files()
+    testClassesDirs.from { originalTestClosure().testClassesDirs }
+    classpath = files()
+    classpath.from { originalTestClosure().classpath }
+    useJUnit { excludeCategories(robolectricCategory) }
+}
+
+// 生成物目录（build/generated/sprite/ 下需匹配包路径 com/xianxia/sect/core/render）
+kotlin {
+    sourceSets {
+        main {
+            kotlin.srcDir('build/generated/sprite')
+        }
+    }
+}
+
+protobuf {
+    protoc {
+        artifact = libs.protobuf.protoc.get().toString()
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java {
+                    option "lite"
+                }
+            }
+        }
+    }
+}
+
+dependencies {
+    // 自定义 Detekt 规则（game-engine 规则集，防 ANR #9041/#5068）
+    detektPlugins(project(':detekt-rules'))
+    api project(':core:domain')
+
+    // Kotlinx
+    implementation libs.serialization.json
+    implementation libs.coroutines.android
+
+    // Hilt
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
+
+    // Room runtime (needed for RoomDatabase supertype access)
+    implementation libs.room.runtime
+
+    // Protobuf
+    implementation libs.protobuf.javalite
+
+    // JSR-330
+    implementation "javax.inject:javax.inject:1"
+
+    // Compose Annotations (@Immutable 等) — 仅注解
+    compileOnly platform(libs.compose.bom)
+    compileOnly libs.compose.ui
+
+    testImplementation libs.junit
+    testImplementation libs.coroutines.test
+    testImplementation libs.kotlin.reflect
+    testImplementation libs.konsist.test
+    testImplementation libs.mockito.core
+    // mockito-kotlin: 提供 Kotlin 空安全兼容的 any()/eq() 等 Matcher 扩展
+    testImplementation libs.mockito.kotlin
+    // DiscipleTables 底层使用 android.util.SparseIntArray/SparseArray，
+    // 需要 Robolectric 提供真实实现（与 core:domain 模块测试一致）
+    testImplementation libs.robolectric
+}
+
+// SDK/Java/Kotlin 编译配置由 convention plugin（xianxia.android）提供；
+// 模块特有编译器参数保留在此（convention 的 -Xjsr305=strict 自动叠加）
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+    }
+}

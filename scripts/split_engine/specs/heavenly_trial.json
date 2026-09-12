@@ -1,0 +1,24 @@
+{
+ "files": [
+  {
+   "name": "HeavenlyTrialBuildOps",
+   "header": "// ── 天劫试炼敌人构筑与装备/功法选择域（自 HeavenlyTrialService 拆出，行为零变更） ──",
+   "fns": [
+    "computeBeastStats",
+    "buildBeastSkills",
+    "selectTrialManuals",
+    "selectTrialEquipment",
+    "buildTrialBaseStats",
+    "sumEquipStatBonuses",
+    "sumManualStatBonuses",
+    "buildTrialSkills",
+    "getMaxTierForRealm",
+    "enemySeed",
+    "mergeCardsByName",
+    "selectManuals",
+    "selectManualsForRole",
+    "toCombatSkill"
+   ]
+  }
+ ]
+}

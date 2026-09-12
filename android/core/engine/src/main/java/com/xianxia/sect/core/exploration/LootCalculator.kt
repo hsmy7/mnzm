@@ -1,0 +1,298 @@
+package com.xianxia.sect.core.exploration
+import com.xianxia.sect.core.util.ItemNames
+
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.shuffled
+import javax.inject.Inject
+import kotlin.math.ceil
+
+/**
+ * 掠夺计算器（确定性计算 + 副作用分离）。
+ *
+ * 计算与扣除分离，并保证以下不变量：
+ *
+ * 1. 储物袋单次 [mapInPlace] + [filterInPlace] 扣除（无双重扣除）
+ * 2. [repeat] 前加 [coerceAtLeast(0)] 防御负数量
+ * 3. [SPIRIT_STONES_PER_ITEM] 为 0 时跳过除零
+ * 4. [manualStacks] 同样经 [filterInPlace] 过滤
+ * 5. 所有物品扣除后 [filterInPlace] 统一在末尾一次完成
+ *
+ * [computeLootPlan] 为确定性计算（使用 [GameRngManager] 分区 PRNG），只读取状态不写；
+ * [applyLoot] 执行实际扣除，修改 [state] 上的仓库数据。
+ */
+class LootCalculator @Inject constructor(
+    private val rngManager: GameRngManager
+) {
+    private val lootRng: DeterministicRng get() = rngManager.getRng(RngPartition.EXPLORATION)
+
+    companion object {
+        /** 灵石掠夺行固定展示键（防 LazyRow 空 key 崩溃，Bugly #5079） */
+        internal const val LOOTED_SPIRIT_STONES_ID = "looted_spirit_stones"
+
+        /** 储物袋掠夺行固定展示键（防 LazyRow 空 key 崩溃，Bugly #5079） */
+        internal const val LOOTED_STORAGE_BAG_ID = "looted_storage_bag"
+    }
+
+    /**
+     * 掠夺结果数据。
+     */
+    data class BeastLootData(
+        val stolenSpiritStones: Long = 0L,
+        val stolenBagCount: Int = 0,
+        val stolenItems: List<LootedItem> = emptyList()
+    ) {
+        /**
+         * 生成掠夺详情字符串，用于 BattleLog。
+         */
+        fun toDetailString(beastName: String): String {
+            val parts = mutableListOf<String>()
+            if (stolenSpiritStones > 0) {
+                parts.add("灵石${stolenSpiritStones}")
+            }
+            stolenItems.forEach { parts.add("${it.name}x${it.count}") }
+            if (stolenBagCount > 0) {
+                parts.add("储物袋x${stolenBagCount}")
+            }
+            return if (parts.isEmpty()) {
+                "被${beastName}袭击"
+            } else {
+                "被${beastName}掠夺：${parts.joinToString("、")}"
+            }
+        }
+
+        /**
+         * 转换为 [BattleRewardItem] 列表，用于弹窗展示。
+         */
+        fun toRewardItems(): List<BattleRewardItem> {
+            val items = mutableListOf<BattleRewardItem>()
+            if (stolenSpiritStones > 0) {
+                // itemId 必须非空唯一：灵石行固定合成键，防 LazyRow key="" 重复崩溃（Bugly #5079）
+                items.add(BattleRewardItem(
+                    itemId = LOOTED_SPIRIT_STONES_ID,
+                    name = ItemNames.SPIRIT_STONE,
+                    quantity = stolenSpiritStones.toInt(),
+                    rarity = 1,
+                    type = "spiritStones"
+                ))
+            }
+            stolenItems.forEach { item ->
+                items.add(BattleRewardItem(
+                    itemId = item.id,
+                    name = item.name,
+                    quantity = item.count,
+                    rarity = item.rarity,
+                    type = item.type
+                ))
+            }
+            if (stolenBagCount > 0) {
+                // 同上：储物袋行固定合成键
+                items.add(BattleRewardItem(
+                    itemId = LOOTED_STORAGE_BAG_ID,
+                    name = "储物袋",
+                    quantity = stolenBagCount,
+                    rarity = 1,
+                    type = "storageBag"
+                ))
+            }
+            return items
+        }
+    }
+
+    /**
+     * 被掠夺的单件物品记录。
+     */
+    data class LootedItem(
+        val id: String,
+        val name: String,
+        val type: String,
+        val rarity: Int,
+        val count: Int
+    )
+
+    // ── 临时内部条目（computeLootPlan 内使用） ──
+
+    private data class Entry(
+        val type: String,
+        val id: String,
+        val name: String,
+        val rarity: Int
+    )
+
+    /**
+     * 计算掠夺方案（纯函数，无副作用）。
+     *
+     * 从 [GameData] 读取灵石，从 [state] 的各仓库 [EntityStore] 读取物品，
+     * 按 [GameConfig.WorldMap.BEAST_LOOT_RATIO] 比例随机选取物品作为掠夺清单。
+     *
+     * @param gd    游戏数据（用于灵石数量）
+     * @param state 可变游戏状态（用于仓库物品列表）
+     * @return 掠夺方案
+     */
+    fun computeLootPlan(gd: GameData, state: MutableGameState): BeastLootData {
+        val itemUnit = GameConfig.WorldMap.SPIRIT_STONES_PER_ITEM
+        val ratio = GameConfig.WorldMap.BEAST_LOOT_RATIO
+
+        val entries = mutableListOf<Entry>()
+
+        // 灵石（20000 = 1 单位）—— 防御除零：itemUnit <= 0 时跳过
+        val stoneUnits = if (itemUnit > 0) (gd.spiritStones / itemUnit).toInt() else 0
+        repeat(stoneUnits.coerceAtLeast(0)) {
+            entries.add(Entry("spiritStones", "", "灵石", 1))
+        }
+
+        // 储物袋 —— 防御负数 quantity
+        state.storageBags.items.forEach { bag ->
+            repeat(bag.quantity.coerceAtLeast(0)) {
+                entries.add(Entry("storageBag", bag.id, bag.name, bag.rarity))
+            }
+        }
+
+        // 各物品类型 —— 防御负数 quantity
+        fun <T> addItems(
+            items: List<T>,
+            type: String,
+            nameFn: (T) -> String,
+            idFn: (T) -> String,
+            rarityFn: (T) -> Int,
+            qtyFn: (T) -> Int
+        ) {
+            items.forEach { item ->
+                repeat(qtyFn(item).coerceAtLeast(0)) {
+                    entries.add(Entry(type, idFn(item), nameFn(item), rarityFn(item)))
+                }
+            }
+        }
+
+        addItems(state.materials.items, "material",
+            { (it as Material).name }, { (it as Material).id },
+            { (it as Material).rarity }, { (it as Material).quantity })
+        addItems(state.pills.items, "pill",
+            { (it as Pill).name }, { (it as Pill).id },
+            { (it as Pill).rarity }, { (it as Pill).quantity })
+        addItems(state.herbs.items, "herb",
+            { (it as Herb).name }, { (it as Herb).id },
+            { (it as Herb).rarity }, { (it as Herb).quantity })
+        addItems(state.seeds.items, "seed",
+            { (it as Seed).name }, { (it as Seed).id },
+            { (it as Seed).rarity }, { (it as Seed).quantity })
+        addItems(state.equipmentStacks.items, "equipment",
+            { (it as EquipmentStack).name }, { (it as EquipmentStack).id },
+            { (it as EquipmentStack).rarity }, { (it as EquipmentStack).quantity })
+        addItems(state.manualStacks.items, "manual",
+            { (it as ManualStack).name }, { (it as ManualStack).id },
+            { (it as ManualStack).rarity }, { (it as ManualStack).quantity })
+
+        val stealCount = ceil(entries.size * ratio).toInt()
+            .coerceAtMost(entries.size)
+        if (stealCount <= 0) return BeastLootData()
+
+        val selected = entries.shuffled(lootRng).take(stealCount)
+
+        val stolenStones = selected.count { it.type == "spiritStones" } * itemUnit
+        val stolenBags = selected.count { it.type == "storageBag" }
+        val stolenItems = selected
+            .filter { it.type !in listOf("spiritStones", "storageBag") }
+            .groupBy { it.id to it.type }
+            .map { (_, list) ->
+                val first = list.first()
+                LootedItem(first.id, first.name, first.type, first.rarity, list.size)
+            }
+
+        return BeastLootData(stolenStones, stolenBags, stolenItems)
+    }
+
+    /**
+     * 执行掠夺扣除（副作用到 [state] 上）。
+     *
+     * 从仓库中扣除 [loot] 指定的物品和灵石。
+     * 所有扣除操作在 [state] 上原地执行，不涉及外部依赖。
+     */
+    fun applyLoot(
+        state: MutableGameState,
+        loot: BeastLootData
+    ) {
+        // 扣除灵石 —— 直接修改 gameData.spiritStones（不经过 Wallet，避免循环依赖）
+        if (loot.stolenSpiritStones > 0) {
+            state.gameData = state.gameData.copy(
+                spiritStones = (state.gameData.spiritStones - loot.stolenSpiritStones)
+                    .coerceAtLeast(0L)
+            )
+        }
+
+        // 扣除储物袋（单次遍历 mapInPlace + filterInPlace，消除双重扣除 bug）
+        if (loot.stolenBagCount > 0) {
+            var remaining = loot.stolenBagCount
+            state.storageBags.mapInPlace { bag ->
+                if (remaining <= 0) {
+                    bag
+                } else if (bag.quantity <= remaining) {
+                    remaining -= bag.quantity
+                    bag.copy(quantity = 0)
+                } else {
+                    val updated = bag.copy(quantity = bag.quantity - remaining)
+                    remaining = 0
+                    updated
+                }
+            }
+            state.storageBags.filterInPlace { it.quantity > 0 }
+        }
+
+        // 扣除物品（仅置零 quantity，不删除）
+        deductStolenItems(state, loot)
+
+        // 过滤掉 quantity=0 的物品（统一在末尾一次完成）
+        state.materials.filterInPlace { it.quantity > 0 }
+        state.pills.filterInPlace { it.quantity > 0 }
+        state.herbs.filterInPlace { it.quantity > 0 }
+        state.seeds.filterInPlace { it.quantity > 0 }
+        state.equipmentStacks.filterInPlace { it.quantity > 0 }
+        state.manualStacks.filterInPlace { it.quantity > 0 }
+    }
+
+    /** 扣减后数量：扣减结果截断到 0（与逐项 if/else 置零语义逐位一致） */
+    private fun deductedQuantity(currentQuantity: Int, count: Int): Int {
+        val q = currentQuantity - count
+        return if (q > 0) q else 0
+    }
+
+    /** 被掠夺物品逐类扣除：按类型分派到对应仓库，仅置零 quantity 不删除 */
+    private fun deductStolenItems(
+        state: MutableGameState,
+        loot: BeastLootData
+    ) {
+        for (item in loot.stolenItems) {
+            when (item.type) {
+                "material" -> state.materials.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "pill" -> state.pills.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "herb" -> state.herbs.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "seed" -> state.seeds.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "equipment" -> state.equipmentStacks.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+                "manual" -> state.manualStacks.update(item.id) {
+                    it.copy(quantity = deductedQuantity(it.quantity, item.count))
+                }
+            }
+        }
+    }
+}

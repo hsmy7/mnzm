@@ -1,0 +1,73 @@
+package com.xianxia.sect.ui.game
+
+import com.xianxia.sect.core.engine.assignGarrisonDisciple
+import com.xianxia.sect.core.engine.attackSect
+import com.xianxia.sect.core.engine.getPlayerAllies
+import com.xianxia.sect.core.engine.removeGarrisonDisciple
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.WorldSect
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.*
+import javax.inject.Inject
+
+
+
+@HiltViewModel
+class WorldMapGarrisonViewModel @Inject constructor(
+    private val gameEngine: GameEngine
+) : BaseViewModel() {
+
+    val gameData = gameEngine.gameData
+
+    fun getPlayerAllies(): List<WorldSect> {
+        val allyIds = gameEngine.getPlayerAllies()
+        val data = gameData.value
+        return data.worldMapSects.filter { allyIds.contains(it.id) }
+    }
+
+    fun getMovableTargetSectIds(): List<String> {
+        val data = gameEngine.gameData.value
+        val playerSectId = data.worldMapSects.find { it.isPlayerSect }?.id ?: ""
+        return data.worldMapSects.filter { sect ->
+            !sect.isPlayerSect && !(sect.isPlayerOccupied && sect.occupierSectId == playerSectId)
+        }.map { it.id }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    fun attackSect(sectId: String, attackSlots: List<Pair<Int, DiscipleAggregate>>) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.attackSect(sectId, attackSlots)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                showError(e.message ?: "进攻失败")
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.assignGarrisonDisciple(sectId, slotIndex, discipleId)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                showError(e.message ?: "驻守失败")
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    fun removeGarrisonDisciple(sectId: String, slotIndex: Int) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.removeGarrisonDisciple(sectId, slotIndex)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                showError(e.message ?: "卸任失败")
+            }
+        }
+    }
+}

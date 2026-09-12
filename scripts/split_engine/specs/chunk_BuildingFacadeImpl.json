@@ -1,0 +1,23 @@
+{
+ "files": [
+  {
+   "name": "BuildingFacadeImpl同步Ops",
+   "header": "// ── BuildingFacadeImpl 拆分域 1/1（行为零变更） ──",
+   "fns": [
+    "syncSpiritMineSlotsAfterPlace",
+    "productionNativeStart",
+    "toBuildingSlot",
+    "releaseGateIfOccupantChanged",
+    "rollbackMirrorSlot",
+    "syncOldOccupantStatus",
+    "writeRepoAssignment",
+    "plantFields",
+    "productionNativeReset",
+    "removeBuildingsInternal",
+    "removeProductionSlotsFromRepository",
+    "releaseReflectingDisciples",
+    "updateDiscipleStatus"
+   ]
+  }
+ ]
+}

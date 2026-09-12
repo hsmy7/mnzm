@@ -1,0 +1,18 @@
+plugins {
+    alias(libs.plugins.ksp) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.baselineprofile) apply false
+    alias(libs.plugins.detekt) apply false
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.android.test) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.hilt) apply false
+    alias(libs.plugins.protobuf) apply false
+    alias(libs.plugins.kover) apply false
+}
+
+// SDK/Java 编译配置逐模块显式声明（compileSdk 35 / minSdk 24 / targetSdk 35 /
+// Java 17 / UTF-8 / jvmTarget 17 / Xjsr305=strict），根项目不做全局注入（配置缓存要求）

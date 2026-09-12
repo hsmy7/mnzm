@@ -1,0 +1,21 @@
+{
+ "files": [
+  {
+   "name": "ProductionSlotRepositoryQueryOps",
+   "header": "// ── 生产槽位查询域（自 ProductionSlotRepository 拆出，行为零变更） ─────────────",
+   "fns": [
+    "getSlotsByType",
+    "getSlotsByBuildingId",
+    "getFinishedSlots",
+    "getSlotById",
+    "getIdleSlots",
+    "getCompletedSlots",
+    "getWorkingSlots",
+    "getStatistics",
+    "isCacheDirty",
+    "getLockStatistics",
+    "sanitizeSlots"
+   ]
+  }
+ ]
+}

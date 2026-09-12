@@ -1,0 +1,168 @@
+package com.xianxia.sect.ui.game.dialogs
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.ui.components.CircularCheckbox
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.theme.ButtonSizes
+
+@Composable
+fun SectManagementDialog(
+    gameData: GameData?,
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    var showDaoCompanionManagement by remember { mutableStateOf(false) }
+    var showDiscipleManagement by remember { mutableStateOf(false) }
+    var showAutoManagement by remember { mutableStateOf(false) }
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "宗门管理",
+        mode = DialogMode.Half,
+        scrollableContent = true
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SectManagementOptionsSection(
+                gameData = gameData,
+                viewModel = viewModel
+            )
+
+            SectManagementButtonArea(
+                onDaoCompanion = { showDaoCompanionManagement = true },
+                onDiscipleManagement = { showDiscipleManagement = true },
+                onAutoManagement = { showAutoManagement = true }
+            )
+        }
+    }
+
+    // 子对话框
+    if (showDaoCompanionManagement) {
+        DaoCompanionManagementDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showDaoCompanionManagement = false }
+        )
+    }
+    if (showDiscipleManagement) {
+        DiscipleManagementDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showDiscipleManagement = false }
+        )
+    }
+    if (showAutoManagement) {
+        AutoManagementDialog(
+            gameData = gameData,
+            viewModel = viewModel,
+            onDismiss = { showAutoManagement = false }
+        )
+    }
+}
+
+/** 选项区域：三个开关行 */
+@Composable
+private fun SectManagementOptionsSection(
+    gameData: GameData?,
+    viewModel: GameViewModel
+) {
+    // ── 选项区域 ──
+    Text(
+        text = "选项区域",
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.sp,
+        color = Color.Black
+    )
+
+    SectManagementCheckboxRow(
+        label = "巡视楼弹出战斗结算界面",
+        checked = gameData?.patrolBattleResultPopup ?: false,
+        onToggle = { viewModel.settings.setPatrolBattleResultPopup(!(gameData?.patrolBattleResultPopup ?: false)) }
+    )
+
+    SectManagementCheckboxRow(
+        label = "自动售卖中品灵石补差价",
+        checked = gameData?.autoSellMidGradeForPurchase ?: false,
+        onToggle = { viewModel.settings.setAutoSellMidGradeForPurchase(!(gameData?.autoSellMidGradeForPurchase ?:
+            false)) }
+    )
+
+    SectManagementCheckboxRow(
+        label = "自动售卖上品灵石补差价",
+        checked = gameData?.autoSellHighGradeForPurchase ?: false,
+        onToggle = { viewModel.settings.setAutoSellHighGradeForPurchase(!(gameData?.autoSellHighGradeForPurchase ?:
+            false)) }
+    )
+
+    Spacer(modifier = Modifier.padding(top = 8.dp))
+}
+
+/** 单行选项开关 */
+@Composable
+private fun SectManagementCheckboxRow(
+    label: String,
+    checked: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+        Spacer(modifier = Modifier.padding(start = 4.dp))
+        CircularCheckbox(
+            checked = checked,
+            onToggle = onToggle
+        )
+    }
+}
+
+/** 管理按钮区：道侣/弟子/自动管理（FlowRow 响应式换行） */
+@Composable
+private fun SectManagementButtonArea(
+    onDaoCompanion: () -> Unit,
+    onDiscipleManagement: () -> Unit,
+    onAutoManagement: () -> Unit
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        GameButton(text = "道侣管理", onClick = onDaoCompanion, modifier = Modifier.width(ButtonSizes.StandardWidth))
+        GameButton(text = "弟子管理", onClick = onDiscipleManagement, modifier = Modifier.width(ButtonSizes.StandardWidth))
+        GameButton(text = "自动管理", onClick = onAutoManagement, modifier = Modifier.width(ButtonSizes.StandardWidth))
+    }
+}

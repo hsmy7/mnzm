@@ -1,0 +1,286 @@
+package com.xianxia.sect.core.engine
+
+import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
+import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
+import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
+import com.xianxia.sect.core.engine.domain.production.ProductionFacade
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.BootPhase
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.PendingBeastAttack
+import com.xianxia.sect.core.state.PendingMarriageProposal
+import com.xianxia.sect.core.state.RunState
+import com.xianxia.sect.core.util.DomainResult
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.mockito.kotlin.mock
+
+
+
+/**
+ * 物品关注切换（GameEngine.toggleWatchItem）单元测试。
+ *
+ * 验证：空白键返回失败且不触碰 stateStore；有效键写入存档并返回成功；
+ * 再次切换同一键取消关注。
+ */
+class GameEngineWatchItemTest {
+
+    @Test
+    fun `toggleWatchItem - 空白键返回失败且不触碰stateStore`() = runBlocking {
+        val env = WatchEngineTestEnv()
+        env.store.gameDataValue = GameData()
+
+        val result = env.engine.toggleWatchItem("   ")
+
+        assertTrue("空白键应返回失败", result is DomainResult.Failure)
+        assertTrue("空白键不应写入关注列表", env.store.gameDataValue.watchedItemIds.isEmpty())
+    }
+
+    @Test
+    fun `toggleWatchItem - 超长键返回失败且不写入`() = runBlocking {
+        val env = WatchEngineTestEnv()
+        env.store.gameDataValue = GameData()
+
+        val result = env.engine.toggleWatchItem("pill:" + "超".repeat(100))
+
+        assertTrue("超长键应返回失败", result is DomainResult.Failure)
+        assertTrue("超长键不应写入关注列表", env.store.gameDataValue.watchedItemIds.isEmpty())
+    }
+
+    @Test
+    fun `toggleWatchItem - 无冒号格式错误键返回失败`() = runBlocking {
+        val env = WatchEngineTestEnv()
+        env.store.gameDataValue = GameData()
+
+        val result = env.engine.toggleWatchItem("垃圾键")
+
+        assertTrue("格式错误键应返回失败", result is DomainResult.Failure)
+        assertTrue("格式错误键不应写入关注列表", env.store.gameDataValue.watchedItemIds.isEmpty())
+    }
+
+    @Test
+    fun `toggleWatchItem - 有效键更新存档并返回成功`() = runBlocking {
+        val env = WatchEngineTestEnv()
+        env.store.gameDataValue = GameData()
+
+        val result = env.engine.toggleWatchItem("pill:聚气丹")
+
+        assertTrue("有效键应返回成功", result is DomainResult.Success)
+        assertEquals("关注列表应包含新键", listOf("pill:聚气丹"), env.store.gameDataValue.watchedItemIds)
+    }
+
+    @Test
+    fun `toggleWatchItem - 再次切换同一键取消关注`() = runBlocking {
+        val env = WatchEngineTestEnv()
+        env.store.gameDataValue = GameData().copy(watchedItemIds = listOf("pill:聚气丹"))
+
+        val result = env.engine.toggleWatchItem("pill:聚气丹")
+
+        assertTrue("切换应返回成功", result is DomainResult.Success)
+        assertTrue("已关注的键应被移除", env.store.gameDataValue.watchedItemIds.isEmpty())
+    }
+}
+
+// ── 测试用 GameEngine + GameStateStore 的最小化环境（与 GameEngineCoordinationTest 同模式） ──
+
+private class WatchEngineTestEnv {
+    val store = WatchSimpleStore()
+
+    // D1：构造时 highFrequencyData/productionSlots 经 Facade 访问器求值——stub 链防 NPE
+    private val mockCultivationFacade = mock<CultivationFacade>().also {
+        org.mockito.kotlin.whenever(it.cultivationService).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.discipleService).thenReturn(mock())
+        val mockProductionFacade = mock<ProductionFacade>()
+        org.mockito.kotlin.whenever(mockProductionFacade.productionSlots)
+            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
+        org.mockito.kotlin.whenever(it.productionFacade).thenReturn(mockProductionFacade)
+        val mockPC = mock<ProductionCoordinator>()
+        org.mockito.kotlin.whenever(mockPC.repository).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.productionCoordinator).thenReturn(mockPC)
+    }
+    private val mockEconomyFacade = mock<EconomyFacade>().also {
+        val mockInventoryFacade = mock<InventoryFacade>()
+        org.mockito.kotlin.whenever(mockInventoryFacade.inventorySystem).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.inventoryFacade).thenReturn(mockInventoryFacade)
+        org.mockito.kotlin.whenever(it.mailService).thenReturn(mock())
+    }
+
+    val engine = GameEngine(
+        gameEngineCore = mock(),
+        engineContextDispatcher = FakeEngineContextDispatcher(),
+        stateStore = store,
+        gameRngManager = mock(),
+        explorationFacade = mock(),
+        cultivationFacade = mockCultivationFacade,
+        economyFacade = mockEconomyFacade,
+        battleFacade = mock()
+    )
+}
+
+private class WatchSimpleStore : GameStateStore {
+
+    /** 测试用：直接读写 GameData */
+    var gameDataValue: GameData = GameData()
+
+    private val _gameDataFlow = MutableStateFlow(GameData())
+    override val gameData: StateFlow<GameData> get() = _gameDataFlow
+    override val gameDataSnapshot: GameData get() = gameDataValue
+
+    private val _tables = DiscipleTables()
+    override val discipleTables: DiscipleTables get() = _tables
+
+    private val eqStacks = EntityStore<EquipmentStack>()
+    private val eqInstances = EntityStore<EquipmentInstance>()
+    private val mnStacks = EntityStore<ManualStack>()
+    private val mnInstances = EntityStore<ManualInstance>()
+    private val pils = EntityStore<Pill>()
+    private val mats = EntityStore<Material>()
+    private val hrbs = EntityStore<Herb>()
+    private val sds = EntityStore<Seed>()
+    private val stBags = EntityStore<StorageBag>()
+
+    override fun update(block: MutableGameState.() -> Unit) {
+        val mutable = MutableGameState(
+            gameData = gameDataValue,
+            discipleTables = _tables,
+            equipmentStacks = eqStacks,
+            equipmentInstances = eqInstances,
+            manualStacks = mnStacks,
+            manualInstances = mnInstances,
+            pills = pils,
+            materials = mats,
+            herbs = hrbs,
+            seeds = sds,
+            storageBags = stBags,
+                        battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
+        block(mutable)
+        gameDataValue = mutable.gameData
+        _gameDataFlow.value = mutable.gameData
+    }
+    override val lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
+    override val bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
+    override val runState = MutableStateFlow(RunState.IDLE)
+    override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
+    override val discipleAggregates = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
+    override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
+    override val equipmentInstances = MutableStateFlow<List<EquipmentInstance>>(emptyList())
+    override val manualStacks = MutableStateFlow<List<ManualStack>>(emptyList())
+    override val manualInstances = MutableStateFlow<List<ManualInstance>>(emptyList())
+    override val pills = MutableStateFlow<List<Pill>>(emptyList())
+    override val materials = MutableStateFlow<List<Material>>(emptyList())
+    override val herbs = MutableStateFlow<List<Herb>>(emptyList())
+    override val seeds = MutableStateFlow<List<Seed>>(emptyList())
+    override val storageBags = MutableStateFlow<List<StorageBag>>(emptyList())
+    override val battleLogs = MutableStateFlow<List<BattleLog>>(emptyList())
+    override val isPaused = MutableStateFlow(false)
+    override val isLoading = MutableStateFlow(false)
+    override val isSaving = MutableStateFlow(false)
+    override val pendingNotification = MutableStateFlow<GameNotification?>(null)
+    override val pendingBattleResult = MutableStateFlow<BattleResultUIData?>(null)
+    override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
+    override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
+    override val pendingMarriageProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
+    override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
+    override val sectCombatPower = MutableStateFlow(0L)
+    override val aiSectCombatPowers = MutableStateFlow<Map<String, Long>>(emptyMap())
+    override val highFreqState = MutableStateFlow(GameStateStore.HighFreqState())
+    override val entityState = MutableStateFlow(GameStateStore.EntityState())
+    override val configState = MutableStateFlow(GameStateStore.ConfigState())
+    override val disciplesSnapshot: List<Disciple> get() = emptyList()
+    override val equipmentStacksSnapshot: List<EquipmentStack> get() = emptyList()
+    override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = emptyList()
+    override val manualStacksSnapshot: List<ManualStack> get() = emptyList()
+    override val manualInstancesSnapshot: List<ManualInstance> get() = emptyList()
+    override val pillsSnapshot: List<Pill> get() = emptyList()
+    override val materialsSnapshot: List<Material> get() = emptyList()
+    override val herbsSnapshot: List<Herb> get() = emptyList()
+    override val seedsSnapshot: List<Seed> get() = emptyList()
+    override val storageBagsSnapshot: List<StorageBag> get() = emptyList()
+    override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
+    override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = emptyList()
+    override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
+    override val warehouseFullEvent = MutableSharedFlow<String>()
+    override var activeTab: String = ""
+    override var activeDialog: String? = null
+    override var activeSubDialogs: Set<String> = emptySet()
+    override fun getCurrentSeeds(): List<Seed> = emptyList()
+    override fun getCurrentHerbs(): List<Herb> = emptyList()
+    override fun getCurrentMaterials(): List<Material> = emptyList()
+    override fun enqueueNotification(notification: GameNotification) = Unit
+    override fun consumeNotification(): GameNotification? = null
+    override fun clearPendingNotification() = Unit
+    override fun setPendingBattleResult(result: BattleResultUIData) = Unit
+    override fun clearPendingBattleResult() = Unit
+    override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) = Unit
+    override fun clearPendingBeastAttacks() = Unit
+    override fun removePendingBeastAttack(beastLevelId: String) = Unit
+    override fun clearPendingMarriageProposals() = Unit
+    override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) = Unit
+    override fun clearPendingBattleRewardCards() = Unit
+    override fun enqueueRewardCards(items: List<RewardCardItem>) = Unit
+    override fun clearRewardCardQueue(count: Int) = Unit
+    override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
+        val m = MutableGameState(
+            gameData = gameDataValue, discipleTables = _tables,
+            equipmentStacks = eqStacks, equipmentInstances = eqInstances,
+            manualStacks = mnStacks, manualInstances = mnInstances,
+            pills = pils, materials = mats, herbs = hrbs,
+            seeds = sds, storageBags = stBags,
+            battleLogs = emptyList(),
+            isPaused = false, isLoading = false, isSaving = false)
+        val r = block(m)
+        gameDataValue = m.gameData
+        return r
+    }
+    override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
+    override fun setPausedDirect(paused: Boolean) = Unit
+    override fun setLoadingDirect(loading: Boolean) = Unit
+    override fun setSavingDirect(saving: Boolean) = Unit
+    override suspend fun loadFromSnapshot(
+        gameData: GameData, disciples: List<Disciple>,
+        equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
+        manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,
+        pills: List<Pill>, materials: List<Material>, herbs: List<Herb>,
+        seeds: List<Seed>, storageBags: List<StorageBag>,
+        battleLogs: List<BattleLog>,
+        isPaused: Boolean, isLoading: Boolean, isSaving: Boolean
+    ) { this.gameDataValue = gameData }
+    override suspend fun reset() { gameDataValue = GameData() }
+    override fun advanceBootPhase() = Unit
+    override fun resetBootPhase() = Unit
+    override fun setPlaying() = Unit
+    override fun setReloading() = Unit
+    override fun setLoading() = Unit
+    override fun setIdle() = Unit
+    override fun enterBatchEmissionMode() = Unit
+    override fun exitBatchEmissionMode() = Unit
+    override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
+}

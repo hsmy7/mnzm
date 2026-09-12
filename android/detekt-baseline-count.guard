@@ -1,0 +1,13 @@
+# detekt-baseline 计数守卫（决策8：baseline 只许缩小不许增大，WS-0.d CI 加固③）
+# 文件内容格式：<module_dir>=<ID 条目数>
+# 更新规则：仅当对应模块 detekt-baseline.xml 的 <ID> 条目数**减少**时才更新此行（只缩不增）。
+# CI (ci.yml: detekt-baseline-guard) 会统计每个 baseline 的 <ID> 条目数，
+# 若 > 此处记录值则 CI 失败。禁止将新违规加入 baseline。
+# M3 第九批（2026-09-09）：TMF 族摘除 113 条实跑裁决，真实清偿（死代码删除/域文件拆分/契约面豁免）；
+# 余量装回登记拆分任务队列（TMF 44 + LargeClass 15）。
+app=0
+core/data=0
+core/ui=0
+feature/game=0
+core/domain=0
+core/engine=0

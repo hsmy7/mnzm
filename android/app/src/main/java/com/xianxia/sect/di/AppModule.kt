@@ -1,0 +1,251 @@
+package com.xianxia.sect.di
+
+import android.app.ActivityManager
+import android.content.Context
+import android.util.Log
+import com.xianxia.sect.data.local.BattleLogDao
+import com.xianxia.sect.data.local.BuildingSlotDao
+import com.xianxia.sect.data.local.DiscipleAttributesDao
+import com.xianxia.sect.data.local.DiscipleCombatStatsDao
+import com.xianxia.sect.data.local.DiscipleCompactDao
+import com.xianxia.sect.data.local.DiscipleCoreDao
+import com.xianxia.sect.data.local.DiscipleDao
+import com.xianxia.sect.data.local.DiscipleEquipmentDao
+import com.xianxia.sect.data.local.DiscipleExtendedDao
+import com.xianxia.sect.data.local.EquipmentInstanceDao
+import com.xianxia.sect.data.local.EquipmentStackDao
+import com.xianxia.sect.data.local.GameDataDao
+import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.local.HerbDao
+import com.xianxia.sect.data.local.MailDao
+import com.xianxia.sect.data.local.MailDraftDao
+import com.xianxia.sect.data.local.ManualInstanceDao
+import com.xianxia.sect.data.local.ManualStackDao
+import com.xianxia.sect.data.local.MaterialDao
+import com.xianxia.sect.data.local.PillDao
+import com.xianxia.sect.data.local.RecipeDao
+import com.xianxia.sect.data.local.SeedDao
+import com.xianxia.sect.data.local.StorageBagDao
+import com.xianxia.sect.data.DiscipleDaos
+import com.xianxia.sect.data.ItemDaos
+import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.WorldDaos
+import com.xianxia.sect.data.cache.CacheConfig
+import com.xianxia.sect.data.cache.GameDataCacheManager
+import com.xianxia.sect.data.incremental.ChangeTracker
+import com.xianxia.sect.data.incremental.ChangeLogPersistence
+import com.xianxia.sect.data.incremental.ChangeLogDao
+import com.xianxia.sect.core.dialog.DialogManagerImpl
+import com.xianxia.sect.core.domain.dialog.DialogManager
+import com.xianxia.sect.core.state.GameRngSnapshotPort
+import com.xianxia.sect.core.state.RngSnapshotPort
+
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+
+
+@Module
+@InstallIn(SingletonComponent::class)
+@Suppress("TooManyFunctions") // DI @Provides 样板面：函数数=依赖图装配点数（detekt.yml thresholdInObjects 注记认定的样板代码）
+object AppModule {
+    private const val TAG = "AppModule"
+    
+    @Provides
+    @Singleton
+    fun provideSessionManager(@ApplicationContext context: Context): SessionManager {
+        return SessionManager(context)
+    }
+    
+    /**
+     * GameDatabase 单例提供者 — 使用统一实例创建方法
+     *
+     * 存储路由：
+     * - 统一单实例 DB (xianxia_sect.db)，所有 slot 共享同一数据库文件
+     * - transactionalSaveManager 通过 slot 字段区分不同存档的数据行
+     *
+     * @see GameDatabase.create 统一实例工厂方法
+     */
+    @Provides
+    @Singleton
+    fun provideGameDatabase(@ApplicationContext context: Context): GameDatabase {
+        // 在 Room databaseBuilder 前检查是否需要从 pre_migrate_backup 恢复
+        val restored = GameDatabase.restoreFromBackupIfNeeded(context)
+        if (restored) {
+            Log.w(TAG, "数据库已从迁移前备份恢复")
+        }
+        return GameDatabase.create(context.applicationContext)
+    }
+    
+    @Provides
+    fun provideGameDataDao(database: GameDatabase): GameDataDao = database.gameDataDao()
+    
+    @Provides
+    fun provideDiscipleDao(database: GameDatabase): DiscipleDao = database.discipleDao()
+    
+    @Provides
+    fun provideEquipmentStackDao(database: GameDatabase): EquipmentStackDao = database.equipmentStackDao()
+
+    @Provides
+    fun provideEquipmentInstanceDao(database: GameDatabase): EquipmentInstanceDao = database.equipmentInstanceDao()
+
+    @Provides
+    fun provideManualStackDao(database: GameDatabase): ManualStackDao = database.manualStackDao()
+
+    @Provides
+    fun provideManualInstanceDao(database: GameDatabase): ManualInstanceDao = database.manualInstanceDao()
+
+    @Provides
+    fun providePillDao(database: GameDatabase): PillDao = database.pillDao()
+    
+    @Provides
+    fun provideMaterialDao(database: GameDatabase): MaterialDao = database.materialDao()
+    
+    @Provides
+    fun provideSeedDao(database: GameDatabase): SeedDao = database.seedDao()
+    
+    @Provides
+    fun provideHerbDao(database: GameDatabase): HerbDao = database.herbDao()
+
+    @Provides
+    fun provideStorageBagDao(database: GameDatabase): StorageBagDao = database.storageBagDao()
+
+    @Provides
+    fun provideChangeLogDao(database: GameDatabase): ChangeLogDao = database.changeLogDao()
+
+    @Provides
+    fun provideDiscipleDaos(database: GameDatabase): DiscipleDaos = DiscipleDaos(
+        discipleDao = database.discipleDao(),
+        discipleCoreDao = database.discipleCoreDao(),
+        discipleCombatStatsDao = database.discipleCombatStatsDao(),
+        discipleEquipmentDao = database.discipleEquipmentDao(),
+        discipleExtendedDao = database.discipleExtendedDao(),
+        discipleAttributesDao = database.discipleAttributesDao()
+    )
+
+    @Provides
+    fun provideItemDaos(database: GameDatabase): ItemDaos = ItemDaos(
+        equipmentStackDao = database.equipmentStackDao(),
+        equipmentInstanceDao = database.equipmentInstanceDao(),
+        manualStackDao = database.manualStackDao(),
+        manualInstanceDao = database.manualInstanceDao(),
+        pillDao = database.pillDao(),
+        materialDao = database.materialDao(),
+        seedDao = database.seedDao(),
+        herbDao = database.herbDao(),
+        storageBagDao = database.storageBagDao()
+    )
+
+    @Provides
+    fun provideWorldDaos(database: GameDatabase): WorldDaos = WorldDaos(
+        buildingSlotDao = database.buildingSlotDao(),
+        recipeDao = database.recipeDao(),
+        battleLogDao = database.battleLogDao(),
+        productionSlotDao = database.productionSlotDao(),
+        changeLogDao = database.changeLogDao()
+    )
+
+    @Provides
+    fun provideMailDao(database: GameDatabase): MailDao = database.mailDao()
+
+    @Provides
+    fun provideMailDraftDao(database: GameDatabase): MailDraftDao = database.mailDraftDao()
+
+    @Provides
+    fun provideBuildingSlotDao(database: GameDatabase): BuildingSlotDao = 
+        database.buildingSlotDao()
+    
+    @Provides
+    fun provideRecipeDao(database: GameDatabase): RecipeDao = database.recipeDao()
+    
+    @Provides
+    fun provideBattleLogDao(database: GameDatabase): BattleLogDao = database.battleLogDao()
+
+    @Provides
+    fun provideDiscipleCoreDao(database: GameDatabase): DiscipleCoreDao = database.discipleCoreDao()
+
+    @Provides
+    fun provideDiscipleCombatStatsDao(database: GameDatabase): DiscipleCombatStatsDao = database
+        .discipleCombatStatsDao()
+
+    @Provides
+    fun provideDiscipleEquipmentDao(database: GameDatabase): DiscipleEquipmentDao = database.discipleEquipmentDao()
+
+    @Provides
+    fun provideDiscipleExtendedDao(database: GameDatabase): DiscipleExtendedDao = database.discipleExtendedDao()
+
+    @Provides
+    fun provideDiscipleAttributesDao(database: GameDatabase): DiscipleAttributesDao = database.discipleAttributesDao()
+
+    @Provides
+    fun provideDiscipleCompactDao(database: GameDatabase): DiscipleCompactDao = database.discipleCompactDao()
+    
+    @Provides
+    @Singleton
+    fun provideCacheConfig(@ApplicationContext context: Context): CacheConfig {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val isLowRamDevice = activityManager.isLowRamDevice
+        val memoryClass = activityManager.memoryClass
+
+        val memoryCacheSize = when {
+            isLowRamDevice || memoryClass <= 128 -> 20L * 1024 * 1024
+            memoryClass <= 256 -> 50L * 1024 * 1024
+            else -> 100L * 1024 * 1024
+        }
+
+        val diskCacheSize = memoryCacheSize * 2L
+
+        return CacheConfig(
+            memoryCacheSize = memoryCacheSize,
+            diskCacheSize = diskCacheSize,
+            writeBatchSize = if (isLowRamDevice) 50 else 200,
+            writeDelayMs = if (isLowRamDevice) 2000L else 500L,
+            enableDiskCache = true,
+            enableCompression = true
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideGameDataCacheManager(
+        @ApplicationContext context: Context,
+        database: GameDatabase,
+        cacheConfig: CacheConfig,
+        applicationScopeProvider: ApplicationScopeProvider
+    ): GameDataCacheManager {
+        return GameDataCacheManager(context, database, cacheConfig, null, applicationScopeProvider)
+    }
+    
+
+    @Provides
+    @Singleton
+    fun provideChangeTracker(): ChangeTracker {
+        return ChangeTracker()
+    }
+
+    @Provides
+    @Singleton
+    fun provideChangeLogPersistence(database: GameDatabase): ChangeLogPersistence {
+        return ChangeLogPersistence(database)
+    }
+
+    // ==================== 对话框管理 ====================
+
+    @Provides
+    @Singleton
+    fun provideDialogManager(impl: DialogManagerImpl): DialogManager = impl
+
+    // ==================== RNG 事务钩子 ====================
+
+    /**
+     * RNG 事务钩子：事务失败回滚时同步回滚 8 分区 PRNG 状态，
+     * 保证读档重放确定性。
+     */
+    @Provides
+    @Singleton
+    fun provideRngSnapshotPort(port: GameRngSnapshotPort): RngSnapshotPort = port
+}

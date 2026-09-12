@@ -1,0 +1,42 @@
+package com.xianxia.sect.core.di
+
+import com.xianxia.sect.core.domain.favor.FavorService
+import com.xianxia.sect.core.domain.favor.FavorServiceImpl
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
+import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
+import com.xianxia.sect.core.engine.domain.disciple.PillEffectApplier
+import com.xianxia.sect.core.engine.system.InventoryFactories
+import com.xianxia.sect.core.engine.system.MerchantItemConverter
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+/** 为 object 单体形态的服务（未声明为 @Inject class）提供 DI 绑定 */
+@Module
+@InstallIn(SingletonComponent::class)
+object LegacyObjectModule {
+    @Provides @Singleton
+    fun provideDiscipleEquipmentManager() = DiscipleEquipmentManager()
+
+    @Provides @Singleton
+    fun provideDiscipleManualManager() = DiscipleManualManager()
+
+    @Provides @Singleton
+    fun provideDisciplePillManager(
+        pillEffectApplier: PillEffectApplier
+    ) = DisciplePillManager(pillEffectApplier)
+
+    @Provides @Singleton
+    fun provideMerchantItemConverter(): MerchantItemConverter =
+        MerchantItemConverter().also { MerchantItemConverter.initialize(it) }
+
+    @Provides @Singleton
+    fun provideInventoryFactories(converter: MerchantItemConverter): InventoryFactories =
+        InventoryFactories(converter).also { InventoryFactories.initialize(it) }
+
+    @Provides @Singleton
+    fun provideFavorService(impl: FavorServiceImpl): FavorService = impl
+}

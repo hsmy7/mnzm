@@ -1,0 +1,877 @@
+package com.xianxia.sect.core
+
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.util.Log
+import java.io.BufferedReader
+import java.io.FileReader
+
+/**
+ * Vulkan 渲染策略 — 检测设备 GPU 兼容性并给出硬件加速建议。
+ *
+ * ## 背景
+ *
+ * Android 15 起 HWUI 默认使用 SkiaVK（Vulkan 后端）进行硬件加速渲染。
+ * 中国厂商定制 ROM（联想 ZUXOS、vivo OriginOS、小米澎湃OS）的 Mali GPU
+ * Vulkan 驱动存在广泛兼容性问题，易在 [android.view.RenderThread] 触发
+ * SIGSEGV(SEGV_MAPERR) 崩溃。
+ *
+ * 参考行业做法（Flutter 禁用 MTK Vulkan、Unity Vulkan Device Filtering Asset、
+ * 原神 GPU 白名单），此策略在已知问题设备上禁用 Vulkan 渲染路径。
+ *
+ * ## 设备分级
+ *
+ * ```
+ * Level 0 (SAFE)       → 已知兼容设备 → 正常使用硬件加速
+ * Level 1 (WARNING)    → 未知/可能有问题 → 日志警告，正常运行
+ * Level 2 (PROBLEMATIC)→ 已知问题设备 → 建议降级或软件渲染
+ * ```
+ *
+ * ## 参考
+ *
+ * - Flutter: 主动检测 MediaTek SoC 并回退到 GLES (#164126)
+ * - Unity: Vulkan Device Filtering Asset (Allow/Deny 列表)
+ * - Genshin Impact: GPU 厂商白名单
+ * - Godot: Android 上 Vulkan→OpenGL 回退不可靠，建议直接输出 OpenGL
+ *
+ * @see CrashRecoveryEngine 崩溃自愈机制
+ */
+// ── Vulkan 版本编解码（VK_MAKE_VERSION 语义；单调可比较） ─────────────────────
+private fun vkMakeVersion(major: Int, minor: Int, patch: Int): Int =
+    (major shl 22) or (minor shl 12) or patch
+
+private fun vkMajor(v: Int): Int = (v shr 22) and 0x3FF
+private fun vkMinor(v: Int): Int = (v shr 12) and 0x3FF
+private fun vkPatch(v: Int): Int = v and 0xFFF
+
+/** GPU 厂商（按 Vulkan vendorID 主要常量；UNKNOWN 表示未探测）。 */
+internal enum class GpuVendor(val vendorId: Int) {
+    QUALCOMM(0x5143),
+    ARM_MALI(0x13B5),
+    IMAGINATION(0x1010),
+    NVIDIA(0x10DE),
+    OTHER(-1),
+    UNKNOWN(-2);
+
+    companion object {
+        /** 由 VkPhysicalDeviceProperties.vendorID 映射；>0 但未识别 → OTHER */
+        fun fromVendorId(id: Int): GpuVendor = when (id) {
+            0x5143 -> QUALCOMM
+            0x13B5 -> ARM_MALI
+            0x1010 -> IMAGINATION
+            0x10DE -> NVIDIA
+            else -> if (id > 0) OTHER else UNKNOWN
+        }
+    }
+}
+
+/** 探测到的 Vulkan 物理设备信息（由 C++ selectPhysicalDevice 经 JNI 上报）。 */
+internal data class VulkanDeviceInfo(
+    val vendor: GpuVendor,
+    val apiVersion: Int,     // VkPhysicalDeviceProperties.apiVersion（VK_MAKE_VERSION 编码）
+    val driverVersion: Int,  // VkPhysicalDeviceProperties.driverVersion 原始值
+    val deviceName: String,
+) {
+    val apiMajor: Int get() = vkMajor(apiVersion)
+    val apiMinor: Int get() = vkMinor(apiVersion)
+    val apiPatch: Int get() = vkPatch(apiVersion)
+}
+
+/**
+ * 厂商 Vulkan 最低允许版本（Unity 官方《Allow/Deny Vulkan API usage》Device Filtering 规格；
+ * 低于该 API 版本则 Deny Vulkan，走 GLES/软件）。默认 Allow（窄 Deny）——行业基准，后续由
+ * Bugly 崩溃数据校准偏移，无需改代码。
+ */
+internal data class VendorVkMin(
+    val vendor: GpuVendor,
+    val apiMajor: Int,
+    val apiMinor: Int,
+    val apiPatch: Int,
+)
+
+internal val VULKAN_DENY_THRESHOLDS: List<VendorVkMin> = listOf(
+    VendorVkMin(GpuVendor.NVIDIA, 1, 0, 13),       // Unity：NVIDIA VK API ≥ 1.0.13
+    VendorVkMin(GpuVendor.ARM_MALI, 1, 0, 61),     // Unity：ARM(Mali) VK API ≥ 1.0.61
+    VendorVkMin(GpuVendor.IMAGINATION, 1, 1, 170), // Unity：PowerVR VK API ≥ 1.1.170（另需 driver ≥ 1.473.1397 留待 Bugly 校准）
+    VendorVkMin(GpuVendor.QUALCOMM, 1, 0, 49),     // Unity：Qualcomm 驱动 MSB 置位或 VK API ≥ 1.0.49
+)
+
+/**
+ * 量化阈值判定（按 厂商 + Vulkan API 版本；低于厂商阈值 → PROBLEMATIC（Deny Vulkan），
+ * 否则 SAFE（Allow）。未探测/其他/未知厂商 → 默认 Allow（窄 Deny）。
+ */
+internal fun evaluateVulkanTier(info: VulkanDeviceInfo?): VulkanPolicy.DeviceTier {
+    if (info == null) return VulkanPolicy.DeviceTier.SAFE
+    val below = VULKAN_DENY_THRESHOLDS.firstOrNull { it.vendor == info.vendor }?.let { t ->
+        info.apiVersion < vkMakeVersion(t.apiMajor, t.apiMinor, t.apiPatch)
+    } ?: false
+    return if (below) VulkanPolicy.DeviceTier.PROBLEMATIC else VulkanPolicy.DeviceTier.SAFE
+}
+
+@Suppress("TooManyFunctions") // GPU 黑名单核心类：12 个判定函数均为独立决策维度，拆分破坏内聚
+object VulkanPolicy {
+
+    private const val TAG = "VulkanPolicy"
+
+    /**
+     * 硬件加速禁用决策缓存。
+     * 在 XianxiaApplication.onCreate 中计算，GameActivity.onCreate 中读取。
+     * 使用 @Volatile 保证多线程可见性。
+     */
+    @Volatile
+    private var _disableAcceleration: Boolean = false
+
+    /**
+     * 初始化策略并缓存决策。
+     * 必须在 Application.onCreate 中调用，在任何 Activity 启动之前。
+     *
+     * _deviceInfo 读台账持久化的真实 GPU 设备信息（上次成功探测的
+     * vendor/api/driver/deviceName）——量化阈值据此在**策略期**即可生效。首装首启
+     * 无历史 → null → 默认 Allow，本次启动 prewarm 后落台账，下次生效。
+     */
+    fun initialize(context: Context) {
+        _deviceInfo = CrashRecoveryEngine.readPersistedGpuInfo()
+        _disableAcceleration = shouldDisableHardwareAcceleration(context)
+        Log.i(TAG, "VulkanPolicy initialized: disable=$_disableAcceleration, " +
+            "persistedGpu=${_deviceInfo?.deviceName ?: "none"}")
+    }
+
+    /**
+     * 是否应禁用硬件加速（读取缓存的决策，无需 Context）。
+     * 在 GameActivity.super.onCreate() 之前安全调用。
+     */
+    fun isAccelerationDisabled(): Boolean = _disableAcceleration
+
+    /**
+     * 检测当前设备是否为模拟器。
+     *
+     * 参考信号：
+     * - Google Android Emulator 的 HARDWARE/Brand/Model 特征值
+     * - ABI 包含 x86（说明 ARM native 库需经翻译层运行）
+     * - libhoudini 翻译层存在（ARM→x86）
+     * - Build.TAGS / FINGERPRINT 模拟器特征（MuMu/Genymotion/华为模拟器）
+     *
+     * @see Flutter Impeller 2025.1 模拟器 Vulkan 禁用策略
+     */
+    // HardwareIds：SERIAL 仅用于模拟器/云环境检测的 "unknown" 判断，无设备标识用途
+    @SuppressLint("HardwareIds")
+    @Suppress("ReturnCount", "ComplexCondition", "CyclomaticComplexMethod")
+    fun isEmulator(): Boolean {
+        // 信号 1: Build 硬件属性（Google Android Emulator / Genymotion）
+        val hardware = Build.HARDWARE.lowercase()
+        val brand = Build.BRAND.lowercase()
+        val model = Build.MODEL.lowercase()
+        val product = Build.PRODUCT.lowercase()
+        val device = Build.DEVICE.lowercase()
+
+        if (hardware.contains("ranchu") || hardware.contains("goldfish") ||
+            hardware.contains("vbox") || hardware.contains("virtual")) {
+            return true
+        }
+        if (brand.startsWith("google") && (model.contains("sdk_gphone") ||
+            model.contains("android sdk built for") || model.contains("emu64"))) {
+            return true
+        }
+        if (product.contains("sdk_") || product.contains("emulator") ||
+            device.contains("generic")) {
+            return true
+        }
+
+        // 信号 2: ABI 包含 x86/x86_64（ARM lib 需经翻译层）
+        for (abi in Build.SUPPORTED_ABIS) {
+            val abiLower = abi.lowercase()
+            if (abiLower.contains("x86")) return true
+        }
+
+        // 信号 3: Build.TAGS test-keys（模拟器/开发版常见）
+        // 注：部分自定义 ROM 也使用 test-keys，结合其他信号判断
+        val tags = Build.TAGS?.lowercase()
+        val fingerprint = Build.FINGERPRINT?.lowercase()
+        val type = Build.TYPE?.lowercase()
+        if (tags == "test-keys" || tags?.contains("test") == true) {
+            if ((type == "eng" || type == "userdebug") ||
+                fingerprint?.contains("test-keys") == true ||
+                fingerprint?.contains("emulator") == true) {
+                return true
+            }
+        }
+
+        // 信号 4: 模拟器常见指纹特征
+        if (fingerprint != null) {
+            if (fingerprint.contains("emulator") ||
+                fingerprint.contains("sdk_google_phone") ||
+                fingerprint.contains("generic_")) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    // ── TapTap 云游戏/沙箱环境检测 ──
+    // TapTap TapSandbox 在 GPU 调用链上增加 Hook 层，vkCreateShaderModule 已知有驱动缺陷。
+    // 参考：Unity Vulkan Device Filtering + Flutter Impeller 的虚拟环境处置策略。
+    /**
+     * 检测是否运行在 TapTap 云游戏/沙箱虚拟环境。
+     *
+     * 此类环境使用 GPU Hook 层拦截 Vulkan 调用，存在 vkCreateShaderModule
+     * 内部 SIGSEGV 缺陷。使用 5 信号检测法，任一信号命中即认为云游戏环境。
+     *
+     * 进程级缓存：沙箱库在进程启动即注入，/proc/self/maps 中标记进程期恒定，
+     * 缓存无陈旧风险。Application.onCreate 与 GameActivity.onCreate 各触发一次
+     * 检测（合计 2 次全量读 maps），缓存后合并为 1 次；且信号重排后沙箱环境
+     * 大概率被廉价信号（HOST/installer/SystemProperties）命中，maps 读取 0 次
+     * ——沙箱 hook 会放大 FileInputStream.open 的 IO 延迟，是 ANR 嫌疑点
+     * （Bugly #11/#13006）。
+     *
+     * @see Unity Vulkan Device Filtering — Allow/Deny 列表
+     * @see Flutter Impeller — API 版本门槛 + 已知问题 SoC 禁用
+     * @see Chromium GPU Blocklist — Mali-G57 driver ≤ 40 blocklist
+     */
+    // PrivateApi：云游戏检测无公开替代 API（Build.HOST 已被 CI 假阳性排除），反射仅读不写
+    @Suppress("ReturnCount")
+    private fun isTapTapCloudGaming(): Boolean {
+        cloudGamingResult?.let { return it }
+        val result = computeCloudGaming()
+        cloudGamingResult = result
+        return result
+    }
+
+    /**
+     * 计算云游戏/沙箱检测结果（纯计算，结果可缓存）。
+     * 信号顺序：廉价信号（Build.HOST / installer / SystemProperties）先行，
+     * /proc/self/maps 扫描放最后——沙箱环境大概率被前置信号命中时零 IO。
+     */
+    // ReturnCount/NestedBlockDepth：多信号 OR 检测的自然结构，与 isEmulator 一致
+    // PrivateApi：SystemProperties 反射检测在 192 行附近，仅读不写
+    // 防御兜底: 异常源不可枚举, 失败降级继续, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "ReturnCount", "NestedBlockDepth", "PrivateApi")
+    private fun computeCloudGaming(): Boolean {
+        // 信号 1: Build.HOST 包含 taptap/sandbox 标记
+        // 注意：不使用 "cloud" 关键词，CI/CD 构建环境（如 cloudbuild）
+        // 和云服务主机名可能包含 "cloud" 导致假阳性。
+        val host = Build.HOST?.lowercase() ?: ""
+        if (host.contains("taptap") || host.contains("tapsandbox")) return true
+
+        // 信号 3: SystemProperties 反射检测
+        if (Build.VERSION.SDK_INT >= 29) {
+            try {
+                val sysPropClass = Class.forName("android.os.SystemProperties")
+                val getMethod = sysPropClass.getMethod("get", String::class.java)
+                for (key in listOf("persist.sys.taptap", "ro.taptap",
+                        "sys.taptap")) {
+                    val value = getMethod.invoke(null, key) as? String ?: continue
+                    if (value.isNotBlank()) return true
+                }
+            } catch (ignored: Exception) { /* 忽略 */ }
+        }
+
+        // 信号 4: /proc/self/maps 包含 taptap 沙箱库（IO 最重，放最后）
+        return scanMapsForSandbox()
+    }
+
+    /** /proc/self/maps 扫描沙箱库标记（读完整文件，命中即提前返回）。 */
+    // NestedBlockDepth：try→use→forEach→if 的只读扫描结构，拆分会损失提前返回
+    // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @Suppress("TooGenericExceptionCaught", "NestedBlockDepth")
+    internal fun scanMapsForSandbox(path: String = "/proc/self/maps"): Boolean {
+        return try {
+            BufferedReader(FileReader(path)).use { reader ->
+                reader.lineSequence().forEach { line ->
+                    if (line.contains("libtaptap_sandbox.so") ||
+                        line.contains("libcloudgame.so") ||
+                        line.contains("libsandbox_ext.so")
+                    ) return true
+                }
+            }
+            false
+        } catch (e: Exception) {
+            Log.d(TAG, "Could not read /proc/self/maps", e)
+            false
+        }
+    }
+
+    /** 云游戏检测进程级缓存（沙箱标记进程期恒定） */
+    @Volatile
+    private var cloudGamingResult: Boolean? = null
+
+    /** 仅测试用：清空缓存强制重算。 */
+    internal fun resetCloudGamingCache() {
+        cloudGamingResult = null
+    }
+
+    // ── Vulkan 驱动版本缓存 ──
+    // 由 C++ VulkanBackend 在 vkGetPhysicalDeviceProperties 后通过 JNI 设置
+    @Volatile
+    private var _driverVersion: Int = 0
+
+    /** Vulkan 驱动版本号，0 表示未知 */
+    fun getDriverVersion(): Int = _driverVersion
+
+    /** 由 C++ 层在初始化后设置驱动版本（通过 JNI）。
+     *  已知坏版本仅记台账 soft-fail（不再直接定策略——由下次启动的
+     *  ledgerStrategy 统一裁决） */
+    fun setDriverVersion(version: Int) {
+        _driverVersion = version
+        Log.i(TAG, "Vulkan driver version updated: $version")
+        // 检查已知问题版本
+        if (version > 0 && isKnownBadDriverVersion(version)) {
+            Log.e(TAG, "Known bad Vulkan driver version: $version — recording ledger soft-fail")
+            CrashRecoveryEngine.recordVulkanSoftFailure("threshold")
+        }
+    }
+
+    /** 已知有缺陷的 Vulkan 驱动版本号范围（Adreno 6xx/7xx 特定驱动） */
+    private fun isKnownBadDriverVersion(version: Int): Boolean {
+        return when (version) {
+            // VkPhysicalDeviceProperties.driverVersion 编码规则：
+            // major = (version >> 22) & 0x3FF, minor = (version >> 12) & 0x3FF,
+            // patch = version & 0xFFF
+            // Adreno 驱动版本示例：0x000A3D00 = a.b.c 格式
+            in 0x000A_3C00..0x000A_3DFF -> { // Adreno 特定有缺陷驱动范围
+                Log.w(TAG, "Driver version 0x${version.toString(16)} in known-bad Adreno range")
+                true
+            }
+            else -> false
+        }
+    }
+
+    // ── Vulkan 物理设备信息（厂商 + API 版本 + 驱动版本 + 设备名；量化阈值判定输入） ──
+    // 由 C++ VulkanBackend 在 selectPhysicalDevice 拿到 VkPhysicalDeviceProperties 后经 JNI 上报。
+    // 量化阈值（evaluateVulkanTier）据此在"低于厂商阈值"时记录 Vulkan 初始化失败 → 下次启动走 GLES。
+    @Volatile
+    private var _deviceInfo: VulkanDeviceInfo? = null
+
+    /** 测试用：读取已上报的物理设备信息 */
+    internal fun getDeviceInfo(): VulkanDeviceInfo? = _deviceInfo
+
+    /**
+     * 由 C++ 层上报物理设备信息（厂商/API/驱动/设备名）。
+     * 低于厂商 Vulkan 最低阈值 → 仅记台账 soft-fail（不再直接定策略，
+     * 由下次启动的 ledgerStrategy 统一裁决；本会话仍走运行时降级链）。
+     * @param vendorId VkPhysicalDeviceProperties.vendorID
+     * @param apiVersion VkPhysicalDeviceProperties.apiVersion（VK_MAKE_VERSION 编码）
+     * @param driverVersion VkPhysicalDeviceProperties.driverVersion
+     * @param deviceName VkPhysicalDeviceProperties.deviceName
+     */
+    fun setVulkanDeviceInfo(vendorId: Int, apiVersion: Int, driverVersion: Int, deviceName: String) {
+        val info = VulkanDeviceInfo(GpuVendor.fromVendorId(vendorId), apiVersion, driverVersion, deviceName)
+        _deviceInfo = info
+        _driverVersion = driverVersion
+        val apiStr = "${info.apiMajor}.${info.apiMinor}.${info.apiPatch}"
+        if (evaluateVulkanTier(info) == DeviceTier.PROBLEMATIC) {
+            Log.e(TAG, "Vulkan device below vendor threshold: ${info.vendor} API $apiStr " +
+                "(device=$deviceName) — recording ledger soft-fail (strategy next launch)")
+            CrashRecoveryEngine.recordVulkanSoftFailure("threshold")
+        } else {
+            Log.i(TAG, "Vulkan device OK: $deviceName (${info.vendor}) API $apiStr")
+        }
+    }
+
+    // ── 已知问题机型列表（名单从「决策者」降级为「遥测队列标记」）──
+    // 命中只打 WARNING 日志 + 记 cohort 标志进遥测事件（不再 PROBLEMATIC → 不再
+    // 未试先降）。运行时回退链（Vulkan→GLES→Software）+ 失败台账（kill/soft-fail
+    // ≥3 → GLES_PREFERRED）共同承担真实防线；版本后由 render_backend_session/
+    // render_fallback 事件按 cohort 分组校准，数据异常再考虑恢复窄 Deny。
+    private val KNOWN_PROBLEM_MODELS = setOf(
+        // 联想
+        "tb320fc",        // 联想平板 (ZUXOS)
+        // vivo
+        "v2232a",         // vivo 手机 (OriginOS+6)
+        // 小米
+        "23113rkc6c",     // 小米 (MIUI/澎湃OS)
+        // 扩展预留
+        "v2183a",         // vivo X Fold
+        "v2157a",         // vivo X80
+        "v2241a",         // vivo X90
+        "2210132c",       // 小米 12T
+        "2211133c",       // 小米 13
+        "23046pnc5c",     // 小米 13T
+        // Adreno vkGetDeviceQueue 崩溃相关机型（#3088）
+        "2312d0500",      // 小米 14
+        "23127pn0cc",     // 小米 14 Pro
+        "23122rn3bl",     // 小米 13 Ultra
+        "2311drn14c",     // Xiaomi 13T Pro
+        // Adreno 崩溃扩展机型（#9045 RenderThread deadline join）
+        "2312drabrc",     // Xiaomi 14 Civi
+        "24031pn0dc",     // Xiaomi 14T Pro
+        "24030pn60g",     // Xiaomi 14T
+        "24122rn3ch",     // Redmi K70 Pro
+        "2311drk14c",     // Redmi K70
+        "2407frk8ec",     // Redmi K70 Ultra
+        "2304fpn6dg",     // Redmi Note 13 Pro+
+        "2312draabg",     // Xiaomi Pad 7 Pro
+        "v2309a",         // vivo X100
+        "v2324a",         // vivo X100 Pro
+        "v2330a",         // vivo X100 Ultra
+        "v2248a",         // vivo iQOO 12
+        "v2307a",         // vivo iQOO Neo9
+        "pjh110",         // OPPO Find X7
+        "phz110",         // OPPO Find X7 Ultra
+        "pje110",         // OnePlus 12
+        "pjf110",         // OnePlus Ace 3
+        "eli-an00",       // 荣耀 Magic6
+        "bvl-an00",       // 荣耀 Magic6 Pro
+        "mda-an00",       // 华为 Mate 60
+        "mga-al00",       // 华为 Mate 60 Pro
+        "alt-al00",       // 华为 P70
+    )
+
+    // ── 已知问题厂商列表 ──
+    // 覆盖国产主流定制 ROM 设备
+    private val KNOWN_PROBLEM_MANUFACTURERS = setOf(
+        "lenovo",       // 联想 ZUXOS
+        "xiaomi",       // 小米 MIUI/澎湃OS
+        "vivo",         // vivo OriginOS
+        "oppo",         // OPPO ColorOS
+        "oneplus",      // 一加 OxygenOS/ColorOS
+        "realme",       // 真我 RealmeUI
+        "huawei",       // 华为 HarmonyOS/EMUI
+        "honor",        // 荣耀 MagicOS
+        "meizu",        // 魅族 Flyme
+        "smartisan",    // 锤子 SmartisanOS
+        "zte",          // 中兴
+        "nubia",        // 努比亚
+        "samsung",      // 三星 OneUI（部分型号）
+    )
+
+    // ── API < 31 已知 Vulkan 兼容性良好厂商白名单（对标 Unity Vulkan Device Filtering） ──
+    // 仅近原生 Android 设备在旧 API 上通过严格 CTS Vulkan 测试（Google 原生/Nexus/Pixel、
+    // Essential Phone、Fairphone、Sony Xperia 部分型号、HMD Global/Nokia Android One 成员）
+    private val KNOWN_GOOD_OLD_DEVICE_MANUFACTURERS = setOf(
+        "google",       // Google 原生 — 驱动经过 CTS 认证
+        "essential",    // Essential Phone — Vulkan 合规性好
+        "fairphone",    // Fairphone — 接近原生 Android
+        "sony",         // Sony Xperia — 部分型号合规性记录良好
+        "hmd global",   // Nokia (HMD Global) — Android One 项目成员
+        "nokia",
+    )
+
+    // Android One 认证以 brand 维度标注（跨厂商），独立于上表 manufacturer 维度
+    private const val ANDROID_ONE_BRAND = "android one"
+
+    // ── 已知兼容的 SoC 前缀 ──
+    // 高通 Adreno Vulkan 驱动相对成熟
+    private val COMPATIBLE_SOC_PREFIXES = listOf(
+        "qcom", "qualcomm", "sm8", "sm7", "sm6"
+    )
+
+    // ── 联发科 SoC 检测前缀 ──
+    private val MEDIATEK_PREFIXES = listOf(
+        "mt", "mediatek"
+    )
+
+    // ── 分级枚举 ──
+
+    /** 名单命中 cohort 标志（遥测事件 render_backend_session 的 cohort 字段用；
+     *  detectTier 检测时置位，会话期恒定） */
+    @Volatile
+    var inProblemModelCohort: Boolean = false
+        private set
+
+    // ── 分级枚举 ──
+
+    enum class DeviceTier(val description: String) {
+        SAFE("设备兼容性良好，正常使用硬件加速"),
+        WARNING("可能有兼容性问题，已记录日志"),
+        PROBLEMATIC("已知问题设备，建议禁用硬件加速或降级渲染路径"),
+    }
+
+    /**
+     * 渲染策略枚举 — 决定宗门地图使用哪种渲染后端。
+     *
+     * @see NativeSurfaceView.RenderMode
+     */
+    enum class RenderStrategy(val description: String) {
+        /** 先尝试 Vulkan，失败后自动降级到 GPU OpenGL ES（再软件） */
+        VULKAN_PREFERRED("首选 Vulkan，失败降级 GPU GLES→软件"),
+        /** Vulkan 不可靠但 GPU 可用（MediaTek/Mali/非高通国产/旧 API 非白名单）：直接走 GPU GLES */
+        GLES_PREFERRED("首选 GPU OpenGL ES，失败降级软件"),
+        /** 直接使用 Canvas 软件渲染（模拟器/崩溃自愈安全模式/云游戏） */
+        SOFTWARE_ONLY("直接使用软件渲染"),
+    }
+
+    /**
+     * 获取推荐渲染策略：失败学习由台账统一裁决）。
+     *
+     * 算法：
+     * 1. 崩溃自愈安全模式 → SOFTWARE_ONLY
+     * 1b. TapTap 云游戏环境 → SOFTWARE_ONLY
+     * 2. 模拟器检测（内部消费台账：有失败记录 → SOFTWARE_ONLY）
+     * 3. 失败台账：kill≥3 或 soft≥3（3 天窗口内）→ GLES_PREFERRED（仍是 GPU）
+     * 4. API < 31 非白名单 → GLES_PREFERRED
+     * 5. 设备分级（名单命中已降为 WARNING/cohort 遥测，不参与决策）
+     *
+     * 未达台账阈值 → VULKAN_PREFERRED 重试（保留「干净启动重试」的合理意图）。
+     */
+    @Suppress("ReturnCount")
+    fun getRenderStrategy(context: Context): RenderStrategy {
+        // 1. 崩溃自愈安全模式
+        safeModeStrategy()?.let { return it }
+
+        // 1b. TapTap 云游戏环境检测
+        cloudGamingStrategy()?.let { return it }
+
+        // 2. 模拟器检测（内部消费台账）
+        emulatorStrategy()?.let { return it }
+
+        // 3. 失败台账：kill≥3 或 soft≥3（窗口内）→ GLES_PREFERRED
+        ledgerStrategy()?.let { return it }
+
+        // 4. API < 31 保守策略（对标 Flutter API < 29 回退 + Unity Device Filtering）
+        oldApiStrategy()?.let { return it }
+
+        // 5. 设备分级检测
+        return tierStrategy(context)
+    }
+
+    /** 崩溃自愈安全模式检查：安全模式 → 软件渲染 */
+    private fun safeModeStrategy(): RenderStrategy? {
+        if (CrashRecoveryEngine.isSafeMode()) {
+            Log.w(TAG, "Safe mode → SOFTWARE_ONLY render strategy")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+        return null
+    }
+
+    /** TapTap 云游戏环境检查 */
+    private fun cloudGamingStrategy(): RenderStrategy? {
+        // TapTap TapSandbox 在 Vulkan 调用链上增加 Hook 层，
+        // vkCreateShaderModule 已知有 SIGSEGV 缺陷。
+        // 参考 Flutter Impeller 模拟器禁用策略（PR #162454），
+        // 云游戏等虚拟环境直接走软件渲染。
+        if (isTapTapCloudGaming()) {
+            Log.w(TAG, "TapTap cloud gaming → SOFTWARE_ONLY")
+            return RenderStrategy.SOFTWARE_ONLY
+        }
+        return null
+    }
+
+    /**
+     * 在 API < 31 设备上判断是否为已知 Vulkan 兼容性良好的设备。
+     *
+     * 对标 Flutter Impeller 的 API 版本门槛策略（API < 29 无条件回退 GLES）
+     * 和 Unity Vulkan Device Filtering 的白名单做法。
+     * 仅 Google Pixel/Nexus 和 Android One 设备在旧 API 上通过了严格的
+     * CTS Vulkan 测试，驱动缺陷较少。
+     */
+    private fun isKnownGoodOldDevice(): Boolean {
+        // Build.MANUFACTURER/Build.BRAND 是 Java 平台类型，定制 ROM 可能返回 null
+        val manufacturer = Build.MANUFACTURER?.lowercase() ?: return false
+        val brand = Build.BRAND?.lowercase() ?: return false
+        return manufacturer in KNOWN_GOOD_OLD_DEVICE_MANUFACTURERS || brand == ANDROID_ONE_BRAND
+    }
+
+    /**
+     * 模拟器降级判定：失败台账有记录（kill 达崩溃循环阈值或窗口内应降 GLES）
+     * 即视为不可信，走纯软件渲染（台账取代四个布尔标记）。
+     */
+    private fun hasPriorVulkanFailure(): Boolean =
+        CrashRecoveryEngine.isVulkanCrashLoop() ||
+            CrashRecoveryEngine.shouldPreferGles()
+
+    /** 失败台账检查：
+     *  kill≥3（崩溃循环）或 soft≥3（窗口内）→ GLES_PREFERRED（仍是 GPU，不是软件） */
+    private fun ledgerStrategy(): RenderStrategy? {
+        if (CrashRecoveryEngine.shouldPreferGles()) {
+            val reason = if (CrashRecoveryEngine.isVulkanCrashLoop()) "crash_loop" else "soft_fail_loop"
+            Log.w(TAG, "Vulkan failure ledger → GLES_PREFERRED ($reason)")
+            return RenderStrategy.GLES_PREFERRED
+        }
+        return null
+    }
+
+    /** 模拟器策略：崩溃记录/API<31 非白名单降级，GPU 透传保留硬件加速 */
+    @Suppress("ReturnCount")
+    private fun emulatorStrategy(): RenderStrategy? {
+        // 行业调研确认：模拟器 Vulkan 翻译层（Gfxstream/Virtio-gpu）走宿主机物理 GPU，
+        // 非纯 CPU 渲染。蓝叠/MuMu/雷电均支持 Vulkan 原生命令透传（零拷贝渲染）。
+        // 不应直接跳过硬件加速——仅在先前崩溃/初始化失败后才降级。
+        // 参考：MuMu 12 WHPX+Vulkan 零拷贝渲染、LDPlayer 9 Vulkan 支持、Flutter Impeller 模拟器策略
+        if (isEmulator()) {
+            if (hasPriorVulkanFailure()) {
+                Log.w(TAG, "Emulator + prior Vulkan failure → SOFTWARE_ONLY")
+                return RenderStrategy.SOFTWARE_ONLY
+            }
+            // API < 31 非白名单模拟器：Vulkan passthrough 不可靠，但设备有 GPU →
+            // 走 GPU GLES 中间层（非 CPU 软件）。
+            // 参考：非模拟器 API<31 非白名单路径同样 GLES_PREFERRED。
+            if (Build.VERSION.SDK_INT < 31 && !isKnownGoodOldDevice()) {
+                Log.w(TAG, "Emulator on API<31 non-whitelist → GLES_PREFERRED")
+                return RenderStrategy.GLES_PREFERRED
+            }
+            Log.d(TAG, "Emulator → VULKAN_PREFERRED (GPU passthrough available)")
+            return RenderStrategy.VULKAN_PREFERRED
+        }
+        return null
+    }
+
+    /** API < 31 保守策略：对标 Flutter API < 29 回退 + Unity Device Filtering */
+    private fun oldApiStrategy(): RenderStrategy? {
+        // 行业数据：Android 8-11 上 Mali/Adreno 6xx/PowerVR 等 GPU 的 Vulkan 驱动
+        // 在非 Google 设备上存在广泛兼容性问题。Unity 6+ 对 Mali-G52/Mali T8xx 等
+        // GPU 自动降级到 OpenGL ES。原神仅白名单设备启用 Vulkan。
+        // 王者荣耀按机型分档，老旧设备直接使用 GLES 2.0。
+        // 本检查在崩溃标记之后，确保：
+        // - 安全模式优先（已有崩溃标记的设备）
+        // - 首次启动（无标记）：非白名单设备走软件渲染
+        // - Google Pixel 等已知兼容设备不受影响
+        if (Build.VERSION.SDK_INT < 31) {
+            if (isKnownGoodOldDevice()) {
+                Log.d(TAG, "API ${Build.VERSION.SDK_INT} known-good device → VULKAN_PREFERRED")
+            } else {
+                // 旧 API 非白名单：Vulkan 驱动普遍不可靠，但设备有 GPU → GPU GLES 中间层
+                Log.w(TAG, "API ${Build.VERSION.SDK_INT} non-whitelist device → GLES_PREFERRED")
+                return RenderStrategy.GLES_PREFERRED
+            }
+        }
+        return null
+    }
+
+    /** 设备分级 → 渲染策略 */
+    private fun tierStrategy(context: Context): RenderStrategy = when (detectTier(context)) {
+        DeviceTier.PROBLEMATIC -> {
+            // 问题设备 = Vulkan 驱动不可靠，但设备有 GPU → GPU GLES 中间层（非 CPU 软件）
+            Log.w(TAG, "PROBLEMATIC device → GLES_PREFERRED render strategy")
+            RenderStrategy.GLES_PREFERRED
+        }
+        DeviceTier.WARNING -> {
+            Log.w(TAG, "WARNING device → VULKAN_PREFERRED (with fallback)")
+            RenderStrategy.VULKAN_PREFERRED
+        }
+        DeviceTier.SAFE -> {
+            Log.d(TAG, "SAFE device → VULKAN_PREFERRED")
+            RenderStrategy.VULKAN_PREFERRED
+        }
+    }
+
+    // ── 公共 API ──
+
+    /**
+     * 检测当前设备的渲染安全等级。
+     */
+    @Suppress("ReturnCount", "CyclomaticComplexMethod", "NestedBlockDepth", "LongMethod")
+    fun detectTier(context: Context): DeviceTier {
+        // 防御性判空：Build.MODEL/Manufacturer/BOARD/HARDWARE 在定制 ROM、
+        // Robolectric 测试中可能返回 null，.lowercase() 会抛出 NPE
+        val model = (Build.MODEL ?: "").lowercase()
+        val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+        val board = (Build.BOARD ?: "").lowercase()
+        val hardware = (Build.HARDWARE ?: "").lowercase()
+        val socManufacturer = if (Build.VERSION.SDK_INT >= 31) {
+            Build.SOC_MANUFACTURER?.lowercase() ?: ""
+        } else {
+            ""
+        }
+
+        // 0. 失败台账（取代原「崩溃专用标记/持久化失败标记」两个死分支）。
+        //    与 ledgerStrategy 同窗口语义——shouldPreferGles 已含「达阈值且在 3 天窗口内」
+        //    判定；窗口外/衰减后的 kill 计数不再钉死设备（VULKAN_PREFERRED 重试）。
+        if (CrashRecoveryEngine.shouldPreferGles()) {
+            val reason = if (CrashRecoveryEngine.isVulkanCrashLoop()) "crash_loop" else "soft_fail_loop"
+            Log.w(TAG, "Vulkan failure ledger ($reason) — PROBLEMATIC")
+            return DeviceTier.PROBLEMATIC
+        }
+
+        // 1. 精确匹配已知问题机型 → WARNING（名单从决策者降为遥测队列
+        //    标记——不再 PROBLEMATIC 未试先降；运行时回退链 + 失败台账承担真实防线，
+        //    cohort 标志进遥测事件由版本后数据决定是否恢复窄 Deny）
+        if (KNOWN_PROBLEM_MODELS.any { model.contains(it) }) {
+            inProblemModelCohort = true
+            Log.w(TAG, "Device in legacy problem-model cohort: $model — " +
+                "VULKAN_PREFERRED with runtime fallback (cohort tracked for telemetry)")
+            return DeviceTier.WARNING
+        }
+
+        // 2. 基于 SoC/厂商信号的"数据导向"风险感知（默认 Allow Vulkan，仅日志 + 量化后置判定）。
+        //    策略：**默认 Vulkan + 窄 Deny**（行业标准，见 docs/adr/render-strategy-decision.md）。
+        //    依据：GPU GLES 中间层已落地（降级链 Vulkan→GPU GLES→CPU Canvas），即便 Vulkan 驱动有缺陷，
+        //    崩溃自愈 + GLES 兜底仍保 GPU 可用；量化阈值（低于厂商 VK API 版本 → 记录失败下次走 GLES）经
+        //    C++ 上报设备信息（setVulkanDeviceInfo）+ Bugly 校准后置生效，不依赖整厂商名单。
+        val isMediatek = MEDIATEK_PREFIXES.any { prefix ->
+            board.startsWith(prefix) ||
+            hardware.startsWith(prefix) ||
+            socManufacturer.startsWith(prefix)
+        }
+        val isQualcomm = COMPATIBLE_SOC_PREFIXES.any { prefix ->
+            board.startsWith(prefix) ||
+            hardware.startsWith(prefix) ||
+            socManufacturer.startsWith(prefix)
+        }
+        val isChineseManufacturer = KNOWN_PROBLEM_MANUFACTURERS.any {
+            manufacturer.contains(it)
+        }
+        val riskyVendorSignal = isMediatek || (isChineseManufacturer && !isQualcomm)
+        if (riskyVendorSignal) {
+            Log.w(TAG, "Vulkan risky-vendor signal (Mediatek=$isMediatek Chinese=$isChineseManufacturer " +
+                "Qualcomm=$isQualcomm) — default VULKAN_PREFERRED, rely on quantified probe + crash-recovery")
+        }
+        // 4.（已删除）原「SOC_MODEL/board/hardware 匹配已知问题 GPU 正则」
+        //    两个匹配块整体移除——输入值（如 sm8550/taro/qcom）不含 mali-g/adreno 字样，
+        //    防线永不命中；且行业抄来的 pattern（adreno.*73[0-9] 等）若真接到真实设备名
+        //    会把本项目渲染特性（2D 精灵、无 MSAA、无 compute）无关的旗舰误杀。
+        //    量化防线改吃台账持久化的真实设备信息（initialize → readPersistedGpuInfo）。
+
+        // 5. 量化阈值后置判定（若已有设备信息——台账持久化或本次 prewarm 上报；
+        //    低于厂商 VK API 阈值 → PROBLEMATIC）。null 则跳过（窄 Deny 由上述静态信号承担）。
+        val probed = _deviceInfo
+        if (probed != null && evaluateVulkanTier(probed) == DeviceTier.PROBLEMATIC) {
+            Log.w(TAG, "Vulkan device below vendor threshold (${probed.vendor} API " +
+                "${probed.apiMajor}.${probed.apiMinor}.${probed.apiPatch}) — PROBLEMATIC")
+            return DeviceTier.PROBLEMATIC
+        }
+
+        // 6. 检查 Vulkan 功能级别
+        try {
+            val pm = context.packageManager
+            if (pm.hasSystemFeature(
+                    PackageManager.FEATURE_VULKAN_HARDWARE_VERSION)) {
+                Log.d(TAG, "Vulkan hardware feature detected")
+            } else {
+                Log.d(TAG, "No Vulkan feature — system uses OpenGL")
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.w(TAG, "Failed to query Vulkan feature", e)
+        }
+
+        return DeviceTier.SAFE
+    }
+
+    /**
+     * 计算"GPU 厂商风险信号"（MediaTek 或 国产非高通）——用于系统级 HWUI 的保守兜底。
+     * 与地图渲染后端（getRenderStrategy）**独立**：地图可默认 Vulkan（有 GLES 兜底），
+     * 但 Android 15+ 的 Compose UI 走 SkiaVK，风险厂商驱动缺陷下应保持 HW 加速关闭以防崩溃。
+     */
+    private fun hasRiskyGpuVendorSignal(
+        board: String,
+        hardware: String,
+        socManufacturer: String,
+        manufacturer: String,
+    ): Boolean {
+        val isMediatek = MEDIATEK_PREFIXES.any {
+            board.startsWith(it) || hardware.startsWith(it) || socManufacturer.startsWith(it)
+        }
+        val isQualcomm = COMPATIBLE_SOC_PREFIXES.any {
+            board.startsWith(it) || hardware.startsWith(it) || socManufacturer.startsWith(it)
+        }
+        val isChinese = KNOWN_PROBLEM_MANUFACTURERS.any { manufacturer.contains(it) }
+        return isMediatek || (isChinese && !isQualcomm)
+    }
+
+    /**
+     * 是否应在该设备上禁用硬件加速。
+     *
+     * 与 [getRenderStrategy] 不同，此方法控制系统级的 HW 加速（Activity 主题）。
+     * Android 15+ 的系统渲染默认使用 SkiaVK（Vulkan 后端），问题设备上需关闭。
+     * Android < 15 的系统渲染使用 OpenGL ES，与 Vulkan 驱动问题无关，可保持开启。
+     */
+    @Suppress("ReturnCount", "CyclomaticComplexMethod")
+    fun shouldDisableHardwareAcceleration(context: Context): Boolean {
+        // 1. 崩溃自愈安全模式 → 强制降级
+        if (CrashRecoveryEngine.isSafeMode()) {
+            Log.w(TAG, "Safe mode active — disabling HW acceleration")
+            return true
+        }
+
+        // 1b. TapTap 云游戏环境 → 禁用硬件加速
+        if (isTapTapCloudGaming()) {
+            Log.w(TAG, "TapTap cloud gaming — disabling HW acceleration")
+            return true
+        }
+
+        // 2. 失败台账（窗口内达阈值才降级；与 getRenderStrategy 同语义）
+        if (CrashRecoveryEngine.shouldPreferGles()) {
+            Log.w(TAG, "Vulkan failure ledger prefers GLES — disabling HW acceleration")
+            return true
+        }
+
+        // 3. API < 31 保守策略（与 getRenderStrategy 一致）
+        // 行业数据：部分国产定制 ROM（如 Magic UI 5.0）可能在 Android 11 上
+        // 回传 SkiaVK（Vulkan HWUI），而 Mali-G57/PowerVR 等 GPU 的 Vulkan 驱动
+        // 存在广泛兼容性问题（Chromium 已全面禁止 Mali-G57 使用 Vulkan）。
+        // android.graphics.renderer="skiagl" 仅在 API 31+ 被系统识别，对 API 30
+        // 及以下设备无效。详见 docs/vulkan-crash-defense-design.md
+        if (Build.VERSION.SDK_INT < 31) {
+            if (!isKnownGoodOldDevice()) {
+                Log.w(TAG,
+                    "API ${Build.VERSION.SDK_INT} non-whitelist device —" +
+                        " disabling HW acceleration (OEM may use SkiaVK)")
+                return true
+            }
+            // 已知兼容设备（Google Pixel/Android One 等）使用 OpenGL ES，
+            // Android 8-10 的 HWUI 固定使用 OpenGL ES，无需关闭 HW 加速
+            return false
+        }
+
+        // 4. API 31-34（Android 12-14）：使用 android.graphics.renderer="skiagl"
+        //    metadata 提示系统使用 OpenGL ES，硬件加速保持开启
+        //    仅 API 35+（Android 15+）需要检查设备分级 + 风险厂商信号（HWUI SkiaVK 兜底）
+        if (Build.VERSION.SDK_INT < 35) {
+            return false
+        }
+
+        val tier = detectTier(context)
+        val board = (Build.BOARD ?: "").lowercase()
+        val hardware = (Build.HARDWARE ?: "").lowercase()
+        val socManufacturer = if (Build.VERSION.SDK_INT >= 31) {
+            Build.SOC_MANUFACTURER?.lowercase() ?: ""
+        } else {
+            ""
+        }
+        val manufacturer = (Build.MANUFACTURER ?: "").lowercase()
+        val riskySignal = hasRiskyGpuVendorSignal(board, hardware, socManufacturer, manufacturer)
+
+        return when {
+            tier == DeviceTier.PROBLEMATIC || riskySignal -> {
+                Log.w(TAG, "Problematic/risky-vendor device on Android 15+ — disabling HW acceleration")
+                true
+            }
+            tier == DeviceTier.WARNING -> {
+                Log.w(TAG, "Warning tier — keeping HW acceleration, monitoring")
+                false
+            }
+            else -> false
+        }
+    }
+
+    /**
+     * 记录详细的设备诊断信息到日志（供 Bugly 分析）
+     */
+    fun logDeviceDiagnostics(context: Context) {
+        val sb = StringBuilder()
+        sb.appendLine("=== VulkanPolicy Device Diagnostics ===")
+        sb.appendLine("Model: ${Build.MODEL}")
+        sb.appendLine("Manufacturer: ${Build.MANUFACTURER}")
+        sb.appendLine("Brand: ${Build.BRAND}")
+        sb.appendLine("Board: ${Build.BOARD}")
+        sb.appendLine("Hardware: ${Build.HARDWARE}")
+        sb.appendLine("Product: ${Build.PRODUCT}")
+        sb.appendLine("Device: ${Build.DEVICE}")
+        // Build.SOC_MANUFACTURER/SOC_MODEL 是 API 31+ 字段，旧 API 需要反射兜底
+        // 避免 Startup 阶段（如 Robolectric 测试/低端设备）触发 NoSuchFieldError
+        if (Build.VERSION.SDK_INT >= 31) {
+            sb.appendLine("SOC Manufacturer: ${Build.SOC_MANUFACTURER ?: "N/A"}")
+            sb.appendLine("SOC Model: ${Build.SOC_MODEL ?: "N/A"}")
+        } else {
+            sb.appendLine("SOC Manufacturer: N/A (API < 31)")
+            sb.appendLine("SOC Model: N/A (API < 31)")
+        }
+        val sdk = Build.VERSION.SDK_INT
+        val release = Build.VERSION.RELEASE
+        sb.appendLine("Android: $release (SDK $sdk)")
+        sb.appendLine("Tier: ${detectTier(context)}")
+        sb.appendLine("Safe Mode: ${CrashRecoveryEngine.isSafeMode()}")
+        sb.appendLine("Render Crashes (24h window): ${CrashRecoveryEngine.getRenderCrashCountInWindow()}")
+        sb.appendLine("Failure Ledger: kill=${CrashRecoveryEngine.getVkKillCount()} " +
+            "softFail=${CrashRecoveryEngine.getVkSoftFailCount()} " +
+            "preferGles=${CrashRecoveryEngine.shouldPreferGles()}")
+        sb.appendLine("Problem-Model Cohort: $inProblemModelCohort")
+        sb.appendLine("Last Fallback: ${CrashRecoveryEngine.getLastFallback() ?: "none"}")
+        sb.appendLine("==========================================")
+        Log.i(TAG, sb.toString())
+    }
+}

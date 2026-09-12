@@ -1,0 +1,78 @@
+#pragma once
+
+#include <cstddef>
+#include <cstdint>
+
+// ============================================================
+// KtxLoader — KTX1 压缩纹理容器解析（ASTC 图集，支持多 mip）
+//
+// 输入：assets/atlas/atlas_astc.ktx（由 scripts/build-atlas.mjs 生成，
+//       astcenc -cl 4x4 -medium 压缩 + 64 字节 KTX1 头封装；B.1 起
+//       numberOfMipmapLevels >= 1，数据区 = 逐级 [imageSize 4 字节][数据]）
+// 输出：数据区指针 + 尺寸 + mip 层级数 + 内部格式，全字段校验通过才成功。
+//
+// 失败语义：返回 false（Kotlin 侧回退 RGBA 图集路径，视觉零差异）。
+// 校验清单（损坏 KTX 必须被检测，不允许半解析成功）：
+//   - magic "«KTX 11»" / endianness 0x04030201
+//   - glType == 0 && glFormat == 0（压缩纹理容器）
+//   - glInternalFormat == 0x93B0（ASTC 4x4 LDR——只接受本管线产物）
+//   - faces == 1 && mipCount >= 1 && depth == 0 && array == 0
+//   - 宽高 > 0 且为 4 的倍数（ASTC 块对齐）
+//   - 逐级 dataSize == 块数 × 16（几何推导，防头数据不一致）
+//   - 数据区总长精确结束于文件尾（防尾随字节注入）
+// ============================================================
+
+// KTX1 头字段布局（64 字节，小端）
+namespace ktx1 {
+constexpr size_t HEADER_SIZE = 64;
+constexpr size_t MAGIC_OFFSET = 0;
+constexpr size_t ENDIANNESS_OFFSET = 8;
+constexpr size_t GL_TYPE_OFFSET = 12;
+constexpr size_t GL_TYPE_SIZE_OFFSET = 16;
+constexpr size_t GL_FORMAT_OFFSET = 20;
+constexpr size_t GL_INTERNAL_FORMAT_OFFSET = 24;
+constexpr size_t GL_BASE_INTERNAL_FORMAT_OFFSET = 28;
+constexpr size_t PIXEL_WIDTH_OFFSET = 32;
+constexpr size_t PIXEL_HEIGHT_OFFSET = 36;
+constexpr size_t PIXEL_DEPTH_OFFSET = 40;
+constexpr size_t ARRAY_ELEMENTS_OFFSET = 44;
+constexpr size_t FACES_OFFSET = 48;
+constexpr size_t MIP_LEVELS_OFFSET = 52;
+constexpr size_t KEY_VALUE_BYTES_OFFSET = 56;
+
+// GL 常量（与 build-atlas.mjs wrapKtx1 写入值一致）
+constexpr uint32_t MAGIC0 = 0x58544BAB;  // "«KTX" 小端读
+constexpr uint32_t MAGIC1 = 0xBB313120;  // " 11»" 小端读
+constexpr uint32_t ENDIANNESS = 0x04030201;
+constexpr uint32_t GL_COMPRESSED_RGBA_ASTC_4x4_KHR = 0x93B0;
+// GL_RGBA 在无 GL 头环境下作为自包含常量；若 GLES2/gl2.h 已包含（宏定义同名），
+// 跳过本定义避免宏/常量冲突（GlesBackend.h 引入 gl2.h 后 NativeBridge.cpp 同 TU 触发）。
+#ifndef GL_RGBA
+constexpr uint32_t GL_RGBA = 0x1908;
+#endif
+constexpr uint32_t ASTC_BLOCK = 4;
+constexpr size_t ASTC_BLOCK_BYTES = 16;
+
+// 每个 mip 层的数据前缀：[dataSize 4 字节][数据]
+constexpr size_t DATA_SIZE_FIELD = 4;
+
+// 纹理尺寸上限（32 位 size_t 下几何推导可回绕绕过校验；
+// 上限同时防异常驱动收到越限 extent——Vulkan maxImageDimension2D 常见 8192/16384）
+constexpr uint32_t MAX_TEXTURE_DIMENSION = 16384;
+}  // namespace ktx1
+
+/** 解析结果（仅在 loadKtx1 返回 true 时有意义） */
+struct KtxInfo {
+    const uint8_t* data = nullptr;    // 所有 mip 数据区起始（= 文件头后，含各层 [size4] 前缀）
+    size_t dataSize = 0;              // data 区总字节（含各层 size4 前缀）
+    uint32_t width = 0;               // mip0 宽
+    uint32_t height = 0;              // mip0 高
+    uint32_t mipCount = 1;            // mip 层级数（>=1；B.1 支持多 mip）
+    uint32_t internalFormat = 0;
+};
+
+/**
+ * 解析并校验 KTX1 容器。全字段校验通过返回 true 并填充 info；
+ * 任一字段非法返回 false（调用方走回退路径，不抛异常）。
+ */
+bool loadKtx1(const uint8_t* fileData, size_t fileSize, KtxInfo& info);

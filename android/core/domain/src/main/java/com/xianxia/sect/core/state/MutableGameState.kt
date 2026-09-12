@@ -1,0 +1,140 @@
+package com.xianxia.sect.core.state
+
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventRecord
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.nextEventSequenceId
+import com.xianxia.sect.core.model.production.ProductionSlot
+
+
+
+data class MutableGameState(
+    var gameData: GameData,
+    var discipleTables: DiscipleTables,        // 替代 List<Disciple>，组件表存储
+    var equipmentStacks: EntityStore<EquipmentStack>,
+    var equipmentInstances: EntityStore<EquipmentInstance>,
+    var manualStacks: EntityStore<ManualStack>,
+    var manualInstances: EntityStore<ManualInstance>,
+    var pills: EntityStore<Pill>,
+    var materials: EntityStore<Material>,
+    var herbs: EntityStore<Herb>,
+    var seeds: EntityStore<Seed>,
+    var storageBags: EntityStore<StorageBag>,
+    var battleLogs: List<BattleLog>,
+    var isPaused: Boolean,
+    var isLoading: Boolean,
+    var isSaving: Boolean,
+    var pendingNotification: GameNotification? = null,
+    var pendingMarriageProposals: List<PendingMarriageProposal> = emptyList(),
+    var productionSlots: List<ProductionSlot> = emptyList()
+)
+
+/**
+ * 统一的玩家战斗日志写入辅助。
+ * 所有玩家参与的战斗都应通过此函数写入 battleLogs，避免散落的拼接逻辑导致遗漏。
+ *
+ * @param year        游戏年
+ * @param month       游戏月
+ * @param type        战斗类型（PVE/PVP/SECT_WAR/CAVE_EXPLORATION/SCOUT）
+ * @param attackerName 攻击方描述（如"玩家队伍"、"妖兽"、AI宗门名）
+ * @param defenderName 防守方描述（如"玩家宗门"、妖兽名、AI宗门名、任务名）
+ * @param result      战斗结果
+ * @param teamMembers 我方参战弟子快照
+ * @param enemies     敌方参战单位快照
+ * @param rounds      回合明细
+ * @param turns       总回合数
+ * @param details     文字摘要
+ * @param drops       战利品/被掠夺物品描述列表
+ * @param beastsDefeated 击杀敌人数（宗门战为击杀进攻者数）
+ * @param teamCasualties 我方阵亡数
+ */
+fun MutableGameState.recordPlayerBattle(
+    year: Int,
+    month: Int,
+    type: BattleType,
+    attackerName: String,
+    defenderName: String,
+    result: BattleResult,
+    teamMembers: List<BattleLogMember> = emptyList(),
+    enemies: List<BattleLogEnemy> = emptyList(),
+    rounds: List<BattleLogRound> = emptyList(),
+    turns: Int = 0,
+    details: String = "",
+    drops: List<String> = emptyList(),
+    beastsDefeated: Int = 0,
+    teamCasualties: Int = 0
+) {
+    battleLogs = (battleLogs + BattleLog(
+        year = year,
+        month = month,
+        type = type,
+        attackerName = attackerName,
+        defenderName = defenderName,
+        result = result,
+        teamMembers = teamMembers,
+        enemies = enemies,
+        rounds = rounds,
+        turns = turns,
+        details = details,
+        drops = drops,
+        beastsDefeated = beastsDefeated,
+        teamCasualties = teamCasualties
+    )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+}
+
+/**
+ * 游戏事件记录写入辅助。
+ * 所有游戏事件（弟子死亡、突破、叛逃、偷盗、AI宗门事件等）
+ * 都应通过此函数写入 gameEventRecords，统一管理持久化和裁剪。
+ *
+ * @param category 事件分类（SECT=玩家宗门, WORLD=世界/AI宗门）
+ * @param eventType 事件类型标识
+ * @param summary 显示文本
+ * @param relatedEntityId 关联实体 ID
+ * @param relatedEntityName 关联实体名称
+ */
+fun MutableGameState.recordGameEvent(
+    category: GameEventCategory,
+    eventType: String,
+    summary: String,
+    relatedEntityId: String = "",
+    relatedEntityName: String = ""
+) {
+    if (summary.isBlank() || eventType.isBlank()) return
+    if (summary.length > 200) return
+    if (eventType.length > 50) return
+    if (relatedEntityId.length > 50) return
+    if (relatedEntityName.length > 50) return
+    val d = gameData
+    // 追加序号分配（消息列表稳定 key；旧档全 0 时从 1 开始，maxOf 对 ≤200 条 O(N) 可接受）
+    val nextSeq = nextEventSequenceId(gameData.gameEventRecords)
+    gameData = gameData.copy(
+        gameEventRecords = (gameData.gameEventRecords + GameEventRecord(
+            year = d.gameYear,
+            month = d.gameMonth,
+            phase = d.gamePhase,
+            category = category.name,
+            eventType = eventType,
+            summary = summary,
+            relatedEntityId = relatedEntityId,
+            relatedEntityName = relatedEntityName,
+            sequenceId = nextSeq
+        )).takeLast(GameConfig.Logs.MAX_EVENT_LOGS)
+    )
+}

@@ -1,0 +1,16 @@
+API_BASE_URL="https://api.xianxia.com/api/"
+DEV_API_BASE_URL="http://10.0.2.2:3000/api/"
+PROD_API_BASE_URL="https://api.xianxia.com/api/"
+TAPTAP_CLIENT_ID="your_taptap_client_id_here"
+TAPTAP_CLIENT_TOKEN="your_taptap_client_token_here"
+TAPTAP_IS_CN=true
+TAPDB_CHANNEL="taptap"
+# APK 签名 SHA-256 指纹（用于离线兑换码校验）
+# 生成方式: keytool -list -v -keystore <你的keystore> -alias <alias>
+# 输出中 SHA256 的值去掉冒号并转为小写填入
+APK_SIGNATURE_HASH=""
+# 友盟统计（U-App）：AppKey 在友盟后台"应用管理"创建应用后获取；
+# 留空时 SDK 初始化整体跳过（不影响启动）。集成测试唤起码为 um.{UMENG_APP_KEY}
+# 注意：本文件取值一律不带引号（Properties 原样读取，引号会成为值的一部分）
+UMENG_APP_KEY=
+UMENG_CHANNEL=taptap

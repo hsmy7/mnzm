@@ -1,0 +1,118 @@
+package com.xianxia.sect.core.util
+
+import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
+import android.os.PowerManager
+import android.provider.Settings
+import android.util.Log
+import androidx.core.net.toUri
+
+/**
+ * ## 电池优化检测与厂商白名单引导
+ *
+ * 中国 OEM（华为/小米/OPPO/vivo/荣耀）对后台进程管理极为激进，
+ * 即使前台应用的非主线程也可能被挂起。
+ * 引导用户将应用加入电池优化白名单是确保游戏循环可靠运行的关键一步。
+ *
+ * ## 数据驱动
+ * 引导文案与厂商设置页跳转由 [ManufacturerAdapter.profile] 提供，
+ * 本类只负责通用逻辑（检测豁免、请求豁免、跳转设置页 fallback）。
+ *
+ * ## 参考来源
+ * - Huawei: https://consumer.huawei.com/hk/support/content/zh-hk00428704/
+ * - AppKillerManager (GitHub): https://github.com/wezuwiusz/AppKillerManager
+ * - dontkillmyapp.com benchmark
+ */
+object BatteryOptimizationHelper {
+
+    private const val TAG = "BatteryOptHelper"
+
+    /** 检查是否已豁免电池优化 */
+    fun isExempted(context: Context): Boolean {
+        val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            ?: return true
+        return pm.isIgnoringBatteryOptimizations(context.packageName)
+    }
+
+    /**
+     * 请求电池优化豁免（弹出系统对话框）。
+     * BatteryLife 属有意使用：游戏需持续前台运行，引导用户豁免电池优化
+     * 是国产 OEM（华为/小米/OPPO/vivo/荣耀）环境的必需路径，请求弹窗由用户主动确认。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    @SuppressLint("BatteryLife")
+    fun requestExemption(activity: Activity) {
+        if (isExempted(activity)) return
+
+        try {
+            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                data = "package:${activity.packageName}".toUri()
+            }
+            activity.startActivity(intent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to open battery optimization settings: ${e.message}")
+        }
+    }
+
+    /**
+     * 是否需要显示电池优化引导。
+     *
+     * 由 [ManufacturerAdapter.profile.needsBatteryGuide] 数据驱动，
+     * 覆盖全部激进 OEM（华为/荣耀/vivo/小米/OPPO）。
+     */
+    @Suppress("UnusedParameter") // context: 厂商适配统一签名：profile 路由不需要 context，保留 API 面一致
+    fun shouldShowGuide(context: Context): Boolean =
+        ManufacturerAdapter.profile.needsBatteryGuide && !isExempted(context)
+
+    /**
+     * 获取设备特定的优化引导文案。
+     *
+     * 由 [ManufacturerAdapter.profile.batteryGuideText] 数据驱动。
+     * 无需引导的厂商返回空字符串。
+     */
+    @Suppress("UnusedParameter") // context: 厂商适配统一签名：profile 路由不需要 context，保留 API 面一致
+    fun getGuideText(context: Context): String =
+        ManufacturerAdapter.profile.batteryGuideText
+
+    /**
+     * 跳转厂商自启动/电源管理设置页。
+     *
+     * 由 [ManufacturerAdapter.profile.launchSettingsComponent] 数据驱动。
+     * 若厂商无专用设置页（ComponentName 为 null）或跳转失败，
+     * fallback 到应用详情设置页。
+     */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    fun openLaunchSettings(context: Context) {
+        val component = ManufacturerAdapter.profile.launchSettingsComponent
+        if (component != null) {
+            try {
+                val intent = Intent().apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    this.component = component
+                }
+                context.startActivity(intent)
+                Log.d(TAG, "Opened launch settings for ${ManufacturerAdapter.current}: $component")
+                return
+            } catch (e: Exception) {
+                Log.w(TAG, "Launch settings ($component) not available, falling back: ${e.message}")
+            }
+        }
+        openAppDetailsSettings(context)
+    }
+
+    /** 通用：跳转应用详情设置页 */
+    @Suppress("TooGenericExceptionCaught") // 防御兜底: 异常源跨IO/SDK不可枚举, 降级继续+日志留痕, 非静默吞噬
+    fun openAppDetailsSettings(context: Context) {
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                data = "package:${context.packageName}".toUri()
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open app details settings: ${e.message}")
+        }
+    }
+}

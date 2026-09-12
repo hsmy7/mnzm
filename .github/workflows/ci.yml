@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  pull_request:
+    paths: ['android/**']
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  # ── C++ 游戏引擎单元测试（game-core，纯桌面构建，独立于 Gradle）──────
+  # game-core 零 Android 依赖：Linux g++/CMake 直接编译 + GTest 跑测试。
+  # 覆盖：RNG 黄金序列（PCG-XSH-RR 复刻跨语言守护）、Result、GameCore 生命周期。
+  cpp-engine-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android/app/src/main/cpp/gamecore
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake (tests)
+        run: cmake -B build -DGAMECORE_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build game-core + tests
+        run: cmake --build build -j2
+
+      - name: Run GTest
+        run: ctest --test-dir build --output-on-failure
+
+  # ── 跨语言差分对拍（桌面对拍框架长期化，批 12-5）────────────────────
+  # 构建桌面 JNI 桥（Linux g++，零 Android 依赖——build-desktop-jni-linux.sh）
+  # 并注入 -Dgamecore.jni.path 实跑全部 Diff*Test（C++ ↔ Kotlin 逐位对拍）。
+  # 基线：engine JUnit 全量含桌面对拍 0 skip（docs/cpp-engine.md 基线行）。
+  cpp-diff-jni-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    env:
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1536m
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build desktop JNI bridge
+        run: bash ../scripts/build-desktop-jni-linux.sh
+
+      # 全量 engine 单测（含 Diff*Test 桌面对拍 0 skip）——串行必须（共享静态状态）
+      - name: Run engine unit tests with desktop JNI
+        run: ./gradlew :core:engine:testReleaseUnitTest --max-workers=1 --build-cache "-Dgamecore.jni.path=$GITHUB_WORKSPACE/android/core/engine/build/desktop-jni/libgamecorejni.so"
+
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+
+    # 2026-08-14：内存预算覆盖（16G runner）——GRADLE_OPTS 系统属性优先于 gradle.properties
+    env:
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=1536m
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 2026-08-14：显式固定 Node——preBuild codegen 任务依赖 node，
+      # 之前靠 ubuntu-latest 预装（版本不受控，升级可能破坏 .mjs 脚本）
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # 2026-08-14：setup-gradle v4 默认缓存 wrapper dists + dependencies（覆盖面比手写
+      # actions/cache 更全且 key 正确）；删除原手写 actions/cache@v4
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # 2026-08-14：恢复 daemon + 增量编译——前提：内存保守化（原 8G×2 双堆打穿 16G runner）
+      # + Kotlin 2.2.20 跨模块增量互删已在本地验证不复现（docs/build-perf/incremental-verification.md）。
+      # 全部步骤保留 --max-workers=1（测试必须串行，历史教训：共享静态状态跨类污染 98 失败）
+      - name: Compile check
+        run: ./gradlew compileReleaseKotlin --max-workers=1 --build-cache
+
+      # 2026-08-14：-Pkover.enabled=true——本地默认关闭（消除插桩开销），仅 CI 启用
+      - name: Run unit tests
+        run: ./gradlew testReleaseUnitTest --max-workers=1 --build-cache -Pkover.enabled=true
+
+      # 2026-08-14：detekt/validateChangelogJson 补 --build-cache（与其余步骤一致，跨 runner 复用）
+      - name: Run Detekt
+        run: ./gradlew detekt --max-workers=1 --build-cache
+
+      # 决策8 CI 守卫（WS-0.d CI 加固③）：detekt-baseline 只许缩小不许增大。
+      # 统计各模块 <ID> 条目数并与 detekt-baseline-count.guard 对比，超限即失败——
+      # 防止新违规被塞进 baseline 静默压制。
+      - name: Detekt baseline must not grow (只转不增守卫)
+        run: |
+          set -e
+          cd android
+          fail=0
+          while IFS='=' read -r mod expected; do
+            case "$mod" in \#*|'') continue;; esac
+            f="$mod/detekt-baseline.xml"
+            [ -f "$f" ] || { echo "::error::$f 缺失"; fail=1; continue; }
+            count=$(grep -c '<ID>' "$f" || true)
+            if [ "$count" -gt "$expected" ]; then
+              echo "::error::$mod detekt-baseline 条目数 $count > 基线 $expected（只许缩小，禁止新增违规）"
+              fail=1
+            else
+              echo "✓ $mod baseline=$count（基线 $expected）"
+            fi
+          done < detekt-baseline-count.guard
+          exit $fail
+
+      # 2026-08 债务根治：lintRelease 纳入 CI（此前本地清单有 lint 但 CI 漏跑——
+      # 文档债务 baseline-20260814「CI 全绿」项包含 lint 验证面）
+      - name: Run lint
+        run: ./gradlew lintRelease --max-workers=1 --build-cache
+
+      - name: Validate changelog JSON
+        run: ./gradlew validateChangelogJson --build-cache
+
+      # 2026-08-01 修复：移除 `|| true`——测试失败必须使 CI 变红（Kover 已在全部模块启用）
+      # 2026-08-14：-Pkover.enabled=true——测试插桩必须与 koverHtmlReport 同开关，否则覆盖率为 0
+      - name: Generate coverage report
+        run: ./gradlew koverHtmlReport --max-workers=1 -Pkover.enabled=true
+
+      - name: Upload coverage report (if generated)
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: coverage-report
+          path: android/**/build/reports/kover/

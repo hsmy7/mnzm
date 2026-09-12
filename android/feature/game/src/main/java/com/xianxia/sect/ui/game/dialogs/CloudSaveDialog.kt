@@ -1,0 +1,252 @@
+package com.xianxia.sect.ui.game.dialogs
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.xianxia.sect.taptap.TapCloudSaveManager
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.game.SaveLoadViewModel
+import com.xianxia.sect.ui.game.CloudSaveOperationState
+import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.checkCloudSave
+import com.xianxia.sect.ui.game.downloadFromCloudSave
+import com.xianxia.sect.ui.game.isCloudSaveAvailable
+import com.xianxia.sect.ui.game.resetCloudSaveOperationState
+import com.xianxia.sect.ui.game.uploadToCloudSave
+
+/**
+ * 云存档对话框。
+ *
+ * 显示当前云存档信息，提供"上传存档"和"下载存档"操作按钮。
+ * 未登录时提示需要登录 TapTap。
+ */
+@Composable
+fun CloudSaveDialog(
+    saveLoadViewModel: SaveLoadViewModel,
+    onDismiss: () -> Unit
+) {
+    val cloudSaveInfo by saveLoadViewModel.cloudSaveInfo.collectAsState()
+    val operationStateValue by saveLoadViewModel.cloudSaveOperationState.collectAsState()
+    val operationState = operationStateValue
+
+    LaunchedEffect(Unit) {
+        saveLoadViewModel.resetCloudSaveOperationState()
+        saveLoadViewModel.checkCloudSave()
+    }
+
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "",
+        mode = DialogMode.Full,
+        scrimEnabled = false,
+        showHeader = false,
+        showCloseButton = false
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 360.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .padding(20.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // 标题
+                    Text(
+                        text = "☁ 云存档",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+
+                    // 云存档信息
+                    CloudSaveInfoSection(cloudSaveInfo = cloudSaveInfo)
+
+                    // 操作按钮 + 关闭按钮
+                    CloudSaveOperationSection(
+                        operationState = operationState,
+                        saveLoadViewModel = saveLoadViewModel,
+                        cloudSaveInfo = cloudSaveInfo,
+                        onDismiss = onDismiss
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 云存档信息区：有存档显示信息，无存档显示空态 */
+@Composable
+private fun CloudSaveInfoSection(cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo) {
+    if (cloudSaveInfo.hasSaveData) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFF0F7FF))
+                .padding(12.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = "存档信息",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFF4A90E2)
+                )
+                if (cloudSaveInfo.description.isNotBlank()) {
+                    Text(
+                        text = cloudSaveInfo.description,
+                        fontSize = 13.sp,
+                        color = Color.Black
+                    )
+                }
+                if (cloudSaveInfo.lastModifiedTime > 0) {
+                    Text(
+                        text = "上次保存: ${formatTime(cloudSaveInfo.lastModifiedTime)}",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFF5F5F5))
+                .padding(12.dp)
+        ) {
+            Text(
+                text = "暂无云存档数据",
+                fontSize = 13.sp,
+                color = Color(0xFF999999)
+            )
+        }
+    }
+}
+
+/** 云存档操作区：按操作状态渲染按钮/进度/结果 + 关闭按钮 */
+@Composable
+private fun CloudSaveOperationSection(
+    operationState: CloudSaveOperationState,
+    saveLoadViewModel: SaveLoadViewModel,
+    cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo,
+    onDismiss: () -> Unit
+) {
+    when (operationState) {
+        is CloudSaveOperationState.Idle -> CloudSaveIdleSection(
+            cloudSaveInfo = cloudSaveInfo,
+            saveLoadViewModel = saveLoadViewModel
+        )
+        is CloudSaveOperationState.Uploading -> CloudSaveProgressSection(message = "正在上传云存档...")
+        is CloudSaveOperationState.Downloading -> CloudSaveProgressSection(message = "正在下载云存档...")
+        is CloudSaveOperationState.Success -> {
+            Text(
+                text = operationState.message,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = GameColors.Success
+            )
+        }
+        is CloudSaveOperationState.Error -> {
+            Text(
+                text = operationState.message,
+                fontSize = 14.sp,
+                color = Color(0xFFE53935)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            GameButton(
+                text = "关闭",
+                onClick = { saveLoadViewModel.resetCloudSaveOperationState() }
+            )
+        }
+    }
+
+    // 关闭按钮
+    if (operationState !is CloudSaveOperationState.Uploading &&
+        operationState !is CloudSaveOperationState.Downloading
+    ) {
+        GameButton(
+            text = "关闭",
+            onClick = onDismiss
+        )
+    }
+}
+
+/** 闲置态按钮区：登录提示 + 上传/下载按钮 */
+@Composable
+private fun CloudSaveIdleSection(
+    cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo,
+    saveLoadViewModel: SaveLoadViewModel
+) {
+    if (!saveLoadViewModel.isCloudSaveAvailable()) {
+        Text(
+            text = "使用云存档需要登录 TapTap",
+            fontSize = 12.sp,
+            color = Color(0xFFE53935)
+        )
+    }
+
+    // 启动流程进行中禁用云存档按钮（防御性增强，
+    // 入口层统一守卫已保证安全，此处减少"点击后被拒绝"的体验）
+    val bootInProgress by saveLoadViewModel.bootInProgress.collectAsState()
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        GameButton(
+            text = "上传存档",
+            onClick = { saveLoadViewModel.uploadToCloudSave() },
+            enabled = saveLoadViewModel.isCloudSaveAvailable() && !bootInProgress
+        )
+        GameButton(
+            text = "下载存档",
+            onClick = { saveLoadViewModel.downloadFromCloudSave() },
+            enabled = saveLoadViewModel.isCloudSaveAvailable() && cloudSaveInfo.hasSaveData && !bootInProgress
+        )
+    }
+}
+
+/** 上传/下载进度区：转圈 + 文案 */
+@Composable
+private fun CloudSaveProgressSection(message: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(24.dp),
+            strokeWidth = 2.dp,
+            color = Color(0xFF4A90E2)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            fontSize = 14.sp,
+            color = Color.Black
+        )
+    }
+}
+
+private fun formatTime(timestamp: Long): String {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
+    return sdf.format(java.util.Date(timestamp))
+}

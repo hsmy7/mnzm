@@ -1,0 +1,426 @@
+package com.xianxia.sect.core.model
+
+import androidx.compose.runtime.Immutable
+import com.xianxia.sect.core.GameConfig
+
+@Immutable
+data class DiscipleAggregate(
+    val core: DiscipleCore,
+    val combatStats: DiscipleCombatStats?,
+    val equipment: DiscipleEquipment?,
+    val extended: DiscipleExtended?,
+    val attributes: DiscipleAttributes?,
+    val sourceRef: Disciple? = null
+) {
+    val id: String get() = core.id
+    val name: String get() = core.name
+    val surname: String get() = core.surname
+    val realm: Int get() = core.realm
+    val realmLayer: Int get() = core.realmLayer
+    val cultivation: Double get() = core.cultivation
+    val isAlive: Boolean get() = core.isAlive
+    val status: DiscipleStatus get() = runCatching { 
+        DiscipleStatus.valueOf(core.status) 
+    }.getOrElse { DiscipleStatus.IDLE }
+    val discipleType: String get() = core.discipleType
+    val age: Int get() = core.age
+    val lifespan: Int get() = core.lifespan
+    val gender: String get() = core.gender
+    val portraitRes: String get() = core.portraitRes
+    val spiritRootType: String get() = core.spiritRootType
+    val recruitedMonth: Int get() = core.recruitedMonth
+    
+    // 计算属性 - 与旧 Disciple 类保持 API 一致性
+    val spiritRoot: SpiritRoot get() = SpiritRoot(spiritRootType)
+    val spiritRootName: String get() = spiritRoot.name
+    val realmName: String get() {
+        if (age < 5 || realmLayer == 0) return "无境界"
+        // 仙人境界不显示层数
+        if (realm == 0) return com.xianxia.sect.core.GameConfig.Realm.getName(realm)
+        return "${com.xianxia.sect.core.GameConfig.Realm.getName(realm)}${realmLayer}层"
+    }
+    
+    val baseHp: Int get() = combatStats?.baseHp ?: DEFAULT_HP
+    val baseMp: Int get() = combatStats?.baseMp ?: DEFAULT_MP
+    val maxHp: Int get() = getBaseStats().maxHp
+    val maxMp: Int get() = getBaseStats().maxMp
+    val basePhysicalAttack: Int get() = combatStats?.basePhysicalAttack ?: DEFAULT_ATTACK
+    val baseMagicAttack: Int get() = combatStats?.baseMagicAttack ?: DEFAULT_ATTACK
+    val basePhysicalDefense: Int get() = combatStats?.basePhysicalDefense ?: DEFAULT_DEFENSE
+    val baseMagicDefense: Int get() = combatStats?.baseMagicDefense ?: DEFAULT_MAGIC_DEFENSE
+    val baseSpeed: Int get() = combatStats?.baseSpeed ?: DEFAULT_SPEED
+    
+    val hpVariance: Int get() = combatStats?.hpVariance ?: 0
+    val mpVariance: Int get() = combatStats?.mpVariance ?: 0
+    val physicalAttackVariance: Int get() = combatStats?.physicalAttackVariance ?: 0
+    val magicAttackVariance: Int get() = combatStats?.magicAttackVariance ?: 0
+    val physicalDefenseVariance: Int get() = combatStats?.physicalDefenseVariance ?: 0
+    val magicDefenseVariance: Int get() = combatStats?.magicDefenseVariance ?: 0
+    val speedVariance: Int get() = combatStats?.speedVariance ?: 0
+    
+    val pillPhysicalAttackBonus: Int get() = combatStats?.pillPhysicalAttackBonus ?: 0
+    val pillMagicAttackBonus: Int get() = combatStats?.pillMagicAttackBonus ?: 0
+    val pillPhysicalDefenseBonus: Int get() = combatStats?.pillPhysicalDefenseBonus ?: 0
+    val pillMagicDefenseBonus: Int get() = combatStats?.pillMagicDefenseBonus ?: 0
+    val pillHpBonus: Int get() = combatStats?.pillHpBonus ?: 0
+    val pillMpBonus: Int get() = combatStats?.pillMpBonus ?: 0
+    val pillSpeedBonus: Int get() = combatStats?.pillSpeedBonus ?: 0
+    val pillEffectDuration: Int get() = combatStats?.pillEffectDuration ?: 0
+    val pillCritRateBonus: Double get() = combatStats?.pillCritRateBonus ?: 0.0
+    val pillCritEffectBonus: Double get() = combatStats?.pillCritEffectBonus ?: 0.0
+    val pillCultivationSpeedBonus: Double get() = combatStats?.pillCultivationSpeedBonus ?: 0.0
+    val pillSkillExpSpeedBonus: Double get() = combatStats?.pillSkillExpSpeedBonus ?: 0.0
+    val pillNurtureSpeedBonus: Double get() = combatStats?.pillNurtureSpeedBonus ?: 0.0
+    val activePillCategory: String get() = combatStats?.activePillCategory ?: ""
+    // activePillTypes 为 @Ignore 字段，不在 DiscipleCombatStats Room 实体中。
+    // Aggregate 路径无法访问此跨实体字段，需要时请通过 Disciple StateFlow 获取。
+    val activePillTypes: Set<String> get() = emptySet()
+    val totalCultivation: Long get() = combatStats?.totalCultivation ?: 0
+    val breakthroughCount: Int get() = combatStats?.breakthroughCount ?: 0
+    val breakthroughFailCount: Int get() = combatStats?.breakthroughFailCount ?: 0
+    val currentHp: Int get() = combatStats?.currentHp ?: -1
+    val currentMp: Int get() = combatStats?.currentMp ?: -1
+    
+    val weaponId: String get() = equipment?.weaponId ?: ""
+    val armorId: String get() = equipment?.armorId ?: ""
+    val bootsId: String get() = equipment?.bootsId ?: ""
+    val accessoryId: String get() = equipment?.accessoryId ?: ""
+    val weaponNurture: EquipmentNurtureData get() = equipment?.weaponNurture ?: EquipmentNurtureData("", 0)
+    val armorNurture: EquipmentNurtureData get() = equipment?.armorNurture ?: EquipmentNurtureData("", 0)
+    val bootsNurture: EquipmentNurtureData get() = equipment?.bootsNurture ?: EquipmentNurtureData("", 0)
+    val accessoryNurture: EquipmentNurtureData get() = equipment?.accessoryNurture ?: EquipmentNurtureData("", 0)
+    val storageBagItems: List<StorageBagItem> get() = equipment?.storageBagItems ?: emptyList()
+    val storageBagSpiritStones: Long get() = equipment?.storageBagSpiritStones ?: 0
+    val spiritStones: Int get() = equipment?.spiritStones ?: 0
+    val soulPower: Int get() = equipment?.soulPower ?: 0
+
+    val manualIds: List<String> get() = extended?.manualIds ?: emptyList()
+    val talentIds: List<String> get() = extended?.talentIds ?: emptyList()
+    val physiqueIds: List<String> get() = extended?.physiqueIds ?: emptyList()
+    val affixIds: List<String> get() = extended?.affixIds ?: emptyList()
+    val manualMasteries: Map<String, Int> get() = extended?.manualMasteries ?: emptyMap()
+    val statusData: Map<String, String> get() = extended?.statusData ?: emptyMap()
+    /**
+     * 状态展示文案（UI 单点消费）：
+     * - MANAGING 显示职位名（statusData["positionName"]，由 DiscipleStatusService 推导写入），无职位时兜底"管理中"
+     * - 其余状态直接显示 [DiscipleStatus.displayName]
+     */
+    val statusText: String
+        get() = if (status == DiscipleStatus.MANAGING) {
+            statusData[POSITION_NAME_KEY] ?: MANAGING_FALLBACK
+        } else {
+            status.displayName
+        }
+    val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 0.0
+    val cultivationSpeedDuration: Int get() = extended?.cultivationSpeedDuration ?: 0
+    val partnerId: String? get() = extended?.partnerId
+    val partnerSectId: String? get() = extended?.partnerSectId
+    val parentId1: String? get() = extended?.parentId1
+    val parentId2: String? get() = extended?.parentId2
+    val lastChildYear: Int get() = extended?.lastChildYear ?: 0
+    val griefEndYear: Int? get() = extended?.griefEndYear
+    val masterId: String? get() = extended?.masterId
+    val usedFunctionalPillTypes: List<String> get() = extended?.usedFunctionalPillTypes ?: emptyList()
+    val usedExtendLifePillIds: List<String> get() = extended?.usedExtendLifePillIds ?: emptyList()
+    // usedPermanentPillKeys / usedExtendLifePillTypes 为 @Ignore 字段，
+    // 不在 DiscipleExtended Room 实体中。需要时请通过 Disciple StateFlow 获取。
+    val usedPermanentPillKeys: Set<String> get() = emptySet()
+    val usedExtendLifePillTypes: Set<String> get() = emptySet()
+    val hasReviveEffect: Boolean get() = extended?.hasReviveEffect ?: false
+    val hasClearAllEffect: Boolean get() = extended?.hasClearAllEffect ?: false
+
+    val intelligence: Int get() = attributes?.intelligence ?: DEFAULT_SKILL
+    val charm: Int get() = attributes?.charm ?: DEFAULT_SKILL
+    val loyalty: Int get() = attributes?.loyalty ?: DEFAULT_SKILL
+    val comprehension: Int get() = attributes?.comprehension ?: DEFAULT_SKILL
+    val aptitude: Int get() = attributes?.aptitude ?: DEFAULT_SKILL
+    val artifactRefining: Int get() = attributes?.artifactRefining ?: DEFAULT_SKILL
+    val pillRefining: Int get() = attributes?.pillRefining ?: DEFAULT_SKILL
+    val spiritPlanting: Int get() = attributes?.spiritPlanting ?: DEFAULT_SKILL
+    val mining: Int get() = attributes?.mining ?: DEFAULT_SKILL
+    val teaching: Int get() = attributes?.teaching ?: DEFAULT_SKILL
+    val morality: Int get() = attributes?.morality ?: DEFAULT_SKILL
+    val salaryPaidCount: Int get() = attributes?.salaryPaidCount ?: 0
+    val salaryMissedCount: Int get() = attributes?.salaryMissedCount ?: 0
+    val alchemyLevel: Int get() = attributes?.alchemyLevel ?: 0
+    val alchemyPromotionCount: Int get() = attributes?.alchemyPromotionCount ?: 0
+    val forgeLevel: Int get() = attributes?.forgeLevel ?: 0
+    val forgePromotionCount: Int get() = attributes?.forgePromotionCount ?: 0
+    
+    // ==================== 从 DiscipleCore 委托的便捷属性 ====================
+    val canCultivate: Boolean get() = core.canCultivate
+    val realmNameOnly: String get() = core.realmNameOnly
+    val maxCultivation: Double get() = core.maxCultivation
+    val cultivationProgress: Double get() = core.cultivationProgress
+    val genderName: String get() = core.genderName
+    val genderSymbol: String get() = core.genderSymbol
+    
+    // ==================== 计算属性（与旧 Disciple 类保持一致）====================
+
+    /**
+     * 物理攻击（基础值，不含装备/功法加成）
+     * 与旧 Disciple.physicalAttack 保持一致：通过 getBaseStats() 计算
+     */
+    val physicalAttack: Int get() = getBaseStats().physicalAttack
+
+    /** 物理防御 */
+    val physicalDefense: Int get() = getBaseStats().physicalDefense
+
+    /** 法术攻击 */
+    val magicAttack: Int get() = getBaseStats().magicAttack
+
+    /** 法术防御 */
+    val magicDefense: Int get() = getBaseStats().magicDefense
+
+    /** 速度 */
+    val speed: Int get() = getBaseStats().speed
+
+/** 当前生命百分比 */
+    val hpPercent: Float get() = if (maxHp > 0) currentHp.toFloat() / maxHp else 0f
+    val mpPercent: Float get() = if (maxMp > 0) currentMp.toFloat() / maxMp else 0f
+    
+    /** 是否有道侣 */
+    val hasPartner: Boolean get() = partnerId != null
+
+    // 已装备的物品映射（简化版，返回空map）
+    val equippedItems: Map<EquipmentSlot, EquipmentInstance?> get() = emptyMap()
+    
+    // ==================== 计算方法（晚绑定 DiscipleStatsProvider）====================
+
+    fun getBaseStats(): DiscipleStats = statsProvider.getBaseStats(this)
+
+    fun getTalentEffects(): Map<String, Double> = statsProvider.getTalentEffects(this)
+
+    fun getStatsWithEquipment(equipments: Map<String,
+        EquipmentInstance>): DiscipleStats = statsProvider.getStatsWithEquipment(this, equipments)
+
+    fun getFinalStats(
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): DiscipleStats =
+        statsProvider.getFinalStats(this, equipments, manuals, manualProficiencies, bloodRefinementPct)
+
+    fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String,
+        ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0,
+            preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0,
+                cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0,
+                    griefCultivationSpeedPenalty: Double = 0.0): Double = statsProvider.calculateCultivationSpeed(this,
+                        manuals, manualProficiencies, buildingBonus, additionalBonus, preachingElderBonus,
+                            preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus,
+                                griefCultivationSpeedPenalty)
+    
+    /** 判断弟子是否可以突破 */
+    fun canBreakthrough(): Boolean = core.canBreakthrough()
+    
+    /**
+     * 计算突破成功率
+     */
+    fun getBreakthroughChance(innerElderComprehension: Int = 0, outerElderComprehension: Int = 0,
+        pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0,
+            masterDiscipleBonus: Double = 0.0): Double = statsProvider.getBreakthroughChance(this,
+                innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty,
+                    masterDiscipleBonus)
+    
+    fun toDisciple(): Disciple {
+        return Disciple(
+            id = id,
+            name = name,
+            surname = surname,
+            realm = realm,
+            realmLayer = realmLayer,
+            cultivation = cultivation,
+            spiritRootType = spiritRootType,
+            age = age,
+            lifespan = lifespan,
+            isAlive = isAlive,
+            gender = gender,
+            portraitRes = portraitRes,
+            manualIds = manualIds,
+            talentIds = talentIds,
+            physiqueIds = physiqueIds,
+            affixIds = affixIds,
+            manualMasteries = manualMasteries,
+            status = status,
+            statusData = statusData,
+            cultivationSpeedBonus = cultivationSpeedBonus,
+            cultivationSpeedDuration = cultivationSpeedDuration,
+            discipleType = discipleType,
+            soulPower = soulPower,
+            combat = toCombatAttributes(),
+            pillEffects = toPillEffects(),
+            usage = toUsageTracking(),
+            equipment = toEquipmentSet(),
+            social = toSocialData(),
+            skills = toSkillStats()
+        )
+    }
+
+    /** 战斗属性构建 */
+    private fun toCombatAttributes(): CombatAttributes = CombatAttributes(
+        baseHp = baseHp,
+        baseMp = baseMp,
+        basePhysicalAttack = basePhysicalAttack,
+        baseMagicAttack = baseMagicAttack,
+        basePhysicalDefense = basePhysicalDefense,
+        baseMagicDefense = baseMagicDefense,
+        baseSpeed = baseSpeed,
+        hpVariance = hpVariance,
+        mpVariance = mpVariance,
+        physicalAttackVariance = physicalAttackVariance,
+        magicAttackVariance = magicAttackVariance,
+        physicalDefenseVariance = physicalDefenseVariance,
+        magicDefenseVariance = magicDefenseVariance,
+        speedVariance = speedVariance,
+        totalCultivation = totalCultivation,
+        breakthroughCount = breakthroughCount,
+        breakthroughFailCount = breakthroughFailCount,
+        currentHp = currentHp,
+        currentMp = currentMp
+    )
+
+    /** 丹药效果构建 */
+    private fun toPillEffects(): PillEffects = PillEffects(
+        pillPhysicalAttackBonus = pillPhysicalAttackBonus,
+        pillMagicAttackBonus = pillMagicAttackBonus,
+        pillPhysicalDefenseBonus = pillPhysicalDefenseBonus,
+        pillMagicDefenseBonus = pillMagicDefenseBonus,
+        pillHpBonus = pillHpBonus,
+        pillMpBonus = pillMpBonus,
+        pillSpeedBonus = pillSpeedBonus,
+        pillCritRateBonus = pillCritRateBonus,
+        pillCritEffectBonus = pillCritEffectBonus,
+        pillCultivationSpeedBonus = pillCultivationSpeedBonus,
+        pillSkillExpSpeedBonus = pillSkillExpSpeedBonus,
+        pillNurtureSpeedBonus = pillNurtureSpeedBonus,
+        pillEffectDuration = pillEffectDuration,
+        activePillCategory = activePillCategory,
+        activePillTypes = activePillTypes
+    )
+
+    /** 使用追踪构建 */
+    private fun toUsageTracking(): UsageTracking = UsageTracking(
+        usedFunctionalPillTypes = usedFunctionalPillTypes,
+        usedExtendLifePillIds = usedExtendLifePillIds,
+        usedPermanentPillKeys = usedPermanentPillKeys,
+        usedExtendLifePillTypes = usedExtendLifePillTypes,
+        recruitedMonth = recruitedMonth,
+        hasReviveEffect = hasReviveEffect,
+        hasClearAllEffect = hasClearAllEffect
+    )
+
+    /** 装备构建 */
+    private fun toEquipmentSet(): EquipmentSet = EquipmentSet(
+        weaponId = weaponId,
+        armorId = armorId,
+        bootsId = bootsId,
+        accessoryId = accessoryId,
+        weaponNurture = weaponNurture,
+        armorNurture = armorNurture,
+        bootsNurture = bootsNurture,
+        accessoryNurture = accessoryNurture,
+        storageBagItems = storageBagItems,
+        storageBagSpiritStones = storageBagSpiritStones,
+        spiritStones = spiritStones
+    )
+
+    /** 社交数据构建 */
+    private fun toSocialData(): SocialData = SocialData(
+        partnerId = partnerId,
+        partnerSectId = partnerSectId,
+        parentId1 = parentId1,
+        parentId2 = parentId2,
+        lastChildYear = lastChildYear,
+        griefEndYear = griefEndYear,
+        masterId = masterId
+    )
+
+    /** 技能属性构建 */
+    private fun toSkillStats(): SkillStats = SkillStats(
+        intelligence = intelligence,
+        charm = charm,
+        loyalty = loyalty,
+        comprehension = comprehension,
+        artifactRefining = artifactRefining,
+        pillRefining = pillRefining,
+        spiritPlanting = spiritPlanting,
+        mining = mining,
+        teaching = teaching,
+        morality = morality,
+        aptitude = aptitude,
+        salaryPaidCount = salaryPaidCount,
+        salaryMissedCount = salaryMissedCount,
+        alchemyLevel = alchemyLevel,
+        alchemyPromotionCount = alchemyPromotionCount,
+        forgeLevel = forgeLevel,
+        forgePromotionCount = forgePromotionCount
+    )
+
+    // Migration: toDisciple() removal pending Phase3
+    fun toCompactDisciple(): Disciple {
+        return toDisciple()
+    }
+
+    companion object {
+        private const val DEFAULT_HP = 100
+        private const val DEFAULT_MP = 50
+        private const val DEFAULT_ATTACK = 7
+        private const val DEFAULT_DEFENSE = 5
+        private const val DEFAULT_MAGIC_DEFENSE = 3
+        private const val DEFAULT_SPEED = 10
+        private const val DEFAULT_SKILL = 50
+
+        var statsProvider: DiscipleStatsProvider = @Suppress("TooManyFunctions") object : DiscipleStatsProvider {
+            // TooManyFunctions：12 个 override = DiscipleStatsProvider 接口全量成员（契约下界），no-op 缺省实现必须实现全部成员
+            // Default no-op implementation - will be replaced by engine module
+            override fun getBaseStats(disciple: Disciple) = DiscipleStats()
+            override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStats()
+            override fun getTalentEffects(disciple: Disciple): Map<String, Double> = emptyMap()
+            override fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> = emptyMap()
+            override fun getStatsWithEquipment(disciple: Disciple, equipments: Map<String,
+                EquipmentInstance>) = DiscipleStats()
+            override fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map<String,
+                EquipmentInstance>) = DiscipleStats()
+            override fun getFinalStats(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStats()
+            override fun getFinalStats(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStats()
+            override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,
+                    preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double,
+                        parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double,
+                            masterDiscipleBonus: Double) = 0.0
+            override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double,
+                    preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double,
+                        parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double,
+                            masterDiscipleBonus: Double) = 0.0
+            override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int,
+                outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double,
+                    masterDiscipleBonus: Double) = 0.0
+            override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int,
+                outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double,
+                    masterDiscipleBonus: Double) = 0.0
+        }
+
+        fun fromDisciple(disciple: Disciple): DiscipleAggregate {
+            return DiscipleAggregate(
+                core = DiscipleCore.fromDisciple(disciple),
+                combatStats = DiscipleCombatStats.fromDisciple(disciple),
+                equipment = DiscipleEquipment.fromDisciple(disciple),
+                extended = DiscipleExtended.fromDisciple(disciple),
+                attributes = DiscipleAttributes.fromDisciple(disciple),
+                sourceRef = disciple
+            )
+        }
+    }
+}

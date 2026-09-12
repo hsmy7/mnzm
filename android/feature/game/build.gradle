@@ -1,0 +1,122 @@
+plugins {
+    id 'xianxia.android'
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.ksp)
+    // kover：全模块纳入覆盖率统计
+    alias(libs.plugins.kover)
+    // detekt：feature/game 纳入静态检查
+    alias(libs.plugins.detekt)
+}
+
+// Kover 按需开关——本地默认关闭（消除插桩开销，见 docs/build-perf/kover-overhead.md），CI 传 -Pkover.enabled=true
+kover {
+    if (!providers.gradleProperty('kover.enabled').getOrElse('false').toBoolean()) {
+        disable()
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
+}
+
+android {
+    namespace = 'com.xianxia.sect.feature.game'
+
+    defaultConfig {
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    testOptions {
+        unitTests {
+            // Robolectric 渲染组件测试必需：打包测试 manifest（ComponentActivity 声明）
+            // 与 drawable 资源（Robolectric PR #4736 activity 解析要求）
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+
+    composeCompiler {
+        enableStrongSkippingMode = true
+        stabilityConfigurationFile = rootProject.file("stability_config.conf")
+    }
+}
+
+tasks.withType(Test).configureEach {
+    // 测试 JVM 堆 2g：1536m 下 Robolectric 渲染测试 GC 频繁（feature/game 全量
+    // 耗时 +160%）；2g 在 32GB 档位（6G+4G+2G=12G 峰值）内安全。8GB 机器需再降并接受测试变慢。
+    maxHeapSize = "2g"
+    // 显式单 fork——共享静态状态跨测试类并行污染
+    maxParallelForks = 1
+}
+
+dependencies {
+    // D-36 UseKtx：core-ktx 的 createBitmap 扩展（core/ui 的 core-ktx 为 implementation 不传递）
+    implementation libs.core.ktx
+    api project(':core:ui')
+    implementation project(':core:engine')
+    implementation project(':core:data')
+    detektPlugins(project(':detekt-rules'))
+
+    // Jetpack Compose
+    implementation platform(libs.compose.bom)
+    implementation libs.compose.ui
+    implementation libs.compose.ui.graphics
+    implementation libs.compose.ui.tooling.preview
+    implementation libs.compose.material3
+    implementation libs.compose.material.icons.core
+    implementation libs.activity.compose
+    implementation libs.lifecycle.viewmodel.compose
+    implementation libs.lifecycle.runtime.compose
+    debugImplementation libs.compose.ui.tooling
+
+    // Hilt
+    implementation libs.hilt.android
+    ksp libs.hilt.compiler
+    implementation libs.hilt.navigation.compose
+
+    // Lifecycle
+    implementation libs.lifecycle.viewmodel.ktx
+    implementation libs.lifecycle.runtime.ktx
+
+    // Coroutines
+    implementation libs.coroutines.android
+
+    // Kotlinx Serialization
+    implementation libs.serialization.json
+
+    // TapTap SDK (cloud save + leaderboard)
+    implementation libs.taptap.cloudsave
+    implementation libs.taptap.common
+    implementation libs.taptap.leaderboard
+    implementation libs.taptap.login
+
+    // Room (needed for some ViewModel references)
+    implementation libs.room.runtime
+
+    // Unit tests
+    testImplementation libs.junit
+    testImplementation libs.coroutines.test
+    testImplementation libs.konsist.test
+    testImplementation libs.mockk
+    testImplementation libs.robolectric
+    testImplementation(platform(libs.compose.bom))
+    testImplementation libs.compose.ui.test
+    testImplementation libs.compose.ui.test.junit4
+}
+
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+    }
+}

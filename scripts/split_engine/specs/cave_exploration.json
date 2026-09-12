@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "name": "CaveExplorationRewardOps",
+      "header": "// ── 洞府探索奖励域（自 CaveExplorationProcessor 拆出，行为零变更） ────────────",
+      "fns": [
+        "grantBattleRewards",
+        "grantSpiritStoneReward",
+        "grantEquipmentReward",
+        "grantManualReward",
+        "grantPillReward",
+        "buildPillFromTemplate"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,248 @@
+package com.xianxia.sect.ui.game.map.sect
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.remember
+import com.xianxia.sect.core.animation.CameraAnimator
+import com.xianxia.sect.core.animation.CameraTarget
+import com.xianxia.sect.core.camera.CameraState
+import com.xianxia.sect.core.render.SpriteAtlasDef
+import com.xianxia.sect.ui.game.map.BaseCameraState
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
+
+/**
+ * 宗门地图相机状态。
+ *
+ * 继承 [BaseCameraState] 获得平移/缩放/边界钳制等公共实现，
+ * 在此添加宗门地图特有的 [tryCenterOn] 智能居中、[CameraAnimator] 动画支持、
+ * 以及「缩放中值」初始视角策略。
+ *
+ * 核心缩放策略：
+ * - 缩放范围 [minScaleBound, MAX_ZOOM]：下界允许缩到**整座浮空岛完整可见**（四周露出天空，
+ *   浮空岛悬浮天际）；上界为全局 [CameraState.MAX_ZOOM]
+ * - 初始视角 = 世界铺满缩放与 [CameraState.MAX_ZOOM] 的几何中值 √(safeMinScale × MAX_ZOOM)，
+ *   保证从"岛屿铺满屏幕"的初始视角向两端缩放倍数一致（默认视角保持稳定）
+ * - 视口超出世界时世界居中（两侧天空均分），实现浮空岛漂浮于天空中央的效果
+ *
+ * 支持动态缩放（scale），v4.0.45+ 新增用户缩放（双指捏合 / 双击）：
+ * - 默认缩放为缩放区间几何中值，各设备可缩放倍数一致
+ * - 用户可通过 [zoom] / 缩放按钮 +/- / 双击缩放调整
+ *
+ * @param worldWidth 世界像素宽度
+ * @param worldHeight 世界像素高度
+ * @param worldWidthCells 世界水平格数（用于计算 tileSize = worldWidth / worldWidthCells）
+ */
+@Stable
+class SectCameraState(
+    worldWidth: Float,
+    worldHeight: Float,
+    val worldWidthCells: Int = 128
+) : BaseCameraState(worldWidth, worldHeight) {
+
+    /** 初始居中标记 */
+    private var hasInitialized = false
+    private var lastCenterX = 0f
+    private var lastCenterY = 0f
+
+    /**
+     * 俯视纵向压缩系数（统一俯视视角）。
+     *
+     * 宗门地图以「接近正上方」的俯视投影呈现：正交、无近大远小、网格仍为规整
+     * 矩形，仅整屏 Y 压缩至 [SpriteAtlasDef.TOPDOWN_Y_SCALE]（双端同源生成——
+     * C++ cameraProjMatrix/NativeBridge 视野边界与本类及 Canvas 后端必须同值）。
+     * 覆盖后 [BaseCameraState] 的全部 Y 轴数学（正逆变换/pan/zoom 锚点/centerOn/
+     * clamp 可见高度）自动一致；世界地图相机不覆盖（保持 1.0 纯俯视）。
+     */
+    override val worldYScale: Float get() = SpriteAtlasDef.TOPDOWN_Y_SCALE
+
+    /** 平滑动画引擎（可选），由 UI 层注入，用于 [tryCenterOn] 等编程式移动 */
+    private var animator: CameraAnimator? = null
+
+    /**
+     * 设置平滑动画引擎引用。
+     * 设置后 [tryCenterOn] 将使用动画过渡而非瞬间跳转。
+     * 切换实例时自动取消前一个。
+     */
+    fun setAnimator(anim: CameraAnimator) {
+        animator?.cancel()
+        animator = anim
+    }
+
+    /** 自动居中触发阈值（世界像素），避免反复居中打断用户操作 */
+    private companion object {
+        const val CENTER_THRESHOLD = 100f
+
+        /**
+         * 浮空岛崖壁可见外扩边距（世界像素）。
+         *
+         * 崖壁绘制于世界矩形外侧，**左右下三侧**（无上边缘）：
+         * - 左右崖壁横向伸入地图外 = 纹理宽（最大 1180）
+         * - 下崖壁纵向伸入地图外 = 纹理高（最大 2400，含转角）
+         * 相机 clamp 外扩此厚度后：
+         * - 视口 < 世界 + 2×outset：相机可平移进入崖壁带 → 拖到地图边缘即
+         *   完整看见崖壁（「地图边缘自然过渡为悬崖」的可达性契约）；
+         * - 视口 ≥ 世界 + 2×outset：整岛（含崖壁环绕）居中悬浮天际。
+         *
+         * 取值 = max(左右纹理宽 1180, 下纹理高 2400) + 余量 100 = 2500。
+         * 与 IslandCliffBridge / gamecore/map/island_cliff.h 的锚定契约对齐
+         * （左/右环外缘 = x=0-纹理宽 / x=mapW+纹理宽；下环外缘 = y=mapH+纹理高）。
+         * 修改须同步 clampPosition 与 SectCameraStateTest 期望。
+         */
+        const val ISLAND_CLIFF_VISIBLE_OUTSET = 2500f
+
+        /**
+         * 天空可视缩小系数：缩放下界 = 世界适配缩放 × 该系数——使视口略大于世界、
+         * 四周留出天空边距（浮空岛悬浮天际），但**不要缩到岛太小/几乎看不见**。
+         * 0.75 → 岛在最小缩放时约占视口 75%（两侧各约 12.5% 天空），既见天空又保留岛的主体。
+         */
+        const val SKY_MARGIN_FACTOR = 0.75f
+
+        /** 天空可视绝对最小缩放（防岛屿被缩得过小） */
+        const val MIN_SKY_SCALE = 0.12f
+    }
+
+    /**
+     * 更新视口尺寸。
+     *
+     * 当视口尺寸变化超过 [CENTER_THRESHOLD] 时（如横竖屏旋转），
+     * 重置居中标记，使 [tryCenterOn] 能重新居中到世界中心。
+     */
+    override fun updateViewport(w: Int, h: Int) {
+        val prevW = viewportWidth
+        val prevH = viewportHeight
+        super.updateViewport(w, h)
+        // 横竖屏切换（宽高变化超过阈值）时重置居中标记
+        val sizeChangedBeyondThreshold = prevW > 0 && prevH > 0 &&
+            (abs(w - prevW) > CENTER_THRESHOLD || abs(h - prevH) > CENTER_THRESHOLD)
+        if (sizeChangedBeyondThreshold) {
+            hasInitialized = false
+        }
+    }
+
+    /**
+     * 计算初始缩放值 — 缩放范围上下界的几何中值。
+     *
+     * 缩放范围 = [safeMinScale, MAX_ZOOM]：
+     * - 下界 [safeMinScale]：保证缩小视角时视口不超出世界边界（不看到地图外）
+     * - 上界 [CameraState.MAX_ZOOM]：全局最大放大
+     * - 初始视角取几何中值 √(下界 × 上界)，使「可缩小倍数」与「可放大倍数」一致
+     *
+     * ```
+     * minScale = max(MIN_ZOOM, vpW/worldWidth, vpH/worldHeight)
+     * defaultScale = sqrt(minScale × MAX_ZOOM)
+     * ```
+     *
+     * @param vpW 视口宽度（像素）
+     * @param vpH 视口高度（像素）
+     */
+    override fun computeDefaultScale(vpW: Int, vpH: Int): Float {
+        if (vpW <= 0 || vpH <= 0) {
+            return scale.coerceIn(minScaleBound(), CameraState.MAX_ZOOM)
+        }
+        val minScale = safeMinScale(vpW, vpH)
+        return sqrt(minScale * CameraState.MAX_ZOOM)
+    }
+
+    /**
+     * 用户缩放最小下界 — 允许缩到**整座浮空岛完整可见**，使视口超出世界、四周露出天空
+     * （浮空岛悬浮天际）。
+     *
+     * 下界 = max(绝对下限, 整岛适配缩放 × [SKY_MARGIN_FACTOR])：
+     * - 整岛适配缩放 = min(视口宽/世界宽, 视口高/世界高)——"整座正方形岛完整进入视口"的缩放；
+     *   （下界取 min 而非 max：任意非 1:1 屏幕上整岛均完整可见，
+     *   不会出现岛短轴被裁剪成长方形条带的观感。）
+     * - × [SKY_MARGIN_FACTOR] 使岛在最小缩放时约占视口**短边** 75%（四周留天际边距，
+     *   既见天空又保留岛的主体）。
+     */
+    override fun minScaleBound(): Float {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return CameraState.MIN_ZOOM
+        // 高度比按俯视纵向压缩系数扩大（整岛完整进入视口需 worldH×scale×yScale ≤ vpH）
+        val islandFitScale = min(
+            viewportWidth.toFloat() / worldWidth,
+            viewportHeight.toFloat() / (worldHeight * worldYScale)
+        )
+        return max(
+            MIN_SKY_SCALE,
+            islandFitScale * SKY_MARGIN_FACTOR
+        )
+    }
+
+    /**
+     * 视口位置钳制（浮空岛崖壁可见性契约）。
+     *
+     * 世界边框不再是视线硬边界：相机允许外扩 [ISLAND_CLIFF_VISIBLE_OUTSET]——
+     * 拖到地图边缘时崖壁进入视口（左右下三侧；「地图→悬崖」可见）；
+     * 视口 ≥ 世界 + 2×outset 时整岛（含崖壁环绕）居中悬浮天际。
+     */
+    override fun clampPosition(visibleW: Float, visibleH: Float) {
+        val outset = ISLAND_CLIFF_VISIBLE_OUTSET
+        cameraX = if (visibleW >= worldWidth + 2f * outset) (worldWidth - visibleW) / 2f
+                  else cameraX.coerceIn(-outset, worldWidth + outset - visibleW)
+        cameraY = if (visibleH >= worldHeight + 2f * outset) (worldHeight - visibleH) / 2f
+                  else cameraY.coerceIn(-outset, worldHeight + outset - visibleH)
+    }
+
+    /** 世界铺满视口的缩放（视口与世界的较大比例——保证至少一个方向铺满、无天空）。
+     *  仅用于默认视角（缩放区间几何中值）计算；最小缩放下界另有 [minScaleBound]。 */
+    private fun safeMinScale(vpW: Int, vpH: Int): Float = max(
+        CameraState.MIN_ZOOM,
+        max(vpW.toFloat() / worldWidth, vpH.toFloat() / (worldHeight * worldYScale))
+    )
+
+    /**
+     * 尝试居中到指定坐标，带初始化保护和距离阈值。
+     * 仅首次调用或坐标变化 >[CENTER_THRESHOLD] 单位时生效，
+     * 避免反复居中打断用户操作。
+     *
+     * 已注册 [CameraAnimator] 时使用平滑动画过渡，否则瞬间跳转。
+     */
+    fun tryCenterOn(wx: Float, wy: Float) {
+        if (viewportWidth <= 0 || viewportHeight <= 0) return
+        val shouldCenter = !hasInitialized ||
+            abs(wx - lastCenterX) > CENTER_THRESHOLD ||
+            abs(wy - lastCenterY) > CENTER_THRESHOLD
+        if (shouldCenter) {
+            val targetX = wx - viewportWidth / (2f * scale)
+            val targetY = wy - viewportHeight / (2f * scale * worldYScale)
+            val anim = animator
+            if (anim != null) {
+                anim.animateTo(CameraTarget(targetX, targetY))
+            } else {
+                centerOn(wx, wy)
+            }
+            lastCenterX = wx
+            lastCenterY = wy
+            hasInitialized = true
+        }
+    }
+
+    /**
+     * 重置相机到初始状态。
+     * 清除居中标记、用户缩放标记，位置归零。
+     */
+    override fun reset() {
+        animator?.cancel()
+        hasInitialized = false
+        lastCenterX = 0f
+        lastCenterY = 0f
+        super.reset()
+    }
+}
+
+/**
+ * 创建并记住 [SectCameraState] 实例。
+ * @param worldWidth 世界宽度（像素）
+ * @param worldHeight 世界高度（像素）
+ * @param worldWidthCells 世界水平格数（默认 128）
+ */
+@Composable
+fun rememberSectCamera(
+    worldWidth: Float,
+    worldHeight: Float,
+    worldWidthCells: Int = 128
+): SectCameraState = remember(worldWidth, worldHeight, worldWidthCells) {
+    SectCameraState(worldWidth, worldHeight, worldWidthCells)
+}

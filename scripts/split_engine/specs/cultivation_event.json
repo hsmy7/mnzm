@@ -1,0 +1,18 @@
+{
+  "files": [
+    {
+      "name": "CultivationEventAutoWarehouseOps",
+      "header": "// ── 自动入库域（自 CultivationEventProcessor 拆出，行为零变更） ───────────────",
+      "fns": [
+        "processAutoFromWarehouseRealtime",
+        "processAutoFromWarehouse",
+        "processSingleDiscipleAuto",
+        "qualifiesForSectAutoById",
+        "qualifiesByColumns",
+        "processSingleAutoEquip",
+        "processSingleAutoLearn",
+        "writeAutoWarehouseResults"
+      ]
+    }
+  ]
+}

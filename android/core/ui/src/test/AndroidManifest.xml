@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Robolectric Compose 测试所需：createComposeRule 通过 ActivityScenario 启动 ComponentActivity，
+         必须在测试 manifest 中声明（Robolectric PR #4736 要求），否则 Unable to resolve activity -->
+    <application>
+        <activity
+            android:name="androidx.activity.ComponentActivity"
+            android:exported="true" />
+    </application>
+
+</manifest>

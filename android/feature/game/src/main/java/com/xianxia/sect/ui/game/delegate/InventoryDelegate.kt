@@ -1,0 +1,193 @@
+package com.xianxia.sect.ui.game.delegate
+
+import android.util.Log
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.buyMerchantItem
+import com.xianxia.sect.core.engine.getAllAutoBuyableItems
+import com.xianxia.sect.core.engine.listItemsToMerchant
+import com.xianxia.sect.core.engine.removePlayerListedItem
+import com.xianxia.sect.core.engine.sellEquipment
+import com.xianxia.sect.core.engine.sellHerb
+import com.xianxia.sect.core.engine.sellManual
+import com.xianxia.sect.core.engine.sellMaterial
+import com.xianxia.sect.core.engine.sellPill
+import com.xianxia.sect.core.engine.sellSeed
+import com.xianxia.sect.core.engine.sellToMerchant
+import com.xianxia.sect.core.engine.toggleItemLock
+import com.xianxia.sect.core.engine.toggleWatchItem
+import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.model.AutoBuyCatalogItem
+import com.xianxia.sect.core.model.AutoBuyEntry
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.util.DomainResult
+import kotlinx.coroutines.CancellationException
+
+
+
+class InventoryDelegate(
+    private val gameEngine: GameEngine
+) {
+    private companion object {
+        const val TAG = "InventoryDelegate"
+    }
+
+    fun toggleItemLock(itemId: String, itemType: String) {
+        gameEngine.launchOnEngine {
+            gameEngine.toggleItemLock(itemId, itemType)
+        }
+    }
+
+    /** 关注/取消关注物品（键为 "type:name"，如 "pill:聚气丹"） */
+    fun toggleWatchItem(key: String) {
+        gameEngine.launchOnEngine {
+            val result = gameEngine.toggleWatchItem(key)
+            if (result is DomainResult.Failure) {
+                Log.w(TAG, "toggleWatchItem failed: key=$key error=${result.error.message}")
+            }
+        }
+    }
+
+    fun sellToMerchant(itemId: String, quantity: Int) {
+        gameEngine.launchOnEngine { gameEngine.sellToMerchant(itemId, quantity) }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun sellItem(itemId: String, itemType: String, quantity: Int) {
+        gameEngine.launchOnEngine {
+            try {
+                when (itemType) {
+                    "equipment" -> gameEngine.sellEquipment(itemId, quantity)
+                    "manual" -> gameEngine.sellManual(itemId, quantity)
+                    "pill" -> gameEngine.sellPill(itemId, quantity)
+                    "material" -> gameEngine.sellMaterial(itemId, quantity)
+                    "herb" -> gameEngine.sellHerb(itemId, quantity)
+                    "seed" -> gameEngine.sellSeed(itemId, quantity)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun buyFromMerchant(itemId: String, quantity: Int = 1) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.buyMerchantItem(itemId, quantity)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun listItemsToMerchant(items: List<Pair<String, Int>>) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.listItemsToMerchant(items)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun removePlayerListedItem(itemId: String) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.removePlayerListedItem(itemId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    fun getEquipmentById(id: String): EquipmentInstance? {
+        return gameEngine.equipmentInstances.value.find { it.id == id }
+    }
+
+    fun getEquipmentInstanceById(id: String): EquipmentInstance? {
+        return gameEngine.equipmentInstances.value.find { it.id == id }
+    }
+
+    @Suppress("DEPRECATION")
+    fun getManualById(id: String): ManualInstance? {
+        return gameEngine.manualInstances.value.find { it.id == id }
+    }
+
+    fun getManualInstanceById(id: String): ManualInstance? {
+        return gameEngine.manualInstances.value.find { it.id == id }
+    }
+
+    fun getPillById(id: String): Pill? {
+        return gameEngine.pills.value.find { it.id == id }
+    }
+
+    fun getMaterialById(id: String): Material? {
+        return gameEngine.materials.value.find { it.id == id }
+    }
+
+    fun getHerbById(id: String): Herb? {
+        return gameEngine.herbs.value.find { it.id == id }
+    }
+
+    fun getSeedById(id: String): Seed? {
+        return gameEngine.seeds.value.find { it.id == id }
+    }
+
+    // ── 自动购买 ────────────────────────────────────────────────────
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun addAutoBuyEntries(entries: List<AutoBuyEntry>) {
+        gameEngine.launchOnEngine {
+            try {
+                gameEngine.updateGameData { gd ->
+                    gd.copy(autoBuyList = (gd.autoBuyList + entries).distinctBy {
+                        "${it.itemName}:${it.itemType}:${it.rarity}"
+                    })
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught") // 异常翻译边界: 刻意宽捕获, 统一翻译为领域错误后重抛
+    fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) {
+        gameEngine.launchOnEngine {
+            try {
+                val keysToRemove = entries.map {
+                    "${it.itemName}:${it.itemType}:${it.rarity}"
+                }.toSet()
+                gameEngine.updateGameData { gd ->
+                    gd.copy(autoBuyList = gd.autoBuyList.filter { entry ->
+                        "${entry.itemName}:${entry.itemType}:${entry.rarity}" !in keysToRemove
+                    })
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (ignored: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
+
+    fun getAllAutoBuyableItems(): List<AutoBuyCatalogItem> {
+        return gameEngine.getAllAutoBuyableItems()
+    }
+}

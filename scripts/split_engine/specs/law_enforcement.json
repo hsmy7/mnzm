@@ -1,0 +1,24 @@
+{
+ "files": [
+  {
+   "name": "LawEnforcementTheftTxOps",
+   "header": "// ── 盗窃事务域（自 LawEnforcementProcessor 拆出，行为零变更） ──────────────────",
+   "fns": [
+    "executeFullTheftCheck",
+    "shouldAttemptTheft",
+    "handleLawEnforcementCapture",
+    "handleWarehouseGarrisonCheck",
+    "shouldDesertAfterTheft",
+    "executeFullTheftCheckInTransaction",
+    "markCaughtAndRecord",
+    "resolveWarehouseGarrisonInterception",
+    "executeSuccessfulTheftInTransaction",
+    "processTheftDesertionCleanupInTransaction",
+    "executeSuccessfulTheft",
+    "processTheftDesertionCleanup",
+    "desertDiscipleCleanup",
+    "captureDiscipleForReflection"
+   ]
+  }
+ ]
+}

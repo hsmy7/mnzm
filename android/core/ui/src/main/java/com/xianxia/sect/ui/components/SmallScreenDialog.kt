@@ -1,0 +1,168 @@
+package com.xianxia.sect.ui.components
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.xianxia.sect.core.ui.R
+
+/**
+ * 小屏界面 — 用于详情展示（物品详情、天赋详情、功法/装备详情等）。
+ * 尺寸与 [StandardPromptDialog] 一致（50%W × 55%H），但使用 [R.drawable.bg_horizontal] 横向背景，
+ * 与提示框的 [R.drawable.dialog_box] 背景形成视觉区分。
+ *
+ * 不含内置确认/取消按钮 — 内容区完全由调用方定义。
+ */
+@Composable
+fun SmallScreenDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    titleColor: Color = Color.Black,
+    dismissOnBackPress: Boolean = true,
+    dismissOnClickOutside: Boolean = true,
+    footer: @Composable ColumnScope.() -> Unit = {},
+    /** 窗口级覆盖层槽位（如内联售卖确认弹窗）：frame 内容之后渲染（z 序最高），fillMaxSize 覆盖整个窗口框 */
+    overlay: @Composable (() -> Unit)? = null,
+    /** 含文本输入框时传 true：挂载期间冻结本 Dialog 窗口系统栏（见 DialogSystemBarFreezeScope）。
+     *  当前嵌套输入场景（overlay 槽位内嵌 InlineStandardPromptDialog）由内联组件自动传导，无需调用方传参；
+     *  本参数为"平台 Dialog 窗口直接持输入框"场景的语义预留。 */
+    freezeSystemBars: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    // LocalWindowInfo.containerSize 替代 Configuration.screenWidthDp/screenHeightDp：
+    // 单位是像素，需经 LocalDensity 换算为 dp（勿直接 .dp 使用像素值）
+    val windowSize = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val dialogWidth = with(density) { (windowSize.width / 2).toDp() }
+    val dialogHeight = with(density) { (windowSize.height * 0.55f).toDp() }
+
+    Dialog(
+        onDismissRequest = if (dismissOnClickOutside) onDismissRequest else {{}},
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+            dismissOnBackPress = dismissOnBackPress,
+            dismissOnClickOutside = dismissOnClickOutside
+        )
+    ) {
+        // 输入对话框挂载期间冻结本 Dialog 窗口系统栏（见 DialogSystemBarFreezeScope）
+        DialogSystemBarFreezeEffect(freezeSystemBars)
+        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路
+        DialogSoftInputGuard()
+        // 隐藏 Dialog Window 的系统状态栏/导航栏
+        DialogSystemBarGuard()
+        // Dialog 窗口销毁前清除焦点并隐藏软键盘，防止文本选择 FloatingActionMode
+        // 在窗口 token 失效后弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
+        DialogFocusGuard()
+
+        // 键盘避让：平台 Dialog 窗口内容区挂
+        // ImeAwareContainer 事件驱动避让（键盘可见翻转 → 对话框一次性上移，
+        // 不依赖 Dialog 窗口 imePadding 的历史可靠性 #229378542）
+        ImeAwareContainer {
+            SmallScreenDialogFrame(
+                title = title,
+                titleColor = titleColor,
+                dialogWidth = dialogWidth,
+                dialogHeight = dialogHeight,
+                onDismissRequest = onDismissRequest,
+                footer = footer,
+                overlay = overlay,
+                content = content
+            )
+        }
+    }
+}
+
+/** 小屏对话框内容框：背景图 + 标题行 + 滚动内容区 + 底部 footer + 覆盖层槽位 */
+@Suppress("LongParameterList")
+@Composable
+private fun SmallScreenDialogFrame(
+    title: String,
+    titleColor: Color,
+    dialogWidth: Dp,
+    dialogHeight: Dp,
+    onDismissRequest: () -> Unit,
+    footer: @Composable ColumnScope.() -> Unit,
+    overlay: (@Composable (() -> Unit))?,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(dialogWidth)
+            .height(dialogHeight)
+            .clip(RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.bg_horizontal),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Header: title + close button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = titleColor,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+                CloseButton(onClick = onDismissRequest)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Scrollable content area
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                content()
+            }
+            // Footer area — outside scroll, pinned at bottom
+            footer()
+        }
+        // 窗口级覆盖层槽位：Column 之后渲染（BoxScope 内 z 序最高），
+        // 内联覆盖层 fillMaxSize 覆盖整个窗口框
+        overlay?.invoke()
+    }
+}

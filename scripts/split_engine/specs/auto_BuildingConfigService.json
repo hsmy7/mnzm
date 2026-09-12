@@ -1,0 +1,32 @@
+{
+ "files": [
+  {
+   "name": "Load",
+   "header": "// ── BuildingConfigService 拆分域（行为零变更） ──",
+   "fns": [
+    "ensureConfigLoaded",
+    "loadConfig",
+    "loadFromAssets",
+    "fixupBuildingSizes",
+    "normalizeBuildingId"
+   ]
+  },
+  {
+   "name": "Defaults",
+   "header": "// ── BuildingConfigService 拆分域（行为零变更） ──",
+   "fns": [
+    "createDefaultConfig",
+    "createDefaultBuildings",
+    "createEarlyStageBuildings",
+    "createGrowthStageBuildings",
+    "createManagementStageBuildings",
+    "createCultivationStageBuildings",
+    "createLeapStageBuildings",
+    "createPeakStageBuildings",
+    "createDefaultBuildingAliases",
+    "createDefaultBuildingAliasesProduction",
+    "createDefaultBuildingAliasesAdministration"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.10.0" type="baseline" client="gradle" dependencies="false" name="AGP (8.10.0)" variant="all" version="8.10.0">
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly.so` (from `com.tencent.bugly:nativecrashreport:3.9.2`) is not 16 KB aligned">
+        <location
+            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/db43ca30ff5c5bacb26063554a60c3e1/transformed/jetified-nativecrashreport-3.9.2/jni/x86_64/libBugly.so"/>
+    </issue>
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly_Native.so` (from `com.tencent.bugly:crashreport:4.1.9.3`) is not 16 KB aligned">
+        <location
+            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/8401e77b3295548ebb56c1436fd4b669/transformed/jetified-crashreport-4.1.9.3/jni/x86_64/libBugly_Native.so"/>
+    </issue>
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly_Native.so` (from `com.tencent.bugly:crashreport:4.1.9.3`) is not 16 KB aligned"
+        errorLine1="bugly-crashreport = { group = &quot;com.tencent.bugly&quot;, name = &quot;crashreport&quot;, version.ref = &quot;bugly&quot; }"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="143"
+            column="22"/>
+    </issue>
+
+</issues>

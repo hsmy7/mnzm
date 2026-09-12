@@ -1,0 +1,8 @@
+{
+  "model": "v4flash",
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew.bat compileReleaseKotlin)"
+    ]
+  }
+}

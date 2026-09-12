@@ -1,0 +1,32 @@
+plugins {
+    id 'xianxia.android.test'
+    alias(libs.plugins.baselineprofile)
+}
+
+android {
+    namespace = 'com.xianxia.sect.baselineprofile'
+
+    defaultConfig {
+        testInstrumentationRunner = 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    targetProjectPath = ':app'
+}
+
+baselineProfile {
+    useConnectedDevices = false
+}
+
+dependencies {
+    implementation libs.test.ext.junit
+    implementation libs.espresso.core
+    implementation libs.uiautomator
+    implementation libs.benchmark.macro.junit4
+}
+
+// 模块特有编译器参数（SDK/Java/Kotlin 公共配置由 xianxia.android convention 提供）
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    kotlinOptions {
+        freeCompilerArgs += ['-opt-in=kotlinx.serialization.ExperimentalSerializationApi']
+    }
+}

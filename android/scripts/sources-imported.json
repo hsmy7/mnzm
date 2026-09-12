@@ -1,0 +1,2461 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "drawable": "jing_tie_jian",
+      "source": "装备/精铁剑.png",
+      "hash": "05c733d00d9daa3d4fb828e6015173e1",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":1024}}",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "drawable": "jing_tie_dao",
+      "source": "装备/精铁刀.png",
+      "hash": "390d383649ff8efaca24da1c833c9bea",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":960}}",
+      "width": 1024,
+      "height": 960
+    },
+    {
+      "drawable": "lie_yan_jian",
+      "source": "装备/烈焰剑.png",
+      "hash": "1e0015f999763bd9d30b81134c5cc343",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":930,\"height\":1024}}",
+      "width": 930,
+      "height": 1024
+    },
+    {
+      "drawable": "ling_feng_jian",
+      "source": "装备/灵锋剑.png",
+      "hash": "6ecfe37dda158a3357ea5c6d0b733ae6",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":987,\"height\":1024}}",
+      "width": 987,
+      "height": 1024
+    },
+    {
+      "drawable": "ling_hua_dao",
+      "source": "装备/凌华刀.png",
+      "hash": "98a4c694e088d13c7832952da895ce0d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":1007}}",
+      "width": 1024,
+      "height": 1007
+    },
+    {
+      "drawable": "lei_ting_jian",
+      "source": "装备/雷霆剑.png",
+      "hash": "28d30acb17c1d1ab74a1904c6594dcad",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":822}}",
+      "width": 1024,
+      "height": 822
+    },
+    {
+      "drawable": "qing_lian_jian",
+      "source": "装备/青莲剑.png",
+      "hash": "f36b561e6323c608c4eaef45d172aba5",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":998,\"height\":1024}}",
+      "width": 998,
+      "height": 1024
+    },
+    {
+      "drawable": "zhu_xian_jian",
+      "source": "装备/诛仙剑.png",
+      "hash": "c24813f098cdedf513384ca3c5eefb9a",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":987}}",
+      "width": 1024,
+      "height": 987
+    },
+    {
+      "drawable": "feng_yan_ren",
+      "source": "装备/凤炎刃.png",
+      "hash": "b0c5d6d3dc36060f6b781df0b49cb14f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":221,\"height\":1024}}",
+      "width": 221,
+      "height": 1024
+    },
+    {
+      "drawable": "qing_bi_ren",
+      "source": "装备/青碧刃.png",
+      "hash": "c00b0de769cf4d91195d9b2e66df6e90",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":225,\"height\":1024}}",
+      "width": 225,
+      "height": 1024
+    },
+    {
+      "drawable": "an_ying_ren",
+      "source": "装备/暗影刃.png",
+      "hash": "0dfab1ce8fcdb242e5b9299932cd8855",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":175,\"height\":1024}}",
+      "width": 175,
+      "height": 1024
+    },
+    {
+      "drawable": "xuan_yu_ren",
+      "source": "装备/玄玉刃.png",
+      "hash": "5b7617f418b16a63b6204795dcae8207",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":934,\"height\":1024}}",
+      "width": 934,
+      "height": 1024
+    },
+    {
+      "drawable": "tao_mu_zhang",
+      "source": "装备/桃木杖.png",
+      "hash": "18bd139379d2511c9ae727164a7205f8",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1004,\"height\":1024}}",
+      "width": 1004,
+      "height": 1024
+    },
+    {
+      "drawable": "bi_yu_zhang",
+      "source": "装备/碧玉杖.png",
+      "hash": "cf985d0cedc9d99c90ec3c7326922962",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":993,\"height\":1024}}",
+      "width": 993,
+      "height": 1024
+    },
+    {
+      "drawable": "xuan_lei_zhang",
+      "source": "装备/玄雷杖.png",
+      "hash": "1fbd49cf74850d861b3fa8c8105d1e69",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":985,\"height\":1024}}",
+      "width": 985,
+      "height": 1024
+    },
+    {
+      "drawable": "xu_hua_zhang",
+      "source": "装备/虚华杖.png",
+      "hash": "efe371753b76df661bc44baf4b86ea44",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":914,\"height\":1024}}",
+      "width": 914,
+      "height": 1024
+    },
+    {
+      "drawable": "tian_xuan_zhang",
+      "source": "装备/天玄杖.png",
+      "hash": "f71f11805f35f820c4555260f5aa663b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1002,\"height\":1024}}",
+      "width": 1002,
+      "height": 1024
+    },
+    {
+      "drawable": "tian_xing_zhang",
+      "source": "装备/天星杖.png",
+      "hash": "c758849b9185ad7a0d54e0aace91dee9",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":983,\"height\":1024}}",
+      "width": 983,
+      "height": 1024
+    },
+    {
+      "drawable": "bi_mu_shan",
+      "source": "装备/碧木扇.png",
+      "hash": "743c17d1665d4cc8337f8610488f65c1",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":780}}",
+      "width": 1024,
+      "height": 780
+    },
+    {
+      "drawable": "ling_feng_shan",
+      "source": "装备/灵风扇.png",
+      "hash": "8f57b102feb6de7593ba36339a0d4643",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":904}}",
+      "width": 1024,
+      "height": 904
+    },
+    {
+      "drawable": "xuan_bing_shan",
+      "source": "装备/玄冰扇.png",
+      "hash": "468fdf2a98ae9e518384c3039835bf95",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":908}}",
+      "width": 1024,
+      "height": 908
+    },
+    {
+      "drawable": "huang_yan_shan",
+      "source": "装备/凰焰扇.png",
+      "hash": "f7defc1a7bc1aae11f7c9da00f868e30",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":780}}",
+      "width": 1024,
+      "height": 780
+    },
+    {
+      "drawable": "yin_yang_shan",
+      "source": "装备/阴阳扇.png",
+      "hash": "255b05ec57fe125fc2232eee590e4645",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":633}}",
+      "width": 1024,
+      "height": 633
+    },
+    {
+      "drawable": "tian_xuan_shan",
+      "source": "装备/天玄扇.png",
+      "hash": "310fb8344556330ce5fd96488da6d425",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":797}}",
+      "width": 1024,
+      "height": 797
+    },
+    {
+      "drawable": "suo_zi_jia",
+      "source": "装备/锁子甲.png",
+      "hash": "2996c3492aeb60ff288eecc58dc30e21",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":854,\"height\":1024}}",
+      "width": 854,
+      "height": 1024
+    },
+    {
+      "drawable": "pi_jia",
+      "source": "装备/皮甲.png",
+      "hash": "14047844256033769cf1a365c65dfc8a",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":1001}}",
+      "width": 1024,
+      "height": 1001
+    },
+    {
+      "drawable": "ling_zhu_yi",
+      "source": "装备/灵竹衣.png",
+      "hash": "266ceb0ca2bbc7c955c4f5acfab41a0a",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":828,\"height\":1024}}",
+      "width": 828,
+      "height": 1024
+    },
+    {
+      "drawable": "jing_tie_jia",
+      "source": "装备/精铁甲.png",
+      "hash": "45bc6d8038334c55807cf93d527fbf20",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":944,\"height\":1024}}",
+      "width": 944,
+      "height": 1024
+    },
+    {
+      "drawable": "bi_ye_jia",
+      "source": "装备/碧叶甲.png",
+      "hash": "39a6e1fb885986f7a353bb1a86280041",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":994}}",
+      "width": 1024,
+      "height": 994
+    },
+    {
+      "drawable": "dan_yu_yi",
+      "source": "装备/丹羽衣.png",
+      "hash": "603490fae68e69cdcf92eb68b71f04b5",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":942,\"height\":1024}}",
+      "width": 942,
+      "height": 1024
+    },
+    {
+      "drawable": "qing_lin_kai",
+      "source": "装备/青鳞铠.png",
+      "hash": "e9f2d03602b6ac0b38a4ed000f0c0bd9",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":860,\"height\":1024}}",
+      "width": 860,
+      "height": 1024
+    },
+    {
+      "drawable": "yin_ban_kai",
+      "source": "装备/银板铠.png",
+      "hash": "f55ecbbf043785e6e63934bb8175b603",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":902,\"height\":1024}}",
+      "width": 902,
+      "height": 1024
+    },
+    {
+      "drawable": "xi_liu_yi",
+      "source": "装备/汐流衣.png",
+      "hash": "b3369ae8663964f7c51a7af7793bad41",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":785,\"height\":1024}}",
+      "width": 785,
+      "height": 1024
+    },
+    {
+      "drawable": "ling_si_pao",
+      "source": "装备/灵丝袍.png",
+      "hash": "5b51fd98f2debcbf0715973e5ed5d615",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":984}}",
+      "width": 1024,
+      "height": 984
+    },
+    {
+      "drawable": "yun_wen_pao",
+      "source": "装备/云纹袍.png",
+      "hash": "c17c029780f1caf13a97abe0cbf87519",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":1005}}",
+      "width": 1024,
+      "height": 1005
+    },
+    {
+      "drawable": "long_lin_kai",
+      "source": "装备/龙鳞铠.png",
+      "hash": "c310f517c3e2857038153196741a4c30",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":789,\"height\":1024}}",
+      "width": 789,
+      "height": 1024
+    },
+    {
+      "drawable": "yuan_yan_kai",
+      "source": "装备/渊岩铠.png",
+      "hash": "537cedc6af982e7da30229ddbf7b42f6",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":802,\"height\":1024}}",
+      "width": 802,
+      "height": 1024
+    },
+    {
+      "drawable": "yao_guang_pao",
+      "source": "装备/瑶光袍.png",
+      "hash": "dc95edeb76dd645b2cbecc7f9d3419c8",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":746,\"height\":1024}}",
+      "width": 746,
+      "height": 1024
+    },
+    {
+      "drawable": "yue_hua_pao",
+      "source": "装备/月华袍.png",
+      "hash": "97bc6c43c553e3a225758bc8d03fce59",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":841,\"height\":1024}}",
+      "width": 841,
+      "height": 1024
+    },
+    {
+      "drawable": "xing_chen_pao",
+      "source": "装备/星辰袍.png",
+      "hash": "378222e41e2a957e7519ef489dfca375",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":761,\"height\":1024}}",
+      "width": 761,
+      "height": 1024
+    },
+    {
+      "drawable": "xuan_you_pao",
+      "source": "装备/玄幽袍.png",
+      "hash": "fd2905f1c8161770f69930f401d8670d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":797,\"height\":1024}}",
+      "width": 797,
+      "height": 1024
+    },
+    {
+      "drawable": "mo_you_kai",
+      "source": "装备/墨幽铠.png",
+      "hash": "a87b766091dcc5ea4ecd48f2f76fc79d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":838,\"height\":1024}}",
+      "width": 838,
+      "height": 1024
+    },
+    {
+      "drawable": "ling_xing_pao",
+      "source": "装备/凌星袍.png",
+      "hash": "716877e42c952ab0b7c04914252fa158",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":838,\"height\":1024}}",
+      "width": 838,
+      "height": 1024
+    },
+    {
+      "drawable": "ding_hai_kai",
+      "source": "装备/定海铠.png",
+      "hash": "dae091215f5df8a3df659997c7ca4f9c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":915,\"height\":1024}}",
+      "width": 915,
+      "height": 1024
+    },
+    {
+      "drawable": "bu_xiu_kai",
+      "source": "装备/不朽铠.png",
+      "hash": "174808fcf7ea540774d0c1cf52ab59eb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":879,\"height\":1024}}",
+      "width": 879,
+      "height": 1024
+    },
+    {
+      "drawable": "cang_gang_kai",
+      "source": "装备/苍罡铠.png",
+      "hash": "1626d3485787444bd61ea990ffa2414e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":889,\"height\":1024}}",
+      "width": 889,
+      "height": 1024
+    },
+    {
+      "drawable": "xi_guang_kai",
+      "source": "装备/曦光铠.png",
+      "hash": "838b56130469383deb398a822111f37b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":854,\"height\":1024}}",
+      "width": 854,
+      "height": 1024
+    },
+    {
+      "drawable": "yun_ying_pao",
+      "source": "装备/云影袍.png",
+      "hash": "f2bfaf087ad8452fe260ba502faaed3f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":1019}}",
+      "width": 1024,
+      "height": 1019
+    },
+    {
+      "drawable": "ben_lei_xue",
+      "source": "装备/奔雷靴.png",
+      "hash": "af5d1c0321b06e851e09c38af56a229b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":857,\"height\":1024}}",
+      "width": 857,
+      "height": 1024
+    },
+    {
+      "drawable": "chang_ming_zhui",
+      "source": "装备/长明坠.png",
+      "hash": "89e3c9f4cf62554f05d8b604f8c6461f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":493,\"height\":1024}}",
+      "width": 493,
+      "height": 1024
+    },
+    {
+      "drawable": "chi_sha_xue",
+      "source": "装备/赤煞靴.png",
+      "hash": "39dd1900683576e5c3f6f35bd1ea9f7b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":877}}",
+      "width": 1024,
+      "height": 877
+    },
+    {
+      "drawable": "du_e_pei",
+      "source": "装备/渡厄佩.png",
+      "hash": "849c78bb128537dcfa4245e68fecfc63",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":668,\"height\":1024}}",
+      "width": 668,
+      "height": 1024
+    },
+    {
+      "drawable": "feng_yu_zhui",
+      "source": "装备/凤羽坠.png",
+      "hash": "c6893a1ba6d194f62bc656039a37ddfa",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":829,\"height\":1024}}",
+      "width": 829,
+      "height": 1024
+    },
+    {
+      "drawable": "he_lan_xue",
+      "source": "装备/鹤岚靴.png",
+      "hash": "b2327438166b6d8fc5ec181749a4ada0",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":801}}",
+      "width": 1024,
+      "height": 801
+    },
+    {
+      "drawable": "ji_feng_xue",
+      "source": "装备/疾风靴.png",
+      "hash": "9c0baf27d421b6ee4644314852f6a035",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":863,\"height\":1024}}",
+      "width": 863,
+      "height": 1024
+    },
+    {
+      "drawable": "ling_quan_jie",
+      "source": "装备/灵泉戒.png",
+      "hash": "3a034546e6d60de3d20d7ea7423651f7",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1016,\"height\":1024}}",
+      "width": 1016,
+      "height": 1024
+    },
+    {
+      "drawable": "ling_yu_pei",
+      "source": "装备/灵玉佩.png",
+      "hash": "a8af105a507f858a45b65a6cda46a6fb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":646,\"height\":1024}}",
+      "width": 646,
+      "height": 1024
+    },
+    {
+      "drawable": "long_ling_zhu",
+      "source": "材料/龙灵珠.png",
+      "hash": "3799e4ad51c213796fe58186d9cbb4eb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":915,\"height\":1024}}",
+      "width": 915,
+      "height": 1024
+    },
+    {
+      "drawable": "luan_yu_lv",
+      "source": "装备/鸾羽靴.png",
+      "hash": "48762261ba0595dab4b7b362d7e0cc72",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":813}}",
+      "width": 1024,
+      "height": 813
+    },
+    {
+      "drawable": "qing_yu_xue",
+      "source": "装备/轻羽靴.png",
+      "hash": "1fdf4eaa85f823130a80c601c08c198e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":948,\"height\":1024}}",
+      "width": 948,
+      "height": 1024
+    },
+    {
+      "drawable": "qing_lan_xue",
+      "source": "装备/青澜靴.png",
+      "hash": "c10b200f371d411f692949d6928f90c2",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":884,\"height\":1024}}",
+      "width": 884,
+      "height": 1024
+    },
+    {
+      "drawable": "shou_pi_xue",
+      "source": "装备/兽皮靴.png",
+      "hash": "dfd96392a2d819391fb7f50ad51837ce",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":863,\"height\":1024}}",
+      "width": 863,
+      "height": 1024
+    },
+    {
+      "drawable": "su_guang_xue",
+      "source": "装备/溯光靴.png",
+      "hash": "d02df7770f5e606295a2319006601522",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":846}}",
+      "width": 1024,
+      "height": 846
+    },
+    {
+      "drawable": "ta_yun_lv",
+      "source": "装备/踏云履.png",
+      "hash": "4b78ca4ee7e6d6248b0be34f5e1b8371",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":942}}",
+      "width": 1024,
+      "height": 942
+    },
+    {
+      "drawable": "tong_xiang_lian",
+      "source": "装备/铜项链.png",
+      "hash": "6e53880d6e2ff2987d4840a27d016555",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":690,\"height\":1024}}",
+      "width": 690,
+      "height": 1024
+    },
+    {
+      "drawable": "xun_jie_zhu",
+      "source": "装备/迅捷珠.png",
+      "hash": "1050a1e3c7147e58adf52eafb662be7d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":967,\"height\":1024}}",
+      "width": 967,
+      "height": 1024
+    },
+    {
+      "drawable": "yin_yun_pei",
+      "source": "装备/隐云佩.png",
+      "hash": "08f28cda878b6113582ef7514995c40b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":866,\"height\":1024}}",
+      "width": 866,
+      "height": 1024
+    },
+    {
+      "drawable": "you_shuo_zhu",
+      "source": "装备/幽朔珠.png",
+      "hash": "7be7a97f3dc3c5569c8648d49f1c7dd8",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":851}}",
+      "width": 1024,
+      "height": 851
+    },
+    {
+      "drawable": "yu_jie_zhi",
+      "source": "装备/玉戒指.png",
+      "hash": "692b95be2004f01984f64949f78615a4",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":873}}",
+      "width": 1024,
+      "height": 873
+    },
+    {
+      "drawable": "yun_qi_xue",
+      "source": "装备/云栖靴.png",
+      "hash": "5ca457cfa0e869b77f831930b7326bd3",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":994}}",
+      "width": 1024,
+      "height": 994
+    },
+    {
+      "drawable": "yun_ling_jie",
+      "source": "装备/蕴灵戒.png",
+      "hash": "ef257a06d272c10dd955a9f3f1f5fc66",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":893}}",
+      "width": 1024,
+      "height": 893
+    },
+    {
+      "drawable": "zhui_feng_xue",
+      "source": "装备/追风靴.png",
+      "hash": "e94296cc9846e0247447550132ed50d8",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1015,\"height\":1024}}",
+      "width": 1015,
+      "height": 1024
+    },
+    {
+      "drawable": "manual_fan_ling",
+      "source": "功法/凡品与灵品功法精灵图.png",
+      "hash": "39b4601013c1b5f07f5101e4d21f43ac",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":995,\"height\":768}}",
+      "width": 995,
+      "height": 768
+    },
+    {
+      "drawable": "manual_bao_xuan",
+      "source": "功法/宝品和玄品功法精灵图.png",
+      "hash": "c70265e38c68818e0b5940add69d9975",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1006,\"height\":768}}",
+      "width": 1006,
+      "height": 768
+    },
+    {
+      "drawable": "manual_di_tian",
+      "source": "功法/地品和天品功法精灵图.png",
+      "hash": "ab59b8cf15418daa024e1de6c21d6549",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":982,\"height\":768}}",
+      "width": 982,
+      "height": 768
+    },
+    {
+      "drawable": "pill_fan",
+      "source": "丹药/凡品丹药.png",
+      "hash": "df5ef822a6a48ba13552e8d116748288",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":926}}",
+      "width": 1024,
+      "height": 926
+    },
+    {
+      "drawable": "pill_ling",
+      "source": "丹药/灵品丹药.png",
+      "hash": "3892a121f6f87451b9ed0026093377e2",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":856,\"height\":768}}",
+      "width": 856,
+      "height": 768
+    },
+    {
+      "drawable": "pill_bao",
+      "source": "丹药/宝品丹药.png",
+      "hash": "5d0f4cfd60a52a91e3fd4355b3d95e5f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":926}}",
+      "width": 1024,
+      "height": 926
+    },
+    {
+      "drawable": "pill_xuan",
+      "source": "丹药/玄品丹药.png",
+      "hash": "77b9ce98b049afbbe26b94e1085cf58e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":927}}",
+      "width": 1024,
+      "height": 927
+    },
+    {
+      "drawable": "pill_di",
+      "source": "丹药/地品丹药.png",
+      "hash": "ec96a291f292fcf2053436dec2c85622",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":930}}",
+      "width": 1024,
+      "height": 930
+    },
+    {
+      "drawable": "pill_tian",
+      "source": "丹药/天品丹药.png",
+      "hash": "4a29d66580214273bace95db91435867",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":930}}",
+      "width": 1024,
+      "height": 930
+    },
+    {
+      "drawable": "spirit_stone_low",
+      "source": "材料/下品灵石.png",
+      "hash": "d43e0c2815922e4fdbb42d9b6391b944",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":737,\"height\":1024}}",
+      "width": 737,
+      "height": 1024
+    },
+    {
+      "drawable": "spirit_stone_mid",
+      "source": "材料/中品灵石.png",
+      "hash": "9936093a5cdf02c71a9d23ea18ab7387",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":687,\"height\":1024}}",
+      "width": 687,
+      "height": 1024
+    },
+    {
+      "drawable": "spirit_stone_high",
+      "source": "材料/上品灵石.png",
+      "hash": "e0328b68314fcfbebb7661676a4fe321",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":666,\"height\":1024}}",
+      "width": 666,
+      "height": 1024
+    },
+    {
+      "drawable": "tiger_hide",
+      "source": "材料/虎皮.png",
+      "hash": "0f8499dd85f19ce1efeec0c2d832e9bd",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":566}}",
+      "width": 1024,
+      "height": 566
+    },
+    {
+      "drawable": "tiger_blood",
+      "source": "材料/虎血.png",
+      "hash": "a3760f354744fdb7952d650de4c93529",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":598,\"height\":768}}",
+      "width": 598,
+      "height": 768
+    },
+    {
+      "drawable": "tiger_tooth",
+      "source": "材料/虎牙.png",
+      "hash": "c90106c736892d80ecf4466facd48d87",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":415,\"height\":767}}",
+      "width": 415,
+      "height": 767
+    },
+    {
+      "drawable": "tiger_core",
+      "source": "材料/虎内丹.png",
+      "hash": "e88e1000342e5aeb65534ccf0cc32015",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":771,\"height\":768}}",
+      "width": 771,
+      "height": 768
+    },
+    {
+      "drawable": "wolf_hide",
+      "source": "材料/狼皮.png",
+      "hash": "a28656dc589d86a1ed00df0761242601",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":745}}",
+      "width": 1024,
+      "height": 745
+    },
+    {
+      "drawable": "wolf_bone",
+      "source": "材料/狼骨.png",
+      "hash": "3df3ae29010faa87b72074fa99bf95b4",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":759}}",
+      "width": 1024,
+      "height": 759
+    },
+    {
+      "drawable": "wolf_tooth",
+      "source": "材料/狼牙.png",
+      "hash": "9b53292d0dfd1e6fc2a53653ba9110a6",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":612,\"height\":768}}",
+      "width": 612,
+      "height": 768
+    },
+    {
+      "drawable": "wolf_core",
+      "source": "材料/狼内丹.png",
+      "hash": "cb048c6ad4711f00498d9786da9f6d3a",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":770,\"height\":768}}",
+      "width": 770,
+      "height": 768
+    },
+    {
+      "drawable": "snake_scale",
+      "source": "材料/蛇鳞.png",
+      "hash": "96b2acd58581a9ab26ff0f16ad6c28ee",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":529}}",
+      "width": 1024,
+      "height": 529
+    },
+    {
+      "drawable": "snake_blood",
+      "source": "材料/蛇血.png",
+      "hash": "fc61a6743f39d26f848c5b670860667d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":440,\"height\":768}}",
+      "width": 440,
+      "height": 768
+    },
+    {
+      "drawable": "snake_tooth",
+      "source": "材料/蛇牙.png",
+      "hash": "06201699b475813e3b2dfc25d68683de",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":560,\"height\":768}}",
+      "width": 560,
+      "height": 768
+    },
+    {
+      "drawable": "snake_core",
+      "source": "材料/蛇内丹.png",
+      "hash": "026751fe4c1bb5c968849cd149d002ce",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":953,\"height\":768}}",
+      "width": 953,
+      "height": 768
+    },
+    {
+      "drawable": "bear_hide",
+      "source": "材料/熊皮.png",
+      "hash": "6584382c890ede19d9e95c640ced0dc7",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":702}}",
+      "width": 1024,
+      "height": 702
+    },
+    {
+      "drawable": "bear_bone",
+      "source": "材料/熊骨.png",
+      "hash": "46e8a78a27a46d527232883368115831",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":768}}",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "drawable": "bear_claw",
+      "source": "材料/熊掌.png",
+      "hash": "12d10771ad525fe57eac38adee9170b5",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":515,\"height\":768}}",
+      "width": 515,
+      "height": 768
+    },
+    {
+      "drawable": "bear_core",
+      "source": "材料/熊内丹.png",
+      "hash": "18ba7752acb0a21e562ceee73e84525f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1016,\"height\":1024}}",
+      "width": 1016,
+      "height": 1024
+    },
+    {
+      "drawable": "eagle_feather",
+      "source": "材料/鹰羽.png",
+      "hash": "4ef10890706e782c83822a7e5301b378",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":529,\"height\":768}}",
+      "width": 529,
+      "height": 768
+    },
+    {
+      "drawable": "eagle_bone",
+      "source": "材料/鹰骨.png",
+      "hash": "7d141a3e7b8d6f58214fe9a45b24ed1c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":560,\"height\":768}}",
+      "width": 560,
+      "height": 768
+    },
+    {
+      "drawable": "eagle_claw",
+      "source": "材料/鹰爪.png",
+      "hash": "f45fe344685ad7a7431fd1909109a4bf",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":632,\"height\":768}}",
+      "width": 632,
+      "height": 768
+    },
+    {
+      "drawable": "eagle_core",
+      "source": "材料/鹰内丹.png",
+      "hash": "d6c982b3b24e91c7395351f275ca323e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":748,\"height\":766}}",
+      "width": 748,
+      "height": 766
+    },
+    {
+      "drawable": "fox_hide",
+      "source": "材料/狐皮.png",
+      "hash": "57d9a0e66a79d66779476d338693b6ec",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":639}}",
+      "width": 1024,
+      "height": 639
+    },
+    {
+      "drawable": "fox_bone",
+      "source": "材料/狐骨.png",
+      "hash": "5298f5b7a90cb6f13f92e95f15a20f88",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":531}}",
+      "width": 1024,
+      "height": 531
+    },
+    {
+      "drawable": "fox_tail",
+      "source": "材料/狐尾.png",
+      "hash": "05db46a524044afb56b75b4e87347c63",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":559}}",
+      "width": 1024,
+      "height": 559
+    },
+    {
+      "drawable": "fox_core",
+      "source": "材料/狐内丹.png",
+      "hash": "d8dea66bb14df5d3abf7e6279c444651",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":762,\"height\":768}}",
+      "width": 762,
+      "height": 768
+    },
+    {
+      "drawable": "dragon_scale",
+      "source": "材料/龙鳞.png",
+      "hash": "49153b5e368c276acb1f5561694fbc16",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":548,\"height\":768}}",
+      "width": 548,
+      "height": 768
+    },
+    {
+      "drawable": "dragon_claw",
+      "source": "材料/龙爪.png",
+      "hash": "0089757d11118ca07580b8d2333ce988",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":487,\"height\":768}}",
+      "width": 487,
+      "height": 768
+    },
+    {
+      "drawable": "dragon_horn",
+      "source": "材料/龙角.png",
+      "hash": "db6c806da066a47e8109495fb26652fb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":400,\"height\":768}}",
+      "width": 400,
+      "height": 768
+    },
+    {
+      "drawable": "dragon_core",
+      "source": "材料/龙内丹.png",
+      "hash": "8d51951e9b847fabf573b72eb1f2320e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":740,\"height\":768}}",
+      "width": 740,
+      "height": 768
+    },
+    {
+      "drawable": "turtle_shell",
+      "source": "材料/龟壳.png",
+      "hash": "06bd58afaeb5cea71b7bd4d7d3015b04",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":642}}",
+      "width": 1024,
+      "height": 642
+    },
+    {
+      "drawable": "turtle_bone",
+      "source": "材料/龟骨.png",
+      "hash": "8bcbea03c2649a7c0d58db59c60d5e46",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":698}}",
+      "width": 1024,
+      "height": 698
+    },
+    {
+      "drawable": "turtle_blood",
+      "source": "材料/龟血.png",
+      "hash": "76f0fdb184a563777b66146e9dad2128",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":550,\"height\":767}}",
+      "width": 550,
+      "height": 767
+    },
+    {
+      "drawable": "turtle_core",
+      "source": "材料/龟内丹.png",
+      "hash": "846d4ead93bf960433796f25b41bcdbc",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":768,\"height\":768}}",
+      "width": 768,
+      "height": 768
+    },
+    {
+      "drawable": "bag_fan",
+      "source": "储物袋/凡品储物袋.png",
+      "hash": "76fcfd550b63f8adbd2ea52294ff36f1",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":532,\"height\":768}}",
+      "width": 532,
+      "height": 768
+    },
+    {
+      "drawable": "bag_ling",
+      "source": "储物袋/灵品储物袋.png",
+      "hash": "deb9b276a37a8ef85e020b8d89dbc71b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":568,\"height\":768}}",
+      "width": 568,
+      "height": 768
+    },
+    {
+      "drawable": "bag_bao",
+      "source": "储物袋/宝品储物袋.png",
+      "hash": "1897fd26c1f6bd37a84838f733664f66",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":512,\"height\":768}}",
+      "width": 512,
+      "height": 768
+    },
+    {
+      "drawable": "bag_xuan",
+      "source": "储物袋/玄品储物袋.png",
+      "hash": "d23727c094f31340a49ebb5a9b490790",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":444,\"height\":768}}",
+      "width": 444,
+      "height": 768
+    },
+    {
+      "drawable": "bag_di",
+      "source": "储物袋/地品储物袋.png",
+      "hash": "8f04a238fbdcf02f28280a5220c6bfc5",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":570,\"height\":768}}",
+      "width": 570,
+      "height": 768
+    },
+    {
+      "drawable": "bag_tian",
+      "source": "储物袋/天品储物袋.png",
+      "hash": "13a8cd02035a764ac40e8cb65485007e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":670,\"height\":768}}",
+      "width": 670,
+      "height": 768
+    },
+    {
+      "drawable": "sect_icon_small",
+      "source": "ui/小型宗门图标.png",
+      "hash": "0b64817c5ab4d6b5f1f1496d86331277",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1072,\"height\":1024}}",
+      "width": 1072,
+      "height": 1024
+    },
+    {
+      "drawable": "sect_icon_medium",
+      "source": "ui/中型宗门图标.png",
+      "hash": "53e2b4914564e0f7624de8a1193b9fc0",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1070,\"height\":1024}}",
+      "width": 1070,
+      "height": 1024
+    },
+    {
+      "drawable": "sect_icon_large",
+      "source": "ui/大型宗门图标.png",
+      "hash": "35d253e6b717c5e75fa0e49af960a4ba",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1079,\"height\":1023}}",
+      "width": 1079,
+      "height": 1023
+    },
+    {
+      "drawable": "sect_icon_top",
+      "source": "ui/顶级宗门图标.png",
+      "hash": "9757d6243ef6cf34bd449ce492e54a24",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1072,\"height\":1023}}",
+      "width": 1072,
+      "height": 1023
+    },
+    {
+      "drawable": "herb_spiritgrass1",
+      "source": "草药/聚灵草草药图片.png",
+      "hash": "b60f40fc4d8f7629c4f3cbfdb6266d8c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":612,\"height\":768}}",
+      "width": 612,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritgrass2",
+      "source": "草药/清心草草药图片.png",
+      "hash": "6af75ccddf03c0146a3212099d31e201",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":776,\"height\":767}}",
+      "width": 776,
+      "height": 767
+    },
+    {
+      "drawable": "herb_spiritgrass3",
+      "source": "草药/凝气草草药图片.png",
+      "hash": "239cb8c4c16c5063cdf05709e8153154",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":576,\"height\":768}}",
+      "width": 576,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritflower1",
+      "source": "草药/云雾花草药图片.png",
+      "hash": "47824e0d02b0fb3c0d9a70239646064f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":598,\"height\":768}}",
+      "width": 598,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritflower2",
+      "source": "草药/白莲草药图片.png",
+      "hash": "2995fff96daf359a63b6986b677c6680",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":589,\"height\":768}}",
+      "width": 589,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritflower3",
+      "source": "草药/晨露花草药图片.png",
+      "hash": "fcd76adb8e264c24d922d35c3835543c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":459,\"height\":768}}",
+      "width": 459,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritfruit1",
+      "source": "草药/精气果草药图片.png",
+      "hash": "df9e50e05b59ec1493ff9b2ce3cb7fc0",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":646,\"height\":767}}",
+      "width": 646,
+      "height": 767
+    },
+    {
+      "drawable": "herb_spiritfruit2",
+      "source": "草药/赤心果草药图片.png",
+      "hash": "c4e55506f5612ab1b6f65bc0a7c8378c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":594,\"height\":768}}",
+      "width": 594,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritfruit3",
+      "source": "草药/灵韵果草药图片.png",
+      "hash": "499f1e8fe9cb3719d2a9288f8c7b6f15",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":630,\"height\":767}}",
+      "width": 630,
+      "height": 767
+    },
+    {
+      "drawable": "herb_spiritgrass4",
+      "source": "草药/寒霜草草药图片.png",
+      "hash": "ae7c3473d308d744c56e7fa6351f8806",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":907,\"height\":1024}}",
+      "width": 907,
+      "height": 1024
+    },
+    {
+      "drawable": "herb_spiritgrass5",
+      "source": "草药/烈焰草草药图片.png",
+      "hash": "97fd957273958c9b8c65e31daa25a75a",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":736,\"height\":1004}}",
+      "width": 736,
+      "height": 1004
+    },
+    {
+      "drawable": "herb_spiritgrass6",
+      "source": "草药/金灵草草药图片.png",
+      "hash": "042919932521cdbf7ccb1fb1048a13fe",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":642,\"height\":1024}}",
+      "width": 642,
+      "height": 1024
+    },
+    {
+      "drawable": "herb_spiritflower4",
+      "source": "草药/冰魄莲草药图片.png",
+      "hash": "14e8be2952214a6ef5eaf79047718418",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":895,\"height\":860}}",
+      "width": 895,
+      "height": 860
+    },
+    {
+      "drawable": "herb_spiritflower5",
+      "source": "草药/双生花草药图片.png",
+      "hash": "a3cfc178c6d21062aa2b9f2d4a607caf",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":720,\"height\":864}}",
+      "width": 720,
+      "height": 864
+    },
+    {
+      "drawable": "herb_spiritflower6",
+      "source": "草药/紫霄花草药图片.png",
+      "hash": "e3a265e6695f9c0c886ff81fc265c639",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":704,\"height\":1024}}",
+      "width": 704,
+      "height": 1024
+    },
+    {
+      "drawable": "herb_spiritfruit4",
+      "source": "草药/通灵果草药图片.png",
+      "hash": "fad8390731276b15af784f8079f97290",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":773,\"height\":870}}",
+      "width": 773,
+      "height": 870
+    },
+    {
+      "drawable": "herb_spiritfruit5",
+      "source": "草药/玄灵果草药图片.png",
+      "hash": "9bb5388ae0b0960ade8140e127ac2e5f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":580,\"height\":768}}",
+      "width": 580,
+      "height": 768
+    },
+    {
+      "drawable": "herb_spiritfruit6",
+      "source": "草药/五行果草药图片.png",
+      "hash": "5bd3d90f6f4139efc983ce76a39138c2",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":879,\"height\":958}}",
+      "width": 879,
+      "height": 958
+    },
+    {
+      "drawable": "herb_spiritgrass7",
+      "source": "草药/龙血草草药.png",
+      "hash": "9f4265644d7b0a47f664ebe4ed8d5f57",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":600,\"height\":717}}",
+      "width": 600,
+      "height": 717
+    },
+    {
+      "drawable": "herb_spiritgrass8",
+      "source": "草药/风铃草草药.png",
+      "hash": "aa494c3c576619ea53f8851ea4709f3e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":429,\"height\":767}}",
+      "width": 429,
+      "height": 767
+    },
+    {
+      "drawable": "herb_spiritgrass9",
+      "source": "草药/九转灵草草药.png",
+      "hash": "5a910ed69c677e5c14a54d790c1ea70f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":505,\"height\":599}}",
+      "width": 505,
+      "height": 599
+    },
+    {
+      "drawable": "herb_spiritflower7",
+      "source": "草药/九转仙兰草药.png",
+      "hash": "1ef140abaf15d872e757d54e1067a84d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":480,\"height\":569}}",
+      "width": 480,
+      "height": 569
+    },
+    {
+      "drawable": "herb_spiritflower8",
+      "source": "草药/凤凰花草药.png",
+      "hash": "f695da4920f5cdc9f312da951c4d3338",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":609,\"height\":744}}",
+      "width": 609,
+      "height": 744
+    },
+    {
+      "drawable": "herb_spiritflower9",
+      "source": "草药/青龙花草药.png",
+      "hash": "c4446b58d1c4b1f01efd4dc2f2d91745",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":514,\"height\":755}}",
+      "width": 514,
+      "height": 755
+    },
+    {
+      "drawable": "herb_spiritfruit7",
+      "source": "草药/赤阳果草药.png",
+      "hash": "7b741a463ebe3d5cb584c2bec03604c0",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":568,\"height\":582}}",
+      "width": 568,
+      "height": 582
+    },
+    {
+      "drawable": "herb_spiritfruit8",
+      "source": "草药/玄灵莓草药.png",
+      "hash": "51ddab180b9949f3d5ce070c642cba3c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":556,\"height\":702}}",
+      "width": 556,
+      "height": 702
+    },
+    {
+      "drawable": "herb_spiritfruit9",
+      "source": "草药/天元果草药.png",
+      "hash": "2ce0ba93dd1c02d1acbb4938d0bdcedf",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":466,\"height\":685}}",
+      "width": 466,
+      "height": 685
+    },
+    {
+      "drawable": "seed_spiritgrass1",
+      "source": "种子/聚灵草种图片.png",
+      "hash": "7df9d3ad973fba0ba7619634bc79c326",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":860,\"height\":1024}}",
+      "width": 860,
+      "height": 1024
+    },
+    {
+      "drawable": "seed_spiritgrass2",
+      "source": "种子/清心草种图片.png",
+      "hash": "aa4e9fad12b831f4cd4f6076e09cb855",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":635,\"height\":768}}",
+      "width": 635,
+      "height": 768
+    },
+    {
+      "drawable": "seed_spiritgrass3",
+      "source": "种子/凝气草种图片.png",
+      "hash": "dc314ad2a19dffe86c3198f5087185da",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":729,\"height\":768}}",
+      "width": 729,
+      "height": 768
+    },
+    {
+      "drawable": "seed_spiritflower1",
+      "source": "种子/云雾花种图片.png",
+      "hash": "3bf3d9e2e3cffd7bb3f32c4dae525e4c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":876,\"height\":935}}",
+      "width": 876,
+      "height": 935
+    },
+    {
+      "drawable": "seed_spiritflower2",
+      "source": "种子/白莲种图片.png",
+      "hash": "f77977b02fa50b6732d9b975ff45460d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":656}}",
+      "width": 1024,
+      "height": 656
+    },
+    {
+      "drawable": "seed_spiritflower3",
+      "source": "种子/晨露花种图片.png",
+      "hash": "4d1504c41cf38da3ee31c3a8a497826f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":1024,\"height\":756}}",
+      "width": 1024,
+      "height": 756
+    },
+    {
+      "drawable": "seed_spiritfruit1",
+      "source": "种子/精气果核图片.png",
+      "hash": "50dd6c44c6cf66b48b8ad6dce7fc9c93",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":661,\"height\":768}}",
+      "width": 661,
+      "height": 768
+    },
+    {
+      "drawable": "seed_spiritfruit2",
+      "source": "种子/赤心果核图片.png",
+      "hash": "8dbaa7f13e6f90533fbdda4f02f716e5",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":764,\"height\":987}}",
+      "width": 764,
+      "height": 987
+    },
+    {
+      "drawable": "seed_spiritfruit3",
+      "source": "种子/灵韵果核图片.png",
+      "hash": "21cf052257762cc6c64495e45dd86da2",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":848,\"height\":768}}",
+      "width": 848,
+      "height": 768
+    },
+    {
+      "drawable": "seed_spiritgrass4",
+      "source": "种子/寒霜草种图片.png",
+      "hash": "d23af23fbfeaeb25fd248aa0f81d5a8a",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":686,\"height\":1024}}",
+      "width": 686,
+      "height": 1024
+    },
+    {
+      "drawable": "seed_spiritgrass5",
+      "source": "种子/烈焰草种图片.png",
+      "hash": "6c579ad771d120d7ebe7d8d78504c339",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":195,\"height\":281}}",
+      "width": 195,
+      "height": 281
+    },
+    {
+      "drawable": "seed_spiritgrass6",
+      "source": "种子/金灵草种图片.png",
+      "hash": "713e793f75c555cb2602a1db2702ac23",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":217,\"height\":217}}",
+      "width": 217,
+      "height": 217
+    },
+    {
+      "drawable": "seed_spiritflower4",
+      "source": "种子/冰魄莲种图片.png",
+      "hash": "52c62a20c1f3cd90209b609eae8cb89b",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":516,\"height\":602}}",
+      "width": 516,
+      "height": 602
+    },
+    {
+      "drawable": "seed_spiritflower5",
+      "source": "种子/双生花种图片.png",
+      "hash": "315f1c0fbca318c949ba6a2754f079eb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":286,\"height\":407}}",
+      "width": 286,
+      "height": 407
+    },
+    {
+      "drawable": "seed_spiritflower6",
+      "source": "种子/紫霄花种图片.png",
+      "hash": "c12ac4c48ea04c6bbe216c18679087fa",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":658,\"height\":626}}",
+      "width": 658,
+      "height": 626
+    },
+    {
+      "drawable": "seed_spiritfruit4",
+      "source": "种子/通灵果核图片.png",
+      "hash": "6b3362cbaad0962d66748aa0632ed182",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":585,\"height\":754}}",
+      "width": 585,
+      "height": 754
+    },
+    {
+      "drawable": "seed_spiritfruit5",
+      "source": "种子/玄灵果核图片.png",
+      "hash": "e2262af12477384f08e034c48c87946f",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":633,\"height\":768}}",
+      "width": 633,
+      "height": 768
+    },
+    {
+      "drawable": "seed_spiritfruit6",
+      "source": "种子/五行果核图片.png",
+      "hash": "ab9275c368aa7a856db6f0489a597fce",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":452,\"height\":674}}",
+      "width": 452,
+      "height": 674
+    },
+    {
+      "drawable": "seed_spiritgrass7",
+      "source": "种子/龙血草种.png",
+      "hash": "01d742307e6595608f1eeb2f88ed2fba",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":413,\"height\":436}}",
+      "width": 413,
+      "height": 436
+    },
+    {
+      "drawable": "seed_spiritgrass8",
+      "source": "种子/风铃草种.png",
+      "hash": "895f5a287615711b750bd2df9ea9423e",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":367,\"height\":474}}",
+      "width": 367,
+      "height": 474
+    },
+    {
+      "drawable": "seed_spiritgrass9",
+      "source": "种子/九转灵草种.png",
+      "hash": "f9fab95c764cd2df21ce4e5a749a5be6",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":135,\"height\":135}}",
+      "width": 135,
+      "height": 135
+    },
+    {
+      "drawable": "seed_spiritflower7",
+      "source": "种子/九转仙兰种.png",
+      "hash": "689e5f00f30a57243cda652351054c6d",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":367,\"height\":474}}",
+      "width": 367,
+      "height": 474
+    },
+    {
+      "drawable": "seed_spiritflower8",
+      "source": "种子/凤凰花种.png",
+      "hash": "f6f75681c03e3b6f7b666de1b5e68e9c",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":380,\"height\":245}}",
+      "width": 380,
+      "height": 245
+    },
+    {
+      "drawable": "seed_spiritflower9",
+      "source": "种子/青龙花种.png",
+      "hash": "91213261dbb8059b34ceb6f18e04d0cb",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":393,\"height\":426}}",
+      "width": 393,
+      "height": 426
+    },
+    {
+      "drawable": "seed_spiritfruit7",
+      "source": "种子/赤阳果核.png",
+      "hash": "d4c1aa5b4df7ab958f2b5009658b2314",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":409,\"height\":728}}",
+      "width": 409,
+      "height": 728
+    },
+    {
+      "drawable": "seed_spiritfruit8",
+      "source": "种子/玄灵莓种.png",
+      "hash": "a472d81d6828cc666a5a0465eac8a5d1",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":382,\"height\":383}}",
+      "width": 382,
+      "height": 383
+    },
+    {
+      "drawable": "seed_spiritfruit9",
+      "source": "种子/天元果核.png",
+      "hash": "c891399dedc224652cc996cade8ec3e4",
+      "bakeKey": "{\"bake\":{\"maxDim\":1024},\"target\":{\"width\":454,\"height\":354}}",
+      "width": 454,
+      "height": 354
+    },
+    {
+      "drawable": "growing_spiritgrass1",
+      "source": "草药生长期/聚灵草成长期图片.png",
+      "hash": "59fff3a6236cdc3b8c330b8f7ca0827c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":830,\"height\":986}}",
+      "width": 830,
+      "height": 986
+    },
+    {
+      "drawable": "growing_spiritgrass2",
+      "source": "草药生长期/清心草成长期图片.png",
+      "hash": "4d1d92ec2ee2729177144bc2cd393026",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":761,\"height\":767}}",
+      "width": 761,
+      "height": 767
+    },
+    {
+      "drawable": "growing_spiritgrass3",
+      "source": "草药生长期/凝气草成长期图片.png",
+      "hash": "6c90c6daf332d9c5c1c145402ab75e0e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":503,\"height\":768}}",
+      "width": 503,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritflower1",
+      "source": "草药生长期/云雾花成长期图片.png",
+      "hash": "4f3a8dd51551ad9d417461cd24a0dcd1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":532,\"height\":768}}",
+      "width": 532,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritflower2",
+      "source": "草药生长期/白莲成长期图片.png",
+      "hash": "0bf9e12ad5b6534893fe0aadeb52d45d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":627,\"height\":768}}",
+      "width": 627,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritflower3",
+      "source": "草药生长期/晨露花成长期图片.png",
+      "hash": "22538df8e30796723e1045af5f9f3180",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":582,\"height\":768}}",
+      "width": 582,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit1",
+      "source": "草药生长期/精气果成长期图片.png",
+      "hash": "a65bb5e9647a831fd68f5d4cc4158769",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":446,\"height\":768}}",
+      "width": 446,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit2",
+      "source": "草药生长期/赤心果成长期图片.png",
+      "hash": "41b200b1efc9d75046e1cc53d7b6e4e3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":590,\"height\":768}}",
+      "width": 590,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit3",
+      "source": "草药生长期/灵韵果成长期图片.png",
+      "hash": "60c6829a1834b68b52decf09e353aa08",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":474,\"height\":768}}",
+      "width": 474,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritgrass4",
+      "source": "草药生长期/寒霜草成长期图片.png",
+      "hash": "0dc38365a0a9274cfc4409d13399809a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":671,\"height\":982}}",
+      "width": 671,
+      "height": 982
+    },
+    {
+      "drawable": "growing_spiritgrass5",
+      "source": "草药生长期/烈焰草成长期图片.png",
+      "hash": "de9355ccdfc9047983d036e385ed99b8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":726,\"height\":828}}",
+      "width": 726,
+      "height": 828
+    },
+    {
+      "drawable": "growing_spiritgrass6",
+      "source": "草药生长期/金灵草成长期图片.png",
+      "hash": "3ea649a505b437d71976f9a0f4215c87",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":618,\"height\":934}}",
+      "width": 618,
+      "height": 934
+    },
+    {
+      "drawable": "growing_spiritflower4",
+      "source": "草药生长期/冰魄莲成长期图片.png",
+      "hash": "0d2672b62fc4a3c34e1d25b22d794c41",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":746,\"height\":866}}",
+      "width": 746,
+      "height": 866
+    },
+    {
+      "drawable": "growing_spiritflower5",
+      "source": "草药生长期/双生花成长期图片.png",
+      "hash": "4c0f6687b1bb75f9a869dadf741a1f67",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":614,\"height\":714}}",
+      "width": 614,
+      "height": 714
+    },
+    {
+      "drawable": "growing_spiritflower6",
+      "source": "草药生长期/紫霄花成长期图片.png",
+      "hash": "4ee0adab7ba7ec681b1808bae01e4fa1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":751,\"height\":988}}",
+      "width": 751,
+      "height": 988
+    },
+    {
+      "drawable": "growing_spiritfruit4",
+      "source": "草药生长期/通灵果成长期图片.png",
+      "hash": "ceea45cf7e21e206c336003fe0953bd8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":604,\"height\":1024}}",
+      "width": 604,
+      "height": 1024
+    },
+    {
+      "drawable": "growing_spiritfruit5",
+      "source": "草药生长期/玄灵果成长期图片.png",
+      "hash": "139a7730725649afa85fdb8fe0519c00",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":580,\"height\":768}}",
+      "width": 580,
+      "height": 768
+    },
+    {
+      "drawable": "growing_spiritfruit6",
+      "source": "草药生长期/五行果成长期图片.png",
+      "hash": "001e66032988acdb89cc4d037a9e1e85",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":663,\"height\":900}}",
+      "width": 663,
+      "height": 900
+    },
+    {
+      "drawable": "growing_spiritgrass7",
+      "source": "草药生长期/龙血草成长期.png",
+      "hash": "62c3716caa9394ecb5779d2aacbd3e22",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":436,\"height\":524}}",
+      "width": 436,
+      "height": 524
+    },
+    {
+      "drawable": "growing_spiritgrass8",
+      "source": "草药生长期/风铃草成长期.png",
+      "hash": "1b8e378056c4cad27df19eaea8d53a30",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":442,\"height\":745}}",
+      "width": 442,
+      "height": 745
+    },
+    {
+      "drawable": "growing_spiritgrass9",
+      "source": "草药生长期/九转灵草成长期.png",
+      "hash": "6d36dc56aae8f7a420b1cef26883e75c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":334,\"height\":410}}",
+      "width": 334,
+      "height": 410
+    },
+    {
+      "drawable": "growing_spiritflower7",
+      "source": "草药生长期/九转仙兰成长期.png",
+      "hash": "5d22217fa7fd85093d125f3c5fd556a1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":643,\"height\":508}}",
+      "width": 643,
+      "height": 508
+    },
+    {
+      "drawable": "growing_spiritflower8",
+      "source": "草药生长期/凤凰花成长期.png",
+      "hash": "6c1b09af52c7fc859c3b4d03b9e1f842",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":439,\"height\":551}}",
+      "width": 439,
+      "height": 551
+    },
+    {
+      "drawable": "growing_spiritflower9",
+      "source": "草药生长期/青龙花成长期.png",
+      "hash": "9fe2dbb698b7bdbe3fe95f8086b4a650",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":481,\"height\":652}}",
+      "width": 481,
+      "height": 652
+    },
+    {
+      "drawable": "growing_spiritfruit7",
+      "source": "草药生长期/赤阳果成长期.png",
+      "hash": "3ed9691fe32469311ba492322324a885",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":420,\"height\":533}}",
+      "width": 420,
+      "height": 533
+    },
+    {
+      "drawable": "growing_spiritfruit8",
+      "source": "草药生长期/玄灵莓成长期.png",
+      "hash": "b45784ac25a4a5ddce277be5f92e6a74",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":472,\"height\":590}}",
+      "width": 472,
+      "height": 590
+    },
+    {
+      "drawable": "growing_spiritfruit9",
+      "source": "草药生长期/天元果成长期.png",
+      "hash": "e2530f2c77e5dbb387ecee88c4f05146",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":361,\"height\":666}}",
+      "width": 361,
+      "height": 666
+    },
+    {
+      "drawable": "ui_button",
+      "source": "ui/按钮（长方形）.png",
+      "hash": "2a5d7c462b082a7700bf719867cee657",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3828,\"height\":1384}}",
+      "width": 3828,
+      "height": 1384
+    },
+    {
+      "drawable": "ui_close_button",
+      "source": "ui/关闭按钮（圆形）.png",
+      "hash": "f3e94eb16711dac6b627e772c93d114b",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":854,\"height\":788}}",
+      "width": 854,
+      "height": 788
+    },
+    {
+      "drawable": "ui_detail_button",
+      "source": "ui/详情按钮（圆形）.png",
+      "hash": "be3c575fd878d520ec5a11d03a0bf1e9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":882,\"height\":805}}",
+      "width": 882,
+      "height": 805
+    },
+    {
+      "drawable": "ui_add_button",
+      "source": "ui/+号按钮.png",
+      "hash": "539bda2ec9a00c938f6a7d5380500c6c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":2048}}",
+      "width": 2048,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_diplomacy_button",
+      "source": "ui/外交按钮（圆形）.png",
+      "hash": "bb4ddf258bce9b3c39b4a8fe6138357a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":942}}",
+      "width": 1024,
+      "height": 942
+    },
+    {
+      "drawable": "ui_guide_button",
+      "source": "ui/引导按钮.png",
+      "hash": "cdfa1ca5dfb790a9edc41f8e31d5d0c0",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1239}}",
+      "width": 1254,
+      "height": 1239
+    },
+    {
+      "drawable": "ui_merchant_button",
+      "source": "ui/商人按钮（圆形）.png",
+      "hash": "a0c7bc141bd8daefa10f7071bb3538c9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":922,\"height\":882}}",
+      "width": 922,
+      "height": 882
+    },
+    {
+      "drawable": "ui_build_button",
+      "source": "ui/建造.png",
+      "hash": "54c78384276b7cc16879520db45c3767",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1938}}",
+      "width": 2048,
+      "height": 1938
+    },
+    {
+      "drawable": "ui_warehouse_button",
+      "source": "ui/仓库按钮.png",
+      "hash": "8d7e53605aa2075aed9b49d32efb4a3b",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1448,\"height\":1394}}",
+      "width": 1448,
+      "height": 1394
+    },
+    {
+      "drawable": "ui_team_button",
+      "source": "ui/人物.png",
+      "hash": "207fa6ad6e0eef0f2aa1d9f16c791a68",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1666,\"height\":2048}}",
+      "width": 1666,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_map_button",
+      "source": "ui/地图.png",
+      "hash": "83c65e8477f19c78d4dd28106a7e7708",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1742}}",
+      "width": 2048,
+      "height": 1742
+    },
+    {
+      "drawable": "ui_planting_button",
+      "source": "ui/种植按钮.png",
+      "hash": "919d7d3f980a621a4d915c1ae3b4d519",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1221}}",
+      "width": 1254,
+      "height": 1221
+    },
+    {
+      "drawable": "ui_recruit_button",
+      "source": "ui/招募.png",
+      "hash": "41197780a7266e3141b6ca63b98f9718",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2036,\"height\":2048}}",
+      "width": 2036,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_mail_button",
+      "source": "ui/邮件.png",
+      "hash": "a4228dfc8c358d58a759946cc3b01604",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1254}}",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "drawable": "ui_log_button",
+      "source": "ui/日志.png",
+      "hash": "8f4ee1f38456827e2bbc708a7167a877",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":2010}}",
+      "width": 2048,
+      "height": 2010
+    },
+    {
+      "drawable": "dialog_box",
+      "source": "ui/提示框背景图.png",
+      "hash": "21549c82e97ee843d11a5fd607701497",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3176,\"height\":1040}}",
+      "width": 3176,
+      "height": 1040
+    },
+    {
+      "drawable": "ui_hide_button",
+      "source": "ui/隐藏ui按钮.png",
+      "hash": "785d29f869095f9ecb4d085698186cb3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1245}}",
+      "width": 1254,
+      "height": 1245
+    },
+    {
+      "drawable": "ui_show_button",
+      "source": "ui/ui显示按钮.png",
+      "hash": "2001d6ac913b411ee728c02daf7a7d36",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1272,\"height\":1238}}",
+      "width": 1272,
+      "height": 1238
+    },
+    {
+      "drawable": "ui_play_button",
+      "source": "ui/播放按钮（圆形）.png",
+      "hash": "388a845a2e0b1b72991ab98872f48f46",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1007,\"height\":948}}",
+      "width": 1007,
+      "height": 948
+    },
+    {
+      "drawable": "ui_pause_button",
+      "source": "ui/暂停按钮（圆形）.png",
+      "hash": "b4a5e41c6a4e414c10dd9abc4d567c28",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":943,\"height\":882}}",
+      "width": 943,
+      "height": 882
+    },
+    {
+      "drawable": "ui_settings_button",
+      "source": "ui/设置.png",
+      "hash": "4f61fbe714d184ae0cb3923636a082bd",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2044,\"height\":2048}}",
+      "width": 2044,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_start_button",
+      "source": "ui/进入游戏.png",
+      "hash": "7c564568ed1cbfee19b7c0f67cbc9449",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1825,\"height\":523}}",
+      "width": 1825,
+      "height": 523
+    },
+    {
+      "drawable": "loading_background",
+      "source": "ui/加载界面（横屏）.png",
+      "hash": "31285dc33dae49fb5981565ce8522ec2",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1672,\"height\":941}}",
+      "width": 1672,
+      "height": 941
+    },
+    {
+      "drawable": "combat_power_bg",
+      "source": "ui/战力背景图片.png",
+      "hash": "3d9e2f7e020bcfcd1d339a4c16fc7499",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1909,\"height\":534}}",
+      "width": 1909,
+      "height": 534
+    },
+    {
+      "drawable": "jade_symbol",
+      "source": "ui/玉符.png",
+      "hash": "4f2d4c310f267586ded8a87c72c8d181",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":518,\"height\":767}}",
+      "width": 518,
+      "height": 767
+    },
+    {
+      "drawable": "jade_add_button",
+      "source": "ui/+号按钮.png",
+      "hash": "539bda2ec9a00c938f6a7d5380500c6c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":2048}}",
+      "width": 2048,
+      "height": 2048
+    },
+    {
+      "drawable": "golden_finger",
+      "source": "ui/金手指.png",
+      "hash": "212d305e0f5f8d0cfd824a8bfad8c480",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":347,\"height\":438}}",
+      "width": 347,
+      "height": 438
+    },
+    {
+      "drawable": "secret_realm_option_card",
+      "source": "ui/远古秘境选项卡片.png",
+      "hash": "f030cf3f0702ee7d8201e0c8a0a51b5c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":834,\"height\":1536}}",
+      "width": 834,
+      "height": 1536
+    },
+    {
+      "drawable": "ui_lizhan_button",
+      "source": "ui/历战图标.png",
+      "hash": "65956d9c18d5b805d78bf720791c3352",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1269,\"height\":1238}}",
+      "width": 1269,
+      "height": 1238
+    },
+    {
+      "drawable": "li_zhan_card",
+      "source": "ui/历战卡片.png",
+      "hash": "d418e64a2be1041e1a623f6f9669ef1f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":930,\"height\":1536}}",
+      "width": 930,
+      "height": 1536
+    },
+    {
+      "drawable": "heavenly_trial_icon",
+      "source": "ui/天道试炼图标.png",
+      "hash": "ccb239a3b426373f01996f23ceeaa8d6",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":765,\"height\":768}}",
+      "width": 765,
+      "height": 768
+    },
+    {
+      "drawable": "ui_leaderboard_button",
+      "source": "ui/排行榜图标.png",
+      "hash": "9dd9b773d3b5071e81c5b562bef1affe",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1250,\"height\":1254}}",
+      "width": 1250,
+      "height": 1254
+    },
+    {
+      "drawable": "ui_flip_left",
+      "source": "ui/翻页按钮（左）.png",
+      "hash": "2bbf2ff7640f56ca62a25dcd4b64e8d9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":943,\"height\":968}}",
+      "width": 943,
+      "height": 968
+    },
+    {
+      "drawable": "ui_flip_right",
+      "source": "ui/翻页按钮(右）.png",
+      "hash": "3c183e8a9624f841b4f2701b4e33b045",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":947,\"height\":968}}",
+      "width": 947,
+      "height": 968
+    },
+    {
+      "drawable": "area_select_button",
+      "source": "ui/区域选择按钮.png",
+      "hash": "8be20f3bd87b259b8fb4d668150c607c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1254}}",
+      "width": 1254,
+      "height": 1254
+    },
+    {
+      "drawable": "ui_check_button",
+      "source": "ui/勾图标.png",
+      "hash": "3833f68c1185692d2c2820946a15c910",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1708}}",
+      "width": 2048,
+      "height": 1708
+    },
+    {
+      "drawable": "ui_x_button",
+      "source": "ui/x图标.png",
+      "hash": "6702e659694c5a2cee2b2d4d8e551db7",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2034,\"height\":2048}}",
+      "width": 2034,
+      "height": 2048
+    },
+    {
+      "drawable": "ui_enter",
+      "source": "ui/进入ui.png",
+      "hash": "9ed1b1427a66bd9966ff01dab629ce75",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1089}}",
+      "width": 1254,
+      "height": 1089
+    },
+    {
+      "drawable": "ui_planting",
+      "source": "ui/种植ui.png",
+      "hash": "97c7d68c683627b68fb9c0f441540f54",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2048,\"height\":1848}}",
+      "width": 2048,
+      "height": 1848
+    },
+    {
+      "drawable": "ui_alchemy",
+      "source": "ui/炼丹ui.png",
+      "hash": "5f49c35ca8b347d520ca51c867385b24",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":812,\"height\":886}}",
+      "width": 812,
+      "height": 886
+    },
+    {
+      "drawable": "ui_forge",
+      "source": "ui/锻造ui.png",
+      "hash": "fa9e5a7634bcf10336e1e6dac817c6f5",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":909,\"height\":886}}",
+      "width": 909,
+      "height": 886
+    },
+    {
+      "drawable": "tiger_beast",
+      "source": "妖兽/虎妖.png",
+      "hash": "8d8c6cfe655b15b58e09b35d97579c10",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":990,\"height\":596}}",
+      "width": 990,
+      "height": 596
+    },
+    {
+      "drawable": "wolf_beast",
+      "source": "妖兽/狼妖.png",
+      "hash": "73fdd95f67609a5a1bda16ab9318a610",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":896,\"height\":654}}",
+      "width": 896,
+      "height": 654
+    },
+    {
+      "drawable": "snake_beast",
+      "source": "妖兽/蛇妖.png",
+      "hash": "2abcf608dff4366fe45e5b581c8389a3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":956,\"height\":748}}",
+      "width": 956,
+      "height": 748
+    },
+    {
+      "drawable": "bear_beast",
+      "source": "妖兽/熊妖.png",
+      "hash": "23de191d81bfd308dc5de36c4c158dc3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":990,\"height\":703}}",
+      "width": 990,
+      "height": 703
+    },
+    {
+      "drawable": "eagle_beast",
+      "source": "妖兽/鹰妖.png",
+      "hash": "576f3723490abc395aedb324c334fb6d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":617}}",
+      "width": 1024,
+      "height": 617
+    },
+    {
+      "drawable": "fox_beast",
+      "source": "妖兽/狐妖.png",
+      "hash": "fefc9a9d94951f4245ad007461ffc722",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":990,\"height\":668}}",
+      "width": 990,
+      "height": 668
+    },
+    {
+      "drawable": "dragon_beast",
+      "source": "妖兽/龙妖.png",
+      "hash": "71fd5f58cf7381795e44781d9448d891",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":658}}",
+      "width": 1024,
+      "height": 658
+    },
+    {
+      "drawable": "turtle_beast",
+      "source": "妖兽/龟妖.png",
+      "hash": "392af8e0550a7170ea025fe2c33a582f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":686}}",
+      "width": 1024,
+      "height": 686
+    },
+    {
+      "drawable": "cave_1",
+      "source": "建筑/洞府素材1.png",
+      "hash": "69ed119342f4817b06eda0416fee5a74",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":998,\"height\":929}}",
+      "width": 998,
+      "height": 929
+    },
+    {
+      "drawable": "cave_2",
+      "source": "建筑/洞府素材2.png",
+      "hash": "f3ec7fa6e9a71a914d333fc2eaeeec5d",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":891}}",
+      "width": 1024,
+      "height": 891
+    },
+    {
+      "drawable": "cave_3",
+      "source": "建筑/洞府素材3.png",
+      "hash": "945dd4a15d1a5e00c68ad745dbac7c0e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1015,\"height\":950}}",
+      "width": 1015,
+      "height": 950
+    },
+    {
+      "drawable": "secret_realm",
+      "source": "地图关卡场景/远古秘境.png",
+      "hash": "c14ea49d572da28b67bf5ac4c04bd951",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1254,\"height\":1236}}",
+      "width": 1254,
+      "height": 1236
+    },
+    {
+      "drawable": "heavenly_trial_island_1",
+      "source": "地图关卡场景/天道试炼活动第一关岛屿.png",
+      "hash": "9502bfd9d5e0268bd2ccfd9228c8caf3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":655,\"height\":1024}}",
+      "width": 655,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_2",
+      "source": "地图关卡场景/天道试炼第二关岛屿.png",
+      "hash": "d1b7cac322a76c7701b50485c8817bb7",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":676,\"height\":1024}}",
+      "width": 676,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_3",
+      "source": "地图关卡场景/天道试炼第三关岛屿.png",
+      "hash": "9ec42e7c391e04f653717758ef8e20f1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":666,\"height\":1024}}",
+      "width": 666,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_4",
+      "source": "地图关卡场景/天道试炼第四关岛屿.png",
+      "hash": "f36626b19ec844e83baa4694e3a3a824",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":870,\"height\":1024}}",
+      "width": 870,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_5",
+      "source": "地图关卡场景/天道试炼第五关岛屿.png",
+      "hash": "e304f9ae2f580aabe853e77b951a2aae",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":622,\"height\":1024}}",
+      "width": 622,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_6",
+      "source": "地图关卡场景/天道试炼第六关岛屿.png",
+      "hash": "75b0b82efc32df0b38a5fa30c104d09f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":677,\"height\":1024}}",
+      "width": 677,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_island_7",
+      "source": "地图关卡场景/天道试炼第七关岛屿.png",
+      "hash": "1f68c6cfb4ed9ed4e44e6dd7a0985b87",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":674,\"height\":1022}}",
+      "width": 674,
+      "height": 1022
+    },
+    {
+      "drawable": "heavenly_trial_island_8",
+      "source": "地图关卡场景/天道试炼第八关岛屿.png",
+      "hash": "09701f2c47bd76740767e7b16e514ae3",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":724,\"height\":1024}}",
+      "width": 724,
+      "height": 1024
+    },
+    {
+      "drawable": "heavenly_trial_challenge_bg",
+      "source": "背景图/天道试炼活动背景图.png",
+      "hash": "4cf9a786a00d15764e0da6d4e905e403",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1376,\"height\":768}}",
+      "width": 1376,
+      "height": 768
+    },
+    {
+      "drawable": "heavenly_trial_battle_scene",
+      "source": "背景图/战斗场景.png",
+      "hash": "fb52c16607aba861eeb30e7ab5422200",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1247,\"height\":702}}",
+      "width": 1247,
+      "height": 702
+    },
+    {
+      "drawable": "heavenly_trial_battle_bar",
+      "source": "ui/战斗栏背景图.png",
+      "hash": "9c5421649307fca681f077faf741557e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1407,\"height\":414}}",
+      "width": 1407,
+      "height": 414
+    },
+    {
+      "drawable": "heavenly_trial_defend",
+      "source": "ui/防御图标.png",
+      "hash": "45329cb949d80bce2882fa116dc9b03e",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":743,\"height\":767}}",
+      "width": 743,
+      "height": 767
+    },
+    {
+      "drawable": "heavenly_trial_atk_normal",
+      "source": "ui/普通攻击图标.png",
+      "hash": "1adba26d28ff780dd9ae56887bc3647f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":742,\"height\":768}}",
+      "width": 742,
+      "height": 768
+    },
+    {
+      "drawable": "heavenly_trial_phase1",
+      "source": "ui/天道试炼活动挑战界面第一关图标.png",
+      "hash": "6560bebfd2642eedf3848ca8ef1a1cf9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":746,\"height\":768}}",
+      "width": 746,
+      "height": 768
+    },
+    {
+      "drawable": "heavenly_trial_phase2",
+      "source": "ui/天道试炼活动挑战界面第二关图标.png",
+      "hash": "2961f49fa7d6e04df9e84c376f4c9c0f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":746,\"height\":768}}",
+      "width": 746,
+      "height": 768
+    },
+    {
+      "drawable": "bg_horizontal",
+      "source": "背景图/横向背景图.png",
+      "hash": "092ee346169567f4251314cf5e4e8b8a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":4096,\"height\":2300}}",
+      "width": 4096,
+      "height": 2300
+    },
+    {
+      "drawable": "bg_dialog_mail",
+      "source": "ui/提示框背景图.png",
+      "hash": "21549c82e97ee843d11a5fd607701497",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":3176,\"height\":1040}}",
+      "width": 3176,
+      "height": 1040
+    },
+    {
+      "drawable": "bg_screen",
+      "source": "ui/界面背景图.png",
+      "hash": "7c4440afa1cdc9f7de522de43391fbf2",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1024,\"height\":1536}}",
+      "width": 1024,
+      "height": 1536
+    },
+    {
+      "drawable": "map_zhongzhou",
+      "source": "地图关卡场景/中州.png",
+      "hash": "a2508b089aacce36d0e73b0e36989607",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1698,\"height\":926}}",
+      "width": 1698,
+      "height": 926
+    },
+    {
+      "drawable": "dialogue_bg",
+      "source": "ui/聊天背景图.png",
+      "hash": "e0121dba52ec6e29e8254b86b364cdc1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":1024}}",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "drawable": "dialogue_bubble_left",
+      "source": "ui/聊天框（左）.png",
+      "hash": "dc0027e8d4f234dc58e6309bef26203c",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1232,\"height\":200}}",
+      "width": 1232,
+      "height": 200
+    },
+    {
+      "drawable": "dialogue_bubble_right",
+      "source": "ui/聊天框（右）.png",
+      "hash": "66d796e1f897d092720e7bc6c49600d0",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1233,\"height\":202}}",
+      "width": 1233,
+      "height": 202
+    },
+    {
+      "drawable": "secret_realm_bg",
+      "source": "背景图/远古秘境背景图.png",
+      "hash": "de36299e46b2bc5292d8adc87588a23f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1536,\"height\":1024}}",
+      "width": 1536,
+      "height": 1024
+    },
+    {
+      "drawable": "cloud_1",
+      "source": "装饰物/云层1.png",
+      "hash": "112fe3376f8f09df131bed7954bdca53",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":484,\"height\":120}}",
+      "width": 484,
+      "height": 120
+    },
+    {
+      "drawable": "cloud_2",
+      "source": "装饰物/云层2.png",
+      "hash": "6a5efe680396c26b67440124e11cb6f8",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":452,\"height\":188}}",
+      "width": 452,
+      "height": 188
+    },
+    {
+      "drawable": "cloud_3",
+      "source": "装饰物/云层3.png",
+      "hash": "61072aa5962a5ab111f8ff5fe2cdc0b7",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":488,\"height\":96}}",
+      "width": 488,
+      "height": 96
+    },
+    {
+      "drawable": "cloud_4",
+      "source": "装饰物/云层4.png",
+      "hash": "f99e7492718501cfea11d0784c59317f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":524,\"height\":108}}",
+      "width": 524,
+      "height": 108
+    },
+    {
+      "drawable": "cloud_5",
+      "source": "装饰物/云层5.png",
+      "hash": "1a029c211f57557569ace7ac963d81d9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":472,\"height\":200}}",
+      "width": 472,
+      "height": 200
+    },
+    {
+      "drawable": "building_tianshu_hall",
+      "source": "建筑/天枢殿.png",
+      "hash": "060d54c88096271369620ce1e641cd1f",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1405,\"height\":1091}}",
+      "width": 1405,
+      "height": 1091
+    },
+    {
+      "drawable": "map_grass_1",
+      "source": "装饰物/草皮.png",
+      "hash": "c6dd88c0cf862279c69df19dbba41a8d",
+      "bakeKey": "{\"bake\":{\"maxDim\":64,\"seamless\":true},\"target\":{\"width\":64,\"height\":64}}",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "drawable": "sect_gate",
+      "source": "建筑/宗门门楼.png",
+      "hash": "dd29aec3d3151020ef14c1d04730cec6",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1361,\"height\":800}}",
+      "width": 1361,
+      "height": 800
+    },
+    {
+      "drawable": "decoration_grass1",
+      "source": "装饰物/花草1.png",
+      "hash": "e2557ee8dd2f8e63d5ae70d88285d8f1",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2176,\"height\":1888}}",
+      "width": 2176,
+      "height": 1888
+    },
+    {
+      "drawable": "decoration_grass2",
+      "source": "装饰物/花草2.png",
+      "hash": "89dfe367c86c43cc41a525b4c3798ecd",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2206,\"height\":1760}}",
+      "width": 2206,
+      "height": 1760
+    },
+    {
+      "drawable": "decoration_grass3",
+      "source": "装饰物/花草3.png",
+      "hash": "68aff5e7a2bbaff5f9c26df456af8ab9",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2272,\"height\":1972}}",
+      "width": 2272,
+      "height": 1972
+    },
+    {
+      "drawable": "decoration_grass4",
+      "source": "装饰物/花草4.png",
+      "hash": "fbb6905c9acc51aa29d54657981f6b13",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1919,\"height\":2044}}",
+      "width": 1919,
+      "height": 2044
+    },
+    {
+      "drawable": "decoration_stone1",
+      "source": "装饰物/石头1.png",
+      "hash": "b792cafbf8dafe6a64254a27f0007f61",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2314,\"height\":1664}}",
+      "width": 2314,
+      "height": 1664
+    },
+    {
+      "drawable": "decoration_stone2",
+      "source": "装饰物/石头2.png",
+      "hash": "a9ad8173ca62b0d72cc4be80f870766a",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2487,\"height\":1696}}",
+      "width": 2487,
+      "height": 1696
+    },
+    {
+      "drawable": "decoration_stone3",
+      "source": "装饰物/石头3.png",
+      "hash": "4ef9fe312d315ae08b22d24afbf59dcf",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2240,\"height\":1856}}",
+      "width": 2240,
+      "height": 1856
+    },
+    {
+      "drawable": "decoration_tree1",
+      "source": "装饰物/树木1.png",
+      "hash": "ba84bfd9ccdbf03c0f11a953cf1a2bd4",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":1789,\"height\":2208}}",
+      "width": 1789,
+      "height": 2208
+    },
+    {
+      "drawable": "decoration_tree2",
+      "source": "装饰物/树木2.png",
+      "hash": "3ee4f2657dd0143d7f8a44d2ec1ba311",
+      "bakeKey": "{\"bake\":{\"preserve\":true},\"target\":{\"width\":2079,\"height\":2176}}",
+      "width": 2079,
+      "height": 2176
+    },
+    {
+      "drawable": "map_edge_left_1",
+      "source": "宗门地图边缘/边缘1.png",
+      "hash": "5d697c9baa44225e25b6c0ea697d2721",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1176,\"height\":3552}}",
+      "width": 1176,
+      "height": 3552
+    },
+    {
+      "drawable": "map_edge_left_2",
+      "source": "宗门地图边缘/边缘2.png",
+      "hash": "33c1ca91a698682c6511ded755f29fd2",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1120,\"height\":3368}}",
+      "width": 1120,
+      "height": 3368
+    },
+    {
+      "drawable": "map_edge_left_3",
+      "source": "宗门地图边缘/边缘3.png",
+      "hash": "2601ad6843e246aef39f16a1213f3fc5",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1180,\"height\":3552}}",
+      "width": 1180,
+      "height": 3552
+    },
+    {
+      "drawable": "map_edge_bottom_1",
+      "source": "宗门地图边缘/边缘4.png",
+      "hash": "1f710d39a9055fd59b8049939cddc8ea",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":2560,\"height\":1696}}",
+      "width": 2560,
+      "height": 1696
+    },
+    {
+      "drawable": "map_edge_bottom_2",
+      "source": "宗门地图边缘/边缘5.png",
+      "hash": "3b4ce62e2bb42b5a10edf3f6691e7d35",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":2304,\"height\":1888}}",
+      "width": 2304,
+      "height": 1888
+    },
+    {
+      "drawable": "map_edge_corner_bl",
+      "source": "宗门地图边缘/边缘6.png",
+      "hash": "69fef73b5bdbfa2b31f43c8576a0a3ac",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1832,\"height\":2400}}",
+      "width": 1832,
+      "height": 2400
+    },
+    {
+      "drawable": "map_edge_corner_br",
+      "source": "宗门地图边缘/边缘7.png",
+      "hash": "fa818b6e57b057e5d6b396c8ce708541",
+      "bakeKey": "{\"bake\":{\"preserve\":true,\"roundUp4\":true},\"target\":{\"width\":1828,\"height\":2396}}",
+      "width": 1828,
+      "height": 2396
+    }
+  ]
+}

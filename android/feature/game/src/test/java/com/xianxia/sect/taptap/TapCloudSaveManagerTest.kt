@@ -1,0 +1,201 @@
+package com.xianxia.sect.taptap
+
+import com.xianxia.sect.taptap.TapCloudSaveManager.CloudSaveInfo
+import com.xianxia.sect.taptap.TapCloudSaveManager.CloudSaveResult
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * TapCloudSaveManager 的单元测试。
+ *
+ * 注意：tap-cloudsave SDK 不在 test scope 中，因此反射桥接相关的测试
+ * 需要添加 testImplementation 依赖或使用 androidInstrumentedTest。
+ * 本文件测试不依赖 SDK 的纯数据类逻辑。
+ */
+class TapCloudSaveManagerTest {
+
+    // ── CloudSaveResult 测试 ──
+
+    @Test
+    fun `CloudSaveResult Success - default has null saveData`() {
+        val result = CloudSaveResult.Success()
+        assertNull(result.saveData)
+    }
+
+    @Test
+    fun `CloudSaveResult NetworkError - holds message`() {
+        val result = CloudSaveResult.NetworkError("connection timeout")
+        assertEquals("connection timeout", result.message)
+    }
+
+    @Test
+    fun `CloudSaveResult AuthRequired - holds message`() {
+        val result = CloudSaveResult.AuthRequired("need login")
+        assertEquals("need login", result.message)
+    }
+
+    @Test
+    fun `CloudSaveResult NoSaveExists - has default message`() {
+        val result1 = CloudSaveResult.NoSaveExists()
+        assertEquals("云存档不存在", result1.message)
+
+        val result2 = CloudSaveResult.NoSaveExists("custom msg")
+        assertEquals("custom msg", result2.message)
+    }
+
+    @Test
+    fun `CloudSaveResult FileTooLarge - holds size info`() {
+        val result = CloudSaveResult.FileTooLarge(10L * 1024 * 1024, 20L * 1024 * 1024)
+        assertEquals(10L * 1024 * 1024, result.maxBytes)
+        assertEquals(20L * 1024 * 1024, result.actualBytes)
+    }
+
+    @Test
+    fun `CloudSaveResult SerializationError - holds message`() {
+        val result = CloudSaveResult.SerializationError("json error")
+        assertEquals("json error", result.message)
+    }
+
+    @Test
+    fun `CloudSaveResult UnknownError - holds message`() {
+        val result = CloudSaveResult.UnknownError("unknown failure")
+        assertEquals("unknown failure", result.message)
+    }
+
+    // ── CloudSaveInfo 测试 ──
+
+    @Test
+    fun `CloudSaveInfo - default is no save data`() {
+        val info = CloudSaveInfo(false)
+        assertFalse(info.hasSaveData)
+        assertEquals(0L, info.lastModifiedTime)
+        assertEquals(0L, info.saveSize)
+        assertEquals("", info.description)
+    }
+
+    @Test
+    fun `CloudSaveInfo - can hold save metadata`() {
+        val info = CloudSaveInfo(
+            hasSaveData = true,
+            lastModifiedTime = 1700000000000L,
+            saveSize = 1024L,
+            description = "save at year 5"
+        )
+        assertTrue(info.hasSaveData)
+        assertEquals(1700000000000L, info.lastModifiedTime)
+        assertEquals(1024L, info.saveSize)
+        assertEquals("save at year 5", info.description)
+    }
+
+    // ── CloudSaveResult 类型变体验证 ──
+
+    @Test
+    fun `CloudSaveResult - has exactly 7 variant types`() {
+        // 验证所有 CloudSaveResult 子类型都能构造且互斥
+        val results: List<CloudSaveResult> = listOf(
+            CloudSaveResult.Success(),
+            CloudSaveResult.NetworkError("e1"),
+            CloudSaveResult.AuthRequired("e2"),
+            CloudSaveResult.NoSaveExists(),
+            CloudSaveResult.FileTooLarge(0, 0),
+            CloudSaveResult.SerializationError("e3"),
+            CloudSaveResult.UnknownError("e4")
+        )
+        assertEquals(7, results.size)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 版本比较仲裁
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `compareVersions - same version equals zero`() {
+        assertEquals(0, TapCloudSaveManager.compareVersions("4.00.89", "4.00.89"))
+    }
+
+    @Test
+    fun `compareVersions - numeric segment comparison handles zero padding`() {
+        // 点分段数值比较："4.0.9" < "4.0.13"（字符串比较会错误判反）
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.9", "4.0.13") < 0)
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.13", "4.0.9") > 0)
+    }
+
+    @Test
+    fun `compareVersions - minor and major differences`() {
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.89", "4.1.0") < 0)
+        assertTrue(TapCloudSaveManager.compareVersions("5.0.0", "4.99.99") > 0)
+    }
+
+    @Test
+    fun `compareVersions - shorter segment treated as zero padded`() {
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.9", "4.0") > 0)
+        assertTrue(TapCloudSaveManager.compareVersions("4", "4.0.0") == 0)
+    }
+
+    @Test
+    fun `compareVersions - trailing whitespace trimmed before comparison`() {
+        // 版本段必须 trim："4.0.89 "尾随空格会使 "89 ".toIntOrNull()
+        // 为 null → 归一化为 0 → 高版本仲裁被绕过
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.89 ", "4.0.88") > 0)
+        assertTrue(TapCloudSaveManager.compareVersions(" 4.0.9 ", "4.0.13") < 0)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // resolveCloudSaveInfo 防陈旧元数据清零
+    // ──────────────────────────────────────────────────────────────────
+
+    private fun realInfo(lastModifiedTime: Long, year: Int = 3, sect: String = "青云宗") = CloudSaveInfo(
+        hasSaveData = true,
+        lastModifiedTime = lastModifiedTime,
+        gameYear = year,
+        gameMonth = 5,
+        sectName = sect,
+        discipleCount = 7,
+        spiritStones = 1000L
+    )
+
+    @Test
+    fun `hasMeaningfulSummary - empty game fields means stale summary`() {
+        assertFalse(CloudSaveInfo(true).hasMeaningfulSummary())
+        assertTrue(realInfo(1L).hasMeaningfulSummary())
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - stale empty API summary does not zero out cached real data`() {
+        // 上传后立刻重查 TapTap，API 返回"有存档但摘要全空"的陈旧 extra（全 0 根因）
+        val cached = realInfo(lastModifiedTime = 2000L)
+        val staleApi = CloudSaveInfo(hasSaveData = true, lastModifiedTime = 1000L)
+        assertEquals(cached, TapCloudSaveManager.resolveCloudSaveInfo(cached, staleApi))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - newer cached data preferred over stale-but-meaningful API`() {
+        // API 返回旧但非空的摘要（metadata 未同步）→ 不得把更新的本地数据降级
+        val cached = realInfo(lastModifiedTime = 5000L, year = 12, sect = "青云宗")
+        val staleApi = realInfo(lastModifiedTime = 4000L, year = 3, sect = "青云宗")
+        assertEquals(cached, TapCloudSaveManager.resolveCloudSaveInfo(cached, staleApi))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - newer meaningful API summary is adopted`() {
+        // 跨设备/较新的 API 摘要（更新时间晚于缓存）→ 采用 API 并用于更新缓存
+        val cached = realInfo(lastModifiedTime = 1000L, year = 3)
+        val api = realInfo(lastModifiedTime = 3000L, year = 5, sect = "新宗门")
+        assertEquals(api, TapCloudSaveManager.resolveCloudSaveInfo(cached, api))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - API no save falls back to cache`() {
+        val cached = realInfo(lastModifiedTime = 2000L)
+        assertEquals(cached, TapCloudSaveManager.resolveCloudSaveInfo(cached, CloudSaveInfo(false)))
+    }
+
+    @Test
+    fun `resolveCloudSaveInfo - no cache adopts API result`() {
+        val api = realInfo(lastModifiedTime = 2000L)
+        assertEquals(api, TapCloudSaveManager.resolveCloudSaveInfo(null, api))
+    }
+}

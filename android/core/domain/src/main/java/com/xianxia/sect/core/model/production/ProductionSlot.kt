@@ -1,0 +1,377 @@
+package com.xianxia.sect.core.model.production
+
+import androidx.annotation.Keep
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.TypeConverter
+import androidx.room.TypeConverters
+import com.xianxia.sect.core.model.BuildingTypeAsStringSerializer
+import com.xianxia.sect.core.model.NullableStringAsEmptySerializer
+import com.xianxia.sect.core.model.ProductionSlotStatusAsStringSerializer
+import com.xianxia.sect.core.util.TimeProgressUtil
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlinx.serialization.protobuf.ProtoNumber
+
+@Keep
+@Serializable
+@Entity(
+    tableName = "production_slots",
+    primaryKeys = ["id", "slot_id"],
+    indices = [
+        Index(value = ["buildingId", "slotIndex"]),
+        Index(value = ["buildingType"]),
+        Index(value = ["status"])
+    ]
+)
+@TypeConverters(ProductionSlotConverters::class)
+data class ProductionSlot(
+    @ProtoNumber(1)
+    @ColumnInfo(name = "id")
+    val id: String = java.util.UUID.randomUUID().toString(),
+
+    @Transient
+    @ColumnInfo(name = "slot_id")
+    var slotId: Int = 0,
+
+    @ProtoNumber(2)
+    val slotIndex: Int = 0,
+    @ProtoNumber(3)
+    @kotlinx.serialization.Serializable(with = BuildingTypeAsStringSerializer::class)
+    val buildingType: BuildingType = BuildingType.ALCHEMY,
+    @ProtoNumber(4)
+    val buildingId: String = "",
+    @ProtoNumber(5)
+    @kotlinx.serialization.Serializable(with = ProductionSlotStatusAsStringSerializer::class)
+    val status: ProductionSlotStatus = ProductionSlotStatus.IDLE,
+    @ProtoNumber(6)
+    @kotlinx.serialization.Serializable(with = NullableStringAsEmptySerializer::class)
+    val recipeId: String? = null,
+    @ProtoNumber(7)
+    val recipeName: String = "",
+    @ProtoNumber(8)
+    val startYear: Int = 0,
+    @ProtoNumber(9)
+    val startMonth: Int = 0,
+    @ProtoNumber(10)
+    val duration: Int = 0,
+    /** 配方基础持续时间（不含加成），用于月结时动态重算 */
+    @ProtoNumber(22)
+    @ColumnInfo(defaultValue = "0")
+    val baseDuration: Int = 0,
+    @ProtoNumber(11)
+    @kotlinx.serialization.Serializable(with = NullableStringAsEmptySerializer::class)
+    val assignedDiscipleId: String? = null,
+    @ProtoNumber(12)
+    val assignedDiscipleName: String = "",
+    @ProtoNumber(13)
+    val successRate: Double = 0.0,
+    @Transient
+    val requiredMaterials: Map<String, Int> = emptyMap(),
+    @ProtoNumber(14)
+    @kotlinx.serialization.Serializable(with = NullableStringAsEmptySerializer::class)
+    val outputItemId: String? = null,
+    @ProtoNumber(15)
+    val outputItemName: String = "",
+    @ProtoNumber(16)
+    val outputItemRarity: Int = 1,
+    @ProtoNumber(24)
+    val outputItemSlot: String = "",
+    @ProtoNumber(17)
+    @ColumnInfo(defaultValue = "0")
+    val expectedYield: Int = 0,
+    @ProtoNumber(18)
+    @ColumnInfo(defaultValue = "0")
+    val autoRestartEnabled: Boolean = false,
+    @ProtoNumber(19)
+    @ColumnInfo(defaultValue = "0")
+    val completionMonth: Int = 0,
+    @ProtoNumber(20)
+    @ColumnInfo(defaultValue = "1")
+    val completionPhase: Int = 1,
+    /**
+     * 所属建筑实例 ID（炼丹炉/锻造坊）。
+     *
+     * 用于建筑移除时按实例精确匹配槽位，替代旧的 `maxOfOrNull { it.slotIndex }`
+     * 按最大 slotIndex 移除的模式（多建筑同类型时可能移除错误槽位）。
+     *
+     * 旧存档加载时为空字符串。ProductionSlot 由 Repository 管理，
+     * 旧数据回填需在 Repository 初始化时按 buildingId 分组顺序推断。
+     */
+    @ProtoNumber(21)
+    @ColumnInfo(defaultValue = "")
+    val buildingInstanceId: String = ""
+) {
+    val isIdle: Boolean get() = status == ProductionSlotStatus.IDLE
+    val isWorking: Boolean get() = status == ProductionSlotStatus.WORKING
+    val isCompleted: Boolean get() = status == ProductionSlotStatus.COMPLETED
+    val slotType: SlotType get() = buildingType.toSlotType()
+
+    fun remainingTime(currentYear: Int, currentMonth: Int): Int {
+        if (status != ProductionSlotStatus.WORKING) return 0
+        return TimeProgressUtil.calculateRemainingMonths(startYear, startMonth, duration, currentYear, currentMonth)
+    }
+
+    fun getProgressPercent(currentYear: Int, currentMonth: Int): Int {
+        if (status != ProductionSlotStatus.WORKING || duration <= 0) return 0
+        return TimeProgressUtil.calculateProgressPercent(startYear, startMonth, duration, currentYear, currentMonth)
+    }
+
+    fun isFinished(currentYear: Int, currentMonth: Int): Boolean {
+        if (status != ProductionSlotStatus.WORKING) return status == ProductionSlotStatus.COMPLETED
+        return TimeProgressUtil.isTimeElapsed(startYear, startMonth, duration, currentYear, currentMonth)
+    }
+
+    companion object {
+        fun createIdle(
+            id: String = java.util.UUID.randomUUID().toString(),
+            slotIndex: Int,
+            buildingType: BuildingType,
+            buildingId: String = "",
+            autoRestartEnabled: Boolean = false,
+            assignedDiscipleId: String? = null,
+            assignedDiscipleName: String = "",
+            recipeId: String? = null
+        ): ProductionSlot = ProductionSlot(
+            id = id,
+            slotIndex = slotIndex,
+            buildingType = buildingType,
+            buildingId = buildingId,
+            status = ProductionSlotStatus.IDLE,
+            autoRestartEnabled = autoRestartEnabled,
+            assignedDiscipleId = assignedDiscipleId,
+            assignedDiscipleName = assignedDiscipleName,
+            recipeId = recipeId
+        )
+
+        fun resolveBuildingType(buildingId: String): BuildingType = when (buildingId.lowercase()) {
+            "forge", "forging" -> BuildingType.FORGE
+            "alchemy", "alchemyroom" -> BuildingType.ALCHEMY
+            "mine", "mining" -> BuildingType.MINING
+            "herb", "herbgarden", "herb_garden" -> BuildingType.HERB_GARDEN
+            else -> BuildingType.ALCHEMY
+        }
+
+        fun fromBuildingSlot(buildingSlot: com.xianxia.sect.core.model.BuildingSlot): ProductionSlot {
+            val bType = resolveBuildingType(buildingSlot.buildingId)
+            return ProductionSlot(
+                id = buildingSlot.id,
+                slotIndex = buildingSlot.slotIndex,
+                buildingType = bType,
+                buildingId = buildingSlot.buildingId,
+                status = when (buildingSlot.status) {
+                    com.xianxia.sect.core.model.SlotStatus.IDLE -> ProductionSlotStatus.IDLE
+                    com.xianxia.sect.core.model.SlotStatus.WORKING -> ProductionSlotStatus.WORKING
+                    com.xianxia.sect.core.model.SlotStatus.COMPLETED -> ProductionSlotStatus.COMPLETED
+                },
+                recipeId = buildingSlot.recipeId,
+                recipeName = buildingSlot.recipeName,
+                startYear = buildingSlot.startYear,
+                startMonth = buildingSlot.startMonth,
+                duration = buildingSlot.duration,
+                assignedDiscipleId = buildingSlot.discipleId,
+                assignedDiscipleName = buildingSlot.discipleName
+            )
+        }
+
+        fun fromAlchemySlot(alchemySlot: com.xianxia.sect.core.model.AlchemySlot): ProductionSlot = ProductionSlot(
+            id = alchemySlot.id,
+            slotIndex = alchemySlot.slotIndex,
+            buildingType = BuildingType.ALCHEMY,
+            buildingId = "alchemy",
+            status = when (alchemySlot.status) {
+                com.xianxia.sect.core.model.AlchemySlotStatus.IDLE -> ProductionSlotStatus.IDLE
+                com.xianxia.sect.core.model.AlchemySlotStatus.WORKING -> ProductionSlotStatus.WORKING
+                com.xianxia.sect.core.model.AlchemySlotStatus.FINISHED -> ProductionSlotStatus.COMPLETED
+            },
+            recipeId = alchemySlot.recipeId,
+            recipeName = alchemySlot.recipeName,
+            startYear = alchemySlot.startYear,
+            startMonth = alchemySlot.startMonth,
+            duration = alchemySlot.duration,
+            assignedDiscipleId = null,
+            assignedDiscipleName = "",
+            successRate = alchemySlot.successRate,
+            requiredMaterials = alchemySlot.requiredMaterials,
+            outputItemId = alchemySlot.recipeId,
+            outputItemName = alchemySlot.pillName,
+            outputItemRarity = alchemySlot.pillRarity,
+            autoRestartEnabled = alchemySlot.autoRestartEnabled
+        )
+
+        fun fromForgeSlot(forgeSlot: com.xianxia.sect.core.model.ForgeSlot): ProductionSlot = ProductionSlot(
+            id = forgeSlot.id,
+            slotIndex = forgeSlot.slotIndex,
+            buildingType = BuildingType.FORGE,
+            buildingId = "forge",
+            status = when (forgeSlot.status) {
+                com.xianxia.sect.core.model.ForgeSlotStatus.IDLE -> ProductionSlotStatus.IDLE
+                com.xianxia.sect.core.model.ForgeSlotStatus.WORKING -> ProductionSlotStatus.WORKING
+                com.xianxia.sect.core.model.ForgeSlotStatus.FINISHED -> ProductionSlotStatus.COMPLETED
+            },
+            recipeId = forgeSlot.recipeId,
+            recipeName = forgeSlot.recipeName,
+            startYear = forgeSlot.startYear,
+            startMonth = forgeSlot.startMonth,
+            duration = forgeSlot.duration,
+            assignedDiscipleId = null,
+            assignedDiscipleName = "",
+            successRate = forgeSlot.successRate,
+            requiredMaterials = forgeSlot.requiredMaterials,
+            outputItemId = forgeSlot.recipeId,
+            outputItemName = forgeSlot.equipmentName,
+            outputItemRarity = forgeSlot.equipmentRarity,
+            outputItemSlot = forgeSlot.equipmentSlot.name,
+            autoRestartEnabled = forgeSlot.autoRestartEnabled
+        )
+
+        fun fromPlantSlot(plantSlot: com.xianxia.sect.core.model.PlantSlotData): ProductionSlot = ProductionSlot(
+            id = java.util.UUID.randomUUID().toString(),
+            slotIndex = plantSlot.index,
+            buildingType = BuildingType.HERB_GARDEN,
+            buildingId = "herbGarden",
+            status = when (plantSlot.status) {
+                "idle" -> ProductionSlotStatus.IDLE
+                "growing" -> ProductionSlotStatus.WORKING
+                "mature" -> ProductionSlotStatus.COMPLETED
+                else -> ProductionSlotStatus.IDLE
+            },
+            recipeId = plantSlot.seedId.ifEmpty { null },
+            recipeName = plantSlot.seedName,
+            startYear = plantSlot.startYear,
+            startMonth = plantSlot.startMonth,
+            duration = plantSlot.growTime,
+            outputItemId = plantSlot.seedId.ifEmpty { null },
+            outputItemName = plantSlot.seedName,
+            expectedYield = plantSlot.expectedYield
+        )
+    }
+}
+
+@Keep
+@Serializable
+enum class BuildingType {
+    ALCHEMY,
+    FORGE,
+    MINING,
+    SPIRIT_FIELD,
+    HERB_GARDEN,
+    ADMINISTRATION,
+    LIBRARY,
+    WEN_DAO_PEAK,
+    QINGYUN_PEAK,
+    LAW_ENFORCEMENT_HALL,
+    MISSION_HALL,
+    REFLECTION_CLIFF,
+    SINGLE_RESIDENCE,
+    MULTI_RESIDENCE,
+    WAREHOUSE,
+    PATROL,
+    BLOOD_REFINING_POOL;
+
+    val displayName: String get() = when (this) {
+        ALCHEMY -> "炼丹"
+        FORGE -> "锻造"
+        MINING -> "灵矿开采"
+        SPIRIT_FIELD -> "灵田"
+        HERB_GARDEN -> "灵植阁"
+        ADMINISTRATION -> "天枢殿"
+        LIBRARY -> "藏经阁"
+        WEN_DAO_PEAK -> "问道塔"
+        QINGYUN_PEAK -> "青云塔"
+        LAW_ENFORCEMENT_HALL -> "执法堂"
+        MISSION_HALL -> "任务阁"
+        REFLECTION_CLIFF -> "监牢"
+        SINGLE_RESIDENCE -> "初级单人住所"
+        MULTI_RESIDENCE -> "初级多人住所"
+        WAREHOUSE -> "仓库"
+        PATROL -> "巡视"
+        BLOOD_REFINING_POOL -> "血炼"
+    }
+
+    fun toSlotType(): SlotType = when (this) {
+        ALCHEMY -> SlotType.ALCHEMY
+        FORGE -> SlotType.FORGING
+        MINING -> SlotType.MINING
+        SPIRIT_FIELD -> SlotType.IDLE
+        HERB_GARDEN -> SlotType.HERB_GARDEN
+        else -> SlotType.IDLE
+    }
+}
+
+@Keep
+@Serializable
+enum class ProductionSlotStatus {
+    IDLE,
+    WORKING,
+    COMPLETED;
+
+    val displayName: String get() = when (this) {
+        IDLE -> "空闲"
+        WORKING -> "进行中"
+        COMPLETED -> "已完成"
+    }
+}
+
+@Keep
+@Serializable
+enum class SlotType {
+    IDLE,
+    MINING,
+    ALCHEMY,
+    FORGING,
+    HERB_GARDEN;
+
+    val displayName: String get() = when (this) {
+        IDLE -> "空闲"
+        MINING -> "灵矿开采"
+        ALCHEMY -> "炼丹"
+        FORGING -> "锻造"
+        HERB_GARDEN -> "灵植阁"
+    }
+
+    fun toBuildingType(): BuildingType? = when (this) {
+        IDLE -> null
+        MINING -> BuildingType.MINING
+        ALCHEMY -> BuildingType.ALCHEMY
+        FORGING -> BuildingType.FORGE
+        HERB_GARDEN -> BuildingType.HERB_GARDEN
+    }
+}
+
+class ProductionSlotConverters {
+    @TypeConverter
+    fun fromBuildingType(value: BuildingType): String = value.name
+
+    @TypeConverter
+    fun toBuildingType(value: String): BuildingType = 
+        BuildingType.entries.find { it.name == value } ?: BuildingType.ALCHEMY
+
+    @TypeConverter
+    fun fromStatus(value: ProductionSlotStatus): String = value.name
+
+    @TypeConverter
+    fun toStatus(value: String): ProductionSlotStatus = 
+        ProductionSlotStatus.entries.find { it.name == value } ?: ProductionSlotStatus.IDLE
+
+    @TypeConverter
+    fun fromSlotType(value: SlotType): String = value.name
+
+    @TypeConverter
+    fun toSlotType(value: String): SlotType = 
+        SlotType.entries.find { it.name == value } ?: SlotType.IDLE
+
+    @TypeConverter
+    fun fromMaterialMap(value: Map<String, Int>): String = 
+        value.entries.joinToString(",") { "${it.key}:${it.value}" }
+
+    @TypeConverter
+    fun toMaterialMap(value: String): Map<String, Int> {
+        if (value.isEmpty()) return emptyMap()
+        return value.split(",").associate {
+            val parts = it.split(":")
+            parts[0] to (parts.getOrNull(1)?.toIntOrNull() ?: 0)
+        }
+    }
+}

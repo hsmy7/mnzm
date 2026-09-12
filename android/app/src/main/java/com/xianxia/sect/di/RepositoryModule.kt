@@ -1,0 +1,32 @@
+package com.xianxia.sect.di
+
+import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.transaction.ProductionTransactionManager
+import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.local.ProductionSlotDao
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object RepositoryModule {
+
+    @Provides
+    @Singleton
+    fun provideProductionSlotDao(database: GameDatabase): ProductionSlotDao {
+        return database.productionSlotDao()
+    }
+
+    @Provides
+    @Singleton
+    fun provideProductionTransactionManager(
+        repository: ProductionSlotRepository,
+        rngManager: GameRngManager,
+        ioDispatcher: IoDispatcher
+    ): ProductionTransactionManager = ProductionTransactionManager(repository, rngManager, ioDispatcher)
+}

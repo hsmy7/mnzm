@@ -1,0 +1,40 @@
+{
+ "files": [
+  {
+   "name": "AISectAttackRoundOps",
+   "header": "// ── AI 战斗回合执行域（自 AISectAttackManager 拆出，行为零变更） ───────────────",
+   "fns": [
+    "executeAiCombatantTurn",
+    "tryExecuteUnifiedNative",
+    "tryNativeComputeCanOccupy",
+    "rebuildAiRounds",
+    "executeAiRound",
+    "resolveAiWinner",
+    "executeNormalAttackAction",
+    "applyNormalAttackDamage",
+    "executeSingleAttackAction",
+    "applySingleSkillDamage",
+    "executeAoeAttackAction",
+    "applyAoeSingleTarget",
+    "executeSupportAction",
+    "resolveSupportTargets"
+   ]
+  },
+  {
+   "name": "AISectAttackEffectOps",
+   "header": "// ── AI 战斗效果与应用域（自 AISectAttackManager 拆出，行为零变更） ─────────────",
+   "fns": [
+    "applySupportHealing",
+    "applySupportTeamBuffs",
+    "updateSupportCooldown",
+    "buildSupportActionLog",
+    "applyLinkDebuff",
+    "applyShareAndLink",
+    "writeBackToLists",
+    "processDotEffects",
+    "selectAISkill",
+    "selectAITarget"
+   ]
+  }
+ ]
+}

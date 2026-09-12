@@ -1,0 +1,47 @@
+{
+ "files": [
+  {
+   "name": "Generation",
+   "header": "// ── AISectDiscipleManager 拆分域（行为零变更） ──",
+   "fns": [
+    "generateSpiritRoot",
+    "rollAptitudeByRootCount",
+    "avoidSentinel50",
+    "generateInitialNurture",
+    "generateQiRefiningDisciple",
+    "generateRealmDistribution",
+    "adjustDiscipleRealm"
+   ]
+  },
+  {
+   "name": "Gear",
+   "header": "// ── AISectDiscipleManager 拆分域（行为零变更） ──",
+   "fns": [
+    "isGearCompleteForLevel",
+    "applyGearToDisciple",
+    "ensureDiscipleGear",
+    "buildEquipmentMapForDisciple",
+    "buildManualDataForDisciple",
+    "buildProficiencyDataFromMasteries",
+    "buildEquipmentEntry"
+   ]
+  },
+  {
+   "name": "AISectDiscipleManagerMisc",
+   "header": "// ── AISectDiscipleManager 拆分域（行为零变更） ──",
+   "fns": [
+    "rollMissingCategories",
+    "pickEquipmentTemplate",
+    "generateEquipmentIds",
+    "generateManuals",
+    "idFor",
+    "withEquipped",
+    "settleMonthlyCultivation",
+    "applyBreakthroughSuccess",
+    "applyBreakthroughFailure",
+    "applyMonthlyProficiencyGain",
+    "applyMonthlyNurtureGain"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,17 @@
+{
+ "files": [
+  {
+   "name": "UnifiedPerformanceMonitorRuntimeOps",
+   "header": "// ── 运行期采集与阈值域（自 UnifiedPerformanceMonitor 拆出，行为零变更） ─────────",
+   "fns": [
+    "recordTick",
+    "recordFrame",
+    "recordSaveQueueSize",
+    "recordEntityCount",
+    "checkThresholds",
+    "notifyThresholdExceeded",
+    "clearLoadReductionRequest"
+   ]
+  }
+ ]
+}

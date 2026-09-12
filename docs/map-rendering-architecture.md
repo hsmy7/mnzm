@@ -1,0 +1,420 @@
+# 宗门地图渲染架构
+
+## 概览
+
+宗门地图自 **v4.0.41** 起采用 **Vulkan 原生渲染管线**，替代了旧版 Compose Canvas。
+**v4.0.41+** 迭代为 **统一图集逐格渲染**，修复了悬空指针 bug、LINEAR+REPEAT 兼容性隐患。
+
+新架构：**固定 2 draw calls / 帧** + 独立渲染线程 + 双缓冲 VBO + OPTIMAL tiling 纹理 + 视锥剔除。
+
+```
+渲染顺序（由 C++ VulkanBackend::submitFrame 提交）：
+  Layer 1: 统一瓦片层 — 地面+装饰+建筑+作物+云层全部从图集取 UV，SpriteBatcher 合并为 1 次 draw call
+  Layer 2: Preview    — 纯色矩形（放置/移动预览）→ 白色纹理乘以顶点颜色
+```
+
+## 架构对比
+
+| 维度 | 4.0.40 (Vulkan v1) | **4.0.41 (Vulkan v2)** |
+|------|----------------------------|------------------------|
+| Draw calls | 3-4 (地面+装饰+建筑+预览) | **固定 2** (统一层+预览) |
+| 地面渲染 | UV=REPEAT 平铺（LINER+REPEAT隐患） | **图集逐格批处理** |
+| VBO 更新 | 裸指针 → 悬空 bug | **直写+偏移** |
+| 纹理 tiling | LINEAR (兼容性差) | **OPTIMAL** (标准做法) |
+| VBO 管理 | 单缓冲 | **双缓冲交替** |
+| 可见性 | 无剔除 | **视锥剔除** |
+| Autotile | 无 | 预留 bitmask 接口 |
+| SpriteBatcher | 栈 768KB (溢出风险) | **小栈16KB+堆扩展** |
+
+## 数据流
+
+```
+美术资源 (WebP in drawable-nodpi)
+  ├─ decoration_grass1..4.webp     — 4 种草装饰变体 → 图集
+  ├─ decoration_stone1..3.webp     — 3 种石堆装饰变体 → 图集
+  ├─ decoration_tree1/2.webp       — 2 种树装饰变体 → 图集
+  └─ 建筑精灵 → 图集（所有建筑统一为 512×512，2026-09 由 256×256 提升，消除放大颗粒；
+       天枢殿 1024×1024 专属槽位。图集槽位 = 素材容器，**显示尺寸另算**：
+       精灵宽 = 占地宽、精灵高 = `round(宽 × 素材高 ÷ (0.75 × 素材宽))`——立绘按屏上不变形取值，
+       高建筑精灵高于占地（巡视楼 4×10、问道塔/青云塔 4×8），详见 docs/adr/sprite-sizing-billboard.md）
+        ↓
+GameActivity.kt (启动时 LaunchedEffect)
+  └─ SectMapTileGenerator.generateTileData() → rawTileData + bitmaskData
+        ↓
+MapPreloadData (Compose State)
+  ├─ rawTileData: Array<IntArray>
+  └─ worldWidthCells / worldHeightCells / tileSize / worldPixelWidth / worldPixelHeight
+        ↓
+MainGameScreen.kt
+  ├─ rawTileData + effectivePlacedBuildings → tileData (含 TILE_BUILDING)
+  ├─ flatTileData: IntArray → JNI 传递
+  ├─ buildingData: FloatArray → JNI 传递 (gridX, gridY, width, height, nameIndex)
+  └─ NativeRenderConfig / FrameRenderState → RenderFrame 帧率门控推送
+        （SectMapViewport 限流：SOFTWARE 路径限频、Vulkan 路径 ≤60fps；非每帧）
+        ↓
+NativeSurfaceView (SurfaceView + RenderThread)
+  ├─ surfaceCreated → NativeBridge.initAtlas()
+  ├─ surfaceChanged → NativeBridge.initRenderer() → 上传图集纹理 → 启动 RenderThread
+  └─ RenderThread 每 100ms:
+       1. setCamera (投影矩阵 → Push Constant) [同时更新视口范围]
+       2. beginFrame (清空 pending draws + 切换双缓冲 VBO)
+       3. drawAllTiles (SpriteBatcher 合并 → 1 draw call, 含视锥剔除)
+       4. drawRect(s) (放置预览纯色矩形)
+       5. submitFrame (VkQueueSubmit + VkQueuePresentKHR)
+        ↓
+C++ VulkanBackend (Vulkan 1.1+)
+  ├─ 单 Pipeline (固定功能)
+  ├─ 单 DescriptorSet (单纹理图集 sampler)
+  ├─ 双缓冲 VBO (持久映射，draw() 时直写)
+  ├─ Staging buffer (OPTIMAL tiling 纹理上传)
+  ├─ 三重缓冲交换链 (3× semaphore + fence)
+  ├─ 视锥剔除 (在 drawAllTiles 中基于视口范围跳过不可见格)
+  └─ 纹理 0 = 1×1 白色纹理 (供纯色矩形用)
+```
+
+## 瓦片类型编码
+
+```kotlin
+const val TILE_GROUND   = 0    // 空地（无装饰）
+const val TILE_GRASS1   = 1    // 草变体 1
+const val TILE_GRASS2   = 2    // 草变体 2
+const val TILE_GRASS3   = 3    // 草变体 3
+const val TILE_GRASS4   = 4    // 草变体 4
+const val TILE_STONE1   = 5    // 石堆变体 1
+const val TILE_STONE2   = 6    // 石堆变体 2
+const val TILE_STONE3   = 7    // 石堆变体 3
+const val TILE_TREE1    = 8    // 树变体 1（立体层：2 × 3.291 格）
+const val TILE_TREE2    = 9    // 树变体 2（立体层：2 × 2.791 格）
+const val TILE_BUILDING = 10   // 建筑占位（由 placedBuildings 计算）
+```
+
+装饰瓦片（草/石/树）**必须连续排列**在 GROUND 与 TILE_BUILDING 之间——渲染器按
+`DECOR_TILE_MIN_INDEX..DECOR_TILE_MAX_INDEX` 区间判定装饰叠加层，显示尺寸取
+`TILE_SPRITE_W/H`（格，小数格）、绘制层取 `TILE_OBJECT_LAYER`（0=地面层随地面逐格绘制、
+1=立体层与建筑同序归并绘制）、越界余量取 `DECOR_MARGIN_COLS/ROWS`（渲染遍历/可见性范围外扩）。
+全部常量与瓦片 rect 同源：`build-atlas.mjs` 的 `LAYOUT.tiles` 生成
+（Kotlin `SpriteAtlasDef` / C++ `TextureAtlas.h` 双端），
+消费端在 `MainGameScreen.kt`（建筑占位标记）、`SectAtlasAssembler`（运行时图集装配）、
+`SoftwareCanvasBackend`（Canvas 路径）与 `NativeBridge.cpp`（Vulkan 路径）。
+
+**装饰显示尺寸口径**（2026-09 起）：立体素材按"屏上不变形"取值
+（`显示高 = 显示宽 × 素材高 ÷ (0.75 × 素材宽)`，`0.75 = TOPDOWN_Y_SCALE`），
+锚点 = **格底边居中**（对象站在自己格子上）——草/石略高于（或略矮于）1 格，树 2×3.291 格
+（树冠向上伸出 2.29 格，故走立体层与建筑同一画家序）。构建期由
+`build-atlas.mjs` validateDisplaySizing 校验、测试期由 `SpriteSizingFidelityTest` 复核；
+双端层序契约 = `gamecore/map/draw_order.h`（同键时建筑在后）。
+
+## 纹理图集布局
+
+所有地面/装饰/建筑精灵合并到单张 **4096×4096** 纹理（Vulkan 走 **ASTC 4×4 压缩 KTX**；Canvas 软渲染按 `SectAtlasAssembler` 组装）：
+
+```
+行0 (y=0):     瓦片地面(128×128) + 草装饰(128×128×4) + 石堆(128×128×3) + 树(256×256×2) + 作物(128×128×3)
+建筑 (y=512起): 19 座（512×512，行分布 [5,5,5,4]，行公式 y=512/1024/1536/2048，x=0~2560）
+专属高清槽位:  天枢殿 1024×1024 @ (3072,1032)；宗门门楼 768×512 @ (3072,512)
+云层 (y≥2816):  cloud_1~5（动态云朵槽位，保持源素材纵横比）
+```
+
+> 行 0 的 C++ `MAP_SPRITES` 序 = Kotlin `TileType` 序（瓦片值即精灵索引）；瓦片段由
+> `build-atlas.mjs` 的 `LAYOUT.tiles` 派生（`buildMapSprites`），两处不再各写一份精灵表。
+
+> 2026-09 图集升级：2048→**4096**、槽位 ×2（瓦片 64→128、建筑 256→512、天枢殿 512→1024、门楼 384→768）。宗门地面**不再铺设方形地砖**（`FloorTileType` 移除），建筑直接落于地面 repeat 贴图之上；地砖槽位/绘制全链清除。
+
+UV 坐标通过 `BUILDING_UV_MAP`（Kotlin）和 `MAP_SPRITES`（C++ TextureAtlas.h）双重定义，必须保持同步。
+
+## 精灵图集构建
+
+`NativeSurfaceView.buildAtlas()` 在渲染器就绪后调用：
+1. 创建 Bitmap（Canvas 软渲染路径**封顶 2048**——4096 图集建 64MB 位图会在低端机 OOM，靠 `canvasAtlasScale` 缩放采样；Vulkan 走 ASTC KTX 不受限）
+2. 逐精灵调用 `BitmapFactory.decodeResource` 解码 → `Canvas.drawBitmap` 绘制到图集
+3. `uploadBitmap` 将 ARGB 像素转为 RGBA ByteArray 上传到 GPU 纹理
+4. 返回纹理 ID 存入 `atlasTextureId`
+
+资源 ID 运行时通过 `context.resources.getIdentifier(name, "drawable", pkg)` 查找。
+
+## 装饰物生成算法
+
+`SectMapTileGenerator.generateTileData()` 使用**平滑噪声地块**方案（C++ `gamecore/map/terrain.h` 为单一权威，Kotlin 位级等价镜像）：
+| 装饰类型 | 斑块尺度 | 斑块覆盖 | 斑块内密度 | 算法 |
+|---------|---------|---------|-----------|------|
+| 草（4 变体） | 8×8 | ~14%（0.18 密度时） | ~80% | `smoothNoise(scale=8)` 确定草地斑块区域，斑块内密集分布；变体按 hash 四等分抽取 |
+| 石（3 变体） | 14×14 | ~2%（0.18 密度时） | ~35% | `smoothNoise(scale=14)` 确定岩块区域，**只落在裸地**（草滩之后运行）；变体按 hash 三等分抽取 |
+| 树 (TREE1/TREE2) | 12×12 | ~6%（0.18 密度时） | ~35% | `smoothNoise(scale=12)` 确定树丛区域，区域内稀疏分布 |
+
+- **pass 顺序**：草滩 → 石堆 → 树丛 → 边界树环 → 门楼清场（格间无依赖，每种装饰只落在仍为裸地的格上，故三者互不覆盖）
+- **原理**：`smoothNoise()` 在粗网格上采样 `cellHash`，经双线性插值 + smoothstep 产生连续平滑值，相邻格值变化平缓 → 自然地块而非噪点
+- **地面**：单一草皮 `map_grass_1`（`装饰物/草皮.png` 经无缝平铺处理 + 64×64 烘焙）作为**独立 REPEAT 纹理**，以单 quad/单 shader 整图铺（C++ 专用 `uploadRepeatTexture`；Canvas `BitmapShader REPEAT`），无逐格拼贴、无任何接缝
+- **确定性 + 随机种子**：same seed + same input = same output。`worldSeed` 参数（默认 0）通过 XOR 混入各装饰阶段的内部种子点，使不同存档的地图分布不同。`worldSeed=0` 保持向后兼容
+- **种子持久化**：新游戏时 `GameEngine.createNewGame()` 生成 `Random.nextInt()` → 存入 `GameData.mapSeed`。读档时从 DB 读出，保证同一存档地图不变
+- **密度控制**：`decorationDensity` 参数 (0.0~1.0)，默认 0.18
+- **定义位置**：`core/engine/src/main/java/com/xianxia/sect/core/util/SectMapTileGenerator.kt`
+
+## Vulkan 渲染管线结构
+
+### 着色器
+
+| 着色器 | 作用 | Push Constant | 输入 |
+|--------|------|---------------|------|
+| `sprite.vert` | 顶点变换 | mat4 投影矩阵 | inPos(vec2), inUV(vec2), inColor(vec4) |
+| `sprite.frag` | 纹理采样 | — | sampler2D(纹理图集) × inColor |
+
+### Pipeline 状态
+
+- 顶点输入: 2×float32 (位置) + 2×float32 (UV) + 4×float32 (颜色) = 32 字节/顶点
+- 图元: TRIANGLE_LIST
+- 混合: 无 (不透明渲染)
+- 深度: 关闭
+- 面剔除: 关闭 (背面可见)
+
+### 纹理切换
+
+在 `submitFrame()` 中，按 `draw.textureId` 分组：
+- **textureId = 0** → 1×1 白色纹理（纯色矩形输出 `white × vertexColor = vertexColor`）
+- **textureId > 0** → 对应上传纹理，更新 DescriptorSet 后绘制
+
+## 设备兼容性
+
+`VulkanPolicy` 检测设备 GPU 兼容性，采用五层防御体系：
+
+| 等级 | 判定条件 | 宗门地图渲染 | 系统 HW 加速 |
+|------|---------|-------------|-------------|
+| SAFE | 非国产厂商 / 高通 Adreno + Android < 15 | Vulkan | 开启 |
+| WARNING | 国产厂商 + 高通 + Android 15+ | Vulkan（有降级） | 开启 |
+| PROBLEMATIC | 非高通国产芯片 / 已知问题 GPU / MTK / 模拟器 / 持久化失败 | Canvas 软件渲染 | Android < 15 开启，≥15 关闭 |
+
+### 五层防御体系
+
+```
+Layer 1: CrashRecoveryEngine.isSafeMode() — 连续崩溃 ≥3 次→安全模式
+Layer 2: isEmulator() — 5 种信号检测（HW/ABI/TAGS/FINGERPRINT/RADIO+SERIAL）
+Layer 3: hasVulkanInitFailure() — 前次运行 prewarmDevice 返回 false 的持久化标记
+Layer 4: wasPrewarmKilled() — 写前标记残留（前次 prewarm 被 SIGSEGV 杀死）
+Layer 5: detectTier() — 厂商/SoC/GPU 多因素判定
+  ├── 已知问题机型列表（MODEL 精确匹配）
+  ├── 联发科 SoC（board/hardware 前缀匹配）
+  ├── 国产非高通厂商（Kirin/Exynos/Unisoc 全版本降级）
+  ├── SOC_MODEL + board/hardware 已知 GPU 正则匹配
+  └── 通过→SAFE
+```
+
+关键变更（v4.0.42）：
+- **国产非高通芯片全版本降级**：去掉 `isAndroid15Plus` 限制，Kirin/Exynos/展讯等在所有 Android 版本上直接禁用 Vulkan
+- **模拟器检测增强**：新增 `Build.TAGS`/`FINGERPRINT`/`RADIO`+`BOOTLOADER`+`SERIAL` 三路信号
+- **写前标记检测 SIGSEGV**：`prewarmDevice` 之前写入标记，成功后清除，标记残留→进程被 Vulkan 炸过
+- **持久化失败标记**：`prewarmDevice` 返回 false 写入 SharedPreferences，跨会话记忆
+- **GPU 型号正则匹配**：基于行业报告（UE/Unity/Flutter Issue）维护已知问题 GPU 列表
+- **Native 层版本校验**：C++ VulkanBackend 要求 Vulkan API ≥ 1.1 + 必要扩展检查
+
+已知问题：国产 ROM（MIUI/OriginOS/ColorOS/HarmonyOS）的 Mali GPU Vulkan 驱动兼容性差。
+详见 `android-renderthread-crash-research.md` 和行业调研 `docs/research/tile-map-industry-benchmark.md`。
+
+## 设备兼容性 & Canvas 软件回退渲染（4.0.42+）
+
+### 双轨渲染架构
+
+宗门地图从 **v4.0.41+** 起支持双轨渲染引擎，**v4.0.42** 强化降级决策体系，确保在 Vulkan 不可用的设备上地图仍能正常显示：
+
+```
+VulkanPolicy.getRenderStrategy()
+  ├── SOFTWARE_ONLY → NativeSurfaceView.RenderMode.SOFTWARE → SoftwareCanvasBackend
+  └── VULKAN_PREFERRED → Vulkan init 尝试
+        ├── 成功 → RenderMode.VULKAN → VulkanBackend (C++)
+        └── 失败 → 自动降级 → RenderMode.SOFTWARE → SoftwareCanvasBackend
+```
+
+### 降级触发条件（v4.0.42）
+
+| 条件 | 检测方式 | 行为 |
+|------|---------|------|
+| 模拟器（5 信号检测） | `VulkanPolicy.isEmulator()` | 加载阶段跳过 Vulkan 预热，直接走 Software |
+| 崩溃自愈安全模式 | `CrashRecoveryEngine.isSafeMode()` | 同上 |
+| 国产非高通芯片（全版本） | `VulkanPolicy.detectTier()` | 同上 |
+| 已知问题 GPU（REX 匹配） | `KNOWN_PROBLEM_GPU_PATTERNS` | 同上 |
+| 持久化 Vulkan 失败标记 | `CrashRecoveryEngine.hasVulkanInitFailure()` | 同上 |
+| 写前标记残留（前次 SIGSEGV） | `CrashRecoveryEngine.wasPrewarmKilled()` | 同上 + 转为持久化标记 |
+| Vulkan init 运行时失败 | `NativeBridge.initRenderer()` / `initDevice()` 返回 false | surfaceChanged 中自动降级 |
+| Vulkan API 版本过低（< 1.1） | `VulkanBackend::selectPhysicalDevice()` 校验 | initDevice 返回 false → Java 侧记录失败标记 |
+
+### SoftwareCanvasBackend
+
+| 属性 | 描述 |
+|------|------|
+| 位置 | `SoftwareCanvasBackend.kt`（Kotlin，无 C++ 依赖） |
+| 渲染方式 | Android Canvas API → `lockCanvas`/`unlockCanvasAndPost` |
+| 线程模型 | 与 Vulkan 共用同一 RenderThread（NativeSurfaceView.RenderThread） |
+| 帧率 | 默认 10 FPS，与 Vulkan 路径一致 |
+| 图集 | 复用 `NativeSurfaceView.buildAtlasBitmap()` 生成的（Canvas 软渲染封顶 **2048**）Bitmap |
+| 数据流 | 复用 `FrameRenderState`，完全透明调用方 |
+
+**性能指标（48×48 地图，10 FPS）：**
+- 单帧渲染：< 8ms（现代 CPU 单核，含 Tile 缓存命中）
+- 峰值增量内存：~12 MB（帧缓冲 + Tile 缓存）
+- 对比 Vulkan 路径：CPU 开销增加（软件渲染），但消除了 GPU 和 libhoudini 翻译层依赖
+
+## 手势系统架构（v4.0.41+）
+
+宗门地图在 **v4.0.41+** 完成手势系统重构，从 Compose `pointerInput` 覆盖层替换为**纯 Kotlin 跨平台手势引擎**。
+
+### 架构对比
+
+| 维度 | 旧 (Compose pointerInput) | 新 (SectMapTouchEngine) |
+|------|--------------------------|------------------------|
+| 触控捕获 | Compose `Box` + `pointerInput` 覆盖层 | `SurfaceView.onTouchEvent` 原生捕获 |
+| 手势逻辑 | ~170行单体 `awaitEachGesture` | 显式 `GestureState` sealed class 状态机 |
+| 惯性滑行 | ❌ 无 | ✅ 线性减速模型 (1500px/s²) |
+| 边缘平移 | 8px 固定步长 | 0~600px/s 距离比例平滑加速 |
+| 长按检测 | `scope.launch { delay() }` | 引擎内置协程超时 |
+| 跨平台 | Android-only Compose API | **纯 Kotlin**（iOS 只需转换 UITouch→TouchData） |
+
+### 数据流
+
+```
+Android SurfaceView.onTouchEvent()
+  ↓ MotionEvent → TouchData
+SectMapTouchEngine.onTouch()
+  ├── GestureStateMachine (sealed class: Idle/Down/Scrolling/Flinging/BuildingDrag/GoldFingerDrag)
+  ├── CustomVelocityTracker (位置历史+最小二乘速度)
+  ├── FlingPhysics (线性减速)
+  └── EdgePanDetector (距离比例速度)
+       ↓ TouchEngineCallbacks
+MainGameScreen (Compose)
+  ├── onPanCamera → SectCameraState.pan()
+  ├── onTap → buildingIndex.findBuildingAt() → Dialog
+  ├── onLongPress → building drag / gold finger
+  └── onBuildingDragUpdate → movingWorldX/Y → grid snapping
+       ↓
+NativeSurfaceView.updateRenderState() (RenderFrame 帧率门控推送——非每帧 Compose 重组)
+  └── @Volatile camX/camY → RenderThread → NativeBridge.setCamera()
+```
+
+### 手势状态机
+
+```
+Idle ──DOWN──→ Down ──MOVE(>slop)──→ Scrolling ──UP(有速度)──→ Flinging
+                   │                                              │
+                   │ 超时(长按)                          UP(无速度) │
+                   │                                              │
+                   ├──→ BuildingDrag / GoldFingerDrag              │
+                   │                                              │
+                   └──→ [TAP] ← UP(短触无移动)                   │
+                                                                  │
+             Flinging ──新DOWN──→ Down (中断惯性) ←───────────────┘
+```
+
+### 跨平台设计
+
+手势引擎位于 `core/engine/.../touch/`，纯 Kotlin 零平台依赖：
+
+| 文件 | 职责 | 跨平台 |
+|------|------|--------|
+| `TouchData.kt` | 跨平台触摸数据类 | ✅ 纯 Kotlin |
+| `GestureState.kt` | 手势状态机 sealed class | ✅ 纯 Kotlin |
+| `CustomVelocityTracker.kt` | 速度追踪器（替代 Android VelocityTracker） | ✅ 纯 Kotlin |
+| `FlingPhysics.kt` | 线性减速惯性滑行 | ✅ 纯 Kotlin |
+| `EdgePanDetector.kt` | 边缘比例速度平移 | ✅ 纯 Kotlin |
+| `SectMapTouchEngine.kt` | 核心引擎：状态机+协调器 | ✅ 纯 Kotlin |
+| `TouchEngineCallbacks.kt` | 回调接口定义 | ✅ 纯 Kotlin |
+| `TouchEngineConfig.kt` | 行业标准参数配置 | ✅ 纯 Kotlin |
+
+iOS 移植时只需在 native 层补充：
+```swift
+override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+    let loc = touch.location(in: self)
+    engine.onTouch(TouchData(x: loc.x, y: loc.y, action: .DOWN, ...))
+}
+```
+
+### 参数行业参考
+
+| 参数 | 值 | 来源 |
+|------|----|------|
+| touchSlop | 16px | Android ViewConfiguration |
+| longPressTimeout | 400ms | iOS HIG / Android 标准 |
+| minFlingVelocity | 200px/s | Android Scroller |
+| flingDeceleration | 1500px/s² | CoC / 自然手感，3000→0≈2s |
+| edgeThickness | 100px | 经验值 |
+| maxEdgePanSpeed | 600px/s | 经验值 |
+
+## 关键文件索引
+
+| 文件 | 职责 |
+|------|------|
+| **C++ 渲染引擎** | |
+| `app/src/main/cpp/VulkanBackend.cpp/h` | Vulkan 1.1+ 渲染后端（双缓冲 VBO + Staging Buffer） |
+| `app/src/main/cpp/Rhi.h` | RHI 渲染硬件抽象接口 + 正交投影数学（原 Renderer2D.h，计划 v2 阶段 6 形式化；Metal/iOS 预留） |
+| `app/src/main/cpp/SpriteBatcher.h/cpp` | 精灵批处理构建器（小栈+堆扩展） |
+| `app/src/main/cpp/TextureAtlas.h/cpp` | 纹理图集定义 + UV 坐标 |
+| `app/src/main/cpp/NativeBridge.cpp` | JNI 桥接（drawAllTiles 统一绘制） |
+| `app/src/main/cpp/shaders/sprite.vert/frag` | GLSL 着色器 + SPIR-V 预编译 |
+| `app/src/main/cpp/CMakeLists.txt` | NDK CMake 构建配置 |
+| **Kotlin 桥接** | |
+| `core/engine/.../nativebridge/NativeBridge.kt` | JNI 声明 |
+| `feature/game/.../sect/NativeSurfaceView.kt` | SurfaceView + 渲染线程 + 纹理上传/图集构建 |
+| `feature/game/.../sect/SectUIState.kt` | 放置/移动/金手指状态 |
+| `feature/game/.../sect/NativeRenderConfig.kt` | 渲染配置 data class (内联于 NativeSurfaceView.kt) |
+| **游戏逻辑** | |
+| `core/engine/.../util/SectMapTileGenerator.kt` | 瓦片数据生成算法 |
+| `core/engine/.../util/SectMapTileGeneratorTest.kt` | 生成算法测试（10 用例） |
+| `core/domain/.../model/MapPreloadData.kt` | 预加载数据模型（无纹理字段） |
+| `app/.../ui/game/GameActivity.kt` | 资源加载 + MapPreloadData 构建 |
+| `feature/game/.../MainGameScreen.kt` | tileData 计算 + AndroidView 嵌入 + 手势集成 |
+| **手势引擎** | |
+| `core/engine/.../touch/SectMapTouchEngine.kt` | 核心手势引擎：状态机 + 长按检测 + 惯性滑行 |
+| `core/engine/.../touch/CustomVelocityTracker.kt` | 跨平台速度追踪器 |
+| `core/engine/.../touch/FlingPhysics.kt` | 线性减速惯性物理 |
+| `core/engine/.../touch/EdgePanDetector.kt` | 边缘自动平移检测 |
+| `core/engine/.../touch/TouchEngineCallbacks.kt` | 手势回调接口 |
+| `core/engine/.../touch/TouchEngineConfig.kt` | 手势引擎配置 |
+| `core/engine/.../touch/TouchData.kt` | 跨平台触摸数据 |
+| `core/engine/.../touch/GestureState.kt` | 手势状态机定义 |
+| **兼容性** | |
+| `app/.../core/VulkanPolicy.kt` | 设备兼容性检测 |
+| `AndroidManifest.xml` | `<uses-feature android:name="android.hardware.vulkan" android:required="false">` |
+
+## 历史版本
+
+| 版本 | 架构 | 问题 |
+|------|------|------|
+| ≤4.0.40 | 双缓冲 Bitmap 烘焙（frontBuffer/backBuffer） | 残影 bug、复杂增量追踪 |
+| 4.0.41 | 统一 Canvas 直接绘制 + `fullMapBmp` 单层位图 | 地面+装饰合并无法独立控制 |
+| 4.0.42 | 三层按格实时绘制（Compose Canvas） | Compose 重组开销、主线程渲染 |
+| **4.0.40** | **Vulkan 原生渲染管线 v1** | 3 draw calls、独立渲染线程、低功耗 |
+| **4.0.41** | **Vulkan v2 统一图集逐格渲染** | 2 draw calls、无双空指针/LINEAR+REPEAT/栈溢出 bug、视锥剔除 |
+| **4.0.41** | **Canvas 软件回退渲染 (SoftwareCanvasBackend)** | Vulkan 失败时自动降级，模拟器/Vulkan 问题设备全覆盖，零 C++ 依赖 |
+
+## 动态云层（2026-08-22）
+
+世界顶部动态云朵，绘制在建筑/作物层之上（可遮挡建筑）、UI（Compose 覆盖层）之下。
+
+- **动画引擎**：`CloudLayerAnimator`（feature/game，纯 Kotlin）由渲染线程每节拍驱动——
+  只在世界外生成（左外生成右移 / 右外生成左移）、横向穿越世界、完全移出对侧边缘后消失；
+  速度固定 **3 格/秒**（= 3 × `GameConfig.SectMap.TILE_SIZE`）；随机类型（5 种精灵）、
+  方向、Y（世界顶部条带内）、缩放/透明度、生成间隔与并发数。
+  2026-08 调整：云朵整体缩小 50%（缩放区间 0.8~1.6 → 0.4~0.8）。
+- **数据通道**：逐帧实例快照 `[x, y, w, h, spriteIndex, alpha] × N` 写入
+  `NativeSurfaceView.cloudData`，Vulkan（`drawAllTiles` 云层段）与 Canvas（`drawClouds`）
+  消费同一份数据，保证双端像素级一致；云活跃时 `cloudDirty` 阻止脏帧跳过（静止画面恢复省电）。
+- **降级**：与装饰层同判定（热控 quality<0.6 / 装饰关闭 / 缩放 LOD<0.6 时整层跳过）。
+- **图集**：云层精灵槽位在 `build-atlas.mjs LAYOUT.clouds`（图集 y≥1408 空闲区，
+  保持源素材纵横比），KTX（ASTC）与 RGBA 运行时图集双路径同源。
+
+## 美术资源清单
+
+所有地图资源放在 `drawable-nodpi`（需同时放入 `:app` 和 `:feature:game` 模块）：
+
+| 文件名 | 用途 | 原始素材 |
+|--------|------|---------|
+| `map_grass_1.webp` | 草皮（单一地面纹理，无缝平铺，独立 REPEAT 纹理整图铺） | `装饰物/草皮.png` |
+| `sect_gate.webp` | 宗门门楼（固定结构，渲染走建筑层） | `建筑/宗门门楼.png` |
+| `decoration_grass1.webp` ~ `decoration_grass4.webp` | 草装饰 4 变体（1×1 格） | `装饰物/花草1.png` ~ `花草4.png` |
+| `decoration_stone1.webp` ~ `decoration_stone3.webp` | 石堆装饰 3 变体（1×1 格） | `装饰物/石头1.png` ~ `石头3.png` |
+| `decoration_tree1.webp` | 树变体 1（2×2 格） | `装饰物/树木1.png` |
+| `decoration_tree2.webp` | 树变体 2（2×2 格） | `装饰物/树木2.png` |
+| `cloud_1.webp` ~ `cloud_5.webp` | 世界顶部动态云朵（5 种形态，图集槽位见 `LAYOUT.clouds`） | `装饰物/云层1.png` ~ `云层5.png` |
+
+> 地面草皮、门楼与全部装饰变体由权威素材管线烘焙（`scripts/source-mapping.json` 的 `MAP`
+> 分类 → `scripts/import-art-assets.mjs`；草皮带 `seamless` 无缝平铺处理，输出 64×64）。
+> 宗门入口固定结构（门楼）渲染走建筑层（见 `FixedSectGateway`），随瓦片生成、置于地图正下方，
+> 左右两侧保留 3 行边界硬装饰树；不可移动/拆除、占地禁建、不画地砖/地基。
+
+这些资源不走 `SpriteResRegistry` 注册，而是通过 `NativeSurfaceView.buildAtlas()` 直接解码后上传到 GPU 纹理图集。

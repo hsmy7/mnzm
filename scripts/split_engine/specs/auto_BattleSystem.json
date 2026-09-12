@@ -1,0 +1,147 @@
+{
+ "files": [
+  {
+   "name": "BattleSystem战斗Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "createBattle",
+    "convertDiscipleToCombatant",
+    "executeBattle",
+    "executeBattleWithTimeout",
+    "buildBattleSnapshots",
+    "updateBattleSnapshots",
+    "resolveBattleWinner",
+    "executeCombatantTurn",
+    "updateCombatantBuffs"
+   ]
+  },
+  {
+   "name": "BattleSystemDomainOps",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "createBeast",
+    "executeAllyScopeSupport",
+    "executeTeamSupport",
+    "writeBack",
+    "decideAdvancedAction",
+    "executeAdvancedAction",
+    "selectTarget"
+   ]
+  },
+  {
+   "name": "BattleSystem属性Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "resolveBeastStats"
+   ]
+  },
+  {
+   "name": "BattleSystem技能Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "buildBeastSkills",
+    "executeSkillAction",
+    "executeAoeSkillAction",
+    "executeSingleSkillAction",
+    "executeSkill",
+    "executeSupportSkill",
+    "selectSkill"
+   ]
+  },
+  {
+   "name": "BattleSystem回合Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "executeTurnWithLog",
+    "resolveTurnSides",
+    "recordTurnAction",
+    "buildTurnMessage",
+    "processTurnAdvance"
+   ]
+  },
+  {
+   "name": "BattleSystem应用Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "applyCooldownUpdate",
+    "applySupportEffects",
+    "applyControlEffects"
+   ]
+  },
+  {
+   "name": "BattleSystem治疗Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "applySupportHealing"
+   ]
+  },
+  {
+   "name": "BattleSystem增益Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "applySupportTeamBuffs",
+    "applySkillDebuff",
+    "applyAoeDebuff"
+   ]
+  },
+  {
+   "name": "BattleSystem攻击Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "executeBasicAttackAction",
+    "executeAttack"
+   ]
+  },
+  {
+   "name": "BattleSystem伤害Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "applyDamageEffects",
+    "applyDamageLinkDebuff",
+    "applyAdvancedDamage"
+   ]
+  },
+  {
+   "name": "BattleSystem解析Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "resolveAdvancedAlly"
+   ]
+  },
+  {
+   "name": "BattleSystem构筑Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "buildAdvancedActionLog"
+   ]
+  },
+  {
+   "name": "BattleSystem更新Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "updateAdvancedCooldown"
+   ]
+  },
+  {
+   "name": "BattleSystem持续伤害Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "processDotEffects"
+   ]
+  },
+  {
+   "name": "BattleSystem境界Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "calculateRealmGapFactors"
+   ]
+  },
+  {
+   "name": "BattleSystem奖励Ops",
+   "header": "// ── BattleSystem 拆分域（行为零变更） ──",
+   "fns": [
+    "generateRewards"
+   ]
+  }
+ ]
+}

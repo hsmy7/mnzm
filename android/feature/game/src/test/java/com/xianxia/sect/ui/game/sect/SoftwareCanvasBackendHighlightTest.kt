@@ -1,0 +1,266 @@
+package com.xianxia.sect.ui.game.sect
+
+import android.graphics.Bitmap
+import androidx.core.graphics.createBitmap
+import android.graphics.Color
+import com.xianxia.sect.core.render.RenderFlags
+import com.xianxia.sect.core.render.RenderFrame
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * SoftwareCanvasBackend 建筑阴影 + 选中高亮测试。
+ *
+ * - 阴影：与 C++ drawAllTiles (A2) 段同数学（右下偏移 0.25 格 + alpha 0.2 半透明黑）
+ * - 高亮：金色描边动态叠加（不烘焙 chunk，选中变化零重建成本）
+ *
+ * @GraphicsMode(NATIVE)：像素断言需要真实 skia 渲染（LEGACY 模式 getPixel 恒 0）
+ */
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@RunWith(RobolectricTestRunner::class)
+class SoftwareCanvasBackendHighlightTest {
+
+    private lateinit var backend: SoftwareCanvasBackend
+    private lateinit var atlas: Bitmap
+
+    @Before
+    fun setup() {
+        backend = SoftwareCanvasBackend(testRenderConfig())
+        // 迷你图集（128x128，不含实际精灵，只验证坐标和帧缓冲区尺寸）
+        atlas = createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+    }
+
+    // ============================================================
+    // 建筑阴影（与 C++ drawAllTiles 段同数学）
+    // ============================================================
+
+    @Test
+    fun `renderFrame - building shadow darkens strip beyond sprite and respects flag`() {
+        val td = createFlatTileData(10, 10)
+        // 阴影条带内采样点（世界坐标 = 屏幕坐标，camX=0 scale=1）
+        val sampleX = 72
+        val sampleY = 40
+
+        // 阴影开启：像素明显暗于底色（米色 × 0.8 ≈ (194,190,182)）
+        // 注：RenderFlags.buildingShadows 默认已关闭（产品决策移除建筑阴影），
+        // 此处显式开启以继续覆盖阴影实现路径（仍存在、受开关控制）。
+        val onBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        val onPx = onBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200)!!
+            .getPixel(sampleX, sampleY)
+
+        // 阴影关闭（RenderFlags.buildingShadows=false）：同点 = 纯底色
+        val offBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = false))
+        )
+        val offPx = offBackend.renderFrame(spiritFieldFrame(td), atlas, 200, 200)!!
+            .getPixel(sampleX, sampleY)
+
+        // 差异断言（不依赖绝对色值——灵田精灵源 rect 在测试迷你图集外，绘制结果不确定）
+        assertTrue(
+            "阴影应使采样点变暗: on=#%06X off=#%06X".format(onPx and 0xFFFFFF, offPx and 0xFFFFFF),
+            Color.red(onPx) < Color.red(offPx) - 10
+        )
+        assertTrue(
+            "flags off 时应无阴影（与开启帧像素不同）",
+            onPx != offPx
+        )
+    }
+
+    @Test
+    fun `renderFrame - shadow rebuilds when building moves (chunk invalidation)`() {
+        val td = createFlatTileData(10, 10)
+        // 显式开启阴影（默认已关闭）——本用例验证阴影随建筑移动失效重建
+        val shadowedBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        // 帧1：建筑 (0,0) → 阴影条带在 (64,16)-(80,80)
+        val frame1 = spiritFieldFrame(td)
+        val r1 = shadowedBackend.renderFrame(frame1, atlas, 200, 200)!!
+        val px1 = r1.getPixel(72, 40)
+
+        // 帧2：建筑移动到 (1,0) → 原 (0,0) 阴影区恢复底色（阴影随建筑失效重建）
+        val frame2 = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = td,
+            cols = 10, rows = 10,
+            buildingData = createBuildingDataArray(
+                gridX = 1, gridY = 0, width = 1, height = 1, nameIdx = 2
+            ),
+            buildingCount = 1,
+            buildingVisible = true
+        )
+        val r2 = shadowedBackend.renderFrame(frame2, atlas, 200, 200)!!
+        val px2 = r2.getPixel(72, 40)
+
+        assertTrue(
+            "建筑移动后原阴影区应恢复底色: before=#%06X after=#%06X".format(px1 and 0xFFFFFF, px2 and 0xFFFFFF),
+            Color.red(px2) > Color.red(px1) + 10
+        )
+    }
+
+    /**
+     * 阴影污染回归：drawShadowRect 若把 alpha=51 的半透明黑写入共享
+     * rebuildPaint 且不恢复（Paint.setColor 更新 alpha），导致同一 chunk 内
+     * 阴影之后的建筑精灵以 20% alpha 烘焙 → 建筑虚影 + 地砖透出。
+     *
+     * 采样 (8,8)：灵田精灵 (0,0)-(64,64) 内、阴影矩形 (16,16)-(80,80) 外——
+     * 纯精灵区，阴影开关不应改变该像素（精灵最后绘制覆盖阴影）。
+     */
+    @Test
+    fun `renderFrame - building sprite is not dimmed by shadow paint leakage`() {
+        val td = createFlatTileData(10, 10)
+        val spriteAtlas = createSpriteAtlas()
+
+        // 阴影开启（真实绘制路径）：精灵应为纯白 255（RGB_565 → 248）
+        // 注：默认已关闭，显式开启以继续验证阴影不污染精灵的回归
+        val shadowedBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        val onPx = shadowedBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+            .getPixel(8, 8)
+
+        // 阴影关闭：精灵应一致（阴影在 (16,16) 起，不覆盖 (8,8)）
+        val offBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = false))
+        )
+        val offPx = offBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+            .getPixel(8, 8)
+
+        // 被污染时：on≈128（白×0.2 叠灰底）vs off≈248 → 差 120
+        assertTrue(
+            "建筑精灵被阴影污染变暗: on=#%06X off=#%06X".format(onPx and 0xFFFFFF, offPx and 0xFFFFFF),
+            kotlin.math.abs(Color.red(onPx) - Color.red(offPx)) <= 8
+        )
+        // 精灵必须真实上屏且不透明（防测试假阳性：若精灵未绘制，on/off 都是地面灰）
+        assertNear(248, Color.red(onPx), 8)
+    }
+
+    /**
+     * 跨 rebuild 残留回归：同一 chunk 的 rebuildPaint 被阴影污染后，
+     * 下一轮 rebuild 的地面层 drawBitmap 也以 20% alpha 绘制 → 地面半透明、
+     * 米色底透出。每次 rebuild 地面应恢复不透明灰 100（RGB_565 → 96）。
+     */
+    @Test
+    fun `renderFrame - ground stays opaque after shadowed rebuild`() {
+        val td = createFlatTileData(10, 10)
+        val spriteAtlas = createSpriteAtlas()
+
+        // 帧1：含阴影建筑 → chunk rebuild 时 rebuildPaint 被阴影 alpha 污染
+        // 注：默认已关闭，显式开启以构造"阴影污染"场景验证修复
+        val shadowedBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = true))
+        )
+        shadowedBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)
+
+        // 帧2：建筑移除（buildingData=null → invalidateAllChunks）→ 地面层重建
+        val frame2 = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = td,
+            cols = 10, rows = 10,
+            buildingData = null,
+            buildingCount = 0,
+            buildingVisible = false
+        )
+        val px = shadowedBackend.renderFrame(frame2, spriteAtlas, 200, 200)!!
+            .getPixel(32, 32)
+
+        // 被污染时：地面灰 100 ×0.2 叠米色底 ≈ 205（R 通道）
+        assertNear(96, Color.red(px), 8)
+    }
+
+    // ============================================================
+    // 选中高亮（金色描边——动态叠加不烘焙 chunk）
+    // ============================================================
+
+    @Test
+    fun `renderFrame - selection highlight draws gold border`() {
+        val td = createFlatTileData(10, 10)
+        // 高亮矩形 (0,0)-(64,64)；上描边 y∈[0, max(2, 64×0.06)=3.84)
+        // 采样点 (32,2)：金色 alpha 0.9 混合底 → r-b 差值大（金色 R=255 B=0）
+        val selectedPx = backend.renderFrame(spiritFieldFrame(td, selectedIndex = 0), atlas, 200, 200)!!
+            .getPixel(32, 2)
+        val unselectedPx = backend.renderFrame(spiritFieldFrame(td, selectedIndex = -1), atlas, 200, 200)!!
+            .getPixel(32, 2)
+
+        assertTrue(
+            "选中应改变描边点像素: sel=#%06X unsel=#%06X".format(selectedPx and 0xFFFFFF, unselectedPx and 0xFFFFFF),
+            selectedPx != unselectedPx
+        )
+        // 金色特征：red 明显高于 blue（底色米色 r-b≈14，远低于金色混合后的差值）
+        assertTrue(
+            "描边应为金色: px=#%06X".format(selectedPx and 0xFFFFFF),
+            Color.red(selectedPx) - Color.blue(selectedPx) > 150
+        )
+        assertTrue(
+            "未选中时不应有金色描边: px=#%06X".format(unselectedPx and 0xFFFFFF),
+            Color.red(unselectedPx) - Color.blue(unselectedPx) < 150
+        )
+    }
+
+    @Test
+    fun `renderFrame - selection highlight respects flag`() {
+        val td = createFlatTileData(10, 10)
+        val noHighlightBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(selectionHighlight = false))
+        )
+        val px = noHighlightBackend.renderFrame(spiritFieldFrame(td, selectedIndex = 0), atlas, 200, 200)!!
+            .getPixel(32, 2)
+        // flags off：选中但无描边（像素保持底色特征，非金色）
+        assertTrue(
+            "selectionHighlight=false 时选中不应画金色: px=#%06X".format(px and 0xFFFFFF),
+            Color.red(px) - Color.blue(px) < 150
+        )
+    }
+
+    @Test
+    fun `renderFrame - out of range selection index does not crash`() {
+        val td = createFlatTileData(10, 10)
+        // 防御路径：索引越界（>= buildingCount）→ 跳过高亮绘制
+        val frame = spiritFieldFrame(td, selectedIndex = 5)
+        val result = backend.renderFrame(frame, atlas, 200, 200)
+        assertNotNull("越界选中索引不应 crash", result)
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 回归守卫：进入无建筑宗门后旧宗门建筑必须清除
+    // 若总线推空数组时不失效任何 chunk，上一宗门建筑会残留在 chunk 位图
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `renderFrame - empty building array clears previous sect buildings`() {
+        val td = createFlatTileData(10, 10)
+        val spriteAtlas = createSpriteAtlas()
+
+        // 帧1：主宗建筑（灵田精灵 (0,0)-(64,64) 白 255；(8,8) 在精灵内、阴影外）
+        val withBuilding = backend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+        val beforePx = withBuilding.getPixel(8, 8)
+        assertNear(248, Color.red(beforePx), 8) // 白 → RGB_565 ≈ 248
+
+        // 帧2：进入空宗门 → 总线推「空数组」而非 null（与真实渲染路径一致）
+        val emptyFrame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = td,
+            cols = 10, rows = 10,
+            buildingData = FloatArray(0), // 关键：非 null 空数组
+            buildingCount = 0,
+            buildingVisible = true
+        )
+        val after = backend.renderFrame(emptyFrame, spriteAtlas, 200, 200)!!
+        val afterPx = after.getPixel(8, 8)
+
+        // 若 chunk 未失效 → (8,8) 仍为白精灵；正确行为应为地面灰 ≈96
+        assertTrue(
+            "进入空宗门后旧建筑必须清除: before=#%06X after=#%06X"
+                .format(beforePx and 0xFFFFFF, afterPx and 0xFFFFFF),
+            Color.red(afterPx) < Color.red(beforePx) - 40
+        )
+        assertNear(96, Color.red(afterPx), 8) // 地面灰 100 → RGB_565 ≈ 96
+    }
+}

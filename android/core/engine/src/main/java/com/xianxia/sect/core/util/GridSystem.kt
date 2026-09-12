@@ -1,0 +1,100 @@
+package com.xianxia.sect.core.util
+
+import com.xianxia.sect.core.model.GridBuildingData
+
+class GridSystem(
+    val tileSize: Int,
+    val gridWidthCells: Int,
+    val gridHeightCells: Int,
+    /** 距离地图边界不可建造的格数（0 = 无限制）。 */
+    val buildableBorder: Int = 0,
+    /** 固定结构禁建格（packed cell，如宗门入口门楼/阶梯占地）。 */
+    val blockedCells: Set<Long> = emptySet()
+) {
+    private var _buildings: List<GridBuildingData> = emptyList()
+    val buildings: List<GridBuildingData> get() = _buildings
+
+    private var _occupiedCells: Set<Long> = emptySet()
+    val occupiedCells: Set<Long> get() = _occupiedCells
+
+    fun rebuildFrom(buildings: List<GridBuildingData>) {
+        _buildings = buildings
+        _occupiedCells = computeOccupiedCells(buildings)
+    }
+
+    fun validatePlacement(
+        gridX: Int,
+        gridY: Int,
+        width: Int,
+        height: Int
+    ): GridSnapHelper.PlacementValidity {
+        val outOfBounds = gridX < buildableBorder || gridY < buildableBorder ||
+            gridX + width > gridWidthCells - buildableBorder ||
+            gridY + height > gridHeightCells - buildableBorder
+        if (outOfBounds) {
+            return GridSnapHelper.PlacementValidity.OutOfBounds
+        }
+        for (cx in gridX until gridX + width) {
+            for (cy in gridY until gridY + height) {
+                val cell = packCell(cx, cy)
+                if (cell in _occupiedCells) {
+                    val overlapped = _buildings.filter { b ->
+                        gridX < b.gridX + b.width &&
+                        gridX + width > b.gridX &&
+                        gridY < b.gridY + b.height &&
+                        gridY + height > b.gridY
+                    }.map { it.displayName }
+                    return GridSnapHelper.PlacementValidity.Overlap(overlapped)
+                }
+                if (cell in blockedCells) {
+                    return GridSnapHelper.PlacementValidity.Overlap(listOf(BLOCKED_REGION_LABEL))
+                }
+            }
+        }
+        return GridSnapHelper.PlacementValidity.Valid
+    }
+
+    fun placeBuilding(building: GridBuildingData): Boolean {
+        if (validatePlacement(building.gridX, building.gridY, building.width, building.height)
+            != GridSnapHelper.PlacementValidity.Valid
+        ) return false
+        _buildings = _buildings + building
+        for (cx in building.gridX until building.gridX + building.width) {
+            for (cy in building.gridY until building.gridY + building.height) {
+                _occupiedCells = _occupiedCells + packCell(cx, cy)
+            }
+        }
+        return true
+    }
+
+    fun snapWorldToGrid(worldX: Float, worldY: Float): Pair<Int, Int> =
+        GridSnapHelper.worldToGrid(worldX, tileSize) to
+        GridSnapHelper.worldToGrid(worldY, tileSize)
+
+    fun gridToWorld(gridX: Int, gridY: Int): Pair<Int, Int> =
+        GridSnapHelper.gridToWorld(gridX, tileSize) to
+        GridSnapHelper.gridToWorld(gridY, tileSize)
+
+    companion object {
+        const val DEFAULT_WORLD_WIDTH_CELLS = 28
+        const val DEFAULT_WORLD_HEIGHT_CELLS = 28
+
+        /** 固定结构禁建区域的 UI 展示名（重叠提示用）。 */
+        const val BLOCKED_REGION_LABEL = "宗门入口"
+
+        fun packCell(x: Int, y: Int): Long =
+            (x.toLong() shl 32) or (y.toLong() and 0xFFFF_FFFF)
+    }
+
+    private fun computeOccupiedCells(buildings: List<GridBuildingData>): Set<Long> {
+        val cells = mutableSetOf<Long>()
+        buildings.forEach { b ->
+            for (cx in b.gridX until b.gridX + b.width) {
+                for (cy in b.gridY until b.gridY + b.height) {
+                    cells.add(packCell(cx, cy))
+                }
+            }
+        }
+        return cells
+    }
+}
