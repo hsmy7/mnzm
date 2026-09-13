@@ -261,8 +261,10 @@ class SectCameraStateTest {
 
     // ==================== 平移与 clamp ====================
 
-    /** 边缘外扩边距（与 SectCameraState.ISLAND_EDGE_VISIBLE_OUTSET 同值——修改必同步） */
-    private val edgeOutset = 400f
+    /** 崖壁带外扩边距（与 SectCameraState.ISLAND_CLIFF_VISIBLE_OUTSET 同值——修改必同步）。
+     *  2026-09 素材换代：37 张薄切片 island_edge（时代 outset=400）→ 7 张整块崖壁
+     *  island_cliff（最大 1180×3552，绘制于世界矩形外侧）→ outset = 1180/2400 + 余量 100。 */
+    private val edgeOutset = 2500f
 
     @Test
     fun `pan - with default scale moves camera by screen pixels over scale`() {
@@ -429,15 +431,20 @@ class SectCameraStateTest {
     }
 
     @Test
-    fun `clampPosition - 视口与整岛加边缘带同宽时仍居中悬浮（天空语义保留）`() {
+    fun `clampPosition - 视口超出世界时整岛居中悬浮（天空语义保留）`() {
         val camera = SectCameraState(worldWidth, worldHeight).apply {
             updateViewport(phoneVpW, phoneVpH)
         }
-        // 缩到视口世界尺寸 ≥ 世界 + 2×outset：整岛（含悬崖环绕）居中悬浮天际
+        // 缩到最小：视口世界尺寸 ≥ 世界（整岛完整可见）→ 该轴居中——
+        // 浮空岛悬浮天际契约（两侧对称天空，岛不滞留在崖壁钳制带一侧）。
+        // 注：居中触发阈值 = 视口 ≥ 世界（非世界 + 2×outset）——outset(2500)
+        // 远超最小缩放视口的天空余量，以 outset 为门槛时居中分支在常见机型
+        // 不可达（回归史：崖壁素材换代曾把该阈值抬到世界+2×outset）。
         camera.zoom(0.001f, phoneVpW / 2f, phoneVpH / 2f)
         val visibleW = phoneVpW / camera.scale
         val visibleH = phoneVpH / (camera.scale * topdownYScale)
-        assertTrue("极限缩小时视口应含整岛加边缘带", visibleW >= worldWidth + 2f * edgeOutset)
+        assertTrue("极限缩小时视口应超出世界（整岛完整可见）", visibleW >= worldWidth)
+        assertTrue("极限缩小时视口高度应超出世界", visibleH >= worldHeight)
         assertEquals("岛中心 X 应屏幕居中", phoneVpW / 2f, camera.worldToScreenX(worldWidth / 2f), 0.5f)
         assertEquals("岛中心 Y 应屏幕居中", phoneVpH / 2f, camera.worldToScreenY(worldHeight / 2f), 0.5f)
     }

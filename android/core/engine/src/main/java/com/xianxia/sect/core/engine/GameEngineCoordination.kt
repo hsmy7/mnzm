@@ -81,7 +81,16 @@ suspend fun GameEngine.toggleWatchItem(key: String): DomainResult<Unit> {
     }
 }
 
-internal fun GameEngine.updateGameDataSync(update: (GameData) -> GameData) {
+/**
+ * 同步写入口（`updateGameData` 的 launchInScope 变体）：在引擎协程 scope 内
+ * 执行事务，不挂起调用方——设置项域（batch-23）native 臂失败/降级时的
+ * 回退臂写者即此函数（`updateSettingsOrFallback` → `updateGameDataSync`）。
+ *
+ * public 可见性与同文件 [updateGameData] / [updateGameDataAndSync] 对齐
+ * （feature:game 测试经 MockK 捕获回退臂闭包断言字段映射——原 internal
+ * 使跨模块测试不可 stub，为 GameViewModelTest 预存失败根因之一）。
+ */
+fun GameEngine.updateGameDataSync(update: (GameData) -> GameData) {
     gameEngineCore.launchInScope { stateStore.update { gameData = update(gameData) } }
 }
 

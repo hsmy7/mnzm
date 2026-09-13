@@ -119,30 +119,37 @@ internal class IslandCliffTextureLoader(private val context: Context) {
         return ids
     }
 
-    /** 单张上传：① ASTC → ② mip 链 → ③ 单级 */
-    @Suppress("TooGenericExceptionCaught")  // native 调用失败模式无稳定异常契约
+    /** 单张上传：① ASTC → ② mip 链 → ③ 单级（异常按「该张缺失」降级返回 0） */
     private fun uploadOne(p: Prepared): Int {
-        try {
-            val ktx = p.ktx
-            if (ktx != null) {
-                val id = NativeBridge.uploadIslandCliffKtx(ktx)
-                if (id != 0) return id
+        val id = try {
+            uploadCliffTexture(p)
+        } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+            // 刻意的防御性 catch：native 上传失败模式无稳定异常契约（跨 JNI/驱动/GL）
+            android.util.Log.e(LOG_TAG, "cliff[${p.index}] 上传失败，跳过该张", t)
+            0
+        }
+        return id
+    }
+
+    /** 上传主体（无异常路径：失败均以 0 返回，由调用方 textureMask 排除） */
+    private fun uploadCliffTexture(p: Prepared): Int {
+        val ktx = p.ktx
+        if (ktx != null) {
+            val id = NativeBridge.uploadIslandCliffKtx(ktx)
+            if (id == 0) {
                 // ASTC 失败（设备不支持/驱动拒绝）→ 无 RGBA 缓冲，该张不可用
                 // 由调用方以 textureMask 排除（prepare 阶段已知 astcSupported，
                 // 此路径只在「报告支持但上传被拒」时命中）
                 android.util.Log.w(LOG_TAG, "cliff[${p.index}] ASTC 上传被拒，该张降级跳过")
-                return 0
             }
-            val mip = p.mipPixels ?: return 0
-            if (p.mipCount > 1) {
-                val id = NativeBridge.uploadIslandCliffMipChain(mip, p.width, p.height, p.mipCount)
-                if (id != 0) return id
-            }
-            return NativeBridge.uploadTextureDirect(mip, p.width, p.height)
-        } catch (t: Throwable) {
-            android.util.Log.e(LOG_TAG, "cliff[${p.index}] 上传失败，跳过该张", t)
-            return 0
+            return id
         }
+        val mip = p.mipPixels ?: return 0
+        if (p.mipCount > 1) {
+            val id = NativeBridge.uploadIslandCliffMipChain(mip, p.width, p.height, p.mipCount)
+            if (id != 0) return id
+        }
+        return NativeBridge.uploadTextureDirect(mip, p.width, p.height)
     }
 
     // ── 内部工具 ──
@@ -162,7 +169,7 @@ internal class IslandCliffTextureLoader(private val context: Context) {
     private fun readKtxAsset(index: Int): ByteArray? = try {
         val name = IslandCliffTextureSet.TEXTURE_KTX_ASSETS[index]
         context.assets.open(name).use { it.readBytes() }
-    } catch (t: Throwable) {
+    } catch (ignored: Throwable) {
         // 资产缺失不是错误（RGBA 回退路径本就可用，与 build-edge-ktx.mjs 的
         // 「产物缺失不致命」契约一致）——debug 级记录便于排查
         android.util.Log.d(LOG_TAG, "KTX 资产缺失 texture[$index]，走 RGBA 回退")

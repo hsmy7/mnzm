@@ -119,7 +119,10 @@ internal suspend fun performVassalFlow(
     val aiText = getVassalAiResponseText(favor, success)
     val playerReply = buildPlayerVassalReplyText(success, interactionViewModel.presentationRandom)
     return listOf(
-        ChatMessage(text = buildPlayerVassalRequestText(sect.name, interactionViewModel.presentationRandom), isPlayer = true),
+        ChatMessage(
+            text = buildPlayerVassalRequestText(sect.name, interactionViewModel.presentationRandom),
+            isPlayer = true
+        ),
         ChatMessage(text = aiText, isPlayer = false),
         ChatMessage(text = playerReply, isPlayer = true)
     )

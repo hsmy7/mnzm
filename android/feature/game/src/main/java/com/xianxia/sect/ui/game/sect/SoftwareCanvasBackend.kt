@@ -1354,44 +1354,37 @@ class SoftwareCanvasBackend(
             val base = i
             i += IslandCliffBridge.PIECE_STRIDE
             val tex = data[base + IslandCliffBridge.Field.TEX].toInt()
-            if (tex < 0 || tex >= textures.size) continue
-            val bitmap = textures[tex] ?: continue
-            drawSingleCliffPiece(
-                canvas = canvas,
-                frame = frame,
-                drawScale = drawScale,
-                bitmap = bitmap,
-                x = data[base + IslandCliffBridge.Field.X],
-                y = data[base + IslandCliffBridge.Field.Y],
-                w = data[base + IslandCliffBridge.Field.W],
-                h = data[base + IslandCliffBridge.Field.H],
-                u0 = data[base + IslandCliffBridge.Field.U0],
-                v0 = data[base + IslandCliffBridge.Field.V0],
-                u1 = data[base + IslandCliffBridge.Field.U1],
-                v1 = data[base + IslandCliffBridge.Field.V1]
-            )
+            // 循环体零 break/continue（LoopWithTooManyJumpStatements 收敛）——
+            // 合法性守卫（纹理下标 + 条目几何/UV）由 drawSingleCliffPiece 内部承担
+            val bitmap = if (tex in textures.indices) textures[tex] else null
+            if (bitmap != null) {
+                drawSingleCliffPiece(canvas, frame, drawScale, bitmap, data, base)
+            }
         }
     }
 
-    /** 单条崖壁布局条目绘制（守卫 + 视图变换 + 独立纹理采样） */
-    @Suppress("LongParameterList")  // 逐条目字段展开（避免热路径构造中间对象）
+    /** 单条崖壁布局条目绘制（守卫 + 视图变换 + 独立纹理采样）。
+     *  条目经扁平布局数组下标取值（[IslandCliffBridge.Field]）——签名只收
+     *  数组 + 基址，避免逐字段展开的长形参签名（热路径零分配不变）。 */
     private fun drawSingleCliffPiece(
         canvas: Canvas,
         frame: RenderFrame,
         drawScale: Float,
         bitmap: Bitmap,
-        x: Float,
-        y: Float,
-        w: Float,
-        h: Float,
-        u0: Float,
-        v0: Float,
-        u1: Float,
-        v1: Float
+        data: FloatArray,
+        base: Int
     ) {
+        val x = data[base + IslandCliffBridge.Field.X]
+        val y = data[base + IslandCliffBridge.Field.Y]
+        val w = data[base + IslandCliffBridge.Field.W]
+        val h = data[base + IslandCliffBridge.Field.H]
+        val u0 = data[base + IslandCliffBridge.Field.U0]
+        val v0 = data[base + IslandCliffBridge.Field.V0]
+        val u1 = data[base + IslandCliffBridge.Field.U1]
+        val v1 = data[base + IslandCliffBridge.Field.V1]
         // NaN/非法防御（数据篡改层——非法条目不画任何像素；NaN 比较恒 false
         // 会穿透区间检查，须显式判定；与 crop/cloud 段同风格）
-        if (isInvalidCliffEntry(x, y, w, h, u0, v0, u1, v1)) return
+        if (isInvalidCliffEntry(data, base)) return
 
         val left = ((x - frame.camX) * drawScale).roundToInt()
         val top = ((y - frame.camY) * drawScale * TOPDOWN_Y_SCALE).roundToInt()
@@ -1414,20 +1407,36 @@ class SoftwareCanvasBackend(
         canvas.drawBitmap(bitmap, cliffSrcRect, cliffDstRect, paint)
     }
 
-    /** 崖壁条目非法判定（NaN/越界 UV/退化尺寸——任一命中即整条跳过） */
-    private fun isInvalidCliffEntry(
-        x: Float, y: Float, w: Float, h: Float,
-        u0: Float, v0: Float, u1: Float, v1: Float
-    ): Boolean {
-        val nanXY = x != x || y != y
-        val nanWH = w != w || h != h
-        val nanUV = u0 != u0 || v0 != v0 || u1 != u1 || v1 != v1
-        val degenerate = w <= 0f || h <= 0f
+    /**
+     * 崖壁条目非法判定（NaN/越界 UV/退化尺寸——任一命中即整条跳过）。
+     *
+     * 条目经扁平布局数组下标取值（[IslandCliffBridge.Field]）——签名只收
+     * 数组 + 基址，避免逐字段展开的 8 形参签名；判定分两段谓词
+     * （几何 / UV），各自复杂度受控，求值序 = 原「先几何后 UV」不变。
+     */
+    private fun isInvalidCliffEntry(data: FloatArray, base: Int): Boolean =
+        cliffGeometryInvalid(data, base) || cliffUvInvalid(data, base)
+
+    /** 几何段非法：坐标/尺寸 NaN（比较恒 false 会穿透区间检查，须显式判定）或退化尺寸 */
+    private fun cliffGeometryInvalid(data: FloatArray, base: Int): Boolean {
+        val x = data[base + IslandCliffBridge.Field.X]
+        val y = data[base + IslandCliffBridge.Field.Y]
+        val w = data[base + IslandCliffBridge.Field.W]
+        val h = data[base + IslandCliffBridge.Field.H]
+        val nanGeometry = x != x || y != y || w != w || h != h
+        return nanGeometry || w <= 0f || h <= 0f
+    }
+
+    /** UV 段非法：UV NaN 或越界 [0,1]（镜像时 u0>u1 合法，只查区间不查序） */
+    private fun cliffUvInvalid(data: FloatArray, base: Int): Boolean {
+        val u0 = data[base + IslandCliffBridge.Field.U0]
+        val v0 = data[base + IslandCliffBridge.Field.V0]
+        val u1 = data[base + IslandCliffBridge.Field.U1]
+        val v1 = data[base + IslandCliffBridge.Field.V1]
+        val nanUv = u0 != u0 || v0 != v0 || u1 != u1 || v1 != v1
         val uvOutOfRange = u0 < 0f || u1 < 0f || v0 < 0f || v1 < 0f ||
             u0 > 1f || u1 > 1f || v0 > 1f || v1 > 1f
-        val invalid1 = nanXY || nanUV
-        val invalid2 = nanWH || degenerate || uvOutOfRange
-        return invalid1 || invalid2
+        return nanUv || uvOutOfRange
     }
 
     /**

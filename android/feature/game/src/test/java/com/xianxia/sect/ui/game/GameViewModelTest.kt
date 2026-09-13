@@ -17,6 +17,7 @@ import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.setActiveDialog
 import com.xianxia.sect.core.engine.setFocusedDiscipleId
 import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.updateGameDataSync
 import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
@@ -596,11 +597,17 @@ class GameViewModelTest {
     // ════════════════════════════════════════════════════════════════
     // 场景 4：天枢殿三大自动设置方法
     // ════════════════════════════════════════════════════════════════
-    // 覆盖 ViewModel → GameEngine.updateGameData 链路，
-    // 验证 setAutoAssignSettings / setBreakthroughAutoPillSettings /
-    // setAutoEquipSettings / setAutoLearnSettings /
+    // 覆盖 ViewModel → GameEngine 设置项入口链路，验证 setBreakthroughAutoPill
+    // Settings / setAutoEquipSettings / setAutoLearnSettings /
     // setDaoCompanionBannedRootCounts / setDaoCompanionConsentRequired
-    // 六个方法是否正确将参数写入 GameData。
+    // 是否正确将参数写入 GameData。
+    //
+    // batch-23 后生产链 = setXxx → updateSettingsOrFallback（native 臂在
+    // 单测环境因 NativeEngineFlag.authoritative=false 优雅降级）→ 回退臂
+    // updateGameDataSync（launchInScope 同步变体）——故捕获点为
+    // updateGameDataSync 闭包（原 updateGameData 捕获点在降级后永不落位，
+    // 为 5 处预存失败根因；updateGameDataSync 已与同文件 updateGameData
+    // 可见性对齐为 public）。
 
     @Test
     fun `setAutoAssignSettings - 规格参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
@@ -661,7 +668,7 @@ class GameViewModelTest {
     @Test
     fun `setBreakthroughAutoPillSettings - focused和rootCounts正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
         viewModel.autoAssign.setBreakthroughAutoPillSettings(focused = true, rootCounts = setOf(1, 3))
         runEngineBlocks()
@@ -675,7 +682,7 @@ class GameViewModelTest {
     @Test
     fun `setAutoEquipSettings - focused和rootCounts正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
         viewModel.autoAssign.setAutoEquipSettings(focused = true, rootCounts = setOf(2))
         runEngineBlocks()
@@ -689,7 +696,7 @@ class GameViewModelTest {
     @Test
     fun `setAutoLearnSettings - focused=false和空rootCounts正确写入`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
         viewModel.autoAssign.setAutoLearnSettings(focused = false, rootCounts = emptySet())
         runEngineBlocks()
@@ -703,7 +710,7 @@ class GameViewModelTest {
     @Test
     fun `setDaoCompanionBannedRootCounts - 正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
         viewModel.autoAssign.setDaoCompanionBannedRootCounts(setOf(4, 5))
         runEngineBlocks()
@@ -716,7 +723,7 @@ class GameViewModelTest {
     @Test
     fun `setDaoCompanionConsentRequired - 正确写入GameData`() = runTest(testDispatcher) {
         val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs
 
         viewModel.autoAssign.setDaoCompanionConsentRequired(required = true)
         runEngineBlocks()

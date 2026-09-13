@@ -399,17 +399,54 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 登记: **另一处预存债务（本批实测暴露）**——`android/app/src/test/.../AtlasLayoutSyncTest.kt` 有 **2 处语法错误**（`knownNames` 表达式断行缺失、`coveredNames` 重复 `+`）与 `android/core/domain/src/test/.../SpiritRootConfigTest.kt` 有 **1 处非法函数名**（反引号名内含 `.`，Kotlin 报 `Name contains illegal characters`）⇒ 三处**阻断 `compileReleaseUnitTestKotlin` 全量测试源编译**。本批按**最小修复**处置（补断行 / 去重复 `+` / 名内 `.` 改 `_`），语义零变更。**根因**：文件处于未提交的破碎状态却入库（`git status` 干净 ⇒ 破在 HEAD）——属"测试源编译未被任何门禁覆盖"的盲区（主源编译不编译测试源）。
 登记: **`:app` 单测 1 处预存失败**——`SpriteCodegenSyncTest > TextureAtlas 头 - MAP_SPRITES 78 条与期望全等`（`expected:78 but was:41`）；根因在**生成物**（`app/build/generated/sprite/TextureAtlas.h` 为忽略产物，实测 41 条）；重跑 codegen 任务（`generateResourceManifest` + `generateSpriteCode` + `:core:engine:generateSpriteAtlasDef`）后仍 41 ⇒ 属纹理/图集批次的生成链路问题，本批未深究（非 RNG 域）。`:app` 全量 **1018 用例 / 1 失败 / 2 跳过**；`:core:data` 全绿。
 
+## 2.59 收敛清偿批（2026-09-13）：§2.58.7 三未根治项全清 + detekt `:feature:game` 10 处清偿——**引擎全量 0 失败**
+
+批次: 收敛清偿批 | ActionId: 无（零 C++ 改动，全部 Kotlin 主源/测试源）| 产物: 改 `DiffYearSettlementTest.kt`（快照 9 号键摘除）、`GameEngineCoordination.kt`（`updateGameDataSync` internal→public）、`GameViewModelTest.kt`（5 处捕获点切换）、`SectCameraState.kt`（clampPosition 居中阈值）、`SectCameraStateTest.kt`（outset 常量 + 居中场景重定界）、`NativeSurfaceView.kt`（`forceGlesForEpoch` 外移同文件顶层扩展）、`SoftwareCanvasBackend.kt`（循环零跳转 + `isInvalidCliffEntry` 拆谓词 + `drawSingleCliffPiece` 参数对象化）、`IslandCliffTextureHolder.kt` / `IslandCliffTextureLoader.kt`（异常族）、`SectDiplomacyDialogTest.kt`（重命名）、`DiplomacyFlows.kt`（换行）
+
+### 2.59.1 ✅ 根因钉死：`DiffYearSettlementTest` AI 招募逐字段分歧（§2.58.7 项一，**测试夹具缺陷**）
+
+症状: 全量结构对拍首分歧 = `$.aiSectDisciples.ai-1[1].name` 期望="风阵玄"（Kotlin）实际="太史寒山"（C++）——**分歧从首名新招募弟子的名字即开始**（§2.58.7 "分歧窗口在第二名弟子装备/功法段"的收窄结论为探针偏置，实证推翻）。
+根因: `buildAiSectSnapshot` 的 `rngStates` 只摘除了 6 号键（AI_SECT 退役），**把 `initialRngStates` 盲扫写入的 9 号键（AI_SECT_MIRROR，`fromSeed(SEED+9)` 预抽 3 次的无关状态）留在了快照里**。C++ `importStateInternal`（restoreRng=true）的"存档续接"语义 = **快照带非 0 键 9 → 以其覆盖 mapSeed 重播态**（game_core.cpp）⇒ C++ `aiRng_` 从垃圾态起步，AI 流首抽即与 Kotlin 侧 `initForSlot(0)` 的 `fromSeed(0+6×31337)` 混种态分叉。Kotlin 侧 `restoreStates`/`exportStates` 只处理 `inSnapshot=true` 分区（9 号被忽略）⇒ 单侧污染。
+修法: AI 场景快照把 9 号键一并摘除（`- RngPartition.AI_SECT.id - RngPartition.AI_SECT_MIRROR.id`），两侧 AI 流种子只经 mapSeed 公式对齐（与测试注释声明的播种路径意图一致）；注释登记 9 号键"存档续接"语义陷阱。
+红线: **快照协议面写 9 号键必须写 `aiRng_` 真态**（生产 AUTHORITATIVE 存档即此语义）；测试夹具盲扫填充 = 本例根因模式，后续对拍夹具一律不得整表填充通道型分区键。
+验收: `DiffYearSettlementTest` 3/3 全绿——**引擎全量最后一例失败清偿，batch-21 关闭前置（`DiffYearSettlementTest` 收敛）达成**。
+
+### 2.59.2 ✅ `:feature:game` 两族 10 处预存失败全清（§2.58.7 项二）
+
+① **`GameViewModelTest` 5 处**（`IllegalStateException: Value not yet captured`）——batch-23 后设置项写路径 = `updateSettingsOrFallback`（native 臂在单测环境因 `NativeEngineFlag.authoritative=false` 优雅降级）→ 回退臂 **`updateGameDataSync`**（launchInScope 同步变体，internal）——测试捕获点（suspend 版 `updateGameData`）永不落位，且回退臂 lambda 经 `gameEngineCore.launchInScope` 在 relaxed mock 上不执行故零 NPE。**修法**：`updateGameDataSync` 可见性与同文件 `updateGameData`/`updateGameDataAndSync` 对齐 **internal→public**（batch-23 新增时误标 internal，非有意的契约面设计）；5 测试捕获点切至 `every { gameEngine.updateGameDataSync(capture(lambdaSlot)) } just runs`，字段映射断言零变化。（§2.58.7 预判的 testFixtures 基建经最小可见性对齐后不再需要——捕获式断言模式与该文件 40+ 既有测试一致。）
+② **`SectCameraStateTest` 5 处**（相机契约考古完成，**两向漂移并存**）：
+- **测试漂移 ×2**（`clampPosition - 视口小于世界时允许进入边缘带` / `clamp - cannot exceed world plus outset`）：测试常量 `edgeOutset=400f` 引用的旧 `ISLAND_EDGE_VISIBLE_OUTSET` 已不存在——2026-09 素材换代（37 张薄切片 island_edge → 7 张整块崖壁 island_cliff，最大 1180×3552，C++ `island_cliff.h` 锚定崖壁带绘制于世界矩形外侧）后实现常量 `ISLAND_CLIFF_VISIBLE_OUTSET=2500f` 有物理锚点且 KDoc 明言"修改须同步 SectCameraStateTest 期望"⇒ 更新测试常量至 2500 并登记换代史。
+- **实现漂移 ×3**（`clampPosition - 视口与整岛加边缘带同宽时仍居中悬浮` / `minScaleBound - 极限缩小时整座岛完整可见且居中（横屏/竖屏）`）：崖壁批把 `clampPosition` 居中阈值从"视口≥世界"抬到"**世界+2×outset**"，而最小缩放视口（整岛适配×0.75 ≈ 1.33×世界）在 outset=2500 下**永远低于阈值**（需世界+5000）⇒ 居中分支在常见机型不可达，缩到最小后岛滞留崖壁钳制带一侧——违背 `minScaleBound` KDoc 自身承诺（"岛占视口短边 75%、**两侧各约 12.5% 天空**"= 对称居中悬浮）与崖壁批之前既有行为。**修法**：`clampPosition` 居中阈值回归"该轴视口 ≥ 该轴世界"（崖壁带钳制分支仅在视口 < 世界时生效，"拖到地图边缘完整看见崖壁"可达性契约保留在游玩缩放域）；KDoc 同步。
+验收: `SectCameraStateTest` 42/42 全绿。
+
+### 2.59.3 ✅ detekt `:feature:game` 10 处活违规清偿（§2.58.8 登记面，裸 `detekt` 门禁口径实测 9 条目）
+
+| 项 | 处置 |
+|---|---|
+| `NativeSurfaceView` TooManyFunctions 20/20 | `forceGlesForEpoch`（降级阀两行状态置位）外移同文件顶层扩展（§2.58 `cloudLayerSeed` 同款惯例；访问的 `initBackendGles`/`glesTriedAfterVulkan` 本为 internal）——类内 20→19 |
+| `SoftwareCanvasBackend.isInvalidCliffEntry` LongParameterList 8/8 | 签名参数对象化 `(data: FloatArray, base: Int)`（扁平布局数组下标取值，热路径零分配不变）；`drawSingleCliffPiece` 同步改收 `(data, base)`——其 11 形参 @Suppress("LongParameterList") **顺带摘除** |
+| 同函数 CyclomaticComplexMethod 18/15 | 拆两段谓词 `cliffGeometryInvalid`（NaN 几何+退化尺寸，CC 7）/ `cliffUvInvalid`（NaN UV+越界 [0,1]，CC 13），求值序"先几何后 UV"逐位保持 |
+| `SoftwareCanvasBackend:1353` LoopWithTooManyJumpStatements | 崖壁遍历循环守卫合并单出口（`if (bitmap != null)`），循环体零 break/continue |
+| `IslandCliffTextureHolder:92` TooGenericExceptionCaught | 附理由 @Suppress（解码失败源跨资源 IO/素材状态/SDK 不可枚举，按缺失降级 + 异常已记录——§2.23.2 惯例） |
+| `IslandCliffTextureLoader:165` SwallowedException | catch 形参改 detekt 认可标记 `ignored`（KTX 资产缺失走 RGBA 回退，非错误） |
+| 同文件 ReturnCount 6/5（`uploadOne`） | 真实拆分：`uploadOne` = try/catch 包一层（1 return，异常降 0）+ 新 `uploadCliffTexture`（4 return，无异常路径）；行为逐位等价 |
+| `SectDiplomacyDialogTest:12` VariableNaming | `RANDOM` → `presentationRandom`（21 处引用同步） |
+| `DiplomacyFlows:122` MaxLineLength | ChatMessage 构造换行 |
+
+**验收**: `:feature:game` 裸 `detekt` 门禁 **0 违规**（裸任务 = 无类型解析的门禁口径；`detektRelease` 等类型解析变体会暴露数百处 UnnecessarySafeCall/UseOrEmpty/RedundantSuspendModifier 等**从未属门禁面**的条目——非本批范围，登记口径勿混淆）。六模块 `./gradlew.bat detekt` 全绿。
+
+
 ## 3. 验证结果（逐批记录；未达项在对应批次内显式标注，见 "未达项" 行）
 
-**当前门禁基线（2026-09-14，§2.58 收口批后）**：
+**当前门禁基线（2026-09-13，§2.59 收敛清偿批后）**：
 
 | 验证 | 结果 |
 |---|---|
 | 桌面 C++ 全量单测 | **1309/1309 全绿**（1284 既有 + 17 lock_beast_tx + 8 appointment_tx）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
-| 引擎全量单测 | **3260 用例 / 290 测试类 / 1 失败 / 0 跳过**（§2.58 修复 2 处根因缺陷后 **4 失败 → 1 失败**：`AISectDiscipleManagerTest` 2 例 + `DiffAuthoritativeTickTest` 1 例全部转绿；**余 1 例 = `DiffYearSettlementTest` AI 招募逐字段分歧**，见 §2.58.7。用例数 3249→3260 = 本批新增 `DiffAiRngSeedingTest`(3) + `RngEngineIsolationGuardTest`(1) + `NativeBenchmarkTest` RNG 基准(1) 等） |
-| `:feature:game` 单测 | **868 用例 / 10 失败**（`GameViewModelTest` 5 + `SectCameraStateTest` 5，两族均为**预存**、根因已定位，见 §2.58.7） |
-| detekt | ⚠️ **`main`（HEAD）实测红：25 处活违规**（`core:engine` 15 + `:feature:game` 10）——baseline 表确为全 0，说明这批是**未被 baseline 覆盖的活违规**（§3 原写“绿”与实测不符，已勘误）。§2.58 **顺手清偿 15 处**（死 import ×10 + 复杂度/跳转 ×3 + 类函数数 ×1 + 命名/长行）；余 `:feature:game` 10 处登记待专项（归属纹理/浮空岛渲染批次，见 §2.58.8）。`RngSourceGuardTest` 登记上限只缩：domain ②7→5、game ②2→1、④1→0 |
-| 动作计数 | **170 动作，maxId=1733**（§2.58 零新增动作——三小项均为形参化/迁移，无 C++ 事务） |
+| 引擎全量单测 | **3260 用例 / 293 测试类 / 0 失败 / 0 跳过**（§2.59.1 清偿 §2.58 后最后一例 `DiffYearSettlementTest` AI 招募分歧——根因 = 测试夹具快照保留 9 号通道键垃圾值触发 C++ 存档续接覆盖；类数 290→293 为并行批新增测试类计入口径差异） |
+| `:feature:game` 单测 | **868 用例 / 0 失败**（§2.59.2 清偿 §2.58.7 两族 10 处预存失败：GameViewModelTest 5 = `updateGameDataSync` 可见性对齐 + 捕获点切换；SectCameraStateTest 5 = 相机契约考古两向漂移分别处置） |
+| detekt | ✅ **六模块 `./gradlew.bat detekt` 全绿**（§2.59.3 清偿 `:feature:game` 最后 10 处活违规；baseline 表仍全 0）。**口径注记**：裸 `detekt` 任务（无类型解析）为门禁口径；`detektRelease` 等类型解析变体会暴露数百处 UnnecessarySafeCall/UseOrEmpty/RedundantSuspendModifier 等条目，**从未属门禁面**，勿据以派工。`RngSourceGuardTest` 登记上限只缩：domain ②7→5、game ②2→1、④1→0 |
+| 动作计数 | **170 动作，maxId=1733**（§2.58/§2.59 均零新增动作——无 C++ 事务） |
 | 编译 | 主源 + 测试源（`:core:domain`/`:core:engine`/`:feature:game`/`:app`）BUILD SUCCESSFUL；桌面 JNI 重建成功 |
 | **阶段 4 JNI 成本基准** | **10k 抽取：kotlin 本地 PCG 14ns/op vs native JNI 标量往返 11ns/op（ratio 0.8）** ⇒ ADR §8 首行风险不成立，阶段 3 可按原粒度推进（桌面 JVM ≠ ART，真机留余量） |
 | **NDK arm64** | ✅ **已跑通（2026-09-14 §2.58 实测）**——`:app:externalNativeBuildRelease` BUILD SUCCESSFUL（2m46s）。原记载的「纹理重构族在途破损 ⇒ NDK 不可走」**不成立**：`NativeBridge.cpp:623/625/1499/1500` 用的是**全局** `KtxInfo`/`loadKtx1`（无 `ktx1::` 限定符） |
@@ -476,8 +513,8 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 ### 4.1 需要专项的高危大项
 | 项 | 状态 |
 |---|---|
-| **§2.58 未收敛项一：`DiffYearSettlementTest` AI 招募逐字段分歧（1 例）** | **⚠️ 未根治（2026-09-14，见 §2.58.7）**——分歧窗口已实测收窄到"**第二名 AI 弟子的装备/功法段**"（前两名弟子的 7 项方差与 9 项技能逐位一致 ⇒ 生成序一致；第三名弟子灵根数已不同 = 漂移表现）。**已排除**：AI 分区播种态（修后双侧 `snapshot` 相同 + 8 抽逐位一致）、Kotlin `generateYearlyRecruits` 直调产出与测试 `expected` 完全一致。**下一步**：在 `advanceKotlinSide` 与 C++ 侧各插一次 AI 分区快照差分（探针位置已验证可行）。**前置意义**：batch-21 关闭前须先钉死（通道关闭后无兜底） |
-| **§2.58 未收敛项二：`:feature:game` 两族 10 处预存夹具失败** | **⚠️ 未清偿（2026-09-14，见 §2.58.7）**——① `GameViewModelTest` 5 处：batch-23 后设置项写路径为 `updateSettingsOrFallback`（native 成功即完成／失败降级 `updateGameDataSync`），测试断言的 `gameEngine.updateGameData` 捕获点在**回退臂**，而夹具的 `gameEngine.stateStore` 为空引用（`stateStore` 在 `core:engine` 为 `internal`，feature 模块测试**不可 stub**）⇒ 捕获块永不落位。**修法**：给 feature 测试模块提供可注入的 `GameStateStore` 夹具（`core:engine` testFixtures 依赖或上提 Fake）。② `SectCameraStateTest` 5 处：相机 `clampPosition`/`minScaleBound` 契约——须先做"期望值来源考古"判定**实现漂移**还是**测试漂移**（禁止直接把期望改成实现值） |
+| ~~§2.58 未收敛项一：`DiffYearSettlementTest` AI 招募逐字段分歧（1 例）~~ | **✅ 已清偿（2026-09-13，见 §2.59.1）**——根因 = 测试夹具快照保留了 9 号通道键（AI_SECT_MIRROR）的盲扫垃圾值，C++ import"存档续接"语义以其覆盖 mapSeed 播种态，AI 流首抽即分叉；修法 = AI 场景快照摘除 9 号键。3/3 全绿，**引擎全量 0 失败；batch-21 关闭前置（本例收敛）达成** |
+| ~~§2.58 未收敛项二：`:feature:game` 两族 10 处预存夹具失败~~ | **✅ 已清偿（2026-09-13，见 §2.59.2）**——① `GameViewModelTest` 5 处：`updateGameDataSync` 可见性与同文件兄弟 API 对齐（internal→public）+ 捕获点切至回退臂 sync 变体；② `SectCameraStateTest` 5 处：考古判定两向漂移并存（outset 400→2500 = 测试漂移更新；clampPosition 居中阈值"世界+2×outset"→"世界" = 实现漂移回归修复，恢复 minScaleBound KDoc 的对称居中悬浮契约）。两族全绿 |
 | **§2.58 未收敛项三：三处顶层可变 `xxxRngManager` 同族遗留** | **⚠️ 登记待偿还（2026-09-14）**——`EnemyGenerator.enemyGenRngManager` / `AISectAttackManager.aisRngManager` / `AISectTeamComposer.teamComposerRngManager`（`RngEngineIsolationGuardTest` 首跑即抓出，白名单登记）。与已修复的 `MissionSystem` 同形态（顶层可变全局 + 外部覆写），生产单引擎下无实际分叉。**偿还触发条件**：该域出现"双引擎同进程"的第三个消费场景，或该域 UI 操作面下沉时顺手收敛为形参必传 |
 | ~~M3 首批：detekt 死代码族清偿~~ | **✅ 已清偿（2026-09-08，见 §2.20）**：五模块 UnusedPrivate*/UnusedImports 归零（含 SaveLoadSaveDelegate 整类、7 处死构造参数、14 个空 companion、副作用保留改造 7 处）；baseline -211 条（只缩不增）；实跑实测剩余活债务 2952 条按族登记（MaxLineLength 1400+ / TooGenericExceptionCaught ~340 / 复杂度族）逐批推进 |
 | ~~M3 第二批：反向通道逐域写者审计 + lockedBeastIds 加固 + InvalidPackageDeclaration~~ | **✅ 已清偿（2026-09-08，见 §2.21）**：①审计改判——"反向通道按域全关"前置不成立（约 265 个 `update` 调用点、15+ 域 UI 操作面仍 Kotlin 直改，无域可关；**该 M3 主项改判为长期主轴：UI 操作面逐域下沉 C++**，域→写者→批次清单落档 ui-read-surface §4.1）；②lockedBeastIds 反向增量段缺口加固（S-15 同族，月结锁定妖兽跳过判定在 AUTHORITATIVE 下恢复生效）；③detekt InvalidPackageDeclaration 118 条清偿（纯文件搬移零代码变更，engine baseline 1057→939 + 30 条注册类别按包路径归属修正） |
@@ -745,9 +782,9 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 
 ## 6. 主轴剩余：随机源治理（已拍板选项 2：根治）
 
-> ✅ **收口批已完成（2026-09-14，见 §2.58）**：ADR **阶段 0/1（三项全）/2（可归表现类者全）/4** 均已交付——AI 播种态根因修复（3 例转绿）、`MissionSystem` 全局解除（1 例转绿）、阶段 0 CI 红线、阶段 2 三文件收口（`BattleDescriptionGenerator`/`DiscipleChatDialog` 判为**决策类**归阶段 3）、阶段 4 10k JNI 基准（**ratio 0.8 ⇒ 无成本约束**）、两道新守卫（`DiffAiRngSeedingTest` + `RngEngineIsolationGuardTest`）。
-> **剩余**：① `DiffYearSettlementTest` 1 例（分歧窗口已收窄到"第二名 AI 弟子的装备/功法段"，根因待专项）；② **阶段 3**（决策类逐域下沉，未开工——10k 基准已证明无 JNI 成本障碍）；③ `:feature:game` 两族预存夹具失败（需 testFixtures 基建）。
-> **batch-21 关闭前置**：阶段 1 三项已全部交付且**播种态跨语言等价性已被 `DiffAiRngSeedingTest` 锁死** ⇒ 前置之一（AI RNG 归一）**达成**；另一项（库存开袋）阶段 1① 亦已达成。**唯 `DiffYearSettlementTest` 未收敛前不建议开 batch-21**（该例暴露的是"Kotlin 夹具与 C++ 生产编排之间的 AI 分区消费差"，通道关闭后无兜底、需先钉死）。
+> ✅ **收口批已完成（2026-09-14，见 §2.58）+ 收敛清偿批（2026-09-13，见 §2.59）**：ADR **阶段 0/1（三项全）/2（可归表现类者全）/4** 均已交付——AI 播种态根因修复（3 例转绿）、`MissionSystem` 全局解除（1 例转绿）、阶段 0 CI 红线、阶段 2 三文件收口（`BattleDescriptionGenerator`/`DiscipleChatDialog` 判为**决策类**归阶段 3）、阶段 4 10k JNI 基准（**ratio 0.8 ⇒ 无成本约束**）、两道新守卫（`DiffAiRngSeedingTest` + `RngEngineIsolationGuardTest`）。
+> **剩余**：① ~~`DiffYearSettlementTest` 1 例~~（**✅ §2.59.1 清偿**——夹具快照 9 号键垃圾值触发 C++ 存档续接覆盖，测试侧修复）；② **阶段 3**（决策类逐域下沉，未开工——10k 基准已证明无 JNI 成本障碍）；③ ~~`:feature:game` 两族预存夹具失败~~（**✅ §2.59.2 清偿**）。
+> **batch-21 关闭前置**：阶段 1 三项已全部交付且**播种态跨语言等价性已被 `DiffAiRngSeedingTest` 锁死**；库存开袋（路线 A）与 AI RNG 归一均达成；**`DiffYearSettlementTest` 已收敛（§2.59.1）**——⇒ **batch-21 关闭前置全部达成，可开**（引擎全量 0 失败为当前基线）。
 
 > 完整方案见 **[ADR rng-determinism-remediation.md](../adr/rng-determinism-remediation.md)**（本文件只留交接必需的指针与不变量，避免文档再次膨胀）。
 

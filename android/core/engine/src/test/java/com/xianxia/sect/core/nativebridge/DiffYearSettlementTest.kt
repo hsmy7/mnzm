@@ -488,8 +488,17 @@ class DiffYearSettlementTest {
         ).apply {
             // 键 6（AI_SECT）已在协议面**退役**（阶段 1②：AI 流权威态由宿主侧
             // `aiRng_` 承载，随 9 号通道键落盘）——快照里带 6 号会让 C++ 导入时
-            // 按该值覆写 aiRng_，与 Kotlin 侧 `mapSeed + 6×31337` 播种态分叉
-            rngStates = (initialRngStates(SEED) - RngPartition.AI_SECT.id).toMutableMap()
+            // 按该值覆写 aiRng_，与 Kotlin 侧 `mapSeed + 6×31337` 播种态分叉。
+            // 键 9（AI_SECT_MIRROR）**必须一并摘除**：C++ importStateInternal
+            // 的"存档续接"语义是"快照带非 0 键 9 → 以其覆盖 mapSeed 重播态"
+            //（game_core.cpp importStateInternal）——initialRngStates 盲扫写入的
+            // 9 号值是 fromSeed(SEED+9) 预抽 3 次的无关状态，续接后 AI 流首抽
+            // 即分叉（实测首名新招募弟子名字即不同）。本场景刻意走 mapSeed
+            // 播种路径（Kotlin 臂 initForSlot(0) 同源 fromSeed(0+6×31337)），
+            // 故两侧 AI 流种子只经 mapSeed 公式对齐，快照不带任何 AI 通道键。
+            rngStates = (initialRngStates(SEED) -
+                RngPartition.AI_SECT.id -
+                RngPartition.AI_SECT_MIRROR.id).toMutableMap()
             lastRecruitYear = 3          // 招募刷新差值 4-3<3 不刷新
             merchantLastRefreshChanceGrantYear = 3   // 商人刷新机会差值 <30 不授予
         }

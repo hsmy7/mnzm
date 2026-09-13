@@ -909,16 +909,8 @@ class NativeSurfaceView(
         }
     }
 
-    /**
-     * 本纪元强制 GPU GLES（降级阀）：glesTriedAfterVulkan 同步置位，
-     * GLES 失败直接降软件——禁止回 Vulkan（该实例本纪元不可触碰）。
-     * 下一 surface 纪元 useRenderMode 分流照常（Vulkan 失败计数由 C++ 侧
-     * 幂等析构 + 有界化兜底，重新尝试是安全的）。
-     */
-    private fun forceGlesForEpoch() {
-        initBackendGles = true
-        glesTriedAfterVulkan = true
-    }
+    // forceGlesForEpoch 外移至同文件顶层扩展（§2.58 cloudLayerSeed 同款惯例）
+    // ——类内函数数压回 TooManyFunctions 阈值内。
 
     /**
      * 渲染初始化协调器——Vulkan/软件初始化启动三函数
@@ -1968,3 +1960,18 @@ private fun cloudLayerSeed(worldWidthCells: Int, worldHeightCells: Int): Int =
 private const val CLOUD_SEED_WIDTH_MIX = 73_856_093
 private const val CLOUD_SEED_HEIGHT_MIX = 19_349_663
 private const val CLOUD_SEED_SALT = 0x5EED_C10D
+
+/**
+ * 本纪元强制 GPU GLES（降级阀）：glesTriedAfterVulkan 同步置位，
+ * GLES 失败直接降软件——禁止回 Vulkan（该实例本纪元不可触碰）。
+ * 下一 surface 纪元 useRenderMode 分流照常（Vulkan 失败计数由 C++ 侧
+ * 幂等析构 + 有界化兜底，重新尝试是安全的）。
+ *
+ * 由类成员外移为同文件顶层扩展（§2.58 cloudLayerSeed 同款惯例）——
+ * 类内函数数压回 detekt TooManyFunctions 阈值内；访问的两个状态字段
+ * （initBackendGles/glesTriedAfterVulkan）本为 internal，模块内可见。
+ */
+private fun NativeSurfaceView.forceGlesForEpoch() {
+    initBackendGles = true
+    glesTriedAfterVulkan = true
+}

@@ -89,7 +89,9 @@ class IslandCliffTextureHolder(private val context: Context) {
                     android.graphics.BitmapFactory.decodeResource(
                         context.resources, IslandCliffTextureSet.TEXTURE_DRAWABLES[i], opts
                     )
-                } catch (t: Throwable) {
+                } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+                    // 刻意的防御性 catch：解码失败源跨资源 IO/素材状态/SDK，不可枚举——
+                    // 按「该张缺失」降级（null 占位，绘制端跳过），异常已记录
                     android.util.Log.e(LOG_TAG, "canvas bitmap[$i] decode failed", t)
                     null
                 }

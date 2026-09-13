@@ -81,10 +81,9 @@ class SectCameraState(
          * 崖壁绘制于世界矩形外侧，**左右下三侧**（无上边缘）：
          * - 左右崖壁横向伸入地图外 = 纹理宽（最大 1180）
          * - 下崖壁纵向伸入地图外 = 纹理高（最大 2400，含转角）
-         * 相机 clamp 外扩此厚度后：
-         * - 视口 < 世界 + 2×outset：相机可平移进入崖壁带 → 拖到地图边缘即
-         *   完整看见崖壁（「地图边缘自然过渡为悬崖」的可达性契约）；
-         * - 视口 ≥ 世界 + 2×outset：整岛（含崖壁环绕）居中悬浮天际。
+         * 相机 clamp 外扩此厚度后，视口 < 世界的轴可平移进入崖壁带 → 拖到
+         * 地图边缘即完整看见崖壁（「地图边缘自然过渡为悬崖」的可达性契约）；
+         * 视口 ≥ 世界的轴由 [clampPosition] 居中（整岛悬浮天际）。
          *
          * 取值 = max(左右纹理宽 1180, 下纹理高 2400) + 余量 100 = 2500。
          * 与 IslandCliffBridge / gamecore/map/island_cliff.h 的锚定契约对齐
@@ -171,17 +170,25 @@ class SectCameraState(
     }
 
     /**
-     * 视口位置钳制（浮空岛崖壁可见性契约）。
+     * 视口位置钳制（浮空岛崖壁可见性契约 + 整岛悬浮居中契约）。
      *
-     * 世界边框不再是视线硬边界：相机允许外扩 [ISLAND_CLIFF_VISIBLE_OUTSET]——
-     * 拖到地图边缘时崖壁进入视口（左右下三侧；「地图→悬崖」可见）；
-     * 视口 ≥ 世界 + 2×outset 时整岛（含崖壁环绕）居中悬浮天际。
+     * 双分支按轴独立：
+     * - **视口 < 世界**（该轴仍在游玩缩放内）：世界边框不是视线硬边界，相机允许
+     *   外扩 [ISLAND_CLIFF_VISIBLE_OUTSET]——拖到地图边缘时崖壁进入视口
+     *   （左右下三侧；「地图→悬崖」可见）；
+     * - **视口 ≥ 世界**（该轴整岛已完整可见，典型为最小缩放的"悬浮天际"视角）：
+     *   该轴居中——世界（含两侧对称天空）悬浮于视口中央。
+     *   阈值取"世界"而非"世界 + 2×outset"：居中语义由 [minScaleBound] 的
+     *   天空边距承诺（岛占视口短边 75%、两侧各约 12.5% 天空）背书——若以
+     *   世界 + 2×outset 为门槛，outset（2500）远超最小缩放视口的天空余量
+     *   （≈0.17×世界），居中分支在常见机型上不可达，缩到最小后岛会滞留在
+     *   崖壁钳制带一侧（SectCameraStateTest 居中三用例锁守的回归）。
      */
     override fun clampPosition(visibleW: Float, visibleH: Float) {
         val outset = ISLAND_CLIFF_VISIBLE_OUTSET
-        cameraX = if (visibleW >= worldWidth + 2f * outset) (worldWidth - visibleW) / 2f
+        cameraX = if (visibleW >= worldWidth) (worldWidth - visibleW) / 2f
                   else cameraX.coerceIn(-outset, worldWidth + outset - visibleW)
-        cameraY = if (visibleH >= worldHeight + 2f * outset) (worldHeight - visibleH) / 2f
+        cameraY = if (visibleH >= worldHeight) (worldHeight - visibleH) / 2f
                   else cameraY.coerceIn(-outset, worldHeight + outset - visibleH)
     }
 
