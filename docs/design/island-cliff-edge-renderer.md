@@ -272,12 +272,25 @@ int32_t islandCliffMaxPieces(const IslandCliffConfig&);   // 容量上界（预�
 
 ## 九、技术债与偿还计划
 
-- **无新增技术债**：本方案按最终态一次性实现（ASTC 压缩、mip 链、逐张降级、
-  镜像去重全部落地，无"后续优化"尾巴）。
-- **登记（预存，非本批引入）**：
-  1. `SectMapEdgeOverlay`（古风卷轴边缘装饰层）已停用但未删除——偿还触发 = 下次地图边缘相关批次。
-  2. codegen 产物缺失时任务误判 UP-TO-DATE（`.atlas-def.hash` 残留死锁）——
-     建议修成「产物缺失即强制重生成」。
+- **本方案自身无新增技术债**：ASTC 压缩、mip 链、逐张降级、镜像去重全部落地，
+  无"后续优化"尾巴。
+- **预存事项（非本批引入，如实登记）**：
+  1. `SectMapEdgeOverlay`（古风卷轴边缘装饰层）已停用 —— **已在本批删除**（全仓零引用）。
+  2. **codegen 产物被 Gradle 之外删除 → 任务误判 UP-TO-DATE**（实测复现，非历史遗留）。
+     精确根因：Gradle 的 UP-TO-DATE 判定只比较输入快照与历史，**不核对已声明产物是否
+     仍在磁盘上** ⇒ 产物被 Gradle 之外的路径删除（并发构建、外部工具清 build/、IDE）后，
+     脚本因内容 hash 未变跳过写文件 → 任务"成功"但产物缺失 → 编译报
+     `Unresolved reference`。
+     `docs/build-perf/baseline-20260814.md` §3.2 登记的修复只覆盖「删除发生在 Gradle
+     执行链内」（hash 纳入 outputs 声明，使 Gradle 执行前清理会连带删 hash），
+     **不覆盖 Gradle 之外的删除**。
+     暴露面：`generateSpriteAtlasDef`（`core:engine`）与 `generateSpriteCode`（`app`）
+     两个任务同族；产物均不入库，故合并/checkout 不触发，主要触发源是并发构建与外部清理。
+     恢复：`Remove-Item android/core/engine/build/generated/sprite/.atlas-def.hash`
+     （或 `.sprite-code.hash`）后重新构建。
+     **本批未实施根治**：让任务感知产物缺失需每次构建执行一次存在性校验，与这两个
+     任务的增量收益（省 2s node 启动）冲突；而暴露面窄且恢复命令明确，收益不抵成本。
+     若后续并发构建成为常态，再按「产物存在性纳入任务输入」实施。
   3. `scripts/sprite-uid-map.json` 保留已删素材的 UID 墓碑（追加式设计，
      删除会使其它资源 UID 漂移，故不动）。
 - **待真机验收**：显存占用、整岛缩采样观感、ASTC 块状伪影。

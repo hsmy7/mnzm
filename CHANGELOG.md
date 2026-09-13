@@ -73,10 +73,12 @@
   - **症状**：崖壁 KTX 全部被拒（`dataSize 不一致`），Vulkan 路径静默回落 RGBA。
   - **因果链**：ASTC 块数 = `ceil(dim/4)`（末行/末列不足一块时**编码器补齐整块**），而 `KtxLoader.cpp` 用 `(lw/4)*(lh/4)` 整除。图集是 2 的幂尺寸，两者恰好等价 ⇒ 缺陷长期潜伏；崖壁非 2 的幂底图产生 `147×444`、`36×111`、`17×52` 这类级尺寸（`base>>level` 的必然结果）后暴露。实测 48 个尺寸逐一验证 **ceil 无一例外**。
   - **修法**：`KtxLoader` 与 `lib/ktx1.mjs` 同步改为 ceil，并**复校已入库的 `atlas_astc.ktx` 仍通过**（2 的幂下 ceil≡floor，无回归）。
-- **🔴 根因修复二：codegen 产物缺失时任务误判 UP-TO-DATE（预存死锁）**
-  - **症状**：`:core:engine:compileReleaseKotlin` 报 `Source file or directory not found: .../SpriteAtlasDef.kt`，而任务显示已执行。
-  - **因果链**：`generateSpriteAtlasDef` 以 `.atlas-def.hash` 做内容增量——**产物被清而 hash 残留时任务判定"未变"直接跳过**，Kotlin 编译对着不存在的目录。（该坑仓库自己在 `app/build.gradle` 已注明"产物被清而 hash 残留时任务误判 UP-TO-DATE（死锁）"。）
-  - **处置**：清 hash 恢复；建议——产物缺失时应强制重生成（视产物存在性为 hash 的一部分）。
+- **🔴 根因修复二：codegen 任务对「产物被 Gradle 之外删除」失明（预存缺陷，本批复现并更正登记）**
+  - **症状**：`:core:engine:compileReleaseKotlin` 编译失败（`Unresolved reference 'SpriteAtlasDef'`），而 `generateSpriteAtlasDef` 显示 **UP-TO-DATE**、产物 `SpriteAtlasDef.kt` 却不在磁盘上。
+  - **因果链**：Gradle 的 UP-TO-DATE 判定只比较**输入快照与历史**，**不核对已声明产物是否仍在磁盘** ⇒ 产物被 Gradle 之外的路径删除（并发构建、外部清 `build/`、IDE）后，脚本因内容 hash 未变而跳过写文件 → 任务"成功"但产物缺失 → 编译报错。
+  - **与既有登记的关系（更正）**：`docs/build-perf/baseline-20260814.md` §3.2 已登记该症状并称"已修复"——其修复（hash 纳入 `outputs.file` 声明）只覆盖**删除发生在 Gradle 执行链内**的情形，**不覆盖 Gradle 之外的删除**。本批在 `--no-build-cache` 下严格复现（禁用 build cache 以排除缓存自动恢复的干扰），确认该缺陷在当前代码中仍可复现，故§3.2 的"已修复"结论应理解为"覆盖了一种触发路径"。
+  - **暴露面**：`generateSpriteAtlasDef`（`core:engine`）与 `generateSpriteCode`（`app`）同族；产物均不入库，故合并/checkout 不触发，主要触发源是并发构建与外部清理。
+  - **处置**：清 `.atlas-def.hash` 后重新构建即恢复（本批实际动作）；**未实施"任务感知产物缺失"的根治**——需每次构建执行存在性校验，与这两个任务的增量收益冲突，而暴露面窄且恢复命令明确，已在设计文档 §九 登记触发条件（并发构建成为常态时再实施）。
 - **架构：崖壁走独立纹理（不进图集）**
   - 单张最大 1180×3552 **超出 4096² 图集容量**，且 Vulkan 核心仅保证 `maxImageDimension2D ≥ 4096`（8192 属 Roadmap 2022 Profile / 中高端）。图集重建后精灵数 **79 → 42**，`atlas_astc.ktx` 仍 21.33MB。
   - 布局单一权威 = 新增 `gamecore/map/island_cliff.h`（纯函数、GTest 覆盖）：左环右缘贴 x=0、右环左缘贴 x=mapW（镜像位）、下环顶边贴 y=mapH、两角内缘贴角点；**角块最后绘制**覆盖边环越界末块。末块裁剪时 **UV 按截断比例收缩**（不拉伸素材）。
