@@ -938,8 +938,8 @@ Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeRoadCompose(
 // 布局合成单一权威 = gamecore/map/island_cliff.h；本函数仅做 JNI 装配：
 // 池平铺表/纹理尺寸表 → IslandCliffConfig → 输出
 // [texIdx, x, y, w, h, u0, v0, u1, v1, flags] × N（步长 kIslandCliffStride）。
-// 与旧图集版（nativeIslandEdgeCompose）的差异：独立纹理 + 逐条目 UV + 镜像位，
-// 故输出携带 texIdx/UV/flags，不再依赖图集精灵索引 + 全局 UV 表。
+// 崖壁走独立纹理，故输出携带 texIdx + 逐条目 UV + 镜像位，
+// 不依赖图集精灵索引与全局 UV 表。
 // ============================================================
 extern "C" JNIEXPORT jfloatArray JNICALL
 Java_com_xianxia_sect_core_nativebridge_GameCoreBridge_nativeIslandCliffCompose(

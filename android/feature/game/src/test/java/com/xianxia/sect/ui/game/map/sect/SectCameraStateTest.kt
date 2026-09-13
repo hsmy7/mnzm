@@ -262,8 +262,8 @@ class SectCameraStateTest {
     // ==================== 平移与 clamp ====================
 
     /** 崖壁带外扩边距（与 SectCameraState.ISLAND_CLIFF_VISIBLE_OUTSET 同值——修改必同步）。
-     *  2026-09 素材换代：37 张薄切片 island_edge（时代 outset=400）→ 7 张整块崖壁
-     *  island_cliff（最大 1180×3552，绘制于世界矩形外侧）→ outset = 1180/2400 + 余量 100。 */
+     *  取值依据：7 张整块崖壁绘制于世界矩形外侧，左右伸入 = 纹理宽（最大 1180）、
+     *  下伸入 = 纹理高（最大 2400）⇒ outset = 2400 + 余量 100。 */
     private val edgeOutset = 2500f
 
     @Test

@@ -415,9 +415,8 @@ object GameCoreBridge {
      * 浮空岛崖壁布局合成（纯函数，kAnyThread——与 [nativeRoadCompose] 同语义，
      * 不依赖引擎实例；仅需库已加载）。
      *
-     * 布局合成单一权威 = `gamecore/map/island_cliff.h`。与旧图集版
-     * （nativeIslandEdgeCompose，已删除）的差异：崖壁走**独立纹理**，故输出
-     * 携带纹理下标 + 逐条目 UV + 镜像位，不再依赖图集精灵索引 + 全局 UV 表。
+     * 布局合成单一权威 = `gamecore/map/island_cliff.h`。崖壁走**独立纹理**，故输出
+     * 携带纹理下标 + 逐条目 UV + 镜像位，不依赖图集精灵索引与全局 UV 表。
      *
      * @param textureSizes 纹理尺寸表 [w, h] × N（序 = IslandCliffTextureSet 下标序）
      * @param poolBase 每池在 [poolFlat] 中的起始偏移（[IslandCliffBridge.POOL_COUNT] 个）

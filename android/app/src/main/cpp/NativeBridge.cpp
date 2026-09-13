@@ -186,7 +186,7 @@ static std::map<int64_t, float> g_lastCropProgress;
 static std::vector<int64_t> g_activeCropKeys;
 
 // ── 帧批量构建器（跨帧复用）──
-// 渲染线程单消费者：drawAllTiles/drawIslandEdges 仅由 RenderThread 经 JNI 调用，
+// 渲染线程单消费者：drawAllTiles/drawIslandCliffs 仅由 RenderThread 经 JNI 调用，
 // 无并发；grow 一次后堆缓冲跨帧复用，根除每帧 5 次 new/memcpy/delete ×2 的分配链。
 // 清理策略与 g_lastCropProgress 同纪律（文件级状态须在 shutdownRenderer 说明）：
 // batcher 无 native 句柄，无需清理，仅容量驻留 ≤2×16384×32B=1MB 堆。

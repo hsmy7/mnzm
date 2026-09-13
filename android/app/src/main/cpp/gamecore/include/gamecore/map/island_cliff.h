@@ -11,10 +11,10 @@
 //   - C++ Vulkan/GLES：NativeBridge.drawIslandCliffs（操作 → SpriteBatcher）
 //   - Kotlin Canvas：SoftwareCanvasBackend.drawIslandCliffs（操作 → Bitmap 源矩形）
 //
-// ## 与旧 island_edge.h 的差异（2026-09 素材换代）
-// 旧系统是 37 张 ≤211×397 薄切片打包进 4096² 图集；新素材是 7 张整块崖壁
-// （最大 1180×3552），**超出图集容量**，故走**独立纹理**：
-//   - 每个变体一张独立纹理（纹理下标写进布局条目）
+// ## 为何走独立纹理而非图集
+// 崖壁是 7 张整块素材（最大 1180×3552），**超出 4096² 图集容量**；且 Vulkan
+// 核心只保证 maxImageDimension2D ≥ 4096。故每个变体一张独立纹理：
+//   - 纹理下标写进布局条目（texIdx）
 //   - UV 逐条目携带（独立纹理各自归一化，且需承载镜像与裁剪）
 //
 // ## 素材语义（实测）

@@ -116,7 +116,10 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
                 // 云层实例数据（渲染线程逐帧快照——与 Vulkan 路径同一份数据）
                 cloudData = cloudData,
                 // 天空渐变配置（渲染侧单一真相源；天气/时间系统改此即可切换天际）
-                skyConfig = host.skyConfig
+                skyConfig = host.skyConfig,
+                // 崖壁独立纹理位图集（软渲染路径专用；Vulkan/GLES 走 GPU 纹理）。
+                // null（未加载/全失败）→ 崖壁层整层跳过，不画白
+                cliffTextures = host.islandCliffTextures.bitmaps.value
             )
         } catch (e: RuntimeException) {
             android.util.Log.e("SoftwareRenderBackend", "renderFrame failed: ${e.message}", e)

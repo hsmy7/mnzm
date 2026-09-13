@@ -15,9 +15,9 @@ import com.xianxia.sect.core.nativebridge.GameCoreBridge
  * 且承载镜像与裁剪）；flags bit0 = 水平镜像（此时 u0 > u1，消费端取 min/max）。
  * 守护：`island_cliff_test`（C++ GTest）+ `IslandCliffBridgeTest`。
  *
- * **与旧 IslandEdgeBridge 的差异**：崖壁素材单张最大 1180×3552，超出 4096²
- * 图集容量，故走**独立纹理**而非图集切片——输出因此携带纹理下标与逐条目 UV，
- * 不再有全局 UV 表与图集精灵索引。
+ * **为何走独立纹理**：崖壁是 7 张整块素材（最大 1180×3552），超出 4096² 图集
+ * 容量，故每个变体一张独立纹理而非图集切片——输出因此携带纹理下标与逐条目 UV，
+ * 没有全局 UV 表与图集精灵索引。
  *
  * 线程契约：合成器为无状态纯函数，任意线程可调；生产调用方为 Compose
  * remember（低频，仅地图尺寸/种子变化时一次）。

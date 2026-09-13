@@ -106,7 +106,11 @@ internal class IslandCliffTextureLoader(private val context: Context) {
     }
 
     /**
-     * 主线程上传（逐张；每张内部按 ①→②→③ 降级）。
+     * 主线程上传（逐张；每张内部按 ①→②→③ 降级），并**注册到 C++ 侧纹理表**。
+     *
+     * 注册（[NativeBridge.setIslandCliffTextures]）在本方法内完成而非交给调用方：
+     * 上传者才持有「纹理下标 → GPU ID」的映射，漏注册会让 drawIslandCliffs
+     * 拿不到任何 ID 而整层不画（静默无输出，难排查）。
      *
      * @return 长度 = 纹理数的 ID 表；0 = 该张不可用（布局以 textureMask 排除）
      */
@@ -116,6 +120,7 @@ internal class IslandCliffTextureLoader(private val context: Context) {
             val p = prepared[index] ?: continue
             ids[index] = uploadOne(p)
         }
+        NativeBridge.setIslandCliffTextures(ids)
         return ids
     }
 

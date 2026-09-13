@@ -13,7 +13,7 @@ import com.xianxia.sect.feature.game.R
  * 布局合成（[IslandCliffBridge.compose]）**需要纹理尺寸表**才能算出铺装块数与
  * 裁剪比例，且必须在纹理上传完成前就能算——若改为异步读取图像头再合成，布局会
  * 依赖加载时序（首帧无崖壁 → 尺寸到达后重建整层），徒增竞态与重建路径。
- * 故尺寸表为编译期常量，由 `IslandCliffTextureDimensionTest` 解析真实 WebP 头
+ * 故尺寸表为编译期常量，由 `EdgeKtxSyncTest` 解析真实 WebP 头
  * **逐个字节校验**（守卫：改素材忘记改常量即测试变红）。
  *
  * 尺寸口径：**烘焙后尺寸**（`bake{preserve, roundUp4}` 产物 —— 宽高向上取整到

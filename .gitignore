@@ -148,3 +148,4 @@ android/app/agconnect-services.json
 # CTest 运行产物（cwd 误置于仓库根时生成）
 /Testing/
 
+Testing/
