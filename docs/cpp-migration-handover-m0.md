@@ -327,6 +327,15 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 硬规格: **背景必须如实记录**——本轮 `.git` 对象库两次被破坏（refs/logs/worktrees 被删除，pack 缺失，main 与全部 tag 的 ref 指向不存在对象），远端 GitHub 在会话中不可达 ⇒ **历史提交不可恢复**，"合并提交"落地为"以工作区文件为唯一事实源重建单一可编译树后提交"；各批成果以工作区文件形式保全（三工作树）；并入判定 = batch-11 逐文件**超集校验**（mainOnly=0）+ batch-14 逐行核对为纯追加；顺带修复 SpriteAtlasDefGeneratedTest.kt 缺回 `private data class StructureDef`（纹理并行批重构误删，致 core:engine 测试源整模块编译红）
 红线: 协议生成物由单一事实源重生成（非手工拼接）；分发表两侧 handler 独立命名、范围区间与既有批不重叠
 登记: **未达项诚实口径**——引擎全量 3218 用例 **15 失败**（BootSequenceControllerTest 10 / ProductionUiNativeTxGateTest 4 / JadeNativeTxGateTest 1），三者被测主体均不在本次合并触碰面（哈希比对为其他并行工作流改动）⇒ 登记为**并行工作流在途失败，本批不代改**，不计入"全部通过"；batch-12 已清偿（§2.43）、batch-20b 已改判清偿（§2.51b）、batch-21 前置仍未达成；detekt / NDK arm64 / lintRelease / 模块回归因 15 处既有失败与纹理工作流在途状态未在本批重跑
+## 2.53 Batch-21（2026-09-15）：反向通道逐域关闭批——写者穷尽审计（288 站点）改判"全关不可行" + 逐域关闭机制落地（67 gameData 字段 + 1 顶层段关闭）
+批次: Batch-21 | ActionId: 无（纯 Kotlin 面 + 协议键集裁剪，无新事务、无 C++ 改动）| 产物: 新 `core/domain/.../state/ReverseChannelPolicy.kt`（逐域审计结论表 + 关闭清单 + 在册保留清单 + 逐域回滚 + 关闭域写入检测）、新 `ReverseChannelPolicyGuardTest.kt`（6 用例，含穷尽分类守卫）、新 `ReverseChannelCloseoutTest.kt`（7 用例）、新 `ReverseChannelVolumeProfileTest.kt`（4 用例，体积构成实测）；改 `StateSyncService.kt`（信封过滤 + 关闭字段检测 + C++ 已知值基线）、`GameStateStoreImpl.kt`（捕获侧逐域闸门）、`FakeGameStateStore.kt`（测试替身同源）、`StateSyncServiceReverseTest.kt`（lockedBeastIds 段关闭语义）、`GameStateStoreReverseDirtyTest.kt`（关闭集合捕获 + 回滚，+2 用例）；文档 `ui-read-surface.md` §4.4（审计全文）+ §4.1/§4.3 滚动更新 + 本文件 §2.53/§3/§4.1/§5/§6
+硬规格: **关闭前置复核 = 全仓反向捕获写入点穷尽审计**——`stateStore.update {}`（非镜像事务）+ `updateGameData{}`/`updateGameDataSync{}` 包装器共 **288 站点 / 100 文件**逐条判定六类（`MIRROR` 不参与捕获 / `FALLBACK_ONLY` 仅 native 臂未执行时可达 / `NATIVE_ARM_RESIDUAL` native 成功后仍执行的 Kotlin 残余 / `STEADY_KOTLIN` 稳态无 native 臂 / `LOAD_BOOT` 新档读档重启 boot / `UNKNOWN`）；**审计结论：14 个域无一可整体关闭**——弟子表稳态写者 46 站点、9 类实体集合全部有稳态写者（`equipmentStacks` 9 / `equipmentInstances` 13 / `manualStacks` 10 / `manualInstances` 15 / `pills` 8 / `materials` 11 / `herbs` 9 / `seeds` 9 / `storageBags` 1 站点），故 **弟子通道与 9 类集合段全部保留传输**；第二轮**字段级深审**（97 候选字段 / 全部赋值点逐点分类：`STORE_STEADY`/`STORE_FALLBACK`/`STORE_LOAD_BOOT`/`STORE_DEAD`/`NOT_A_WRITE`）裁决 71 字段可关、64 字段必须保留，最终**落地关闭 67 字段 + 1 顶层段**（4 字段被对拍 harness 覆写回退，见登记）
+关闭机制: **单点策略 + 双端闸门**——`ReverseChannelPolicy` 为唯一真相源：捕获侧（`captureReverseDirty`：弟子通道 + 9 类集合引用变化即停载荷构造，省 O(n) 差集与全实体序列化）/ 信封侧（`buildReverseEnvelope`：gameData 字段级 dirty 集过滤 + 顶层段 + 集合段）双端同源门控；**逐域回滚** `reopenDomain(domain)` 一键恢复该域全部单元（batch-21 §9 风险表"关完后发现漏域 → 单域回滚"落地）；**关闭域写入检测**——关闭后若仍有 Kotlin 写者触碰该单元即为回导缺口：集合/弟子通道在捕获侧引用变化即命中，gameData 字段在信封构建时与"C++ 已知值基线"（全量导入/全量镜像/前向镜像携带三处刷新）比较命中，命中即 `DomainLog.e` + 诊断计数（把"漏域"从静默丢数据变为可归因缺陷）
+关闭清单: **顶层段 1**（`lockedBeastIds`——batch-23 已把 UI 锁定/解锁操作面下沉 C++，C++ 事务 `BEAST_VIEW_LOCK_TX` 幂等无失败面，Kotlin 仅剩回退臂写者）+ **gameData 字段 67**（按域：月年编排面 27 = 政策开关/引导计数/设置项族 17/年度报告与宗门等级 6/`isGameOver`/`openRecruitmentLastPaidMonth`；存档面 9 = 时间三件 + `currentSlot`/`saveVersion`/`mapSeed`/`id`/`lastSaveTime`/`rngStates`（信封本已显式剔除）；外交面 6；库存面 4；巡逻面 4（含**死 API** `patrolConfig`）；道路 1（`roads`）；弟子面 5（血炼完成链字段与 `pendingTraitAdds`/`battleTeamsInitialized`）；秘境 1（`cultivatorCaves`——洞府探索整族实为死链）；生产 2（`unlockedManuals`/`unlockedRecipes`）；招募 4；AI 1（`aiSectPersonalities`）；战斗 6）
+红线: **关闭动作零行为变更**——关闭前后同一窗口的存档/镜像逐字段一致（捕获侧只影响"是否进入反向信封"，不改状态本身）；**回退臂语义不依赖反向通道**（native 不可用时整条 native 通道本就不存在）；**失败信封回退是已接受的缺口**（回退臂在业务失败信封时也会执行，双实现逐位一致契约由各域 GateTest 守卫；关闭域写入检测对其可观测）；**diff 对拍全绿为关闭的验收门禁**（关闭使对拍红 ⇒ 该字段必须保留传输，不得改对拍迁就关闭）
+登记: ① **对拍 harness 覆写 4 字段**（`spiritMineLastSettledMonth`/`annualAlchemyCount`/`availableMissions`/`yearlyReports`）——`DiffAuthoritativeTickTest` 的 AUTHORITATIVE 管线把 **Kotlin 月/年完整编排**纳入稳态（`runBoundary` 直调 `MonthSettlementExecutor.execute`/`YearSettlementExecutor.execute`），而生产 AUTHORITATIVE 的月结走 C++ `runMonthSettlement`、Kotlin 只跑残留执行器（`GameEngineCoreMonthOps.kt:68` 前置 `GameCoreBridge.isLoaded && nativeIsInitialized`）⇒ **该 harness 是生产超集**，其覆盖字段一律保留传输；**后续可选清偿**：把 harness 改为"C++ 月结 + Kotlin 残差"以对齐生产，届时这批字段可重评关闭；② **弟子通道与集合段不可关的根因**（46 + 82 站点稳态写者）即"UI 操作面逐域下沉"剩余工程量，按 `ui-read-surface.md` §4.4 残余清单推进；③ **审计途中发现的既有缺陷**（未在本批修改，登记待专项）：`GameEngine.updatePatrolConfig` 死 API（零生产调用方，建议删除以免日后接线成真实丢数据点）、洞府探索整族死链（唯一入口 `CultivationService:178` 零调用，与 `ui-read-surface.md:144` 记载不符）、`InventorySystem.materializeDiscipleBagAndMarkDead` 成员/扩展同签名遮蔽（扩展版永不被解析）、18+11+5 处零调用者死代码站点、`GameData` 的 `withOrganization`/`withWorldMap`/`withExploration`/`totalSpiritStonesSellValue` 零调用方
+验收: 反向信封体积构成实测（单元 harness，`ReverseChannelVolumeProfileTest`）——稳态窗口（40 弟子 / 20 丹药 / 3 gameData 字段 / 1 弟子 / 1 集合变更）**合计 20121B，其中 gameData 段 38B、弟子段 2462B、pills 段 17549B** ⇒ **体积主因是实体通道的全实体 upsert**（gameData 字段级 dirty 集已非瓶颈），与"集合/弟子通道保留传输"的审计结论互为印证；`lockedBeastIds` 段关闭实测省 39B/窗口（该段 21B + 包装）
+结果: **M3 剩余主项"反向同步通道按域全关"改判为长期主轴**——前置"各域稳态写者归 C++"经 288 站点穷尽审计**不成立**（推翻 §6 曾记的"关闭前置全部达成，可开"）；本批交付**可证关闭面**（67 字段 + 1 段）+ **逐域关闭机制**（策略单点 + 双端闸门 + 逐域回滚 + 关闭域写入检测 + 穷尽分类守卫），使后续每完成一个域的下沉即可一行关闭并自带可观测护栏
 ## 2.43 Batch-12（2026-09-13）：巡逻/住所/矿场/年俸 UI 操作面事务下沉 C++——六入口 + 写者审计实裁的四个活写者，全链零 RNG
 批次: batch-12 | ActionId: PATROL_ASSIGN_RESIDENCE=1550 / REMOVE_RESIDENCE=1551 / ASSIGN=1552 / REMOVE=1553 / SWAP=1554 / AUTO_ASSIGN=1555 / UPDATE_CONFIG=1556 / UPDATE_SPIRIT_MINE_SLOTS=1557 / FIX_SPIRIT_MINE=1558 / UPDATE_YEARLY_SALARY=1559 | 产物: 新 system/patrol_tx.h（patrol_tx 域十条）、新 patrol_tx_test.cpp（31 用例）、新 GameEnginePatrolNativeOps.kt（PatrolNativeForward + 九 native 臂 + 回执解析助手）、新 GameEnginePatrolNativeTxGateTest.kt（19 用例）；改 GameEngineAtomicAssign.kt 六入口 + GameEnginePatrolOps.kt 四入口、execute_dispatch.cpp（handlePatrolTx）
 硬规格: 复用既有地基零重写——slot_cleanup.h 的 SlotCleanupInput + clearAllSlotsDataOnly（12 类槽位，`includeResidence=false` 变体：**住所与工作共存是有意设计**）+ toMissionLiteList/mergeMissionLiteList；展示字段（name/realmName/portraitRes）**从 DiscipleStore 直读**（少一次跨语言字段搬运），Disciple.realmName 语义经 disciple::realmConfig 复刻（含 `age<5 || realmLayer==0 → "无境界"` 与 realm==0 特例）；autoAssignPatrolAtomic 的 `releasedIds` **不去重**（Kotlin pendingReleases 原始序，distinct() 在 Kotlin 侧）
@@ -463,6 +472,24 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 ## 3. 验证结果（逐批记录；未达项在对应批次内显式标注，见 "未达项" 行）
 
+**当前门禁基线（2026-09-15，§2.53 batch-21 后）**：
+
+| 验证 | 结果 |
+|---|---|
+| 桌面 C++ 全量单测 | **1322/1322 全绿**（§2.53 复跑；本批零 C++ 改动）；运行需 `llvm-mingw-*-ucrt-x86_64\bin` 在 PATH |
+| 引擎全量单测 `:core:engine` | **3281 用例 / 0 失败 / 0 跳过**（含本批新增 `ReverseChannelCloseoutTest` 7 + `ReverseChannelVolumeProfileTest` 4 + 既有 `DiffAuthoritativeTickTest`/`Diff*` 对拍 46 类全绿——**关闭清单以对拍全绿为门禁**，4 字段因此保留传输） |
+| `:core:domain` 单测 | **1758 用例 / 0 失败**（含新 `ReverseChannelPolicyGuardTest` 6 用例：穷尽分类 / 域结论完整 / 证据格式 / 协议名校验 / 审计红线 / 逐域回滚） |
+| `:core:data` / `:core:ui` 单测 | **707 用例 0 失败（15 跳过=既有）** / **146 用例 0 失败** |
+| `:feature:game` 单测 | **871 用例 / 2 失败** —— `EdgeKtxSyncTest` 两例（纹理尺寸表 ↔ WebP/KTX 一致性），**归属并行渲染批在途（该测试文件为并行批未提交新增，本批零触碰）**，不计入本批 |
+| `:app` 单测 | **1020 用例 / 1 失败** —— `SpriteCodegenSyncTest`（`MAP_SPRITES` 期望 78 实得 41），**归属并行渲染批在途图集重建（本批零触碰精灵/图集代码）**，不计入本批 |
+| detekt | ✅ **六模块 `./gradlew.bat detekt` 全绿**（本批新增文件零违规；`buildReverseEnvelope` 拆分为 gameData/弟子/集合三段私有助手、`jsonValuesEquivalent` 降 return、两处循环跳转合并——均为真实重构非抑制） |
+| 动作计数 | **170 动作，maxId=1733**（§2.53 零新增动作、零 C++ 改动） |
+| **NDK arm64** | ✅ **已跑通（2026-09-15 §2.53 实测）**——`:app:externalNativeBuildRelease` **BUILD SUCCESSFUL（35s）**；本批零 C++ 改动，NDK 结果与改动无关（作为门禁记录） |
+| **lintRelease** | ✅ **已跑通（2026-09-15 §2.53 实测）**——`./gradlew lintRelease --max-workers=1` **BUILD SUCCESSFUL（12m09s）** |
+| 编译 | 主源 + 测试源（`:core:domain`/`:core:engine`/`:feature:game`/`:app`）BUILD SUCCESSFUL；桌面 JNI 重建成功 |
+| **反向信封体积构成（本批新增验收面）** | 单元 harness 稳态窗口（40 弟子 / 20 丹药 / 3 gameData 字段 / 1 弟子 / 1 集合变更）**合计 20121B = gameData 38B + 弟子 2462B + pills 17549B**；`lockedBeastIds` 段关闭省 39B/窗口 |
+| 未收敛登记（**非本批归属**） | ① `:feature:game` `EdgeKtxSyncTest` 2 例（并行渲染批在途：`island_edge_*.webp` 删除 + KTX 重烘焙中）；② `:app` `SpriteCodegenSyncTest` 1 例（并行渲染批图集重建致 `MAP_SPRITES` 78→41） |
+
 **当前门禁基线（2026-09-13，§2.59 收敛清偿批后）**：
 
 | 验证 | 结果 |
@@ -485,6 +512,7 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 | 批号 | 桌面 C++ | 引擎全量 | 备注 |
 |---|---|---|---|
+| **§2.53 Batch-21 反向通道逐域关闭（2026-09-15）** | **1322/1322**（零 C++ 改动） | **3281 用例 / 0 失败 / 0 跳过** | 零 ActionId（170 动作 maxId=1733）；288 站点写者穷尽审计 → 14 域无一可整体关闭；落地关闭 **67 gameData 字段 + 1 顶层段** + 逐域关闭机制；域 1758/0、data 707/0（15 跳过既有）、ui 146/0；detekt 六模块绿；`feature:game` 2 失败 + `app` 1 失败均归属并行渲染批在途（0 归属本批） |
 | **§2.58 收口批（2026-09-14）** | **1322/1322**（ctest，含 `build/` 既有配置） | **3260 用例 / 290 类 / 1 失败 / 0 跳过** | 动作 170（maxId=1733，**零新增**）；**4 失败 → 1 失败**（3 处根因修复）；新增 `DiffAiRngSeedingTest` 3 + `RngEngineIsolationGuardTest` 1 + `NativeBenchmarkTest` RNG 基准 1；`RngSourceGuardTest` 上限只缩（domain ②7→5 / game ②2→1 / ④1→0）；`:core:domain`/`:core:engine`/`:feature:game`/`:app` 主源编译绿；`validateChangelogJson` 通过；**10k JNI 基准 ratio 0.8**；NDK/lint 阻塞物实测消失但本批未跑通 |
 | batch-23 + batch-24 + 存量清偿（2026-09-14） | 1309/1309 | 3249 用例 / 290 类 / 0 失败 0 跳过 | 动作 170（maxId=1733）；detekt 五模块绿（feature:game 阻断）；27 处存量失败逐类根因清偿 + 1 处生产缺陷根因修复（宗门等级领奖"物品入账失败却写 Success"致冷却失效） |
 | batch-12 + batch-20b（2026-09-13） | 1284/1284（175 suites） | 3237 用例 / 289 类；**27 失败（0 归属本批）** | 动作 166（maxId=1712）；NDK / lint / feature:game 未达（渲染并行线在途）；27 处失败归属：PolicyNativeTxGateTest 12（预存 mock 缺陷 getSlots() 须返回 StateFlow）/ BootSequenceControllerTest 10 / ProductionUiNativeTxGateTest 4 / JadeNativeTxGateTest 1 |
@@ -544,6 +572,7 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 | ~~M3 首批：detekt 死代码族清偿~~ | **✅ 已清偿（2026-09-08，见 §2.20）**：五模块 UnusedPrivate*/UnusedImports 归零（含 SaveLoadSaveDelegate 整类、7 处死构造参数、14 个空 companion、副作用保留改造 7 处）；baseline -211 条（只缩不增）；实跑实测剩余活债务 2952 条按族登记（MaxLineLength 1400+ / TooGenericExceptionCaught ~340 / 复杂度族）逐批推进 |
 | ~~M3 第二批：反向通道逐域写者审计 + lockedBeastIds 加固 + InvalidPackageDeclaration~~ | **✅ 已清偿（2026-09-08，见 §2.21）**：①审计改判——"反向通道按域全关"前置不成立（约 265 个 `update` 调用点、15+ 域 UI 操作面仍 Kotlin 直改，无域可关；**该 M3 主项改判为长期主轴：UI 操作面逐域下沉 C++**，域→写者→批次清单落档 ui-read-surface §4.1）；②lockedBeastIds 反向增量段缺口加固（S-15 同族，月结锁定妖兽跳过判定在 AUTHORITATIVE 下恢复生效）；③detekt InvalidPackageDeclaration 118 条清偿（纯文件搬移零代码变更，engine baseline 1057→939 + 30 条注册类别按包路径归属修正） |
 | **M3 剩余主项：反向同步通道按域全关（改判后）** | **前置 = UI 操作面逐域下沉**（弟子管理后续子批/库存残余/月年边界编排/aiSectDisciples 段等域，每域一个 WS-2 规模批次；建筑/道路/外交/弟子第一子批·二·三/招募俘虏残余/生产 UI 面/月年边界编排/玉符宗门/秘境平台段/**巡逻住所（batch-12，2026-09-13 §2.43）**/**攻宗确定性写段（batch-20b，2026-09-13 §2.51b）**已下沉）——不是收敛批可完成项；按 ui-read-surface §4.1 清单逐批推进，全部下沉后执行 §4.3 关闭动作（停捕获 + 信封摘段 + 信封体积归零可观测验收）。**batch-20b 改判要点**：战利品生成族（`Random.Default` 非分区随机域）/ 奖励入账事务（原子性）/ 战绩记录（`battleLogs` 显示域同事务）三条经 §2.51b 显式登记不下沉——攻击宗域剩余写者即此三条，均为**设计约束**而非工作量问题 |
+| **Batch-21：反向通道逐域关闭批（2026-09-15，§2.53）** | **⚠️ 已执行，结论为"审计改判 + 机制落地"**——288 站点穷尽审计实测 **14 个域无一可整体关闭**（弟子通道 46 稳态站点 / 9 类实体集合 82 站点 / 64 个 gameData 字段仍有稳态写者）⇒ "按域全关"**前置不成立**（推翻 §6 曾记"前置达成，可开"），改判为长期主轴；本批交付**可证关闭面 68 单元**（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ **逐域关闭机制**（`ReverseChannelPolicy` 单点策略 / 捕获与信封双端闸门 / 逐域回滚 `reopenDomain` / 关闭域写入检测 / 穷尽分类守卫）；**验收门禁 = Diff 对拍全绿**（4 字段被 `DiffAuthoritativeTickTest` 覆写保留传输——该 harness 把 Kotlin 月/年完整编排纳入 AUTHORITATIVE 稳态，为生产超集）；体积构成实测：稳态窗口 20121B = gameData 38B + 弟子 2462B + 集合 17549B ⇒ **瓶颈在实体通道**，非字段级裁剪 |
 | ~~W2-a：库存出售/上架/材料消耗族 UI 操作面下沉~~ | **✅ 已清偿（2026-09-11，见 §2.41）**：单类出售六入口 + 批量出售 + 商人收购 + 玩家上架/撤下 + 按名称品阶材料消耗稳态写者归 C++（`inventory_tx.h`，ActionId 1520–1525），零 RNG 纯确定性变换，桌面 1056/1056 + 引擎 3157/0/0/0；「M3 剩余主项」域清单中**库存·出售/上架/材料消耗子域**就此划除（残余：商人购买 / 开袋 / 充公 / 装备实例回仓族） |
 | ~~Batch-09：外交/好感/附庸 UI 操作面下沉~~ | **✅ 已清偿（2026-09-10，见 §2.38）**：赠礼/结盟/散盟/附属建立解除稳态写者归 C++（diplomacy_tx.h，ActionId 1500–1502），SYSTEM 分区 roll 双臂同源逐位一致；外交九段协议核查零新增字段；宣战/停战/和平审计无 UI 操作面——「M3 剩余主项」域清单中外交域就此划除 |
 | ~~Batch-08：弟子管理第一子批（装备穿脱/功法学忘/任命卸任）~~ | **✅ 已清偿（2026-09-10，见 §2.37）**：零 RNG 六事务稳态写者归 C++（disciple_tx.h，ActionId 1480–1485），Kotlin 回退臂全收 Ops 层（batch-01/02 所有权文件与 GameViewModel/DiscipleDelegate 零改动）；长老单值槽任命（usecase 编排域）登记 W3——「M3 剩余主项」域清单中弟子管理域标注第一子批已下沉 |
@@ -594,6 +623,18 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 - `task_plan.md` / `findings.md` / `progress.md`：本任务的长期规划/进度记忆（planning-with-files 规范产物），非一次性调试代码。已保留并入库，供下轮接续 M1 时使用。
 
 ## 5. 下轮建议（M2 续批 → M3）
+
+**§2.53 Batch-21 已执行（2026-09-15）——反向通道逐域关闭批，结论为"审计改判 + 机制落地"**：
+288 站点写者穷尽审计实测 **14 个域无一可整体关闭**（弟子通道 46 稳态站点 / 9 类实体集合 82 站点 /
+64 个 gameData 字段仍有稳态写者）⇒ **"反向通道按域全关"的前置再次不成立**，改判为长期主轴：
+按 `docs/ui-read-surface.md` §4.4 的域级残余清单逐域下沉，**每完成一域即可一行关闭**（机制已就位）。
+本批交付可证关闭面 **68 单元**（67 gameData 字段 + 顶层段 `lockedBeastIds`）+ 逐域关闭机制
+（`ReverseChannelPolicy` 单点策略 / 捕获与信封双端闸门 / 逐域回滚 / 关闭域写入检测 / 穷尽分类守卫）；
+**验收门禁 = Diff 对拍全绿**（4 字段被 `DiffAuthoritativeTickTest` 覆写保留传输——该 harness 把
+Kotlin 月/年完整编排纳入 AUTHORITATIVE 稳态，为生产超集；**下轮可选清偿：把 harness 对齐生产
+（C++ 月结 + Kotlin 残差），届时这 4 字段可重评**）。**审计途中发现的既有缺陷登记待专项**：
+`GameEngine.updatePatrolConfig` 死 API、洞府探索整族死链、`InventorySystem.materializeDiscipleBagAndMarkDead`
+成员/扩展同签名遮蔽、18+11+5 处零调用者死代码站点、`GameData` 四个零调用方辅助函数。
 
 **M3 首批已清偿（2026-09-08，§2.20）**：**死代码族清偿**——五模块 UnusedPrivate*/
 UnusedImports 归零 + baseline 211 条摘除 + guard 只缩更新；实跑裁决 detekt 剩余活债务
@@ -809,7 +850,13 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 
 > ✅ **收口批已完成（2026-09-14，见 §2.58）+ 收敛清偿批（2026-09-13，见 §2.59）**：ADR **阶段 0/1（三项全）/2（可归表现类者全）/4** 均已交付——AI 播种态根因修复（3 例转绿）、`MissionSystem` 全局解除（1 例转绿）、阶段 0 CI 红线、阶段 2 三文件收口（`BattleDescriptionGenerator`/`DiscipleChatDialog` 判为**决策类**归阶段 3）、阶段 4 10k JNI 基准（**ratio 0.8 ⇒ 无成本约束**）、两道新守卫（`DiffAiRngSeedingTest` + `RngEngineIsolationGuardTest`）。
 > **剩余**：① ~~`DiffYearSettlementTest` 1 例~~（**✅ §2.59.1 清偿**——夹具快照 9 号键垃圾值触发 C++ 存档续接覆盖，测试侧修复）；② **阶段 3**（决策类逐域下沉，未开工——10k 基准已证明无 JNI 成本障碍）；③ ~~`:feature:game` 两族预存夹具失败~~（**✅ §2.59.2 清偿**）。
-> **batch-21 关闭前置**：阶段 1 三项已全部交付且**播种态跨语言等价性已被 `DiffAiRngSeedingTest` 锁死**；库存开袋（路线 A）与 AI RNG 归一均达成；**`DiffYearSettlementTest` 已收敛（§2.59.1）**——⇒ **batch-21 关闭前置全部达成，可开**（引擎全量 0 失败为当前基线）。
+> **batch-21 关闭前置**：阶段 1 三项已全部交付且**播种态跨语言等价性已被 `DiffAiRngSeedingTest` 锁死**；库存开袋（路线 A）与 AI RNG 归一均达成；**`DiffYearSettlementTest` 已收敛（§2.59.1）**——⇒ ADR 侧前置全部达成。
+> **🔴 但 `batch-21` 的"关闭前置"经 2026-09-15 穷尽审计（§2.53 / `ui-read-surface.md` §4.4）实测为「不成立」**：
+> 该前置不是 ADR 阶段 1，而是"**各域稳态写者归 C++**"——288 站点审计显示 14 个域**无一可整体关闭**
+> （弟子通道 46 站点稳态写者、9 类实体集合 82 站点、64 个 gameData 字段仍有稳态写者）。
+> **batch-21 已执行（§2.53）**：交付可证关闭面（67 字段 + 1 顶层段）+ 逐域关闭机制（策略单点/双端闸门/
+> 逐域回滚/关闭域写入检测/穷尽分类守卫）；**"反向通道按域全关"就此改判为长期主轴**——
+> 按 `ui-read-surface.md` §4.4 残余清单逐域下沉，每完成一域即可一行关闭。
 
 > 完整方案见 **[ADR rng-determinism-remediation.md](../adr/rng-determinism-remediation.md)**（本文件只留交接必需的指针与不变量，避免文档再次膨胀）。
 

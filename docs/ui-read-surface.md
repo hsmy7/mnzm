@@ -161,6 +161,8 @@ C++）。
 > **前置现状（2026-09-14 实测，batch-23/24 收口后）**：4.1 表中**仅剩 2 项未关闭**，且两项
 > 均已**拍板立项**（[ADR rng-determinism-remediation](adr/rng-determinism-remediation.md) 阶段 1）——
 > 立项原因：两项都属「随机源治理」同一架构漏洞的出口，单独打补丁无法阻止复发。
+> **⚠️ 该口径已被 2026-09-15 batch-21 穷尽审计推翻（见 §4.4）——本节表体仅覆盖 4.1 表列出的
+> 写者，非全仓穷尽扫描结果。**
 >
 > ① 库存**开袋**——**已拍板走路线 A**（下沉 C++，ActionId 1734+）。实测澄清：开袋的
 > 「抽到哪一件」走 `templates.random()` / `generateRandomPill` / `generateRandomMaterial` 的
@@ -198,7 +200,80 @@ C++）。
 > **⚠️ 关闭前仍需先收敛一项**：`DiffYearSettlementTest` 1 例 AI 招募逐字段分歧
 > （分歧窗口已收窄到"第二名 AI 弟子的装备/功法段"；该例暴露的是 Kotlin 夹具与 C++ 生产编排
 > 之间的 AI 分区消费差——通道关闭后**无兜底**，须先钉死再执行 §4.3 关闭动作）。
+> → **✅ 已于 2026-09-13 清偿（handover §2.59.1，根因 = 夹具快照 9 号通道键垃圾值）**。
 
+> **🔴 2026-09-15 滚动更新（batch-21 前置复核实测，推翻本条"前置达成 ⇒ 可开"口径）**：
+> 本条上方的"✅ 前置达成"仅覆盖 **ADR 阶段 1 三项交付**与**待拍板项清零**，**不等于**
+> "各域稳态写者归 C++"。**288 站点穷尽审计（§4.4）实测：14 个域无一可整体关闭**——
+> 弟子表稳态写者 46 站点、9 类实体集合全部有稳态写者（82 站点）、64 个 gameData 字段
+> 仍有稳态写者（UI 操作面无 native 臂 / native 事务后 Kotlin 残差 / 月年编排内活路 /
+> 平台效应与自愈族）。**⇒ "反向通道按域全关"的前置再次改判为不成立**，属长期主轴：
+> 每完成一个域的 UI 操作面下沉，才可关闭该域（机制与回滚见 §4.4）。
+> 本批已落地**可证关闭面**：67 个 gameData 字段 + 顶层段 `lockedBeastIds`。
+> 残余写者清单即下一步下沉目标，落 §4.4 域级结论表。
+
+
+### 4.4 反向捕获写入点穷尽审计（2026-09-15，batch-21 前置复核）
+
+> **结论：关闭前置不成立**——**288 个写入点 / 100 文件**逐条判定后，**14 个域无一可整体关闭**；
+> 可证关闭面 = **68 个状态单元**（67 个 gameData 字段 + 1 个顶层段 `lockedBeastIds`），
+> 其余单元（弟子通道 + 9 类实体集合 + 64 个 gameData 字段）**必须继续回导**。
+> 本结论推翻 §4.3 曾记的"前置达成 ⇒ batch-21 可开"口径（见 §4.3 末尾滚动更新）。
+
+**审计口径（六类判定，逐站点带 file:line 证据）**：
+
+| 类 | 含义 | 判定要点 |
+|---|---|---|
+| `MIRROR` | 镜像事务（`updateMirror`） | **不参与**反向捕获，与关闭无关 |
+| `FALLBACK_ONLY` | 仅 native 臂未执行时可达 | 前置 `if (nativeTx.x()) return` / `tryExecuteNative ?: run{}` / `!NativeEngineFlag.authoritative`；**业务失败信封也会触发回退臂** |
+| `NATIVE_ARM_RESIDUAL` | native 事务成功后仍执行的 Kotlin 残余 | 残留派生清理 / 平台效应 / Room 回放 / 状态同步 ⇒ 必须回导 |
+| `STEADY_KOTLIN` | 稳态可达且该操作无 native 臂 | UI 直改 / 循环钩子 / 墙钟运行态 / 月年编排内活路 ⇒ 必须回导 |
+| `LOAD_BOOT` | 仅新档/读档/重启/boot 序列 | 随后全量导入 C++（`importToNative`）吸收 |
+| `UNKNOWN` | 无法判定 | 本轮实测=**零调用者死代码**（统一登记为死码清理项） |
+
+**域级结论表**（稳态写者 = 必须保留回导的理由；关闭单元 = 本批已摘出信封的单元）：
+
+| 域 | 稳态写者（代表站点） | 关闭单元 |
+|---|---|---|
+| 库存 | `InventoryFacadeImpl.kt:678`（开袋逐件入库）、`InventorySystem.kt:138/装备Ops4.kt:107/丹药Ops5.kt:147`（统一入库入口）、`InventoryDelegate.kt:157/:177`（自动购买列表 UI 直改） | 4 字段（商人收购池/上架池/刷新凭据） |
+| 建筑 | `BuildingNativeTx.kt:163`（拆除残差）、`BuildingFacadeImpl同步Ops.kt:281`（月变没收）、`BuildingDelegate.kt:145`（放置槽位残差） | 0 |
+| 道路 | `RoadFacadeImpl.kt:41/:141`（native 臂后槽位/回执残差） | 1 字段（`roads`） |
+| 巡逻/住所/矿场 | `SpiritMineViewModel.kt:89/:147/:183/:252`（灵矿槽位 UI 直改）、`GameEnginePatrolOps.kt:49`（矿场自愈） | 4 字段（含**死 API** `patrolConfig`） |
+| 弟子管理 | `GameEngineCoordination.kt:99/:120/:138`、`DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271`（赏赐/服药）、`DiscipleStatusService.kt:225/:279/:373`（状态派生）、`DiscipleSlotManager.kt:59` | 5 字段（血炼完成链/待入特质/队伍初始化） |
+| 招募/派遣/俘虏 | `DiscipleFacadeImpl功法Ops1.kt:71`（入宗 lifeEvent）、`DiscipleService.kt:142`、`RecruitService.kt:398` | 3 字段（`availableMissions` 因对拍 harness 保留） |
+| 生产/灵田 | `ProductionProcessorCleaOps3.kt:291`（月结前 repo→镜像对齐）、`ProductionProcessor构筑Ops2.kt:250/:341/:405` | 2 字段（配方/功法解锁） |
+| 秘境 | `GameEngineSecretRealmOps.kt:57`（出发换岗）、`SecretRealmNativeOps.kt:100/:263`（到期兜底/战报） | 1 字段（`cultivatorCaves`，洞府整族死链） |
+| 月年编排 | `GameEngineCoreMonthOps.kt:90` / `YearOps.kt:126`（native 结算后 Kotlin 扇出）、`GuideOps.kt:57`、`RedeemCodeService.kt:153/:402` | 27 字段（政策/引导/设置项 17/年度报告等） |
+| 外交/好感/附庸 | `DiplomacyService.kt:145/:261`、`VassalService.kt:99/:324`、`GameEngineDiplomacyOps.kt:18` | 6 字段 |
+| AI 宗门 | `SaveFacadeImpl.kt:56`（存档前自愈）、`GameEngineBattleOps.kt:176/:339`、`LifecycleOps.kt:177/:196` | 1 字段（`aiSectPersonalities`） |
+| 战斗/探索 | `CombatService.kt:78`（伤亡残差）、`WorldBattleOps.kt:188/:288`、`GameEngineBattleOps.kt:66/:274/:339/:366`、`ExplorationNativeOps.kt:134` | 6 字段 + **顶层段 `lockedBeastIds`** |
+| 弟子生命周期 | `DiscipleLifecycleProcessor.kt:489`（槽位清理）、`DiscipleLifecycleManager.kt:100/:121`、`GameEngine.kt:277/:306`（婚姻提议审批） | 0 |
+| 存档/读档/自愈 | `SaveFacadeImpl.kt:56`、`GameEngineServiceOps.kt:40/:77` | 9 字段（时间三件/槽位/版本/种子/`rngStates`） |
+
+**新增关闭机制（`ReverseChannelPolicy`，core:domain）**：
+
+- **双端同源闸门**——捕获侧（`GameStateStoreImpl.captureReverseDirty`：弟子通道 + 集合段停载荷构造）与信封侧
+  （`StateSyncService.buildReverseEnvelope`：gameData 字段级 dirty 集 + 顶层段 + 集合段）读同一策略。
+- **逐域回滚**——`reopenDomain(domain)` 一键恢复该域全部单元（单域回滚，无需改代码）。
+- **关闭域写入检测**——关闭后若仍有 Kotlin 写者：集合/弟子通道在捕获侧（引用变化即命中）、
+  gameData 字段在信封构建时（与"C++ 已知值基线"比较，容忍 `12000` vs `12000.0` 输出形式差异）
+  命中即 `DomainLog.e` + 诊断计数 ⇒ **漏域从静默丢数据变为可归因缺陷**。
+- **穷尽分类守卫**（`ReverseChannelPolicyGuardTest`）——`closed ∪ transported == GameData 序列化面全字段`
+  （135 字段，新增字段未分类即测试红）；域结论完整性与证据格式；**红线**：弟子通道与
+  `aiSectDisciples` 段必须保持传输（稳态写者实测存在），关闭即测试红。
+
+**关闭的验收门禁 = Diff 对拍全绿**：关闭使 `DiffAuthoritativeTickTest` 分歧的字段
+（`spiritMineLastSettledMonth` / `annualAlchemyCount` / `availableMissions` / `yearlyReports`）
+一律**保留传输**并登记——该 harness 的 AUTHORITATIVE 管线把 **Kotlin 月/年完整编排**纳入稳态
+（`runBoundary` 直调 `MonthSettlementExecutor.execute` / `YearSettlementExecutor.execute`），
+而生产 AUTHORITATIVE 月结走 C++（`GameEngineCoreMonthOps.kt:68` 前置 native 就绪）⇒
+**harness 为生产超集**；后续把 harness 对齐生产（C++ 月结 + Kotlin 残差）后这批字段可重评。
+
+**体积构成实测**（`ReverseChannelVolumeProfileTest`，单元 harness）：稳态窗口（40 弟子 / 20 丹药 /
+3 gameData 字段 / 1 弟子 / 1 集合变更）= **合计 20121B**，其中 **gameData 段 38B**、
+**弟子段 2462B**、**pills 段 17549B** ⇒ 信封体积主因是**实体通道的全实体 upsert**，
+gameData 字段级 dirty 集已非瓶颈；这与"弟子通道 + 集合段必须保留"的审计结论互为印证——
+**体积归零的前置不是字段级裁剪，而是弟子/库存域稳态写者归零**。
 
 ---
 

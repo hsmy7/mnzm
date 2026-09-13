@@ -1,6 +1,58 @@
 ## [4.01.14] - 2026-09-08
 
 
+### Batch-21：反向同步通道逐域关闭批——288 站点写者穷尽审计（改判"全关不可行"）+ 逐域关闭机制落地（67 字段 + 1 顶层段关闭）
+
+> 需求：`docs/parallel-batches-w2/batch-21-reverse-channel-closeout.md`（handover §2.53 预分配）——逐域停捕获 + 信封摘段 + 四段 @Transient 终局判定 + 体积归零可观测验收 + 回退臂语义复核。**零新增 ActionId、零 C++ 改动**（纯 Kotlin 面 + 协议键集裁剪）。
+
+- **前置复核（本批主体）：全仓反向捕获写入点穷尽审计——288 站点 / 100 文件逐条判定**
+  - 口径：`stateStore.update {}`（非镜像事务）+ `updateGameData{}`/`updateGameDataSync{}` 包装器；六类判定（`MIRROR` 不参与捕获 / `FALLBACK_ONLY` 仅 native 臂未执行时可达 / `NATIVE_ARM_RESIDUAL` native 成功后仍执行的 Kotlin 残余 / `STEADY_KOTLIN` 稳态无 native 臂 / `LOAD_BOOT` 新档读档重启 boot / `UNKNOWN`），逐站点带 `file:line` 证据与调用链。
+  - **结论：14 个域无一可整体关闭**——弟子表稳态写者 46 站点、9 类实体集合全部有稳态写者（82 站点）、64 个 gameData 字段仍有稳态写者 ⇒ 推翻 handover §6 曾记的"关闭前置全部达成，可开"（该口径只覆盖 ADR 阶段 1 三项交付，未覆盖"各域稳态写者归 C++"这一真实前置）。
+  - 第二次**字段级深审**（97 候选字段的全部赋值点逐点分类：`STORE_STEADY`/`STORE_FALLBACK`/`STORE_LOAD_BOOT`/`STORE_DEAD`/`NOT_A_WRITE`）裁决：71 字段可关 / 64 字段必须保留 / 0 未知。
+- **关闭机制：`ReverseChannelPolicy`（core:domain）单点策略 + 双端同源闸门**
+  - 捕获侧（`GameStateStoreImpl.captureReverseDirty`：弟子通道 + 9 类集合**停载荷构造**——省 O(n) 差集与全实体序列化）/ 信封侧（`StateSyncService.buildReverseEnvelope`：gameData 字段级 dirty 集 + 顶层段 + 集合段）。
+  - **逐域回滚** `reopenDomain(domain)`：一键恢复该域全部单元（关完后发现漏域可单域撤销，无需改代码）。
+  - **关闭域写入检测**：关闭后若仍有 Kotlin 写者触碰该单元即命中——集合/弟子通道在捕获侧（引用变化即命中）、gameData 字段在信封构建时与"C++ 已知值基线"（全量导入/全量镜像/前向镜像携带三处刷新）比较命中（容忍 C++ 整数 double 输出形式 `12000` vs `12000.0`）；命中即 `DomainLog.e` + 诊断计数 ⇒ **漏域从静默丢数据变为可归因缺陷**。
+  - **穷尽分类守卫**（`ReverseChannelPolicyGuardTest`）：`关闭 ∪ 在册保留 == GameData 序列化面全字段`（135 字段，新增字段未分类即测试红）；域结论完整性与证据格式；**红线**：弟子通道与 `aiSectDisciples` 段必须保持传输（稳态写者实测存在）。
+- **落地关闭 68 单元**：顶层段 `lockedBeastIds`（batch-23 已下沉 UI 操作面，C++ 事务幂等无失败面）+ 67 个 gameData 字段（月年编排面 27 / 存档面 9 / 外交 6 / 库存 4 / 巡逻 4（含**死 API** `patrolConfig`）/ 弟子 5 / 招募 3 / 战斗 6+段 / 秘境 1 / 生产 2 / 道路 1 / AI 1）。
+- **验收门禁 = Diff 对拍全绿**（关闭使对拍红 ⇒ 该字段必须保留传输，不改对拍迁就关闭）：`spiritMineLastSettledMonth`/`annualAlchemyCount`/`availableMissions`/`yearlyReports` 4 字段回退保留——`DiffAuthoritativeTickTest` 的 AUTHORITATIVE 管线把 **Kotlin 月/年完整编排**纳入稳态（`runBoundary` 直调 `MonthSettlementExecutor.execute`/`YearSettlementExecutor.execute`），而生产 AUTHORITATIVE 月结走 C++（`GameEngineCoreMonthOps.kt:68` 前置 native 就绪）⇒ **该 harness 是生产超集**（后续对齐生产后可重评）。
+- **体积构成实测**（`ReverseChannelVolumeProfileTest`，单元 harness）：稳态窗口（40 弟子 / 20 丹药 / 3 gameData 字段 / 1 弟子 / 1 集合变更）**合计 20121B = gameData 段 38B + 弟子段 2462B + pills 段 17549B** ⇒ 信封体积瓶颈是**实体通道的全实体 upsert**，gameData 字段级 dirty 集已非瓶颈；"体积归零"的前置不是字段级裁剪，而是弟子/库存域稳态写者归零。
+- **审计途中发现的既有缺陷（登记待专项，本批未修改）**：`GameEngine.updatePatrolConfig` 死 API（零生产调用方，日后接线即成真实丢数据点）；洞府探索整族死链（唯一入口 `CultivationService:178` 零调用，与 `ui-read-surface.md:144` 记载不符）；`InventorySystem.materializeDiscipleBagAndMarkDead` 成员/扩展同签名遮蔽（扩展版永不被解析）；18+11+5 处零调用者死代码站点；`GameData` 的 `withOrganization`/`withWorldMap`/`withExploration`/`totalSpiritStonesSellValue` 零调用方。
+- **文档**：`docs/ui-read-surface.md` §4.4（审计全文 + 域级结论表 + 机制说明）+ §4.1/§4.3 滚动更新；`docs/cpp-migration-handover-m0.md` §2.53/§3/§4.1/§5/§6。
+
+
+### 美术：宗门地图边缘换代——三侧整块崖壁（左/右/下）+ 随机拼接（独立纹理 + ASTC）
+
+> 需求：用户提供新一批《宗门地图边缘》素材（左 3 / 右 3 / 下 2 / 左下角 / 右下角），要求接到地图**左、右、下三侧**、按素材自身比例 1:1、同侧多变体随机拼接，并**替换**旧的四侧 224px 薄切片边缘（删上边缘与悬浮碎石）。
+
+- **素材处理（含 3 项实测缺陷修复）**
+  - **镜像去重**：逐像素水平翻转比对确认 `左边缘1↔右边缘3`（mean diff 3.68）、`左边缘2↔右边缘2`（6.18，次优 45.07）、`左边缘3↔右边缘1`（0.67，max 6.75）为镜像对 ⇒ 6 张侧图实为 **3 个真变体**，右侧崖壁由布局的**镜像位**复用左侧纹理（省 3 张纹理 ≈47MB 显存，并消除镜像对之间的人为差异）。
+  - **浅灰 AI 底**：`left_3`/`right_1` 两张为 **100% 不透明**且含 19.7% 浅灰底（RGB>225，四角 (252,252,252,255)）——直接烘焙会在天空出现灰块。处置：保留干净版本，淘汰灰底张。
+  - **ASTC 4×4 尺寸对齐**：4 张侧/角图宽高非 4 的倍数（1119 / 1178 / 2399…），而 `KtxLoader` 明确拒绝非 4 倍数尺寸 ⇒ 新增 `bake.roundUp4`（向上取整到 4 的倍数 + `fit:contain` 同比例画布，内容 1:1 落位**不拉伸**，最多 +3px 透明边）。取整后尺寸即世界布局尺寸，双路径逐像素同布局。
+  - 顺带修：`import-art-assets.mjs` 的 `bakeKey` 误把新加的 `fit` 纳入内容 hash ⇒ 全部 307 条素材判定"已变更"（无谓全量重烘焙）。改为只让「bake 规则 + 目标尺寸」参与 hash → 300 跳过 / 7 新增。
+- **🔴 根因修复一：`KtxLoader` 的 mip 块数用整除 → 拒绝合法纹理**
+  - **症状**：崖壁 KTX 全部被拒（`dataSize 不一致`），Vulkan 路径静默回落 RGBA。
+  - **因果链**：ASTC 块数 = `ceil(dim/4)`（末行/末列不足一块时**编码器补齐整块**），而 `KtxLoader.cpp` 用 `(lw/4)*(lh/4)` 整除。图集是 2 的幂尺寸，两者恰好等价 ⇒ 缺陷长期潜伏；崖壁非 2 的幂底图产生 `147×444`、`36×111`、`17×52` 这类级尺寸（`base>>level` 的必然结果）后暴露。实测 48 个尺寸逐一验证 **ceil 无一例外**。
+  - **修法**：`KtxLoader` 与 `lib/ktx1.mjs` 同步改为 ceil，并**复校已入库的 `atlas_astc.ktx` 仍通过**（2 的幂下 ceil≡floor，无回归）。
+- **🔴 根因修复二：codegen 产物缺失时任务误判 UP-TO-DATE（预存死锁）**
+  - **症状**：`:core:engine:compileReleaseKotlin` 报 `Source file or directory not found: .../SpriteAtlasDef.kt`，而任务显示已执行。
+  - **因果链**：`generateSpriteAtlasDef` 以 `.atlas-def.hash` 做内容增量——**产物被清而 hash 残留时任务判定"未变"直接跳过**，Kotlin 编译对着不存在的目录。（该坑仓库自己在 `app/build.gradle` 已注明"产物被清而 hash 残留时任务误判 UP-TO-DATE（死锁）"。）
+  - **处置**：清 hash 恢复；建议——产物缺失时应强制重生成（视产物存在性为 hash 的一部分）。
+- **架构：崖壁走独立纹理（不进图集）**
+  - 单张最大 1180×3552 **超出 4096² 图集容量**，且 Vulkan 核心仅保证 `maxImageDimension2D ≥ 4096`（8192 属 Roadmap 2022 Profile / 中高端）。图集重建后精灵数 **79 → 42**，`atlas_astc.ktx` 仍 21.33MB。
+  - 布局单一权威 = 新增 `gamecore/map/island_cliff.h`（纯函数、GTest 覆盖）：左环右缘贴 x=0、右环左缘贴 x=mapW（镜像位）、下环顶边贴 y=mapH、两角内缘贴角点；**角块最后绘制**覆盖边环越界末块。末块裁剪时 **UV 按截断比例收缩**（不拉伸素材）。
+  - 输出条目 `stride=10`：`[texIdx, x, y, w, h, u0, v0, u1, v1, flags]`——独立纹理各自归一化 UV，故**不能沿用图集的 `UV_EPSILON`**（`0.5/4096` 按图集纹素推导，用于防邻居渗色；独立纹理加该偏移会在地图边界露出半纹素透明缝）。
+  - 变体随机：`hash(seed, pool, seq) % poolSize` + 不与上一块重复（防相邻重复纹理）。
+- **纹理链：ASTC 压缩 + mip（117MB → 37.67MB）**
+  - 新增 `scripts/lib/ktx1.mjs`（KTX1 容器 + astcenc 调用，从 `build-atlas.mjs` **抽出复用**，避免两处双写漂移）+ `scripts/build-edge-ktx.mjs`（7 张 ASTC 4×4 + mip 链，**产物落盘前自检**按 `KtxLoader` 契约复现校验）。
+  - mip 级尺寸**必须严格等于** `max(4, base>>level)`——自行"取整到 4"递推会漂移（1176 的 mip2：loader 期望 294，取整递推给 296 ⇒ 整张被拒）。
+  - 三级降级（逐张独立，单张失败只丢对应条目）：**① ASTC KTX**（仅 Vulkan 且设备支持）→ **② RGBA mip 链**（仅 Vulkan）→ **③ RGBA 单级**（GLES / Canvas 位图）。
+  - 顺带修性能 bug：mip 编码原**逐行** `getPixels`（1180×3552 = 数千次 JNI 往返）→ 改整幅一次取。
+- **相机可达性**：`ISLAND_EDGE_VISIBLE_OUTSET 400 → ISLAND_CLIFF_VISIBLE_OUTSET 2500`（= max(左右纹理宽 1180, 下纹理高 2400) + 余量 100）——旧值按 224px 薄崖设计，不改则拖到地图边缘仍看不见新崖壁。
+- **验证**：`island_cliff_test` **12/12**（锚定不变式 / 拼接连续性 / **UV 跨度 ≡ 绘制比例** / 变体确定性 + 无相邻重复 / 1×1~300 格自适应 / 纹理缺失降级 / 非法输入）；桌面 C++ 全量 **1124/1124**；新增 `EdgeKtxSyncTest`（尺寸表 ↔ 真实 WebP 头 ↔ KTX 三向一致 + 4 倍数守卫，7 张逐张实测通过）；图集重建 694 条资源、`SpriteAtlasDef.kt`/`TextureAtlas.h` 无 `ISLAND_EDGE`/`ie_*` 残留。
+- **⚠️ 未收敛（诚实口径）**：① Kotlin 侧 `:core:engine` 编译被**并行进行中的其它批次**阻断（`BuildingFacadeImpl.kt` 调 `finishProductionAssignment` 未定义；`jade_tx_test.cpp` 把类型当函数调用）——均未提交状态，非本批引入，**未代为修改**；② `ActionIds.kt` 曾与 C++ `action_ids.h` 不同步（`PROD_UI_*` 缺失），已运行 `scripts/gen-action-ids.mjs` 从权威头重生成；③ 真机显存占用与缩到整岛时的缩采样观感待真机验收批。
+
+
 ### 收口：§2.58 随机源治理——AI 播种态根因修复 + `MissionSystem` 全局解除 + 阶段 0/2/4 收口（零新增 ActionId；引擎全量 4 失败 → 1 失败）
 
 > 需求：`docs/cpp-migration-handover-m0.md` §6 主轴剩余（随机源治理 ADR 阶段 0/1/2/4）+ `docs/rng-remediation-status.md` 未完成清单。**本批零新增 C++ 事务/ActionId**——三小项均为形参化、语义修复与守卫落闸。

@@ -1094,10 +1094,21 @@ class GameStateStoreImpl @Inject constructor(
         // 1. 弟子脏 id（非消费 peek——dispatchAssemble 按原路径 consume，互不干扰）
         if (disciplesNeedReassemble) {
             val tracker = reusableMutableState.discipleTables.changedIdTracker
-            acc.captureDisciples(
-                ids = tracker.snapshotChangedIds(),
-                rejected = tracker.snapshotRejectedRecord()
-            )
+            // 逐域关闭（batch-21）：弟子通道关闭后不再累积脏 id（省去消费侧的
+            // 全实体组装与 JSON 序列化）；但 peek 仍执行——关闭后若有弟子侧写入
+            // 即为回导缺口，必须可观测（见 ReverseChannelPolicy 关闭检测）
+            if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
+                acc.captureDisciples(
+                    ids = tracker.snapshotChangedIds(),
+                    rejected = tracker.snapshotRejectedRecord()
+                )
+            } else if (tracker.snapshotChangedIds().isNotEmpty()) {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
+                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
+                    "captureReverseDirty"
+                )
+            }
         }
         // 2. gameData 整对象引用变化（任一字段 copy 即新实例）
         if (reusableMutableState.gameData !== baseline.gameData) {
@@ -1132,6 +1143,15 @@ class GameStateStoreImpl @Inject constructor(
         current: List<*>
     ) {
         if (baseline === current) return
+        // 逐域关闭（batch-21）：关闭集合不构造捕获载荷——O(n) 差集与后续全实体
+        // JSON 序列化随之省去；引用变化本身仍被观测（关闭后集合若仍被 Kotlin
+        // 改写即为回导缺口，登记检测并从快照剔除）
+        if (!ReverseChannelPolicy.isCollectionTransported(name)) {
+            ReverseChannelPolicy.noteClosedWrite(
+                ReverseChannelPolicy.Kind.COLLECTION, name, "captureCollection"
+            )
+            return
+        }
         val removedIds = baseline.mapTo(HashSet()) { (it as HasId).id } -
             current.mapTo(HashSet()) { (it as HasId).id }
         @Suppress("UNCHECKED_CAST")

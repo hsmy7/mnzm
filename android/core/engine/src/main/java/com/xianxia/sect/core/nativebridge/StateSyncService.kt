@@ -16,6 +16,8 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.ReverseChannelPolicy
+import com.xianxia.sect.core.util.DomainLog
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -198,6 +200,9 @@ class StateSyncService @Inject constructor(
             seeds.replaceAll(snapshot.seeds)
             storageBags.replaceAll(snapshot.storageBags)
         }
+        // 全量镜像后 C++ 已知全部 gameData 键值——刷新关闭字段基线
+        // （快照值与 C++ 侧一致；用镜像后的状态编码，与检测侧同源格式）
+        refreshClosedFieldBaseline(gameDataJsonWithoutRng(stateStore.gameData.value))
     }
 
     /**
@@ -286,6 +291,8 @@ class StateSyncService @Inject constructor(
                 // 导入成功 → C++ 已知该 gameData 全量同值 → 反向锚点推进
                 //（锚点本就不含 rngStates，与 restoreRng 取值无关——native RNG 真相源）
                 anchorReverseGameData(state.gameData)
+                // 全量导入 = C++ 已收到全部字段 → 关闭字段基线随之刷新
+                refreshClosedFieldBaseline(gameDataJsonWithoutRng(state.gameData))
                 // 全量导入 = 重同步基线——反向增量版本归零（配对
                 // C++ importStateInternal 的 reverseVersion_ = 0；否则
                 // 跨会话/热重载后版本错位，所有增量回导会被 C++ 版本检查永久拒绝）
@@ -325,6 +332,24 @@ class StateSyncService @Inject constructor(
      * 引擎线程串行访问（tick 调度器），无需同步。
      */
     private var lastLockedBeastIdsSent: Set<String>? = null
+
+    /**
+     * 已关闭 gameData 字段的"C++ 已知值"影子表（batch-21 关闭域写入检测）。
+     *
+     * 反向通道逐域关闭后，被关闭字段的 Kotlin 写入不再回导 C++——若该字段在
+     * AUTHORITATIVE 稳态下仍有 Kotlin 写者，即为**数据丢失缺陷**（下一次前向
+     * 镜像会以 C++ 侧值覆盖）。本表记录 C++ 侧已确认的值，信封构建时与 Kotlin
+     * 当前值比较，差异即命中（见 [detectClosedFieldWrites]）。
+     *
+     * 表内容仅覆盖[ReverseChannelPolicy.closedGameDataFields]（通常为个位数），
+     * 更新时机：全量导入成功 / 全量镜像成功 / 前向增量镜像携带的 gameData 字段
+     * ——三者都是"C++ 值被确认"的时刻。null = 尚未建立基线（启动早期不做检测，
+     * 避免把"未同步"误报为"越权写入"）。
+     */
+    private var closedFieldKnown: MutableMap<String, JsonElement>? = null
+
+    /** 已上报过 ERROR 的关闭字段（日志去重；计数仍逐次累计，见策略诊断面）。 */
+    private val reportedClosedFieldWrites = HashSet<String>()
 
     /**
      * 反向 gameData 锚点：上次确认 C++ 已知同值的 gameData JSON
@@ -448,73 +473,124 @@ class StateSyncService @Inject constructor(
     ): JsonObject {
         val changed = mutableMapOf<String, JsonElement>()
         val removed = mutableMapOf<String, JsonElement>()
-
-        // gameData：变更字段 dirty 集（剔除 rngStates——native RNG 真相源）
         if (snapshot.gameDataChanged) {
-            val currentGd = gameDataJsonWithoutRng(gameData)
-            val patch = reverseGameDataPatch(currentGd)
-            if (patch.isNotEmpty()) {
-                changed["gameData"] = patch
-            }
-            pendingReverseGameDataAnchor = currentGd
-            // aiSectDisciples @Transient 不入 gameData JSON——单独全量段回导；
-            // 变化检测（AI 招募/战斗才更新）避免每 tick 重发重型数据。
-            //
-            // O(1) 快路径（审计 P2-3 / 方案 D3 改动 8）：GameData 为不可变数据类，
-            // update{} 的 copy 保持未修改字段引用不变——引用相同即池未变，
-            // 直接跳过 O(ΣD×字段数) 的数据类深比较（原实现稳态每旬全量比较
-            // 28k 池）。引用不同再深比较：内容相同（C++ 前向更新所致——镜像
-            // 与 native 同值）仅推进锚点，免掉冗余全量回导（28k 池 JSON 两次
-            // 过 JNI）与后续每旬重复深比较；内容不同（Kotlin 本地写——战斗
-            // 死亡标记/攻占清池）照旧回导。
-            if (gameData.aiSectDisciples !== lastAiSectDisciplesSent) {
-                if (gameData.aiSectDisciples != lastAiSectDisciplesSent) {
-                    changed["aiSectDisciples"] = json.encodeToJsonElement(
-                        serializer<Map<String, List<Disciple>>>(), gameData.aiSectDisciples
-                    )
-                } else {
-                    lastAiSectDisciplesSent = gameData.aiSectDisciples
-                }
-            }
-            // 妖兽视图锁定顶层段（@Transient 不入 gameData JSON）：
-            // 变化检测 + 整体替换。该域 Kotlin 写入（lockBeastView/unlockBeastView）
-            // 必须经本增量段同步——否则增量窗口内 AUTHORITATIVE 月结跳过判定
-            // （锁定妖兽不被 AI 攻击）对新开的弹窗失效
-            if (gameData.lockedBeastIds != lastLockedBeastIdsSent) {
-                changed["lockedBeastIds"] = JsonArray(
-                    gameData.lockedBeastIds.map { JsonPrimitive(it) }
-                )
-            }
+            appendGameDataSections(changed, gameData)
         }
-
-        // 弟子：窗口内变化 id → 当前表组装全实体（upsert，id 升序）；
-        // 组装失败（已移除/幽灵）→ removed
-        val upserted = tables.assembleAllIncremental(emptyList(), snapshot.discipleIds)
-        val upsertedIds = upserted.mapTo(HashSet()) { it.id.toIntOrNull() ?: Int.MIN_VALUE }
-        val removedDiscipleIds = snapshot.discipleIds - upsertedIds
-        if (upserted.isNotEmpty()) {
-            changed["disciples"] = JsonArray(
-                upserted.map { json.encodeToJsonElement(Disciple.serializer(), it) }
-            )
-        }
-        if (removedDiscipleIds.isNotEmpty()) {
-            removed["disciples"] = JsonArray(removedDiscipleIds.map { JsonPrimitive(it.toString()) })
-        }
-
-        // 实体集合：引用变化的集合 → 全量实体 upsert + 消失 id
-        for ((name, capture) in snapshot.collections) {
-            if (capture.upserts.isNotEmpty()) {
-                changed[name] = encodeCollectionEntities(name, capture.upserts)
-            }
-            if (capture.removedIds.isNotEmpty()) {
-                removed[name] = JsonArray(capture.removedIds.map { JsonPrimitive(it) })
-            }
-        }
-
+        appendDiscipleSection(changed, removed, snapshot, tables)
+        appendCollectionSections(changed, removed, snapshot)
         return buildJsonObject {
             put("version", reverseVersion + 1)
             put("changed", buildJsonObject { changed.forEach { (k, v) -> put(k, v) } })
             put("removed", buildJsonObject { removed.forEach { (k, v) -> put(k, v) } })
+        }
+    }
+
+    /**
+     * gameData 段 + 两个 `@Transient` 顶层段（逐域关闭过滤 + 关闭字段写入检测）。
+     *
+     * gameData 为变更字段 dirty 集（与锚点按键比较）；已关闭域字段剔除后
+     * 仍做一次"C++ 已知值"比较——关闭后仍有 Kotlin 写者即为回导缺口。
+     */
+    private fun appendGameDataSections(
+        changed: MutableMap<String, JsonElement>,
+        gameData: GameData,
+    ) {
+        val currentGd = gameDataJsonWithoutRng(gameData)
+        val patch = reverseGameDataPatch(currentGd)
+        val transported = filterTransportedGameDataFields(patch)
+        if (transported.isNotEmpty()) {
+            changed["gameData"] = transported
+        }
+        detectClosedFieldWrites(currentGd)
+        pendingReverseGameDataAnchor = currentGd
+        appendAiSectDisciplesSection(changed, gameData)
+        if (ReverseChannelPolicy.isSectionTransported(SECTION_LOCKED_BEAST_IDS) &&
+            gameData.lockedBeastIds != lastLockedBeastIdsSent
+        ) {
+            // 妖兽视图锁定顶层段：变化检测 + 整体替换（@Transient 不入 gameData JSON）
+            changed[SECTION_LOCKED_BEAST_IDS] = JsonArray(
+                gameData.lockedBeastIds.map { JsonPrimitive(it) }
+            )
+        }
+    }
+
+    /**
+     * AI 宗门弟子池顶层段（`@Transient`，单独全量段回导）。
+     *
+     * O(1) 快路径（审计 P2-3 / 方案 D3 改动 8）：GameData 为不可变数据类，
+     * `update{}` 的 copy 保持未修改字段引用不变——引用相同即池未变，直接跳过
+     * O(ΣD×字段数) 的数据类深比较（原实现稳态每旬全量比较 28k 池）。引用不同再
+     * 深比较：内容相同（C++ 前向更新所致——镜像与 native 同值）仅推进缓存，
+     * 免掉冗余全量回导（28k 池 JSON 两次过 JNI）与后续每旬重复深比较；
+     * 内容不同（Kotlin 本地写——战斗死亡标记/攻占清池）照旧回导。
+     */
+    private fun appendAiSectDisciplesSection(
+        changed: MutableMap<String, JsonElement>,
+        gameData: GameData,
+    ) {
+        if (!ReverseChannelPolicy.isSectionTransported(SECTION_AI_SECT_DISCIPLES)) return
+        if (gameData.aiSectDisciples === lastAiSectDisciplesSent) return
+        if (gameData.aiSectDisciples != lastAiSectDisciplesSent) {
+            changed[SECTION_AI_SECT_DISCIPLES] = json.encodeToJsonElement(
+                serializer<Map<String, List<Disciple>>>(), gameData.aiSectDisciples
+            )
+        } else {
+            lastAiSectDisciplesSent = gameData.aiSectDisciples
+        }
+    }
+
+    /** 弟子段：窗口内变化 id → 当前表组装全实体（upsert，id 升序）；组装失败 → removed。 */
+    private fun appendDiscipleSection(
+        changed: MutableMap<String, JsonElement>,
+        removed: MutableMap<String, JsonElement>,
+        snapshot: GameStateStore.ReverseDirtySnapshot,
+        tables: DiscipleTables,
+    ) {
+        if (!ReverseChannelPolicy.isDiscipleChannelTransported()) {
+            if (snapshot.discipleIds.isNotEmpty()) {
+                // 关闭后仍有弟子表写者 = 数据丢失缺陷（捕获侧已上报，此处兜底计数：
+                // 信封可被直接构造，测试/兜底路径同样受检测约束）
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
+                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
+                    "buildReverseEnvelope"
+                )
+            }
+            return
+        }
+        val upserted = tables.assembleAllIncremental(emptyList(), snapshot.discipleIds)
+        val upsertedIds = upserted.mapTo(HashSet()) { it.id.toIntOrNull() ?: Int.MIN_VALUE }
+        val removedDiscipleIds = snapshot.discipleIds - upsertedIds
+        if (upserted.isNotEmpty()) {
+            changed[ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME] = JsonArray(
+                upserted.map { json.encodeToJsonElement(Disciple.serializer(), it) }
+            )
+        }
+        if (removedDiscipleIds.isNotEmpty()) {
+            removed[ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME] =
+                JsonArray(removedDiscipleIds.map { JsonPrimitive(it.toString()) })
+        }
+    }
+
+    /** 实体集合段：引用变化的集合 → 全量实体 upsert + 消失 id（关闭集合剔除并登记检测）。 */
+    private fun appendCollectionSections(
+        changed: MutableMap<String, JsonElement>,
+        removed: MutableMap<String, JsonElement>,
+        snapshot: GameStateStore.ReverseDirtySnapshot,
+    ) {
+        for ((name, capture) in snapshot.collections) {
+            if (ReverseChannelPolicy.isCollectionTransported(name)) {
+                if (capture.upserts.isNotEmpty()) {
+                    changed[name] = encodeCollectionEntities(name, capture.upserts)
+                }
+                if (capture.removedIds.isNotEmpty()) {
+                    removed[name] = JsonArray(capture.removedIds.map { JsonPrimitive(it) })
+                }
+            } else {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.COLLECTION, name, "buildReverseEnvelope"
+                )
+            }
         }
     }
 
@@ -524,6 +600,97 @@ class StateSyncService @Inject constructor(
         return buildJsonObject {
             full.forEach { (k, v) -> if (k != RNG_STATES_FIELD) put(k, v) }
         }
+    }
+
+    /**
+     * 逐域关闭过滤：剔除已关闭域的 gameData 字段（batch-21）。
+     *
+     * 关闭依据 = `ReverseChannelPolicy` 的逐域审计结论（该域稳态写者已归 C++）。
+     * 未在关闭清单中的字段一律保留（默认开放）。
+     */
+    private fun filterTransportedGameDataFields(patch: JsonObject): JsonObject {
+        if (patch.isEmpty()) return patch
+        val closed = ReverseChannelPolicy.closedGameDataFields()
+        if (closed.isEmpty()) return patch
+        return buildJsonObject {
+            patch.forEach { (key, value) ->
+                if (key !in closed) put(key, value)
+            }
+        }
+    }
+
+    /**
+     * 关闭域写入检测（batch-21）：已关闭字段的 Kotlin 当前值与 C++ 已知值不一致
+     * ⇒ 该字段在 AUTHORITATIVE 稳态下仍有 Kotlin 写者 = **回导缺口（数据丢失风险）**。
+     *
+     * 语义边界：仅在基线已建立（[closedFieldKnown] 非 null，即发生过全量导入/全量镜像）
+     * 时检测——启动早期"未同步"不是"越权写入"。基线在前向镜像携带该字段时同步
+     * （C++ 值被确认），故 C++ 自身改动不会误报。
+     */
+    private fun detectClosedFieldWrites(current: JsonObject) {
+        val known = closedFieldKnown ?: return
+        if (known.isEmpty()) return
+        for ((field, knownValue) in known) {
+            val currentValue = current[field]
+            if (currentValue != null && !jsonValuesEquivalent(currentValue, knownValue)) {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.GAME_DATA_FIELD, field, "buildReverseEnvelope"
+                )
+                if (reportedClosedFieldWrites.add(field)) {
+                    DomainLog.e(
+                        TAG,
+                        "反向通道关闭域仍被 Kotlin 写入：字段 $field" +
+                            "（Kotlin=$currentValue，C++已知=$knownValue）" +
+                            "——该写入无法到达 C++，属数据丢失风险；需复核逐域审计结论或回滚该域"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * 刷新关闭字段基线（C++ 值被确认的三个时刻：全量导入 / 全量镜像 / 前向增量镜像）。
+     *
+     * @param gameDataJson 以 kotlinx 编码的 gameData JSON（与检测侧同源格式）
+     */
+    private fun refreshClosedFieldBaseline(gameDataJson: JsonObject) {
+        val closed = ReverseChannelPolicy.closedGameDataFields()
+        if (closed.isEmpty()) {
+            closedFieldKnown = null
+            return
+        }
+        val known = HashMap<String, JsonElement>(closed.size)
+        for (field in closed) {
+            gameDataJson[field]?.let { known[field] = it }
+        }
+        closedFieldKnown = known
+    }
+
+    /**
+     * 前向增量镜像携带的 gameData 字段 = C++ 侧当前值——同步基线，
+     * 避免把"C++ 自己改的值"误报为越权写入。
+     */
+    private fun updateClosedFieldBaseline(overrides: Map<String, JsonElement>) {
+        val known = closedFieldKnown ?: return
+        if (known.isEmpty()) return
+        for ((field, value) in overrides) {
+            if (field in known) known[field] = value
+        }
+    }
+
+    /**
+     * JSON 值语义相等（容忍 C++ 整数 double 输出形式：`12000` vs `12000.0`）。
+     * 结构不同（对象/数组）退化为字面比较——本检测只用于诊断，宁可漏报不误报
+     * 亦可接受，但不得因格式差异产生噪声。
+     */
+    private fun jsonValuesEquivalent(a: JsonElement, b: JsonElement): Boolean {
+        if (a == b) return true
+        val pa = a as? JsonPrimitive ?: return false
+        val pb = b as? JsonPrimitive ?: return false
+        if (pa.isString != pb.isString) return false
+        val na = pa.content.toDoubleOrNull()
+        val nb = pb.content.toDoubleOrNull()
+        return na != null && nb != null && na == nb
     }
 
     /** 集合实体按具体类型序列化（与 applyCollection 同名分发）。 */
@@ -674,6 +841,8 @@ class StateSyncService @Inject constructor(
             // 变更值与 schema 不符（版本漂移防御）——保留 Kotlin 现状
             gameData
         }
+        // 前向镜像携带的键 = C++ 侧当前值——刷新关闭字段基线（防误报）
+        updateClosedFieldBaseline(overrides)
         return gameDataChanges.size
     }
 
@@ -796,9 +965,14 @@ class StateSyncService @Inject constructor(
     }
 
     companion object {
+        private const val TAG = "StateSyncService"
         private const val GAMEDATA_PATH_PREFIX = "gameData."
         /** gameData 中 RNG 分区状态字段——反向回导必须剔除（native RNG 真相源） */
         private const val RNG_STATES_FIELD = "rngStates"
+        /** 顶层段名：AI 宗门弟子池（@Transient，单独全量段承载） */
+        internal const val SECTION_AI_SECT_DISCIPLES = ReverseChannelPolicy.SECTION_AI_SECT_DISCIPLES
+        /** 顶层段名：妖兽视图锁定集（@Transient，单独全量段承载） */
+        internal const val SECTION_LOCKED_BEAST_IDS = ReverseChannelPolicy.SECTION_LOCKED_BEAST_IDS
         private const val COLLECTION_DISCIPLES = "disciples"
         private const val COLLECTION_EQUIPMENT_STACKS = "equipmentStacks"
         private const val COLLECTION_EQUIPMENT_INSTANCES = "equipmentInstances"

@@ -19,6 +19,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
+import com.xianxia.sect.core.state.ReverseChannelPolicy
 import com.xianxia.sect.core.state.RunState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -154,20 +155,37 @@ open class FakeGameStateStore : GameStateStore {
             mgs.herbs.items, mgs.seeds.items, mgs.storageBags.items
         )
         for (i in collectionNames().indices) {
-            if (baseline.collections[i] === current[i]) continue
-            val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
-                current[i].mapTo(HashSet()) { (it as HasId).id }
-            @Suppress("UNCHECKED_CAST")
-            reverseAcc.collections[collectionNames()[i]] = GameStateStore.CollectionCapture(
-                upserts = current[i] as List<HasId>,
-                removedIds = removedIds
-            )
+            val name = collectionNames()[i]
+            val changedReference = baseline.collections[i] !== current[i]
+            // 逐域关闭（batch-21）：关闭集合不构造捕获载荷（与生产 GameStateStoreImpl 同源）
+            if (changedReference && !ReverseChannelPolicy.isCollectionTransported(name)) {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.COLLECTION, name, "FakeGameStateStore"
+                )
+            } else if (changedReference) {
+                val removedIds = baseline.collections[i].mapTo(HashSet()) { (it as HasId).id } -
+                    current[i].mapTo(HashSet()) { (it as HasId).id }
+                @Suppress("UNCHECKED_CAST")
+                reverseAcc.collections[name] = GameStateStore.CollectionCapture(
+                    upserts = current[i] as List<HasId>,
+                    removedIds = removedIds
+                )
+            }
         }
         val tracker = mgs.discipleTables.changedIdTracker
         val ids = tracker.snapshotChangedIds()
         if (ids.isNotEmpty()) {
-            reverseAcc.discipleIds += ids
-            if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
+            // 逐域关闭（batch-21）：弟子通道关闭后不累积脏 id，但写入仍登记检测
+            if (ReverseChannelPolicy.isDiscipleChannelTransported()) {
+                reverseAcc.discipleIds += ids
+                if (tracker.snapshotRejectedRecord()) reverseAcc.rejectedRecord = true
+            } else {
+                ReverseChannelPolicy.noteClosedWrite(
+                    ReverseChannelPolicy.Kind.DISCIPLE_CHANNEL,
+                    ReverseChannelPolicy.DISCIPLE_CHANNEL_NAME,
+                    "FakeGameStateStore"
+                )
+            }
         }
     }
 

@@ -3,6 +3,7 @@ package com.xianxia.sect.core.nativebridge
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.ReverseChannelPolicy
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
@@ -233,31 +234,35 @@ class StateSyncServiceReverseTest {
     }
 
     @Test
-    fun `lockedBeastIds change carries full segment with replacement semantics`() {
-        // 妖兽视图锁定顶层段（@Transient 不入 gameData JSON）：
-        // 变化时携带全量 id 集；发送成功后缓存推进，未再变化不重发
+    fun `lockedBeastIds segment is closed and reopen restores replacement semantics`() {
+        // batch-21：该段已关闭（batch-23 把 UI 锁定/解锁操作面下沉 C++，Kotlin 侧仅剩回退臂写者）
+        // ——关闭后不再占用信封面；逐域回滚可恢复"变化时携带全量 id 集"的整体替换语义
         val store = FakeGameStateStore()
         val sent = mutableListOf<String>()
         val sync = StateSyncService(store) { sent += it.decodeToString(); true }
 
         store.update { gameData = gameData.copy(lockedBeastIds = setOf("beast-1", "beast-2")) }
         assertTrue(sync.applyDirtyToNative())
-        val changed = json.parseToJsonElement(sent[0]).jsonObject["changed"]!!.jsonObject
-        assertEquals(
-            listOf("beast-1", "beast-2"),
-            changed["lockedBeastIds"]!!.jsonArray.map { it.jsonPrimitive.contentOrNull }
+        assertNull(
+            "关闭段不得进入信封",
+            json.parseToJsonElement(sent.last()).jsonObject["changed"]!!.jsonObject["lockedBeastIds"]
         )
 
-        // 未再变化：下一窗口不重发该段
-        store.update { gameData = gameData.copy(spiritStones = 300) }
-        assertTrue(sync.applyDirtyToNative())
-        val changed2 = json.parseToJsonElement(sent[1]).jsonObject["changed"]!!.jsonObject
-        assertNull(changed2["lockedBeastIds"])
-
-        // 解锁 = 集合重写（整体替换语义），空集也携带
-        store.update { gameData = gameData.copy(lockedBeastIds = emptySet()) }
-        assertTrue(sync.applyDirtyToNative())
-        val changed3 = json.parseToJsonElement(sent[2]).jsonObject["changed"]!!.jsonObject
-        assertEquals(0, changed3["lockedBeastIds"]!!.jsonArray.size)
+        // 回滚该域（紧急回滚路径）→ 段恢复携带
+        ReverseChannelPolicy.reopenDomain(ReverseChannelPolicy.Domain.BATTLE)
+        try {
+            val store2 = FakeGameStateStore()
+            val sent2 = mutableListOf<String>()
+            val sync2 = StateSyncService(store2) { sent2 += it.decodeToString(); true }
+            store2.update { gameData = gameData.copy(lockedBeastIds = setOf("beast-1", "beast-2")) }
+            assertTrue(sync2.applyDirtyToNative())
+            val changed = json.parseToJsonElement(sent2.last()).jsonObject["changed"]!!.jsonObject
+            assertEquals(
+                listOf("beast-1", "beast-2"),
+                changed["lockedBeastIds"]!!.jsonArray.map { it.jsonPrimitive.contentOrNull }
+            )
+        } finally {
+            ReverseChannelPolicy.resetSwitches()
+        }
     }
 }
