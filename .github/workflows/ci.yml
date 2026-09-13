@@ -59,6 +59,23 @@ jobs:
       - name: Build desktop JNI bridge
         run: bash ../scripts/build-desktop-jni-linux.sh
 
+      # ── RNG 随机源红线（ADR rng-determinism-remediation 阶段 0）──────────
+      # **为什么不写 grep**：项目原红线是 `grep "import kotlin.random.Random"`，三条失效
+      # 原因（ADR §1 实测）：① `templates.random()` 是 stdlib 扩展函数、`GameRandom`
+      # 是自建 object——**两者都不带该 import**，永远匹配不到；② 该断言后来事实上从
+      # CI 消失（红线失守无告警）；③ 正则无法区分"注释引用"与"真实调用"，
+      # 改注释即改守卫。
+      # 现红线 = `RngSourceGuardTest`（注释感知 + 逐模块逐类登记上限只缩不增 +
+      # R4 清单式 + R2 分区往返 + 五类入口覆盖），由本 step 显式点名跑，
+      # 与 `cpp-diff-jni-test` 的全量 engine 测试互为冗余（本 step 失败信息更聚焦）。
+      # 消费点清单与登记上限的事实来源见 docs/rng-source-inventory.md。
+      - name: RNG source red-line (four entry classes)
+        run: |
+          ./gradlew :core:engine:testReleaseUnitTest --max-workers=1 --build-cache \
+            --tests 'com.xianxia.sect.core.architecture.RngSourceGuardTest' \
+            --tests 'com.xianxia.sect.core.architecture.RngEngineIsolationGuardTest' \
+            "-Dgamecore.jni.path=$GITHUB_WORKSPACE/android/core/engine/build/desktop-jni/libgamecorejni.so"
+
       # 全量 engine 单测（含 Diff*Test 桌面对拍 0 skip）——串行必须（共享静态状态）
       - name: Run engine unit tests with desktop JNI
         run: ./gradlew :core:engine:testReleaseUnitTest --max-workers=1 --build-cache "-Dgamecore.jni.path=$GITHUB_WORKSPACE/android/core/engine/build/desktop-jni/libgamecorejni.so"

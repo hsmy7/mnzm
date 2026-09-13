@@ -126,11 +126,19 @@ object AISectDiscipleManager {
      * 1. **兜底流播种**：重置为 `systemSeed + 6×31337`——与 C++ `GameCore::aiRng_`
      *    的播种式同源。引擎尚未注入管理器时（引擎早期调用、无管理器夹具）用它即
      *    得到与原 `initForSlot` 逐位一致的序列。
-     * 2. **已注入管理器时**：把同一 `aiSeed` 恢复到解析出的分区（非委托模式 =
-     *    [RngPartition.AI_SECT]，委托模式 = [RngPartition.AI_SECT_MIRROR]）——
+     * 2. **已注入管理器时**：把 [aiSeed] 的**混种态**恢复到解析出的分区
+     *    （非委托模式 = [RngPartition.AI_SECT]，委托模式 = [RngPartition.AI_SECT_MIRROR]）——
      *    保证"同 seed ⇒ 同序列"对**管理器路径同样成立**（原实现的核心契约；
      *    缺失该段会让 [RngPartition.AI_SECT] 停留在 `initSystemSeed` 的
      *    `seed + 6` 上，与 `aiRng_` 的 `seed + 6×31337` 分叉）。
+     *
+     *    **必须用混种态（`fromSeed` 的 snapshot）而非裸种子**：`snapshot()` 是
+     *    **状态**不是种子——C++ `aiRng_`（`game_core.cpp` initialize /
+     *    rngInitSystemSeed / importStateInternal 三处）与旧影子流都经
+     *    `fromSeed(aiSeed)` 走过一轮混种（`state = (seed shl 1) or 1` 后丢弃一次
+     *    `nextLong()`）。若此处 `restore(aiSeed)` 写入裸种子，同一 `aiSeed` 会
+     *    得到**另一条序列**（首次抽取即分叉——AI 突破判定/孕养升级行为漂移，
+     *    实测 4 处测试红即此缺陷）。
      *
      * **不动分区 9**：`AI_SECT_MIRROR` 是通道型分区（`inSnapshot = false`），其状态
      * 真源 = C++ `aiRng_`，由 native 侧在 `rngInitSystemSeed` / `importStateInternal`
@@ -140,8 +148,10 @@ object AISectDiscipleManager {
      */
     fun initForSlot(systemSeed: Long) {
         val aiSeed = systemSeed + RngPartition.AI_SECT.id.toLong() * AI_SECT_SEED_STRIDE
-        fallbackRng = DeterministicRng.fromSeed(aiSeed)
-        rngManager?.let { it.getRng(RngPartition.AI_SECT).restore(aiSeed) }
+        val mixed = DeterministicRng.fromSeed(aiSeed)
+        fallbackRng = mixed
+        // 分区必须落"混种态"：快照是**状态**（见 KDoc 第 2 段），裸种子会得到另一条序列
+        rngManager?.let { it.getRng(RngPartition.AI_SECT).restore(mixed.snapshot()) }
     }
 
     /**
@@ -343,18 +353,6 @@ object AISectDiscipleManager {
 
     // 注：recruitYearlyDisciples 当前无调用方（预留）。周期性招募由年变事件经
     // runSectRecruitmentIfDue 差值判据每 3 年触发一次，本函数自动继承同一数量范围。
-
-    /**
-     * 按战力降序截断至 [PlantSlotData.MAX_AI_DISCIPLES_PER_SECT]，供年度招募路径复用，
-     * 防止 AI 宗门弟子池无界累积。
-     */
-    fun truncateToLimit(disciples: List<Disciple>): List<Disciple> =
-        if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
-            disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }
-                .take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
-        } else {
-            disciples
-        }
 
     /**
      * 仅生成周期性招募新弟子列表（不合并现有弟子），供占领路由使用。

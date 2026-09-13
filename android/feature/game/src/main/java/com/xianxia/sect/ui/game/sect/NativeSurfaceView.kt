@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.PixelFormat
 import android.os.Build
 import kotlin.concurrent.thread
+import kotlin.random.Random
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceView
@@ -540,9 +541,16 @@ class NativeSurfaceView(
     /**
      * 云层动画引擎（渲染线程驱动——只在世界外生成/穿越/出界消失，速度 3 格/秒）。
      * 构造期初始化（世界尺寸来自 [config]）；跳帧期间仍随节拍唤醒推进生成定时器。
+     *
+     * 随机源为**局部固定种子实例**（`Random(派生种子)`）——`CloudLayerAnimator` 的
+     * `random` 形参已改为**必传**（原 `= Random.Default` 属 R5 的"默认值陷阱"：
+     * 省略实参即静默接到进程启动随机流）。云朵为纯表现装饰（不进存档、不参与
+     * 引擎分区），故用 `config` 维度派生的固定种子而非 `PresentationRandom`
+     *（后者为 UI/引擎共享单例，本类构造于渲染表面生命周期、需独立可控实例）。
      */
     val cloudAnimator = CloudLayerAnimator(
-        worldWidthPx = config.worldPixelWidth.toFloat()
+        worldWidthPx = config.worldPixelWidth.toFloat(),
+        random = Random(cloudLayerSeed(config.worldWidthCells, config.worldHeightCells))
     )
 
     /**
@@ -1941,3 +1949,22 @@ private fun reportRenderFallback(
         )
     )
 }
+
+/**
+ * 云层表现流种子（由世界尺寸派生）。
+ *
+ * 云朵不需要与世界内容对应——只要**同一世界尺寸下每会话可复现**即可
+ *（表现类不落盘、不参与引擎分区的确定性契约）。用尺寸 + 固定 salt 派生，
+ * 使测试（`CloudLayerAnimatorTest` 显式传 `Random(seed)`）与生产都能拿到
+ * 确定种子，且不新增配置字段/协议面。
+ *
+ * @param worldWidthCells 世界宽度（格数）
+ * @param worldHeightCells 世界高度（格数）
+ */
+private fun cloudLayerSeed(worldWidthCells: Int, worldHeightCells: Int): Int =
+    (worldWidthCells * CLOUD_SEED_WIDTH_MIX) xor (worldHeightCells * CLOUD_SEED_HEIGHT_MIX) xor CLOUD_SEED_SALT
+
+/** 云层种子里程碑常量：任意奇素数（仅用于打散尺寸组合，无业务语义） */
+private const val CLOUD_SEED_WIDTH_MIX = 73_856_093
+private const val CLOUD_SEED_HEIGHT_MIX = 19_349_663
+private const val CLOUD_SEED_SALT = 0x5EED_C10D

@@ -33,6 +33,7 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.diplomacy.truncateToLimit
 import com.xianxia.sect.core.util.AnalyticsEvents
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.DomainLog

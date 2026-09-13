@@ -48,13 +48,23 @@ class RngSourceGuardTest {
     )
 
     /**
-     * 逐模块逐类登记上限——事实来源 = `docs/rng-source-inventory.md` §2（阶段 0 实跑，
-     * **注释已剔除**：KDoc/注释里对被禁字面量的引用不计入债务）。
+     * 逐模块逐类登记上限——事实来源 = `docs/rng-source-inventory.md` §2
+     *（阶段 0 实跑建立，**注释已剔除**：KDoc/注释里对被禁字面量的引用不计入债务；
+     * 阶段 2 表现类迁移后同步下调）。
      * 清偿后**必须同步下调**；新条目禁止加入。
+     *
+     * ### 阶段 2 收口后的下调（2026-09-14）
+     * | 模块 | 类别 | 阶段 0 | 现值 | 处置 |
+     * |---|---|---|---|---|
+     * | core/domain | ② BARE_DRAW | 7 | **5** | `SectResponseTexts.getAccept/RejectResponse` |
+     * |  |  |  |  | 内部 `responses.random()` 改为**形参必传** `random.nextInt(size)` |
+     * | feature/game | ② BARE_DRAW | 2 | **1** | `LoadingTips.randomTip()` 改走 `PresentationRandom.pick` |
+     * | feature/game | ④ SELF_HELD_RNG | 1 | **0** | `CloudLayerAnimator` 的默认值摘除 |
+     * |  |  |  |  | （`NativeSurfaceView` 传派生固定种子） |
      */
     private val registeredLimits: Map<String, Map<RandomSourceCategory, Int>> = mapOf(
         "core/domain" to mapOf(
-            RandomSourceCategory.BARE_DRAW to 7,
+            RandomSourceCategory.BARE_DRAW to 5,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 0,
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 19
@@ -78,9 +88,9 @@ class RngSourceGuardTest {
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 0
         ),
         "feature/game" to mapOf(
-            RandomSourceCategory.BARE_DRAW to 2,
+            RandomSourceCategory.BARE_DRAW to 1,
             RandomSourceCategory.GAME_RANDOM to 0,
-            RandomSourceCategory.SELF_HELD_RNG to 1,
+            RandomSourceCategory.SELF_HELD_RNG to 0,
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 1
         ),
         "app" to mapOf(
@@ -289,23 +299,13 @@ class RngSourceGuardTest {
             while (i < raw.length) {
                 val c = raw[i]
                 val next = raw.getOrNull(i + 1)
-                if (inBlockComment) {
-                    if (c == '*' && next == '/') {
-                        inBlockComment = false
-                        i += 2
-                    } else {
-                        i++
-                    }
-                    continue
+                when {
+                    inBlockComment && c == '*' && next == '/' -> { inBlockComment = false; i += 2 }
+                    inBlockComment -> i++
+                    c == '/' && next == '/' -> i = raw.length // 行注释：余下丢尾
+                    c == '/' && next == '*' -> { inBlockComment = true; i += 2 }
+                    else -> { sb.append(c); i++ }
                 }
-                if (c == '/' && next == '/') break            // 行注释：余下全丢
-                if (c == '/' && next == '*') {                // 块注释起始
-                    inBlockComment = true
-                    i += 2
-                    continue
-                }
-                sb.append(c)
-                i++
             }
             out.add(sb.toString().trim())
         }

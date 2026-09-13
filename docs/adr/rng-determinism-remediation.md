@@ -1,6 +1,22 @@
 # ADR: 随机源治理（确定性可复现）专项整治
 
-> 状态：✅ **已拍板（选项 2：根治）** | 决策日期：2026-09-14 | 关联：[cpp-migration-handover-m0.md](../cpp-migration-handover-m0.md) §4.1/§6 · [ui-read-surface.md](../ui-read-surface.md) §4.3 · [cpp-engine-migration.md](cpp-engine-migration.md)
+> 状态：✅ **已拍板（选项 2：根治）** 且 **阶段 0/1/2/4 已交付**（2026-09-14，见 [cpp-migration-handover-m0.md](../cpp-migration-handover-m0.md) §2.58）｜决策日期：2026-09-14｜关联：[cpp-migration-handover-m0.md](../cpp-migration-handover-m0.md) §4.1/§6 · [ui-read-surface.md](../ui-read-surface.md) §4.3 · [cpp-engine-migration.md](cpp-engine-migration.md)
+
+## 0. 实施状态快照（2026-09-14 收口，后于本 ADR 正文）
+
+| 阶段 | 状态 | 交付要点 |
+|---|---|---|
+| **阶段 0** | ✅ | 五类入口分类表（`docs/rng-source-inventory.md`）+ `RngSourceGuardTest`（注释感知 + 逐模块逐类登记上限只缩不增 + R2/R4/R5 断言）+ **CI 红线 step 落 `ci.yml`**（`RNG source red-line (four entry classes)`，**不以 grep 实现**——见 §1"三条失效守卫"） |
+| **阶段 1** | ✅ | ① 开袋 → `storage_bag_tx.h`（ActionId 1734）+ 7 处抽签显式传 `EXPLORATION` 分区；② AI RNG 归一到 `GameRngManager` 分区（影子摘除 + 通道分区 9）+ **🔴 收口批新发现的播种态根因修复**：`initForSlot` 曾写**裸种子**而非 `fromSeed` 混种态 ⇒ 同一 `aiSeed` 两侧两条序列（新增 `DiffAiRngSeedingTest` 锁守）；③ `GameRandom` 物理删除（残留调用 = 编译期报错） |
+| **阶段 2** | ✅（可归表现类者全迁） | 迁入 `PresentationRandom`：外交文案（`DiplomacyGiftTexts`/`DiplomacyVassalTexts`）+ 天劫立绘 + **`SectResponseTexts`（改形参必传）** + **`LoadingTips`** + **`CloudLayerAnimator`（摘 `Random.Default` 默认值）**。**`BattleDescriptionGenerator`(12) 与 `DiscipleChatDialog`(3) 判为决策类**（前者文本入 Room `battle_logs` 实体、后者写弟子 `skills`/`cultivation`）⇒ `R3` 明令表现流不得被决策路径调用，归**阶段 3** |
+| **阶段 3** | ⛔ **未开工** | 决策类 ~19 处 ⑤ + 2 处 ④ 挂钟种子流 + 3 处位置实参稀有度缺陷 + 上述两文件。**ADR §8 首行风险已实测排除**：10k 抽取基准 kotlin 本地 PCG `14ns/op` vs native JNI 标量往返 `11ns/op`（**ratio 0.8，无成本障碍**）⇒ 可按"逐域按调用点下沉"原粒度推进（桌面 JVM ≠ ART，真机留观测余量） |
+| **阶段 4** | ✅ | `R2` 分区往返 + `R4` 清单式/双射/通道语义断言 + **CI 红线 step** + **10k JNI 基准**；六模块 detekt baseline 恒 0 |
+
+**收口批新增守卫两道**（防下一批再踩）：
+- `DiffAiRngSeedingTest`——"`snapshot()` 是**状态**不是种子"落成可执行断言（混种态 × 3 档 seed + 前 8 抽与 C++ 镜像分区逐位一致 + 同 seed 幂等）；
+- `RngEngineIsolationGuardTest`——禁止 `object`/单例持有可变 `GameRngManager` 字段（`MissionSystem` 事故：进程级单例被双引擎夹具互相覆写，侧 B 的月变消费了 C++ 的 MISSION 分区；修法 = **形参必传**，隔离靠构造期依赖）。首跑即抓出 3 处同族遗留（`EnemyGenerator`/`AISectAttackManager`/`AISectTeamComposer`，白名单登记 + 偿还触发条件）。
+
+**仍未收敛（诚实口径）**：`DiffYearSettlementTest` 1 例 AI 招募逐字段分歧（分歧窗口已收窄到"第二名 AI 弟子的装备/功法段"，根因待专项）；`:feature:game` 两族 10 处预存夹具失败（见 handover §2.58.7）。
 
 ---
 
@@ -59,6 +75,17 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 对象内自持 RNG），再逐入口统计消费点。阶段 0 的逐处分类表（§11 盲区 1）必须先产出此
 四类入口清单，否则会像本 ADR 初稿一样漏掉整类。
 
+**勘误二（2026-09-14 收口批新增，见 §0）**：阶段 1② 交付时把 **`snapshot()` 是 PRNG 状态**
+这一点弄错——`AISectDiscipleManager.initForSlot` 写成 `restore(aiSeed)`（裸种子）。C++ `aiRng_`
+与旧影子流都经 `fromSeed(aiSeed)` 走过一轮混种（`state = (seed shl 1) or 1` 后丢弃一次
+`nextLong()`），故两侧由同一 `aiSeed` 得到**两条不同序列**（实测 2 处 `AISectDiscipleManagerTest`
+红 + 1 处 `DiffYearSettlementTest` 弟子条数 3 vs 4）。
+
+**教训（等价性必须成对落断言）**：`RngSourceGuardTest` 管的是"**覆盖完整性**"（五类入口计数、
+分区登记、双射），管不了"**语义等价性**"（同种子→同序列 / 状态→快照 / 分区→导出跨语言一致）。
+两者互补、缺一不可——本批补 `DiffAiRngSeedingTest` 把"种子→混种态→首抽序列"钉成可执行断言。
+**推论**：任何"两侧看起来同一公式"的推断都不足以交付，必须有跨语言逐位断言。
+
 
 ### 现有守卫为何没拦住（三条都失效）
 
@@ -67,6 +94,14 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 2. 实测该 grep 断言在当前 `android/.github/workflows/ci.yml` 中**已不存在**（红线事实上失守）；
 3. 项目**没有**"新增影响状态的随机必须注册分区"的清单式守卫；也**没有**任何机制阻止
    新建一个自持 RNG 的 object（`GameRandom` 本身就是这么来的）。
+
+### ✅ 阶段 0 的处置：**不以 grep 实现红线**（收口批定稿）
+
+`ci.yml` 新增 step `RNG source red-line (four entry classes)`，显式点名跑
+`RngSourceGuardTest` + `RngEngineIsolationGuardTest`。**为什么不恢复 grep**：上述三条失效原因
+里，前两条对任何正则都成立（stdlib 扩展/自建 object 不带 import；断言会再次消失），第三条
+（无法区分注释引用与真实调用）更会让"改注释即改守卫"。守卫测试是**注释感知 + 清单式 +
+只缩不增**的强闸门，且失败信息直接给操作指引 ⇒ 用它替代 grep 是**更强约束**而非放松。
 
 ---
 
@@ -120,16 +155,22 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 
 ## 4. 分阶段实施
 
-| 阶段 | 内容 | 规模 | 前置 |
-|---|---|---|---|
-| **阶段 0** | 本 ADR 入档 + handover §6 + **产出四类随机源入口的逐处分类表**（决策 / 表现 / 无关；§11 盲区 1，**这是本项的工作清单**）+ **重写 CI 红线为可执行检查**（覆盖全部四类入口：`import kotlin.random.Random`、`.random()`、`Random.Default`、`GameRandom.`，扫描 `core:domain` / `core:engine` 主源） | 小 | 无 |
-| **阶段 1** | 三个已知缺陷批次：① 开袋 3 处 `Random.Default` 抽签改走 `EXPLORATION` 分区（ActionId 1734+，新 `storage_bag_tx.h`）；② `AISectDiscipleManager._rng` 归一到 `GameRngManager` 的 `AI_SECT` 分区 + `checkAndRepairAiSectDisciples` 下沉 C++（复用 `ai_sect_recruit.h` 既有 `generateRandomAiDisciple` / `applyGearToAiDisciple` / `truncateToAiLimit` / `aiEnsureDiscipleGear`；缺的仅编排三件：`initializeSectDisciples` / `fillDisciplesToTarget` / `isGearCompleteForLevel`）；③ **`GameRandom` 摘除**——8 处全部改走对应分区（`mapSeed` 生成改 `SYSTEM` 或显式 `GameRandom`→分区；弟子属性方差 → `SYSTEM`/`AI_SECT`；灵根洗牌 → `SYSTEM`；天劫 → `BATTLE`），并删除 `GameRandom` 对象（**它自称"支持种子以实现确定性存档"但 `setSeed` 生产零调用——该承诺未实现，属死抽象**） | 中 | 无 |
-| **阶段 2** | `R3` 落地：`PresentationRandom` 引入，`BattleDescriptionGenerator`（12 处）/ `DiplomacyVassalTexts`（5）/ `DiplomacyGiftTexts`（4）/ `SectResponseTexts` 等纯表现消费点迁入 | 中 | 阶段 0 |
-| **阶段 3** | 决策类消费点按域逐批下沉（兑换码 13+9 / 邮件附件 4 / 天赋体质词条 roll 6+5 / `NameService` 4 / `EquipmentDatabase` 4 …），每批"域 → 写入者 → 批次"表进 handover | 大（分批） | 阶段 0；`R1` 守卫全程开着 |
-| **阶段 4** | 守卫三件套收口：`R4` 清单式守卫测试 + `R2` 分区状态往返测试 + CI 红线门禁；**六模块 baseline 恒 0 不得新增** | 小 | 阶段 1–3 |
+> **状态标记**：`✅` = 已交付（2026-09-14 收口批，见 §0）；`⛔` = 未开工。
+
+| 阶段 | 内容 | 规模 | 前置 | 状态 |
+|---|---|---|---|---|
+| **阶段 0** | 本 ADR 入档 + handover §6 + **产出四类随机源入口的逐处分类表**（决策 / 表现 / 无关；§11 盲区 1，**这是本项的工作清单**）+ **重写 CI 红线为可执行检查**（覆盖全部四类入口：`import kotlin.random.Random`、`.random()`、`Random.Default`、`GameRandom.`，扫描 `core:domain` / `core:engine` 主源） | 小 | 无 | ✅ 分类表 = `docs/rng-source-inventory.md`；红线 = `ci.yml` 的 `RNG source red-line` step（**守卫测试而非 grep**，理由见 §1 末节） |
+| **阶段 1** | 三个已知缺陷批次：① 开袋 3 处 `Random.Default` 抽签改走 `EXPLORATION` 分区（ActionId 1734+，新 `storage_bag_tx.h`）；② `AISectDiscipleManager._rng` 归一到 `GameRngManager` 的 `AI_SECT` 分区 + `checkAndRepairAiSectDisciples` 下沉 C++（复用 `ai_sect_recruit.h` 既有 `generateRandomAiDisciple` / `applyGearToAiDisciple` / `truncateToAiLimit` / `aiEnsureDiscipleGear`；缺的仅编排三件：`initializeSectDisciples` / `fillDisciplesToTarget` / `isGearCompleteForLevel`）；③ **`GameRandom` 摘除**——8 处全部改走对应分区（`mapSeed` 生成改 `SYSTEM` 或显式 `GameRandom`→分区；弟子属性方差 → `SYSTEM`/`AI_SECT`；灵根洗牌 → `SYSTEM`；天劫 → `BATTLE`），并删除 `GameRandom` 对象（**它自称"支持种子以实现确定性存档"但 `setSeed` 生产零调用——该承诺未实现，属死抽象**） | 中 | 无 | ✅ ①`storage_bag_tx.h` + `STORAGE_BAG_OPEN_TX=1734`；②影子摘除 + 分区 9 通道 + **播种态混种根因修复**（§0 勘误二）；③`GameRandom` 物理删除。**② 的"自愈下沉 C++"经 RNG 归一后收益不明，改判为待拍板**（见 §10 债表） |
+| **阶段 2** | `R3` 落地：`PresentationRandom` 引入，`BattleDescriptionGenerator`（12 处）/ `DiplomacyVassalTexts`（5）/ `DiplomacyGiftTexts`（4）/ `SectResponseTexts` 等纯表现消费点迁入 | 中 | 阶段 0 | ✅ **可归表现类者全迁**（外交文案 / 天劫立绘 / `SectResponseTexts` 形参必传 / `LoadingTips` / `CloudLayerAnimator` 摘默认值）。**`BattleDescriptionGenerator` 与 `DiscipleChatDialog` 改判为决策类**（前者文本入 Room `battle_logs` 实体、后者写弟子 `skills`/`cultivation`）⇒ 归阶段 3，`R3` 明令表现流不得被决策路径调用 |
+| **阶段 3** | 决策类消费点按域逐批下沉（兑换码 13+9 / 邮件附件 4 / 天赋体质词条 roll 6+5 / `NameService` 4 / `EquipmentDatabase` 4 …），每批"域 → 写入者 → 批次"表进 handover | 大（分批） | 阶段 0；`R1` 守卫全程开着 | ⛔ **未开工**。**§8 首行 JNI 成本风险已实测排除**（10k 基准 ratio 0.8）⇒ 可按按调用点粒度推进；剩余入口清单见 `docs/rng-source-inventory.md` §4 |
+| **阶段 4** | 守卫三件套收口：`R4` 清单式守卫测试 + `R2` 分区状态往返测试 + CI 红线门禁；**六模块 baseline 恒 0 不得新增** | 小 | 阶段 1–3 | ✅ 守卫三件套 + **10k JNI 基准**；另加两道收口批新守卫（`DiffAiRngSeedingTest` 等价性 / `RngEngineIsolationGuardTest` 全局禁令） |
 
 **开工顺序**：阶段 0 → 阶段 1（**这两步做完 batch-21 即可开**）→ 阶段 2/3 与 batch-21 后续工作并行
 → 阶段 4 收口。
+
+**收口批校正**：阶段 0/1/2/4 已交付，batch-21 的**关闭前置（阶段 1）达成**；但建议先收敛
+`DiffYearSettlementTest` 1 例（"Kotlin 夹具与 C++ 生产编排之间的 AI 分区消费差"，通道关闭后
+无兜底）。阶段 3 与 batch-21 后续域批并行推进即可。
 
 ---
 

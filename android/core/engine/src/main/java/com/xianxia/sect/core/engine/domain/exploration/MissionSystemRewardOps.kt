@@ -8,6 +8,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngRandomAdapter
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem.WeightedEntry
 
@@ -243,7 +244,7 @@ internal fun MissionSystem.createTier4RewardConfig(template: MissionTemplate): M
     else -> null
 }
 
-internal fun MissionSystem.rollSpiritStones(rewards: MissionRewardConfig): Int {
+internal fun MissionSystem.rollSpiritStones(rewards: MissionRewardConfig, rng: DeterministicRng): Int {
     return if (rewards.spiritStonesMax > 0) {
         rewards.spiritStones + rng.nextInt(rewards.spiritStonesMax - rewards.spiritStones + 1)
     } else {
@@ -251,21 +252,21 @@ internal fun MissionSystem.rollSpiritStones(rewards: MissionRewardConfig): Int {
     }
 }
 
-internal fun MissionSystem.generateMaterials(rewards: MissionRewardConfig): List<Material> {
+internal fun MissionSystem.generateMaterials(rewards: MissionRewardConfig, rng: DeterministicRng): List<Material> {
     return generateMaterialBatch(
         rewards.materialCountMin, rewards.materialCountMax,
-        rewards.materialMinRarity, rewards.materialMaxRarity
+        rewards.materialMinRarity, rewards.materialMaxRarity, rng
     )
 }
 
-internal fun MissionSystem.generateBaseMaterials(rewards: MissionRewardConfig): List<Material> {
+internal fun MissionSystem.generateBaseMaterials(rewards: MissionRewardConfig, rng: DeterministicRng): List<Material> {
     return generateMaterialBatch(
         rewards.baseMaterialCountMin, rewards.baseMaterialCountMax,
-        rewards.baseMaterialMinRarity, rewards.baseMaterialMaxRarity
+        rewards.baseMaterialMinRarity, rewards.baseMaterialMaxRarity, rng
     )
 }
 
-internal fun MissionSystem.generatePills(rewards: MissionRewardConfig): List<Pill> {
+internal fun MissionSystem.generatePills(rewards: MissionRewardConfig, rng: DeterministicRng): List<Pill> {
     if (rewards.pillCountMin <= 0) return emptyList()
 
     /** 结构数量（与 [SpriteAtlasDef.STRUCTURES] 同序同量）。 */
@@ -284,7 +285,8 @@ internal fun MissionSystem.generatePills(rewards: MissionRewardConfig): List<Pil
 }
 
 internal fun MissionSystem.generateEquipment(
-    rewards: MissionRewardConfig
+    rewards: MissionRewardConfig,
+    rng: DeterministicRng
 ): List<com.xianxia.sect.core.model.EquipmentStack> {
     if (rewards.equipmentChance <= 0.0) return emptyList()
     if (rng.nextDouble() >= rewards.equipmentChance) return emptyList()
@@ -296,7 +298,8 @@ internal fun MissionSystem.generateEquipment(
 }
 
 internal fun MissionSystem.generateManuals(
-    rewards: MissionRewardConfig
+    rewards: MissionRewardConfig,
+    rng: DeterministicRng
 ): List<com.xianxia.sect.core.model.ManualStack> {
     if (rewards.manualChance <= 0.0) return emptyList()
     if (rng.nextDouble() >= rewards.manualChance) return emptyList()
@@ -319,7 +322,7 @@ internal fun MissionSystem.buildWeightedPool(): List<WeightedEntry> {
     }
 }
 
-internal fun MissionSystem.weightedRandom(pool: List<WeightedEntry>): MissionTemplate {
+internal fun MissionSystem.weightedRandom(pool: List<WeightedEntry>, rng: DeterministicRng): MissionTemplate {
     val totalWeight = pool.lastOrNull()?.cumulativeWeight ?: 0.0
     if (totalWeight <= 0.0) return MissionTemplate.entries[rng.nextInt(MissionTemplate.entries.size)]
     val roll = rng.nextDouble() * totalWeight
@@ -330,7 +333,8 @@ internal fun MissionSystem.generateMaterialBatch(
     countMin: Int,
     countMax: Int,
     minRarity: Int,
-    maxRarity: Int
+    maxRarity: Int,
+    rng: DeterministicRng
 ): List<Material> {
     if (countMin <= 0) return emptyList()
 

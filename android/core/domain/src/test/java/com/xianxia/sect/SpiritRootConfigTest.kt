@@ -167,7 +167,7 @@ class SpiritRootConfigTest {
     }
 
     @Test
-    fun `灵根数量映射边界值语义 — 0.0 取最小权重档, 接近 1.0 走回退`() {
+    fun `灵根数量映射边界值语义 — 零点取最小权重档_接近一取回退`() {
         // 单调性：随机值越小越可能落在低数量档（COUNT_WEIGHTS 升序累积）
         val smallest = GameConfig.SpiritRoot.rollSpiritRootCount(0.0)
         assertEquals("rand=0.0 应落在首个累积区间", 1, smallest)

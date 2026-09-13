@@ -18,6 +18,7 @@ import com.xianxia.sect.core.state.recordPlayerBattle
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.domain.building.updateDiscipleStatus
 
 
@@ -87,7 +88,8 @@ private suspend fun GameEngine.applyCompletedMissionResult(
     val proficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
     val result = MissionSystem.processMissionCompletion(
         activeMission, aliveDisciples, equipMap, manualMap,
-        proficiencies, battleSystem, data.bloodRefinementPctTotals
+        proficiencies, battleSystem, data.bloodRefinementPctTotals,
+        gameRngManager.getRng(RngPartition.MISSION)
     )
     applyMissionResult(result, activeMission, data.gameYear, data.gameMonth, aliveDisciples)
 }

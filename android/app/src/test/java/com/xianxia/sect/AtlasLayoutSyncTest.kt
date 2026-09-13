@@ -85,6 +85,7 @@ class AtlasLayoutSyncTest {
         val kotlinBuildingNames = SpriteAtlasDef.BUILDING_NAMES.toSet()
         val knownNames = tileNameMap.keys + cropNameMap.keys +
             structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys +
+            SpriteAtlasDef.BUILDING_NAMES
         val orphanBuildings = cpp
             .filter { it.name !in knownNames }
             .filter { it.name !in kotlinBuildingNames }
@@ -196,7 +197,7 @@ class AtlasLayoutSyncTest {
     fun `MAP_SPRITES 无孤儿条目且 TileType 全部覆盖`() {
         val cpp = parseMapSprites()
         val coveredNames = tileNameMap.keys + cropNameMap.keys +
-            structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys + +
+            structureNameMap.keys + cloudNameMap.keys + roadNameMap.keys +
             SpriteAtlasDef.BUILDING_NAMES
         val orphans = cpp.filter { it.name !in coveredNames }
         assertTrue(

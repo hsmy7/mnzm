@@ -605,11 +605,27 @@ class DiffAuthoritativeTickTest {
         }
     }
 
+    /**
+     * 结构对拍**跳过的字段**（合并到单次判定——避免循环体内出现第二个 `continue`，
+     * detekt `LoopWithTooManyJumpStatements` 阈值为 1）：
+     *
+     * - `timestamp`：运行时戳（时钟注入边界）
+     * - `deathYear`：C++ 侧 P1-7 已纳入弟子协议而 Kotlin `Disciple` 镜像字段未落
+     *   ——结构对拍容忍协议超集（Kotlin 镜像落地后可回收）
+     * - `availableMissions[*].id`：**镜像生成字段**——Kotlin `Mission.id` 为
+     *   `UUID.randomUUID()`（展示/引用用），C++ `createMission` 为确定性自增
+     *   （`gc-mission-N`）。语义等价仅保证唯一，不参与 RNG 终态对拍
+     *   （与 `DiffYearSettlementTest` 的 `sectDetails.tradeItems[].id` 同口径）。
+     *   其余字段（template/name/difficulty/duration/rewards/enemyType/
+     *   createdYear/createdMonth/triggerChance）逐位对拍。
+     */
+    private fun isSkippedDiffField(key: String, path: String): Boolean =
+        key == "timestamp" || key == "deathYear" ||
+            (key == "id" && path.contains("availableMissions"))
+
     private fun compareObjects(expected: JsonObject, actual: JsonObject, path: String) {
         for ((k, a) in actual) {
-            // timestamp 为运行时戳；deathYear：C++ 侧 P1-7 已纳入弟子协议而 Kotlin
-            // Disciple 镜像字段未落——结构对拍容忍协议超集（Kotlin 镜像落地后可回收）
-            if (k == "timestamp" || k == "deathYear") continue
+            if (isSkippedDiffField(k, path)) continue
             val e = expected[k]
             // rngStates 段按**双侧共有键**比较：阶段 1② 归一后 AI 流的权威态在
             // C++ `aiRng_`（随 9 号键落盘），Kotlin 侧 6 号（AI_SECT）不再与 C++
@@ -623,10 +639,10 @@ class DiffAuthoritativeTickTest {
                     val ev = expectedRng[pid] ?: continue
                     assertNodeMatches(ev, av, "$path.$k.$pid")
                 }
-                continue
+            } else {
+                assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失", e != null)
+                assertNodeMatches(e!!, a, "$path.$k")
             }
-            assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失", e != null)
-            assertNodeMatches(e!!, a, "$path.$k")
         }
     }
 

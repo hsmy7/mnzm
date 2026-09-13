@@ -20,31 +20,25 @@ import com.xianxia.sect.core.util.RngPartition
 
 object MissionSystem {
     /**
-     * 任务系统分区 RNG。
+     * 任务系统分区 RNG 解析（**无自持状态**）。
      *
      * 历史实现为 `DeterministicRng.fromSeed(System.nanoTime())` 惰性单例——
-     * 非托管、非确定性（违背确定性 RNG 规范）；现收敛于
+     * 非托管、非确定性（违背确定性 RNG 规范）；其后收敛于
      * [GameRngManager] 的 [RngPartition.MISSION] 分区（存档 rngStates 8 号键，
-     * 读档恢复后任务随机序列可重放）。
+     * 读档恢复后任务随机序列可重放），但管理器经 object 级字段注入。
      *
-     * 注入时机：生产经 [CultivationEventProcessor]（@Singleton，唯一月变/任务
-     * 编排入口）构造时 [initialize]；测试须显式注入固定种子实例，否则访问
-     * [rng] 抛 IllegalStateException（拒绝静默非确定性降级）。
+     * **本 object 是进程级单例**：双引擎同进程场景（跨语言对拍夹具、多存档
+     * 预览）下后构造者会覆写前者，一侧的月变于是消费另一侧的分区状态——
+     * 实测 `DiffAuthoritativeTickTest` 第 9 旬 `availableMissions` 1 vs 4
+     *（C++ 与 Kotlin 各多消费一次 MISSION 分区）。
+     *
+     * 现改为**形参必传**：调用方各自透传自己持有的 [GameRngManager]
+     *（生产 = [com.xianxia.sect.core.engine.service.CultivationEventProcessor]
+     * 构造注入的那个；测试 = 各自夹具实例）。消除 object 级可变状态后，
+     * 隔离性由**构造期依赖**保证，不再依赖"初始化顺序恰好正确"。
      */
-    @Volatile
-    private var rngManager: GameRngManager? = null
-
-    /** 注入 RNG 管理器（幂等；生产经 CultivationEventProcessor 构造，测试注入固定种子实例） */
-    fun initialize(manager: GameRngManager) {
-        rngManager = manager
-    }
-
-    /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
-    internal val rng: DeterministicRng
-        get() = (rngManager ?: error(
-            "MissionSystem 未注入 GameRngManager——生产经 CultivationEventProcessor 构造注入，" +
-                "测试须调用 MissionSystem.initialize() 注入固定种子实例"
-        )).getRng(RngPartition.MISSION)
+    private fun rngOf(rngManager: GameRngManager): DeterministicRng =
+        rngManager.getRng(RngPartition.MISSION)
 
     const val REFRESH_INTERVAL_MONTHS = 3
     const val MAX_REFRESH_COUNT = 6
@@ -73,15 +67,17 @@ object MissionSystem {
     fun processMonthlyRefresh(
         existingMissions: List<Mission>,
         currentYear: Int,
-        currentMonth: Int
+        currentMonth: Int,
+        rngManager: GameRngManager
     ): MonthlyRefreshResult {
         val newMissions = mutableListOf<Mission>()
 
         if (currentMonth % REFRESH_INTERVAL_MONTHS == 0) {
+            val rng = rngOf(rngManager)
             val refreshCount = rng.nextInt(MAX_REFRESH_COUNT + 1)
             val weightedPool = buildWeightedPool()
             repeat(refreshCount) {
-                val template = weightedRandom(weightedPool)
+                val template = weightedRandom(weightedPool, rng)
                 newMissions.add(createMission(template, currentYear, currentMonth))
             }
         }
@@ -178,24 +174,27 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
         battleSystem: BattleSystem? = null,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
+        rng: DeterministicRng
     ): MissionResult {
         return when (activeMission.missionType) {
-            MissionType.NO_COMBAT -> processNoCombatMission(activeMission)
+            MissionType.NO_COMBAT -> processNoCombatMission(activeMission, rng)
             MissionType.COMBAT_REQUIRED -> processCombatRequiredMission(
-                activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
+                activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
+                battleSystem, bloodRefinementMap, rng
             )
             MissionType.COMBAT_RANDOM -> processCombatRandomMission(
-                activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
+                activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
+                battleSystem, bloodRefinementMap, rng
             )
         }
     }
 
-    private fun processNoCombatMission(activeMission: ActiveMission): MissionResult {
+    private fun processNoCombatMission(activeMission: ActiveMission, rng: DeterministicRng): MissionResult {
         val rewards = activeMission.rewards
-        val spiritStones = rollSpiritStones(rewards)
-        val materials = generateMaterials(rewards)
-        val pills = generatePills(rewards)
+        val spiritStones = rollSpiritStones(rewards, rng)
+        val materials = generateMaterials(rewards, rng)
+        val pills = generatePills(rewards, rng)
 
         return MissionResult(
             spiritStones = spiritStones,
@@ -212,10 +211,12 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
+        rng: DeterministicRng
     ): MissionResult {
         val battleResult = executeMissionBattle(
-            activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
+            activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
+            battleSystem, bloodRefinementMap, rng
         ) ?: return MissionResult(victory = false)
 
         if (!battleResult.victory) {
@@ -227,11 +228,11 @@ object MissionSystem {
         }
 
         val rewards = activeMission.rewards
-        val spiritStones = rollSpiritStones(rewards)
-        val materials = generateMaterials(rewards)
-        val pills = generatePills(rewards)
-        val equipmentStacks = generateEquipment(rewards)
-        val manualStacks = generateManuals(rewards)
+        val spiritStones = rollSpiritStones(rewards, rng)
+        val materials = generateMaterials(rewards, rng)
+        val pills = generatePills(rewards, rng)
+        val equipmentStacks = generateEquipment(rewards, rng)
+        val manualStacks = generateManuals(rewards, rng)
 
         return MissionResult(
             spiritStones = spiritStones,
@@ -252,14 +253,15 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
+        rng: DeterministicRng
     ): MissionResult {
         val triggered = rng.nextDouble() < activeMission.triggerChance
 
         if (!triggered) {
             val rewards = activeMission.rewards
             val baseSpiritStones = rewards.baseSpiritStones
-            val baseMaterials = generateBaseMaterials(rewards)
+            val baseMaterials = generateBaseMaterials(rewards, rng)
 
             return MissionResult(
                 spiritStones = baseSpiritStones,
@@ -270,7 +272,8 @@ object MissionSystem {
         }
 
         val battleResult = executeMissionBattle(
-            activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
+            activeMission, disciples, equipmentMap, manualMap, manualProficiencies,
+            battleSystem, bloodRefinementMap, rng
         ) ?: return MissionResult(combatTriggered = true, victory = false)
 
         if (!battleResult.victory) {
@@ -282,11 +285,11 @@ object MissionSystem {
         }
 
         val rewards = activeMission.rewards
-        val spiritStones = rollSpiritStones(rewards)
-        val materials = generateMaterials(rewards)
-        val pills = generatePills(rewards)
-        val equipmentStacks = generateEquipment(rewards)
-        val manualStacks = generateManuals(rewards)
+        val spiritStones = rollSpiritStones(rewards, rng)
+        val materials = generateMaterials(rewards, rng)
+        val pills = generatePills(rewards, rng)
+        val equipmentStacks = generateEquipment(rewards, rng)
+        val manualStacks = generateManuals(rewards, rng)
 
         return MissionResult(
             spiritStones = spiritStones,
@@ -307,7 +310,8 @@ object MissionSystem {
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?,
-        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap(),
+        rng: DeterministicRng
     ): BattleSystemResult? {
         if (battleSystem == null) return null
 

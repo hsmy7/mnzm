@@ -24,7 +24,7 @@
 
 ---
 
-## 2. 汇总计数（**阶段 1 收口后实测**，注释剔除口径）
+## 2. 汇总计数（**阶段 2 收口后实测**，注释剔除口径；2026-09-14）
 
 > **口径纪律（重要，曾踩坑）**：计数**必须剔除注释**（行注释 + 块注释/KDoc）。否则 KDoc 里对被禁字面量的**引用**（如"原默认实参回落 `Random.Default` 已消除"）会被计入债务，导致：① 登记值被注释噪音撑大、真实债务被淹没；② "改注释即改守卫"。
 > 另一条纪律：**同一行可命中多类**（如 `CloudLayerAnimator.kt:30` 的 `private val random: Random = Random.Default` 同时命中 ②④⑤），故"逐规则命中合计" > "涉及代码行数"。
@@ -32,17 +32,19 @@
 
 | 模块 | ② `.random()`/`Random.Default`/`Math.random` | ③ `GameRandom` | ④ 自持 RNG | ⑤ 默认值陷阱 | 逐规则合计 |
 |---|---|---|---|---|---|
-| `core/domain` | 7 | **0** | 0 | 19 | 26 |
+| `core/domain` | **5**（阶段 0 为 7） | **0** | 0 | 19 | 24 |
 | `core/engine` | 14 | **0** | 2 | 7 | 23 |
 | `core/data` | 1 | 0 | 0 | 0 | 1 |
 | `core/ui` | 0 | 0 | 0 | 0 | 0 |
-| `feature/game` | 2 | **0** | 1 | 1 | 4 |
+| `feature/game` | **1**（阶段 0 为 2） | **0** | **0**（阶段 0 为 1） | 1 | 2 |
 | `app` | 0 | 0 | 0 | 0 | 0 |
-| **合计** | **24** | **0** | **3** | **27** | **54** |
+| **合计** | **21** | **0** | **2** | **27** | **50** |
 
 > **③ 归零**：`GameRandom` 已物理删除，残留调用为编译期报错（**编译即守卫**）。
-> **④ 实际仅 3 处**（原登记 4 是含注释的旧口径）：`WorldMapGenerator.kt:15`、`CaveExplorationSystem.kt:39`（均 `fromSeed(System.nanoTime())` 挂钟种子）+ `CloudLayerAnimator.kt:30`（表现类）。
-> **与旧口径「114 处」的差异**：旧数字**含注释**、且只统计 ②③ 两类字面量（漏 ④⑤）。剔除注释后 ② 类为 24 处；⑤ 的 27 处中有相当比例是**死默认分支**（默认值从不被触发，如 `TalentRegistry` 无调用方），真实"生产省略实参"的活点约 19 处（明细见 §3 各表的处置列）。
+> **④ 由 3 → 2**（阶段 2，2026-09-14）：`CloudLayerAnimator.kt` 的 `private val random: Random = Random.Default` **默认值摘除**（`NativeSurfaceView` 传 `Random(cloudLayerSeed(宽,高))` 固定种子）。余 2 处 = `WorldMapGenerator.kt:15`、`CaveExplorationSystem.kt:39`（均 `fromSeed(System.nanoTime())` 挂钟种子，**阶段 3**）。
+> **② 由 24 → 21**（阶段 2 迁 3 处）：`SectResponseTexts` 2 处（`responses.random()` → **形参必传** `random.nextInt(size)`；`core:domain` 不能依赖 `:core:engine` 的 `PresentationRandom`，故只去默认值陷阱）+ `LoadingTips` 1 处（`tips.random()` → `PresentationRandom.pick`）。
+> **与旧口径「114 处」的差异**：旧数字**含注释**、且只统计 ②③ 两类字面量（漏 ④⑤）。剔除注释后 ② 类现值 21 处；⑤ 的 27 处中有相当比例是**死默认分支**（默认值从不被触发，如 `TalentRegistry` 无调用方），真实"生产省略实参"的活点约 19 处（明细见 §3 各表的处置列）。
+> **阶段 2 收口批新增守卫两道**：`RngEngineIsolationGuardTest`（禁止 `object`/单例持有可变 `GameRngManager` 字段——`MissionSystem` 事故）+ `DiffAiRngSeedingTest`（AI 分区播种态跨语言等价性——`initForSlot` 裸种子事故）。
 
 ### 判定汇总（按 ADR §8 "是否写入 GameData / 实体表 / 影响数值"口径）
 

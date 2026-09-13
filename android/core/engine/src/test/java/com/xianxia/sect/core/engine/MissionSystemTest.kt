@@ -9,27 +9,22 @@ import com.xianxia.sect.core.model.MissionType
 import com.xianxia.sect.core.model.EnemyType
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.util.GameRngManager
-import org.junit.After
+import com.xianxia.sect.core.util.RngPartition
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 
 class MissionSystemTest {
 
-    /** 任务系统 RNG 收敛于 GameRngManager.MISSION 分区——
-     *  测试注入固定种子实例（确定性、可重放） */
+    /**
+     * 任务系统 RNG 收敛于 GameRngManager.MISSION 分区——本夹具持有固定种子实例，
+     * 逐调用点**显式透传**（`MissionSystem` 无可变全局状态，双引擎同进程互不串流）
+     */
+    private lateinit var gameRng: GameRngManager
+
     @Before
     fun injectFixedSeedRng() {
-        MissionSystem.initialize(GameRngManager().also {
-            it.initSystemSeed(20260901L)
-        })
-    }
-
-    @After
-    fun resetRng() {
-        // 隔离：避免注入实例泄漏到其他测试（生产经 CultivationEventProcessor
-        // 构造注入，测试间须显式复位）
-        MissionSystem.initialize(GameRngManager().also { it.initSystemSeed(0L) })
+        gameRng = GameRngManager().also { it.initSystemSeed(20260901L) }
     }
 
 
@@ -133,7 +128,8 @@ class MissionSystemTest {
         val result = MissionSystem.processMonthlyRefresh(
             existingMissions = emptyList(),
             currentYear = 1,
-            currentMonth = 3
+            currentMonth = 3,
+            rngManager = gameRng
         )
         assertNotNull(result)
         assertTrue(result.newMissions.size <= MissionSystem.MAX_REFRESH_COUNT)
@@ -144,7 +140,8 @@ class MissionSystemTest {
         val result = MissionSystem.processMonthlyRefresh(
             existingMissions = emptyList(),
             currentYear = 1,
-            currentMonth = 2
+            currentMonth = 2,
+            rngManager = gameRng
         )
         assertEquals(0, result.newMissions.size)
     }
@@ -156,7 +153,8 @@ class MissionSystemTest {
             val result = MissionSystem.processMonthlyRefresh(
                 existingMissions = emptyList(),
                 currentYear = 1,
-                currentMonth = 3
+                currentMonth = 3,
+                rngManager = gameRng
             )
             val size = result.newMissions.size
             assertTrue(size in 0..MissionSystem.MAX_REFRESH_COUNT)
@@ -172,7 +170,8 @@ class MissionSystemTest {
             val result = MissionSystem.processMonthlyRefresh(
                 existingMissions = emptyList(),
                 currentYear = 1,
-                currentMonth = 3
+                currentMonth = 3,
+                rngManager = gameRng
             )
             val templates = result.newMissions.map { it.template }
             if (templates.size != templates.toSet().size) {
@@ -187,7 +186,8 @@ class MissionSystemTest {
             val result = MissionSystem.processMonthlyRefresh(
                 existingMissions = emptyList(),
                 currentYear = 1,
-                currentMonth = month
+                currentMonth = month,
+            rngManager = gameRng
             )
             assertTrue(result.newMissions.size <= MissionSystem.MAX_REFRESH_COUNT)
         }
@@ -251,7 +251,8 @@ class MissionSystemTest {
         val mission = MissionSystem.processMonthlyRefresh(
             existingMissions = emptyList(),
             currentYear = 1,
-            currentMonth = 3
+            currentMonth = 3,
+            rngManager = gameRng
         ).newMissions.find { it.template == MissionTemplate.ESCORT_CARAVAN } ?: return
 
         assertEquals(600, mission.rewards.spiritStones)
@@ -265,7 +266,8 @@ class MissionSystemTest {
         val mission = MissionSystem.processMonthlyRefresh(
             existingMissions = emptyList(),
             currentYear = 1,
-            currentMonth = 3
+            currentMonth = 3,
+            rngManager = gameRng
         ).newMissions.find { it.template == MissionTemplate.SUPPRESS_LOW_BEASTS } ?: return
 
         assertEquals(400, mission.rewards.spiritStones)
@@ -297,7 +299,8 @@ class MissionSystemTest {
         )
         val result = MissionSystem.processMissionCompletion(
             activeMission = activeMission,
-            disciples = emptyList()
+            disciples = emptyList(),
+            rng = gameRng.getRng(RngPartition.MISSION)
         )
         assertEquals(600, result.spiritStones)
         assertTrue(result.materials.isEmpty())
@@ -329,7 +332,8 @@ class MissionSystemTest {
         )
         val result = MissionSystem.processMissionCompletion(
             activeMission = activeMission,
-            disciples = emptyList()
+            disciples = emptyList(),
+            rng = gameRng.getRng(RngPartition.MISSION)
         )
         assertEquals(300, result.spiritStones)
         assertTrue(result.victory)
@@ -416,7 +420,8 @@ class MissionSystemTest {
             val result = MissionSystem.processMonthlyRefresh(
                 existingMissions = emptyList(),
                 currentYear = 1,
-                currentMonth = 3
+                currentMonth = 3,
+                rngManager = gameRng
             )
             result.newMissions.forEach { mission ->
                 templateCounts[mission.difficulty] = (templateCounts[mission.difficulty] ?: 0) + 1

@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.diplomacy.truncateToLimit
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.domain.diplomacy.isGearCompleteForLevel
 

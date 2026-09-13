@@ -184,6 +184,21 @@ C++）。
 >
 > **结论：关闭批（batch-21）前置 = ADR 阶段 1 的两批交付**（不再有"待拍板"阻塞项）。
 
+> **✅ 前置达成（2026-09-14 收口批 §2.58 实测更新）**：ADR **阶段 1 三项全部交付**——
+> ① 库存开袋 → `storage_bag_tx.h` + `STORAGE_BAG_OPEN_TX=1734`，7 处抽签全部显式传
+> `EXPLORATION` 分区 rng（`InventoryFacadeImplBagOps.kt`）；
+> ② AI RNG 归一 → 影子流摘除、`rng` 改解析式（委托模式取通道分区 9 / 非委托取分区 6），
+> **并修复了播种态根因缺陷**（`initForSlot` 曾写裸种子而非 `fromSeed` 混种态 ⇒
+> 同一 `aiSeed` 两侧两条序列；新增 `DiffAiRngSeedingTest` 跨语言逐位锁守）。
+>
+> **`aiSectDisciples` 自愈下沉 C++ 改判为待拍板**：RNG 归一后该路径已**无自持流、无影子拷贝**
+> （消费真源分区），下沉收益不明 ⇒ 按"登记不下沉、可复议"处置（handover §4.1，
+> [ADR](adr/rng-determinism-remediation.md) §10 债表）。
+>
+> **⚠️ 关闭前仍需先收敛一项**：`DiffYearSettlementTest` 1 例 AI 招募逐字段分歧
+> （分歧窗口已收窄到"第二名 AI 弟子的装备/功法段"；该例暴露的是 Kotlin 夹具与 C++ 生产编排
+> 之间的 AI 分区消费差——通道关闭后**无兜底**，须先钉死再执行 §4.3 关闭动作）。
+
 
 ---
 

@@ -16,6 +16,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -63,7 +64,13 @@ class GiftService @Inject constructor(
      * CultivationEventProcessor 反向依赖本服务，直接注入会成 Dagger 环；
      * Provider 为惰性边（Dagger 官方破环手段）。
      */
-    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null
+    private val gameEngineCoreProvider: Provider<GameEngineCore>? = null,
+    /**
+     * 表现随机源（ADR R3）——送礼反馈文案（接受/拒绝措辞）是纯表现，
+     * 走独立表现流：原先 `SectResponseTexts` 内部用 `responses.random()`
+     *（`Random.Default`，进程启动随机、不入档）属未受治理的第二类入口。
+     */
+    private val presentationRandom: PresentationRandom
 ) {
     /** native 转发用引擎核心（无 Provider 时为 null → 调用点走 Kotlin 原路径） */
     private val gameEngineCore: GameEngineCore? get() = gameEngineCoreProvider?.get()
@@ -92,7 +99,6 @@ class GiftService @Inject constructor(
         giftNative(sectId, tier, bypassYearLimit)?.let { return it }
 
         val data = stateStore.gameData.value
-
         val ready = when (val prep = prepareGift(
             data = data,
             sectId = sectId,
@@ -106,15 +112,14 @@ class GiftService @Inject constructor(
         val isRejected = rng.nextInt(100) < ready.rejectProbability
 
         if (isRejected) {
-            val responseText = SectResponseTexts.getRejectResponse(
-                ready.sect.level, "spirit_stones", ready.tierConfig.name
-            )
-
             return GiftResult(
                 success = false,
                 rejected = true,
                 responseType = "rejected",
-                message = responseText
+                message = SectResponseTexts.getRejectResponse(
+                    ready.sect.level, "spirit_stones", ready.tierConfig.name,
+                    presentationRandom.asKotlinRandom()
+                )
             )
         }
 
@@ -147,17 +152,16 @@ class GiftService @Inject constructor(
             )
         }
 
-        val responseText = SectResponseTexts.getAcceptResponse(
-            ready.sect.level, "spirit_stones", ready.tierConfig.name, favor.favorIncrease
-        )
-
         return GiftResult(
             success = true,
             rejected = false,
             favorChange = favor.favorIncrease,
             newFavor = favor.newFavor,
             responseType = "accept",
-            message = responseText
+            message = SectResponseTexts.getAcceptResponse(
+                ready.sect.level, "spirit_stones", ready.tierConfig.name, favor.favorIncrease,
+                presentationRandom.asKotlinRandom()
+            )
         )
     }
 
@@ -365,7 +369,8 @@ class GiftService @Inject constructor(
                     responseType = "accept",
                     message = SectResponseTexts.getAcceptResponse(
                         data.long("sectLevel")?.toInt() ?: 0,
-                        "spirit_stones", tierName, favorChange
+                        "spirit_stones", tierName, favorChange,
+                        presentationRandom.asKotlinRandom()
                     )
                 )
             }
@@ -375,7 +380,8 @@ class GiftService @Inject constructor(
                 responseType = "rejected",
                 message = SectResponseTexts.getRejectResponse(
                     data.long("sectLevel")?.toInt() ?: 0,
-                    "spirit_stones", tierName
+                    "spirit_stones", tierName,
+                    presentationRandom.asKotlinRandom()
                 )
             )
             "failed" -> GiftResult(

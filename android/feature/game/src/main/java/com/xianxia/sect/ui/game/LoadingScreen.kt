@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.theme.GameColors
 
 /**
@@ -157,12 +158,16 @@ private fun BoxScope.LoadingProgressPanel(
 /** 游戏玩法提示：每 2 秒轮换一条 */
 @Composable
 private fun LoadingTipSection() {
+    // 表现随机源（ADR R3）：提示轮播是纯表现，走独立表现流——
+    // 原 `LoadingTips.randomTip()` 内部用 `tips.random()`（`Random.Default`，
+    // 进程启动随机、不入档）属未受治理的第二类入口（R1/R5）
+    val presentationRandom = remember { PresentationRandom() }
     // 游戏玩法提示（每2秒轮换）
-    var currentTip by remember { mutableStateOf(LoadingTips.randomTip()) }
-    LaunchedEffect(Unit) {
+    var currentTip by remember { mutableStateOf(LoadingTips.randomTip(presentationRandom)) }
+    LaunchedEffect(presentationRandom) {
         while (true) {
             delay(2000)
-            currentTip = LoadingTips.randomTip()
+            currentTip = LoadingTips.randomTip(presentationRandom)
         }
     }
     Spacer(modifier = Modifier.height(12.dp))

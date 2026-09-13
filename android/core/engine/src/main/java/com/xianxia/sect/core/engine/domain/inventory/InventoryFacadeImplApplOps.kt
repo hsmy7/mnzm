@@ -1,26 +1,18 @@
 package com.xianxia.sect.core.engine.domain.inventory
 
-import com.xianxia.sect.core.util.ItemNames
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.SpiritStoneGrade
-import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.storageBagItems
-import com.xianxia.sect.core.registry.EquipmentDatabase
-import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.StackableItem
 import com.xianxia.sect.core.util.StorageBagUtils
-import com.xianxia.sect.core.engine.domain.inventory.InventoryFacadeImpl.StorageBagRewardBatch
 
 /**
  * 单用户定向补偿邮件（MailService 扩展，独立文件）。

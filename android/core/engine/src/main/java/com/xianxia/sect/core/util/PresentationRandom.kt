@@ -89,6 +89,21 @@ class PresentationRandom @Inject constructor() {
      */
     fun boundPicker(): (Int) -> Int = { bound -> nextInt(bound) }
 
+    /**
+     * 适配为 [kotlin.random.Random]。
+     *
+     * 供 `:core:domain` 中仍以 `kotlin.random.Random` 为形参的表现类 API
+     *（如 [com.xianxia.sect.core.config.SectResponseTexts.getAcceptResponse]）
+     * 消费——这些 API 的形参已改为**必传**（消除"默认值静默回落
+     * `Random.Default`"的陷阱），调用方传本适配器即可。
+     */
+    fun asKotlinRandom(): kotlin.random.Random = object : kotlin.random.Random() {
+        override fun nextBits(bitCount: Int): Int = rng.nextInt() ushr (32 - bitCount)
+        override fun nextInt(bound: Int): Int = this@PresentationRandom.nextInt(bound)
+        override fun nextInt(from: Int, until: Int): Int = this@PresentationRandom.nextInt(from, until)
+        override fun nextDouble(): Double = this@PresentationRandom.nextDouble()
+    }
+
     private companion object {
         /** 表现流派生 salt（改此值会改变全部表现文案的选择序列，属表现面变更） */
         const val PRESENTATION_SALT = -0x5EED_5EED_5EED_5EEDL

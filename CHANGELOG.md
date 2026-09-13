@@ -1,6 +1,31 @@
 ## [4.01.14] - 2026-09-08
 
 
+### 收口：§2.58 随机源治理——AI 播种态根因修复 + `MissionSystem` 全局解除 + 阶段 0/2/4 收口（零新增 ActionId；引擎全量 4 失败 → 1 失败）
+
+> 需求：`docs/cpp-migration-handover-m0.md` §6 主轴剩余（随机源治理 ADR 阶段 0/1/2/4）+ `docs/rng-remediation-status.md` 未完成清单。**本批零新增 C++ 事务/ActionId**——三小项均为形参化、语义修复与守卫落闸。
+
+- **🔴 根因修复一（阶段 1② 遗留缺陷）：`AISectDiscipleManager.initForSlot` 写裸种子而非混种态**
+  - **症状**：引擎全量 4 处失败中的 3 处——`AISectDiscipleManagerTest` 2 例（突破失败 HP/MP 未打一折、装备孕养经验满未升级）+ `DiffYearSettlementTest` AI 招募弟子条数 `expected:3 but was:4`。
+  - **因果链**：`DeterministicRng.snapshot()` 是 **PRNG 状态**，不是种子。C++ `GameCore::aiRng_`（`game_core.cpp` initialize / rngInitSystemSeed / importStateInternal 三处）与旧影子流**都经 `fromSeed(aiSeed)`** 走过一轮混种（`state = (seed shl 1) or 1` 后丢弃一次 `nextLong()`）；上一批把 `initForSlot` 写成 `getRng(AI_SECT).restore(aiSeed)`（裸种子）⇒ **同一 `aiSeed` 在两侧得到两条不同序列**。
+  - **逐位铁证**：`aiSeed=188022` 修前 `kotlin snapshot=188022` ≠ `cpp mirror(9)=-5182850315112888150`；修后两侧**相等**且前 8 次抽取逐位一致。修法 = `fromSeed(aiSeed).snapshot()` 写入分区。
+  - **防复发**：新增 `DiffAiRngSeedingTest`（3 用例——混种态非裸种子 × 3 档 seed / 前 8 抽与 C++ 镜像分区逐位一致 / 同 seed 幂等），把"快照是状态不是种子"锁成可执行断言。
+- **🔴 根因修复二：`MissionSystem` 进程级 `object` 持有可变 `rngManager`（双引擎串流）**
+  - **症状**：`DiffAuthoritativeTickTest` 第 9 旬 `$.gameData.availableMissions size expected:1 but was:4`。
+  - **因果链**：`MissionSystem` 是**进程级 object**，`@Volatile private var rngManager` 由 `CultivationEventProcessor.init` 注入——双引擎同进程（跨语言对拍夹具）下**后构造者覆写前者**：侧 A 的 `buildHarness` 最后执行 `MissionSystem.initialize(A的gameRng)`，于是**侧 B 的月变经 A 的委托通道消费了 C++ 的 MISSION 分区**。实测分区快照：`tick=4 cpp==kotlin`；`tick=9 cpp=-8111253402343785484 / kotlin=-1718366676291560851`。
+  - **修法**：**形参必传**（消除 object 级可变状态）——`MissionSystem` 摘除 `rngManager` 字段与 `initialize()`，`processMonthlyRefresh(existing, year, month, rngManager)` + `processMissionCompletion(..., rng)` 显式透传；`MissionSystemRewardOps` 八个扩展函数同步改形参。隔离性由**构造期依赖**保证，不再依赖"初始化顺序恰好正确"。
+  - **防复发**：新增 `RngEngineIsolationGuardTest`（禁止 `object`/单例持有可变 `GameRngManager` 字段；注释感知 + 枚举驱动 + `intentionallyExcluded` 白名单只缩不增）——**首跑即抓出 3 处同族遗留**（`EnemyGenerator`/`AISectAttackManager`/`AISectTeamComposer` 顶层全局，白名单登记 + 偿还触发条件）。
+  - **顺手处置**：`DiffAuthoritativeTickTest` 的镜像字段排除集补 `availableMissions[*].id`（Kotlin `Mission.id` 为 UUID，C++ `createMission` 为确定性自增 `gc-mission-N`；语义等价仅保证唯一，与 `sectDetails.tradeItems[].id` 同口径）。
+- **🟡 阶段 0 收口：CI 红线 step（不用 grep）**——`ci.yml` 新增 `RNG source red-line (four entry classes)`，显式点名跑 `RngSourceGuardTest` + `RngEngineIsolationGuardTest`。step 注释写明**为何不写 grep**：项目原红线是 `grep "import kotlin.random.Random"`，而 `.random()` 是 stdlib 扩展、`GameRandom` 是自建 object，**两者都不带该 import，永远匹配不到**；且该断言事实上已从 CI 消失；正则亦无法区分注释引用与真实调用（"改注释即改守卫"）。
+- **🟡 阶段 2 收口：表现类随机迁 `PresentationRandom`（3 文件）**——① `SectResponseTexts.getAccept/getRejectResponse` 内部 `responses.random()` → **形参必传** `random.nextInt(size)`（`:core:domain` 不能依赖 `:core:engine` 的 `PresentationRandom`，故只去默认值陷阱；`GiftService` 四处传 `presentationRandom.asKotlinRandom()`）；② `LoadingTips.randomTip(random)`（原 `tips.random()`）；③ `CloudLayerAnimator` 的 `random: Random = Random.Default` **默认值摘除**（`NativeSurfaceView` 传 `Random(cloudLayerSeed(宽,高))` 固定种子）。**`BattleDescriptionGenerator`(12) 与 `DiscipleChatDialog`(3) 改判为决策类**（文本入 Room `battle_logs` 实体 / 写弟子 `skills`+`cultivation`）⇒ `R3` 明令表现流不得被决策路径调用，归阶段 3。新增 `PresentationRandom.asKotlinRandom()`（有当前生产消费者）。
+  - **守卫上限只缩不增**：`core/domain` ② `7→5`、`feature/game` ② `2→1`、`feature/game` ④ `1→0`（守卫测试内以表格登记每条下调的处置依据）。
+- **🟡 阶段 4 收口：10k 抽取 JNI 成本基准（阶段 3 开工前置）**——`NativeBenchmarkTest` 新增 `rng partition draw 10k`（Kotlin 本地 PCG vs native JNI 标量往返；预热 5 + 采样 5 取最小值）。**实测：`kotlin(local PCG)=14ns/op` / `native(JNI scalar roundtrip)=11ns/op` / `ratio=0.8`** ⇒ ADR §8 首行"JNI 跨语言开销可能迫使阶段 3 改粒度"的**风险不成立**，阶段 3 可按原粒度推进（桌面 JVM ≠ ART，真机留观测余量）。
+- **阶段 1 剩余项核实**：开袋（阶段 1①）——`InventoryFacadeImplBagOps.kt` 7 处抽签已全部显式传 `EXPLORATION` 分区 rng，`STORAGE_BAG_OPEN_TX=1734` 已注册；AI 归一（阶段 1②）——影子流摘除 + 通道分区 9 + 播种态混种修复。**"`aiSectDisciples` 自愈下沉 C++"经 RNG 归一后收益不明**（该路径已无自持流/无影子拷贝），登记为**待拍板**，未擅自开工。
+- **验证**：引擎全量 **3260 用例 / 290 类 / 1 失败 / 0 跳过**（4 失败 → 1 失败）；`RngSourceGuardTest` 5 断言 + `RngEngineIsolationGuardTest` + `DiffAiRngSeedingTest` 全绿；桌面 C++ **1322/1322**；`:core:domain`/`:core:engine`/`:feature:game` 主源编译 BUILD SUCCESSFUL；`validateChangelogJson` 通过。
+- **⚠️ 未收敛（诚实口径）**：① `DiffYearSettlementTest` 1 例 AI 招募逐字段分歧——分歧窗口已实测收窄到"**第二名 AI 弟子的装备/功法段**"（前两名弟子的 7 项方差与 9 项技能逐位一致 ⇒ 生成序一致），**根因未钉死**，已排除 AI 分区播种态与 Kotlin 生成链本身；**batch-21 关闭前须先收敛**。② `:feature:game` 两族 10 处**预存**夹具失败（`GameViewModelTest` 5 需 feature 测试模块可注入的 `GameStateStore` 夹具；`SectCameraStateTest` 5 需相机契约考古），本批未清偿。
+- **登记**：`EnemyGenerator`/`AISectAttackManager`/`AISectTeamComposer` 三处顶层可变 `xxxRngManager` 同族遗留（偿还触发条件 = 出现双引擎同进程的第三个消费场景，或该域 UI 操作面下沉时顺手收敛）。
+
+
 ### 特性：Batch-23——残余域补齐·妖兽视图锁定 + 设置项域 17 字段入 C++（lock_beast_tx.h 唯一真相 + AUTHORITATIVE 转发 + Kotlin 回退臂；ActionId 1730–1731；桌面 C++ 1301/1301 含 +17 GTest）
 
 > 需求：handover §4.1/§5 登记的 ui-read-surface §4.1 **残余域清单中从未派工的两项**——`lockedBeastIds` UI 操作面（`GameEngine.lockBeastView`/`unlockBeastView`，AUTHORITATIVE 稳态下仍为 Kotlin 直改写者）与设置项域。**全链零 RNG**，失败零写入，零 JNI 新导出（nativeExecute 通道）。

@@ -861,6 +861,8 @@ class DiffYearSettlementTest {
             // rngStates 段按**双侧共有键**比较：阶段 1② 归一后 AI 流的权威态在
             // C++ `aiRng_`（随 9 号键落盘），Kotlin 侧 6 号（AI_SECT）不再与 C++
             // 同源；两侧键集本就不同，协议语义差异只在共有键上成立
+            // （写成 if/else 而非 `continue`——循环体内已有 1 处 continue，
+            // detekt LoopWithTooManyJumpStatements 阈值为 1）
             if (k == "rngStates") {
                 val expectedRng = e?.jsonObject ?: JsonObject(emptyMap())
                 val actualRng = a.jsonObject
@@ -868,9 +870,9 @@ class DiffYearSettlementTest {
                     val ev = expectedRng[pid] ?: continue
                     assertNodeMatches(ev, av, "$path.$k.$pid")
                 }
-                continue
+            } else {
+                assertNodeMatches(e!!, a, "$path.$k")
             }
-            assertNodeMatches(e!!, a, "$path.$k")
         }
     }
 

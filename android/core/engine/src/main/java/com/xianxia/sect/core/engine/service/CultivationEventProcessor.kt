@@ -14,7 +14,6 @@ import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
-import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.config.GameConfigNativeBridge
 import com.xianxia.sect.core.engine.config.GameConfigProvider
@@ -71,9 +70,6 @@ class CultivationEventProcessor @Inject constructor(
     internal val gameConfigProvider: GameConfigProvider
 ) {
     init {
-        // 任务系统 RNG 收敛于 GameRngManager.MISSION 分区——
-        // 本服务为唯一月变/任务编排入口（@Singleton），构造时幂等注入
-        MissionSystem.initialize(rngManager)
         // 运行时配置注入 C++（注册 Provider + native
         // 已加载则立即注入；未加载时由 ensureAuthoritativeNative 补注——双点幂等）
         GameConfigNativeBridge.register(gameConfigProvider)

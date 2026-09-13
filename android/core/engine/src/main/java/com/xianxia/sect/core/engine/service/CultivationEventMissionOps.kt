@@ -9,6 +9,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.RngPartition
 
 
 
@@ -79,7 +80,8 @@ internal fun CultivationEventProcessor.collectCompletedMissionRewards(
                 }
                 val result = MissionSystem.processMissionCompletion(
                     activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem,
-                    stateStore.gameData.value.bloodRefinementPctTotals
+                    stateStore.gameData.value.bloodRefinementPctTotals,
+                    rngManager.getRng(RngPartition.MISSION)
                 )
                 // 仅收集奖励，不再调用 inventorySystem.addXxx（统一到 Phase 2 单事务处理）
                 val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
@@ -125,7 +127,8 @@ internal fun CultivationEventProcessor.processMissionRefresh(state: MutableGameS
         val result = MissionSystem.processMonthlyRefresh(
             data.availableMissions,
             data.gameYear,
-            data.gameMonth
+            data.gameMonth,
+            rngManager
         )
         state.gameData = state.gameData.copy(availableMissions = result.cleanedMissions)
     }
