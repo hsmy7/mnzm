@@ -412,7 +412,9 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 | 动作计数 | **170 动作，maxId=1733**（§2.58 零新增动作——三小项均为形参化/迁移，无 C++ 事务） |
 | 编译 | 主源 + 测试源（`:core:domain`/`:core:engine`/`:feature:game`/`:app`）BUILD SUCCESSFUL；桌面 JNI 重建成功 |
 | **阶段 4 JNI 成本基准** | **10k 抽取：kotlin 本地 PCG 14ns/op vs native JNI 标量往返 11ns/op（ratio 0.8）** ⇒ ADR §8 首行风险不成立，阶段 3 可按原粒度推进（桌面 JVM ≠ ART，真机留余量） |
-| **NDK arm64 / lintRelease** | **阻塞物已消失（本批实测核实，§2.58 未跑通该两关）**——`NativeBridge.cpp:623/625/1499/1500` 用的是**全局** `KtxInfo`/`loadKtx1`（无 `ktx1::` 限定符）；`VulkanRenderBackend.kt:224/230` 的 `hasAnyCliffTexture`/`cliffTextureCount` 已在 `NativeSurfaceView.kt` 提供、`MainGameScreen.kt` 的 `textureMask` 已接线 ⇒ `:feature:game` 编译恢复（实测 868 用例全部可跑）。handover 原文"纹理重构族在途破损"三条阻塞**均已不成立** |
+| **NDK arm64** | ✅ **已跑通（2026-09-14 §2.58 实测）**——`:app:externalNativeBuildRelease` BUILD SUCCESSFUL（2m46s）。原记载的「纹理重构族在途破损 ⇒ NDK 不可走」**不成立**：`NativeBridge.cpp:623/625/1499/1500` 用的是**全局** `KtxInfo`/`loadKtx1`（无 `ktx1::` 限定符） |
+| **lintRelease** | ✅ **已跑通（2026-09-14 §2.58 实测）**——`./gradlew lintRelease --max-workers=1` **BUILD SUCCESSFUL（14m20s）**。原记载「lint 依赖 feature:game 编译 ⇒ 同因未达」**不成立** |
+| ~~NDK arm64 / lintRelease（原记载）~~ | **阻塞物已消失（本批实测核实）**——`NativeBridge.cpp:623/625/1499/1500` 用的是**全局** `KtxInfo`/`loadKtx1`（无 `ktx1::` 限定符）；`VulkanRenderBackend.kt:224/230` 的 `hasAnyCliffTexture`/`cliffTextureCount` 已在 `NativeSurfaceView.kt` 提供、`MainGameScreen.kt` 的 `textureMask` 已接线 ⇒ `:feature:game` 编译恢复（实测 868 用例全部可跑）。handover 原文"纹理重构族在途破损"三条阻塞**均已不成立** |
 | 未收敛登记 | `JadeNativeTxGateTest` 实测暴露 `claimSectLevelReward` 首领后凭据未持久化（FakeAtomicStateStore 事务缓冲与 sectLevelClaimRecords 字段交互需专项定位）；本轮以"直接播种冷却凭据"绕开环境缺陷，**并已按根因修复生产侧静默失败**（writeSectLevelRewards 返回 Boolean + 调用方明确失败文案） |
 | 未收敛登记（§2.58 新增） | `DiffYearSettlementTest` 1 例（分歧窗口已收窄到"第二名 AI 弟子的装备/功法段"，根因待专项）；`:feature:game` 两族夹具（需 testFixtures 基建） |
 

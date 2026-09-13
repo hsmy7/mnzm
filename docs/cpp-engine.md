@@ -1,5 +1,12 @@
 # C++ 游戏引擎（game-core）架构文档
 
+> **📌 基线（2026-09-14，handover §2.58 随机源治理收口批后——取代下方 2026-09-02 快速恢复点与"detekt 全模块全绿"口径）**：
+> - **README 门禁实测值**：桌面 GTest **1322/1322** · engine JUnit 全量 **3260 用例 / 290 类 / 1 失败 / 0 跳过**（余 `DiffYearSettlementTest` AI 招募逐字段分歧，见 handover §2.58.7）· `:app` **1018 用例 / 1 失败 / 2 跳过**（余 `SpriteCodegenSyncTest`，生成物 41 vs 期望 78，纹理批次）· `:core:data` 全绿 · `:feature:game` **868 用例 / 10 失败**（两族预存夹具，见下）
+> - **⚠️ detekt 勘误**：下方"detekt 全模块全绿（含 `:feature:game:detekt`）"**与 `main` 实测不符**——`main`（HEAD `e6707a2`）上实跑 `./gradlew detekt` 报 **25 处活违规**（`core:engine` 15 + `:feature:game` 10），baseline 表确为全 0 ⇒ 属**未被 baseline 覆盖的活违规**。§2.58 顺手清偿 **15 处**（死 import ×10 / 复杂度与跳转 ×3 / `AISectDiscipleManager` TooManyFunctions 12/12 → `truncateToLimit` 按纯函数层外移惯例拆到同包 `AITruncateOps.kt`）；**余 `:feature:game` 10 处未清**（全部归属纹理/浮空岛渲染批次：`NativeSurfaceView` TMF 20/20、`SoftwareCanvasBackend.isInvalidCliffEntry` LPL 8/8 + CCM 18/15、`IslandCliffTextureHolder`/`IslandCliffTextureLoader` 异常形态、`SectDiplomacyDialogTest` 命名、`DiplomacyFlows` 长行、`SoftwareCanvasBackend` 跳转）
+> - **随机源治理已达成的验收不变量**：`R1` 覆盖完整性（`RngSourceGuardTest` 五类入口逐模块登记上限**只缩不增**）+ `R5` 禁止自建随机源（`RngEngineIsolationGuardTest` 禁止 `object` 持有可变 `GameRngManager`）+ **跨语言等价性**（`DiffAiRngSeedingTest`：AI 分区播种态 = `fromSeed` 混种态、前 8 抽与 C++ 镜像分区逐位一致）
+> - **10k JNI 成本基准**：`kotlin(local PCG)=14ns/op` vs `native(JNI scalar roundtrip)=11ns/op`（**ratio 0.8**）⇒ ADR §8 首行"JNI 开销可能迫使阶段 3 改粒度"的风险**不成立**
+> - **与 batch-21 的关系**：阶段 1 关闭前置**已达成**；但 `DiffYearSettlementTest` 未收敛前**不建议开**（该例暴露 Kotlin 夹具与 C++ 生产编排之间的 AI 分区消费差，通道关闭后无兜底）
+
 > 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划（迁移主线批次的；**引擎整体现状 + 后续工作计划见 §0**）。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
 >
@@ -530,15 +537,27 @@ android/app/src/main/cpp/
 | ~~S-23~~ ✅ | **孤儿类 `SaveLoadCoordinator`**（收尾批 S-21 全仓库审计途中发现）：`domain/save/SaveLoadCoordinator.kt` 全类（194 行）在 main 无任何注入/调用点（仅 StorageSystemBenchmark 文案提及）；读档真实入口收敛于 loadData 三入口（GameEngineCoordination.kt） | `domain/save/SaveLoadCoordinator.kt` | 死代码（孤儿类） | ✅ **已清偿（收尾批 2026-09-02）**：删除全类文件（构造依赖仅 IoDispatcher——活；删除前全仓库引用确认：main 零注入/调用点、仅 detekt-baseline 5 条豁免 + StorageSystemBenchmark 打印文案）；detekt-baseline.xml 移除 5 条对应豁免（InvalidPackageDeclaration/NestedBlockDepth/TooGenericExceptionCaught/UnusedPrivateProperty×2）；StorageSystemBenchmark 设计阈值文案去孤儿类名引用（数值保留为历史设计参考）；无测试依赖 |
 | ~~S-24~~ ✅ | **`realtimeCultivation` 投影链疑似停摆**（收尾批 S-21 审计途中发现）：`CultivationService.accumulate → GameEngine.realtimeCultivation → DiscipleFacadeImpl → GameViewModel` 全仓库**无 UI collect 调用点**；叠加批 9-2 后 Kotlin 写侧停摆（修炼累积由 C++ 承担）+ StateSyncService 同步协议不含该字段 → 该 StateFlow 生产值恒为空/陈旧 | `CultivationService.kt` / `GameEngine.kt:305` / `DiscipleFacadeImpl.kt` | 疑似死链（需 UI 数据源复核） | ✅ **已清偿（收尾批 2026-09-02）**：UI 数据源复核确认——弟子修为显示走 `GameViewModel.discipleAggregates`（native 镜像派生，DiscipleAggregate.cultivation），realtimeCultivation 全仓库零 collect（含 feature/game 仅转发定义）→ 死链成立删除：写侧（HighFrequencyData.realtimeCultivation 字段 + accumulateCultivationPerPhase 投影块 + pendingRealtime 参数 + flushRealtimeCultivation）+ 驱动侧（PhaseSettlementExecutor.executeCultivationBatch P-6 段）+ 读侧（GameEngine/DiscipleFacade/DiscipleFacadeImpl/GameViewModel 转发）+ RealtimeCultivationBatchTest（P-6 专门测试删除）+ 注释/KDoc 引用更新（CheckpointCallSiteGuardTest、TraitWashOps/TraitAddOps/SpiritRootOps 措辞改 getEffectiveCultivation 投影语义）；修为累积主体（accumulate 列写）保留（对拍 Kotlin 臂 + 基准仍需） |
 
-## 9. ActionId 协议面与 UI 操作面下沉现状（2026-09-11 实测，权威）
+| ~~S-25~~ ✅ | **`AISectDiscipleManager.initForSlot` 写裸种子而非 `fromSeed` 混种态**（handover §2.58 收口批根治，**阶段 1② 遗留缺陷**）：`snapshot()` 是 PRNG **状态**不是种子——C++ `GameCore::aiRng_`（`game_core.cpp` initialize / rngInitSystemSeed / importStateInternal 三处）与旧影子流都经 `fromSeed(aiSeed)` 走过一轮混种（`state = (seed shl 1) or 1` 后丢弃一次 `nextLong()`），而 `initForSlot` 写成 `restore(aiSeed)` ⇒ **同一 `aiSeed` 在两侧得到两条不同序列**（AI 突破判定/孕养升级/年度招募全线漂移） | `AISectDiscipleManager.kt` | 确定性缺口（S-19 同族，跨语言**等价性**层面） | ✅ **已清偿（2026-09-14，handover §2.58.1）**：修法 = 写 `fromSeed(aiSeed).snapshot()`；逐位实测 `aiSeed=188022` 修前 `kotlin=188022` ≠ `cpp=-5182850315112888150`、修后两侧相等且前 8 抽逐位一致；**新增 `DiffAiRngSeedingTest`（3 用例）**把"快照是状态不是种子"锁成可执行断言（混种态非裸种子 × 3 档 seed / 前 8 抽跨语言逐位 / 同 seed 幂等）；转绿 `AISectDiscipleManagerTest` 2 例 |
+| ~~S-26~~ ✅ | **`MissionSystem` 进程级 `object` 持有可变 `rngManager`（双引擎串流）**（handover §2.58 收口批根治）：S-19 把 `MissionSystem.rng` 收敛到 MISSION 分区后仍保留 object 级 `@Volatile private var rngManager`（由 `CultivationEventProcessor.init` 注入）——**双引擎同进程**（跨语言对拍夹具）下后构造者覆写前者，**侧 B 的月变经 A 的委托通道消费了 C++ 的 MISSION 分区**（实测 `tick=9 cpp=-8111253402343785484 / kotlin=-1718366676291560851`），`availableMissions` 1 vs 4 | `MissionSystem.kt` / `MissionSystemRewardOps.kt` | 确定性缺口（全局可变上下文） | ✅ **已清偿（2026-09-14，handover §2.58.2）**：修法 = **形参必传**（摘除 object 级 `rngManager` 与 `initialize()`；`processMonthlyRefresh(existing, year, month, rngManager)` + `processMissionCompletion(..., rng)` 显式透传；`MissionSystemRewardOps` 八个扩展函数同步改形参）——隔离性由**构造期依赖**保证，不再依赖"初始化顺序恰好正确"；`DiffAuthoritativeTickTest` 100 旬全量对拍转绿。**新增 `RngEngineIsolationGuardTest`** 防复发（禁止 `object`/单例持有可变 `GameRngManager`；首跑即抓出 3 处同族遗留） |
+| S-27 | **三处顶层可变 `xxxRngManager` 同族遗留**（`RngEngineIsolationGuardTest` 首跑抓出，2026-09-14 登记）：`EnemyGenerator.enemyGenRngManager` / `AISectAttackManager.aisRngManager` / `AISectTeamComposer.teamComposerRngManager`——与 S-26 同形态（顶层可变全局 + 外部覆写 + 解析器），仅服务各自域（ENEMY_GEN / BATTLE）。生产单引擎下无实际分叉；双引擎同进程（对拍夹具）下需夹具显式置位（`DiffMonthSettlementFixture.initMissionDomainRng` 即此手法） | `EnemyGenerator.kt` / `AISectAttackManager.kt` / `AISectTeamComposer.kt` | 全局可变上下文（S-26 同族） | **登记待偿还**（白名单 `intentionallyExcluded` 已写明理由）。**偿还触发条件**：该域出现"双引擎同进程"的第三个消费场景，或该域 UI 操作面下沉时顺手收敛为形参必传 |
+| S-28 | **`detekt` 在 `main` 上实为红（25 处活违规）而非文档所述"全绿"**（2026-09-14 收口批实测暴露）：baseline 表确为全 0 ⇒ 这批是**未被 baseline 覆盖的活违规**（此前批次未实跑全量 detekt 或未回写）。§2.58 顺手清偿 **15 处**（`core:engine` 全清）；**余 `:feature:game` 10 处** | `core:engine` / `:feature:game` 多处 | 静态分析门禁缺口 | **部分清偿（2026-09-14，handover §2.58.8）**：已清 15 处 = 死 import ×10（逐符号 `git grep -w` 核验 + 编译验证）/ 复杂度与跳转 ×3 / `AISectDiscipleManager` TooManyFunctions 12/12（`truncateToLimit` 按纯函数层外移惯例拆到同包新文件 `AITruncateOps.kt`，行为零变更）。**余 10 处**全部归属纹理/浮空岛渲染批次（`NativeSurfaceView` TMF / `SoftwareCanvasBackend` LPL+CCM+跳转 / `IslandCliffTextureHolder` 与 `IslandCliffTextureLoader` 异常形态 / `SectDiplomacyDialogTest` 命名 / `DiplomacyFlows` 长行），**待纹理批次收口时一并清偿** |
+| S-29 | **测试源编译阻断 3 处语法/词法错误（`HEAD` 即断）**（2026-09-14 收口批实测暴露）：`AtlasLayoutSyncTest.kt` 的 `knownNames` 表达式断行缺失 + `coveredNames` 重复 `+`；`SpiritRootConfigTest.kt` 反引号函数名内含 `.`（Kotlin 报 `Name contains illegal characters`）⇒ **阻断 `compileReleaseUnitTestKotlin` 全量测试源编译** | `app` / `core:domain` 测试源 | 门禁盲区（主源编译不编译测试源） | ✅ **已清偿（2026-09-14，handover §2.58.8）**：最小修复（补断行 / 去重复 `+` / 名内 `.` 改 `_`），语义零变更；`compileReleaseUnitTestKotlin` 全模块转绿。**根因**：破损文件已入库而 `git status` 干净——**"测试源编译"此前不在任何门禁内**，建议纳入 CI（与 `compileReleaseKotlin` 同批） |
+| S-30 | **`:app` `SpriteCodegenSyncTest` 1 例失败**（2026-09-14 收口批实测暴露）：`TextureAtlas 头 - MAP_SPRITES 78 条与期望全等` → `expected:78 but was:41`；根因在**生成物**（`app/build/generated/sprite/TextureAtlas.h` 为 gitignore 产物，实测 41 条）；重跑 codegen 三任务（`generateResourceManifest` + `generateSpriteCode` + `:core:engine:generateSpriteAtlasDef`）后仍 41 | 图集 codegen 链路 | 生成物/源数据不同步 | **未清偿（登记待专项）**——归属纹理/图集批次（非 RNG 域），本批未深究 |
+| ~~S-31~~ ✅ | **`MissionSystem` 全局解除后的调用面收口**（随 S-26 一并完成）：`MissionSystemTest` 夹具改持实例级 `gameRng` 逐调用点显式传参（41 用例）；`DiffMonthSettlementFixture.initMissionDomainRng` 去掉 `MissionSystem.initialize` 调用并写明依据（只保留 `enemyGenRngManager`——该处属 S-27 待偿还面） | `MissionSystemTest.kt` / `DiffMonthSettlementFixture.kt` | 测试夹具适配 | ✅ **已完成（2026-09-14，handover §2.58.2）** |
+
+## 9. ActionId 协议面与 UI 操作面下沉现状（**2026-09-14 实测**，权威）
 
 > §4 归档表内「批 9 核心：ActionId **46 动作** + 7 handler」为**历史行**（该批次时点事实），
-> 此后 S4–S8、WS-5、UI 操作面下沉批（06/07/08/09）持续扩容而未随批更新计数——本节为当前实测口径。
+> 此后 S4–S8、WS-5、UI 操作面下沉批（06/07/08/09）+ batch-11~24 持续扩容而未随批更新计数——本节为当前实测口径。
+>
+> **2026-09-14 更新（handover §2.58）**：随机源治理收口批**零新增 ActionId**（动作总数保持 **170 / maxId=1733**）；
+> 下方「ActionId 总数 114 / maxId=1525」「handler 20」为 **2026-09-11 时点口径**，**已过期**——
+> 权威现值以 `handover §3 门禁基线`（170 动作 / maxId=1733）与 `docs/parallel-batches-w2/README.md §基线实测值` 为准。
 
-| 项 | 实测值 | 取证 |
+| 项 | 实测值（2026-09-11 时点；**总数/handler 见上方更新**） | 取证 |
 |---|---|---|
-| ActionId 总数（`action_ids.h` / `ActionIds.kt`，单一事实源 `scripts/gen-action-ids.mjs`） | **114** | `node scripts/gen-action-ids.mjs` → `114 actions (maxId=1525)`；两份生成物各 114 条 |
-| `execute_dispatch.cpp` handler 域函数 | **20** | handleWallet/Inventory/InventoryTx/SpiritField/Disciple/Battle/Government/Exploration/LevelGeneration/RedeemCode/SlotCleanup/SectDiplomacy/SecretRealm/SecretRealmSession/ProductionScheduling/RoadTx/DiscipleTx/DiplomacyTx/BuildingTx/DeathHandler |
+| ActionId 总数（`action_ids.h` / `ActionIds.kt`，单一事实源 `scripts/gen-action-ids.mjs`） | ~~114~~ → **170（maxId=1733）** | `node scripts/gen-action-ids.mjs`；两份生成物同源一致 |
+| `execute_dispatch.cpp` handler 域函数 | 20（2026-09-11）/ 现值见 `parallel-batches-w2/README.md` | handleWallet/Inventory/…/DeathHandler |
 | 集中 switch case 标签 | 104（其余经范围分支覆盖） | `^\s*case action::` 计数 |
 | JNI 导出 ↔ Kotlin external 声明 | 39 ↔ 39（无孤儿） | `GameCoreBridge.cpp` / `GameCoreBridge.kt` 符号面扫描 |
 | Kotlin 侧零引用 ActionId | 42（纯函数·影子对拍基准 + 查询留守族，批 8-4 六类裁决在案） | 名称面全仓扫描（含测试） |
@@ -568,14 +587,11 @@ android/app/src/main/cpp/
 
 **仍待下沉的域**（反向通道按域关闭的剩余前置，详见 `docs/ui-read-surface.md` §4.1 与 §4.3 前置现状块）：
 
-> 2026-09-13 实测更新——第一波（W2-a + batch-11~20b）**已全部交付**，故原列表大幅收窄。**剩余项**：
-> ① **库存开袋**（EXPLORATION 分区 + 分支内 `Random.Default` 模板抽取的**双重 RNG**——路线 B 备案不下沉，需用户拍板是否接受路线 A 行为基线变化）；
-> ② **弟子管理残余**：`recruitDisciple` 自由招募（名字种子策略待拍板；C++ `createDisciple`/`name_service` 地基已就绪）、状态同步族、特质 confirm 两入口（纯数据写）；
-> ③ **`aiSectDisciples` 段残余**：月结回退路径的战斗阵亡/吞并写者 + load/存档自愈写者（攻宗阵亡清理已于 batch-20b 下沉）；
-> ④ **`lockedBeastIds` UI 操作面**（`lockBeastView`/`unlockBeastView`）——**至今未派工**，是 4.2 表中明确的保留段前置；
-> ⑤ **月年编排残余**：设置项 / 天劫（`HeavenlyTrial*`）/ 洞府探索（`CaveExplorationProcessor` 结算域）——**需先审计是否独立 UI 写者**；
-> ⑥ 派遣 `startMission`（batch-16 登记"惰性门留月变真相源批"）。
-> **结论：batch-21（反向通道关闭）仍不可开**——其前置是**逐域**写者归 C++，不是"批次数"。
+> **2026-09-14 实测更新（handover §2.58——原列表大部分已收口）**：
+> ✅ **已划除**：① 库存**开袋**——**已拍板路线 A 并已下沉**（`storage_bag_tx.h` + `STORAGE_BAG_OPEN_TX=1734`，7 处抽签全部显式传 `EXPLORATION` 分区 rng）；② 弟子管理残余（灵根/特质 confirm 两入口 → batch-24 `SPIRIT_ROOT_WASH_CONFIRM_TX=1732` / `TRAIT_WASH_CONFIRM_TX=1733`）；④ `lockedBeastIds` UI 操作面（batch-23 `BEAST_VIEW_LOCK_TX=1730`）；⑤ 月年编排残余中的**设置项**（batch-23 `SETTINGS_PATCH_TX=1731`，17 字段）。
+> ⚠️ **改判/登记不下沉**：③ `aiSectDisciples` load/存档自愈——**AI RNG 归一后该路径已无自持流、无影子拷贝**（消费真源分区），下沉收益不明 ⇒ **登记待拍板**（可复议）；⑤ 天劫（`HeavenlyTrial*`，非确定性模板随机与凭据溢出抑制同一事务）与洞府探索（`CaveExplorationProcessor`，仅月结 Kotlin 回退编排内）——**登记不下沉**。
+> **剩余：`DiffYearSettlementTest` 1 例未收敛**（AI 招募逐字段分歧，窗口已收窄到"第二名 AI 弟子的装备/功法段"）。
+> **结论：batch-21（反向通道关闭）的"域写者归还"前置已基本达成，"阶段 1 随机源治理"前置已完成**——但**须先钉死 `DiffYearSettlementTest`**（通道关闭后无兜底）。
 
 **集成收口（2026-09-11，handover §2.40；✅ 已合入 `main`）**：十批并行成果已合流为单一可编译树
 （`integration/parallel-batches` → **已合入 `main`**，合并树与 integration 提交 `b7f6788` 逐字节相同）；
