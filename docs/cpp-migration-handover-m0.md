@@ -693,6 +693,9 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 
 ## 6. 主轴剩余：随机源治理（已拍板选项 2：根治）
 
+> ❗ **实施中批（2026-09-14，未完成——接手必读）**：ADR 阶段 0+1+2+4 的主体改动**已落地**（桌面 C++ 1322/1322、六模块主源编译/NDK/Hilt 全绿、`RngSourceGuardTest` 五断言绿），但**引擎全量仍有 4 处失败未根治**（AI RNG 流归一域），且阶段 0 CI 红线 / 阶段 2 剩余 5 文件 / 阶段 4 JNI 基准 / 全部文档回写（含本节以下的 §2/§3/§4.1 更新与本 CHANGELOG）**均未做**。
+> **权威状态、已排除事实、根因线索与未完成清单见 [rng-remediation-status.md](rng-remediation-status.md)**——接手者请先读该文再动工，勿据本节以下的历史口径派工。
+
 > 完整方案见 **[ADR rng-determinism-remediation.md](../adr/rng-determinism-remediation.md)**（本文件只留交接必需的指针与不变量，避免文档再次膨胀）。
 
 | 项 | 状态 |

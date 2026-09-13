@@ -16,6 +16,7 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
 import com.xianxia.sect.core.engine.domain.disciple.calculateCultivationPerPhase
+import com.xianxia.sect.core.util.GameRngManager
 
 class AISectDiscipleManagerTest {
 
@@ -23,6 +24,26 @@ class AISectDiscipleManagerTest {
     fun tearDown() {
         // 恢复全局单例，避免注入的测试功法库污染其他测试类
         ManualDatabase.resetForTest()
+        // 摘除本类注入的 RNG 管理器：AISectDiscipleManager 是进程级 object，
+        // GameEngine 构造/其他夹具会覆写其 rngManager 引用——本类用例要求
+        // initForSlot(seed) 的确定性接缝不被跨类残留引用干扰（反之亦然）
+        AISectDiscipleManager.resetManagerForTest()
+    }
+
+    /** 每个用例前建立自洽的确定性随机源（本类用例全部依赖 initForSlot 固定种子） */
+    @org.junit.Before
+    fun setUpRng() {
+        AISectDiscipleManager.resetManagerForTest()
+        // 固定系统种子：GameRngManager 构造期的兜底种子是挂钟时间，不固定会让
+        // 未显式 initForSlot 的抽取随运行时刻变化（"同 seed 确定性"类用例 flaky）
+        AISectDiscipleManager.initialize(
+            GameRngManager().also { it.initSystemSeed(RNG_SYSTEM_SEED) }
+        )
+    }
+
+    private companion object {
+        /** 本类固定系统种子（配合各用例的 initForSlot 形成完全确定的流） */
+        const val RNG_SYSTEM_SEED = 20260914L
     }
 
     // ── truncateToLimit ──

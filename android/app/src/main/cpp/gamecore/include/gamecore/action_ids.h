@@ -519,6 +519,9 @@ inline constexpr int32_t SPIRIT_ROOT_WASH_CONFIRM_TX = 1732;
 /// 特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符）
 inline constexpr int32_t TRAIT_WASH_CONFIRM_TX = 1733;
 
+/// 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin）
+inline constexpr int32_t STORAGE_BAG_OPEN_TX = 1734;
+
 }  // namespace action
 
 }  // namespace gamecore

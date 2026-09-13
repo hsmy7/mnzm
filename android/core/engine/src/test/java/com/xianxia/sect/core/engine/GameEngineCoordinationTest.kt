@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -399,7 +400,7 @@ private class EngineTestEnv {
         gameEngineCore = mockGameEngineCore,
         engineContextDispatcher = FakeEngineContextDispatcher(),
         stateStore = store,
-        gameRngManager = mock(),
+        gameRngManager = GameRngManager(),
         explorationFacade = mock(),
         cultivationFacade = mockCultivationFacade,
         economyFacade = mockEconomyFacade,

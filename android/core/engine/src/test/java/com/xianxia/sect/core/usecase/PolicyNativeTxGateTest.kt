@@ -25,9 +25,7 @@ import com.xianxia.sect.core.nativebridge.NativeEngineFlag
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.config.BuildingConfigService
-import com.xianxia.sect.core.repository.ProductionSlotDataPort
-import kotlinx.coroutines.SupervisorJob
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -46,7 +44,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.spy
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -97,23 +94,17 @@ class PolicyNativeTxGateTest {
         // 测试置 Unconfined 内联执行，避免跨线程等待）
         core.gameDispatcher = Dispatchers.Unconfined
 
-        // **真实 repository 的 spy**：Mockito 对纯 mock 的 `getSlots()` 返回值校验
-        // 与同名属性 getter（`val slots: StateFlow<...>`）反射匹配冲突，任何
-        // mock/doReturn 组合都触发 "getSlots() should return StateFlow"。
-        // spy(真实实例) 让 `getSlots()` 走真实语义（`_slots.value` = 空列表 →
-        // checkpoint 路径早退），同时保留 `verify(repository).getSlots()` 的
-        // 可观测点（13.3 红线断言：生产类政策开启必须触发 checkpoint）。
-        val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
-        productionSlotRepository = spy(
-            ProductionSlotRepository(
-                dao = mockSmart(ProductionSlotDataPort::class.java),
-                configService = mockSmart(BuildingConfigService::class.java),
-                scopeProvider = object : CoroutineScopeProvider {
-                    override val scope: CoroutineScope = repositoryScope
-                    override val ioScope: CoroutineScope = repositoryScope
-                }
-            )
-        )
+        // **`getSlots()` 显式返回空列表**：本类同时声明 `val slots: StateFlow<...>`
+        // 与 `fun getSlots(): List<...>`，Mockito 的返回类型校验会把两者按同名
+        // getter 反射匹配（"getSlots() should return StateFlow"）；对真实实例做
+        // spy 亦不可靠（inline mock maker 的 spy 委托会命中属性 getter）。
+        // ⇒ 用**显式 Answer** 只覆写这一个方法：`getSlots()` 返回空列表
+        // （checkpoint 路径早退，与设计意图一致），属性/其余方法走 SmartNull。
+        // 13.3 红线断言（生产类政策开启必须触发 checkpoint）经 `verify(...getSlots())` 保持。
+        productionSlotRepository = mockSmart<ProductionSlotRepository>().also { repo ->
+            Mockito.doAnswer { emptyList<ProductionSlot>() }
+                .`when`(repo).getSlots()
+        }
         val processor = mock(ProductionProcessor::class.java)
         whenever(processor.stateStore).thenReturn(store)
         whenever(processor.productionSlotRepository).thenReturn(productionSlotRepository)

@@ -92,7 +92,7 @@ class RecruitNativeTxGateTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock<ExplorationFacade>(),
             cultivationFacade = mockCultivationFacade,
             economyFacade = mock<EconomyFacade>(),

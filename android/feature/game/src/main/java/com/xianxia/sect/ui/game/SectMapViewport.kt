@@ -108,6 +108,9 @@ private fun createSectMapSurfaceView(
     //   仍为 0，渲染线程按既有守卫跳过瓦片层（地图淡入遮蔽）。
     view.onRendererReady = {
         view.buildAtlasAsync(ctx) { texId -> view.atlasTextureId = texId }
+        // 崖壁独立纹理（超出图集容量）：与图集同纪律——重活在后台、上传在主线程，
+        // 掩码写入后 Compose 层据以重建崖壁布局（部分降级由掩码表达）
+        view.loadIslandCliffTextures()
     }
 
     // Vulkan 初始化生命周期监听（由 GameActivity 驱动 CrashRecoveryEngine）

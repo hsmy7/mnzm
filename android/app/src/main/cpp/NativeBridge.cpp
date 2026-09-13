@@ -1496,8 +1496,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadIslandCliffKtx(
     std::vector<uint8_t> bytes(static_cast<size_t>(len));
     env->GetByteArrayRegion(ktxData, 0, len, reinterpret_cast<jbyte*>(bytes.data()));
 
-    ktx1::KtxInfo info{};
-    if (!ktx1::loadKtx1(bytes.data(), bytes.size(), info)) {
+    KtxInfo info{};
+    if (!loadKtx1(bytes.data(), bytes.size(), info)) {
         LOGW("uploadIslandCliffKtx: KTX 校验失败，回退 RGBA 崖壁纹理");
         return 0;
     }

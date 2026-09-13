@@ -37,6 +37,7 @@
 #include "gamecore/system/sect_trade.h"
 #include "gamecore/system/slot_cleanup.h"
 #include "gamecore/system/spirit_field.h"
+#include "gamecore/system/storage_bag_tx.h"
 #include "gamecore/system/patrol_tx.h"
 #include "gamecore/system/sect_attack_tx.h"
 // recruit_tx.h（batch-16 招募列表 UI 直调事务）传递引入 year_settlement.h →
@@ -2159,6 +2160,22 @@ nlohmann::json handleInventoryTx(GameCore* core, int32_t actionId,
             // 溢出抑制上下文：恒无草稿；幂等 no-op 臂 confiscated=false
             return ok({{"confiscated", r.confiscated}});
         }
+        case action::STORAGE_BAG_OPEN_TX: {
+            // 开袋抽签（ADR rng-determinism-remediation 阶段 1①）：
+            // 只消费 EXPLORATION 分区产出确定性描述符序列，不触碰游戏状态；
+            // 模板物化 + addXxx 入仓留 Kotlin（13.3 红线 + 模板库在 Kotlin）
+            const auto r = gamecore::system::storage_bag_tx::openStorageBagTx(
+                core->rng().getRng(gamecore::rng::RngPartition::kExploration),
+                params.value("bagId", std::string()),
+                params.at("rarity").get<int32_t>());
+            if (!r.ok) return fail(r.errorType, r.message);
+            nlohmann::json draws = nlohmann::json::array();
+            for (const auto& d : r.draws) {
+                draws.push_back({{"kind", d.kind}});
+            }
+            return ok({{"count", static_cast<int32_t>(r.draws.size())},
+                       {"draws", std::move(draws)}});
+        }
         default:
             return fail("UNKNOWN_ACTION",
                         "inventory tx action " + std::to_string(actionId));
@@ -2695,6 +2712,12 @@ std::string GameCore::execute(int32_t actionId, const std::string& paramsJson,
             result = handleDiplomacyTx(this, actionId, params);
         } else if (actionId >= action::INV_SELL_ITEM &&
                    actionId <= action::INV_CONFISCATE_BAG_ITEM) {
+            result = handleInventoryTx(this, actionId, params);
+        } else if (actionId == action::STORAGE_BAG_OPEN_TX) {
+            // 开袋抽签（ADR 阶段 1①）复用 handleInventoryTx；**与上面两段分开判**
+            // 的原因：1734 与 1520–1531 之间有其他域的动作号（1730–1733 等），
+            // 写成一个连续区间会把它们吞进库存 handler（实测事故：
+            // LockBeastTx 1730 收到 "inventory tx action 1730" UNKNOWN_ACTION）
             result = handleInventoryTx(this, actionId, params);
         } else if (actionId >= action::PATROL_ASSIGN_RESIDENCE &&
                    actionId <= action::PATROL_UPDATE_YEARLY_SALARY) {

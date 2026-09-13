@@ -19,13 +19,21 @@ import com.xianxia.sect.core.render.IslandCliffBridge
  * 若个别张失败，掩码降级后布局重建一次（低频、一次性）。
  *
  * ## 线程
- * [start] 在调用方协程（后台）执行解码/编码，[upload] 回主线程做 native 调用；
- * 状态写入经 `mutableStateOf`（Compose 主线程读取）。
+ * [load] 内部自行编排：重活在**当前调用线程**顺序执行后经 `upload` 回调回主线程
+ * 做 native 调用（调用方在渲染就绪回调内触发——
+ * [NativeSurfaceView.loadIslandCliffTextures]）；状态写入经 `mutableStateOf`
+ * （Compose 主线程读取）。
  */
-internal class IslandCliffTextureHolder(private val context: Context) {
+class IslandCliffTextureHolder(private val context: Context) {
 
     /** 纹理可用掩码（bit i = 纹理 i 已上传成功；初始乐观全可用） */
-    val textureMask = mutableStateOf((1 shl IslandCliffTextureSet.TEXTURE_COUNT) - 1)
+    val textureMask = mutableStateOf((1 shl IslandCliffBridge.TextureIndex.COUNT) - 1)
+
+    /** 是否已有任一张可用（掩码非 0 = 崖壁层可绘制；全失败则整层跳过，不画白） */
+    internal val hasAnyTexture: Boolean get() = textureMask.value != 0
+
+    /** 已成功上传的张数（掩码位计数，观测锚点用） */
+    internal val availableCount: Int get() = Integer.bitCount(textureMask.value)
 
     /**
      * Canvas 路径位图集（下标序 = 纹理下标序；null 元素 = 该张不可用）。

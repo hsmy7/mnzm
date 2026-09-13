@@ -28,8 +28,8 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.beastSpriteRes
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.PortraitPool
+import com.xianxia.sect.core.util.PresentationRandom
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -41,6 +41,7 @@ import androidx.compose.ui.zIndex
 @Composable
 internal fun CombatUnitCell(
     combatant: Combatant?,
+    random: PresentationRandom,
     modifier: Modifier = Modifier,
     isCurrent: Boolean = false,
     isAllySelected: Boolean = false,
@@ -72,6 +73,7 @@ internal fun CombatUnitCell(
         if (combatant != null && !combatant.isDead) {
             CombatUnitCellContent(
                 combatant = combatant,
+                random = random,
                 shakeOffset = shakeOffset,
                 transX = transX,
                 transY = transY
@@ -126,6 +128,7 @@ private fun rememberFlightProgress(flightAnim: FlightAnimState): Animatable<Floa
 @Composable
 private fun CombatUnitCellContent(
     combatant: Combatant,
+    random: PresentationRandom,
     shakeOffset: Animatable<Float, AnimationVector1D>,
     transX: Float,
     transY: Float
@@ -164,15 +167,20 @@ private fun CombatUnitCellContent(
             )
         }
         Spacer(Modifier.height(4.dp))
-        CombatantPortrait(combatant = combatant, size = 44)
+        CombatantPortrait(combatant = combatant, random = random, size = 44)
     }
 }
 
 /**
- * 参战者头像组件（弟子圆形肖像 / 妖兽无框立绘）
+ * 参战者头像组件（弟子圆形肖像 / 妖兽无框立绘）。
+ *
+ * @param random 表现类随机源（[PresentationRandom]）——三支中"无立绘"分支按性别随机
+ *               取一张肖像；该抽取**不写任何状态**（纯立绘选择），故走表现流而非
+ *               决策分区（此前经已删除的 `GameRandom` 直连全局随机，且位于 UI 层，
+ *               属架构违规）。
  */
 @Composable
-internal fun CombatantPortrait(combatant: Combatant, size: Int = 44) {
+internal fun CombatantPortrait(combatant: Combatant, random: PresentationRandom, size: Int = 44) {
     val portraitResId = remember(combatant.id, combatant.portraitRes, combatant.isBeast) {
         when {
             combatant.isBeast -> {
@@ -185,8 +193,9 @@ internal fun CombatantPortrait(combatant: Combatant, size: Int = 44) {
             }
             else -> {
                 val randomPortrait = PortraitPool.getRandomPortrait(
-                    if (GameRandom.nextBoolean()) "male" else "female"
-                ) { GameRandom.nextInt(it) }
+                    if (random.nextBoolean()) "male" else "female",
+                    random.boundPicker()
+                )
                 PortraitPool.getResourceId(randomPortrait).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }

@@ -15,6 +15,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.beginCombat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,9 @@ import javax.inject.Inject
 class HeavenlyTrialViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val battleSystem: BattleSystem,
-    val trialService: HeavenlyTrialService
+    val trialService: HeavenlyTrialService,
+    /** 表现类随机源（天劫对手立绘选择等——不写状态，见 [PresentationRandom] KDoc） */
+    val presentationRandom: PresentationRandom
 ) : BaseViewModel() {
 
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Panel)

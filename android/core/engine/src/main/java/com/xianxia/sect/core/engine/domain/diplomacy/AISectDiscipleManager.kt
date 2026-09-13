@@ -43,6 +43,7 @@ import com.xianxia.sect.core.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlin.math.roundToInt
@@ -54,35 +55,112 @@ private const val SECT_RECRUIT_MIN_COUNT = 1
 /** AI 宗门周期性招募每周期人数上限（含） */
 private const val SECT_RECRUIT_MAX_COUNT = 5
 
+/**
+ * AI 流种子步长：`aiSeed = seed + AI_SECT.id(6) × 31337`。
+ *
+ * **与 C++ `GameCore::aiRng_` 的播种式同源**（`game_core.cpp` 的 initialize /
+ * rngInitSystemSeed / importStateInternal 三处均用同一常量）——改此值会让两侧
+ * 分叉，必须同步改 C++（C++ 侧为字面量 `static_cast<int64_t>(6) * 31337LL`）。
+ */
+private const val AI_SECT_SEED_STRIDE = 31337L
+
 @Suppress("LargeClass") // AI 弟子域聚合（生成/装备/修炼/突破/招募/养成，先例 GameData.kt）
 object AISectDiscipleManager {
     /**
-     * AI RNG — 初始化时由 [initForSlot] 传入存档的系统种子进行确定性播种。
-     * 未初始化时以固定 fallback 种子运行（各存档 AI 行为一致但不可与游戏主 PRNG 同步）。
+     * AI 随机源解析器（**非自持流**——R5 禁止自建随机源，本字段只做"接入真源"）。
+     *
+     * 注入后 [rng] 按当前 RNG 模式解析：
+     * - 委托模式（AUTHORITATIVE）→ [RngPartition.AI_SECT_MIRROR]：其
+     *   `NativeBackedRng(9)` 直达 C++ `GameCore::aiRng_` 本体 ⇒ Kotlin AI 抽取与
+     *   C++ 月结/年结消费的 AI 流**同源同序**（读档续接一致）
+     * - 非委托（OFF/SHADOW 回退）→ [RngPartition.AI_SECT]（本地 PCG，种子
+     *   `systemSeed + 6`，与 C++ `aiRng_` 的 `seed + 6×31337` 同为确定性流）
+     *
+     * 注入时机：生产经 [GameEngine] 构造时 [initialize]；测试可注入固定种子实例。
      */
     @Volatile
-    private var _rng: DeterministicRng? = null
-    /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
-    internal val rng: DeterministicRng get() {
-        /** 当前设备的电源管理配置 */
-        val current = _rng
-        if (current != null) return current
-        // 兜底：引擎初始化前已调用时用 fallback 种子
-        return DeterministicRng.fromSeed(0xA15EC7A15EC7L)
+    private var rngManager: GameRngManager? = null
+
+    /**
+     * 无管理器时的兜底流（**仅为兼容旧测试 API**，生产恒走 [initialize] 注入）。
+     *
+     * 由 [initForSlot] 播种；未播种时用固定 fallback 种子——保证"同输入同输出"，
+     * 不引入任何非确定性来源（旧实现在此处的缺陷是**每次访问都新建同种子实例**，
+     * 导致同一调用点恒返回同一个值，即"初始弟子全员克隆"）。
+     */
+    @Volatile
+    private var fallbackRng: DeterministicRng? = null
+
+    /**
+     * 注入 RNG 管理器（幂等；生产经 [GameEngine] 构造，测试注入固定种子实例）。
+     *
+     * @param manager 引擎单例 [GameRngManager]
+     */
+    fun initialize(manager: GameRngManager) {
+        rngManager = manager
     }
 
     /**
-     * 使用存档的 [systemSeed] 初始化 AI 分区 RNG。
-     * 在 GameEngine 初始化世界/读档时调用，确保 AI 宗门行为在相同存档下可复现。
+     * AI 随机流（**解析式**，非自持）。
      *
-     * 确定性范围说明：同一存档在相同结算路径下可复现（读档→结算→读档→结算结果一致）。
-     * 热控分批（aiNonFocusedBatchMonths 跳月）为预存机制，跳过月份不消耗 RNG——
-     * 跨设备/跨热状态的 AI 演化可能不同，属既定行为。
+     * 优先级：注入的管理器 → 兜底流（[initForSlot] 播种）。
+     *
+     * @return 委托模式下为 `aiRng_` 的镜像分区实例；否则为 `AI_SECT` 分区实例
+     *         （无管理器时回落 [fallbackRng]，仍在值域与确定性约束内）
+     */
+    internal val rng: DeterministicRng get() {
+        val manager = rngManager
+        if (manager != null) {
+            return manager.getRng(
+                if (manager.isDelegatingToNative()) RngPartition.AI_SECT_MIRROR
+                else RngPartition.AI_SECT
+            )
+        }
+        return fallbackRng ?: DeterministicRng.fromSeed(LEGACY_FALLBACK_SEED).also { fallbackRng = it }
+    }
+
+    /**
+     * 以世界种子对齐 AI 流（新档/读档/重启时调用；**幂等**）。
+     *
+     * 语义（两段）：
+     * 1. **兜底流播种**：重置为 `systemSeed + 6×31337`——与 C++ `GameCore::aiRng_`
+     *    的播种式同源。引擎尚未注入管理器时（引擎早期调用、无管理器夹具）用它即
+     *    得到与原 `initForSlot` 逐位一致的序列。
+     * 2. **已注入管理器时**：把同一 `aiSeed` 恢复到解析出的分区（非委托模式 =
+     *    [RngPartition.AI_SECT]，委托模式 = [RngPartition.AI_SECT_MIRROR]）——
+     *    保证"同 seed ⇒ 同序列"对**管理器路径同样成立**（原实现的核心契约；
+     *    缺失该段会让 [RngPartition.AI_SECT] 停留在 `initSystemSeed` 的
+     *    `seed + 6` 上，与 `aiRng_` 的 `seed + 6×31337` 分叉）。
+     *
+     * **不动分区 9**：`AI_SECT_MIRROR` 是通道型分区（`inSnapshot = false`），其状态
+     * 真源 = C++ `aiRng_`，由 native 侧在 `rngInitSystemSeed` / `importStateInternal`
+     * 两处按同一公式播种或按存档 9 号键续接（Kotlin 侧覆盖会与宿主侧序列分叉）。
+     *
+     * @param systemSeed 存档的世界种子（`GameData.mapSeed`）
      */
     fun initForSlot(systemSeed: Long) {
-        val aiSeed = systemSeed + RngPartition.AI_SECT.id.toLong() * 31337L
-        _rng = DeterministicRng.fromSeed(aiSeed)
+        val aiSeed = systemSeed + RngPartition.AI_SECT.id.toLong() * AI_SECT_SEED_STRIDE
+        fallbackRng = DeterministicRng.fromSeed(aiSeed)
+        rngManager?.let { it.getRng(RngPartition.AI_SECT).restore(aiSeed) }
     }
+
+    /**
+     * 摘除注入的管理器（**仅供测试夹具隔离**）。
+     *
+     * 本对象是进程级 `object`，[initialize] 写入的引用会跨测试类存活——若夹具
+     * 注入了自己构造的 [GameRngManager] 而后续用例未重新注入，[rng] 会解析到
+     * 上一个夹具的实例（跨测试污染）。夹具的 `@After` 调用本方法即可回到
+     * [fallbackRng] 的确定性接缝。
+     */
+    internal fun resetManagerForTest() {
+        rngManager = null
+        fallbackRng = null
+    }
+
+    /**
+     * 旧测试路径的固定兜底种子（不参与生产路径；生产恒经 [initialize] 注入管理器）。
+     */
+    private const val LEGACY_FALLBACK_SEED = 0xA15EC7A15EC7L
 
     /**
      * 每月旬数 = 3（玩家修炼每旬结算一次速率，AI 月度结算按 3 旬等效对齐，

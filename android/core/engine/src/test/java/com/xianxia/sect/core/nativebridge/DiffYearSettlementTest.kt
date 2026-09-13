@@ -174,6 +174,9 @@ class DiffYearSettlementTest {
     @org.junit.After
     fun resetManualDatabase() {
         ManualDatabase.resetForTest()
+        // 摘除本类注入的 AI 随机源（AISectDiscipleManager 为进程级 object，
+        // 残留引用会让后续测试类解析到已废弃的 manager）
+        AISectDiscipleManager.resetManagerForTest()
     }
 
     private fun buildSnapshot(): NativeGameState {
@@ -294,6 +297,14 @@ class DiffYearSettlementTest {
             cultivationRateCalculator = CultivationRateCalculator(store)
         )
         val gameRng = GameRngManager().also { it.restoreStates(rngStates) }
+        // AI 弟子域随机源归一（阶段 1②）：把夹具的 manager 交给
+        // AISectDiscipleManager（R5：禁止自建随机源）——AI 招募/换装必须与本夹具的
+        // gameRng 同源，否则 Kotlin 臂与 C++ 臂的 AI 流分叉（对拍恒红）。
+        // **顺序关键**：initForSlot 必须在 restoreStates **之后**——restoreStates 会用
+        // 快照里的 AI_SECT 键覆盖分区，先播种会被抹掉（实测：分区停在 188022
+        // 而非 `0 + 6×31337`，导致两侧招募条数不同）
+        AISectDiscipleManager.initialize(gameRng)
+        AISectDiscipleManager.initForSlot(0L)
         val handler = DiscipleBreakthroughHandler(
             stateStore = store,
             cultivationCore = core,
@@ -475,7 +486,10 @@ class DiffYearSettlementTest {
             gameYear = 3, gameMonth = 12, gamePhase = 2,
             spiritStones = 10000L
         ).apply {
-            rngStates = initialRngStates(SEED)
+            // 键 6（AI_SECT）已在协议面**退役**（阶段 1②：AI 流权威态由宿主侧
+            // `aiRng_` 承载，随 9 号通道键落盘）——快照里带 6 号会让 C++ 导入时
+            // 按该值覆写 aiRng_，与 Kotlin 侧 `mapSeed + 6×31337` 播种态分叉
+            rngStates = (initialRngStates(SEED) - RngPartition.AI_SECT.id).toMutableMap()
             lastRecruitYear = 3          // 招募刷新差值 4-3<3 不刷新
             merchantLastRefreshChanceGrantYear = 3   // 商人刷新机会差值 <30 不授予
         }
@@ -844,6 +858,18 @@ class DiffYearSettlementTest {
             if (isMirrorGeneratedField(path, k)) continue
             val e = expected[k]
             assertTrue("$path.$k 仅 C++ 导出持有而 Kotlin 缺失（协议漂移）", e != null)
+            // rngStates 段按**双侧共有键**比较：阶段 1② 归一后 AI 流的权威态在
+            // C++ `aiRng_`（随 9 号键落盘），Kotlin 侧 6 号（AI_SECT）不再与 C++
+            // 同源；两侧键集本就不同，协议语义差异只在共有键上成立
+            if (k == "rngStates") {
+                val expectedRng = e?.jsonObject ?: JsonObject(emptyMap())
+                val actualRng = a.jsonObject
+                for ((pid, av) in actualRng) {
+                    val ev = expectedRng[pid] ?: continue
+                    assertNodeMatches(ev, av, "$path.$k.$pid")
+                }
+                continue
+            }
             assertNodeMatches(e!!, a, "$path.$k")
         }
     }

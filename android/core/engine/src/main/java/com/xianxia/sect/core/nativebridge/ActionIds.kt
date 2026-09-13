@@ -515,4 +515,7 @@ object ActionIds {
     /** 特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符） */
     const val TRAIT_WASH_CONFIRM_TX: Int = 1733
 
+    /** 开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin） */
+    const val STORAGE_BAG_OPEN_TX: Int = 1734
+
 }

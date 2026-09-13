@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.core.engine.buyFromSectTradeSync
 import com.xianxia.sect.core.engine.dissolveAllianceSimple
 import com.xianxia.sect.core.engine.dissolveVassalContract
@@ -27,7 +28,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class WorldMapInteractionViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    /** 表现类随机源（外交文案选择等——不写状态，见 [PresentationRandom] KDoc） */
+    val presentationRandom: PresentationRandom
 ) : BaseViewModel() {
 
     private val _dialogs = MutableStateFlow(WorldMapDialogState())

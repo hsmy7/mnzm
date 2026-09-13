@@ -406,6 +406,24 @@ class NativeSurfaceView(
     var atlasBitmap: android.graphics.Bitmap? = null
 
     /**
+     * 浮空岛崖壁纹理加载状态持有者（Compose 可观察掩码 + Canvas 路径位图集）。
+     *
+     * 崖壁素材单张超出图集容量，走**独立纹理**而非图集；加载在 [onRendererReady]
+     * 回调内触发（与图集同纪律），掩码经 [IslandCliffTextureHolder.textureMask]
+     * 暴露给 Compose 层——布局合成据此排除未上传成功的条目（部分降级）。
+     * 渲染端经 [hasAnyCliffTexture] / [cliffTextureCount] 读同一份状态。
+     */
+    internal val islandCliffTextures: IslandCliffTextureHolder by lazy {
+        IslandCliffTextureHolder(context)
+    }
+
+    /** 是否已有任一张崖壁纹理可用（全不可用则整层跳过，不画白） */
+    internal val hasAnyCliffTexture: Boolean get() = islandCliffTextures.hasAnyTexture
+
+    /** 已成功上传的崖壁纹理张数（观测锚点用） */
+    internal val cliffTextureCount: Int get() = islandCliffTextures.availableCount
+
+    /**
      * 是否应尝试 ASTC 压缩图集（分支决策：Vulkan 路径且开关开启）。
      * 独立纯函数供守卫测试锁定分支逻辑（完整 buildAtlas 的 RGBA 上传为 native 调用，
      * JVM 测试无法覆盖——由真机验证）。
@@ -443,6 +461,25 @@ class NativeSurfaceView(
      * @param context 资源上下文
      * @param onReady 上传完成回调（主线程；参数 = 纹理 ID，0 = 软渲染路径或失败）
      */
+    /**
+     * 浮空岛崖壁纹理加载入口（在 [onRendererReady] 回调内触发，与图集同纪律）。
+     *
+     * 线程纪律由 [IslandCliffTextureHolder.load] 承载：后台线程跑重活
+     * （KTX 资产读取 / 逐张解码 + RGBA 与 mip 链编码 / Canvas 位图解码），
+     * 主线程只做 native 上传（C++ `g_renderer` 无锁，上传不可与渲染线程并发）。
+     *
+     * Canvas 软渲染路径保留位图（[IslandCliffTextureHolder.bitmaps] 供
+     * [SoftwareCanvasBackend] 绘制崖壁层）；Vulkan/GLES 路径不保留（省内存）。
+     */
+    internal fun loadIslandCliffTextures() {
+        islandCliffTextures.load(
+            astcSupported = renderMode == RenderMode.VULKAN && NativeBridge.isAstcSupported(),
+            keepBitmaps = renderMode == RenderMode.SOFTWARE
+        ) { ids ->
+            islandCliffTextures.textureMask.value = IslandCliffTextureSet.maskFor(ids)
+        }
+    }
+
     fun buildAtlasAsync(context: android.content.Context, onReady: (Int) -> Unit) {
         // 渲染模式在发起时捕获（后台线程不得再读 View 可变状态）
         val software = renderMode == RenderMode.SOFTWARE

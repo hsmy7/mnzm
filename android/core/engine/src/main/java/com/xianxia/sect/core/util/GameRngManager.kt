@@ -100,15 +100,24 @@ class GameRngManager @Inject constructor() {
         return rngMap[partition] ?: error("RNG partition $partition not initialized")
     }
 
-    /** 导出所有分区 PRNG 状态到存档 */
+    /**
+     * 导出所有分区 PRNG 状态到存档。
+     *
+     * **只导出 `inSnapshot = true` 的分区**：通道型分区（[RngPartition.AI_SECT_MIRROR]）
+     * 只是"取用另一真相源（C++ `aiRng_`）的句柄"，其状态由该真相源随同 9 号键
+     * 自行落盘——若在此一并导出，Kotlin 会把本地 [RngPartition.AI_SECT] 的流态写到
+     * 同一个键，与 C++ 写回的 `aiRng_` 流态互相覆盖（跨语言对拍恒红）。
+     */
     fun exportStates(): Map<Int, Long> {
-        return RngPartition.values().associate { it.id to (rngMap[it] ?: error("RNG ${it.name} not found")).snapshot() }
+        return RngPartition.entries.filter { it.inSnapshot }.associate {
+            it.id to (rngMap[it] ?: error("RNG ${it.name} not found")).snapshot()
+        }
     }
 
-    /** 从存档恢复所有分区 PRNG 状态 */
+    /** 从存档恢复所有分区 PRNG 状态（通道型分区跳过——见 [exportStates]） */
     fun restoreStates(states: Map<Int, Long>) {
         for ((partitionId, savedState) in states) {
-            val partition = RngPartition.values().find { it.id == partitionId } ?: continue
+            val partition = RngPartition.entries.find { it.id == partitionId && it.inSnapshot } ?: continue
             (rngMap[partition] ?: error("RNG $partition not found")).restore(savedState)
         }
     }

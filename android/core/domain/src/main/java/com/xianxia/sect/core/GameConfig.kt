@@ -3,7 +3,6 @@ package com.xianxia.sect.core
 import com.xianxia.sect.core.config.GameConfigData
 import com.xianxia.sect.core.domain.BuildConfig
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.util.GameRandom
 
 enum class SkillType {
     ATTACK, SUPPORT;
@@ -417,8 +416,15 @@ object GameConfig {
         
         fun getElementName(type: String): String = get(type).name
         
-        fun generateRandomSpiritRootCount(): Int {
-            val rand = GameRandom.nextDouble()
+        /**
+         * 按 [COUNT_WEIGHTS] 权重把**已抽取的随机值** [rand]（[0.0, 1.0)）映射为灵根数量。
+         *
+         * 纯函数：随机源由调用方提供（分区 PRNG 经 `DeterministicRng.asKotlinRandom()`
+         * 或表现随机）——本函数不自行抽取，杜绝默认参数静默回落全局随机源。
+         *
+         * 与 [SpiritRootGenerator] 的同名逻辑同式（单一权重表来源 [COUNT_WEIGHTS]）。
+         */
+        fun rollSpiritRootCount(rand: Double): Int {
             var cumulative = 0.0
             for ((count, weight) in COUNT_WEIGHTS.toSortedMap()) {
                 cumulative += weight

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
@@ -139,7 +140,7 @@ class GameEnginePatrolNativeTxGateTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock(),
             cultivationFacade = mockCultivationFacade,
             economyFacade = mockEconomyFacade,

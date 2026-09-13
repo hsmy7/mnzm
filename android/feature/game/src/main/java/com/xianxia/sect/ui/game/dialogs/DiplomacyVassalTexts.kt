@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.xianxia.sect.core.util.PresentationRandom
 
 
 
@@ -12,14 +13,15 @@ import androidx.compose.runtime.*
 /**
  * 玩家请求附属文本
  * @param sectName 目标宗门名称
+ * @param random 表现类随机源（文案选择不写状态——ADR R3）
  */
-internal fun buildPlayerVassalRequestText(sectName: String): String {
+internal fun buildPlayerVassalRequestText(sectName: String, random: PresentationRandom): String {
     val texts = listOf(
         "贵宗实力尚弱，不如归附我宗。每年上贡灵石，我宗保你周全，如何？",
         "{S}的道友，我宗有意收纳贵宗为附属，每年只需按例上贡，不知意下如何？",
         "道友，我宗如今势大，愿庇护贵宗。归附于我，每年上贡灵石即可，你意如何？"
     )
-    return texts.random().replace("{S}", sectName)
+    return random.pick(texts).replace("{S}", sectName)
 }
 
 /**
@@ -52,41 +54,52 @@ internal fun getVassalAiResponseText(favor: Int, success: Boolean): String {
 /**
  * 玩家回应附属请求文本
  * @param success 是否成功
+ * @param random 表现类随机源（同上）
  */
-internal fun buildPlayerVassalReplyText(success: Boolean): String {
+internal fun buildPlayerVassalReplyText(success: Boolean, random: PresentationRandom): String {
     return if (success) {
-        listOf(
-            "哈哈，好！有我宗一日，必保你宗平安。",
-            "善！从今往后你我二宗便是一体，年年上贡即可。",
-            "放心，我宗自会照拂于你。每年上贡按例即可。"
-        ).random()
+        random.pick(
+            listOf(
+                "哈哈，好！有我宗一日，必保你宗平安。",
+                "善！从今往后你我二宗便是一体，年年上贡即可。",
+                "放心，我宗自会照拂于你。每年上贡按例即可。"
+            )
+        )
     } else {
-        listOf(
-            "既然贵宗无意，那便罢了，告辞。",
-            "是在下唐突了，这便告辞。",
-            "也罢，既然贵宗不愿，那此事不提便是。"
-        ).random()
+        random.pick(
+            listOf(
+                "既然贵宗无意，那便罢了，告辞。",
+                "是在下唐突了，这便告辞。",
+                "也罢，既然贵宗不愿，那此事不提便是。"
+            )
+        )
     }
 }
 
 /**
  * 玩家宣告解散附属文本
+ * @param random 表现类随机源（同上）
  */
-internal fun buildPlayerVassalDissolveText(): String {
-    return listOf(
-        "从今日起，你宗不再是我宗附属，去吧。",
-        "经我宗慎重考虑，从今日起解除附属关系，你宗自便。",
-        "道友，我宗决定解除附属关系。从今往后各走各路，好自为之。"
-    ).random()
+internal fun buildPlayerVassalDissolveText(random: PresentationRandom): String {
+    return random.pick(
+        listOf(
+            "从今日起，你宗不再是我宗附属，去吧。",
+            "经我宗慎重考虑，从今日起解除附属关系，你宗自便。",
+            "道友，我宗决定解除附属关系。从今往后各走各路，好自为之。"
+        )
+    )
 }
 
 /**
  * AI告别回复（被解散附属时）
+ * @param random 表现类随机源（同上）
  */
-internal fun getVassalAiDissolveText(): String {
-    return listOf(
-        "......多谢宗主这些年来照拂。告辞。",
-        "既如此，我宗也不强留。后会无期。",
-        "也好，我宗本就该独立发展。承蒙关照了。"
-    ).random()
+internal fun getVassalAiDissolveText(random: PresentationRandom): String {
+    return random.pick(
+        listOf(
+            "......多谢宗主这些年来照拂。告辞。",
+            "既如此，我宗也不强留。后会无期。",
+            "也好，我宗本就该独立发展。承蒙关照了。"
+        )
+    )
 }

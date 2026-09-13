@@ -33,6 +33,27 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class AISectBattleProcessorTest {
 
+    /**
+     * AI 随机源注入（**必须**）。
+     *
+     * [AISectDiscipleManager] 是进程级 `object`，其随机源解析为注入的
+     * `GameRngManager`（R5：禁止自建随机源）。若不注入，本类会解析到其他测试类
+     * 残留的实例（SmartNull）⇒ `rollMissingCategories` 的 `asKotlinRandom()` 抛
+     * NPE（跨类顺序相关的 flaky）。此处注入固定种子实例：既消除顺序依赖，
+     * 又让 AI 弟子生成确定可复现。
+     */
+    @org.junit.Before
+    fun setUpAiRng() {
+        com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.initialize(
+            com.xianxia.sect.core.util.GameRngManager().also { it.initSystemSeed(AI_RNG_SEED) }
+        )
+    }
+
+    @org.junit.After
+    fun tearDownAiRng() {
+        com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.resetManagerForTest()
+    }
+
     @Test
     fun `processAISectOperations - AI宗门升级链生效 玩家宗门不自动升级`() {
         val processor = createProcessorWith(thermalWith(false, false))
@@ -243,5 +264,10 @@ class AISectBattleProcessorTest {
         // 同月重复调用：monthsSince = 1 > 0 但未达批次阈值 → 同样跳过
         processor.processAISectOperations(2026, 1, state)
         assertEquals("同月重复调用跳过", 0, processor.currentAIBatchMonths())
+    }
+
+    private companion object {
+        /** 本类 AI 流固定种子（消除跨类顺序依赖；AI 弟子生成确定可复现） */
+        const val AI_RNG_SEED = 20260914L
     }
 }

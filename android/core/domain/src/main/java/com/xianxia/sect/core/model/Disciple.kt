@@ -8,7 +8,6 @@ import androidx.room.Entity
 import androidx.room.Ignore
 import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.util.GameRandom
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 
@@ -210,51 +209,6 @@ data class Disciple(
             return CombatAttributes.calculateBaseStatsWithVariance(
                 hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
                 physicalDefenseVariance, magicDefenseVariance, speedVariance
-            )
-        }
-
-        fun fixBaseStats(disciple: Disciple): Disciple {
-            val needsFix = disciple.combat.hpVariance == 0 &&
-                           disciple.combat.mpVariance == 0 &&
-                           disciple.combat.physicalAttackVariance == 0 &&
-                           disciple.combat.magicAttackVariance == 0 &&
-                           disciple.combat.physicalDefenseVariance == 0 &&
-                           disciple.combat.magicDefenseVariance == 0 &&
-                           disciple.combat.speedVariance == 0 &&
-                           disciple.combat.baseHp == 120
-
-            if (!needsFix) return disciple
-
-            val hpVariance = GameRandom.nextInt(-30, 31)
-            val mpVariance = GameRandom.nextInt(-30, 31)
-            val physicalAttackVariance = GameRandom.nextInt(-30, 31)
-            val magicAttackVariance = GameRandom.nextInt(-30, 31)
-            val physicalDefenseVariance = GameRandom.nextInt(-30, 31)
-            val magicDefenseVariance = GameRandom.nextInt(-30, 31)
-            val speedVariance = GameRandom.nextInt(-30, 31)
-
-            val baseStats = calculateBaseStatsWithVariance(
-                hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
-                physicalDefenseVariance, magicDefenseVariance, speedVariance
-            )
-
-            return disciple.copy(
-                combat = disciple.combat.copy(
-                    hpVariance = hpVariance,
-                    mpVariance = mpVariance,
-                    physicalAttackVariance = physicalAttackVariance,
-                    magicAttackVariance = magicAttackVariance,
-                    physicalDefenseVariance = physicalDefenseVariance,
-                    magicDefenseVariance = magicDefenseVariance,
-                    speedVariance = speedVariance,
-                    baseHp = baseStats.baseHp,
-                    baseMp = baseStats.baseMp,
-                    basePhysicalAttack = baseStats.basePhysicalAttack,
-                    baseMagicAttack = baseStats.baseMagicAttack,
-                    basePhysicalDefense = baseStats.basePhysicalDefense,
-                    baseMagicDefense = baseStats.baseMagicDefense,
-                    baseSpeed = baseStats.baseSpeed
-                )
             )
         }
     }

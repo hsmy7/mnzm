@@ -77,10 +77,13 @@ class NativeBackedRngTest {
         manager.attachNativeChannel(channel)
         assertTrue(manager.isDelegatingToNative())
         val exported = manager.exportStates()
-        // 全分区键在位；快照值 == 通道内对应流状态
-        RngPartition.values().forEach { p ->
+        // 参与存档的分区键在位；快照值 == 通道内对应流状态。
+        // AI_SECT_MIRROR 是**通道型分区**（inSnapshot=false，状态归 C++ aiRng_ 保管
+        // 并随同一 9 号键自行落盘）——不进出 rngStates，故此处不遍历它
+        RngPartition.entries.filter { it.inSnapshot }.forEach { p ->
             assertEquals(channel.snapshot(p.id), exported[p.id])
         }
+        assertEquals(RngPartition.entries.count { it.inSnapshot }, exported.size)
         // restore 推入通道（事务回滚守卫路径）
         manager.restoreStates(mapOf(RngPartition.BATTLE.id to 42L))
         assertTrue(RngPartition.BATTLE.id in channel.restoreCalls)

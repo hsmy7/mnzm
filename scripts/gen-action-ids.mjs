@@ -353,6 +353,17 @@ const ACTION_CATALOG = [
   //    （用户可见文案由 Kotlin 臂产出：弟子不存在/已死亡/该特质已不存在））──
   { id: 1732, name: 'SPIRIT_ROOT_WASH_CONFIRM_TX', desc: '洗炼灵根确认替换（元素串合法性 → 覆写 → checkpoint，零 RNG/零玉符）' },
   { id: 1733, name: 'TRAIT_WASH_CONFIRM_TX', desc: '特质单槽确认替换（三态判定 → 替换 + lifespan 同步 + checkpoint，零 RNG/零玉符）' },
+
+  // ── 开袋抽签事务（ADR rng-determinism-remediation 阶段 1①——
+  //    ui-read-surface §4.3 残余域「库存开袋」收口）──
+  //    语义：C++ 只承担**抽签**（消费 EXPLORATION 分区产出确定性抽取描述符序列
+  //    count + kind[i]），模板选择与入库事务留 Kotlin——原因是 13.3 红线要求
+  //    物品发放必须经 InventorySystem.addXxx 统一入口（StackableItemStore 自动
+  //    合并 + withTrackingSource 年度报告 + 溢出转邮件），C++ 侧无该原语；
+  //    且表模板库在 Kotlin 注册表（EquipmentDatabase/ManualDatabase/
+  //    ItemDatabase/HerbDatabase），C++ 不可复刻（路线 B 先例）。
+  //    ⇒ 抽签序（RNG 消费序）归 C++ 真相源、产出可复现；Kotlin 据描述符物化入库。──
+  { id: 1734, name: 'STORAGE_BAG_OPEN_TX', desc: '开袋抽签（EXPLORATION 分区产出 count + kind 描述符序列，模板物化留 Kotlin）' },
 ];
 
 const MAX_ID = ACTION_CATALOG.reduce((m, a) => Math.max(m, a.id), 0);

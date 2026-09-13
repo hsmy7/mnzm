@@ -21,14 +21,14 @@ internal suspend fun performGiftFlow(
     val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
         interactionViewModel.performGiftSpiritStones(sectId, tier)
     }
-    val playerGiftText = buildPlayerGiftText(sectName, tier)
+    val playerGiftText = buildPlayerGiftText(sectName, tier, interactionViewModel.presentationRandom)
     if (result != null) {
         val aiResponseText = if (result.success) {
-            getGiftAiAcceptText(relationLevel)
+            getGiftAiAcceptText(relationLevel, interactionViewModel.presentationRandom)
         } else {
-            getGiftAiRejectText(relationLevel)
+            getGiftAiRejectText(relationLevel, interactionViewModel.presentationRandom)
         }
-        val playerReplyText = buildPlayerReplyText(result.success)
+        val playerReplyText = buildPlayerReplyText(result.success, interactionViewModel.presentationRandom)
         return listOf(
             ChatMessage(text = playerGiftText, isPlayer = true),
             ChatMessage(text = aiResponseText, isPlayer = false),
@@ -117,9 +117,9 @@ internal suspend fun performVassalFlow(
         interactionViewModel.requestVassalContract(sect.id)
     }
     val aiText = getVassalAiResponseText(favor, success)
-    val playerReply = buildPlayerVassalReplyText(success)
+    val playerReply = buildPlayerVassalReplyText(success, interactionViewModel.presentationRandom)
     return listOf(
-        ChatMessage(text = buildPlayerVassalRequestText(sect.name), isPlayer = true),
+        ChatMessage(text = buildPlayerVassalRequestText(sect.name, interactionViewModel.presentationRandom), isPlayer = true),
         ChatMessage(text = aiText, isPlayer = false),
         ChatMessage(text = playerReply, isPlayer = true)
     )
@@ -134,8 +134,8 @@ internal suspend fun performDissolveVassalFlow(
         interactionViewModel.dissolveVassalContract(sectId)
     }
     return listOf(
-        ChatMessage(text = buildPlayerVassalDissolveText(), isPlayer = true),
-        ChatMessage(text = getVassalAiDissolveText(), isPlayer = false),
+        ChatMessage(text = buildPlayerVassalDissolveText(interactionViewModel.presentationRandom), isPlayer = true),
+        ChatMessage(text = getVassalAiDissolveText(interactionViewModel.presentationRandom), isPlayer = false),
         ChatMessage(text = "好自为之。", isPlayer = true)
     )
 }

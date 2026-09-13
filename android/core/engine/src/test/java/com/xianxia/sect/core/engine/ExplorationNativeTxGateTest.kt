@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
@@ -128,7 +129,7 @@ class ExplorationNativeTxGateTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mock<ExplorationFacade>(),
             cultivationFacade = mockCultivationFacade,
             economyFacade = mockEconomyFacade,

@@ -192,10 +192,22 @@ public:
     rng::RngManager& rng() { return rng_; }
     const rng::RngManager& rng() const { return rng_; }
 
-    /// AI 宗门独立分区 RNG（Kotlin AISectDiscipleManager._rng 等价——
+    /// AI 宗门独立分区 RNG（Kotlin AISectDiscipleManager.rng 等价——
     /// 种子 systemSeed + AI_SECT.id(6) × 31337，initForSlot 语义；读档从
-    /// GameData.mapSeed 重播）。AI 弟子生成/招募专用，不入 rngStates 分区。
+    /// GameData.mapSeed 重播）。AI 弟子生成/招募/演化专用。
+    ///
+    /// 归档通道：经 [mirrorAiRng] 把状态镜像到 `kAiSectMirror`(9) 分区，
+    /// 随 `rngStates` 落盘 → AI 演化**读档可续接**（本流与分区 `kAiSect`(6) 是
+    /// 不同种子、不同序列的独立流，不做合并——合并会改 AI 演化行为基线）。
     rng::DeterministicRng& aiRng() { return aiRng_; }
+
+    /// 把 aiRng_ 当前状态镜像到 kAiSectMirror 分区。
+    /// 必须在任何 `syncRngStates()`（导出 `rngStates`）之前调用，否则导出的键 9
+    /// 是陈旧值；读档时若存档含键 9 则以其覆盖 aiRng_（续接归档态），
+    /// 无键（旧档）则保持 `mapSeed + 6×31337` 播种——与既有行为逐位一致。
+    void mirrorAiRng() {
+        rng_.getRng(rng::RngPartition::kAiSectMirror).restore(aiRng_.snapshot());
+    }
 
     /// 推送 AI 热控批量上界（Kotlin ThermalMonitor 平台决策——12/6/3）
     void setAiThermalBatchSize(int32_t batchSize) {

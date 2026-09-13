@@ -21,11 +21,10 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.usedExtendLifePillIds
-import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.util.EngineEntropy
 import java.util.UUID
 
 
@@ -257,10 +256,13 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
-        // 地图种子须在生成世界前产生并播种 AI 分区 RNG——AI 弟子生成（generateWorldSects）
-        // 必须使用已播种的确定性流，否则 fallback RNG 每次新建实例导致初始弟子全员克隆
-        val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
-        AISectDiscipleManager.initForSlot(mapSeed.toLong())
+        // 地图种子须在生成世界前产生；AI 分区 RNG 的播种由随后的
+        // gameRngManager.initSystemSeed 统一完成（Kotlin 全分区 + C++ aiRng_ 同式
+        // `seed + 6×31337`）——AI 弟子生成（generateWorldSects）必须使用已播种的
+        // 确定性流，否则会退化为非确定性来源、初始弟子全员克隆。
+        // 熵源 = EngineEntropy 显式会话熵（非分区 PRNG：mapSeed 是分区种子的上游，
+        // 走分区构成循环依赖；且新档/重启本就要求"新世界"而非可复现重放）
+        val mapSeed = EngineEntropy.nextWorldSeed()
         // 引擎线程播种 8 分区 RNG（线程契约：RNG 播种不得与
         // 引擎线程 RNG 消费并发；收敛到引擎线程同步完成，
         // 确保世界生成期的 GameRngManager 消费已确定性播种）
@@ -328,9 +330,10 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
     return engineContextDispatcher.withEngineContext {
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
         // 每次重启生成新的地图/随机种子，避免全分区 PRNG 种子恒为 0、地图完全相同。
-        // 播种须在生成世界前完成（AI 弟子生成走确定性流，防 fallback RNG 克隆）
-        val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
-        AISectDiscipleManager.initForSlot(mapSeed.toLong())
+        // 熵源同 createNewGame = EngineEntropy 显式会话熵；AI 分区 RNG 的播种
+        // 由下方的 gameRngManager.initSystemSeed 统一完成（Kotlin 全分区 + C++
+        // aiRng_ 同式 `seed + 6×31337`），须在生成世界前完成
+        val mapSeed = EngineEntropy.nextWorldSeed()
         // 全局分区重播种并入引擎
         // 重启操作——与 createNewGame 的"播种在引擎线程、生成世界前完成"模式
         // 对齐（线程契约：播种不得在 UI 协程跨线程执行）。

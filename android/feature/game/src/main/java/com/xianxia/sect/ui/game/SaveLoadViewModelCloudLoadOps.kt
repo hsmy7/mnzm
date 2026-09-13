@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import android.util.Log
-import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.loadData
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
@@ -162,10 +161,9 @@ internal suspend fun SaveLoadViewModel.applyCloudSaveToEngine(reconciled: SaveDa
             productionSlots = reconciled.productionSlots
         )
 
-        // 与本地读档路径（performLoadToSlot）一致——基于地图种子播种
-        // AI 宗门 RNG，保证 AI 弟子/宗门行为按地图种子确定性生成
-        val loadedGd = gameEngine.gameData.value
-        AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
+        // 与本地读档路径一致：AI 宗门 RNG 不在此播种——真源 = C++ GameCore::aiRng_，
+        // 随 rngStates 9 号键（AI_SECT_MIRROR）续接归档态；旧档无该键时 native 侧按
+        // GameData.mapSeed + 6×31337 播种（原 initForSlot 语义，见 applyLoadedSaveToEngine KDoc）
 
         val bootResult = persistenceFacade.bootSequenceController.boot(
             slot = effectiveSlot,

@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.clickableWithSound
@@ -80,32 +81,36 @@ internal fun GiftOptionsPanel(
  * 玩家送礼描述文本
  * @param sectName 目标宗门名称
  * @param tier 送礼档位 (1-4)
+ * @param random 表现类随机源（文案选择不写任何状态，ADR R3：表现随机与决策随机隔离）
  */
-internal fun buildPlayerGiftText(sectName: String, tier: Int): String {
+internal fun buildPlayerGiftText(sectName: String, tier: Int, random: PresentationRandom): String {
     val texts = GIFTS_TEMPLATES[tier] ?: listOf("${sectName}的道友，这是我宗的一点心意，还请笑纳。")
-    return texts.random().replace("{S}", sectName)
+    return random.pick(texts).replace("{S}", sectName)
 }
 
 /**
  * AI接受送礼文本
  * @param relationLevel 当前关系等级
+ * @param random 表现类随机源（同上）
  */
-internal fun getGiftAiAcceptText(relationLevel: SectRelationLevel): String {
-    return (GIFT_AI_ACCEPT_TEXTS[relationLevel] ?: listOf("多谢道友厚礼。")).random()
+internal fun getGiftAiAcceptText(relationLevel: SectRelationLevel, random: PresentationRandom): String {
+    return random.pick(GIFT_AI_ACCEPT_TEXTS[relationLevel] ?: listOf("多谢道友厚礼。"))
 }
 
 /**
  * AI拒绝送礼文本
  * @param relationLevel 当前关系等级
+ * @param random 表现类随机源（同上）
  */
-internal fun getGiftAiRejectText(relationLevel: SectRelationLevel): String {
-    return (GIFT_AI_REJECT_TEXTS[relationLevel] ?: listOf("本宗不能接受。")).random()
+internal fun getGiftAiRejectText(relationLevel: SectRelationLevel, random: PresentationRandom): String {
+    return random.pick(GIFT_AI_REJECT_TEXTS[relationLevel] ?: listOf("本宗不能接受。"))
 }
 
 /**
  * 玩家回应送礼文本
  * @param success 送礼是否成功（接受=true，拒绝=false）
+ * @param random 表现类随机源（同上）
  */
-internal fun buildPlayerReplyText(success: Boolean): String {
-    return (if (success) PLAYER_REPLY_ACCEPT_TEXTS else PLAYER_REPLY_REJECT_TEXTS).random()
+internal fun buildPlayerReplyText(success: Boolean, random: PresentationRandom): String {
+    return random.pick(if (success) PLAYER_REPLY_ACCEPT_TEXTS else PLAYER_REPLY_REJECT_TEXTS)
 }

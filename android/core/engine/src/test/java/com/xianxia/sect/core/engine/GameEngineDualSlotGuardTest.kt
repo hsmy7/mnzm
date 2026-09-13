@@ -175,7 +175,7 @@ class GameEngineDualSlotGuardTest {
             gameEngineCore = mockCore,
             engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
-            gameRngManager = mock(),
+            gameRngManager = GameRngManager(),
             explorationFacade = mockExplorationFacade,
             cultivationFacade = mockCultivationFacade,
             economyFacade = mockEconomyFacade,

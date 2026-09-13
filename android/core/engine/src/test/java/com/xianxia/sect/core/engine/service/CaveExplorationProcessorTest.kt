@@ -18,6 +18,26 @@ import org.junit.Test
 
 class CaveExplorationProcessorTest {
 
+    /**
+     * AI 随机源注入（**必须**）。
+     *
+     * [com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager] 是进程级
+     * `object`，随机源解析为注入的 `GameRngManager`（R5：禁止自建随机源）。年度招募
+     * 路径会生成 AI 弟子 ⇒ 不注入会解析到其他测试类残留的实例并抛 NPE（跨类顺序
+     * 相关 flaky）。固定种子实例同时保证生成结果确定可复现。
+     */
+    @org.junit.Before
+    fun setUpAiRng() {
+        com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.initialize(
+            com.xianxia.sect.core.util.GameRngManager().also { it.initSystemSeed(AI_RNG_SEED) }
+        )
+    }
+
+    @org.junit.After
+    fun tearDownAiRng() {
+        com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.resetManagerForTest()
+    }
+
     // ── buildDefenseBattleEnemies 测试 ──
 
     @Test
@@ -272,5 +292,10 @@ class CaveExplorationProcessorTest {
             realm = realm,
             isAlive = isAlive
         )
+    }
+
+    private companion object {
+        /** 本类 AI 流固定种子（消除跨类顺序依赖；年度招募生成确定可复现） */
+        const val AI_RNG_SEED = 20260914L
     }
 }

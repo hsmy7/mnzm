@@ -28,6 +28,7 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.engine.domain.battle.ActionType
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.battle.EnemyAction
+import com.xianxia.sect.core.util.PresentationRandom
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.CloseButton
@@ -179,7 +180,11 @@ fun HeavenlyTrialCombatScreen(
     HeavenlyTrialCombatEffects(state = state, viewModel = viewModel)
     Box(modifier = Modifier.fillMaxSize()) {
         HeavenlyTrialBattleBackdrop()
-        HeavenlyTrialBattleGrid(state = state, currentCombatant = state.currentCombatant)
+        HeavenlyTrialBattleGrid(
+            state = state,
+            currentCombatant = state.currentCombatant,
+            random = viewModel.presentationRandom
+        )
         HeavenlyTrialDamageOverlay(state = state)
         HeavenlyTrialTopBar(currentRound = state.currentRound, onClose = { state.showExitConfirm = true })
         HeavenlyTrialSkipButton(state = state, coroutineScope = coroutineScope)
@@ -502,7 +507,8 @@ private fun BoxScope.HeavenlyTrialBattleBackdrop() {
 @Composable
 private fun HeavenlyTrialBattleGrid(
     state: HeavenlyTrialCombatState,
-    currentCombatant: Combatant?
+    currentCombatant: Combatant?,
+    random: PresentationRandom
 ) {
     // 6×6 战斗网格（36格）
     // 单位布局: 己方 col=1(第二列), 敌方 col=4(第五列), rows=1-3
@@ -522,6 +528,7 @@ private fun HeavenlyTrialBattleGrid(
                         state = state,
                         gridPositions = gridPositions,
                         currentCombatant = currentCombatant,
+                        random = random,
                         row = row,
                         col = col
                     )
@@ -538,6 +545,7 @@ private fun RowScope.HeavenlyTrialBattleGridCell(
     state: HeavenlyTrialCombatState,
     gridPositions: Map<String, Pair<Int, Int>>,
     currentCombatant: Combatant?,
+    random: PresentationRandom,
     row: Int,
     col: Int
 ) {
@@ -568,6 +576,7 @@ private fun RowScope.HeavenlyTrialBattleGridCell(
 
     CombatUnitCell(
         combatant = cellCombatant,
+        random = random,
         isCurrent = isCurrent,
         isAllySelected = allySelected,
         isEnemySelected = enemySelected,

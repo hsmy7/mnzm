@@ -154,6 +154,24 @@ internal class InventoryNativeTx(
         return data.str("confiscated") == "true"
     }
 
+    /**
+     * 开袋抽签事务（ADR 随机源治理 阶段 1①）。
+     *
+     * C++ 只消费 `EXPLORATION` 分区产出**抽取描述符序列**（件数 + 逐件种类），
+     * 不触碰游戏状态；模板物化与 `addXxx` 入仓留 Kotlin（13.3 红线 + 模板库在
+     * Kotlin 注册表，C++ 不可复刻）。@return native 已处理返回种类下标序列
+     * （长度 ∈ [5,20]）；未转发/信封异常返回 null（调用方以同一分区 RNG
+     * 走 [rollRewardDraws] 产出同序序列）
+     */
+    fun drawStorageBag(bagId: String, rarity: Int): List<Int>? {
+        val data = tx(ActionIds.STORAGE_BAG_OPEN_TX) {
+            put("bagId", bagId)
+            put("rarity", rarity)
+        } ?: return null
+        val draws = (data as? JsonObject)?.get("draws") as? JsonArray ?: return null
+        return draws.mapNotNull { (it as? JsonObject)?.get("kind")?.let { k -> k.toString().toIntOrNull() } }
+    }
+
     /** 溢出草稿投递（信封 overflowDrafts → InventoryNativeForward 同一解析/投递通道）。 */
     private fun deliverOverflowDrafts(system: InventorySystem, data: JsonElement) {
         val drafts = (data as? JsonObject)?.get("overflowDrafts") as? JsonArray ?: return

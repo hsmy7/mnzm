@@ -533,8 +533,13 @@ private fun rememberMainGameScreenMapTiles(
     }
     // 浮空岛边缘布局（C++ 单一权威合成器；一次性预计算——仅地图尺寸/种子
     //   （进入不同宗门地图）变化时重建，Camera 平移/缩放不重建。native 通道
-    //   不可用（JVM 测试环境/极端损坏）→ null：双端跳过边缘层（同道路层降级）
-    val islandCliffData = rememberIslandCliffData(mapPreloadData)
+    //   不可用（JVM 测试环境/极端损坏）→ null：双端跳过边缘层（同道路层降级）。
+    //   textureMask = 崖壁纹理可用掩码（Compose 可观察）——加载完成/部分失败时
+    //   掩码变化驱动布局重建（未上传成功的条目由合成器跳过，部分降级不整层消失）；
+    //   视图尚未创建时按"全可用"乐观取值（与持有者初值同口径）
+    val islandCliffTextureMask = state.nativeSurfaceView?.islandCliffTextures?.textureMask?.value
+        ?: ((1 shl IslandCliffBridge.TextureIndex.COUNT) - 1)
+    val islandCliffData = rememberIslandCliffData(mapPreloadData, islandCliffTextureMask)
     return MainGameScreenMapTiles(
         flatTileData = flatTileData,
         buildingDataArray = buildingDataArray,

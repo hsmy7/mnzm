@@ -647,16 +647,33 @@ class InventoryFacadeImpl @Inject constructor(
 
     // ── Storage bag ──────────────────────────────────────────────────────
 
+    /**
+     * 开启储物袋（ADR 随机源治理 阶段 1①：抽签归 C++ 真相源）。
+     *
+     * 抽签（件数 + 逐件种类）走 `EXPLORATION` 分区；**模板选择同样必须显式消费
+     * 该分区**（历史上 6 处抽签回落 `Random.Default` 默认实参 ⇒ 同一存档两次开袋
+     * 产出不同，不可复现）。两臂同序：
+     * - native 臂：C++ `storage_bag_tx.h` 消费分区产出 `draws`，Kotlin 据下标物化
+     * - 回退臂：Kotlin 用同一分区 RNG 走 [rollRewardDraws]，产出同序同起点
+     *
+     * 入库仍走 [consumeStorageBagAndGrant]（13.3 红线：物品发放必须经
+     * `InventorySystem.addXxx` 统一入口——`StackableItemStore` 自动合并 +
+     * `withTrackingSource` 年度报告 + 溢出转邮件，C++ 侧无该原语）。
+     */
     override suspend fun openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>> {
-        /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
+        // 抽签随机流走 EXPLORATION 分区（妖兽移动/关卡生成/掠夺物品同类探索域随机）
         val rng = gameRngManager.getRng(RngPartition.EXPLORATION)
 
         // 先读 rarity（锁外快照），用于决定奖励生成参数
         val rarity = stateStore.storageBags.value.find { it.id == bagId }?.rarity
             ?: return Pair(emptyList(), emptyList())
 
+        // 抽签：native 优先（C++ 分区真相源）；未转发/失败 → Kotlin 同序抽签
+        val draws = nativeTx.drawStorageBag(bagId = bagId, rarity = rarity)
+            ?: rollRewardDraws(rng)
+
         // 生成奖励（不变更状态，仅生成物品实例）
-        val batch = generateStorageBagRewards(rng = rng, rarity = rarity)
+        val batch = generateStorageBagRewardsFromDraws(draws = draws, rarity = rarity, rng = rng)
 
         // 单事务原子写入：消耗储物袋 + 发放所有奖励
         // （手动-消耗类路径：统一委托 addXxx，仓库满时溢出自动转邮件，物品不丢失）
@@ -688,47 +705,6 @@ class InventoryFacadeImpl @Inject constructor(
         var spiritStones = 0L
     }
 
-    /** 丹药条目 */
-    internal fun StorageBagRewardBatch.generatePillReward(rarity: Int) {
-        val pill = ItemDatabase.generateRandomPill(rarity, rarity)
-        pills.add(pill)
-        rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity,
-            type = "pill"))
-    }
-
-    /** 草药条目 */
-    internal fun StorageBagRewardBatch.generateHerbReward(rarity: Int) {
-        val templates = HerbDatabase.getHerbsByTier(rarity)
-        if (templates.isNotEmpty()) {
-            val h = templates.random()
-            val herb = Herb(id = UUID.randomUUID().toString(), name = h.name, rarity = h.rarity,
-                description = h.description, category = h.category, quantity = 1)
-            herbs.add(herb)
-            rewards.add(BattleRewardItem(itemId = herb.id, name = herb.name, quantity = 1, rarity = herb.rarity,
-                type = "herb"))
-        }
-    }
-
-    /** 种子条目 */
-    internal fun StorageBagRewardBatch.generateSeedReward(rarity: Int) {
-        val templates = HerbDatabase.getAllSeeds().filter { it.rarity == rarity }
-        if (templates.isNotEmpty()) {
-            val s = templates.random()
-            val seed = Seed(id = UUID.randomUUID().toString(), name = s.name, rarity = s.rarity,
-                description = s.description, growTime = s.growTime, yield = s.yield, quantity = 1)
-            seeds.add(seed)
-            rewards.add(BattleRewardItem(itemId = seed.id, name = seed.name, quantity = 1, rarity = seed.rarity,
-                type = "seed"))
-        }
-    }
-
-    /** 材料条目 */
-    internal fun StorageBagRewardBatch.generateMaterialReward(rarity: Int) {
-        val mat = ItemDatabase.generateRandomMaterial(rarity, rarity)
-        materials.add(mat)
-        rewards.add(BattleRewardItem(itemId = mat.id, name = mat.name, quantity = 1, rarity = mat.rarity,
-            type = "material"))
-    }
 
     /** 储物袋消耗与奖励入仓：单事务原子写入 */
     internal fun MutableGameState.consumeStorageBagAndGrant(bagId: String, batch: StorageBagRewardBatch) {

@@ -129,33 +129,51 @@ class SpiritRootConfigTest {
     }
 
     // ============================================================
-    // SpiritRoot 对象 - generateRandomSpiritRootCount 范围验证
+    // SpiritRoot 对象 - rollSpiritRootCount（纯函数）值域与分布验证
+    // 随机源由调用方提供：测试用固定种子 DeterministicRng 保证可复现
+    // （旧版经 GameRandom 的挂钟种子属不可复现来源，已随对象摘除）
     // ============================================================
 
+    /**
+     * 确定性随机值序列：`index / count` 等差铺满 `[0, 1)`——
+     * **零外部依赖且必然覆盖全部累积区间**（比种子 PRNG 更稳：不依赖抽样运气）
+     */
+    private fun deterministicRands(count: Int): List<Double> =
+        List(count) { index -> index.toDouble() / count.toDouble() }
+
     @Test
-    fun `随机生成灵根数量应在1到5范围内_单次调用`() {
-        val count = GameConfig.SpiritRoot.generateRandomSpiritRootCount()
-        assertTrue("生成的灵根数量 $count 应 >= 1", count >= 1)
-        assertTrue("生成的灵根数量 $count 应 <= 5", count <= 5)
+    fun `灵根数量单次映射应落在1到5范围内`() {
+        val count = GameConfig.SpiritRoot.rollSpiritRootCount(0.5)
+        assertTrue("映射出的灵根数量 $count 应 >= 1", count >= 1)
+        assertTrue("映射出的灵根数量 $count 应 <= 5", count <= 5)
     }
 
     @Test
-    fun `随机生成灵根数量多次调用均应在范围内`() {
-        repeat(100) {
-            val count = GameConfig.SpiritRoot.generateRandomSpiritRootCount()
-            assertTrue("第${it + 1}次生成: $count 超出范围[1,5]", count in 1..5)
+    fun `灵根数量对全域随机值均应在范围内`() {
+        deterministicRands(100).forEachIndexed { index, rand ->
+            val count = GameConfig.SpiritRoot.rollSpiritRootCount(rand)
+            assertTrue("第${index + 1}次（rand=$rand）: $count 超出范围[1,5]", count in 1..5)
         }
     }
 
     @Test
-    fun `随机生成灵根数量多次调用应覆盖所有可能值`() {
+    fun `灵根数量映射应覆盖所有可能值`() {
         val results = mutableSetOf<Int>()
-        // 灵根数量 1 权重仅 1%（时间种子 GameRandom），500 次采样未覆盖失败率 ≈0.66%（预存 flaky），加至 5000 次
-        repeat(5000) {
-            results.add(GameConfig.SpiritRoot.generateRandomSpiritRootCount())
-        }
+        // 等差铺满 [0,1)：必然命中每个累积区间（旧版按权重 1% 的档位需 5000 次采样才不 flaky）
+        deterministicRands(5000).forEach { results.add(GameConfig.SpiritRoot.rollSpiritRootCount(it)) }
         for (expected in 1..5) {
             assertTrue("未覆盖灵根数量 $expected (5000次采样)", results.contains(expected))
         }
+    }
+
+    @Test
+    fun `灵根数量映射边界值语义 — 0.0 取最小权重档, 接近 1.0 走回退`() {
+        // 单调性：随机值越小越可能落在低数量档（COUNT_WEIGHTS 升序累积）
+        val smallest = GameConfig.SpiritRoot.rollSpiritRootCount(0.0)
+        assertEquals("rand=0.0 应落在首个累积区间", 1, smallest)
+        // 权重和 <1.0 时回退 5（域日志告警）；当前配置权重和为 1.0，
+        // 此处只断言"恒在值域内"以防未来配置漂移导致越界
+        val fallbackProbe = GameConfig.SpiritRoot.rollSpiritRootCount(0.999999)
+        assertTrue("rand 接近 1.0 的映射必须仍在 [1,5]：实测 $fallbackProbe", fallbackProbe in 1..5)
     }
 }

@@ -221,6 +221,8 @@ bool GameCore::initialize(const GameCoreConfig& config) {
         // initForSlot(systemSeed)——aiSeed = systemSeed + AI_SECT.id(6)×31337）
         aiRng_ = rng::DeterministicRng::fromSeed(
             config.systemSeed + static_cast<int64_t>(6) * 31337LL);
+        // 同步镜像分区初值，使 syncRngStates 导出的键 9 与 aiRng_ 一致
+        mirrorAiRng();
     }
     // 每旬弟子结算钩子——六步结算（恢复/修炼/熟练度/
     // 孕养/丹药/突破），RNG 仅消耗 BREAKTHROUGH 分区，抽取顺序与 Kotlin
@@ -412,28 +414,43 @@ int GameCore::watchdogVerdict(const WatchdogFlags& flags) {
 
 int32_t GameCore::rngNextInt(int partitionId) {
     if (!initialized_ || partitionId < 0 ||
-        partitionId > static_cast<int>(rng::RngPartition::kSecretRealm)) {
+        partitionId > rng::RngManager::kMaxPartitionId) {
         logger_->log(LogLevel::kWarn, "GameCore",
                      "rngNextInt: invalid partition " + std::to_string(partitionId));
         return 0;
+    }
+    // 镜像分区（9）直取 AI 流本体——Kotlin NativeBackedRng 委托模式下
+    // AISectDiscipleManager 的抽取即此流（与 C++ 月结/年结消费的 aiRng_ 同源）
+    if (static_cast<rng::RngPartition>(partitionId) == rng::RngPartition::kAiSectMirror) {
+        return aiRng_.nextInt();
     }
     return rng_.getRng(static_cast<rng::RngPartition>(partitionId)).nextInt();
 }
 
 int64_t GameCore::rngSnapshotPartition(int partitionId) {
     if (!initialized_ || partitionId < 0 ||
-        partitionId > static_cast<int>(rng::RngPartition::kSecretRealm)) {
+        partitionId > rng::RngManager::kMaxPartitionId) {
         return 0;
+    }
+    if (static_cast<rng::RngPartition>(partitionId) == rng::RngPartition::kAiSectMirror) {
+        return aiRng_.snapshot();
     }
     return rng_.getRng(static_cast<rng::RngPartition>(partitionId)).snapshot();
 }
 
 bool GameCore::rngRestorePartition(int partitionId, int64_t state) {
     if (!initialized_ || partitionId < 0 ||
-        partitionId > static_cast<int>(rng::RngPartition::kSecretRealm)) {
+        partitionId > rng::RngManager::kMaxPartitionId) {
         logger_->log(LogLevel::kWarn, "GameCore",
                      "rngRestorePartition: invalid partition " + std::to_string(partitionId));
         return false;
+    }
+    // 镜像分区双向对称：写 aiRng_ 本体 **且** 同步镜像分区，
+    // 使随后 syncRngStates/exportStates 导出的键 9 恒等于 aiRng_ 真态
+    if (static_cast<rng::RngPartition>(partitionId) == rng::RngPartition::kAiSectMirror) {
+        aiRng_.restore(state);
+        rng_.getRng(rng::RngPartition::kAiSectMirror).restore(state);
+        return true;
     }
     rng_.getRng(static_cast<rng::RngPartition>(partitionId)).restore(state);
     return true;
@@ -442,6 +459,10 @@ bool GameCore::rngRestorePartition(int partitionId, int64_t state) {
 void GameCore::rngInitSystemSeed(int64_t seed) {
     if (!initialized_) return;
     rng_.initSystemSeed(seed);
+    // AI 流随系统种子重播（Kotlin initSystemSeed 的调用点 = createNewGame/
+    // restartGame 的"播种在引擎线程、生成世界前完成"契约）：与 GameCore::initialize
+    // 同式，否则新档/重启后 aiRng_ 仍停在上一个存档的序列上
+    aiRng_ = rng::DeterministicRng::fromSeed(seed + static_cast<int64_t>(6) * 31337LL);
     syncRngStates();
 }
 std::string GameCore::exportStateJson() {
@@ -487,7 +508,21 @@ bool GameCore::importStateInternal(const std::string& json, bool restoreRng) {
         // 镜像 rngStates 可能滞后，恢复会造成分区回卷与跨语言漂移。
         if (restoreRng) {
             rng_.restoreStates(state_.gameData.rngStates);
+            // AI 流归档续接：存档含键 9（新档格式）→ 以其覆盖上面的 mapSeed 重播，
+            // 使"存档→读档→推进"的 AI 演化与不中断逐位一致；旧档无键 9 →
+            // 保持 mapSeed + 6×31337 播种（与引入镜像前的行为逐位一致，零回归）
+            // 0 显式排除：PCG-XSH-RR 的 state = (seed<<1)|1 后经一轮混合，
+            // **数学上不可能为 0**，故 0 只可能是"旧档无该键时的缺省填充"，
+            // 不能据此覆盖 aiRng_（否则会把合法的 mapSeed 播种态回卷掉）
+            const auto aiIt = state_.gameData.rngStates.find(
+                static_cast<int32_t>(rng::RngPartition::kAiSectMirror));
+            if (aiIt != state_.gameData.rngStates.end() && aiIt->second != 0) {
+                aiRng_.restore(aiIt->second);
+            }
         }
+        // 导出侧一致性：无论是否续接，键 9 都必须等于 aiRng_ 真态
+        // （restoreRng=false 的每旬回导分支同样需要——否则下次导出的键 9 会是陈旧值）
+        mirrorAiRng();
         // 导入即 reseed：id 计数器生命周期与存档对齐——
         // 计数器推到存档已见最大后缀 +1 之后，重启读档后新分配的 id 不可能
         // 与存档既有 id 撞号。只推高不回退：重复导入幂等（R3：源头错位修复）。
@@ -607,7 +642,19 @@ bool GameCore::applyReverseDirty(const std::string& dirtyJson) {
 }
 
 void GameCore::syncRngStates() {
+    // 导出前刷新 AI 镜像分区（键 9 = aiRng_ 真态）——AI 演进发生在月结/年结/
+    // 招募等任意路径，若不在此刷新，导出的键 9 会停留在上次镜像时的陈旧值，
+    // 读档续接即回卷（与"每旬回导"同族的漂移缺陷）
+    mirrorAiRng();
     state_.gameData.rngStates = rng_.exportStates();
+    // 键 6（kAiSect）**不再写入导出面**：AI 域真实消费的流是 aiRng_
+    //（键 9 = aiRng_ 真态），而 kAiSect 分区仅供 Kotlin 委托通道消费——
+    // 阶段 1② 归一后 Kotlin 侧 AI 抽取改走通道/本地等价流，6 号键在两侧都不再
+    // 是"AI 流态"的载体。继续导出会让跨语言对拍读到一条两侧序列本就不同的键
+    //（Kotlin 6 号停在播种态 vs 宿主 6 号被 AI 演进推进），制造伪分歧。
+    // 读档兼容不受影响：restoreStates 对未知/缺键按键集遍历，旧档的 6 号
+    // 仍会被恢复进 kAiSect 分区（该分区无生产消费者，恢复与否无行为差异）。
+    state_.gameData.rngStates.erase(static_cast<int32_t>(rng::RngPartition::kAiSect));
 }
 
 std::string GameCore::manualRecruitFromList(const std::string& discipleId) {

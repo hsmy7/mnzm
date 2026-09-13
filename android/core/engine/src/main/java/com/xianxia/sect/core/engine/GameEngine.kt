@@ -54,6 +54,7 @@ import com.xianxia.sect.core.engine.domain.building.BuildingService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.domain.exploration.resolveBeastAttackFight
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.engine.domain.save.SaveService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -169,6 +170,9 @@ class GameEngine @Inject constructor(
         aisRngManager = gameRngManager
         enemyGenRngManager = gameRngManager
         teamComposerRngManager = gameRngManager
+        // AI 弟子域随机源归一：摘除自持影子流，接入真源分区
+        //（委托模式 → AI_SECT_MIRROR = C++ aiRng_ 本体；回退 → AI_SECT 本地等价）
+        AISectDiscipleManager.initialize(gameRngManager)
     }
 
 

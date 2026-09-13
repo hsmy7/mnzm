@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game
 
 import android.util.Log
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.loadData
 import com.xianxia.sect.core.engine.setSaveLoadFlags
 import com.xianxia.sect.data.model.SaveData
@@ -163,7 +162,16 @@ internal suspend fun SaveLoadViewModel.loadSaveDataForSlot(saveSlot: SaveSlot, l
     return saveData
 }
 
-/**读档数据应用：setCurrentSlot + loadData + AI 宗门 RNG 初始化 */
+/**
+ * 读档数据应用：setCurrentSlot + loadData。
+ *
+ * RNG 分区恢复已收敛到 `GameStateStoreImpl.loadFromSnapshot` 锁内（状态 + RNG
+ * 原子切换），此处不重复 restoreStates。AI 宗门 RNG 亦不在此播种：其真源 =
+ * C++ `GameCore::aiRng_`，随 `rngStates` 9 号键（`AI_SECT_MIRROR`）在读档时续接
+ * 归档态；无键（旧档）时 native 侧按 `GameData.mapSeed + 6×31337` 播种——原
+ * `initForSlot` 的语义由 native 承接，Kotlin 侧 `AISectDiscipleManager.rng`
+ * 直接委托同一分区（委托模式经 `NativeBackedRng(9)`，回退模式经 `AI_SECT`）。
+ */
 internal suspend fun SaveLoadViewModel.applyLoadedSaveToEngine(saveData: SaveData, effectiveSlot: Int) {
     persistenceFacade.storageFacade.setCurrentSlot(effectiveSlot)
     gameEngine.loadData(
@@ -182,12 +190,6 @@ internal suspend fun SaveLoadViewModel.applyLoadedSaveToEngine(saveData: SaveDat
         alliances = saveData.alliances,
         productionSlots = saveData.productionSlots
     )
-
-    // RNG 分区恢复已收敛到 GameStateStoreImpl.loadFromSnapshot 锁内
-    // （状态 + RNG 原子切换），此处不再重复 restoreStates
-    val loadedGd = gameEngine.gameData.value
-    // 初始化 AI 宗门 RNG（基于地图种子确保确定性）
-    AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
 }
 
 /**读档启动序列：BootSequenceController.boot + 福利注入 */

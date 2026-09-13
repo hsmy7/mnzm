@@ -109,6 +109,7 @@ add_executable(game-core-tests
     patrol_tx_test.cpp
     sect_attack_tx_test.cpp
     lock_beast_tx_test.cpp
+    storage_bag_tx_test.cpp
 )
 
 target_link_libraries(game-core-tests PRIVATE game-core gtest_main)

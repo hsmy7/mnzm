@@ -175,59 +175,5 @@ internal inline fun <T> InventoryFacadeImpl.removeMatching(
     }
 }
 
-/** 储物袋奖励生成：不变更状态，仅生成物品实例 */
-internal fun InventoryFacadeImpl.generateStorageBagRewards(rng: DeterministicRng, rarity: Int): StorageBagRewardBatch {
-    val batch = StorageBagRewardBatch()
-    /** 结构数量（与 [SpriteAtlasDef.STRUCTURES] 同序同量）。 */
-    val count = 5 + rng.nextInt(16)
-    repeat(count) {
-        when (rng.nextInt(7)) {
-            0 -> batch.generateEquipmentReward(rarity = rarity)
-            1 -> batch.generateManualReward(rarity = rarity)
-            2 -> batch.generatePillReward(rarity = rarity)
-            3 -> batch.generateHerbReward(rarity = rarity)
-            4 -> batch.generateSeedReward(rarity = rarity)
-            5 -> batch.generateMaterialReward(rarity = rarity)
-            6 -> batch.generateSpiritStoneReward(rarity = rarity)
-        }
-    }
-    return batch
-}
-
-/** 装备条目 */
-
-internal fun StorageBagRewardBatch.generateEquipmentReward(rarity: Int) {
-    val stack = EquipmentDatabase.generateRandom(rarity, rarity)
-    equipment.add(stack)
-    rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity,
-        type = "equipment"))
-}
-
-/** 功法条目 */
-
-internal fun StorageBagRewardBatch.generateManualReward(rarity: Int) {
-    if (ManualDatabase.isInitialized) {
-        val templates = ManualDatabase.getByRarity(rarity)
-        if (templates.isNotEmpty()) {
-            val stack = ManualDatabase.createFromTemplate(templates.random())
-            manuals.add(stack)
-            rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity,
-                type = "manual"))
-        }
-    }
-}
-
-/** 灵石条目：合并进 spiritStones 奖励卡片 */
-internal fun StorageBagRewardBatch.generateSpiritStoneReward(rarity: Int) {
-    val amount = StorageBag.SPIRIT_STONE_AMOUNTS.getOrElse(rarity - 1) { 500L }
-    spiritStones += amount
-    val existing = rewards.find { it.type == "spiritStones" }
-    if (existing != null) {
-        rewards[rewards.indexOf(existing)] = existing.copy(quantity = existing.quantity + amount.toInt())
-    } else {
-        rewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = amount.toInt(), rarity = 1,
-            type = "spiritStones"))
-    }
-}
 
 /** 储物袋消耗与奖励入仓：单事务原子写入 */
