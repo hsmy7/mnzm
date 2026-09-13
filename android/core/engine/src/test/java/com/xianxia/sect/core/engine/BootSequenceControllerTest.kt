@@ -66,8 +66,8 @@ class BootSequenceControllerTest {
         buildingConfigService = mock()
         mailService = mock()
 
-        // 天枢殿当前配置占地 18×13（filterLegacyTianshuHalls 判定用）
-        whenever(buildingConfigService.getBuildingGridSize("天枢殿")).thenReturn(18 to 13)
+        // 天枢殿旧档判定用**历史尺寸白名单**（TIANSHU_LEGACY_FOOTPRINTS = 6×3 / 12×6），
+        // 不再依赖当前配置尺寸——此处无需 stub getBuildingGridSize
 
         // EngineContextDispatcher: 使用 Fake 确保 extension 函数内部 withEngineContext 正常执行
         whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
@@ -217,6 +217,32 @@ class BootSequenceControllerTest {
         assertTrue(
             "当前尺寸天枢殿（18×13）应保留",
             stateStore.gameData.value.placedBuildings.any { it.instanceId == "new_tianshu" }
+        )
+        verify(mailService, never()).insertMail(any())
+    }
+
+    @Test
+    fun `boot - 非历史尺寸天枢殿保留且不发补偿邮件_尺寸调整零拆除`() = runTest {
+        // 根因回归（端到端）：旧判据「尺寸 ≠ 当前配置」下，任何一次天枢殿配置尺寸调整
+        // 都会让存量天枢殿被判定为"旧档遗留"并拆除 + 补偿。现白名单口径下，
+        // 非历史尺寸（未来调整后的新尺寸）由 fixupBuildingSizes 正常改写尺寸并保留。
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        stateStore.update {
+            gameData = GameData(
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "天枢殿", gridX = 10, gridY = 10,
+                        width = 20, height = 14, instanceId = "future_tianshu")
+                )
+            )
+        }
+
+        val result = controller.boot(slot = 1, onSuccess = {})
+
+        assertTrue("boot should succeed", result.isSuccess)
+        assertTrue(
+            "非历史尺寸天枢殿不得被删除（尺寸调整不得触发全服拆殿）",
+            stateStore.gameData.value.placedBuildings.any { it.instanceId == "future_tianshu" }
         )
         verify(mailService, never()).insertMail(any())
     }

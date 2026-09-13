@@ -292,26 +292,39 @@ private const val SPIRIT_FIELD_NAME = "灵田"
 internal const val TIANSHU_HALL_DISPLAY_NAME = "天枢殿"
 
 /**
- * 识别旧档遗留天枢殿。
+ * 旧档遗留天枢殿的**历史占地尺寸白名单**。
  *
- * 旧档遗留的天枢殿尺寸与当前配置不符。读档时直接删除旧档天枢殿并
- * 通过邮件补偿 1000 万灵石
+ * 天枢殿历史上经过多次占地调整：`6×3`（初版）→ `12×6`（扩容批）→ `18×13`（现行）。
+ * 只有出自旧版存档的这两个历史尺寸，才走"删除 + 补偿 1000 万灵石"路径。
+ *
+ * **判据口径更正（根因修复）**：旧判据是「占地尺寸 ≠ 当前配置尺寸」——任何一次配置尺寸调整
+ * 都会把全服存量的天枢殿判成"旧档遗留"并**拆除 + 补偿**（改尺寸 = 全服拆殿事故，也正是
+ * 此前"天枢殿占地不可动"的由来）。现改为显式历史白名单：尺寸不命中白名单者（含现行配置尺寸
+ * 与未来任何新尺寸）一律交给 [com.xianxia.sect.core.config.BuildingConfigService.fixupBuildingSizes]
+ * 正常改写尺寸并在越界时钳位坐标，**绝不删除建筑**。
+ *
+ * 白名单维护约定：仅当某尺寸**曾经真实发布过**且需要走删除补偿路径时才加入；
+ * **现行配置尺寸永远不得加入**（守卫测试 `BuildingLoadSelfHealTest` 锁定该不变量）。
+ */
+internal val TIANSHU_LEGACY_FOOTPRINTS: Set<Pair<Int, Int>> = setOf(6 to 3, 12 to 6)
+
+/**
+ * 识别旧档遗留天枢殿（占地尺寸命中 [TIANSHU_LEGACY_FOOTPRINTS] 历史白名单）。
+ *
+ * 读档时直接删除旧档天枢殿并通过邮件补偿 1000 万灵石
  * （由 [BootSequenceController] 编排：先发邮件成功再删建筑）。
  *
  * **必须在 fixupBuildingSizes 之前判定**——fixup 会把尺寸统一修正为当前配置，
  * 先判定才能识别旧档遗留（尺寸不符的天枢殿）。
  *
  * @param buildings 全部建筑列表（fixup 修正前的原始数据）
- * @param gridSizeOf 建筑显示名 → 当前配置占地尺寸（宽, 高）
- * @return 旧档遗留天枢殿列表（尺寸与当前配置不符的天枢殿；天枢殿全局唯一，最多 1 座）
+ * @return 旧档遗留天枢殿列表（天枢殿全局唯一，最多 1 座）
  */
 internal fun filterLegacyTianshuHalls(
-    buildings: List<GridBuildingData>,
-    gridSizeOf: (String) -> Pair<Int, Int>
+    buildings: List<GridBuildingData>
 ): List<GridBuildingData> = buildings.filter { b ->
-    if (b.displayName != TIANSHU_HALL_DISPLAY_NAME) return@filter false
-    val (w, h) = gridSizeOf(b.displayName)
-    b.width != w || b.height != h
+    b.displayName == TIANSHU_HALL_DISPLAY_NAME &&
+        (b.width to b.height) in TIANSHU_LEGACY_FOOTPRINTS
 }
 
 /** 检查建筑是否在地图内、不与其他建筑/固定结构重叠 */

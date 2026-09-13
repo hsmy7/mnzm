@@ -169,12 +169,12 @@ class BootSequenceController @Inject constructor(
                 // 存量存档回填：老档占领状态目前仅存于 worldMapSects.isPlayerOccupied（会被世界重生清除），
                 // 补标 sectDetails.isOwned（持久化、不随重生清除），保证未来重生死后占领进度不丢。
                 val backfilledSectDetails = backfillPlayerOwnedSectDetails(data.sectDetails, data.worldMapSects)
-                // 旧档遗留天枢殿识别（占地尺寸与当前配置不符）——必须在 fixup
-                // 之前判定（fixup 会把尺寸统一修正为当前配置，先判定才能识别旧档遗留）；
-                // 删除 + 补偿邮件（1000 万灵石）由 Step 3.1 编排（先发邮件成功再删建筑）
-                legacyTianshuHalls = filterLegacyTianshuHalls(norm.buildings) {
-                    buildingConfigService.getBuildingGridSize(it)
-                }
+                // 旧档遗留天枢殿识别（占地尺寸命中历史白名单 TIANSHU_LEGACY_FOOTPRINTS）
+                // ——必须在 fixup 之前判定（fixup 会把尺寸统一修正为当前配置，先判定才能识别
+                // 旧档遗留）；删除 + 补偿邮件（1000 万灵石）由 Step 3.1 编排（先发邮件成功再删建筑）。
+                // 注：判据是**历史尺寸白名单**而非"≠ 当前配置"——后者会让任何配置尺寸调整变成
+                // 全服拆殿事故（详见 BuildingLoadSelfHeal.TIANSHU_LEGACY_FOOTPRINTS KDoc）
+                legacyTianshuHalls = filterLegacyTianshuHalls(norm.buildings)
                 val fixed = buildingConfigService.fixupBuildingSizes(norm.buildings)
                 val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
                 // 住所显示名分级前缀迁移（旧档「单人住所/多人住所」→「初级…」，
@@ -435,8 +435,8 @@ class BootSequenceController @Inject constructor(
     /**
      * 旧档遗留天枢殿删除 + 补偿邮件。
      *
-     * 旧档遗留的天枢殿（尺寸与当前配置不符，由 [filterLegacyTianshuHalls] 在
-     * fixup 前识别）直接删除，通过邮件补偿玩家 1000 万灵石。
+     * 旧档遗留的天枢殿（占地尺寸命中历史白名单 [TIANSHU_LEGACY_FOOTPRINTS]，由
+     * [filterLegacyTianshuHalls] 在 fixup 前识别）直接删除，通过邮件补偿玩家 1000 万灵石。
      *
      * **先发邮件成功、再删建筑**：邮件插入失败时保留建筑（已被 Step 3 fixup 修正为
      * 当前尺寸，下次读档不再触发），杜绝"删了没补偿"的资产丢失。天枢殿为全局唯一
