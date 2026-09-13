@@ -157,10 +157,10 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
-| `GameRngManager` | `util/GameRngManager.kt` | 7 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL / AI_SECT） |
-| `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
+| `GameRngManager` | `util/GameRngManager.kt` | **10 分区枚举**（`RngPartition`）：BATTLE(0) / BREAKTHROUGH(1) / EXPLORATION(2) / SYSTEM(3) / ENEMY_GEN(4) / MAIL(5) / AI_SECT(6) / **SECRET_REALM(7)** / **MISSION(8)** / **AI_SECT_MIRROR(9, `inSnapshot=false` 通道型)**——`exportStates()`/`restoreStates()` 只处理 `inSnapshot=true` 的 **9 项**（键 6 `kAiSect` 由 C++ 接管，Kotlin 侧经 9 号镜像键对齐，见 `game_core.cpp` 的 `rngStates.erase(kAiSect)`） |
+| `RngPartition` | `util/RngPartition.kt` | 分区枚举（含 `inSnapshot` 通道型标记） |
 
-**规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
+**规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`（**红线由守卫测试闸门**：`RngSourceGuardTest` 五类入口逐模块登记上限只缩不增 + `RngEngineIsolationGuardTest` 禁止自建随机源；见 `docs/adr/rng-determinism-remediation.md`）。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
 
 **MAIL 分区（2026-07-26 新增）：** `RngPartition.MAIL(5)` 专门用于邮件/兑换码奖励随机生成（弟子属性/装备/丹药/草药等）。`EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random: kotlin.random.Random` 参数，调用方（`MailService`/`RedeemCodeService`）从 `GameRngManager.getRng(MAIL)` 获取 RNG 传入。
 
@@ -168,7 +168,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 **出生随机流（2026-07-31 迁移）：** `ChildBirthSystem` 的受孕判定/出生月份/性别/灵根继承/新生儿属性全部迁移至 `RngPartition.SYSTEM` 分区（6 处 `GameRandom` → `rngManager.getRng(SYSTEM)`，灵根随机经 `rng.asKotlinRandom()` 适配 `SpiritRootGenerator.generate`）。旧存档已出生弟子不受影响；未来出生结果随存档确定性，读档后基于 `restoreStates` 继续推进。
 
-**宗门地图种子（2026-07-31 确定性化）：** `createNewGame`/`restartGameInternal` 的 `mapSeed` 改用 `GameRandom.nextInt(Int.MAX_VALUE)` 生成（一次性熵源，非分区——同时作为分区 PRNG 的 `initSystemSeed` 输入，从分区生成会自引用）；连带修复 `restartGameInternal` 不生成 mapSeed 导致重启后全分区种子为 0、地图完全相同的缺陷。
+**宗门地图种子（2026-07-31 确定性化；2026-09-14 熵源收敛）：** `createNewGame`/`restartGameInternal`（`GameEngineLoadDataOps.kt:265/336`）的 `mapSeed` 由 **`EngineEntropy.nextWorldSeed()`**（`SecureRandom.nextLong() xor System.nanoTime()`）生成——**显式会话熵源、非分区、不伪装可复现**（其 KDoc 明确"只允许用于创建全新世界的根种子"）；同时作为分区 PRNG 的 `initSystemSeed` 输入。历史实现 `GameRandom`（自建 object，挂钟种子 + `@ThreadLocal`）**已物理删除**（ADR 阶段 1③），残留调用变编译期报错。连带修复 `restartGameInternal` 不生成 mapSeed 导致重启后全分区种子为 0、地图完全相同的缺陷。
 
 ---
 
@@ -178,12 +178,12 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ### 入口 1：`DiscipleFactory.create()`
 - 路径：`domain/disciple/DiscipleFactory.kt`
-- 使用 `DiscipleSeed.nextInt` Lambda（兼容 `GameRngManager` / `GameRandom` / `kotlin.random.Random`）
+- 使用 `DiscipleSeed.nextInt` Lambda（由 `GameRngManager.getRng(分区)` 提供；旧的 `GameRandom` 兼容路径已随对象删除而消失）
 - 用于玩家招募、招募列表刷新、子嗣出生（3 站点统一）
 
 ### 入口 2：`AISectDiscipleManager.generateRandomDisciple()`
 - 路径：`domain/diplomacy/AISectDiscipleManager.kt`
-- 使用 `DeterministicRng` 实例（PCG-XSH-RR，`System.nanoTime()` 种子）
+- `rng` 为**解析式**：优先取注入的 `GameRngManager.getRng(AI_SECT)`（AUTHORITATIVE 下委托 C++ `kAiSect` 分区）；无管理器时回落 `initForSlot(aiSeed)` 播种的 `DeterministicRng.fromSeed()` **混种态**（`snapshot()` 是状态而非种子——2026-09-14 修复"写裸种子"根因，`DiffAiRngSeedingTest` 跨语言逐位锁守）
 - 用于 AI 宗门弟子生成
 
 ### 属性分布规则（2026-07-24 优化）

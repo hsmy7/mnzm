@@ -1,11 +1,11 @@
 # C++ 游戏引擎（game-core）架构文档
 
-> **📌 基线（2026-09-14，handover §2.58 随机源治理收口批后——取代下方 2026-09-02 快速恢复点与"detekt 全模块全绿"口径）**：
-> - **README 门禁实测值**：桌面 GTest **1322/1322** · engine JUnit 全量 **3260 用例 / 290 类 / 1 失败 / 0 跳过**（余 `DiffYearSettlementTest` AI 招募逐字段分歧，见 handover §2.58.7）· `:app` **1018 用例 / 1 失败 / 2 跳过**（余 `SpriteCodegenSyncTest`，生成物 41 vs 期望 78，纹理批次）· `:core:data` 全绿 · `:feature:game` **868 用例 / 10 失败**（两族预存夹具，见下）
-> - **⚠️ detekt 勘误**：下方"detekt 全模块全绿（含 `:feature:game:detekt`）"**与 `main` 实测不符**——`main`（HEAD `e6707a2`）上实跑 `./gradlew detekt` 报 **25 处活违规**（`core:engine` 15 + `:feature:game` 10），baseline 表确为全 0 ⇒ 属**未被 baseline 覆盖的活违规**。§2.58 顺手清偿 **15 处**（死 import ×10 / 复杂度与跳转 ×3 / `AISectDiscipleManager` TooManyFunctions 12/12 → `truncateToLimit` 按纯函数层外移惯例拆到同包 `AITruncateOps.kt`）；**余 `:feature:game` 10 处未清**（全部归属纹理/浮空岛渲染批次：`NativeSurfaceView` TMF 20/20、`SoftwareCanvasBackend.isInvalidCliffEntry` LPL 8/8 + CCM 18/15、`IslandCliffTextureHolder`/`IslandCliffTextureLoader` 异常形态、`SectDiplomacyDialogTest` 命名、`DiplomacyFlows` 长行、`SoftwareCanvasBackend` 跳转）
-> - **随机源治理已达成的验收不变量**：`R1` 覆盖完整性（`RngSourceGuardTest` 五类入口逐模块登记上限**只缩不增**）+ `R5` 禁止自建随机源（`RngEngineIsolationGuardTest` 禁止 `object` 持有可变 `GameRngManager`）+ **跨语言等价性**（`DiffAiRngSeedingTest`：AI 分区播种态 = `fromSeed` 混种态、前 8 抽与 C++ 镜像分区逐位一致）
-> - **10k JNI 成本基准**：`kotlin(local PCG)=14ns/op` vs `native(JNI scalar roundtrip)=11ns/op`（**ratio 0.8**）⇒ ADR §8 首行"JNI 开销可能迫使阶段 3 改粒度"的风险**不成立**
-> - **与 batch-21 的关系**：阶段 1 关闭前置**已达成**；但 `DiffYearSettlementTest` 未收敛前**不建议开**（该例暴露 Kotlin 夹具与 C++ 生产编排之间的 AI 分区消费差，通道关闭后无兜底）
+> **📌 基线（2026-09-15，handover §2.53 batch-21 反向通道逐域关闭批后——取代下方 2026-09-14 / 2026-09-02 全部基线口径）**：
+> - **门禁实测值**：桌面 GTest **1322/1322** · engine JUnit 全量 **3281 用例 / 0 失败 / 0 跳过** · `:core:domain` **1758 / 0** · `:core:data` **707 / 0（15 既有跳过）** · `:core:ui` **146 / 0** · `:feature:game` **871 / 2 失败**（`EdgeKtxSyncTest`，归属并行渲染批在途）· `:app` **1020 / 1 失败**（`SpriteCodegenSyncTest` 生成物 41 vs 期望 78，归属并行渲染批在途）· NDK arm64 ✅ · lintRelease ✅ · **detekt 六模块全绿**
+> - **✅ detekt 勘误已闭合**：下方 2026-09-14 记载的"余 `:feature:game` 10 处活违规"**已全部清偿**（§2.59.3）——现裸 `detekt` 任务六模块全绿、六模块 baseline 均 0 条
+> - **✅ 随机源治理**：`R1` 覆盖完整性（`RngSourceGuardTest` 五类入口逐模块登记上限**只缩不增**）+ `R5` 禁止自建随机源（`RngEngineIsolationGuardTest`）+ **跨语言等价性**（`DiffAiRngSeedingTest`）；**10k JNI 成本基准 ratio 0.8**（`kotlin(local PCG)=14ns/op` vs `native(JNI roundtrip)=11ns/op`）⇒ ADR §8 首行 JNI 开销风险**不成立**
+> - **🔴 反向通道现状与后续（2026-09-15 实测，取代 2026-09-14 "阶段 1 = 关闭前置已达成"口径）**：288 写入点穷尽审计证明**14 个域无一可整体关闭**（弟子表 46 稳态写者 / 9 类实体集合 82 站点 / 64 个 gameData 字段仍有稳态写者）；batch-21（§2.53）已交付**逐域关闭机制 + 68 个可证关闭单元**，**"直接关闭反向通道"路线作废**，改由 **[ADR reverse-channel-elimination](adr/reverse-channel-elimination.md) + [parallel-batches-w3](parallel-batches-w3/README.md)**（13 批 UI 操作面收尾 → 通道删除）承接；残余写者清单见 [ui-read-surface §4.4](ui-read-surface.md)
+> - **当前 ActionId 口径**：**171 动作 / maxId=1734**（`scripts/gen-action-ids.mjs` 实跑；旧记"170 / 1733"为漂移，漏计 `STORAGE_BAG_OPEN_TX=1734`）
 
 > 更新日期：2026-09-01。Kotlin→C++ 迁移——已完成批次归档，本文档仅保留**未完成项**详细规划（迁移主线批次的；**引擎整体现状 + 后续工作计划见 §0**）。
 > 总方案见 `docs/adr/cpp-engine-migration.md`。
@@ -550,9 +550,12 @@ android/app/src/main/cpp/
 > §4 归档表内「批 9 核心：ActionId **46 动作** + 7 handler」为**历史行**（该批次时点事实），
 > 此后 S4–S8、WS-5、UI 操作面下沉批（06/07/08/09）+ batch-11~24 持续扩容而未随批更新计数——本节为当前实测口径。
 >
-> **2026-09-14 更新（handover §2.58）**：随机源治理收口批**零新增 ActionId**（动作总数保持 **170 / maxId=1733**）；
+> **2026-09-14 更新（handover §2.58）**：随机源治理收口批**零新增 ActionId**；
+> **2026-09-15 更正（batch-21 实测）**：动作总数 **171 / maxId=1734**（`STORAGE_BAG_OPEN_TX=1734`
+> 随 ADR 阶段 1① 开袋下沉入库，`85498c4`）——旧记"170 / maxId=1733"为**漂移**。
 > 下方「ActionId 总数 114 / maxId=1525」「handler 20」为 **2026-09-11 时点口径**，**已过期**——
-> 权威现值以 `handover §3 门禁基线`（170 动作 / maxId=1733）与 `docs/parallel-batches-w2/README.md §基线实测值` 为准。
+> 权威现值以 `handover §3 门禁基线`（**171 动作 / maxId=1734 / handler 33**）与
+> `docs/parallel-batches-w2/README.md §基线实测值` 为准。
 
 | 项 | 实测值（2026-09-11 时点；**总数/handler 见上方更新**） | 取证 |
 |---|---|---|
@@ -592,6 +595,15 @@ android/app/src/main/cpp/
 > ⚠️ **改判/登记不下沉**：③ `aiSectDisciples` load/存档自愈——**AI RNG 归一后该路径已无自持流、无影子拷贝**（消费真源分区），下沉收益不明 ⇒ **登记待拍板**（可复议）；⑤ 天劫（`HeavenlyTrial*`，非确定性模板随机与凭据溢出抑制同一事务）与洞府探索（`CaveExplorationProcessor`，仅月结 Kotlin 回退编排内）——**登记不下沉**。
 > **剩余：`DiffYearSettlementTest` 1 例未收敛**（AI 招募逐字段分歧，窗口已收窄到"第二名 AI 弟子的装备/功法段"）。
 > **结论：batch-21（反向通道关闭）的"域写者归还"前置已基本达成，"阶段 1 随机源治理"前置已完成**——但**须先钉死 `DiffYearSettlementTest`**（通道关闭后无兜底）。
+>
+> 🔴 **2026-09-15 更正（batch-21 穷尽审计实测，取代上述"已基本达成"结论）**：
+> `DiffYearSettlementTest` 已清偿（handover §2.59.1），但**"域写者归还"前置经 288 写入点逐条审计实测为
+> 不成立**——14 个域**无一可整体关闭**（弟子通道 46 稳态站点 / 9 类实体集合 82 站点 / 64 个 gameData 字段
+> 仍有稳态写者；另新发现 `GameEngineManualOps.kt:137 replaceManual`、`GameEngine.kt:276 approveMarriageProposal`
+> 两处**未登记**稳态写者）。**batch-21 已执行**（handover §2.53，提交 `24c429d`）：交付 68 单元可证关闭面 +
+> 逐域关闭机制；**"直接关闭"路线作废**，改由 [ADR reverse-channel-elimination](adr/reverse-channel-elimination.md)
+> + [parallel-batches-w3](parallel-batches-w3/README.md)（13 批 UI 操作面收尾 → 通道删除）承接。
+> 权威残余清单见 [ui-read-surface §4.4](ui-read-surface.md)。
 
 **集成收口（2026-09-11，handover §2.40；✅ 已合入 `main`）**：十批并行成果已合流为单一可编译树
 （`integration/parallel-batches` → **已合入 `main`**，合并树与 integration 提交 `b7f6788` 逐字节相同）；

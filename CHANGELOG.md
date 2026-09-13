@@ -1,6 +1,20 @@
 ## [4.01.14] - 2026-09-08
 
 
+### 决策与文档：反向通道根治立项（选项 2）+ 全仓文档事实核查与勘误
+
+> 需求：batch-21 审计暴露"反向通道无法整体关闭"，用户拍板**选项 2 彻底根治**（删除反向通道）；同时要求把**真实现状写入文档**并**审查文档其余信息的真实性**。**本批零代码改动**（仅文档 + 计划 + 一处 CLAUDE.md 规则口径修正）。
+
+- **决策（选项 2 已拍板）**：新增 [ADR reverse-channel-elimination](docs/adr/reverse-channel-elimination.md)（重构级根治方案：背景与目标/技术方案/影响范围清单/兼容性/测试方案/风险兜底/未来场景推演/技术债偿还/行业对标/盲区自查）+ [parallel-batches-w3/README](docs/parallel-batches-w3/README.md)（**13 批实施计划**：w3-01 弟子操作面 → … → w3-12 外交自愈收尾 → **w3-13 通道删除批**；含每批统一交付形态、ActionId 段预分配 1740–1849、全局红线、终局验收）。
+  - **行业对标**：49 条有效来源（S 级 33 / A 级 10 / B 级 6，S+A 43 ≥ 12 达标 3.6 倍），覆盖 Azure Strangler Fig/Anti-Corruption Layer/安全下线 OE:11、Unity DOTS write groups/authority/ECB、Unreal Online Subsystem/GAS、Factorio FFF #415/416/442、GitHub Scientist、GKE/PostgreSQL 单写者、Bevy 不可变组件等。三条直接改变计划的结论：① **切换顺序四阶段不可颠倒**（暗发布 parity → 拦读 → 拦写成为 System of Record → 搬逻辑），当前 14 域卡在阶段 2→3；② **平台效应不能"搬进 C++"，只能重定义为"命令进事务 + 回执出结果"**（玉符/邮件/行商）；③ **删除验收改用"先禁用 + 跨完整游戏业务周期观察 + 状态指纹零差异 + 删前快照"**（不以遥测无流量为据）。并据此在计划中引入**写入点三分类**（影响模拟结果 ⇒ 搬迁 / 纯表现 ⇒ 删除或只读派生 / 平台效应回执 ⇒ 命令+回执），避免 1:1 复刻陷阱。
+- **文档事实核查与勘误（293 条断言 + 27 项数字/引用抽查：TRUE 157 / FALSE 31 / STALE 82 / UNVERIFIABLE 23；20 组跨文档矛盾、4 处行号漂移）**，全部落档 handover **§7 文档事实核查与勘误**（含"已就地更正 / 待更正存量口径 / 核查新增的未登记稳态写者 / UNVERIFIABLE"四张表）。就地更正的要点：
+  - **ActionId 基线漂移（三文档同错）**：旧记"170 动作 / maxId=1733" → 实测 **171 / maxId=1734**（漏计 `STORAGE_BAG_OPEN_TX=1734`，随 ADR 阶段 1① 入库）；已在 handover §3/§5、w2 README、cpp-engine 统一更正，并确立"计数从 `gen-action-ids.mjs` 实跑取值、文档禁止手抄"的守卫口径。
+  - **反向通道前置口径统一**：所有"阶段 1 = 关闭前置已达成 ⇒ batch-21 可开"的表述更正为"**真实前置（各域稳态写者归 C++）经 288 站点审计不成立**"，权威口径收敛到 `ui-read-surface §4.4` + w3 计划；batch-21 文档加"已执行并改判"头部标注。
+  - **两项被证伪的实现声明**：① `GameEngine.approveMarriageProposal` 的"顶部 native 臂"**不存在**（`GameEngine.kt:276` 纯 Kotlin 写；`DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592` Kotlin 零引用 = 有实现无接线的死导出）；② 发现两处**未登记稳态写者**（`GameEngineManualOps.kt:137 replaceManual` 活 UI 无 native 臂、`GameEngineBattleOps.kt:66 forceSettleDisciplesBeforeBattle`）⇒ 已并入 w3-01/w3-02/w3-07 范围。
+  - **其余口径校正**：detekt 六模块全绿 + baseline 全 0（architecture R-01/R-12/R-13 销账）；测试基线三件套（engine 3281/296/0、feature:game 871/2、app 1020/1，后两者归属并行渲染批在途）；"纹理重构族阻塞 lint/NDK/模块回归"证伪删除；待拍板四项→三项（P1-5 不采纳终局 / 地图冻结已采纳 WS-5b）；knowledge-base RNG 章三处失效更正（分区 7→**10**（落盘 9）、`mapSeed` 熵源改 `EngineEntropy.nextWorldSeed`、AI 弟子 RNG 归一）；ADR cpp-engine-migration **Decision 7 文内互斥**（"Kotlin 引擎退役" vs "职责边界固化=最终架构"）按二次修订统一；`Diff*` 对拍类 46→**47**；CLAUDE.md 三处（D-43 死引用、RNG grep 红线改守卫测试闸门、detekt 阈值 6/7 → 实值 8/10 + TMF 20/12 + LargeClass 800）。
+- **未做（诚实口径）**：① 12 处 UNVERIFIABLE 项未结论（含"洞府探索死链 vs 回退闸"两种说法并存，需专项定论；真机体积绝对值；UI 读取面重跑）；② 部分历史批次的用例计数类小错（如 `relative_gift_test.cpp` 报 21 实为 14）仅登记在 §7，未逐条改写历史记录；③ 游戏内 `changelog_entries.json` **未追加**——本批无玩家可见变更（纯文档/计划/内部规则）。
+
+
 ### Batch-21：反向同步通道逐域关闭批——288 站点写者穷尽审计（改判"全关不可行"）+ 逐域关闭机制落地（67 字段 + 1 顶层段关闭）
 
 > 需求：`docs/parallel-batches-w2/batch-21-reverse-channel-closeout.md`（handover §2.53 预分配）——逐域停捕获 + 信封摘段 + 四段 @Transient 终局判定 + 体积归零可观测验收 + 回退臂语义复核。**零新增 ActionId、零 C++ 改动**（纯 Kotlin 面 + 协议键集裁剪）。

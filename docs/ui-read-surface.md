@@ -102,6 +102,11 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 
 ### 4.1 逐域写者审计（**首裁 2026-09-08**；表体于 2026-09-13 滚动更新）
 
+> 🔴 **2026-09-15 口径更正（batch-21 穷尽审计，§4.4）**：本表的 ✅ 行**只表示"该行所列写者已下沉"**，
+> **不等于"该域已无稳态 Kotlin 写者"**——全仓穷尽扫描（288 写入点）实测：**14 个域无一可整体关闭**，
+> 本表未列出的稳态写者（弟子赏赐/服药、血炼、婚姻审批、玉符运行时、邮件附件、行商刷新、灵矿槽位 UI 直改、
+> 弟子状态派生、native 事务后的 Kotlin 残差等）见 §4.4 域级结论表。**判断某域可否关闭时，一律以 §4.4 为准**。
+
 > ⚠️ **本节标题与下表为两层信息**：标题记的是**首裁时点**（2026-09-08 实测），表体已按 W2-a/W2-b 交付
 > **逐行滚动更新**——读表不看标题。
 >
@@ -124,7 +129,7 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 | ~~建筑放置/拆除/升级~~ | ~~placeBuilding/moveBuilding/upgradeBuilding/removeBuilding~~（~~place/move/upgrade/remove~~） **✅ 四操作已下沉（2026-09-10，batch-06，handover §2.35）**：AUTHORITATIVE 稳态写者归 C++（building_tx.h 事务，1450–1454），Kotlin 原路径降级为回退臂；槽位派生/弟子释放残差留 Kotlin（BuildingFeatureRegistry 槽组语义，回执驱动）；剩余残余：enterSect/BootSequence 迁移（W2/W3 后续波次） | ~~建筑放置事务批~~ ✅（残余 → 后续波次） |
 | ~~道路~~ | ~~placeRoad/removeRoad（Kotlin 直改 + 即时回导加固）~~ **✅ 已下沉（2026-09-10，batch-07，handover §2.36）**：AUTHORITATIVE 稳态写者归 C++（road_tx.h 事务，1470/1471），Kotlin 原路径降级为回退臂；RoadMaskTracker/RoadTiling 为纯 UI 缓存不迁（镜像回读驱动） | ~~道路事务批~~ ✅ |
 | 巡逻/探索 | ~~assign/remove/swap/autoAssignPatrolAtomic、worldLevels 战斗结算~~ **✅ 巡逻/住所族已下沉（2026-09-13，batch-12，handover §2.43）**：`GameEngineAtomicAssign` 六入口（住所 2 + 巡逻 4）+ `GameEnginePatrolOps` 三活写者（`updatePatrolConfigs` / `validateAndFixSpiritMineData` / `updateYearlySalary`）+ `updateSpiritMineSlots`（活 API）稳态写者归 C++（`system/patrol_tx.h` 十事务，ActionId 1550–1559），Kotlin 原路径降级回退臂；**全链零 RNG**（签名级 + GTest 全分区快照差分 + 双运行逐位一致）；事务外残差（gate release/confirmAssign、Room 生产槽仓清理、弟子状态同步）保留 Kotlin 经 `releasedIds`/`confirmedIds` 回执驱动。`updatePatrolSlots` 实测生产零调用（死 API，不为它扩协议）；**worldLevels 战斗结算已随 batch-13 下沉**（ActionId 1570） | ~~巡逻批~~ ✅ |
-| 弟子管理 | ~~装备穿脱/功法学习卸下/亲传+藏经阁任命卸任~~ **✅ 第一子批（2026-09-10，batch-08，§2.37）**（`disciple_tx.h` 六事务，1480–1485）；**✅ 第二子批（2026-09-11，batch-14，§2.45）**（逐出/拜师/婚姻批准/释放思过/年俸开关，`disciple_lifecycle_tx.h`，1590–1594）**+ 14b 名字随机源分区化**；**✅ 第三子批（2026-09-12，batch-15，§2.46）**（长老单值槽任命卸任 / 仓库驻守 / 洗炼消耗三族，`appointment_tx.h`，1610–1616）；**残余**：收徒（`recruitDisciple` 待拍板名字种子策略）/ 状态同步族 / 特质 confirm 两入口（纯数据写） | 弟子管理族（**三子批全部 ✅**，残余归后续波次） |
+| 弟子管理 | ~~装备穿脱/功法学习卸下/亲传+藏经阁任命卸任~~ **✅ 第一子批（2026-09-10，batch-08，§2.37）**（`disciple_tx.h` 六事务，1480–1485）；**✅ 第二子批（2026-09-11，batch-14，§2.45）**（逐出/拜师/婚姻批准/释放思过/年俸开关，`disciple_lifecycle_tx.h`，1590–1594）**+ 14b 名字随机源分区化**；**✅ 第三子批（2026-09-12，batch-15，§2.46）**（长老单值槽任命卸任 / 仓库驻守 / 洗炼消耗三族，`appointment_tx.h`，1610–1616）；**残余**：收徒（`recruitDisciple` 待拍板名字种子策略）/ 状态同步族 / 特质 confirm 两入口（纯数据写）→ **⚠️ 2026-09-15 事实核查更正**：本行**高估**完成度——`GameEngine.kt:276 approveMarriageProposal`（"婚姻批准"声明有 native 臂但**实测未接线**：`DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592` 在 Kotlin 侧零引用，C++ handler+3 GTest 齐备）与 `GameEngineManualOps.kt:137 replaceManual`（功法替换，活 UI `DiscipleDetailScreen.kt:954`，**无 native 臂且从未登记**）均为**未登记稳态写者** ⇒ 弟子管理域**不可关闭**（w3-01/w3-02 批范围，见 §4.4） | 弟子管理族（**三子批已下沉，但域级关闭前置不成立**） |
 | 招募/派遣/俘虏 | ~~手动+一键主路径已 C++；回退路径、列表刷新/老化、lifeEvents 补写~~ **✅ 残余三直调点已下沉（2026-09-12，batch-16，§2.47）**：`removeFromRecruitList` / `refreshRecruitList` / `ageRecruitList` → `recruit_tx.h` 复用年度权威链零复制（ActionId 1630–1632）；**审计判定不下沉**：MerchantAndRecruitService 零招募写者、派遣 `startMission`（惰性门留月变真相源批）、奖励发放（结算域已 C++）、`id=""` 候选跨年去重（拍板项） | 残余族 ✅ |
 | 生产 | 手动排班/重置已 C++（S7）；**✅ 生产 UI 面 + 灵田种植族已下沉（2026-09-12，batch-17，§2.48）**（四生产槽 UI 事务 + 四灵田种植事务，ActionId 1650–1657）；**审计判定保留 Kotlin**：`autoHarvestCompletedAlchemySlots`（读档路径/AUTHORITATIVE 基线窗口——迁此会在首月读档产生"免费收获"）、`MaterialConsumptionLog`（平台效应）、自动续班启动（S4 月结末尾已 C++） | **UI 面 ✅**；S4 窗口对齐已兜月结 |
 | 秘境 | ~~会话三入口已 C++（S6）；start 换岗/到期守卫/回退路径 Kotlin 直改~~ **✅ 平台段已下沉（2026-09-12，batch-20a，handover §2.51）**：唯一未下沉写者 `continueSecretRealmExploration`（读档恢复：到期关闭/死局 endSession/成员净化/gate 重建）归 C++（`secret_realm_platform_tx.h`，ActionId 1710）；`autoAssignSecretRealmTeam` 审计为**纯只读选择器**（无写者）、pause/resume/renew 为**运行时时钟平台残差**（S5/S6 口径留 Kotlin）；**顺手根治** `secret_realm_settlement.h` 的 `kOpenYears` 移植缺陷（50→5，此前 AUTHORITATIVE 下秘境满 5 年还要再挂 45 年） | ~~平台段批次~~ ✅ |
@@ -137,7 +142,7 @@ lifecycleState/bootPhase/runState`——事件/弹窗/生命周期类，生产�
 
 | 域 | 本轮处置 |
 |---|---|
-| `lockedBeastIds` UI 操作面 | **✅ 已下沉（batch-23）**：`GameEngine.lockBeastView`/`unlockBeastView`（`:319/:324`，`launchOnEngine` 调用面 = 妖兽详情弹窗开/关）稳态写者归 C++（`lock_beast_tx.h` `BEAST_VIEW_LOCK_TX=1730`；Set 语义 + 保序 + 幂等 + lockedCount 回执）；反向增量段（§2.21.2 补齐）维持不变 |
+| `lockedBeastIds` UI 操作面 | **✅ 已下沉（batch-23）**：`GameEngine.lockBeastView`/`unlockBeastView`（**`:329/:340`**——2026-09-15 核查更正，旧记 `:319/:324` 已漂移；`launchOnEngine` 调用面 = 妖兽详情弹窗开/关）稳态写者归 C++（`lock_beast_tx.h` `BEAST_VIEW_LOCK_TX=1730`；Set 语义 + 保序 + 幂等 + lockedCount 回执）；反向增量段（§2.21.2 补齐）**已随 batch-21 关闭**（§4.4，仅剩回退臂写者） |
 | 设置项域（原「月年编排残余」中的设置项） | **✅ 已下沉（batch-23）**：17 个 gameData 字段经 `SETTINGS_PATCH_TX=1731` 通用补丁——覆盖 `SettingsDelegate`（6：音频 2 + 战报弹窗 + 中/高阶自动出售 + 显示全部弟子）/ `AutoAssignDelegate`（7：突破丹药 2 + 自动装备 2 + 自动学习 2 + 道侣禁止灵根数 + 道侣同意）/ `DiscipleDelegate`（2：自动招募/自动拒绝过滤，1..5 预筛 + 惰性门残差留 Kotlin）；平台效应（`AudioConfig` / 惰性门 / 待处理提议清理）保留 Kotlin |
 | 弟子管理残余 | **✅ 已清（batch-24）**：`confirmSpiritRootWash` / `confirmTraitWash` 两入口下沉（`appointment_tx.h` 事务 8/9，ActionId 1732/1733）——纯数据写（零玉符/零 RNG）+ checkpoint 与 lifespan 同步同事务；三态拒绝文案由 C++ 信封 `executeRaw` 回传。**弟子管理域至此无稳态 Kotlin 直改写者** |
 | `aiSectDisciples` 段 | **⚠️ 已拍板下沉（2026-09-14 审计勘误 + [ADR](adr/rng-determinism-remediation.md) 阶段 1）**——`checkAndRepairAiSectDisciples`（load/save 自愈）消费 `AISectDiscipleManager._rng`，该对象是**真源的影子拷贝**：真源 `GameRngManager.getRng(AI_SECT)` 在 AUTHORITATIVE 下**已委托到 C++ `kAiSect` 分区，且该分区本就在 `rngStates` 协议面内**（`exportStates()` 遍历全部 8 分区）；影子只在 `createNewGame`/`loadData` 两处 `initForSlot(mapSeed)` 重播，之后与真源各自漂移。**故下沉路径 = 先归一（影子摘除）再下沉自愈**，非"需大立项"（缺的 C++ 原语仅编排三件，生成/装备/截断已在 `ai_sect_recruit.h`）——**该域构成 batch-21 剩余前置之一** |
@@ -239,7 +244,7 @@ C++）。
 | 建筑 | `BuildingNativeTx.kt:163`（拆除残差）、`BuildingFacadeImpl同步Ops.kt:281`（月变没收）、`BuildingDelegate.kt:145`（放置槽位残差） | 0 |
 | 道路 | `RoadFacadeImpl.kt:41/:141`（native 臂后槽位/回执残差） | 1 字段（`roads`） |
 | 巡逻/住所/矿场 | `SpiritMineViewModel.kt:89/:147/:183/:252`（灵矿槽位 UI 直改）、`GameEnginePatrolOps.kt:49`（矿场自愈） | 4 字段（含**死 API** `patrolConfig`） |
-| 弟子管理 | `GameEngineCoordination.kt:99/:120/:138`、`DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271`（赏赐/服药）、`DiscipleStatusService.kt:225/:279/:373`（状态派生）、`DiscipleSlotManager.kt:59` | 5 字段（血炼完成链/待入特质/队伍初始化） |
+| 弟子管理 | `GameEngineCoordination.kt:99/:120/:138`、`DiscipleFacadeImpl战斗Ops2.kt:93/:119/:138/:157/:271`（赏赐/服药）、`DiscipleStatusService.kt:225/:279/:373`（状态派生）、`DiscipleSlotManager.kt:59`、**`GameEngineManualOps.kt:137`（功法替换——2026-09-15 事实核查新增：活 UI `DiscipleDetailScreen.kt:954`，无 native 臂且从未登记）**、**`GameEngine.kt:276`（婚姻审批——声明有 native 臂但实测未接线，`DISCIPLE_LIFECYCLE_MARRY_APPROVE=1592` Kotlin 零引用）** | 5 字段（血炼完成链/待入特质/队伍初始化） |
 | 招募/派遣/俘虏 | `DiscipleFacadeImpl功法Ops1.kt:71`（入宗 lifeEvent）、`DiscipleService.kt:142`、`RecruitService.kt:398` | 3 字段（`availableMissions` 因对拍 harness 保留） |
 | 生产/灵田 | `ProductionProcessorCleaOps3.kt:291`（月结前 repo→镜像对齐）、`ProductionProcessor构筑Ops2.kt:250/:341/:405` | 2 字段（配方/功法解锁） |
 | 秘境 | `GameEngineSecretRealmOps.kt:57`（出发换岗）、`SecretRealmNativeOps.kt:100/:263`（到期兜底/战报） | 1 字段（`cultivatorCaves`，洞府整族死链） |

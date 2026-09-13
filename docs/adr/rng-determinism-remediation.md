@@ -41,9 +41,9 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 
 | 流 | 生产调用点 | 是否落盘 | 是否种子化 | 判据 |
 |---|---|---|---|---|
-| `kotlin.random.Random.Default`（`.random()` / `generateRandom*` 默认参数） | **114 处**（含表现层） | ❌ | ❌（进程启动随机） | 同一存档两次抽取结果不同 |
-| `GameRandom`（`object`，XorShift128Plus） | **8 处**（见下） | ❌ | ❌（**`setSeed()` 生产零调用**，种子 = `System.currentTimeMillis()`，且 `@ThreadLocal` 每线程独立流） | 同档跨会话/跨线程结果不同 |
-| `AISectDiscipleManager._rng` | 自愈 + 回退臂 AI 域 | ❌（影子） | ✅（`initForSlot(mapSeed)`） | 与真源 `kAiSect` 分区**各自漂移** |
+| `kotlin.random.Random.Default`（`.random()` / `generateRandom*` 默认参数） | **21 处**（注释剔除口径；阶段 0 为 24，阶段 2 迁 3 处）——**勘误**：本行原记"**114 处**"为含注释字面量的旧口径，勿再引用（见下方自我勘误 + handover §6） | ❌ | ❌（进程启动随机） | 同一存档两次抽取结果不同 |
+| ~~`GameRandom`（`object`，XorShift128Plus）~~ | ~~**8 处**~~ → **✅ 已物理删除（阶段 1③）**；实测真实生产调用 **4 处**（另 6 处为死代码）：`mapSeed`×2 → `EngineEntropy.nextWorldSeed()` 会话熵 / 天劫立绘 → `PresentationRandom` / `GameConfig` 与弟子方差 → 形参化纯函数 | — | — | 类型已不存在（残留调用=编译期报错） |
+| `AISectDiscipleManager._rng` | ✅ **已归一（阶段 1②）**：影子流摘除，`rng` 改解析式（委托模式取通道分区 9 / 非委托取分区 6）；**并修复播种态根因**（`initForSlot` 曾写裸种子而非 `fromSeed` 混种态） | ✅（随 9 号镜像键） | ✅（`initForSlot(mapSeed)` → `fromSeed`） | 跨语言逐位一致（`DiffAiRngSeedingTest` 锁守） |
 
 **→ 三个流全部不落盘，只有第三个有种子。**
 
@@ -53,7 +53,7 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 `DiplomacyGiftTexts.kt` 4 / `EquipmentDatabase.kt` 4 / `MailAttachmentDistributeOps.kt` 4 /
 `GameEngineTraitWashRoll.kt` 4。
 
-`GameRandom` 的 **8 处生产调用点（🔴 全部影响状态，无一为纯表现）**：
+`GameRandom` 的 ~~**8 处生产调用点（🔴 全部影响状态，无一为纯表现）**~~ → **✅ 已物理删除（阶段 1③，2026-09-14）**；**勘误**：8 处中 6 处为死代码，真实生产调用 4 处，去向如下表（保留原表以便追溯）：
 
 | 位置 | 用途 | 影响 |
 |---|---|---|
@@ -91,7 +91,7 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 
 1. **CI 的 RNG 红线是 import 级 grep**（`grep "import kotlin.random.Random"`）——而 `templates.random()`
    是 stdlib 扩展函数、`GameRandom` 是自建 object，**两者都不带该 import**，永远匹配不到；
-2. 实测该 grep 断言在当前 `android/.github/workflows/ci.yml` 中**已不存在**（红线事实上失守）；
+2. 实测该 grep 断言在当前 `.github/workflows/ci.yml` 中**已不存在**（红线事实上失守）；
 3. 项目**没有**"新增影响状态的随机必须注册分区"的清单式守卫；也**没有**任何机制阻止
    新建一个自持 RNG 的 object（`GameRandom` 本身就是这么来的）。
 
@@ -120,7 +120,7 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 
 | # | 惯例 | 项目现状 |
 |---|---|---|
-| 1 | **按用途分流**（战斗/世界生成/NPC/事件各一条），互不偷取 | ✅ 已做到（8 分区 + `RngPartition` 枚举） |
+| 1 | **按用途分流**（战斗/世界生成/NPC/事件各一条），互不偷取 | ✅ 已做到（**10 分区** `RngPartition` 枚举，落盘 9 项——2026-09-15 实测更正旧记"8 分区"） |
 | 2 | **每条流的状态都要能存取**（存档带状态，不是只带种子） | ✅ 已做到（`exportStates`/`restoreStates` ↔ `rngStates` 协议面） |
 | 3 | **"表现"与"决策"严格分开**（改文案随机不得污染决策随机） | ❌ **缺**：114 处混在一起，且无机制区分 |
 
@@ -191,7 +191,7 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 | `gamecore/include/gamecore/system/ai_sect_repair_tx.h`（新） | 新增 | AI 弟子池自愈事务（复用 `ai_sect_recruit.h` 原语 + 编排三件） |
 | `gamecore/include/gamecore/system/storage_bag_tx.h`（新） | 新增 | 开袋奖励生成事务（`Random.Default` 三处改走 `EXPLORATION`） |
 | `action_ids.h` / `ActionIds.kt` / `execute_dispatch.cpp` / `test/CMakeLists.txt` | 改 | ActionId 1734+（按 `gen-action-ids.mjs` 生成，原子变更集整组提交） |
-| `android/.github/workflows/ci.yml` | 改 | 红线重写（阶段 0） |
+| `.github/workflows/ci.yml` | 改 | 红线重写（阶段 0） |
 | `docs/cpp-migration-handover-m0.md` | 改 | §6 引用本 ADR；§4.1 登记项随批次勾销 |
 | `docs/ui-read-surface.md` | 改 | §4.3 关闭前置：开袋项由"待拍板"改"已拍板、待实施" |
 | `CHANGELOG.md` + `changelog_entries.json` | 改 | 玩家向文案（开袋可复现、设置更稳定；**不出现分区/RNG/确定性等术语**） |
@@ -219,10 +219,10 @@ Kotlin 侧不再有回导兜底，**每个影响状态的结果都必须可由"�
 |---|---|
 | C++ GTest | 两事务黄金用例（happy / 校验链失败零写入 / 边界与篡改防御 / **零新增 RNG 抽取面** / 双运行逐位一致）+ AI 自愈：跳过判据、补全口径、齿轮达标、截断 |
 | Kotlin 门控 | flag OFF / AUTHORITATIVE-桥未加载双降级；回退臂语义逐项不变；`stateSyncServiceRef` 未 stub 不 NPE |
-| **R2 守卫** | 分区状态"导出 → 恢复 → 再抽取"序列逐位一致（覆盖全部 8 分区） |
+| **R2 守卫** | 分区状态"导出 → 恢复 → 再抽取"序列逐位一致（覆盖全部落盘分区，2026-09-15 实测为 9 项） |
 | **R4 守卫** | 清单式：以 `RngPartition` 枚举 + 已登记消费点表为锚点，未注册的影响状态随机调用点即红并列出操作指引 |
 | **R3 守卫** | 反向断言：`core:domain`/`core:engine` 主源中 `.random()` / `Random.Default` 字面量计数为 0（`PresentationRandom` 集中处除外，白名单显式声明） |
-| 对拍 | 46 个 `Diff*` 类全绿；开袋断言若存在则重锚并在此登记 |
+| 对拍 | 47 个 `Diff*` 类全绿（2026-09-15 实测：§2.58 新增 `DiffAiRngSeedingTest`，旧记 46）；开袋断言若存在则重锚并在此登记 |
 | 对抗性审查 | 逐批：① 是否被 `@Suppress` 绕过；② 是否把决策随机误迁入 `PresentationRandom`；③ 高频繁调用点（每帧/每次伤害）是否存在 JNI 跨语言成本 |
 
 ---
