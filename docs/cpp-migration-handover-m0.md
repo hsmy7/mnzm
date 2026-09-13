@@ -701,11 +701,13 @@ arm64 绿。**WS-2 全部子系统（S1-S8）就此清偿。**
 | 项 | 状态 |
 |---|---|
 | 决策 | ✅ **2026-09-14 已拍板选项 2（根治）**：一次性补齐随机源治理并把守卫落为可执行约束 |
-| 问题定性 | **架构级**，但*不是*分区设计错误——分区设计（8 分区 + `rngStates` 落盘）与行业惯例一致；漏洞在于**「随机流」与「该流是否可复现/可归档」未绑死**，任何新代码随手用 `Random.Default`、自建 RNG 都无机制拦截 |
-| 实测规模 | **四类随机源，三类未受治理**：`GameRngManager` 分区（✅ 唯一合法）/ `Random.Default` **114 处** / `GameRandom` **8 处**（全部影响状态）/ 对象自持 RNG（影子） |
-| 最大发现 | `GameRandom` 种子 = **挂钟时间**、`setSeed()` 生产零调用、`@ThreadLocal` 每线程独立流；被用于 **`mapSeed` 生成**、弟子属性方差、灵根洗牌、天劫对手。其 KDoc 自称"确定性存档"——**未实现，死抽象** |
-| 实施 | 阶段 0（新增四类入口逐处分类表 + CI 红线重写）→ **阶段 1（① 开袋 ② AI RNG 归一 + 自愈下沉 ③ `GameRandom` 摘除）** → 阶段 2（`PresentationRandom` 隔离表现随机）→ 阶段 3（决策类按域分批下沉）→ 阶段 4（守卫收口） |
-| **与 batch-21 的关系** | **阶段 1 即 batch-21 的关闭前置**（阶段 1 交付后本关即可开，不再有"待拍板"阻塞项） |
+| 问题定性 | **架构级**，但*不是*分区设计错误——分区设计（9 分区 + `rngStates` 落盘）与行业惯例一致；漏洞在于**「随机流」与「该流是否可复现/可归档」未绑死**，任何新代码随手用 `Random.Default`、自建 RNG 都无机制拦截 |
+| 实测规模（**2026-09-14 阶段 0 实跑复核，取代旧口径**） | **五类入口，四类未受治理**：`getRng(RngPartition.*)`（✅ 唯一合法，不在下表）/ ②`.random()`·`Random.Default`·`Math.random` / ③`GameRandom` / ④对象自持 RNG（挂钟种子）/ ⑤**默认值陷阱**（形参默认回落 `Random.Default`——ADR §5 认定的真正入口）。**注释剔除后逐规则命中 54 处**（同一行可命中多类）：②24 / ③**0（已摘除）** / ④**3** / ⑤27。逐模块：core:domain 26、core:engine 23、core:data 1、feature:game 4、core:ui 与 app 0。**权威计数以 `RngSourceGuardTest` 的登记上限为准**（该守卫自己报数，见 `docs/rng-source-inventory.md`） |
+| 旧口径说明（勿再引用） | ADR/本文旧写的「`Random.Default` **114 处**」与「`GameRandom` **8 处**」两个数字**都不准确**：① 114 的统计**含注释里的字面量**（改成注释剔除口径后为 24 处 ②类）；② `GameRandom` 的 8 处中**6 处是死代码**（`Disciple.fixBaseStats` 的 7 抽、`SpiritRootGenerator.generateWithGameRandom`——全仓零调用），**真实生产调用仅 4 处**（`mapSeed` 生成 ×2 / 天劫立绘 ×1 / `GameConfig:421` ×1），已随阶段 1③ 全部处置 |
+| 最大发现 | `GameRandom` 种子 = **挂钟时间**、`setSeed()` 生产零调用、`@ThreadLocal` 每线程独立流；被误用于 **`mapSeed` 生成**等决策路径。其 KDoc 自称"确定性存档"——**未实现，死抽象**。**已物理删除**（残留调用变编译期报错） |
+| 实施（**进度已更新 2026-09-14**） | 阶段 0（分类表 + `RngSourceGuardTest` + CI 红线）→ **阶段 1（① 开袋 ✅ ② AI RNG 归一 ✅ ③ `GameRandom` 摘除 ✅）** → 阶段 2（`PresentationRandom` **部分**：外交文案 + 天劫立绘已迁入；剩 `BattleDescriptionGenerator` 12 / `SectResponseTexts` 2 / `DiscipleChatDialog` 3（**决策类**，应走决策源）/ `LoadingTips` 1 / `CloudLayerAnimator` 1）→ 阶段 3（决策类按域分批下沉，**未开工**）→ 阶段 4（守卫收口：R2/R4 断言 ✅，**CI 红线 step 与 10k JNI 基准未做**） |
+| **当前卡点（接手必读）** | 阶段 1 主体已落地，但**引擎全量仍有 4 处失败**（AI RNG 流归一域）⇒ **阶段 1 尚未正式交付，batch-21 关闭前置仍未达标**。另 `:feature:game` 有 10 处**预存**失败（裁定依据见 status 文）。详见 [rng-remediation-status.md](rng-remediation-status.md) |
+| **与 batch-21 的关系** | **阶段 1 即 batch-21 的关闭前置**（阶段 1 交付后本关即可开，不再有"待拍板"阻塞项）——**当前尚未达成** |
 
 **五项验收不变量（R1–R5，batch-21 与后续批次引用此节）**
 

@@ -16,27 +16,33 @@
 |---|---|---|---|
 | ① | `GameRngManager` 分区 | `getRng\s*\(` | ✅ **唯一合法** |
 | ② | `kotlin.random.Random.Default`（含 `.random()` / `Math.random()`） | `\.random\(\)` / `Random\.Default` / `Math\.random` | ❌ 未治理 |
-| ③ | `GameRandom`（自建 `object`，XorShift128Plus） | `GameRandom` | ❌ 未治理（**已摘除**，见 §4） |
-| ④ | 对象/单例自持 RNG | `fromSeed\(System\.` / `ThreadLocalRandom` / `private val <名>: Random =` | ❌ 未治理 |
-| ⑤ | **默认值陷阱**（ADR §5 认定的"漏洞真正入口"） | `random: *kotlin\.random\.Random *=` / `random: *Random *=` | ❌ 未治理（默认值回落 `Random.Default`） |
+| ③ | `GameRandom`（自建 `object`，XorShift128Plus） | `GameRandom` | ✅ **已摘除**（阶段 1③ 物理删除；残留调用变编译期报错） |
+| ④ | 对象/单例自持 RNG | `fromSeed\(System\.` / `ThreadLocalRandom` / `private (val\|var) <名>: Random =` | ❌ 未治理 |
+| ⑤ | **默认值陷阱**（ADR §5 认定的"漏洞真正入口"） | `random: *kotlin\.random\.Random *=` / `random: *Random *=` / `rng: *kotlin\.random\.Random *=` | ❌ 未治理（默认值回落 `Random.Default`） |
 
 > **⑤ 的判据**：默认值本身不产生随机，但**任何调用方省略实参即静默消费 `Random.Default`**——这正是 `RedeemCodeManager.kt:423`（姓名）与 `GameEngineWorldBattleOps.kt:356/370/384`（稀有度上界）两处真实缺陷的成因。项目内的正确范式是 `DiscipleFactory.kt:113`（`val random: kotlin.random.Random`，**故意无默认值**）。
 
 ---
 
-## 2. 汇总计数（阶段 0 实跑，2026-09-14）
+## 2. 汇总计数（**阶段 1 收口后实测**，注释剔除口径）
 
-| 模块 | ② `.random()`/`Random.Default`/`Math.random` | ③ `GameRandom` | ④ 自持 RNG | ⑤ 默认值陷阱 |
-|---|---|---|---|---|
-| `core/domain` | 12 | 14 | 0 | 17 |
-| `core/engine` | 27 | 4 | 3 | 7 |
-| `core/data` | 1 | 0 | 0 | 0 |
-| `core/ui` | 0 | 0 | 0 | 0 |
-| `feature/game` | 11 | 3 | 1 | 1 |
-| `app` | 0 | 0 | 0 | 0 |
-| **合计** | **51** | **21** | **4** | **25** |
+> **口径纪律（重要，曾踩坑）**：计数**必须剔除注释**（行注释 + 块注释/KDoc）。否则 KDoc 里对被禁字面量的**引用**（如"原默认实参回落 `Random.Default` 已消除"）会被计入债务，导致：① 登记值被注释噪音撑大、真实债务被淹没；② "改注释即改守卫"。
+> 另一条纪律：**同一行可命中多类**（如 `CloudLayerAnimator.kt:30` 的 `private val random: Random = Random.Default` 同时命中 ②④⑤），故"逐规则命中合计" > "涉及代码行数"。
+> 本表数值 = `RngSourceGuardTest` 的登记上限（守卫自己报数，为**唯一权威**）。
 
-> 计数为**逐行匹配数**（守卫按同一口径断言）：③ 含 KDoc/注释中的 `GameRandom` 字样，⑤ 为形参声明行数。
+| 模块 | ② `.random()`/`Random.Default`/`Math.random` | ③ `GameRandom` | ④ 自持 RNG | ⑤ 默认值陷阱 | 逐规则合计 |
+|---|---|---|---|---|---|
+| `core/domain` | 7 | **0** | 0 | 19 | 26 |
+| `core/engine` | 14 | **0** | 2 | 7 | 23 |
+| `core/data` | 1 | 0 | 0 | 0 | 1 |
+| `core/ui` | 0 | 0 | 0 | 0 | 0 |
+| `feature/game` | 2 | **0** | 1 | 1 | 4 |
+| `app` | 0 | 0 | 0 | 0 | 0 |
+| **合计** | **24** | **0** | **3** | **27** | **54** |
+
+> **③ 归零**：`GameRandom` 已物理删除，残留调用为编译期报错（**编译即守卫**）。
+> **④ 实际仅 3 处**（原登记 4 是含注释的旧口径）：`WorldMapGenerator.kt:15`、`CaveExplorationSystem.kt:39`（均 `fromSeed(System.nanoTime())` 挂钟种子）+ `CloudLayerAnimator.kt:30`（表现类）。
+> **与旧口径「114 处」的差异**：旧数字**含注释**、且只统计 ②③ 两类字面量（漏 ④⑤）。剔除注释后 ② 类为 24 处；⑤ 的 27 处中有相当比例是**死默认分支**（默认值从不被触发，如 `TalentRegistry` 无调用方），真实"生产省略实参"的活点约 19 处（明细见 §3 各表的处置列）。
 
 ### 判定汇总（按 ADR §8 "是否写入 GameData / 实体表 / 影响数值"口径）
 
@@ -178,8 +184,26 @@
 
 ## 4. 阶段 1③ 收口后的计数变化（③ 类归零）
 
-`GameRandom` 整对象删除后，③ 类计数由 **21 → 0**（残留调用变**编译期报错**——编译即守卫，优于正则）。
-② 类中 `HeavenlyTrialComponents` 两处随阶段 1③ 迁入表现随机，其余按阶段 2/3 分批下降。
+`GameRandom` 整对象删除后，③ 类计数由 **21（含注释）→ 0**；残留调用变**编译期报错**——编译即守卫，优于正则。
+② 类中 `HeavenlyTrialComponents` 两处随阶段 1③ 迁入表现随机；`SectResponseTexts` / `DiplomacyGiftTexts` / `DiplomacyVassalTexts` 已随阶段 2 迁入。其余按阶段 2/3 分批下降。
+
+### 阶段 2/3 剩余（**截至本文件更新时**）
+
+| 待迁文件 | 处数 | 类别 | 归属阶段 |
+|---|---|---|---|
+| `BattleDescriptionGenerator.kt` | 12 | 文本持久化（写 Room `battle_logs`） | 阶段 2 |
+| `SectResponseTexts.kt` | 2 | 表现（送礼文案） | 阶段 2 |
+| `DiscipleChatDialog.kt` | 3 | **决策类**（写弟子 skills/cultivation）——**不得**走表现流 | 阶段 3 |
+| `LoadingTips.kt` | 1 | 表现（加载提示） | 阶段 2 |
+| `CloudLayerAnimator.kt` | 1 | 表现（云层装饰，自持 RNG） | 阶段 2 |
+| `GameEngineSectLevelOps.kt:210` | 1 | 决策（兽血材料入库存） | 阶段 3 |
+| `GameEngineWorldBattleOps.kt:356/370/384` | 3 | 决策 + **位置实参越界缺陷**（`maxRarity` 吃默认 6） | 阶段 3 |
+| `BeastMaterialDatabase.kt:351` | 1 | 决策（妖兽材料掉落） | 阶段 3 |
+| `RedeemCodeManager.kt:423` | 1 | 决策（姓名漏传 rng） | 阶段 3 |
+| ⑤ 默认值陷阱（活点） | ~19 | 决策（注册表 `generateRandom*` 省略实参） | 阶段 3 |
+| ④ `WorldMapGenerator` / `CaveExplorationSystem` | 2 | 决策（挂钟种子自持流） | 阶段 3 |
+
+> 阶段 3 的完整入口清单见 §3 中标记处置为"阶段 3"的行；`RngSourceGuardTest` 全程开着，新增未登记即测试红。
 
 ---
 

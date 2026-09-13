@@ -60,7 +60,7 @@ class RngSourceGuardTest {
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 19
         ),
         "core/engine" to mapOf(
-            RandomSourceCategory.BARE_DRAW to 16,
+            RandomSourceCategory.BARE_DRAW to 14,
             RandomSourceCategory.GAME_RANDOM to 0,
             RandomSourceCategory.SELF_HELD_RNG to 2,
             RandomSourceCategory.DEFAULT_PARAM_TRAP to 7
@@ -116,7 +116,10 @@ class RngSourceGuardTest {
         /** ④ 对象/单例自持 RNG */
         SELF_HELD_RNG(
             "④ 自持 RNG（挂钟种子/ThreadLocal/Random 字段）",
-            Regex("""fromSeed\(System\.|ThreadLocalRandom|private (val|var) [A-Za-z_]+: *Random *=""")
+            // 标识符字符类必须含 0-9 与全部大小写：初版写 `[A-Za-z_]+` 会**漏报**
+            // 含数字或连续大写的字段名（如 `private val random: Random`、
+            // `private var rngManager` 之后无匹配），属守卫自身漏洞（实测修复）
+            Regex("""fromSeed\(System\.|ThreadLocalRandom|private (val|var) [A-Za-z0-9_]+: *Random *=""")
         ),
 
         /** ⑤ 默认值陷阱（形参默认回落 `Random.Default`） */
