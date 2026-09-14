@@ -37,7 +37,9 @@ export const CATALOG = [
   // （婚姻批准接线走 batch-14 就绪地基 1592，不占新号）
 
   // ── 1810–1819 · w3-09 建筑/道路残差 ──
-  // （待 W4-A 填充）
+  { id: 1810, name: 'BUILDING_RESIDUAL_CLEAR', desc: '建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例+REFINING破除；槽组知识由Kotlin组装传入）' },
+  { id: 1811, name: 'BUILDING_PLACE_SLOTS', desc: '建筑放置槽位派生事务（SlotGroup.createSlots写段等价：八集合建槽+每塔一份PatrolConfig；生产槽id由Kotlin UUID生成传入）' },
+  // （道路残差已由 batch-07 road_tx 下沉 + A1 关闭 roads 单元——不占新号）
 
   // ── 1820–1829 · w3-10 生产残差 ──
   // （待 W4-A 填充）

@@ -542,4 +542,10 @@ object ActionIds {
     /** 婚姻拒绝事务（MARRIAGE拒绝事件直写；零弟子表写入/零RNG/无失败臂；提议移除留Kotlin运行态） */
     const val DISCIPLE_LIFECYCLE_MARRY_REJECT: Int = 1750
 
+    /** 建筑拆除/没收槽位清扫事务（十类槽位按槽组清除+长老殿末座判定+监牢/任务阁特例+REFINING破除；槽组知识由Kotlin组装传入） */
+    const val BUILDING_RESIDUAL_CLEAR: Int = 1810
+
+    /** 建筑放置槽位派生事务（SlotGroup.createSlots写段等价：八集合建槽+每塔一份PatrolConfig；生产槽id由Kotlin UUID生成传入） */
+    const val BUILDING_PLACE_SLOTS: Int = 1811
+
 }

@@ -54,6 +54,21 @@ interface BuildingFacade {
         feature: BuildingFeature,
         cost: Long
     ): Boolean
+
+    /**
+     * 放置槽位派生事务尝试（W4-A·w3-09，1811）：createSlots 残差下沉——
+     * 七组实例键控集合建槽 + 每塔一份 PatrolConfig；生产/长老组留 Kotlin
+     * （偏差登记：C++ 行无 buildingInstanceId、clearSpec 为注册表 lambda）。
+     * AUTHORITATIVE 门控 + 镜像回读；失败信封/降级返回 false——调用方回退
+     * Kotlin 原路径 createSlots 全量残差。
+     *
+     * @param activeId 目标宗门 id（矿场/灵田/仓库 sectId 冗余列）
+     */
+    fun tryNativePlaceSlotsResidual(
+        feature: BuildingFeature,
+        instanceId: String,
+        activeId: String
+    ): Boolean
     suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int)
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String)
     suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int)

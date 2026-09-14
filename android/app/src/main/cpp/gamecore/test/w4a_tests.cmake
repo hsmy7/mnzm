@@ -14,4 +14,6 @@
 set(W4A_TEST_SOURCES
     # w3-01 弟子操作面事务族（W4-A 第一子批）
     disciple_ops_tx_test.cpp
+    # w3-09 建筑槽位残差事务族（W4-A 第三子批）
+    building_residual_tx_test.cpp
 )

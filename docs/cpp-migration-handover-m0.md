@@ -531,6 +531,22 @@ Kotlin→C++ 游戏引擎迁移被审计定性为"**真实但未完成的迁移*
 
 **验收（实跑）**: 桌面 C++ **1348/1348**（基线 1346 + 拒绝 2 例；单进程直跑复核）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（含 47 个 `Diff*` 类）；六模块 detekt 绿（baseline 0 增长）；`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；`node scripts/gen-action-ids.mjs` 幂等（连跑两次产物零漂移）；冻结清单机检：`git diff w4-base` 无任何冻结/宿主/协议面文件（`GameEngine.kt` 为租约文件、租约表已登记）。
 
+## 2.62.3 W4-A 第四子批 A3（2026-09-15，tag `w4a/04`）：w3-09 建筑/道路残差——槽位清扫/派生双事务下沉 + 没收臂复用 + 道路核对收口
+
+批次: W4-A | ActionId: **1810**（`BUILDING_RESIDUAL_CLEAR`）/ **1811**（`BUILDING_PLACE_SLOTS`）（181 动作 / maxId=1811） | 产物: 新 `building_residual_tx.h` + `building_residual_tx_test.cpp`（5 例）；改 `dispatch_w4a.cpp`、`BuildingNativeTx.kt`（残差清扫臂 + 放置派生臂）、`BuildingFacade.kt`/`BuildingFacadeImpl.kt`（接口 + 实现 + 没收臂）、`BuildingDelegate.kt`（放置残差臂）、`w4a.mjs` + 两生成物；`W4AChannelClosures.kt`（BUILDING/ROAD 证据改写）
+
+**根因修正（ADR 备选路线落地）**: w3-09 计划的"C++ 侧槽位表承载"落地为 `building_residual_tx.h` 双事务——ADR 原判 "GridBuildingData 无槽位字段" 经实测精确化：槽位本就是 gameData 协议集合（C++ 全量持有），真正的缺字段是 **C++ `ProductionSlot` 行无 `buildingInstanceId`**（Kotlin `@ProtoNumber(21)` 为 Kotlin 侧单边协议字段，`json_codec` 生产行无该键）⇒ 实例级清扫在生产行上不可表达。
+
+**1810 清扫（拆除/没收共臂）**: 输入 = Kotlin 组装的目标投影（instanceId + C++ 可清扫组名单 + 监牢/任务阁特例标志 + 关联弟子 id——含生产 repo 侧来源）；C++ 扫 **矿场/巡逻/住所/灵田/仓库/藏经阁** 六实例键控集合 + `activeBloodRefinements` 键删除 + 监牢全量释放 REFLECTING（思过双键移除）+ 任务阁清 activeMissions/存活 ON_MISSION 回 IDLE + REFINING 破除（statusData 定向移除 buildingId）。**偏差登记（清扫范围边界）**：① productionSlots 留 Kotlin（缺字段实证如上——A4 生产域处置）；② ElderPositions 八变体留 Kotlin（clearSpec 为注册表内 lambda 单一事实源，C++ 复制即双算漂移）。patrolConfigs 不清 = 两臂 towerIdx=-1 的 bug-for-bug 兼容（Kotlin 原路径同序）。
+
+**1811 派生（放置）**: `createSlots` 写段等价——六组建槽（基数 = 执行时现状，与 beforeNative 基数一致）+ 每塔一份 PatrolConfig；生产/长老组留 Kotlin（同偏差）。Kotlin 臂序：`tryNativePlaceSlotsResidual` 成功 → 仅承担生产槽 gameData 写 + Room 回流；降级回退原路径全量。
+
+**没收臂复用（月变没收，调用点零改动）**: `seizeBuildingsOfSect` 首行接入 `nativeTx.removeBuildings`（与玩家拆除同一入口：1453 + 1810 + Gate/Room/sync）；`removeBuildingsInternal` 降级为回退臂。宿主文件族调用点（`GameEngineCoreMonthOps.kt:95`）零触碰。
+
+**道路核对收口（计划第 4 行，核对型交付）**: `RoadFacadeImpl.kt:67/:85` 为 batch-07 native 臂就位后的**回退臂**（红线 3 保留）；`RoadMaskTracker`/`RoadTiling` 为 ② 类 UI 缓存；`roads` 单元已由 A1 关闭——无稳态写者，证据改写登记。
+
+**验收（实跑）**: 桌面 C++ **1353/1353**（基线 1348 + 残差 5 例；单进程直跑复核）；`:core:engine` 全量 `--rerun-tasks` + 重建 JNI 对拍全绿（含 47 个 `Diff*` 类）；六模块 detekt 绿；`:app:externalNativeBuildRelease` + `:app:lintRelease` 绿；生成器幂等零漂移；冻结清单机检零命中。
+
 ## 2.66 仓库对象库整理批（2026-09-15）：3 个死 tag 清除 + 半打包损坏态根治
 
 批次: 仓库基建批（非代码批；**零源码改动**） | 触发: §2.61 执行"备份纪律"时 `git bundle create --all` 报 `fatal: bad object`，顺藤查出对象库处于**半打包损坏态** | 产物: 文档（本小节 + `docs/parallel-batches-w4/README.md` + `CHANGELOG.md`）

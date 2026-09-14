@@ -138,6 +138,32 @@ class BuildingDelegate(
         instanceId: String,
         activeId: String
     ) {
+        // W4-A·w3-09 native 臂（1811）：七组实例键控集合建槽 C++ 真相先行；
+        // 生产/长老组留 Kotlin（偏差登记：C++ 行无 buildingInstanceId、
+        // clearSpec 为注册表 lambda 单一事实源）——成功后本函数仅承担
+        // 生产槽 gameData 写 + Room 回流；降级/失败信封回退下方原路径全量。
+        if (buildingFacade.tryNativePlaceSlotsResidual(feature, instanceId, activeId)) {
+            val newProductionSlots = feature.slotGroups
+                .filterIsInstance<com.xianxia.sect.core.engine.domain.building.SlotGroup.ProductionSlotGroup>()
+                .map { group ->
+                    val sameTypeCount = beforeNative.placedBuildings.count {
+                        com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+                            .findByDisplayName(it.displayName)?.buildingType == feature.buildingType
+                    }
+                    com.xianxia.sect.core.model.production.ProductionSlot.createIdle(
+                        slotIndex = sameTypeCount,
+                        buildingType = feature.buildingType,
+                        buildingId = feature.key
+                    ).copy(buildingInstanceId = instanceId)
+                }
+            if (newProductionSlots.isNotEmpty()) {
+                gameEngine.updateGameData { data ->
+                    data.copy(productionSlots = data.productionSlots + newProductionSlots)
+                }
+                newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
+            }
+            return
+        }
         val results = feature.slotGroups.map { group ->
             group.createSlots(instanceId, beforeNative, activeId, feature)
         }

@@ -47,12 +47,20 @@ internal val w4ARetainedGameDataFields: Set<String> = linkedSetOf(
 /** 本批域的**域级审计结论证据**（`文件:行 函数` 形式；CLOSED 域必须为空）。 */
 internal val w4ADomainEvidence: Map<Domain, List<String>> = mapOf(
     Domain.BUILDING to listOf(
-        "BuildingNativeTx.kt:163 removeBuildings — native 拆除后的槽位/弟子释放残差（C++ 模型无槽位字段）",
-        "BuildingFacadeImpl同步Ops.kt:281 — 月变没收建筑（GameEngineCoreMonthOps.kt:95 无 native 臂）",
-        "BuildingDelegate.kt:145 placeSlotsResidual — native 放置成功后的槽位派生残差",
+        // A3（w3-09）已收口——拆除/放置残差 C++ 清扫臂就位（1810/1811），
+        // 生产/长老组留 Kotlin（偏差登记：C++ ProductionSlot 行无
+        // buildingInstanceId、ElderPositions clearSpec 为注册表 lambda）：
+        "BuildingNativeTx.kt:163 removeBuildings — 残差清扫 native 臂就位（1810）" +
+            "+ 生产/长老 Kotlin 补扫 + Gate/Room 运行态",
+        "BuildingFacadeImpl同步Ops.kt:281 removeBuildingsInternal — 月变没收经 " +
+            "seizeBuildingsOfSect native 臂（与玩家拆除同入口）；本函数降级为回退臂" +
+            "（扇出调用点留 W4-D）",
+        "BuildingDelegate.kt:145 placeSlotsResidual — 槽位派生 native 臂就位（1811）" +
+            "；生产槽 gameData 写与 Room 回流留 Kotlin",
     ),
     Domain.ROAD to listOf(
-        "RoadFacadeImpl.kt:67/:85 placeRoad/removeRoad — native 臂后的槽位/回执残差（road_tx 已下沉）",
+        "RoadFacadeImpl.kt:67/:85 placeRoad/removeRoad — A3 核对：batch-07 native 臂就位 " +
+            "+ A1 已关闭 roads 单元；余下为回退臂（红线 3 保留）与 UI 缓存（② 类），无稳态写者",
     ),
     // W4-A·A1（w3-01）后：弟子操作面写者已全部获得 C++ 真相先行臂
     //（Kotlin 原路径降级为回退臂；信封残差 = lifeEvents 瞬态列回写 +
